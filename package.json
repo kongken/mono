@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "download:maps": "node scripts/download-maps.mjs",
-    "check:maps": "node scripts/check-maps.mjs"
+    "check:maps": "node scripts/check-maps.mjs",
+    "test": "node --test scripts/travel.test.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

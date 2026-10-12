@@ -11,6 +11,7 @@ import {
   MapPin,
   Mountains,
   Plus,
+  PencilSimple,
   MagnifyingGlass,
   X,
   Trash,
@@ -32,26 +33,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import regions from "./regions.json";
+import {
+  automaticColor,
+  colors,
+  toggleVisit,
+  type Saved,
+  type Visit,
+} from "./lib/travel";
 import "./App.css";
 
 type Region = (typeof regions)[number];
-type Visit = {
-  code: string;
-  name: string;
-  province: string;
-  color: string;
-  date: string;
-  note: string;
-};
-type Saved = { version: 1; visits: Visit[]; provinces: Record<string, string> };
 const STORAGE = "shanhai-travel-v1";
-const colors = [
-  { value: "#4b937d", name: "山野绿" },
-  { value: "#e2af5c", name: "日落黄" },
-  { value: "#d88370", name: "珊瑚橙" },
-  { value: "#719fc6", name: "海岸蓝" },
-  { value: "#a08cbd", name: "暮光紫" },
-];
 const empty: Saved = { version: 1, visits: [], provinces: {} };
 const today = () => new Date().toLocaleDateString("en-CA");
 const provinceByCode = (code: string) => regions.find((p) => p.code === code);
@@ -120,6 +112,7 @@ function App() {
   const [draftDate, setDraftDate] = useState(today());
   const [draftNote, setDraftNote] = useState("");
   const [toast, setToast] = useState("");
+  const [undoVisit, setUndoVisit] = useState<Visit | null>(null);
   const [storageError, setStorageError] = useState(false);
   const [hover, setHover] = useState("");
   const [zoom, setZoom] = useState(1);
@@ -135,9 +128,9 @@ function App() {
   }, [saved]);
   useEffect(() => {
     if (!toast) return;
-    const timeout = setTimeout(() => setToast(""), 4000);
+    const timeout = setTimeout(() => setToast(""), undoVisit ? 8000 : 4000);
     return () => clearTimeout(timeout);
-  }, [toast]);
+  }, [toast, undoVisit]);
   useEffect(() => {
     const controller = new AbortController();
     setMap(null);
@@ -213,11 +206,29 @@ function App() {
     );
   }, [map, province]);
   const path = projection ? geoPath(projection) : null;
+  const notify = (message: string, removed: Visit | null = null) => {
+    setToast(message);
+    setUndoVisit(removed);
+  };
+  const toggleCity = (provinceCode: string, cityCode: string) => {
+    const city = provinceByCode(provinceCode)?.cities.find(
+      (c) => c.code === cityCode,
+    );
+    if (!city) return;
+    const removed = saved.visits.find((v) => v.code === cityCode);
+    setSaved((s) => toggleVisit(s, provinceCode, city, today()));
+    notify(
+      removed
+        ? `已取消 ${city.name} 的足迹`
+        : `已标记去过 ${city.name}，颜色已自动选择`,
+      removed || null,
+    );
+  };
   const openEditor = (p: string, city = "") => {
     const existing = saved.visits.find((v) => v.code === city);
     setDraftProvince(p);
     setDraftCity(city);
-    setDraftColor(existing?.color || colors[0].value);
+    setDraftColor(existing?.color || automaticColor(saved, p));
     setDraftDate(existing?.date ?? today());
     setDraftNote(existing?.note || "");
     setEditor(true);
@@ -225,7 +236,7 @@ function App() {
   const selectDraftCity = (code: string) => {
     setDraftCity(code);
     const existing = saved.visits.find((v) => v.code === code);
-    setDraftColor(existing?.color || colors[0].value);
+    setDraftColor(existing?.color || automaticColor(saved, draftProvince));
     setDraftDate(existing?.date ?? today());
     setDraftNote(existing?.note || "");
   };
@@ -245,7 +256,7 @@ function App() {
       visits: [...s.visits.filter((v) => v.code !== city.code), visit],
     }));
     setEditor(false);
-    setToast(`已记录 ${city.name} 的足迹`);
+    notify(`已记录 ${city.name} 的足迹`);
   };
   const exportData = () => {
     const url = URL.createObjectURL(
@@ -256,7 +267,7 @@ function App() {
     a.download = `山海足迹-${today()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    setToast("足迹备份已导出");
+    notify("足迹备份已导出");
   };
   const importFile = async (file?: File) => {
     if (!file) return;
@@ -265,7 +276,7 @@ function App() {
         throw new Error("文件过大，请选择足迹备份文件");
       setImportOpen(validateSaved(JSON.parse(await file.text())));
     } catch (e) {
-      setToast(e instanceof Error ? e.message : "无法读取文件");
+      notify(e instanceof Error ? e.message : "无法读取文件");
     }
     if (fileInput.current) fileInput.current.value = "";
   };
@@ -413,7 +424,7 @@ function App() {
                     </h2>
                     <p>
                       {province
-                        ? `点击${unit}，给旅行记忆添一种颜色`
+                        ? `点击${unit}标记去过，再次点击取消 · 自动配色`
                         : "点击一个省份，开启你的城市足迹"}
                     </p>
                   </div>
@@ -472,7 +483,7 @@ function App() {
                             : provinceByCode(code)?.short ||
                               feature.properties.name;
                           const activate = () => {
-                            if (province) openEditor(province.code, code);
+                            if (province) toggleCity(province.code, code);
                             else navigate(provinceByCode(code) || null);
                           };
                           return (
@@ -482,6 +493,7 @@ function App() {
                               role="button"
                               tabIndex={0}
                               aria-label={`${feature.properties.name}${fill ? "，已去过" : ""}`}
+                              aria-pressed={province ? !!fill : undefined}
                               onClick={activate}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {
@@ -503,7 +515,13 @@ function App() {
                               >
                                 <title>
                                   {feature.properties.name}
-                                  {fill ? " · 已去过" : " · 点击探索"}
+                                  {province
+                                    ? fill
+                                      ? " · 再次点击取消"
+                                      : " · 点击标记去过"
+                                    : fill
+                                      ? " · 已去过"
+                                      : " · 点击探索"}
                                 </title>
                               </path>
                               {point && (
@@ -729,7 +747,7 @@ function App() {
                         else next[province.code] = colors[0].value;
                         return { ...s, provinces: next };
                       });
-                      setToast(
+                      notify(
                         saved.provinces[province.code]
                           ? "已取消省份单独标记，城市足迹保留"
                           : `已标记去过${province.short}`,
@@ -756,19 +774,35 @@ function App() {
                     .map((c) => {
                       const visit = saved.visits.find((v) => v.code === c.code);
                       return (
-                        <button
+                        <div
                           key={c.code}
-                          className="province-row"
-                          onClick={() => openEditor(province.code, c.code)}
+                          className={`city-row ${visit ? "city-visited" : ""}`}
                         >
-                          <span
-                            className={`province-dot ${visit ? "has-visit" : ""}`}
-                            style={visit ? { background: visit.color } : {}}
-                          />
-                          <span>{c.name}</span>
-                          <small>{visit ? "已去过" : "待探索"}</small>
-                          {visit ? <Check size={14} /> : <Plus size={14} />}
-                        </button>
+                          <button
+                            className="province-row city-toggle"
+                            aria-pressed={!!visit}
+                            aria-label={`${c.name}，${visit ? "取消去过" : "标记去过"}`}
+                            onClick={() => toggleCity(province.code, c.code)}
+                          >
+                            <span
+                              className={`province-dot ${visit ? "has-visit" : ""}`}
+                              style={visit ? { background: visit.color } : {}}
+                            />
+                            <span>{c.name}</span>
+                            <small>{visit ? "已去过" : "点击标记"}</small>
+                            {visit ? <Check size={14} /> : <Plus size={14} />}
+                          </button>
+                          {visit && (
+                            <button
+                              className="city-edit"
+                              aria-label={`编辑${c.name}足迹`}
+                              title="编辑日期与备注"
+                              onClick={() => openEditor(province.code, c.code)}
+                            >
+                              <PencilSimple size={15} />
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
                   {!province.cities.some((c) => c.name.includes(query)) && (
@@ -882,7 +916,7 @@ function App() {
                 : "记录一段新的旅程"}
             </DialogTitle>
             <DialogDescription>
-              选一个颜色，把走过的风景留在地图上。
+              颜色默认自动分配，直接保存即可；也可以调整日期和备注。
             </DialogDescription>
           </DialogHeader>
           <form
@@ -899,7 +933,7 @@ function App() {
                   onChange={(e) => {
                     setDraftProvince(e.target.value);
                     setDraftCity("");
-                    setDraftColor(colors[0].value);
+                    setDraftColor(automaticColor(saved, e.target.value));
                     setDraftDate(today());
                     setDraftNote("");
                   }}
@@ -928,7 +962,12 @@ function App() {
               </label>
             </div>
             <fieldset>
-              <legend>足迹颜色</legend>
+              <legend>
+                足迹颜色{" "}
+                <span className="auto-color-note">
+                  默认自动配色，可按喜好调整
+                </span>
+              </legend>
               <div className="color-picker">
                 {colors.map((c) => (
                   <button
@@ -978,7 +1017,7 @@ function App() {
                       visits: s.visits.filter((v) => v.code !== draftCity),
                     }));
                     setEditor(false);
-                    setToast("已移除这座城市的足迹");
+                    notify("已移除这座城市的足迹");
                   }}
                 >
                   <Trash size={16} />
@@ -1023,7 +1062,7 @@ function App() {
               onClick={() => {
                 if (importOpen) setSaved(importOpen);
                 setImportOpen(null);
-                setToast("备份已导入");
+                notify("备份已导入");
               }}
             >
               确认替换并导入
@@ -1034,8 +1073,25 @@ function App() {
       {toast && (
         <div className="toast" role="status">
           <Check size={18} />
-          {toast}
-          <button aria-label="关闭提示" onClick={() => setToast("")}>
+          <span>{toast}</span>
+          {undoVisit && (
+            <button
+              className="undo-button"
+              onClick={() => {
+                setSaved((s) => ({
+                  ...s,
+                  visits: [
+                    ...s.visits.filter((v) => v.code !== undoVisit.code),
+                    undoVisit,
+                  ],
+                }));
+                notify(`已恢复 ${undoVisit.name} 的足迹`);
+              }}
+            >
+              撤销
+            </button>
+          )}
+          <button aria-label="关闭提示" onClick={() => notify("")}>
             <X size={16} />
           </button>
         </div>
