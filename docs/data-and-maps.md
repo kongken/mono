@@ -65,6 +65,7 @@
 | `public/maps/<省级区域ID>.json` | 对应省内行政区域边界 |
 | `src/regions.json` | 省份 ID、全称、简称及下级区域 ID/名称，用于列表、搜索和备份校验 |
 | `src/lib/maps.ts` | GeoJSON 多边形方向归一化，适配 d3 的球面绘制 |
+| `src/lib/tiles.ts` | 解析瓦片源环境变量并提供默认值 |
 | `src/lib/coords.ts` | GCJ-02 与 WGS-84 坐标转换，用于把边界叠加到 OSM 底图 |
 | `src/components/OsmProvinceMap.tsx` | 省内可选 OSM 底图（Leaflet），按需加载 |
 | `scripts/download-maps.mjs` | 根据现有全国地图下载省内地图并重建索引 |
@@ -90,6 +91,7 @@
 - 默认关闭，关闭时不发起任何第三方地图请求，仍满足“运行时无需第三方地图请求或 API Key”；开启后才会请求瓦片，无需 API Key。
 - DataV 边界为 GCJ-02 坐标，而 OSM 使用 WGS-84。开启底图时对除台湾（`tw-` 补充数据）、香港、澳门以外的区域做 GCJ-02 到 WGS-84 的近似转换；转换仅用于底图视图，`public/maps` 数据与区域 ID 不变，SVG 视图仍使用原坐标。
 - 瓦片通过 CSS 滤镜降低饱和度与对比度，使叠加的区域颜色和标签更清晰。评估过 Carto Positron 公共瓦片，目前需要 API Key，不可直接使用；更浅的底图建议改用自托管瓦片。
+- 瓦片源可在构建时通过环境变量配置，未设置或格式无效时回落到上述 OSM 公共瓦片：`VITE_OSM_TILE_URL`（必须包含 `{z}`、`{x}`、`{y}`）、`VITE_OSM_TILE_MAX_ZOOM`（1–22 的整数；自定义地址默认 18，默认地址为 19）、`VITE_OSM_TILE_ATTRIBUTION`（附加署名，作为 HTML 显示，仅用于受信任的构建配置；OpenStreetMap 署名始终保留）。变量在构建时写入，修改后需重新构建；Docker 镜像通过 `--build-arg` 传入，当前 CI 工作流尚未传递这些参数。源码见 `src/lib/tiles.ts`。
 - 全国地图使用圆锥投影，且包含南海附图，不使用 OSM 底图。
 - 当前限制：开发阶段直接使用 OSM 公共瓦片，其[使用政策](https://operations.osmfoundation.org/policies/tiles/)不适合大流量生产场景，正式上线前需改为自托管瓦片或商业服务；香港、澳门边界未做坐标转换，台湾边界精度以数据源为准；边界与底图的行政区域线可能存在差异和偏移。
 

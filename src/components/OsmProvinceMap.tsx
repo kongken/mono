@@ -3,12 +3,15 @@ import { ArrowCounterClockwise, Minus, Plus } from "@phosphor-icons/react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { geometryGcj02ToWgs84 } from "@/lib/coords";
+import { resolveTileConfig } from "@/lib/tiles";
 import type { Feature } from "geojson";
 import type { MapData } from "@/lib/maps";
 
-const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-const ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors';
+const TILES = resolveTileConfig({
+  VITE_OSM_TILE_URL: import.meta.env.VITE_OSM_TILE_URL,
+  VITE_OSM_TILE_MAX_ZOOM: import.meta.env.VITE_OSM_TILE_MAX_ZOOM,
+  VITE_OSM_TILE_ATTRIBUTION: import.meta.env.VITE_OSM_TILE_ATTRIBUTION,
+});
 
 type Props = {
   map: MapData;
@@ -64,9 +67,9 @@ export default function OsmProvinceMap({
       attributionControl: false,
     });
     L.control.attribution({ position: "bottomleft" }).addTo(instance);
-    const tiles = L.tileLayer(TILE_URL, {
-      maxZoom: 19,
-      attribution: ATTRIBUTION,
+    const tiles = L.tileLayer(TILES.url, {
+      maxZoom: TILES.maxZoom,
+      attribution: TILES.attribution,
     });
     tiles.on("tileerror", () => {
       if (tileFailed.current) return;
