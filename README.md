@@ -49,6 +49,10 @@ npm run download:maps  # 联网更新省内地图与城市索引
 
 shadcn 组件通过官方 CLI 添加，源文件在 `src/components/ui/`；地图归一化逻辑在 `src/lib/maps.ts`，主要业务界面在 `src/App.tsx`。
 
+## Docker 镜像
+
+GitHub Actions 分别构建并发布 `ghcr.io/kongken/trip-map`（后端）和 `ghcr.io/kongken/trip-map-front`（前端）。main 分支使用 `main` 标签，版本 tag 发布对应版本；PR 仅构建。详情见 [Docker 镜像与 Actions](docs/docker-images.md)。
+
 ## 项目文档
 
 - [文档索引](docs/README.md)

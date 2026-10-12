@@ -5,6 +5,7 @@ RUN go mod download
 COPY cmd cmd
 COPY internal internal
 COPY pkg pkg
+RUN go test ./...
 RUN CGO_ENABLED=0 go build -trimpath -o /tripmap ./cmd/tripmap
 
 FROM gcr.io/distroless/static-debian12:nonroot

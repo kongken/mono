@@ -133,7 +133,7 @@ make test-integration
 
 PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除。
 
-`Dockerfile` 仅构建后端镜像，运行时挂载 `/config/config.yaml`；容器中连接 Compose 依赖时，配置地址使用服务名和容器端口，而不是宿主机的 `127.0.0.1`。
+[Docker 镜像与 Actions](docker-images.md) 说明前后端两个镜像的构建发布。根目录 `Dockerfile` 仅构建后端镜像，运行时挂载 `/config/config.yaml`；容器中连接 Compose 依赖时，配置地址使用服务名和容器端口，而不是宿主机的 `127.0.0.1`。
 
 ## 下一阶段
 
