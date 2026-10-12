@@ -37,7 +37,7 @@ import regions from "./regions.json";
 import {
   automaticColor,
   colors,
-  provinceColor as getProvinceColor,
+  nationalProvinceColors,
   toggleProvince,
   toggleVisit,
   type Saved,
@@ -183,8 +183,8 @@ function App() {
     ...Object.keys(saved.provinces),
     ...saved.visits.map((v) => v.province),
   ]);
-  const provinceColor = (code: string) =>
-    getProvinceColor(saved, code);
+  const provinceColors = useMemo(() => nationalProvinceColors(saved), [saved]);
+  const provinceColor = (code: string) => provinceColors[code];
   const currentVisits = saved.visits
     .filter((v) => !province || v.province === province.code)
     .sort((a, b) => b.date.localeCompare(a.date));

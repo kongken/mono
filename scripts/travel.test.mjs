@@ -97,3 +97,21 @@ test("national allocation counts each explored province once and preserves exist
   flags = toggleProvince(flags, "province-2");
   assert.equal(automaticProvinceColor(flags, "new"), colors[2].value);
 });
+
+test("national map balances legacy imported province colors without changing saved records", async () => {
+  const { nationalProvinceColors } = await import("../src/lib/travel.ts");
+  const state = {
+    version: 1,
+    provinces: { "130000": colors[0].value },
+    visits: Array.from({ length: 29 }, (_, i) => ({
+      code: `city-${i}`, name: `城市${i}`, province: `province-${String(i).padStart(2, "0")}`,
+      color: colors[0].value, date: "2026-10-13", note: "保留旅行记忆",
+    })),
+  };
+  const before = structuredClone(state);
+  const result = nationalProvinceColors(state);
+  assert.equal(Object.keys(result).length, 30);
+  for (const color of colors) assert.equal(Object.values(result).filter(value => value === color.value).length, 6);
+  assert.deepEqual(state, before);
+  assert.deepEqual(nationalProvinceColors({ ...state, visits: [...state.visits].reverse() }), result);
+});

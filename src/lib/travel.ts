@@ -28,6 +28,17 @@ export function provinceColor(saved: Saved, province: string): string | undefine
   return saved.provinces[province] || saved.visits.find((visit) => visit.province === province)?.color;
 }
 
+export function nationalProvinceColors(saved: Saved): Record<string, string> {
+  // Derive display colors independently from stored city colors, including old backups.
+  const explored = new Set([
+    ...Object.keys(saved.provinces),
+    ...saved.visits.map((visit) => visit.province),
+  ]);
+  return Object.fromEntries(
+    [...explored].sort().map((code, index) => [code, colors[index % colors.length].value]),
+  );
+}
+
 export function automaticProvinceColor(saved: Saved, province: string): string {
   const existing = provinceColor(saved, province);
   if (existing) return existing;
