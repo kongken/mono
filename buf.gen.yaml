@@ -1,0 +1,11 @@
+version: v2
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.34.1
+    out: pkg/proto
+    opt: [paths=source_relative]
+  - remote: buf.build/connectrpc/go:v1.18.1
+    out: pkg/proto
+    opt: [paths=source_relative]
+  - remote: buf.build/bufbuild/es:v2.4.0
+    out: src/gen
+    opt: [target=ts, import_extension=none]

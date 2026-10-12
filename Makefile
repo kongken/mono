@@ -1,0 +1,36 @@
+.PHONY: build test ent buf dev deps-up deps-down storage-init
+
+build:
+	go build -o bin/tripmap ./cmd/tripmap
+
+test:
+	go test ./...
+
+ent:
+	go generate ./internal/ent
+
+buf:
+	buf generate
+
+# Config is ignored locally, so make dev can safely use it for credentials.
+dev:
+	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.yaml PORT=18081 go run ./cmd/tripmap
+
+deps-up:
+	docker compose up -d --wait
+
+# Named volumes remain intact.
+deps-down:
+	docker compose down
+
+storage-init:
+	go run ./cmd/storage-init
+
+# Only the isolated Compose development services, never a production DSN.
+.PHONY: test-integration
+test-integration:
+	TRIPMAP_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
+	TRIPMAP_TEST_REDIS_ADDR=127.0.0.1:16379 TRIPMAP_TEST_REDIS_PASSWORD=tripmap-local \
+	TRIPMAP_TEST_S3_ENDPOINT=http://127.0.0.1:19000 TRIPMAP_TEST_S3_ACCESS_KEY=tripmap-local \
+	TRIPMAP_TEST_S3_SECRET_KEY=tripmap-local-secret TRIPMAP_TEST_S3_BUCKET=tripmap \
+	go test -v ./internal/integration

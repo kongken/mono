@@ -1,11 +1,12 @@
 # 项目协作说明
 
-山海足迹是中国旅行地图 WebApp，使用 React、Vite、TypeScript 和 shadcn/ui。保持中文旅行手账风格，以省份探索和城市足迹记录为核心。
+山海足迹是中国旅行地图 WebApp，前端使用 React、Vite、TypeScript 和 shadcn/ui；后端沿用 neo-box 的 Go、Butterfly、Gin、ConnectRPC、Ent，基础设施使用 PostgreSQL、Redis 和 S3。保持中文旅行手账风格，以省份探索和城市足迹记录为核心。
 
 ## 按任务读取文档
 
 - 修改用户可见功能或交互前，阅读 [功能描述](docs/features.md)，确认现有规则和验收场景。
 - 修改存储、备份、行政区域或地图绘制前，阅读 [数据与地图说明](docs/data-and-maps.md)，确认兼容性和边界数据限制。
+- 修改后端启动、接口、数据库 schema、Redis 或 S3 前，阅读 [后端初始化说明](docs/backend.md)。
 - 查找文档入口和维护方式时，阅读 [文档索引](docs/README.md)。运行命令以 `package.json` 为准，启动说明见根目录 `README.md`。
 
 ## 实现约定
@@ -16,10 +17,18 @@
 - 地图使用随项目分发的 GeoJSON；保持运行时无需第三方地图请求或 API Key。
 - 更改存储结构或区域索引时，处理已有足迹的兼容或迁移，避免将旧数据直接当作空数据覆盖。
 
+## 后端约定
+
+- Go module 位于根目录，前端保留 `src/`；后端分为 `cmd/` 入口、`internal/app/` 装配、`internal/application/` RPC 服务、存储模块和 Ent schema。
+- 修改 `proto/` 后运行 `make buf`，修改 `internal/ent/schema/` 后运行 `make ent`，将生成的 Go / TypeScript / Ent 文件一起提交；生成文件只通过生成器更新。
+- 私有业务接口先实现认证与用户隔离，当前公共接口仅提供健康状态；城市区域 ID 规则与前端一致。
+- 配置示例使用本地开发值，真实凭据放在忽略的 `config.yaml` 或挂载 Secret 中。
+
 ## 文档同步
 
 - 新增、调整或删除用户可见行为时，在同一次变更中更新 `docs/features.md` 的对应功能规则和验收场景。
 - 更改数据字段、版本、备份校验、地图来源或区域映射时，同步更新 `docs/data-and-maps.md`。
+- 后端配置、模型或接口改变时同步更新 `docs/backend.md`；业务功能实际实现后更新功能描述及调研状态。
 - 新建专题文档后，在 `docs/README.md` 增加入口；启动或常用命令改变时，更新根目录 `README.md`。
 - 文档区分“当前已实现”与“当前限制”。尚未实现的想法如需记录，单独标明待实现，避免写成现有功能。
 - 详细功能规则以 `docs` 为主，根目录 `README.md` 保留项目简介、运行方式和文档入口，减少重复维护。
@@ -27,6 +36,7 @@
 ## 按变更验证
 
 - 应用代码或构建配置改变后运行 `npm run build`；标记或自动配色逻辑改变后另运行 `npm test`。
+- 后端改变后运行 `make test` 和 `make build`；存储连接、模型或对象操作改变后，另在独立开发环境运行 `make test-integration`；契约变化后检查 `buf lint` 和前端构建。
 - 地图数据、区域索引、投影或归一化逻辑改变后，另运行 `npm run check:maps`；数据更新涉及的文件一起提交。
 - 用户交互改变后，在浏览器验证对应功能场景；布局改变后检查桌面及手机尺寸，清理自行创建的测试足迹。
 - 仅文档变更时检查路径、链接和描述与实现是否一致，无需为此重新构建应用。

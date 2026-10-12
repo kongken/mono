@@ -1,0 +1,39 @@
+# Local-only sample. Copy to ignored config.yaml; replace credentials for deployment.
+# Butterfly reads literal YAML; ${VAR} substitutions are not supported.
+log:
+  level: info
+  format: text
+  add_source: false
+
+db_store: main
+redis_store: main
+# Ent creates/adds tables locally. Disable this after planning production migrations.
+auto_migrate: true
+storage:
+  s3_store: main
+  key_prefix: tripmap
+
+store:
+  db:
+    main:
+      driver: postgres
+      host: 127.0.0.1
+      port: 15432
+      user: tripmap
+      password: tripmap-local
+      db_name: tripmap
+      ssl_mode: disable
+  redis:
+    main:
+      addr: 127.0.0.1:16379
+      password: tripmap-local
+      db: 0
+  s3:
+    main:
+      endpoint: http://127.0.0.1:19000
+      region: us-east-1
+      bucket: tripmap
+      access_key_id: tripmap-local
+      secret_access_key: tripmap-local-secret
+      use_path_style: true
+      use_ssl: false

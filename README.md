@@ -1,6 +1,6 @@
 # 山海足迹
 
-使用 React、Vite、TypeScript、Tailwind CSS 和 shadcn/ui 开发的中国旅行地图。地图使用 d3-geo 渲染本地 GeoJSON，无需地图 API Key；省内地图可选开启 OpenStreetMap 底图（Leaflet，默认关闭）。
+使用 React、Vite、TypeScript、Tailwind CSS 和 shadcn/ui 开发的中国旅行地图，后端使用 Go、Butterfly、Gin、ConnectRPC、Ent 与 PostgreSQL/Redis/S3。地图使用 d3-geo 渲染本地 GeoJSON，无需地图 API Key；省内地图可选开启 OpenStreetMap 底图（Leaflet，默认关闭）。
 
 ## 运行
 
@@ -18,6 +18,17 @@ npm test
 npm run build
 npm run preview
 ```
+
+## 后端启动
+
+```bash
+cp config.example.yaml config.yaml
+make deps-up
+make storage-init
+make dev
+```
+
+配置、端口、数据库模型和验证方式见 [后端初始化说明](docs/backend.md)。后端基础设施已就绪，前端足迹仍采用浏览器本地保存；登录与云同步尚待实现。
 
 ## 功能
 

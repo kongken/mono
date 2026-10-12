@@ -13,6 +13,9 @@
     "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "^2.16.0",
+    "@connectrpc/connect": "^2.2.0",
+    "@connectrpc/connect-web": "^2.2.0",
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/vite": "^4.3.3",
     "class-variance-authority": "^0.7.1",

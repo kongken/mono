@@ -1,0 +1,41 @@
+name: trip-map
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: tripmap
+      POSTGRES_PASSWORD: tripmap-local
+      POSTGRES_DB: tripmap
+    ports: ["127.0.0.1:15432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tripmap -d tripmap"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "tripmap-local"]
+    ports: ["127.0.0.1:16379:6379"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "tripmap-local", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  s3:
+    image: rustfs/rustfs:1.0.1
+    command: ["/data"]
+    environment:
+      RUSTFS_ACCESS_KEY: tripmap-local
+      RUSTFS_SECRET_KEY: tripmap-local-secret
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_OBS_LOGGER_LEVEL: error
+    ports: ["127.0.0.1:19000:9000", "127.0.0.1:19001:9001"]
+    volumes: ["s3-data:/data"]
+volumes:
+  postgres-data:
+  redis-data:
+  s3-data:

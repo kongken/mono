@@ -1,0 +1,7 @@
+.git
+node_modules
+dist
+bin
+.env
+config.yaml
+preview.jpg
