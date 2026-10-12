@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { ArrowCounterClockwise, Minus, Plus } from "@phosphor-icons/react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { geometryGcj02ToWgs84 } from "@/lib/coords";
@@ -21,11 +22,11 @@ type Props = {
   onTileError: () => void;
 };
 
-const baseStyle = (color?: string): L.PathOptions => ({
-  color: color ? "#ffffff" : "#4f7358",
-  weight: color ? 1.5 : 1.2,
+const baseStyle = (color?: string, hover = false): L.PathOptions => ({
+  color: color ? "#ffffff" : "#3d5f49",
+  weight: hover ? 2.6 : color ? 2 : 1.4,
   fillColor: color || "#ffffff",
-  fillOpacity: color ? 0.68 : 0.12,
+  fillOpacity: color ? (hover ? 0.92 : 0.8) : hover ? 0.42 : 0.2,
 });
 
 export default function OsmProvinceMap({
@@ -45,15 +46,24 @@ export default function OsmProvinceMap({
     latest.current = { colors, onToggle, onHover, onTileError };
   });
   const tileFailed = useRef(false);
+  const bounds = useRef<L.LatLngBounds | null>(null);
+  const fit = useCallback(() => {
+    if (bounds.current?.isValid())
+      leaflet.current?.fitBounds(bounds.current, {
+        paddingTopLeft: [28, 56],
+        paddingBottomRight: [28, 28],
+      });
+  }, []);
 
   useEffect(() => {
     if (!container.current) return;
     const instance = L.map(container.current, {
       zoomSnap: 0.25,
       worldCopyJump: false,
-      attributionControl: true,
+      zoomControl: false,
+      attributionControl: false,
     });
-    instance.zoomControl.setPosition("bottomright");
+    L.control.attribution({ position: "bottomleft" }).addTo(instance);
     const tiles = L.tileLayer(TILE_URL, {
       maxZoom: 19,
       attribution: ATTRIBUTION,
@@ -95,7 +105,7 @@ export default function OsmProvinceMap({
           click: () => latest.current.onToggle(code),
           mouseover: () => {
             latest.current.onHover(name);
-            path.setStyle({ weight: 2.2, fillOpacity: 0.5 });
+            path.setStyle(baseStyle(latest.current.colors[code], true));
           },
           mouseout: () => {
             latest.current.onHover("");
@@ -131,17 +141,13 @@ export default function OsmProvinceMap({
     }
     geojson.addTo(instance);
     layers.current = regions;
-    const bounds = geojson.getBounds();
-    if (bounds.isValid())
-      instance.fitBounds(bounds, {
-        paddingTopLeft: [24, 70],
-        paddingBottomRight: [24, 24],
-      });
+    bounds.current = geojson.getBounds();
+    fit();
     return () => {
       geojson.remove();
       layers.current = new Map();
     };
-  }, [map, convertCoords]);
+  }, [map, convertCoords, fit]);
 
   useEffect(() => {
     for (const [code, path] of layers.current) {
@@ -157,11 +163,27 @@ export default function OsmProvinceMap({
   }, [colors, map, convertCoords]);
 
   return (
-    <div
-      ref={container}
-      className="osm-map"
-      role="group"
-      aria-label={label}
-    />
+    <>
+      <div
+        ref={container}
+        className="osm-map"
+        role="group"
+        aria-label={label}
+      />
+      <div className="map-controls">
+        <button aria-label="放大地图" onClick={() => leaflet.current?.zoomIn()}>
+          <Plus size={18} />
+        </button>
+        <button
+          aria-label="缩小地图"
+          onClick={() => leaflet.current?.zoomOut()}
+        >
+          <Minus size={18} />
+        </button>
+        <button aria-label="回到全省视图" title="回到全省视图" onClick={fit}>
+          <ArrowCounterClockwise size={17} />
+        </button>
+      </div>
+    </>
   );
 }
