@@ -7,6 +7,8 @@ COPY index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.jso
 COPY src src
 COPY public public
 COPY scripts scripts
+# Optional backend address; empty keeps the static site standalone (local-only).
+ARG VITE_API_BASE_URL
 # Optional OSM raster tile source, baked in at build time (see docs/data-and-maps.md).
 ARG VITE_OSM_TILE_URL
 ARG VITE_OSM_TILE_MAX_ZOOM

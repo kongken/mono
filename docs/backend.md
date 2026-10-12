@@ -26,6 +26,15 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `cmd/storage-init/` | 显式初始化配置中指定的 S3 bucket |
 | `internal/integration/` | 可选的实际 PostgreSQL、Redis、S3 集成测试 |
 
+## 前端独立运行
+
+后端是可选的。前端通过构建时环境变量 `VITE_API_BASE_URL` 决定是否连接后端：
+
+- 未设置、为空或格式无效：纯本地模式，不创建 API 客户端，不向 `/api`、`/ping`、`/readyz` 发请求；全部功能使用浏览器本地存储。当前所有用户可见功能都属于这种情况，`npm run dev`、`npm run build` 以及任意静态托管（含前端镜像默认构建）都无需后端。
+- `/api` 这类同源路径，或 `https://api.example.com` 这类绝对 http(s) 地址：启用后端能力。`/api` 配合 Vite 开发代理或前端镜像的 Nginx 转发使用。
+
+变量在构建时写入，修改后需重新构建；前端镜像通过 `--build-arg VITE_API_BASE_URL=/api` 传入，当前 CI 工作流未传递，因此发布的前端镜像为纯本地模式。解析逻辑见 `src/lib/backend.ts`，客户端见 `src/api/system.ts`。后续接入登录、云同步的功能必须通过该开关判断，并在后端不可用时降级为本地模式，不得阻塞本地足迹的读写。
+
 前端仍位于根目录 `src/`，无需搬迁到 `front/`。后端 Go module 位于根目录；前后端分别构建。
 
 ## 本地开发
@@ -45,6 +54,8 @@ make dev
 npm install
 npm run dev
 ```
+
+联调后端时在 `.env.local` 设置 `VITE_API_BASE_URL=/api` 并重启 Vite；不设置则前端保持纯本地模式。
 
 Compose 只启动本项目的开发依赖，使用命名卷保存数据。S3 开发实例使用 [RustFS 官方容器](https://docs.rustfs.com/en/installation/container/docker)，提供持久化 S3 兼容接口；生产环境可配置 AWS S3 或其他兼容供应方，服务代码无需更换。
 
@@ -137,4 +148,4 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：先明确认证和用户归属、修复本地读取失败保护，再实现足迹读写及迁移。基础设施初始化不代表 F0–F12 已完成。
+从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：先明确认证和用户归属，再实现足迹读写及迁移（前端的本地读取失败保护 F0 已完成）。基础设施初始化不代表 F1–F12 已完成。
