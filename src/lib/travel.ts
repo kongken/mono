@@ -19,14 +19,34 @@ export const colors = [
   { value: "#a08cbd", name: "暮光紫" },
 ];
 
-export function automaticColor(saved: Saved, province: string): string {
-  const counts = colors.map(
-    (color) =>
-      saved.visits.filter(
-        (visit) => visit.province === province && visit.color === color.value,
-      ).length,
-  );
+function leastUsedColor(used: string[]): string {
+  const counts = colors.map((color) => used.filter((value) => value === color.value).length);
   return colors[counts.indexOf(Math.min(...counts))].value;
+}
+
+export function provinceColor(saved: Saved, province: string): string | undefined {
+  return saved.provinces[province] || saved.visits.find((visit) => visit.province === province)?.color;
+}
+
+export function automaticProvinceColor(saved: Saved, province: string): string {
+  const existing = provinceColor(saved, province);
+  if (existing) return existing;
+  const explored = new Set([...Object.keys(saved.provinces), ...saved.visits.map((visit) => visit.province)]);
+  return leastUsedColor([...explored].map((code) => provinceColor(saved, code)!));
+}
+
+export function automaticColor(saved: Saved, province: string): string {
+  const visits = saved.visits.filter((visit) => visit.province === province);
+  return visits.length
+    ? leastUsedColor(visits.map((visit) => visit.color))
+    : automaticProvinceColor(saved, province);
+}
+
+export function toggleProvince(saved: Saved, province: string): Saved {
+  const provinces = { ...saved.provinces };
+  if (provinces[province]) delete provinces[province];
+  else provinces[province] = automaticProvinceColor(saved, province);
+  return { ...saved, provinces };
 }
 
 export function toggleVisit(

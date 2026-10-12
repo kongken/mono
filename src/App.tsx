@@ -37,6 +37,8 @@ import regions from "./regions.json";
 import {
   automaticColor,
   colors,
+  provinceColor as getProvinceColor,
+  toggleProvince,
   toggleVisit,
   type Saved,
   type Visit,
@@ -182,8 +184,7 @@ function App() {
     ...saved.visits.map((v) => v.province),
   ]);
   const provinceColor = (code: string) =>
-    saved.provinces[code] ||
-    saved.visits.find((v) => v.province === code)?.color;
+    getProvinceColor(saved, code);
   const currentVisits = saved.visits
     .filter((v) => !province || v.province === province.code)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -819,12 +820,7 @@ function App() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setSaved((s) => {
-                        const next = { ...s.provinces };
-                        if (next[province.code]) delete next[province.code];
-                        else next[province.code] = colors[0].value;
-                        return { ...s, provinces: next };
-                      });
+                      setSaved((s) => toggleProvince(s, province.code));
                       notify(
                         saved.provinces[province.code]
                           ? "已取消省份单独标记，城市足迹保留"
