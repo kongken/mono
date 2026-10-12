@@ -1,6 +1,6 @@
 # 山海足迹
 
-使用 React、Vite、TypeScript、Tailwind CSS 和 shadcn/ui 开发的中国旅行地图。地图使用 d3-geo 渲染本地 GeoJSON，无需地图 API Key。
+使用 React、Vite、TypeScript、Tailwind CSS 和 shadcn/ui 开发的中国旅行地图。地图使用 d3-geo 渲染本地 GeoJSON，无需地图 API Key；省内地图可选开启 OpenStreetMap 底图（Leaflet，默认关闭）。
 
 ## 运行
 

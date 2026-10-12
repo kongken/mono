@@ -65,6 +65,8 @@
 | `public/maps/<省级区域ID>.json` | 对应省内行政区域边界 |
 | `src/regions.json` | 省份 ID、全称、简称及下级区域 ID/名称，用于列表、搜索和备份校验 |
 | `src/lib/maps.ts` | GeoJSON 多边形方向归一化，适配 d3 的球面绘制 |
+| `src/lib/coords.ts` | GCJ-02 与 WGS-84 坐标转换，用于把边界叠加到 OSM 底图 |
+| `src/components/OsmProvinceMap.tsx` | 省内可选 OSM 底图（Leaflet），按需加载 |
 | `scripts/download-maps.mjs` | 根据现有全国地图下载省内地图并重建索引 |
 | `scripts/prepare-taiwan.mjs` | 处理台湾补充数据的名称、ID、中心点及多边形方向 |
 | `scripts/check-maps.mjs` | 校验全国覆盖、省内索引一致性、ID 唯一性、多边形方向及投影路径 |
@@ -80,6 +82,15 @@
 台湾县市边界来自 [ronnywang/twgeojson](https://github.com/ronnywang/twgeojson) 的 `twcounty2010.2.json`。其源数据为 2012 年县市边界；处理脚本将部分名称转换为简体，并把桃园县显示为桃园市，未据此重绘边界。
 
 直辖市和港澳提供区县数据，而不是常规省份的地级市数据。地图用于旅行可视化，下载快照可能与最新行政区划不同。
+
+## OSM 底图（可选）
+
+省内地图可通过开关改用 [OpenStreetMap](https://www.openstreetmap.org/copyright) 瓦片（`https://tile.openstreetmap.org/{z}/{x}/{y}.png`）作为底图，使用 Leaflet 绘制，并在首次开启时按需加载。偏好保存在独立存储键 `shanhai-basemap-v1`（`osm` 或 `off`），不属于足迹数据，也不进入导出备份。
+
+- 默认关闭，关闭时不发起任何第三方地图请求，仍满足“运行时无需第三方地图请求或 API Key”；开启后才会请求瓦片，无需 API Key。
+- DataV 边界为 GCJ-02 坐标，而 OSM 使用 WGS-84。开启底图时对除台湾（`tw-` 补充数据）、香港、澳门以外的区域做 GCJ-02 到 WGS-84 的近似转换；转换仅用于底图视图，`public/maps` 数据与区域 ID 不变，SVG 视图仍使用原坐标。
+- 全国地图使用圆锥投影，且包含南海附图，不使用 OSM 底图。
+- 当前限制：开发阶段直接使用 OSM 公共瓦片，其[使用政策](https://operations.osmfoundation.org/policies/tiles/)不适合大流量生产场景，正式上线前需改为自托管瓦片或商业服务；香港、澳门边界未做坐标转换，台湾边界精度以数据源为准；边界与底图的行政区域线可能存在差异和偏移。
 
 ## 绘制与维护
 

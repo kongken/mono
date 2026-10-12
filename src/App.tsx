@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { geoConicConformal, geoMercator, geoPath } from "d3-geo";
 import { normalizeMap, type MapData } from "./lib/maps";
 import {
@@ -22,6 +22,7 @@ import {
   MapTrifold,
   CalendarBlank,
   ArrowCounterClockwise,
+  Stack,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +42,18 @@ import {
   type Visit,
 } from "./lib/travel";
 import "./App.css";
+
+const OsmProvinceMap = lazy(() => import("./components/OsmProvinceMap"));
+const BASEMAP_STORAGE = "shanhai-basemap-v1";
+// Taiwan (WGS-84 source), Hong Kong and Macau are not GCJ-02 shifted.
+const WGS84_PROVINCES = ["710000", "810000", "820000"];
+function loadBasemap() {
+  try {
+    return localStorage.getItem(BASEMAP_STORAGE) === "osm";
+  } catch {
+    return false;
+  }
+}
 
 type Region = (typeof regions)[number];
 const STORAGE = "shanhai-travel-v1";
@@ -116,6 +129,7 @@ function App() {
   const [storageError, setStorageError] = useState(false);
   const [hover, setHover] = useState("");
   const [zoom, setZoom] = useState(1);
+  const [basemap, setBasemap] = useState(loadBasemap);
   const [importOpen, setImportOpen] = useState<Saved | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -126,6 +140,13 @@ function App() {
       setStorageError(true);
     }
   }, [saved]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(BASEMAP_STORAGE, basemap ? "osm" : "off");
+    } catch {
+      // The preference is optional; the map keeps working without storage.
+    }
+  }, [basemap]);
   useEffect(() => {
     if (!toast) return;
     const timeout = setTimeout(() => setToast(""), undoVisit ? 8000 : 4000);
@@ -206,6 +227,11 @@ function App() {
     );
   }, [map, province]);
   const path = projection ? geoPath(projection) : null;
+  const visitColors = useMemo(
+    () => Object.fromEntries(saved.visits.map((v) => [v.code, v.color])),
+    [saved.visits],
+  );
+  const showOsm = !!province && basemap;
   const notify = (message: string, removed: Visit | null = null) => {
     setToast(message);
     setUndoVisit(removed);
@@ -405,7 +431,7 @@ function App() {
               </Button>
             </div>
             {tab === "map" ? (
-              <div className="map-stage">
+              <div className={`map-stage ${showOsm ? "with-basemap" : ""}`}>
                 <div className="map-heading">
                   {province && (
                     <button
@@ -444,6 +470,27 @@ function App() {
                     <Compass className="loading" size={30} />
                     正在展开地图…
                   </div>
+                ) : showOsm ? (
+                  <Suspense
+                    fallback={
+                      <div className="map-message">
+                        <Compass className="loading" size={30} />
+                        正在加载底图…
+                      </div>
+                    }
+                  >
+                    <OsmProvinceMap
+                      map={map}
+                      colors={visitColors}
+                      convertCoords={!WGS84_PROVINCES.includes(province.code)}
+                      label={`${province.name}${unit}地图（OpenStreetMap 底图）`}
+                      onToggle={(code) => toggleCity(province.code, code)}
+                      onHover={setHover}
+                      onTileError={() =>
+                        notify("OpenStreetMap 底图加载失败，可关闭底图后继续标记")
+                      }
+                    />
+                  </Suspense>
                 ) : (
                   <svg
                     className="china-map"
@@ -585,6 +632,18 @@ function App() {
                         : "山川湖海，下一站总有新的风景")}
                   </span>
                 </div>
+                {province && !mapError && (
+                  <button
+                    className="basemap-toggle"
+                    aria-pressed={basemap}
+                    title="开启后会向 openstreetmap.org 请求地图瓦片"
+                    onClick={() => setBasemap((v) => !v)}
+                  >
+                    <Stack size={16} />
+                    {basemap ? "关闭 OSM 底图" : "OSM 底图"}
+                  </button>
+                )}
+                {!showOsm && (
                 <div className="map-controls">
                   <button
                     aria-label="放大地图"
@@ -604,6 +663,7 @@ function App() {
                     <ArrowCounterClockwise size={17} />
                   </button>
                 </div>
+                )}
               </div>
             ) : (
               <div className="collection">
