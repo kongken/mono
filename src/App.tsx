@@ -41,6 +41,8 @@ import {
   type Saved,
   type Visit,
 } from "./lib/travel";
+import TravelReport from "./components/TravelReport";
+import { totalCities, percentage } from "./lib/statistics";
 import "./App.css";
 
 const OsmProvinceMap = lazy(() => import("./components/OsmProvinceMap"));
@@ -119,6 +121,7 @@ function App() {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"map" | "visits">("map");
   const [editor, setEditor] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [draftProvince, setDraftProvince] = useState("330000");
   const [draftCity, setDraftCity] = useState("");
   const [draftColor, setDraftColor] = useState(colors[0].value);
@@ -386,8 +389,8 @@ function App() {
             </div>
             <i />
             <div>
-              <strong>{saved.visits.length}</strong>
-              <span>已留下足迹</span>
+              <strong>{saved.visits.length}<small>/ {totalCities}</small></strong>
+              <span>已打卡城市 · {percentage(saved.visits.length, totalCities)}</span>
             </div>
             <i />
             <div>
@@ -399,6 +402,10 @@ function App() {
             </div>
           </div>
         </section>
+        <div className="report-entry">
+          <span>每一站都算数，看看你的山海进度。</span>
+          <Button variant="outline" onClick={() => setReportOpen(true)}><DownloadSimple size={17} />足迹统计 / 生成图片</Button>
+        </div>
         <div className="workspace">
           <section className="map-panel">
             <div className="map-toolbar">
@@ -731,7 +738,7 @@ function App() {
                 <h2>{province ? province.short : "探索目的地"}</h2>
                 <p>
                   {province
-                    ? `已走过 ${currentVisits.length} 个${unit}`
+                    ? `已走过 ${currentVisits.length} / ${province.cities.length} 个${unit} · ${percentage(currentVisits.length, province.cities.length)}`
                     : "从一个省份，开始一段旅程"}
                 </p>
               </div>
@@ -964,6 +971,12 @@ function App() {
         ref={fileInput}
         onChange={(e) => void importFile(e.target.files?.[0])}
       />
+      {reportOpen && <TravelReport open={reportOpen} onOpenChange={setReportOpen} saved={saved} province={province}
+        shapes={map && path ? map.features.filter(f => f.properties.name).map(f => ({
+          d: path(f) || "", fill: (province ? visitColors[String(f.properties.adcode)] : provinceColor(String(f.properties.adcode))) || "#e9eee9",
+        })) : null}
+        inset={map && !province ? map.features.filter(f => !f.properties.name).map(f => geoPath(geoMercator().fitExtent([[9, 7], [74, 87]], f))(f) || "") : []}
+      />}
       <Dialog open={editor} onOpenChange={setEditor}>
         <DialogContent className="editor-dialog">
           <DialogHeader>
