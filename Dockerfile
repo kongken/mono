@@ -5,6 +5,8 @@ RUN go mod download
 COPY cmd cmd
 COPY internal internal
 COPY pkg pkg
+# The region index test checks the backend copy against the frontend one.
+COPY src/regions.json src/regions.json
 RUN go test ./...
 RUN CGO_ENABLED=0 go build -trimpath -o /tripmap ./cmd/tripmap
 

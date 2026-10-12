@@ -20,7 +20,9 @@ func timestamps() []ent.Field {
 	return []ent.Field{field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now)}
 }
 
-// User reserves ownership of cloud records; authentication is a later feature.
+// User owns cloud records. Password accounts have a username and password hash;
+// OAuth accounts are identified by (provider, external_id) and have neither.
+// Provider email addresses are intentionally not stored.
 type User struct{ ent.Schema }
 
 func (User) Annotations() []schema.Annotation {
@@ -30,14 +32,45 @@ func (User) Fields() []ent.Field {
 	return append([]ent.Field{
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(),
 		field.String("email").Optional().Nillable().Unique(),
+		field.String("username").Optional().Nillable().Unique(),
 		field.String("display_name").Default(""),
+		field.String("avatar_url").Default(""),
+		field.String("provider").Default(""),
+		field.String("external_id").Default(""),
+		field.String("password_hash").Default("").Sensitive(),
+		field.Bool("disabled").Default(false),
 		field.Int64("revision").Default(0).NonNegative(),
 	}, timestamps()...)
+}
+func (User) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("provider", "external_id").Unique().Annotations(entsql.IndexWhere("external_id <> ''"))}
 }
 func (User) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("visits", CityVisit.Type).Annotations(entsql.OnDelete(entsql.Cascade)), edge.To("province_marks", ProvinceMark.Type).Annotations(entsql.OnDelete(entsql.Cascade)), edge.To("media_objects", MediaObject.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("sessions", Session.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
+}
+
+// Session is a bearer session. Only the SHA-256 of the token is stored.
+type Session struct{ ent.Schema }
+
+func (Session) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "auth_sessions"}}
+}
+func (Session) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").Immutable(),
+		field.String("token_hash").NotEmpty().Unique().Immutable().Sensitive(),
+		field.Time("created_at").Default(now).Immutable(), field.Time("expires_at"),
+		field.Time("last_used_at").Optional().Nillable(), field.Bool("revoked").Default(false),
+	}
+}
+func (Session) Edges() []ent.Edge {
+	return []ent.Edge{edge.From("user", User.Type).Ref("sessions").Field("user_id").Unique().Required().Immutable()}
+}
+func (Session) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("user_id"), index.Fields("expires_at")}
 }
 
 type CityVisit struct{ ent.Schema }

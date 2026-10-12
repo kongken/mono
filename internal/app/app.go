@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sync/atomic"
 	"time"
 
 	redisstore "butterfly.orx.me/core/store/redis"
 	s3store "butterfly.orx.me/core/store/s3"
 	"butterfly.orx.me/core/store/sqldb"
+	"connectrpc.com/connect"
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/gin-gonic/gin"
@@ -21,6 +23,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/config"
 	"go.orx.me/apps/trip-map/internal/ent"
 	"go.orx.me/apps/trip-map/internal/health"
+	"go.orx.me/apps/trip-map/internal/regions"
 	"go.orx.me/apps/trip-map/pkg/proto/tripmap/v1/tripmapv1connect"
 )
 
@@ -100,6 +103,16 @@ func (h *Handlers) Shutdown() error {
 	}
 	return errors.Join(r.DB.Close(), r.Redis.Close())
 }
+
+// Store exposes the connected backing services to RPC services, or nil before
+// bootstrap has finished.
+func (h *Handlers) Store() *application.Store {
+	r := h.resources.Load()
+	if r == nil || r.DB == nil || r.Redis == nil {
+		return nil
+	}
+	return &application.Store{DB: r.DB, Redis: r.Redis}
+}
 func (h *Handlers) Routes(r *gin.Engine) {
 	// A reverse proxy can be explicitly configured later; don't trust arbitrary X-Forwarded-For.
 	_ = r.SetTrustedProxies(nil)
@@ -112,6 +125,43 @@ func (h *Handlers) Routes(r *gin.Engine) {
 		}
 		c.JSON(code, gin.H{"ready": health.Ready(statuses), "dependencies": statuses})
 	})
-	path, handler := tripmapv1connect.NewSystemServiceHandler(application.NewSystemService(h))
-	r.Any("/api"+path+"*path", gin.WrapH(http.StripPrefix("/api", handler)))
+	index, err := regions.Default()
+	if err != nil {
+		panic(err) // the index is embedded, so this is a build defect
+	}
+	opts := connect.WithInterceptors(application.NewAuthInterceptor(h))
+	api := r.Group("/api", h.cors())
+	mount := func(path string, handler http.Handler) {
+		api.Any(path+"*path", gin.WrapH(http.StripPrefix("/api", handler)))
+	}
+	path, handler := tripmapv1connect.NewSystemServiceHandler(application.NewSystemService(h), opts)
+	mount(path, handler)
+	path, handler = tripmapv1connect.NewAuthServiceHandler(application.NewAuthService(h.cfg, h), opts)
+	mount(path, handler)
+	path, handler = tripmapv1connect.NewFootprintServiceHandler(application.NewFootprintService(h.cfg, h, index), opts)
+	mount(path, handler)
+}
+
+// cors answers cross-origin requests from the configured origins only. Requests
+// without an Origin header, and same-origin deployments, are unaffected.
+func (h *Handlers) cors() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin == "" {
+			return
+		}
+		c.Writer.Header().Add("Vary", "Origin")
+		if !slices.Contains(h.cfg.Auth.CORSAllowedOrigins, origin) {
+			return
+		}
+		header := c.Writer.Header()
+		header.Set("Access-Control-Allow-Origin", origin)
+		header.Set("Access-Control-Expose-Headers", "Connect-Protocol-Version, Content-Type, Grpc-Status, Grpc-Message, Grpc-Status-Details-Bin, Connect-Content-Encoding, Connect-Accept-Encoding")
+		if c.Request.Method == http.MethodOptions {
+			header.Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+			header.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms, X-User-Agent")
+			header.Set("Access-Control-Max-Age", "7200")
+			c.AbortWithStatus(http.StatusNoContent)
+		}
+	}
 }

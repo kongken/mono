@@ -9,6 +9,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/schema"
+	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -112,24 +113,62 @@ func init() {
 	provincemarkDescID := provincemarkFields[0].Descriptor()
 	// provincemark.DefaultID holds the default value on creation for the id field.
 	provincemark.DefaultID = provincemarkDescID.Default.(func() string)
+	sessionFields := schema.Session{}.Fields()
+	_ = sessionFields
+	// sessionDescTokenHash is the schema descriptor for token_hash field.
+	sessionDescTokenHash := sessionFields[2].Descriptor()
+	// session.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
+	session.TokenHashValidator = sessionDescTokenHash.Validators[0].(func(string) error)
+	// sessionDescCreatedAt is the schema descriptor for created_at field.
+	sessionDescCreatedAt := sessionFields[3].Descriptor()
+	// session.DefaultCreatedAt holds the default value on creation for the created_at field.
+	session.DefaultCreatedAt = sessionDescCreatedAt.Default.(func() time.Time)
+	// sessionDescRevoked is the schema descriptor for revoked field.
+	sessionDescRevoked := sessionFields[6].Descriptor()
+	// session.DefaultRevoked holds the default value on creation for the revoked field.
+	session.DefaultRevoked = sessionDescRevoked.Default.(bool)
+	// sessionDescID is the schema descriptor for id field.
+	sessionDescID := sessionFields[0].Descriptor()
+	// session.DefaultID holds the default value on creation for the id field.
+	session.DefaultID = sessionDescID.Default.(func() string)
 	userFields := schema.User{}.Fields()
 	_ = userFields
 	// userDescDisplayName is the schema descriptor for display_name field.
-	userDescDisplayName := userFields[2].Descriptor()
+	userDescDisplayName := userFields[3].Descriptor()
 	// user.DefaultDisplayName holds the default value on creation for the display_name field.
 	user.DefaultDisplayName = userDescDisplayName.Default.(string)
+	// userDescAvatarURL is the schema descriptor for avatar_url field.
+	userDescAvatarURL := userFields[4].Descriptor()
+	// user.DefaultAvatarURL holds the default value on creation for the avatar_url field.
+	user.DefaultAvatarURL = userDescAvatarURL.Default.(string)
+	// userDescProvider is the schema descriptor for provider field.
+	userDescProvider := userFields[5].Descriptor()
+	// user.DefaultProvider holds the default value on creation for the provider field.
+	user.DefaultProvider = userDescProvider.Default.(string)
+	// userDescExternalID is the schema descriptor for external_id field.
+	userDescExternalID := userFields[6].Descriptor()
+	// user.DefaultExternalID holds the default value on creation for the external_id field.
+	user.DefaultExternalID = userDescExternalID.Default.(string)
+	// userDescPasswordHash is the schema descriptor for password_hash field.
+	userDescPasswordHash := userFields[7].Descriptor()
+	// user.DefaultPasswordHash holds the default value on creation for the password_hash field.
+	user.DefaultPasswordHash = userDescPasswordHash.Default.(string)
+	// userDescDisabled is the schema descriptor for disabled field.
+	userDescDisabled := userFields[8].Descriptor()
+	// user.DefaultDisabled holds the default value on creation for the disabled field.
+	user.DefaultDisabled = userDescDisabled.Default.(bool)
 	// userDescRevision is the schema descriptor for revision field.
-	userDescRevision := userFields[3].Descriptor()
+	userDescRevision := userFields[9].Descriptor()
 	// user.DefaultRevision holds the default value on creation for the revision field.
 	user.DefaultRevision = userDescRevision.Default.(int64)
 	// user.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
 	user.RevisionValidator = userDescRevision.Validators[0].(func(int64) error)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[4].Descriptor()
+	userDescCreatedAt := userFields[10].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[5].Descriptor()
+	userDescUpdatedAt := userFields[11].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
