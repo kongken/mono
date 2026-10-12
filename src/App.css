@@ -1048,6 +1048,22 @@ legend {
 .dialog-actions button {
   font-size: 12px;
 }
+.unreadable-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fcf1df;
+  color: #8f6836;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.unreadable-error {
+  background: #f8e5e0;
+  color: #a4503f;
+}
+.unreadable-actions {
+  flex-wrap: wrap;
+}
 .delete-button {
   margin-right: auto;
   color: #b07160 !important;

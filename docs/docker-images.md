@@ -44,6 +44,8 @@ docker build -f deploy/frontend/Dockerfile -t trip-map-front:local .
 
 `/api/`、`/ping` 和 `/readyz` 保留完整路径转发到后端；SPA 路由返回 index.html，不存在的地图或打包资源返回 404。哈希静态文件长缓存，index.html 不缓存，地图资源重新验证缓存。
 
+前端镜像默认不配置 `VITE_API_BASE_URL`，页面是纯本地模式，不会请求后端，没有后端时也可单独运行；需要连接后端时构建时传入 `--build-arg VITE_API_BASE_URL=/api`（当前 CI 未传递）。
+
 前端 `/healthz` 仅检查静态服务，不代表后端可用；后端就绪状态检查 `/readyz`。Nginx 在请求时解析后端地址，后端暂时不存在不会阻止静态站点启动。默认 resolver 使用 Docker 内置 DNS `127.0.0.11`，运行容器时需加入自定义 Docker 网络（Compose 默认创建此类网络），而不是 Docker 默认 bridge。
 
 ```bash

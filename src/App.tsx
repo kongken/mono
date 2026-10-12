@@ -23,6 +23,7 @@ import {
   CalendarBlank,
   ArrowCounterClockwise,
   Stack,
+  Warning,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,12 @@ import {
   type Saved,
   type Visit,
 } from "./lib/travel";
+import {
+  loadLocalSaved,
+  preserveUnreadable,
+  validateSaved as validateSavedData,
+  type LocalLoad,
+} from "./lib/persistence";
 import CityPicker from "./components/CityPicker";
 import TravelReport from "./components/TravelReport";
 import { totalCities, percentage } from "./lib/statistics";
@@ -65,58 +72,21 @@ const STORAGE = "shanhai-travel-v1";
 const empty: Saved = { version: 1, visits: [], provinces: {} };
 const today = () => new Date().toLocaleDateString("en-CA");
 const provinceByCode = (code: string) => regions.find((p) => p.code === code);
-function validateSaved(data: unknown): Saved {
-  if (!data || typeof data !== "object") throw new Error("文件格式不正确");
-  const s = data as Saved;
-  if (
-    s.version !== 1 ||
-    !Array.isArray(s.visits) ||
-    !s.provinces ||
-    typeof s.provinces !== "object"
-  )
-    throw new Error("请选择山海足迹导出的 JSON 文件");
-  const ids = new Set<string>();
-  for (const v of s.visits) {
-    const p = provinceByCode(v.province);
-    if (
-      !p?.cities.some((c) => c.code === v.code && c.name === v.name) ||
-      ids.has(v.code) ||
-      !colors.some((c) => c.value === v.color) ||
-      typeof v.note !== "string" ||
-      v.note.length > 1000 ||
-      typeof v.date !== "string" ||
-      (v.date && !/^\d{4}-\d{2}-\d{2}$/.test(v.date))
-    )
-      throw new Error("足迹数据无效或重复");
-    ids.add(v.code);
-  }
-  for (const [code, color] of Object.entries(s.provinces))
-    if (!provinceByCode(code) || !colors.some((c) => c.value === color))
-      throw new Error("省份标记数据无效");
-  return {
-    version: 1,
-    visits: s.visits.map((v) => ({
-      code: v.code,
-      name: v.name,
-      province: v.province,
-      color: v.color,
-      date: v.date,
-      note: v.note,
-    })),
-    provinces: s.provinces,
-  };
-}
-function loadSaved() {
-  try {
-    const raw = localStorage.getItem(STORAGE);
-    return raw ? validateSaved(JSON.parse(raw)) : empty;
-  } catch {
-    return empty;
-  }
-}
+const validateSaved = (data: unknown) => validateSavedData(data, regions);
+const loadSaved = () => loadLocalSaved(localStorage, STORAGE, regions);
+type Unreadable = Extract<LocalLoad, { status: "unreadable" }>;
 
 function App() {
-  const [saved, setSaved] = useState<Saved>(loadSaved);
+  const [initialLoad] = useState(loadSaved);
+  const [saved, setSaved] = useState<Saved>(initialLoad.saved);
+  // While set, local data failed to load: nothing is written so the original
+  // cache stays intact until the user chooses how to proceed.
+  const [unreadable, setUnreadable] = useState<Unreadable | null>(
+    initialLoad.status === "unreadable" ? initialLoad : null,
+  );
+  const [rawExported, setRawExported] = useState(false);
+  const [confirmEmpty, setConfirmEmpty] = useState(false);
+  const [unreadableError, setUnreadableError] = useState("");
   const [province, setProvince] = useState<Region | null>(null);
   const [map, setMap] = useState<MapData | null>(null);
   const [mapError, setMapError] = useState(false);
@@ -140,13 +110,14 @@ function App() {
   const [importOpen, setImportOpen] = useState<Saved | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
+    if (unreadable) return;
     try {
       localStorage.setItem(STORAGE, JSON.stringify(saved));
       setStorageError(false);
     } catch {
       setStorageError(true);
     }
-  }, [saved]);
+  }, [saved, unreadable]);
   useEffect(() => {
     try {
       localStorage.setItem(BASEMAP_STORAGE, basemap ? "osm" : "off");
@@ -304,6 +275,39 @@ function App() {
     a.click();
     URL.revokeObjectURL(url);
     notify("足迹备份已导出");
+  };
+  const exportRaw = () => {
+    if (!unreadable) return;
+    const url = URL.createObjectURL(
+      new Blob([unreadable.raw], { type: "application/json" }),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `山海足迹-原始数据-${today()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setRawExported(true);
+    setUnreadableError("");
+  };
+  const resolveUnreadable = (next: Saved, message: string) => {
+    if (!unreadable) return;
+    // Keep a copy in the browser; if that fails, require a file export first.
+    const kept = preserveUnreadable(localStorage, STORAGE, unreadable.raw);
+    if (!kept && !rawExported) {
+      setUnreadableError(
+        "浏览器无法再保存一份原始数据副本，请先点击“导出原始数据”，再继续。",
+      );
+      return;
+    }
+    setSaved(next);
+    setUnreadable(null);
+    setConfirmEmpty(false);
+    setUnreadableError("");
+    notify(
+      kept
+        ? `${message}，原始数据已另存为浏览器内的副本`
+        : `${message}，原始数据已导出为文件`,
+    );
   };
   const importFile = async (file?: File) => {
     if (!file) return;
@@ -1144,6 +1148,63 @@ function App() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!unreadable} onOpenChange={() => {}}>
+        <DialogContent
+          showCloseButton={false}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <span className="dialog-icon">
+              <Warning size={25} weight="duotone" />
+            </span>
+            <DialogTitle>本地足迹数据无法读取</DialogTitle>
+            <DialogDescription>
+              {unreadable?.reason}。为避免覆盖，已暂停自动保存，原始数据仍保留在浏览器中，处理前请先导出。
+            </DialogDescription>
+          </DialogHeader>
+          {unreadable?.recovery && (
+            <p className="unreadable-note">
+              可识别 {unreadable.recovery.saved.visits.length} 条城市足迹、
+              {Object.keys(unreadable.recovery.saved.provinces).length} 个省份标记；
+              恢复时将丢弃 {unreadable.recovery.discardedVisits} 条足迹、
+              {unreadable.recovery.discardedProvinces} 个省份标记。
+            </p>
+          )}
+          {unreadableError && (
+            <p className="unreadable-note unreadable-error" role="alert">
+              {unreadableError}
+            </p>
+          )}
+          <div className="dialog-actions unreadable-actions">
+            <Button variant="outline" onClick={exportRaw}>
+              <DownloadSimple size={16} />
+              导出原始数据
+            </Button>
+            {unreadable?.recovery && (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  unreadable.recovery &&
+                  resolveUnreadable(unreadable.recovery.saved, "已恢复可识别的记录")
+                }
+              >
+                恢复可识别的记录
+              </Button>
+            )}
+            <Button
+              variant={confirmEmpty ? "destructive" : "outline"}
+              onClick={() =>
+                confirmEmpty
+                  ? resolveUnreadable(empty, "已以空数据开始")
+                  : setConfirmEmpty(true)
+              }
+            >
+              {confirmEmpty ? "确认以空数据开始" : "以空数据开始"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
       <Dialog
