@@ -1,0 +1,43 @@
+# 山海足迹
+
+使用 React、Vite、TypeScript、Tailwind CSS 和 shadcn/ui 开发的中国旅行地图。地图使用 d3-geo 渲染本地 GeoJSON，无需地图 API Key。
+
+## 运行
+
+推荐 Node.js 24，最低版本以 Vite 的要求为准。
+
+```bash
+npm install
+npm run dev
+```
+
+生产构建和预览：
+
+```bash
+npm run build
+npm run preview
+```
+
+## 功能
+
+- 全国与省内地图探索，省份及城市足迹着色。
+- 旅行日期、备注、目的地搜索、足迹收藏与探索统计。
+- 浏览器本地自动保存、JSON 备份导入导出，以及手机适配。
+
+完整交互规则和验收场景见 [功能描述](docs/features.md)。数据保存在当前浏览器，不会跨设备同步，建议定期导出备份。
+
+## 地图来源和边界说明
+
+地图文件已包含在 `public/maps/`，构建后随静态资源部署。来源、边界年份、区域 ID 及存储格式见 [数据与地图说明](docs/data-and-maps.md)。
+
+```bash
+npm run check:maps  # 检查地图完整性、投影、多边形方向和区域 ID
+npm run download:maps  # 联网更新省内地图与城市索引
+```
+
+shadcn 组件通过官方 CLI 添加，源文件在 `src/components/ui/`；地图归一化逻辑在 `src/lib/maps.ts`，主要业务界面在 `src/App.tsx`。
+
+## 项目文档
+
+- [文档索引](docs/README.md)
+- [项目协作与文档同步规范](AGENTS.md)
