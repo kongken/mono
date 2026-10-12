@@ -730,6 +730,30 @@ function App() {
                 )}
               </div>
             )}
+            {tab === "map" && !province && (
+              <nav className="compact-region-nav" aria-label="小区域快捷入口">
+                <span className="compact-region-title">快速进入</span>
+                <div className="compact-region-links">
+                  {["110000", "120000", "810000", "820000"].map((code) => {
+                    const region = provinceByCode(code)!;
+                    const color = provinceColor(code);
+                    return (
+                      <Button
+                        key={code}
+                        variant="outline"
+                        className="compact-region-button"
+                        aria-label={`进入${region.name}地图${color ? "，已探索" : "，未探索"}`}
+                        onClick={() => navigate(region)}
+                      >
+                        <span className="compact-region-dot" style={{ background: color || "#e9eee9" }} aria-hidden="true" />
+                        {region.short}
+                        <CaretRight size={14} aria-hidden="true" />
+                      </Button>
+                    );
+                  })}
+                </div>
+              </nav>
+            )}
             <div className="map-legend">
               <span>足迹色彩</span>
               {colors.map((c) => (
