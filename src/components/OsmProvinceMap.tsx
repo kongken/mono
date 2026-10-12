@@ -141,7 +141,10 @@ export default function OsmProvinceMap({
     }
     geojson.addTo(instance);
     layers.current = regions;
-    bounds.current = geojson.getBounds();
+    // Faraway Sansha islands must not shrink the initial view of Hainan island.
+    bounds.current = regions.has("460300")
+      ? L.featureGroup([...regions.entries()].filter(([code]) => code !== "460300").map(([, layer]) => layer)).getBounds()
+      : geojson.getBounds();
     fit();
     return () => {
       geojson.remove();

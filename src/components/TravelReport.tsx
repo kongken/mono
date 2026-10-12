@@ -12,7 +12,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   saved: Saved;
   province: (typeof regions)[number] | null;
-  shapes: { d: string; fill: string }[] | null;
+  shapes: { d: string; fill: string; stroke?: string }[] | null;
   inset: string[];
 };
 
@@ -85,7 +85,7 @@ export default function TravelReport({ open, onOpenChange, saved, province, shap
             <text x="70" y="155" fontSize="40" fontWeight="600" fill="#355943">{scope} · 我的旅行足迹</text>
             <text x="70" y="194" fontSize="19" fill="#7b8874">世界很大，慢慢留下足迹。</text>
             <g transform="translate(25,215)">
-              {shapes.map((shape, i) => <path key={i} d={shape.d} fill={shape.fill} stroke="#fffef9" strokeWidth="1.5" />)}
+              {shapes.map((shape, i) => <path key={i} d={shape.d} fill={shape.fill} stroke={shape.stroke || "#fffef9"} strokeWidth="1.5" />)}
               {!province && <g transform="translate(736,458)">
                 <rect width="83" height="109" rx="4" fill="#fafbf8" stroke="#d6ddd7" />
                 {inset.map((d, i) => <path key={i} d={d} fill="none" stroke="#b6c5ba" strokeWidth="1" />)}

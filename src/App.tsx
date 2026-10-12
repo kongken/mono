@@ -41,6 +41,7 @@ import {
   type Saved,
   type Visit,
 } from "./lib/travel";
+import CityPicker from "./components/CityPicker";
 import TravelReport from "./components/TravelReport";
 import { totalCities, percentage } from "./lib/statistics";
 import "./App.css";
@@ -120,6 +121,7 @@ function App() {
   const [retry, setRetry] = useState(0);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"map" | "visits">("map");
+  const [cityPickerOpen, setCityPickerOpen] = useState(false);
   const [editor, setEditor] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [draftProvince, setDraftProvince] = useState("330000");
@@ -198,7 +200,7 @@ function App() {
   const unit = isDistrict ? "区县" : "城市";
   const projection = useMemo(() => {
     if (!map) return null;
-    const shapes = map.features.filter((f) => f.properties.name);
+    const shapes = map.features.filter((f) => f.properties.name && (province?.code !== "460000" || String(f.properties.adcode) !== "460300"));
     // Mainland bounds define the national camera. Maritime lines have their own inset.
     const bounds = province
       ? { ...map, features: shapes }
@@ -224,12 +226,16 @@ function App() {
     ).fitExtent(
       [
         [60, 35],
-        [790, 565],
+        [province?.code === "460000" ? 640 : 790, 565],
       ],
       bounds,
     );
   }, [map, province]);
   const path = projection ? geoPath(projection) : null;
+  const sansha = province?.code === "460000" ? map?.features.find(f => String(f.properties.adcode) === "460300") : undefined;
+  const sanshaPath = sansha ? geoPath(geoMercator().fitExtent([[670, 355], [795, 505]], sansha))(sansha) : null;
+  const drawPath = (feature: MapData["features"][number]) =>
+    String(feature.properties.adcode) === "460300" && sanshaPath ? sanshaPath : path?.(feature) || "";
   const visitColors = useMemo(
     () => Object.fromEntries(saved.visits.map((v) => [v.code, v.color])),
     [saved.visits],
@@ -428,9 +434,10 @@ function App() {
                     ? `${unit}地图`
                     : "全国地图"}
               </span>
+              {province && <Button size="sm" className="mobile-city-picker" onClick={() => setCityPickerOpen(true)}><MagnifyingGlass size={16} />选择城市</Button>}
               <Button
                 size="sm"
-                className="add-main"
+                className={`add-main ${province ? "province-add" : ""}`}
                 onClick={() => openEditor(province?.code || "330000")}
               >
                 <Plus size={16} />
@@ -531,9 +538,9 @@ function App() {
                           const center =
                             feature.properties.centroid ||
                             feature.properties.center;
-                          const point = center ? projection(center) : null;
+                          const point = code === "460300" && sanshaPath ? [732, 530] : center ? projection(center) : null;
                           const label = province
-                            ? feature.properties.name.replace(/市$/, "")
+                            ? feature.properties.name.replace(/(?:黎族苗族|黎族)自治县$/, "").replace(/市$/, "")
                             : provinceByCode(code)?.short ||
                               feature.properties.name;
                           const activate = () => {
@@ -560,11 +567,15 @@ function App() {
                               }
                               onMouseLeave={() => setHover("")}
                             >
+                              {code === "460300" && sanshaPath && <>
+                                <rect x="650" y="325" width="165" height="225" rx="8" fill={fill ? `${fill}22` : "#fafbf8"} stroke="#a5b6a6" />
+                                <text x="732" y="345" textAnchor="middle" fill="#61765a" fontSize="14" pointerEvents="none">三沙 · 岛屿附图</text>
+                              </>}
                               <path
-                                d={path(feature) || ""}
+                                d={drawPath(feature)}
                                 fill={fill || "#e9eee9"}
-                                stroke={fill ? "#ffffff" : "#fafcf9"}
-                                strokeWidth={province ? 1.4 : 1.5}
+                                stroke={code === "460300" && sanshaPath ? fill || "#8aa18c" : fill ? "#ffffff" : "#fafcf9"}
+                                strokeWidth={code === "460300" && sanshaPath ? 2 : province ? 1.4 : 1.5}
                                 vectorEffect="non-scaling-stroke"
                               >
                                 <title>
@@ -835,7 +846,7 @@ function App() {
                   <span>全部{unit}</span>
                   <span>{province.cities.length} 个区域</span>
                 </div>
-                <div className="province-list">
+                <div className="province-list city-list">
                   {province.cities
                     .filter((c) => c.name.includes(query))
                     .map((c) => {
@@ -971,9 +982,12 @@ function App() {
         ref={fileInput}
         onChange={(e) => void importFile(e.target.files?.[0])}
       />
+      {cityPickerOpen && province && <CityPicker name={province.short} cities={province.cities} visits={saved.visits}
+        onClose={() => setCityPickerOpen(false)} onToggle={code => toggleCity(province.code, code)}
+        onEdit={code => { setCityPickerOpen(false); openEditor(province.code, code); }} />}
       {reportOpen && <TravelReport open={reportOpen} onOpenChange={setReportOpen} saved={saved} province={province}
         shapes={map && path ? map.features.filter(f => f.properties.name).map(f => ({
-          d: path(f) || "", fill: (province ? visitColors[String(f.properties.adcode)] : provinceColor(String(f.properties.adcode))) || "#e9eee9",
+          d: drawPath(f), stroke: province?.code === "460000" && String(f.properties.adcode) === "460300" ? "#8aa18c" : undefined, fill: (province ? visitColors[String(f.properties.adcode)] : provinceColor(String(f.properties.adcode))) || "#e9eee9",
         })) : null}
         inset={map && !province ? map.features.filter(f => !f.properties.name).map(f => geoPath(geoMercator().fitExtent([[9, 7], [74, 87]], f))(f) || "") : []}
       />}
