@@ -1,0 +1,101 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  SESSION_KEY, cacheKey, clearAccountData, clearOtherCaches,
+  loadCloudCache, loadSession, saveCloudCache, saveSession,
+} from "../src/lib/session.ts";
+import { PENDING_KEY, consumePending, parseOAuthCallback, savePending } from "../src/lib/oauth.ts";
+
+function memory(initial = {}) {
+  const data = new Map(Object.entries(initial));
+  return {
+    data,
+    get length() { return data.size; },
+    key: (i) => [...data.keys()][i] ?? null,
+    getItem: (k) => data.get(k) ?? null,
+    setItem: (k, v) => void data.set(k, String(v)),
+    removeItem: (k) => void data.delete(k),
+  };
+}
+const user = { id: "u1", username: "ann", displayName: "Ann", avatarUrl: "" };
+const empty = { version: 1, visits: [], provinces: {} };
+
+test("session round trips and expires", () => {
+  const s = memory();
+  assert.ok(saveSession(s, { token: "tm_x", expiresAt: 2000, user }));
+  assert.equal(loadSession(s, 1000)?.user.id, "u1");
+  assert.equal(loadSession(s, 2000), null);
+  assert.equal(s.getItem(SESSION_KEY), null, "expired session is removed");
+});
+
+test("malformed session is dropped", () => {
+  for (const raw of ["{", "null", '{"token":"","expiresAt":9e15,"user":{"id":"u"}}', '{"token":"t","expiresAt":9e15}']) {
+    const s = memory({ [SESSION_KEY]: raw });
+    assert.equal(loadSession(s, 0), null);
+  }
+});
+
+test("cloud cache validates and drops bad data", () => {
+  const s = memory();
+  saveCloudCache(s, "u1", { saved: empty, revision: 4 });
+  assert.equal(loadCloudCache(s, "u1", (d) => d)?.revision, 4);
+  assert.equal(loadCloudCache(s, "u1", () => { throw new Error("bad"); }), null);
+  assert.equal(s.getItem(cacheKey("u1")), null);
+});
+
+test("logout clears every account cache but not local footprints", () => {
+  const s = memory({ "shanhai-travel-v1": "{}", "shanhai-travel-v1-unreadable-1": "x" });
+  saveSession(s, { token: "t", expiresAt: 9e15, user });
+  saveCloudCache(s, "u1", { saved: empty, revision: 1 });
+  saveCloudCache(s, "u2", { saved: empty, revision: 1 });
+  clearAccountData(s);
+  assert.deepEqual([...s.data.keys()].sort(), ["shanhai-travel-v1", "shanhai-travel-v1-unreadable-1"]);
+});
+
+test("switching accounts keeps only the new user's cache", () => {
+  const s = memory();
+  saveCloudCache(s, "u1", { saved: empty, revision: 1 });
+  saveCloudCache(s, "u2", { saved: empty, revision: 1 });
+  clearOtherCaches(s, "u2");
+  assert.deepEqual([...s.data.keys()], [cacheKey("u2")]);
+});
+
+test("OAuth callback parsing", () => {
+  assert.deepEqual(parseOAuthCallback("/auth/callback/github", "?code=c&state=s"), { provider: "github", code: "c", state: "s" });
+  assert.deepEqual(parseOAuthCallback("/app/auth/callback/google/", "?code=c&state=s", "/app/"), { provider: "google", code: "c", state: "s" });
+  assert.deepEqual(parseOAuthCallback("/auth/callback/github", "?error=access_denied"), { provider: "github", error: "access_denied" });
+  assert.deepEqual(parseOAuthCallback("/auth/callback/github", "?code=c"), { provider: "github", error: "missing_code" });
+  assert.equal(parseOAuthCallback("/", "?code=c&state=s"), null);
+  assert.equal(parseOAuthCallback("/auth/callback/Bad..", "?code=c&state=s"), null);
+  assert.equal(parseOAuthCallback("/auth/callback/", "?code=c&state=s"), null);
+});
+
+test("OAuth state must match the attempt this browser began, once", () => {
+  const s = memory();
+  savePending(s, "github", "abc");
+  assert.equal(consumePending(s, { provider: "github", state: "abc" }), true);
+  assert.equal(consumePending(s, { provider: "github", state: "abc" }), false, "single use");
+  savePending(s, "github", "abc");
+  assert.equal(consumePending(s, { provider: "github", state: "other" }), false);
+  assert.equal(s.getItem(PENDING_KEY), null, "consumed even on mismatch");
+  savePending(s, "github", "abc");
+  assert.equal(consumePending(s, { provider: "google", state: "abc" }), false);
+  assert.equal(consumePending(memory(), { provider: "github", state: "" }), false);
+});
+
+import { Code, ConnectError } from "@connectrpc/connect";
+import { describeApiError, isUnauthenticated } from "../src/lib/errors.ts";
+
+test("API errors are described in Chinese, never with raw server text", () => {
+  const e = (code, msg) => new ConnectError(msg, code);
+  assert.equal(describeApiError(e(Code.Unauthenticated, "invalid username or password")), "用户名或密码不正确");
+  assert.equal(describeApiError(e(Code.AlreadyExists, "username is taken")), "该用户名已被使用");
+  assert.equal(describeApiError(e(Code.PermissionDenied, "registration is closed")), "当前未开放注册");
+  assert.match(describeApiError(e(Code.InvalidArgument, "something odd")), /不符合要求/);
+  assert.match(describeApiError(e(Code.Unavailable, "x")), /无法连接/);
+  assert.match(describeApiError(new TypeError("Failed to fetch")), /无法连接|暂时不可用/);
+  for (const code of [Code.Internal, Code.Unavailable, Code.InvalidArgument, Code.ResourceExhausted])
+    assert.ok(!/[a-zA-Z]{4}/.test(describeApiError(e(code, "english message"))));
+  assert.equal(isUnauthenticated(e(Code.Unauthenticated, "")), true);
+  assert.equal(isUnauthenticated(e(Code.Internal, "")), false);
+});
