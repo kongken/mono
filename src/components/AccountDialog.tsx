@@ -49,6 +49,9 @@ export default function AccountDialog({
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteWord, setDeleteWord] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
   const [confirmLogout, setConfirmLogout] = useState(false);
   const signedIn = !!cloud.user;
   const { loadProviders } = cloud;
@@ -57,6 +60,9 @@ export default function AccountDialog({
     if (!open) return;
     setError("");
     setConfirmLogout(false);
+    setConfirmDelete(false);
+    setDeleteWord("");
+    setDeletePassword("");
     setPassword("");
     if (!signedIn) void loadProviders();
   }, [open, signedIn, loadProviders]);
@@ -118,15 +124,17 @@ export default function AccountDialog({
             </DialogHeader>
             <p className="account-sync" role="status">
               <CloudCheck size={16} />
-              {cloud.sync === "conflict"
-                ? "相同记录发生冲突，请先处理"
-                : cloud.cacheFailed
-                  ? "本机保存失败，暂停编辑"
-                  : cloud.sync === "syncing"
-                    ? "正在同步…"
-                    : cloud.loadFailed || cloud.pending
-                      ? "修改已保留在本机，等待同步"
-                      : "已同步"}
+              {cloud.deletionBlocked
+                ? "账号注销待完成，暂停编辑"
+                : cloud.sync === "conflict"
+                  ? "相同记录发生冲突，请先处理"
+                  : cloud.cacheFailed
+                    ? "本机保存失败，暂停编辑"
+                    : cloud.sync === "syncing"
+                      ? "正在同步…"
+                      : cloud.loadFailed || cloud.pending
+                        ? "修改已保留在本机，等待同步"
+                        : "已同步"}
             </p>
             {localCount > 0 && (
               <p className="unreadable-note">
@@ -193,6 +201,73 @@ export default function AccountDialog({
                 {confirmLogout ? "确认退出登录" : "退出登录"}
               </Button>
             </div>
+            {cloud.deletionBlocked && (
+              <p role="alert" className="unreadable-note">
+                账号注销可能尚未完成，暂停云端编辑。请重试注销；第三方账号需最近
+                15 分钟内重新登录。
+              </p>
+            )}
+            <Button
+              variant="ghost"
+              disabled={pending}
+              onClick={() => setConfirmDelete(true)}
+            >
+              注销账号
+            </Button>
+            {confirmDelete && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (deleteWord !== "注销") return;
+                  void run(async () => {
+                    await cloud.deleteAccount(deletePassword);
+                    onOpenChange(false);
+                  });
+                }}
+              >
+                <p className="unreadable-note" role="alert">
+                  注销将永久删除此账号的云端足迹、省份标记、会话、同步历史和照片，无法恢复。未同步修改也将丢弃，请先导出备份。登录前的本地足迹会保留。
+                </p>
+                {cloud.user.username && (
+                  <label className="field-label">
+                    确认当前密码
+                    <Input
+                      type="password"
+                      autoComplete="current-password"
+                      required
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                    />
+                  </label>
+                )}
+                <label className="field-label">
+                  输入“注销”确认
+                  <Input
+                    required
+                    autoComplete="off"
+                    value={deleteWord}
+                    onChange={(e) => setDeleteWord(e.target.value)}
+                  />
+                </label>
+                <div className="dialog-actions">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    保留账号
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="destructive"
+                    disabled={pending || deleteWord !== "注销"}
+                  >
+                    确认永久注销
+                  </Button>
+                </div>
+              </form>
+            )}
           </>
         ) : (
           <form onSubmit={(e) => void submit(e)}>

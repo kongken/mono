@@ -1,6 +1,7 @@
+import { Code, ConnectError } from "@connectrpc/connect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authApi, type ProviderInfo } from "@/api/auth";
-import { footprintApi } from "@/api/footprints";
+import { footprintApi, createFootprintApi } from "@/api/footprints";
 import { setToken } from "@/api/token";
 import { backendEnabled } from "@/api/transport";
 import { describeApiError, isUnauthenticated } from "@/lib/errors";
@@ -73,7 +74,12 @@ export function useCloud(options: Options) {
     options.boot.session,
   );
   const sessionRef = useRef(session);
-  const [hasData, setHasData] = useState(!!options.boot.cache);
+  const [hasData, setHasData] = useState(
+    !!options.boot.cache || !!options.boot.session?.user.deletionPending,
+  );
+  const [deletionBlocked, setDeletionBlocked] = useState(
+    !!options.boot.session?.user.deletionPending,
+  );
   const [loaded, setLoaded] = useState<"pending" | "ok" | "failed">("pending");
   const [loadError, setLoadError] = useState(options.boot.error ?? "");
   const protectedCache = useRef(!!options.boot.error);
@@ -112,6 +118,7 @@ export function useCloud(options: Options) {
     setCacheFailed(false);
     setConflictRecords([]);
     setPending(false);
+    setDeletionBlocked(false);
     sessionRef.current = null;
     setToken(null);
     setSessionState(null);
@@ -127,12 +134,14 @@ export function useCloud(options: Options) {
     s: StoredSession,
     snapshot: CloudSnapshot,
     desired = snapshot.saved,
+    pendingBatch?: CachedCloud["pendingBatch"],
   ) => {
     engineRef.current?.stop();
+    const scopedApi = createFootprintApi(snapshot);
     const api = {
-      ...footprintApi,
+      ...scopedApi,
       get: async () => {
-        const result = await footprintApi.get();
+        const result = await scopedApi.get();
         return {
           revision: result.revision,
           saved: opts.current.validate(result.saved),
@@ -156,8 +165,21 @@ export function useCloud(options: Options) {
         onChange: (cache) => {
           if (sessionRef.current?.token !== s.token) return;
           setCacheFailed(!saveCloudCache(localStorage, s.user.id, cache));
-          setPending(diffSaved(cache.confirmed, cache.saved).length > 0);
+          setPending(
+            !!cache.pendingBatch ||
+              diffSaved(cache.confirmed, cache.saved).length > 0,
+          );
           opts.current.onCloudData(cache.saved);
+        },
+        onBeforeSend: (cache) => {
+          if (
+            sessionRef.current?.token !== s.token ||
+            !saveCloudCache(localStorage, s.user.id, cache)
+          ) {
+            setCacheFailed(true);
+            throw new Error("批量请求无法保存到本机，已暂停同步，请先导出备份");
+          }
+          setCacheFailed(false);
         },
         onError: (error) => {
           if (sessionRef.current?.token !== s.token) return;
@@ -174,6 +196,7 @@ export function useCloud(options: Options) {
         },
       },
       desired,
+      pendingBatch,
     );
     opts.current.onCloudData(desired);
     setHasData(true);
@@ -184,6 +207,11 @@ export function useCloud(options: Options) {
   const refresh = useCallback(async (force = false) => {
     const s = sessionRef.current;
     if (!s) return;
+    if (s.user.deletionPending) {
+      setLoaded("failed");
+      setLoadError("账号注销未完成，请打开账号设置重试注销");
+      return;
+    }
     if (protectedCache.current) {
       setLoaded("failed");
       return;
@@ -253,6 +281,14 @@ export function useCloud(options: Options) {
     engineRef.current?.stop();
     engineRef.current = null;
     setSession(s);
+    setDeletionBlocked(!!s.user.deletionPending);
+    if (s.user.deletionPending) {
+      setHasData(true);
+      opts.current.onAccountChange(emptySaved);
+      setLoaded("failed");
+      setLoadError("账号注销未完成，请重试注销");
+      return;
+    }
     setLoaded("pending");
     setLoadError("");
     setSync("idle");
@@ -264,6 +300,7 @@ export function useCloud(options: Options) {
         s,
         { saved: cache.confirmed ?? cache.saved, revision: cache.revision },
         cache.saved,
+        cache.pendingBatch,
       );
     }
     void refresh(true);
@@ -274,11 +311,18 @@ export function useCloud(options: Options) {
     const s = sessionRef.current;
     const cache = opts.current.boot.cache;
     setToken(s?.token ?? null);
+    if (s?.user.deletionPending) {
+      setHasData(true);
+      setLoaded("failed");
+      setLoadError("账号注销未完成，请重试注销");
+      return;
+    }
     if (s && cache) {
       adopt(
         s,
         { saved: cache.confirmed ?? cache.saved, revision: cache.revision },
         cache.saved,
+        cache.pendingBatch,
       );
     }
     if (s) void refresh(true);
@@ -380,7 +424,9 @@ export function useCloud(options: Options) {
     loadFailed: loaded === "failed",
     loadError,
     /** Cached confirmed ancestors allow durable edits while offline. */
+    deletionBlocked,
     canWrite:
+      !deletionBlocked &&
       !!session &&
       hasData &&
       !lockedCache &&
@@ -443,6 +489,42 @@ export function useCloud(options: Options) {
         throw new Error("invalid authorize url");
       savePending(sessionStorage, provider, r.state);
       location.assign(url.toString());
+    },
+    deleteAccount: async (password: string) => {
+      const s = sessionRef.current;
+      if (!s) return;
+      const engine = engineRef.current;
+      await engine?.drain();
+      engine?.stop();
+      setDeletionBlocked(true);
+      try {
+        await authApi.deleteAccount(password);
+        leaveAccount("账号及全部云端数据已注销；登录前的本地足迹保留");
+      } catch (error) {
+        if (
+          !s.user.deletionPending &&
+          error instanceof ConnectError &&
+          [
+            Code.PermissionDenied,
+            Code.InvalidArgument,
+            Code.FailedPrecondition,
+          ].includes(error.code)
+        ) {
+          setDeletionBlocked(false);
+          engine?.resume();
+        } else {
+          const pendingSession = {
+            ...s,
+            user: { ...s.user, deletionPending: true },
+          };
+          saveSession(localStorage, pendingSession);
+          setSession(pendingSession);
+          setLoadError(
+            "注销尚未确认完成，请重新登录或打开账号设置重试；云端编辑已暂停",
+          );
+        }
+        throw error;
+      }
     },
     logout: async (discardPending = false) => {
       const s = sessionRef.current;

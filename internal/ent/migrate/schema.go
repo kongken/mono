@@ -9,6 +9,25 @@ import (
 )
 
 var (
+	// AccountDeletionReceiptsColumns holds the columns for the "account_deletion_receipts" table.
+	AccountDeletionReceiptsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "token_hash", Type: field.TypeString, Unique: true},
+		{Name: "expires_at", Type: field.TypeTime},
+	}
+	// AccountDeletionReceiptsTable holds the schema information for the "account_deletion_receipts" table.
+	AccountDeletionReceiptsTable = &schema.Table{
+		Name:       "account_deletion_receipts",
+		Columns:    AccountDeletionReceiptsColumns,
+		PrimaryKey: []*schema.Column{AccountDeletionReceiptsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "accountdeletionreceipt_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{AccountDeletionReceiptsColumns[2]},
+			},
+		},
+	}
 	// CityVisitsColumns holds the columns for the "city_visits" table.
 	CityVisitsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -45,6 +64,35 @@ var (
 				Name:    "cityvisit_user_id_province_code",
 				Unique:  false,
 				Columns: []*schema.Column{CityVisitsColumns[9], CityVisitsColumns[3]},
+			},
+		},
+	}
+	// FootprintChangesColumns holds the columns for the "footprint_changes" table.
+	FootprintChangesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "revision", Type: field.TypeInt64},
+		{Name: "payload", Type: field.TypeBytes},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeString},
+	}
+	// FootprintChangesTable holds the schema information for the "footprint_changes" table.
+	FootprintChangesTable = &schema.Table{
+		Name:       "footprint_changes",
+		Columns:    FootprintChangesColumns,
+		PrimaryKey: []*schema.Column{FootprintChangesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "footprint_changes_users_footprint_changes",
+				Columns:    []*schema.Column{FootprintChangesColumns[4]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "footprintchange_user_id_revision",
+				Unique:  true,
+				Columns: []*schema.Column{FootprintChangesColumns[4], FootprintChangesColumns[1]},
 			},
 		},
 	}
@@ -139,6 +187,37 @@ var (
 			},
 		},
 	}
+	// SyncReceiptsColumns holds the columns for the "sync_receipts" table.
+	SyncReceiptsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "mutation_id", Type: field.TypeString},
+		{Name: "request_hash", Type: field.TypeString},
+		{Name: "revision", Type: field.TypeInt64},
+		{Name: "changed_count", Type: field.TypeInt},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeString},
+	}
+	// SyncReceiptsTable holds the schema information for the "sync_receipts" table.
+	SyncReceiptsTable = &schema.Table{
+		Name:       "sync_receipts",
+		Columns:    SyncReceiptsColumns,
+		PrimaryKey: []*schema.Column{SyncReceiptsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "sync_receipts_users_sync_receipts",
+				Columns:    []*schema.Column{SyncReceiptsColumns[6]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "syncreceipt_user_id_mutation_id",
+				Unique:  true,
+				Columns: []*schema.Column{SyncReceiptsColumns[6], SyncReceiptsColumns[1]},
+			},
+		},
+	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -150,6 +229,7 @@ var (
 		{Name: "external_id", Type: field.TypeString, Default: ""},
 		{Name: "password_hash", Type: field.TypeString, Default: ""},
 		{Name: "disabled", Type: field.TypeBool, Default: false},
+		{Name: "deletion_requested_at", Type: field.TypeTime, Nullable: true},
 		{Name: "revision", Type: field.TypeInt64, Default: 0},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
@@ -172,10 +252,13 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AccountDeletionReceiptsTable,
 		CityVisitsTable,
+		FootprintChangesTable,
 		MediaObjectsTable,
 		ProvinceMarksTable,
 		AuthSessionsTable,
+		SyncReceiptsTable,
 		UsersTable,
 	}
 )
@@ -185,6 +268,7 @@ func init() {
 	CityVisitsTable.Annotation = &entsql.Annotation{
 		Table: "city_visits",
 	}
+	FootprintChangesTable.ForeignKeys[0].RefTable = UsersTable
 	MediaObjectsTable.ForeignKeys[0].RefTable = UsersTable
 	MediaObjectsTable.Annotation = &entsql.Annotation{
 		Table: "media_objects",
@@ -197,6 +281,7 @@ func init() {
 	AuthSessionsTable.Annotation = &entsql.Annotation{
 		Table: "auth_sessions",
 	}
+	SyncReceiptsTable.ForeignKeys[0].RefTable = UsersTable
 	UsersTable.Annotation = &entsql.Annotation{
 		Table: "users",
 	}

@@ -12,14 +12,20 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// AccountDeletionReceipt is the client for interacting with the AccountDeletionReceipt builders.
+	AccountDeletionReceipt *AccountDeletionReceiptClient
 	// CityVisit is the client for interacting with the CityVisit builders.
 	CityVisit *CityVisitClient
+	// FootprintChange is the client for interacting with the FootprintChange builders.
+	FootprintChange *FootprintChangeClient
 	// MediaObject is the client for interacting with the MediaObject builders.
 	MediaObject *MediaObjectClient
 	// ProvinceMark is the client for interacting with the ProvinceMark builders.
 	ProvinceMark *ProvinceMarkClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
+	// SyncReceipt is the client for interacting with the SyncReceipt builders.
+	SyncReceipt *SyncReceiptClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 
@@ -153,10 +159,13 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.AccountDeletionReceipt = NewAccountDeletionReceiptClient(tx.config)
 	tx.CityVisit = NewCityVisitClient(tx.config)
+	tx.FootprintChange = NewFootprintChangeClient(tx.config)
 	tx.MediaObject = NewMediaObjectClient(tx.config)
 	tx.ProvinceMark = NewProvinceMarkClient(tx.config)
 	tx.Session = NewSessionClient(tx.config)
+	tx.SyncReceipt = NewSyncReceiptClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }
 
@@ -167,7 +176,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: CityVisit.QueryXXX(), the query will be executed
+// applies a query, for example: AccountDeletionReceipt.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

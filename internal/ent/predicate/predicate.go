@@ -6,8 +6,14 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// AccountDeletionReceipt is the predicate function for accountdeletionreceipt builders.
+type AccountDeletionReceipt func(*sql.Selector)
+
 // CityVisit is the predicate function for cityvisit builders.
 type CityVisit func(*sql.Selector)
+
+// FootprintChange is the predicate function for footprintchange builders.
+type FootprintChange func(*sql.Selector)
 
 // MediaObject is the predicate function for mediaobject builders.
 type MediaObject func(*sql.Selector)
@@ -17,6 +23,9 @@ type ProvinceMark func(*sql.Selector)
 
 // Session is the predicate function for session builders.
 type Session func(*sql.Selector)
+
+// SyncReceipt is the predicate function for syncreceipt builders.
+type SyncReceipt func(*sql.Selector)
 
 // User is the predicate function for user builders.
 type User func(*sql.Selector)

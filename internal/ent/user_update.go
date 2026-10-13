@@ -12,10 +12,12 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
+	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -156,6 +158,26 @@ func (_u *UserUpdate) SetNillableDisabled(v *bool) *UserUpdate {
 	return _u
 }
 
+// SetDeletionRequestedAt sets the "deletion_requested_at" field.
+func (_u *UserUpdate) SetDeletionRequestedAt(v time.Time) *UserUpdate {
+	_u.mutation.SetDeletionRequestedAt(v)
+	return _u
+}
+
+// SetNillableDeletionRequestedAt sets the "deletion_requested_at" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableDeletionRequestedAt(v *time.Time) *UserUpdate {
+	if v != nil {
+		_u.SetDeletionRequestedAt(*v)
+	}
+	return _u
+}
+
+// ClearDeletionRequestedAt clears the value of the "deletion_requested_at" field.
+func (_u *UserUpdate) ClearDeletionRequestedAt() *UserUpdate {
+	_u.mutation.ClearDeletionRequestedAt()
+	return _u
+}
+
 // SetRevision sets the "revision" field.
 func (_u *UserUpdate) SetRevision(v int64) *UserUpdate {
 	_u.mutation.ResetRevision()
@@ -241,6 +263,36 @@ func (_u *UserUpdate) AddSessions(v ...*Session) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.AddSessionIDs(ids...)
+}
+
+// AddFootprintChangeIDs adds the "footprint_changes" edge to the FootprintChange entity by IDs.
+func (_u *UserUpdate) AddFootprintChangeIDs(ids ...string) *UserUpdate {
+	_u.mutation.AddFootprintChangeIDs(ids...)
+	return _u
+}
+
+// AddFootprintChanges adds the "footprint_changes" edges to the FootprintChange entity.
+func (_u *UserUpdate) AddFootprintChanges(v ...*FootprintChange) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddFootprintChangeIDs(ids...)
+}
+
+// AddSyncReceiptIDs adds the "sync_receipts" edge to the SyncReceipt entity by IDs.
+func (_u *UserUpdate) AddSyncReceiptIDs(ids ...string) *UserUpdate {
+	_u.mutation.AddSyncReceiptIDs(ids...)
+	return _u
+}
+
+// AddSyncReceipts adds the "sync_receipts" edges to the SyncReceipt entity.
+func (_u *UserUpdate) AddSyncReceipts(v ...*SyncReceipt) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSyncReceiptIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -332,6 +384,48 @@ func (_u *UserUpdate) RemoveSessions(v ...*Session) *UserUpdate {
 	return _u.RemoveSessionIDs(ids...)
 }
 
+// ClearFootprintChanges clears all "footprint_changes" edges to the FootprintChange entity.
+func (_u *UserUpdate) ClearFootprintChanges() *UserUpdate {
+	_u.mutation.ClearFootprintChanges()
+	return _u
+}
+
+// RemoveFootprintChangeIDs removes the "footprint_changes" edge to FootprintChange entities by IDs.
+func (_u *UserUpdate) RemoveFootprintChangeIDs(ids ...string) *UserUpdate {
+	_u.mutation.RemoveFootprintChangeIDs(ids...)
+	return _u
+}
+
+// RemoveFootprintChanges removes "footprint_changes" edges to FootprintChange entities.
+func (_u *UserUpdate) RemoveFootprintChanges(v ...*FootprintChange) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveFootprintChangeIDs(ids...)
+}
+
+// ClearSyncReceipts clears all "sync_receipts" edges to the SyncReceipt entity.
+func (_u *UserUpdate) ClearSyncReceipts() *UserUpdate {
+	_u.mutation.ClearSyncReceipts()
+	return _u
+}
+
+// RemoveSyncReceiptIDs removes the "sync_receipts" edge to SyncReceipt entities by IDs.
+func (_u *UserUpdate) RemoveSyncReceiptIDs(ids ...string) *UserUpdate {
+	_u.mutation.RemoveSyncReceiptIDs(ids...)
+	return _u
+}
+
+// RemoveSyncReceipts removes "sync_receipts" edges to SyncReceipt entities.
+func (_u *UserUpdate) RemoveSyncReceipts(v ...*SyncReceipt) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSyncReceiptIDs(ids...)
+}
+
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (_u *UserUpdate) Save(ctx context.Context) (int, error) {
 	_u.defaults()
@@ -419,6 +513,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Disabled(); ok {
 		_spec.SetField(user.FieldDisabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.DeletionRequestedAt(); ok {
+		_spec.SetField(user.FieldDeletionRequestedAt, field.TypeTime, value)
+	}
+	if _u.mutation.DeletionRequestedAtCleared() {
+		_spec.ClearField(user.FieldDeletionRequestedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.Revision(); ok {
 		_spec.SetField(user.FieldRevision, field.TypeInt64, value)
@@ -602,6 +702,96 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(session.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.FootprintChangesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.FootprintChangesTable,
+			Columns: []string{user.FootprintChangesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(footprintchange.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedFootprintChangesIDs(); len(nodes) > 0 && !_u.mutation.FootprintChangesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.FootprintChangesTable,
+			Columns: []string{user.FootprintChangesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(footprintchange.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.FootprintChangesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.FootprintChangesTable,
+			Columns: []string{user.FootprintChangesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(footprintchange.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SyncReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SyncReceiptsTable,
+			Columns: []string{user.SyncReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(syncreceipt.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSyncReceiptsIDs(); len(nodes) > 0 && !_u.mutation.SyncReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SyncReceiptsTable,
+			Columns: []string{user.SyncReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(syncreceipt.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SyncReceiptsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SyncReceiptsTable,
+			Columns: []string{user.SyncReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(syncreceipt.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -753,6 +943,26 @@ func (_u *UserUpdateOne) SetNillableDisabled(v *bool) *UserUpdateOne {
 	return _u
 }
 
+// SetDeletionRequestedAt sets the "deletion_requested_at" field.
+func (_u *UserUpdateOne) SetDeletionRequestedAt(v time.Time) *UserUpdateOne {
+	_u.mutation.SetDeletionRequestedAt(v)
+	return _u
+}
+
+// SetNillableDeletionRequestedAt sets the "deletion_requested_at" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableDeletionRequestedAt(v *time.Time) *UserUpdateOne {
+	if v != nil {
+		_u.SetDeletionRequestedAt(*v)
+	}
+	return _u
+}
+
+// ClearDeletionRequestedAt clears the value of the "deletion_requested_at" field.
+func (_u *UserUpdateOne) ClearDeletionRequestedAt() *UserUpdateOne {
+	_u.mutation.ClearDeletionRequestedAt()
+	return _u
+}
+
 // SetRevision sets the "revision" field.
 func (_u *UserUpdateOne) SetRevision(v int64) *UserUpdateOne {
 	_u.mutation.ResetRevision()
@@ -838,6 +1048,36 @@ func (_u *UserUpdateOne) AddSessions(v ...*Session) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.AddSessionIDs(ids...)
+}
+
+// AddFootprintChangeIDs adds the "footprint_changes" edge to the FootprintChange entity by IDs.
+func (_u *UserUpdateOne) AddFootprintChangeIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.AddFootprintChangeIDs(ids...)
+	return _u
+}
+
+// AddFootprintChanges adds the "footprint_changes" edges to the FootprintChange entity.
+func (_u *UserUpdateOne) AddFootprintChanges(v ...*FootprintChange) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddFootprintChangeIDs(ids...)
+}
+
+// AddSyncReceiptIDs adds the "sync_receipts" edge to the SyncReceipt entity by IDs.
+func (_u *UserUpdateOne) AddSyncReceiptIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.AddSyncReceiptIDs(ids...)
+	return _u
+}
+
+// AddSyncReceipts adds the "sync_receipts" edges to the SyncReceipt entity.
+func (_u *UserUpdateOne) AddSyncReceipts(v ...*SyncReceipt) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSyncReceiptIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -927,6 +1167,48 @@ func (_u *UserUpdateOne) RemoveSessions(v ...*Session) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSessionIDs(ids...)
+}
+
+// ClearFootprintChanges clears all "footprint_changes" edges to the FootprintChange entity.
+func (_u *UserUpdateOne) ClearFootprintChanges() *UserUpdateOne {
+	_u.mutation.ClearFootprintChanges()
+	return _u
+}
+
+// RemoveFootprintChangeIDs removes the "footprint_changes" edge to FootprintChange entities by IDs.
+func (_u *UserUpdateOne) RemoveFootprintChangeIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.RemoveFootprintChangeIDs(ids...)
+	return _u
+}
+
+// RemoveFootprintChanges removes "footprint_changes" edges to FootprintChange entities.
+func (_u *UserUpdateOne) RemoveFootprintChanges(v ...*FootprintChange) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveFootprintChangeIDs(ids...)
+}
+
+// ClearSyncReceipts clears all "sync_receipts" edges to the SyncReceipt entity.
+func (_u *UserUpdateOne) ClearSyncReceipts() *UserUpdateOne {
+	_u.mutation.ClearSyncReceipts()
+	return _u
+}
+
+// RemoveSyncReceiptIDs removes the "sync_receipts" edge to SyncReceipt entities by IDs.
+func (_u *UserUpdateOne) RemoveSyncReceiptIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.RemoveSyncReceiptIDs(ids...)
+	return _u
+}
+
+// RemoveSyncReceipts removes "sync_receipts" edges to SyncReceipt entities.
+func (_u *UserUpdateOne) RemoveSyncReceipts(v ...*SyncReceipt) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSyncReceiptIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -1046,6 +1328,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.Disabled(); ok {
 		_spec.SetField(user.FieldDisabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.DeletionRequestedAt(); ok {
+		_spec.SetField(user.FieldDeletionRequestedAt, field.TypeTime, value)
+	}
+	if _u.mutation.DeletionRequestedAtCleared() {
+		_spec.ClearField(user.FieldDeletionRequestedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.Revision(); ok {
 		_spec.SetField(user.FieldRevision, field.TypeInt64, value)
@@ -1229,6 +1517,96 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(session.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.FootprintChangesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.FootprintChangesTable,
+			Columns: []string{user.FootprintChangesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(footprintchange.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedFootprintChangesIDs(); len(nodes) > 0 && !_u.mutation.FootprintChangesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.FootprintChangesTable,
+			Columns: []string{user.FootprintChangesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(footprintchange.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.FootprintChangesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.FootprintChangesTable,
+			Columns: []string{user.FootprintChangesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(footprintchange.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SyncReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SyncReceiptsTable,
+			Columns: []string{user.SyncReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(syncreceipt.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSyncReceiptsIDs(); len(nodes) > 0 && !_u.mutation.SyncReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SyncReceiptsTable,
+			Columns: []string{user.SyncReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(syncreceipt.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SyncReceiptsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SyncReceiptsTable,
+			Columns: []string{user.SyncReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(syncreceipt.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

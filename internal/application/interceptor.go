@@ -10,6 +10,7 @@ import (
 	"connectrpc.com/connect"
 	"go.orx.me/apps/trip-map/internal/auth"
 	"go.orx.me/apps/trip-map/internal/ent"
+	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/pkg/proto/tripmap/v1/tripmapv1connect"
 )
@@ -56,9 +57,18 @@ func NewAuthInterceptor(src StoreSource) connect.Interceptor {
 					slog.Error("session lookup failed", "error", err)
 					return nil, internalError(err)
 				}
+				if req.Spec().Procedure == tripmapv1connect.AuthServiceDeleteAccountProcedure {
+					exists, receiptErr := st.DB.AccountDeletionReceipt.Query().Where(accountdeletionreceipt.TokenHash(auth.HashToken(token)), accountdeletionreceipt.ExpiresAtGT(now)).Exist(ctx)
+					if receiptErr != nil {
+						return nil, internalError(receiptErr)
+					}
+					if exists {
+						return next(context.WithValue(ctx, deletionReceiptContextKey{}, true), req)
+					}
+				}
 				return nil, errUnauthenticated
 			}
-			if sess.Edges.User == nil || sess.Edges.User.Disabled {
+			if sess.Edges.User == nil || (sess.Edges.User.Disabled && !(sess.Edges.User.DeletionRequestedAt != nil && (req.Spec().Procedure == tripmapv1connect.AuthServiceDeleteAccountProcedure || req.Spec().Procedure == tripmapv1connect.AuthServiceMeProcedure || req.Spec().Procedure == tripmapv1connect.AuthServiceLogoutProcedure))) {
 				return nil, errUnauthenticated
 			}
 			if sess.LastUsedAt == nil || now.Sub(*sess.LastUsedAt) > touchInterval {

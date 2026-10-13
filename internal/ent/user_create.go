@@ -13,9 +13,11 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
+	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -139,6 +141,20 @@ func (_c *UserCreate) SetNillableDisabled(v *bool) *UserCreate {
 	return _c
 }
 
+// SetDeletionRequestedAt sets the "deletion_requested_at" field.
+func (_c *UserCreate) SetDeletionRequestedAt(v time.Time) *UserCreate {
+	_c.mutation.SetDeletionRequestedAt(v)
+	return _c
+}
+
+// SetNillableDeletionRequestedAt sets the "deletion_requested_at" field if the given value is not nil.
+func (_c *UserCreate) SetNillableDeletionRequestedAt(v *time.Time) *UserCreate {
+	if v != nil {
+		_c.SetDeletionRequestedAt(*v)
+	}
+	return _c
+}
+
 // SetRevision sets the "revision" field.
 func (_c *UserCreate) SetRevision(v int64) *UserCreate {
 	_c.mutation.SetRevision(v)
@@ -253,6 +269,36 @@ func (_c *UserCreate) AddSessions(v ...*Session) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddSessionIDs(ids...)
+}
+
+// AddFootprintChangeIDs adds the "footprint_changes" edge to the FootprintChange entity by IDs.
+func (_c *UserCreate) AddFootprintChangeIDs(ids ...string) *UserCreate {
+	_c.mutation.AddFootprintChangeIDs(ids...)
+	return _c
+}
+
+// AddFootprintChanges adds the "footprint_changes" edges to the FootprintChange entity.
+func (_c *UserCreate) AddFootprintChanges(v ...*FootprintChange) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddFootprintChangeIDs(ids...)
+}
+
+// AddSyncReceiptIDs adds the "sync_receipts" edge to the SyncReceipt entity by IDs.
+func (_c *UserCreate) AddSyncReceiptIDs(ids ...string) *UserCreate {
+	_c.mutation.AddSyncReceiptIDs(ids...)
+	return _c
+}
+
+// AddSyncReceipts adds the "sync_receipts" edges to the SyncReceipt entity.
+func (_c *UserCreate) AddSyncReceipts(v ...*SyncReceipt) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddSyncReceiptIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -434,6 +480,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldDisabled, field.TypeBool, value)
 		_node.Disabled = value
 	}
+	if value, ok := _c.mutation.DeletionRequestedAt(); ok {
+		_spec.SetField(user.FieldDeletionRequestedAt, field.TypeTime, value)
+		_node.DeletionRequestedAt = &value
+	}
 	if value, ok := _c.mutation.Revision(); ok {
 		_spec.SetField(user.FieldRevision, field.TypeInt64, value)
 		_node.Revision = value
@@ -503,6 +553,38 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(session.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.FootprintChangesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.FootprintChangesTable,
+			Columns: []string{user.FootprintChangesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(footprintchange.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SyncReceiptsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SyncReceiptsTable,
+			Columns: []string{user.SyncReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(syncreceipt.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -667,6 +749,24 @@ func (u *UserUpsert) SetDisabled(v bool) *UserUpsert {
 // UpdateDisabled sets the "disabled" field to the value that was provided on create.
 func (u *UserUpsert) UpdateDisabled() *UserUpsert {
 	u.SetExcluded(user.FieldDisabled)
+	return u
+}
+
+// SetDeletionRequestedAt sets the "deletion_requested_at" field.
+func (u *UserUpsert) SetDeletionRequestedAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldDeletionRequestedAt, v)
+	return u
+}
+
+// UpdateDeletionRequestedAt sets the "deletion_requested_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdateDeletionRequestedAt() *UserUpsert {
+	u.SetExcluded(user.FieldDeletionRequestedAt)
+	return u
+}
+
+// ClearDeletionRequestedAt clears the value of the "deletion_requested_at" field.
+func (u *UserUpsert) ClearDeletionRequestedAt() *UserUpsert {
+	u.SetNull(user.FieldDeletionRequestedAt)
 	return u
 }
 
@@ -874,6 +974,27 @@ func (u *UserUpsertOne) SetDisabled(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateDisabled() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateDisabled()
+	})
+}
+
+// SetDeletionRequestedAt sets the "deletion_requested_at" field.
+func (u *UserUpsertOne) SetDeletionRequestedAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDeletionRequestedAt(v)
+	})
+}
+
+// UpdateDeletionRequestedAt sets the "deletion_requested_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateDeletionRequestedAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDeletionRequestedAt()
+	})
+}
+
+// ClearDeletionRequestedAt clears the value of the "deletion_requested_at" field.
+func (u *UserUpsertOne) ClearDeletionRequestedAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearDeletionRequestedAt()
 	})
 }
 
@@ -1253,6 +1374,27 @@ func (u *UserUpsertBulk) SetDisabled(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateDisabled() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateDisabled()
+	})
+}
+
+// SetDeletionRequestedAt sets the "deletion_requested_at" field.
+func (u *UserUpsertBulk) SetDeletionRequestedAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDeletionRequestedAt(v)
+	})
+}
+
+// UpdateDeletionRequestedAt sets the "deletion_requested_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateDeletionRequestedAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDeletionRequestedAt()
+	})
+}
+
+// ClearDeletionRequestedAt clears the value of the "deletion_requested_at" field.
+func (u *UserUpsertBulk) ClearDeletionRequestedAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearDeletionRequestedAt()
 	})
 }
 

@@ -12,10 +12,13 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
+	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -77,11 +80,14 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			cityvisit.Table:    cityvisit.ValidColumn,
-			mediaobject.Table:  mediaobject.ValidColumn,
-			provincemark.Table: provincemark.ValidColumn,
-			session.Table:      session.ValidColumn,
-			user.Table:         user.ValidColumn,
+			accountdeletionreceipt.Table: accountdeletionreceipt.ValidColumn,
+			cityvisit.Table:              cityvisit.ValidColumn,
+			footprintchange.Table:        footprintchange.ValidColumn,
+			mediaobject.Table:            mediaobject.ValidColumn,
+			provincemark.Table:           provincemark.ValidColumn,
+			session.Table:                session.ValidColumn,
+			syncreceipt.Table:            syncreceipt.ValidColumn,
+			user.Table:                   user.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)
