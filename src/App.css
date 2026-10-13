@@ -1310,7 +1310,17 @@ button:disabled {
   .header nav button > svg {
     display: none;
   }
-  .header-end {
+  /* Only the account entry stays in the header on phones. */
+  .header-end > :not(.account-button) {
+    display: none;
+  }
+  .account-button:not(:has(.account-initial)) {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+  .account-label {
     display: none;
   }
   main {
@@ -1629,4 +1639,150 @@ button:disabled {
   .toast > span { flex: 1; min-width: 0; line-height: 1.5; }
   .toast > svg, .toast > button { flex-shrink: 0; }
   .toast > button { margin-left: 0; min-width: 32px; min-height: 32px; }
+}
+
+/* Account and cloud sync */
+.account-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #dfe5dc;
+  border-radius: 999px;
+  background: transparent;
+  color: #4f6347;
+  font-size: 12px;
+  cursor: pointer;
+}
+.account-button:hover {
+  background: #eef2e9;
+}
+.account-button:has(.account-initial) {
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  justify-content: center;
+  border: 0;
+  background: #e9eee4;
+}
+.account-initial {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b8161;
+}
+.account-tabs {
+  display: flex;
+  gap: 6px;
+  margin-top: 16px;
+}
+.account-tabs button {
+  flex: 1;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-size: 13px;
+  color: #859186;
+}
+.account-tabs button.nav-active {
+  color: #3f5a36;
+  border-bottom-color: #78a886;
+}
+.account-oauth {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #e8ede3;
+}
+.account-oauth > span {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: #859186;
+}
+.account-oauth button {
+  flex: 1;
+  font-size: 12px;
+}
+.account-sync {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: #5d7a55;
+}
+.account-sessions {
+  margin-top: 18px;
+}
+.account-sessions h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #859186;
+  font-weight: 500;
+}
+.account-sessions ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.account-sessions li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eef1ea;
+  font-size: 13px;
+}
+.account-sessions li small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #a4ae9c;
+}
+.cloud-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: #fcf1df;
+  color: #8f6836;
+  font-size: 12px;
+}
+.cloud-banner button {
+  background: none;
+  border: 0;
+  color: inherit;
+  text-decoration: underline;
+}
+.cloud-gate {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  color: #5d7a55;
+}
+.cloud-gate h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.cloud-gate p {
+  margin: 0;
+  font-size: 13px;
+  color: #859186;
+}
+@media (max-width: 760px) {
+  .cloud-banner {
+    padding: 10px 14px;
+    text-align: left;
+  }
 }

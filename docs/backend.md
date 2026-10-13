@@ -4,7 +4,7 @@
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
-当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1 的后端部分：账号与会话（`AuthService`）和足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流）。尚未实现的有前端登录与云端读写闭环、迁移（F2）、增量同步、快照、上传签名和分享。前端城市足迹继续保存在浏览器，后端不会迁移或覆盖本地记录。
+当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1：账号与会话（`AuthService`）、足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流），前端登录与云端读写闭环也已接入（配置 `VITE_API_BASE_URL` 后出现登录入口，见 [功能描述](features.md)）。尚未实现的有迁移（F2）、离线编辑队列、快照、上传签名和分享。未登录的城市足迹继续保存在浏览器，后端不会迁移或覆盖本地记录。
 
 Redis 客户端已接入，后续用于会话、缓存或限流；本次没有把城市足迹存入 Redis。对象内容使用 S3，PostgreSQL 只存业务记录和媒体元数据。
 
@@ -36,7 +36,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 - 未设置、为空或格式无效：纯本地模式，不创建 API 客户端，不向 `/api`、`/ping`、`/readyz` 发请求；全部功能使用浏览器本地存储。当前所有用户可见功能都属于这种情况，`npm run dev`、`npm run build` 以及任意静态托管（含前端镜像默认构建）都无需后端。
 - `/api` 这类同源路径，或 `https://api.example.com` 这类绝对 http(s) 地址：启用后端能力。`/api` 配合 Vite 开发代理或前端镜像的 Nginx 转发使用。
 
-变量在构建时写入，修改后需重新构建；前端镜像通过 `--build-arg VITE_API_BASE_URL=/api` 传入，当前 CI 工作流未传递，因此发布的前端镜像为纯本地模式。解析逻辑见 `src/lib/backend.ts`，客户端见 `src/api/system.ts`。后续接入登录、云同步的功能必须通过该开关判断，并在后端不可用时降级为本地模式，不得阻塞本地足迹的读写。
+变量在构建时写入，修改后需重新构建；前端镜像通过 `--build-arg VITE_API_BASE_URL=/api` 传入，当前 CI 工作流未传递，因此发布的前端镜像为纯本地模式。解析逻辑见 `src/lib/backend.ts`，传输层见 `src/api/transport.ts`（未启用时不创建，登录入口也不渲染），业务客户端见 `src/api/`。登录与云同步必须通过该开关判断；后端不可用时，未登录用户不受影响，已登录用户进入只读并可重试，也可退出登录回到本地模式，不会阻塞本地足迹的读写。前端同步与会话逻辑在 `src/lib/sync.ts`、`session.ts`、`oauth.ts` 和 `src/hooks/useCloud.ts`。
 
 前端仍位于根目录 `src/`，无需搬迁到 `front/`。后端 Go module 位于根目录；前后端分别构建。
 
@@ -58,7 +58,7 @@ npm install
 npm run dev
 ```
 
-联调后端时在 `.env.local` 设置 `VITE_API_BASE_URL=/api` 并重启 Vite；不设置则前端保持纯本地模式。
+联调后端时在 `.env.local` 设置 `VITE_API_BASE_URL=/api` 并重启 Vite；不设置则前端保持纯本地模式。开发代理默认转发到 `http://127.0.0.1:18081`，后端在其他端口时用环境变量 `TRIPMAP_DEV_BACKEND=http://127.0.0.1:端口` 启动 Vite。OAuth 登录需要在提供方登记的回调地址与 `config.yaml` 的 `redirect_url` 一致，形如 `http://localhost:5173/auth/callback/github`，该路径由前端页面处理（Vite 开发服务器与前端镜像的 Nginx 都回退到 `index.html`）。
 
 Compose 只启动本项目的开发依赖，使用命名卷保存数据。S3 开发实例使用 [RustFS 官方容器](https://docs.rustfs.com/en/installation/container/docker)，提供持久化 S3 兼容接口；生产环境可配置 AWS S3 或其他兼容供应方，服务代码无需更换。
 
@@ -113,7 +113,7 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
   -d '{}'
 ```
 
-健康接口无用户数据，无需登录。前端 `getBackendStatus()` 已可调用生成客户端，但界面尚未主动请求后端；没有配置 `VITE_API_BASE_URL` 时前端根本不会发请求。
+健康接口无用户数据，无需登录。前端 `getBackendStatus()` 可调用生成客户端，界面不主动调用；没有配置 `VITE_API_BASE_URL` 时前端根本不会发请求。
 
 ### 账号与会话（`tripmap.v1.AuthService`）
 
@@ -131,7 +131,7 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
 
 - 令牌为 `tm_` 加 32 字节随机十六进制；数据库只保存 SHA-256，密码使用 bcrypt。
 - OAuth 账号按 `(provider, external_id)` 识别，不按邮箱合并；不保存提供方邮箱。OAuth 账号没有用户名和密码。
-- `state` 只能防止服务端重放；客户端必须在发起前保存 `state` 并在回调时比对，否则存在登录 CSRF，前端接入时需实现。
+- `state` 只能防止服务端重放；客户端必须在发起前保存 `state` 并在回调时比对，否则存在登录 CSRF。前端已实现：发起前把 provider 与 state 存入 `sessionStorage`，回调时比对并立即消耗，不一致则不调用 `CompleteOAuthFlow`。
 - 限流（Redis 固定窗口）：登录每用户名 10 次 / 15 分钟、每客户端地址 40 次 / 15 分钟；注册每地址 10 次 / 小时；OAuth 每地址 60 次 / 15 分钟；足迹写入每用户 300 次 / 分钟。超限返回 `resource_exhausted`，Redis 不可用时返回 `unavailable`（不放行）。
 - 当前没有找回密码、修改密码、账号注销与邮箱验证；密码账号忘记密码无法自助恢复。
 
@@ -203,4 +203,4 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：前端的登录与云端读写闭环（F1 剩余部分）、迁移上云（F2）、增量同步与快照。F0（本地读取失败保护）和 F1 的后端部分已完成；F2–F12 仍待实现。
+从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：迁移上云（F2）、离线编辑队列与冲突提示、快照。F0（本地读取失败保护）和 F1（账号与云同步，含前端闭环）已完成；F2–F12 仍待实现。

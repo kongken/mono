@@ -23,7 +23,9 @@ import {
   CalendarBlank,
   ArrowCounterClockwise,
   Stack,
+  UserCircle,
   Warning,
+  WifiSlash,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,7 +52,9 @@ import {
   validateSaved as validateSavedData,
   type LocalLoad,
 } from "./lib/persistence";
+import AccountDialog from "./components/AccountDialog";
 import CityPicker from "./components/CityPicker";
+import { readBoot, useCloud } from "./hooks/useCloud";
 import TravelReport from "./components/TravelReport";
 import { totalCities, percentage } from "./lib/statistics";
 import "./App.css";
@@ -78,11 +82,16 @@ type Unreadable = Extract<LocalLoad, { status: "unreadable" }>;
 
 function App() {
   const [initialLoad] = useState(loadSaved);
-  const [saved, setSaved] = useState<Saved>(initialLoad.saved);
+  // A restored account session starts from its cloud copy, never from the
+  // local footprints saved before signing in.
+  const [boot] = useState(() => readBoot(validateSaved));
+  const [saved, setSaved] = useState<Saved>(
+    boot.session ? (boot.cache?.saved ?? empty) : initialLoad.saved,
+  );
   // While set, local data failed to load: nothing is written so the original
   // cache stays intact until the user chooses how to proceed.
   const [unreadable, setUnreadable] = useState<Unreadable | null>(
-    initialLoad.status === "unreadable" ? initialLoad : null,
+    !boot.session && initialLoad.status === "unreadable" ? initialLoad : null,
   );
   const [rawExported, setRawExported] = useState(false);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
@@ -108,16 +117,75 @@ function App() {
   const [zoom, setZoom] = useState(1);
   const [basemap, setBasemap] = useState(loadBasemap);
   const [importOpen, setImportOpen] = useState<Saved | null>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const savedRef = useRef(saved);
+  savedRef.current = saved;
+  const notify = (message: string, removed: Visit | null = null) => {
+    setToast(message);
+    setUndoVisit(removed);
+  };
+  const cloud = useCloud({
+    boot,
+    validate: validateSaved,
+    notify,
+    onCloudData: setSaved,
+    onAccountChange: (data) => {
+      setProvince(null);
+      setQuery("");
+      setTab("map");
+      setEditor(false);
+      setCityPickerOpen(false);
+      setReportOpen(false);
+      setImportOpen(null);
+      setToast("");
+      setUndoVisit(null);
+      setStorageError(false);
+      if (data) {
+        setSaved(data);
+        setUnreadable(null);
+      } else {
+        // Back to this device's own footprints.
+        const local = loadSaved();
+        setSaved(local.saved);
+        setUnreadable(local.status === "unreadable" ? local : null);
+        setRawExported(false);
+        setConfirmEmpty(false);
+        setUnreadableError("");
+      }
+    },
+  });
+  // All user edits go through here so cloud mode can sync them, and refuse
+  // them while the cloud copy is not loaded and confirmed.
+  const commit = (update: (s: Saved) => Saved) => {
+    if (cloud.mode === "cloud") {
+      if (!cloud.canWrite) {
+        notify(
+          cloud.loadFailed
+            ? "无法连接云端，暂时不能修改"
+            : "正在连接云端，请稍候再修改",
+        );
+        return false;
+      }
+      const next = update(savedRef.current);
+      savedRef.current = next;
+      cloud.push(next);
+      setSaved(next);
+      return true;
+    }
+    setSaved(update);
+    return true;
+  };
   useEffect(() => {
-    if (unreadable) return;
+    // Cloud data is not written to the local key: that key belongs to local mode.
+    if (unreadable || cloud.mode === "cloud") return;
     try {
       localStorage.setItem(STORAGE, JSON.stringify(saved));
       setStorageError(false);
     } catch {
       setStorageError(true);
     }
-  }, [saved, unreadable]);
+  }, [saved, unreadable, cloud.mode]);
   useEffect(() => {
     try {
       localStorage.setItem(BASEMAP_STORAGE, basemap ? "osm" : "off");
@@ -213,17 +281,13 @@ function App() {
     [saved.visits],
   );
   const showOsm = !!province && basemap;
-  const notify = (message: string, removed: Visit | null = null) => {
-    setToast(message);
-    setUndoVisit(removed);
-  };
   const toggleCity = (provinceCode: string, cityCode: string) => {
     const city = provinceByCode(provinceCode)?.cities.find(
       (c) => c.code === cityCode,
     );
     if (!city) return;
     const removed = saved.visits.find((v) => v.code === cityCode);
-    setSaved((s) => toggleVisit(s, provinceCode, city, today()));
+    if (!commit((s) => toggleVisit(s, provinceCode, city, today()))) return;
     notify(
       removed
         ? `已取消 ${city.name} 的足迹`
@@ -258,10 +322,13 @@ function App() {
       date: draftDate,
       note: draftNote.trim(),
     };
-    setSaved((s) => ({
-      ...s,
-      visits: [...s.visits.filter((v) => v.code !== city.code), visit],
-    }));
+    if (
+      !commit((s) => ({
+        ...s,
+        visits: [...s.visits.filter((v) => v.code !== city.code), visit],
+      }))
+    )
+      return;
     setEditor(false);
     notify(`已记录 ${city.name} 的足迹`);
   };
@@ -326,6 +393,28 @@ function App() {
     setTab("map");
   };
 
+  if (cloud.busy || (cloud.mode === "cloud" && cloud.waiting)) {
+    return (
+      <div className="cloud-gate">
+        <Compass size={40} weight="duotone" />
+        {cloud.busy || !cloud.loadFailed ? (
+          <p role="status">{cloud.busy || "正在加载云端足迹…"}</p>
+        ) : (
+          <>
+            <h2>无法加载云端足迹</h2>
+            <p role="alert">{cloud.loadError}</p>
+            <div className="dialog-actions">
+              <Button variant="outline" onClick={() => void cloud.logout()}>
+                退出登录，使用本地模式
+              </Button>
+              <Button onClick={() => void cloud.retry()}>重试</Button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <header className="header">
@@ -363,7 +452,15 @@ function App() {
         <div className="header-end">
           <span className="local-status">
             <span />
-            {storageError ? "保存失败，请导出备份" : "本地自动保存"}
+            {cloud.mode === "cloud"
+              ? !cloud.canWrite
+                ? "云端未连接"
+                : cloud.sync === "syncing"
+                  ? "同步中…"
+                  : "已同步到云端"
+              : storageError
+                ? "保存失败，请导出备份"
+                : "本地自动保存"}
           </span>
           <Button
             variant="outline"
@@ -373,11 +470,45 @@ function App() {
             <DownloadSimple size={17} />
             导出足迹
           </Button>
-          <span className="avatar">
-            <Mountains size={22} />
-          </span>
+          {cloud.enabled ? (
+            <button
+              className="account-button"
+              aria-label={cloud.user ? "账号" : "登录"}
+              onClick={() => setAccountOpen(true)}
+            >
+              {cloud.user ? (
+                <span className="account-initial">
+                  {(cloud.user.displayName || cloud.user.username || "?")
+                    .slice(0, 1)
+                    .toUpperCase()}
+                </span>
+              ) : (
+                <>
+                  <UserCircle size={18} />
+                  <span className="account-label">登录</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <span className="avatar">
+              <Mountains size={22} />
+            </span>
+          )}
         </div>
       </header>
+      {cloud.mode === "cloud" && !cloud.canWrite && !cloud.waiting && (
+        <div className="cloud-banner" role="status">
+          <WifiSlash size={17} />
+          <span>
+            {cloud.loadFailed
+              ? "无法连接云端，显示的是上次同步的数据，暂时不能修改。"
+              : "正在连接云端…"}
+          </span>
+          {cloud.loadFailed && (
+            <button onClick={() => void cloud.retry()}>重试</button>
+          )}
+        </div>
+      )}
       <main>
         <section className="intro">
           <div>
@@ -848,7 +979,7 @@ function App() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setSaved((s) => toggleProvince(s, province.code));
+                      if (!commit((s) => toggleProvince(s, province.code))) return;
                       notify(
                         saved.provinces[province.code]
                           ? "已取消省份单独标记，城市足迹保留"
@@ -987,7 +1118,11 @@ function App() {
             山海足迹 · 让每一次出发都有迹可循
           </span>
           <div>
-            <button onClick={() => fileInput.current?.click()}>
+            <button
+              disabled={cloud.mode === "cloud"}
+              title={cloud.mode === "cloud" ? "登录期间暂不支持导入备份" : undefined}
+              onClick={() => fileInput.current?.click()}
+            >
               <UploadSimple size={14} />
               导入备份
             </button>
@@ -1123,10 +1258,13 @@ function App() {
                   variant="ghost"
                   className="delete-button"
                   onClick={() => {
-                    setSaved((s) => ({
-                      ...s,
-                      visits: s.visits.filter((v) => v.code !== draftCity),
-                    }));
+                    if (
+                      !commit((s) => ({
+                        ...s,
+                        visits: s.visits.filter((v) => v.code !== draftCity),
+                      }))
+                    )
+                      return;
                     setEditor(false);
                     notify("已移除这座城市的足迹");
                   }}
@@ -1238,6 +1376,18 @@ function App() {
           </div>
         </DialogContent>
       </Dialog>
+      {cloud.enabled && (
+        <AccountDialog
+          open={accountOpen}
+          onOpenChange={setAccountOpen}
+          cloud={cloud}
+          localCount={
+            accountOpen && cloud.mode === "cloud"
+              ? loadSaved().saved.visits.length
+              : 0
+          }
+        />
+      )}
       {toast && (
         <div className="toast" role="status">
           <Check size={18} />
@@ -1246,13 +1396,16 @@ function App() {
             <button
               className="undo-button"
               onClick={() => {
-                setSaved((s) => ({
-                  ...s,
-                  visits: [
-                    ...s.visits.filter((v) => v.code !== undoVisit.code),
-                    undoVisit,
-                  ],
-                }));
+                if (
+                  !commit((s) => ({
+                    ...s,
+                    visits: [
+                      ...s.visits.filter((v) => v.code !== undoVisit.code),
+                      undoVisit,
+                    ],
+                  }))
+                )
+                  return;
                 notify(`已恢复 ${undoVisit.name} 的足迹`);
               }}
             >
