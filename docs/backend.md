@@ -4,7 +4,7 @@
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
-当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1：账号与会话（`AuthService`）、足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流），前端登录与云端读写闭环也已接入（配置 `VITE_API_BASE_URL` 后出现登录入口，见 [功能描述](features.md)）。尚未实现的有迁移（F2）、离线编辑队列、快照、上传签名和分享。未登录的城市足迹继续保存在浏览器，后端不会迁移或覆盖本地记录。
+当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1：账号与会话（`AuthService`）、足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流），前端登录与云端读写闭环也已接入（配置 `VITE_API_BASE_URL` 后出现登录入口，见 [功能描述](features.md)）。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。尚未实现的有账号注销、迁移（F2）、服务端增量变更日志、快照、上传签名和分享。未登录的城市足迹继续保存在浏览器，后端不会迁移或覆盖本地记录。
 
 Redis 客户端已接入，后续用于会话、缓存或限流；本次没有把城市足迹存入 Redis。对象内容使用 S3，PostgreSQL 只存业务记录和媒体元数据。
 
@@ -147,7 +147,7 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
 
 - 服务端用嵌入的区域索引校验：区域 ID 存在，名称、所属省份与索引一致，颜色是五种之一，日期为空或真实日历日期，备注不超过 1000 个 UTF-16 码元。校验失败返回 `invalid_argument`。
 - 每次写入在持有用户行锁的事务中执行，同一用户的写入串行；只有实际改变数据才使 `revision` +1。内容相同的重复保存、删除不存在的记录都成功且不增加 revision，因此重试幂等，响应中的 `changed` / `deleted` 表示是否发生变化。
-- `base_revision` 可选：为 0 表示不检查；非 0 且与当前 revision 不同、且本次写入会改变数据时返回 `aborted`，并附带 `RevisionConflict.current_revision`。合并、离线队列和冲突规则属于 F2 之后的增量同步，尚未实现。
+- `base_revision` 保持旧客户端兼容：未设置 `require_revision` 时，0 表示不检查，非 0 表示检查。新增 `require_revision: true` 会检查任何 base_revision（包含 0）。检查版本与当前 revision 不同、且写入会改变数据时返回 `aborted`，附带 `RevisionConflict.current_revision`；已生效请求的同内容重放仍幂等成功。新前端读取完整快照后逐记录精确版本写入，版本变化时重新三方合并，同记录冲突需要用户选择。部署须先更新支持 `require_revision` 的后端，再部署新前端（旧后端忽略该字段，无法保护初始 revision=0）。尚无服务端增量变更日志、删除 tombstone 和 `SyncChanges` 接口。
 - 区域索引的后端副本是 `internal/regions/regions.json`，必须与 `src/regions.json` 一致；`npm run download:maps` 会同时写入两份，Go 测试会比对。
 
 ```bash
@@ -203,4 +203,4 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：迁移上云（F2）、离线编辑队列与冲突提示、快照。F0（本地读取失败保护）和 F1（账号与云同步，含前端闭环）已完成；F2–F12 仍待实现。
+从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：账号注销、迁移上云（F2）、增量变更日志与快照。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销和真实 OAuth 端到端验证仍未完成，不能把 F1 全范围标为交付。F2–F12 仍待完整实现。

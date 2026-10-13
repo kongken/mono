@@ -1,6 +1,5 @@
 import type { Saved, Visit } from "./travel.ts";
 
-/** One change to the cloud copy; diffs between two Saved states are lists of these. */
 export type Op =
   | { type: "upsertVisit"; visit: Visit }
   | { type: "deleteVisit"; code: string }
@@ -14,10 +13,6 @@ const sameVisit = (a: Visit, b: Visit) =>
   a.date === b.date &&
   a.note === b.note;
 
-/**
- * Operations that turn `base` into `next`. Records present in both and equal
- * produce nothing, so a stale or partial view can never touch other records.
- */
 export function diffSaved(base: Saved, next: Saved): Op[] {
   const ops: Op[] = [];
   const before = new Map(base.visits.map((v) => [v.code, v]));
@@ -26,10 +21,12 @@ export function diffSaved(base: Saved, next: Saved): Op[] {
     if (!after.has(code)) ops.push({ type: "deleteVisit", code });
   for (const [code, visit] of after) {
     const old = before.get(code);
-    if (!old || !sameVisit(old, visit)) ops.push({ type: "upsertVisit", visit });
+    if (!old || !sameVisit(old, visit))
+      ops.push({ type: "upsertVisit", visit });
   }
   for (const province of Object.keys(base.provinces))
-    if (!(province in next.provinces)) ops.push({ type: "deleteMark", province });
+    if (!(province in next.provinces))
+      ops.push({ type: "deleteMark", province });
   for (const [province, color] of Object.entries(next.provinces))
     if (base.provinces[province] !== color)
       ops.push({ type: "upsertMark", province, color });
@@ -41,12 +38,21 @@ export function applyOp(saved: Saved, op: Op): Saved {
     case "upsertVisit":
       return {
         ...saved,
-        visits: [...saved.visits.filter((v) => v.code !== op.visit.code), op.visit],
+        visits: [
+          ...saved.visits.filter((v) => v.code !== op.visit.code),
+          op.visit,
+        ],
       };
     case "deleteVisit":
-      return { ...saved, visits: saved.visits.filter((v) => v.code !== op.code) };
+      return {
+        ...saved,
+        visits: saved.visits.filter((v) => v.code !== op.code),
+      };
     case "upsertMark":
-      return { ...saved, provinces: { ...saved.provinces, [op.province]: op.color } };
+      return {
+        ...saved,
+        provinces: { ...saved.provinces, [op.province]: op.color },
+      };
     case "deleteMark": {
       const provinces = { ...saved.provinces };
       delete provinces[op.province];
@@ -55,92 +61,204 @@ export function applyOp(saved: Saved, op: Op): Saved {
   }
 }
 
-export type CloudSnapshot = { saved: Saved; revision: number };
-
-/** The footprint API the engine talks to; apply resolves to the new revision. */
-export interface FootprintApi {
-  get(): Promise<CloudSnapshot>;
-  apply(op: Op): Promise<number>;
+function record(saved: Saved, op: Op) {
+  return op.type === "upsertVisit" || op.type === "deleteVisit"
+    ? saved.visits.find(
+        (v) => v.code === (op.type === "upsertVisit" ? op.visit.code : op.code),
+      )
+    : saved.provinces[op.province];
+}
+function equalRecord(
+  a: ReturnType<typeof record>,
+  b: ReturnType<typeof record>,
+) {
+  if (typeof a === "object" && typeof b === "object") return sameVisit(a, b);
+  return a === b;
 }
 
-export type SyncStatus = "idle" | "syncing" | "error";
+/** Merge unrelated remote edits; a same-record edit/delete needs a user's choice. */
+export function rebaseSaved(base: Saved, desired: Saved, remote: Saved) {
+  const conflicts: Op[] = [];
+  let merged = remote;
+  for (const op of diffSaved(base, desired)) {
+    if (
+      !equalRecord(record(base, op), record(remote, op)) &&
+      !equalRecord(record(desired, op), record(remote, op))
+    )
+      conflicts.push(op);
+    merged = applyOp(merged, op);
+  }
+  return { saved: merged, conflicts };
+}
 
+export type CloudSnapshot = { saved: Saved; revision: number };
+/** The visible desired data and its server-confirmed ancestor are persisted together. */
+export type SyncCache = CloudSnapshot & { confirmed: Saved };
+export class RevisionChanged extends Error {}
+export interface FootprintApi {
+  get(): Promise<CloudSnapshot>;
+  apply(op: Op, revision: number): Promise<number>;
+}
+export type SyncStatus = "idle" | "syncing" | "error" | "conflict";
 export type SyncListener = {
   onStatus?(status: SyncStatus): void;
-  /** Called after each confirmed operation with the server-confirmed state. */
   onConfirmed?(snapshot: CloudSnapshot): void;
+  onChange?(cache: SyncCache): void;
   onError?(error: unknown): void;
 };
 
-/**
- * Sends the difference between the server-confirmed state and the latest
- * desired state, one operation at a time. The base only ever advances by
- * operations the server acknowledged, and the engine is created from a fetched
- * snapshot, so it cannot overwrite the cloud with data it never loaded.
- */
 export class SyncEngine {
   private base: Saved;
   private revision: number;
   private latest: Saved;
   private running: Promise<void> | null = null;
   private currentStatus: SyncStatus = "idle";
+  private conflicting: Op[] = [];
+  private remote: CloudSnapshot | null = null;
+  private stopped = false;
+
   private readonly api: FootprintApi;
   private readonly listener: SyncListener;
 
-  constructor(api: FootprintApi, snapshot: CloudSnapshot, listener: SyncListener = {}) {
+  constructor(
+    api: FootprintApi,
+    snapshot: CloudSnapshot,
+    listener: SyncListener = {},
+    desired = snapshot.saved,
+  ) {
     this.api = api;
     this.listener = listener;
     this.base = snapshot.saved;
-    this.latest = snapshot.saved;
+    this.latest = desired;
     this.revision = snapshot.revision;
   }
-
   get status() {
     return this.currentStatus;
   }
   get confirmed(): CloudSnapshot {
     return { saved: this.base, revision: this.revision };
   }
+  get cache(): SyncCache {
+    return {
+      saved: this.latest,
+      confirmed: this.base,
+      revision: this.revision,
+    };
+  }
   get pending() {
     return diffSaved(this.base, this.latest).length > 0;
   }
+  get conflicts() {
+    return this.conflicting;
+  }
 
-  /** Replace the confirmed state, for example after a refetch. */
   reset(snapshot: CloudSnapshot) {
     this.base = snapshot.saved;
     this.latest = snapshot.saved;
     this.revision = snapshot.revision;
+    this.conflicting = [];
+    this.remote = null;
     this.setStatus("idle");
+    this.changed();
   }
-
+  /** Detached engines must never issue further requests using another account's token. */
+  stop() {
+    this.stopped = true;
+  }
   push(next: Saved) {
     this.latest = next;
-    if (!this.running) this.running = this.run();
+    this.changed();
+    this.retry();
   }
-
-  /** Resolves once everything pushed so far has been sent, or sending failed. */
+  retry() {
+    if (this.running || this.stopped || this.currentStatus === "conflict")
+      return;
+    // Defer execution so even a synchronous failure cannot leave a settled promise installed.
+    this.running = Promise.resolve().then(() => this.run());
+  }
   async drain() {
     while (this.running) await this.running;
   }
 
+  resolve(choice: "local" | "cloud") {
+    if (!this.remote || this.running) return;
+    const result = rebaseSaved(this.base, this.latest, this.remote.saved);
+    let desired = result.saved;
+    if (choice === "cloud") {
+      for (const op of result.conflicts) {
+        const value = record(this.remote.saved, op);
+        const restore: Op =
+          op.type === "upsertVisit" || op.type === "deleteVisit"
+            ? value
+              ? { type: "upsertVisit", visit: value as Visit }
+              : {
+                  type: "deleteVisit",
+                  code: op.type === "upsertVisit" ? op.visit.code : op.code,
+                }
+            : value
+              ? {
+                  type: "upsertMark",
+                  province: op.province,
+                  color: value as string,
+                }
+              : { type: "deleteMark", province: op.province };
+        desired = applyOp(desired, restore);
+      }
+    }
+    this.base = this.remote.saved;
+    this.revision = this.remote.revision;
+    this.latest = desired;
+    this.remote = null;
+    this.conflicting = [];
+    this.setStatus("idle");
+    this.changed();
+    this.retry();
+  }
+  private changed() {
+    this.listener.onChange?.(this.cache);
+  }
   private setStatus(status: SyncStatus) {
     if (status === this.currentStatus) return;
     this.currentStatus = status;
     this.listener.onStatus?.(status);
   }
-
   private async run() {
     this.setStatus("syncing");
     try {
+      let retries = 0;
       for (;;) {
+        if (this.stopped) return;
+        const remote = await this.api.get();
+        if (this.stopped) return;
+        const result = rebaseSaved(this.base, this.latest, remote.saved);
+        if (result.conflicts.length) {
+          this.remote = remote;
+          this.conflicting = result.conflicts;
+          this.setStatus("conflict");
+          return;
+        }
+        this.base = remote.saved;
+        this.revision = remote.revision;
+        this.latest = result.saved;
+        this.changed();
         const [op] = diffSaved(this.base, this.latest);
         if (!op) break;
-        this.revision = await this.api.apply(op);
-        this.base = applyOp(this.base, op);
-        this.listener.onConfirmed?.(this.confirmed);
+        try {
+          const revision = await this.api.apply(op, this.revision);
+          if (this.stopped) return;
+          this.revision = revision;
+          this.base = applyOp(this.base, op);
+          this.listener.onConfirmed?.(this.confirmed);
+          this.changed();
+          retries = 0;
+        } catch (error) {
+          if (error instanceof RevisionChanged && ++retries <= 3) continue;
+          throw error;
+        }
       }
       this.setStatus("idle");
     } catch (error) {
+      if (this.stopped) return;
       this.setStatus("error");
       this.listener.onError?.(error);
     } finally {

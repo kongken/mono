@@ -14,23 +14,40 @@ import {
   saveSession,
   type CachedCloud,
   type StoredSession,
+  cacheKey,
 } from "@/lib/session";
-import { SyncEngine, type CloudSnapshot, type SyncStatus } from "@/lib/sync";
+import {
+  SyncEngine,
+  diffSaved,
+  type Op,
+  type CloudSnapshot,
+  type SyncStatus,
+} from "@/lib/sync";
 import type { Saved } from "@/lib/travel";
 
-export type CloudBoot = { session: StoredSession | null; cache: CachedCloud | null };
+export type CloudBoot = {
+  session: StoredSession | null;
+  cache: CachedCloud | null;
+  error?: string;
+};
 
 /** Reads the stored session and its cached copy; both are synchronous. */
 export function readBoot(validate: (data: unknown) => Saved): CloudBoot {
   if (!backendEnabled) return { session: null, cache: null };
+  const session = loadSession(localStorage);
   try {
-    const session = loadSession(localStorage);
     return {
       session,
-      cache: session ? loadCloudCache(localStorage, session.user.id, validate) : null,
+      cache: session
+        ? loadCloudCache(localStorage, session.user.id, validate)
+        : null,
     };
-  } catch {
-    return { session: null, cache: null };
+  } catch (error) {
+    return {
+      session,
+      cache: null,
+      error: error instanceof Error ? error.message : "账号缓存无法读取",
+    };
   }
 }
 
@@ -52,14 +69,18 @@ export function useCloud(options: Options) {
   const opts = useRef(options);
   opts.current = options;
 
-  const [session, setSessionState] = useState<StoredSession | null>(() => {
-    setToken(options.boot.session?.token ?? null);
-    return options.boot.session;
-  });
+  const [session, setSessionState] = useState<StoredSession | null>(
+    options.boot.session,
+  );
   const sessionRef = useRef(session);
   const [hasData, setHasData] = useState(!!options.boot.cache);
   const [loaded, setLoaded] = useState<"pending" | "ok" | "failed">("pending");
-  const [loadError, setLoadError] = useState("");
+  const [loadError, setLoadError] = useState(options.boot.error ?? "");
+  const protectedCache = useRef(!!options.boot.error);
+  const [lockedCache, setLockedCache] = useState(!!options.boot.error);
+  const [cacheFailed, setCacheFailed] = useState(false);
+  const [conflictRecords, setConflictRecords] = useState<Op[]>([]);
+  const [pending, setPending] = useState(false);
   const [sync, setSync] = useState<SyncStatus>("idle");
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [busy, setBusy] = useState("");
@@ -76,11 +97,21 @@ export function useCloud(options: Options) {
 
   const leaveAccount = useCallback((message: string) => {
     try {
-      clearAccountData(localStorage);
+      clearAccountData(
+        localStorage,
+        sessionRef.current?.user.id,
+        opts.current.validate,
+      );
     } catch {
       // The in-memory state below is cleared regardless.
     }
+    engineRef.current?.stop();
     engineRef.current = null;
+    protectedCache.current = false;
+    setLockedCache(false);
+    setCacheFailed(false);
+    setConflictRecords([]);
+    setPending(false);
     sessionRef.current = null;
     setToken(null);
     setSessionState(null);
@@ -92,41 +123,59 @@ export function useCloud(options: Options) {
     if (message) opts.current.notify(message);
   }, []);
 
-  const adopt = (s: StoredSession, snapshot: CloudSnapshot, fresh: boolean) => {
-    const cacheWrite = (c: CloudSnapshot) => {
-      if (sessionRef.current?.token === s.token)
-        saveCloudCache(localStorage, s.user.id, c);
+  const adopt = (
+    s: StoredSession,
+    snapshot: CloudSnapshot,
+    desired = snapshot.saved,
+  ) => {
+    engineRef.current?.stop();
+    const api = {
+      ...footprintApi,
+      get: async () => {
+        const result = await footprintApi.get();
+        return {
+          revision: result.revision,
+          saved: opts.current.validate(result.saved),
+        };
+      },
     };
-    if (!engineRef.current) {
-      engineRef.current = new SyncEngine(footprintApi, snapshot, {
-        onStatus: setSync,
-        onConfirmed: cacheWrite,
+    engineRef.current = new SyncEngine(
+      api,
+      snapshot,
+      {
+        onStatus: (status) => {
+          if (sessionRef.current?.token !== s.token) return;
+          setSync(status);
+          setConflictRecords(engineRef.current?.conflicts ?? []);
+          setPending(engineRef.current?.pending ?? false);
+          if (status === "idle") {
+            setLoaded("ok");
+            setLoadError("");
+          }
+        },
+        onChange: (cache) => {
+          if (sessionRef.current?.token !== s.token) return;
+          setCacheFailed(!saveCloudCache(localStorage, s.user.id, cache));
+          setPending(diffSaved(cache.confirmed, cache.saved).length > 0);
+          opts.current.onCloudData(cache.saved);
+        },
         onError: (error) => {
           if (sessionRef.current?.token !== s.token) return;
           if (isUnauthenticated(error)) {
-            leaveAccount("登录已过期，请重新登录");
-            return;
+            // Do not clear unsent edits automatically when a session expires.
+            setLoadError(
+              "登录已过期，未同步修改仍保留，请先导出备份再退出并重新登录",
+            );
+          } else {
+            setLoadError(describeApiError(error));
           }
-          const engine = engineRef.current;
-          if (!engine) return;
-          // Show only what the server confirmed, and drop the unsent changes.
-          const confirmed = engine.confirmed;
-          engine.reset(confirmed);
-          opts.current.onCloudData(confirmed.saved);
-          // Read-only until a refetch succeeds, so the indicator stays honest.
           setLoaded("failed");
-          setLoadError(describeApiError(error));
-          opts.current.notify(
-            `同步失败：${describeApiError(error)}。已还原为云端最新确认的数据`,
-          );
-          void refresh(true);
+          opts.current.notify("同步未完成，修改已保留在本机，可重试或导出备份");
         },
-      });
-    } else {
-      engineRef.current.reset(snapshot);
-    }
-    cacheWrite(snapshot);
-    if (fresh) opts.current.onCloudData(snapshot.saved);
+      },
+      desired,
+    );
+    opts.current.onCloudData(desired);
     setHasData(true);
     setLoaded("ok");
     setLoadError("");
@@ -135,11 +184,18 @@ export function useCloud(options: Options) {
   const refresh = useCallback(async (force = false) => {
     const s = sessionRef.current;
     if (!s) return;
+    if (protectedCache.current) {
+      setLoaded("failed");
+      return;
+    }
     const now = Date.now();
     if (!force && now - lastRefresh.current < REFRESH_MIN_MS) return;
     lastRefresh.current = now;
     const engine = engineRef.current;
-    if (engine && (engine.pending || engine.status === "syncing")) return;
+    if (engine) {
+      engine.retry();
+      return;
+    }
     const seq = editSeq.current;
     let fetched: CloudSnapshot;
     try {
@@ -147,7 +203,8 @@ export function useCloud(options: Options) {
     } catch (error) {
       if (sessionRef.current?.token !== s.token) return;
       if (isUnauthenticated(error)) {
-        leaveAccount("登录已过期，请重新登录");
+        setLoadError("登录已过期，请先导出未同步修改，再退出并重新登录");
+        setLoaded("failed");
         return;
       }
       setLoaded("failed");
@@ -156,7 +213,10 @@ export function useCloud(options: Options) {
     }
     let snapshot: CloudSnapshot;
     try {
-      snapshot = { revision: fetched.revision, saved: opts.current.validate(fetched.saved) };
+      snapshot = {
+        revision: fetched.revision,
+        saved: opts.current.validate(fetched.saved),
+      };
     } catch {
       if (sessionRef.current?.token === s.token) {
         setLoaded("failed");
@@ -165,23 +225,32 @@ export function useCloud(options: Options) {
       return;
     }
     // Drop the result if the account changed or an edit happened meanwhile.
-    if (sessionRef.current?.token !== s.token || editSeq.current !== seq) return;
-    const current = engineRef.current;
-    if (current && current.confirmed.revision === snapshot.revision) {
-      setLoaded("ok");
+    if (sessionRef.current?.token !== s.token || editSeq.current !== seq)
       return;
-    }
-    adopt(s, snapshot, true);
+    adopt(s, snapshot);
+    engineRef.current?.retry();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const enter = (s: StoredSession) => {
     saveSession(localStorage, s);
     try {
-      clearOtherCaches(localStorage, s.user.id);
+      clearOtherCaches(localStorage, s.user.id, opts.current.validate);
     } catch {
       // A stale cache of another account is only an optimisation lost.
     }
-    const cache = loadCloudCache(localStorage, s.user.id, opts.current.validate);
+    let cache: CachedCloud | null = null;
+    try {
+      cache = loadCloudCache(localStorage, s.user.id, opts.current.validate);
+      protectedCache.current = false;
+      setLockedCache(false);
+    } catch (error) {
+      protectedCache.current = true;
+      setLockedCache(true);
+      opts.current.notify(
+        error instanceof Error ? error.message : "账号缓存无法读取",
+      );
+    }
+    engineRef.current?.stop();
     engineRef.current = null;
     setSession(s);
     setLoaded("pending");
@@ -190,12 +259,33 @@ export function useCloud(options: Options) {
     setHasData(!!cache);
     opts.current.onAccountChange(cache?.saved ?? emptySaved);
     lastRefresh.current = 0;
+    if (cache) {
+      adopt(
+        s,
+        { saved: cache.confirmed ?? cache.saved, revision: cache.revision },
+        cache.saved,
+      );
+    }
     void refresh(true);
   };
 
   // First load for a restored session.
   useEffect(() => {
-    if (sessionRef.current) void refresh(true);
+    const s = sessionRef.current;
+    const cache = opts.current.boot.cache;
+    setToken(s?.token ?? null);
+    if (s && cache) {
+      adopt(
+        s,
+        { saved: cache.confirmed ?? cache.saved, revision: cache.revision },
+        cache.saved,
+      );
+    }
+    if (s) void refresh(true);
+    return () => {
+      engineRef.current?.stop();
+      engineRef.current = null;
+    };
   }, [refresh]);
 
   // Pick up changes from other devices when the page comes back.
@@ -205,11 +295,28 @@ export function useCloud(options: Options) {
       if (document.visibilityState === "visible") void refresh();
     };
     const onOnline = () => void refresh(true);
+    const onStorage = (event: StorageEvent) => {
+      if (
+        event.key !== cacheKey(session.user.id) &&
+        event.key !== "shanhai-session-v1"
+      )
+        return;
+      engineRef.current?.stop();
+      protectedCache.current = true;
+      setLockedCache(true);
+      setLoaded("failed");
+      setCacheFailed(true);
+      setLoadError(
+        "另一个页面修改了账号数据，请先导出本页备份再刷新；暂停编辑以避免覆盖",
+      );
+    };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", onOnline);
+    window.addEventListener("storage", onStorage);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", onOnline);
+      window.removeEventListener("storage", onStorage);
     };
   }, [session, refresh]);
 
@@ -272,16 +379,57 @@ export function useCloud(options: Options) {
     waiting: !!session && !hasData,
     loadFailed: loaded === "failed",
     loadError,
-    /** Edits are accepted only against data confirmed by the server. */
-    canWrite: !!session && loaded === "ok",
+    /** Cached confirmed ancestors allow durable edits while offline. */
+    canWrite:
+      !!session &&
+      hasData &&
+      !lockedCache &&
+      !cacheFailed &&
+      sync !== "conflict",
     sync,
+    conflicts: conflictRecords.length,
+    conflictRecords,
+    pending,
+    cacheFailed,
+    resolveConflict: (choice: "local" | "cloud") =>
+      engineRef.current?.resolve(choice),
+    exportRawCache: () => {
+      if (!session) return;
+      const raw = localStorage.getItem(cacheKey(session.user.id));
+      if (raw === null) return;
+      const url = URL.createObjectURL(
+        new Blob([raw], { type: "application/json" }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "山海足迹-账号原始缓存.json";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
     busy,
     providers,
     retry: () => refresh(true),
     /** Hand a user edit to the sync engine; call only in cloud mode. */
     push: (next: Saved) => {
+      const engine = engineRef.current;
+      const s = sessionRef.current;
+      if (!engine || !s || protectedCache.current) return false;
+      // Persist first: refused writes must not leave a phantom edit on screen.
+      if (
+        !saveCloudCache(localStorage, s.user.id, {
+          ...engine.cache,
+          saved: next,
+        })
+      ) {
+        setCacheFailed(true);
+        opts.current.notify(
+          "本机保存失败，未接受此次修改，请先导出备份并释放存储空间",
+        );
+        return false;
+      }
       editSeq.current++;
-      engineRef.current?.push(next);
+      engine.push(next);
+      return true;
     },
     login: (username: string, password: string) =>
       signIn(() => authApi.login(username, password)),
@@ -296,11 +444,18 @@ export function useCloud(options: Options) {
       savePending(sessionStorage, provider, r.state);
       location.assign(url.toString());
     },
-    logout: async () => {
+    logout: async (discardPending = false) => {
       const s = sessionRef.current;
       if (!s) return;
       // Let in-flight writes land first so nothing is lost by signing out.
       await engineRef.current?.drain();
+      if (
+        !discardPending &&
+        (engineRef.current?.pending || protectedCache.current)
+      )
+        throw new Error(
+          "仍有未同步修改或无法读取的缓存，请先导出备份；联网同步完成后再退出",
+        );
       let revoked = true;
       try {
         await authApi.logout();

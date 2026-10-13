@@ -142,8 +142,9 @@ func (s *FootprintService) GetFootprints(ctx context.Context, _ *connect.Request
 // write runs apply inside a transaction that holds the user's row lock, so
 // writes for one user are serialized and revisions are gap-free. apply reports
 // whether it changed anything; only changes bump the revision, which keeps
-// retries idempotent. A stale non-zero base revision aborts a changing write.
-func (s *FootprintService) write(ctx context.Context, base int64, apply func(tx *ent.Tx, userID string) (bool, error)) (revision int64, changed bool, err error) {
+// retries idempotent. A stale checked base revision aborts a changing write;
+// requireRevision also checks zero without changing legacy client semantics.
+func (s *FootprintService) write(ctx context.Context, base int64, requireRevision bool, apply func(tx *ent.Tx, userID string) (bool, error)) (revision int64, changed bool, err error) {
 	p, err := principal(ctx)
 	if err != nil {
 		return 0, false, err
@@ -182,7 +183,7 @@ func (s *FootprintService) write(ctx context.Context, base int64, apply func(tx 
 	if !changed {
 		return u.Revision, false, nil
 	}
-	if base != 0 && base != u.Revision {
+	if (requireRevision || base != 0) && base != u.Revision {
 		conflict := connect.NewError(connect.CodeAborted, errors.New("footprints changed since base_revision"))
 		if detail, derr := connect.NewErrorDetail(&tripmapv1.RevisionConflict{CurrentRevision: u.Revision}); derr == nil {
 			conflict.AddDetail(detail)
@@ -204,7 +205,7 @@ func (s *FootprintService) UpsertVisit(ctx context.Context, req *connect.Request
 	}
 	v := req.Msg.GetVisit()
 	var stored *ent.CityVisit
-	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), func(tx *ent.Tx, uid string) (bool, error) {
+	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), func(tx *ent.Tx, uid string) (bool, error) {
 		existing, err := tx.CityVisit.Query().Where(cityvisit.UserID(uid), cityvisit.RegionCode(v.GetCode())).Only(ctx)
 		switch {
 		case ent.IsNotFound(err):
@@ -231,7 +232,7 @@ func (s *FootprintService) DeleteVisit(ctx context.Context, req *connect.Request
 	if _, _, ok := s.regions.City(req.Msg.GetCode()); !ok {
 		return nil, invalid("unknown region code")
 	}
-	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), func(tx *ent.Tx, uid string) (bool, error) {
+	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), func(tx *ent.Tx, uid string) (bool, error) {
 		n, err := tx.CityVisit.Delete().Where(cityvisit.UserID(uid), cityvisit.RegionCode(req.Msg.GetCode())).Exec(ctx)
 		return n > 0, wrapWrite(err)
 	})
@@ -247,7 +248,7 @@ func (s *FootprintService) UpsertProvinceMark(ctx context.Context, req *connect.
 	}
 	m := req.Msg.GetMark()
 	var stored *ent.ProvinceMark
-	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), func(tx *ent.Tx, uid string) (bool, error) {
+	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), func(tx *ent.Tx, uid string) (bool, error) {
 		existing, err := tx.ProvinceMark.Query().Where(provincemark.UserID(uid), provincemark.ProvinceCode(m.GetProvince())).Only(ctx)
 		switch {
 		case ent.IsNotFound(err):
@@ -273,7 +274,7 @@ func (s *FootprintService) DeleteProvinceMark(ctx context.Context, req *connect.
 	if !s.regions.HasProvince(req.Msg.GetProvince()) {
 		return nil, invalid("unknown province code")
 	}
-	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), func(tx *ent.Tx, uid string) (bool, error) {
+	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), func(tx *ent.Tx, uid string) (bool, error) {
 		n, err := tx.ProvinceMark.Delete().Where(provincemark.UserID(uid), provincemark.ProvinceCode(req.Msg.GetProvince())).Exec(ctx)
 		return n > 0, wrapWrite(err)
 	})

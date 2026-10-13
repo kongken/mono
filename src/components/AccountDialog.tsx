@@ -30,9 +30,18 @@ type Props = {
 const when = (date: Date | null) =>
   date ? date.toLocaleString("zh-CN", { hour12: false }) : "—";
 const providerIcon = (name: string) =>
-  name === "github" ? <GithubLogo size={17} /> : name === "google" ? <GoogleLogo size={17} /> : null;
+  name === "github" ? (
+    <GithubLogo size={17} />
+  ) : name === "google" ? (
+    <GoogleLogo size={17} />
+  ) : null;
 
-export default function AccountDialog({ open, onOpenChange, cloud, localCount }: Props) {
+export default function AccountDialog({
+  open,
+  onOpenChange,
+  cloud,
+  localCount,
+}: Props) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -99,23 +108,30 @@ export default function AccountDialog({ open, onOpenChange, cloud, localCount }:
               <span className="dialog-icon">
                 <UserCircle size={22} />
               </span>
-              <DialogTitle>{cloud.user.displayName || cloud.user.username}</DialogTitle>
+              <DialogTitle>
+                {cloud.user.displayName || cloud.user.username}
+              </DialogTitle>
               <DialogDescription>
                 {cloud.user.username ? `@${cloud.user.username}` : "第三方账号"}
-                ，足迹已保存到云端，可在其他设备登录查看。
+                ，同步完成的足迹可在其他设备登录查看。
               </DialogDescription>
             </DialogHeader>
             <p className="account-sync" role="status">
               <CloudCheck size={16} />
-              {!cloud.canWrite
-                ? "未连接云端，暂时只读"
-                : cloud.sync === "syncing"
-                  ? "正在同步…"
-                  : "已同步"}
+              {cloud.sync === "conflict"
+                ? "相同记录发生冲突，请先处理"
+                : cloud.cacheFailed
+                  ? "本机保存失败，暂停编辑"
+                  : cloud.sync === "syncing"
+                    ? "正在同步…"
+                    : cloud.loadFailed || cloud.pending
+                      ? "修改已保留在本机，等待同步"
+                      : "已同步"}
             </p>
             {localCount > 0 && (
               <p className="unreadable-note">
-                本机还有 {localCount} 条登录前保存的本地足迹。登录期间不会显示，也不会上传到云端（迁移功能待实现）；退出登录后仍可继续使用。
+                本机还有 {localCount}{" "}
+                条登录前保存的本地足迹。登录期间不会显示，也不会上传到云端（迁移功能待实现）；退出登录后仍可继续使用。
               </p>
             )}
             {sessions && sessions.length > 0 && (
@@ -155,7 +171,7 @@ export default function AccountDialog({ open, onOpenChange, cloud, localCount }:
             )}
             {confirmLogout && (
               <p className="unreadable-note">
-                退出登录会清除本机上的账号缓存，云端数据不受影响。
+                退出登录会清除本机上的账号缓存，云端数据不受影响。如有未同步修改，它们将被丢弃，请先关闭窗口并导出足迹备份。
               </p>
             )}
             <div className="dialog-actions">
@@ -168,7 +184,7 @@ export default function AccountDialog({ open, onOpenChange, cloud, localCount }:
                 onClick={() => {
                   if (!confirmLogout) return setConfirmLogout(true);
                   void run(async () => {
-                    await cloud.logout();
+                    await cloud.logout(true);
                     onOpenChange(false);
                   });
                 }}
@@ -184,7 +200,9 @@ export default function AccountDialog({ open, onOpenChange, cloud, localCount }:
               <span className="dialog-icon">
                 <UserCircle size={22} />
               </span>
-              <DialogTitle>{mode === "login" ? "登录山海足迹" : "创建账号"}</DialogTitle>
+              <DialogTitle>
+                {mode === "login" ? "登录山海足迹" : "创建账号"}
+              </DialogTitle>
               <DialogDescription>
                 登录后足迹保存到云端，可在多台设备间同步。不登录也能继续使用，足迹只保存在这台设备。
               </DialogDescription>
@@ -208,7 +226,9 @@ export default function AccountDialog({ open, onOpenChange, cloud, localCount }:
             </div>
             <label className="field-label">
               用户名
-              {mode === "register" && <span>3–32 位小写字母、数字或下划线</span>}
+              {mode === "register" && (
+                <span>3–32 位小写字母、数字或下划线</span>
+              )}
               <Input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -234,7 +254,9 @@ export default function AccountDialog({ open, onOpenChange, cloud, localCount }:
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                autoComplete={
+                  mode === "login" ? "current-password" : "new-password"
+                }
                 minLength={mode === "register" ? 8 : undefined}
                 maxLength={72}
                 required
@@ -246,7 +268,11 @@ export default function AccountDialog({ open, onOpenChange, cloud, localCount }:
               </p>
             )}
             <div className="dialog-actions">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
                 暂不登录
               </Button>
               <Button type="submit" disabled={pending}>
