@@ -13,40 +13,106 @@ const TILES = resolveTileConfig({
   VITE_OSM_TILE_ATTRIBUTION: import.meta.env.VITE_OSM_TILE_ATTRIBUTION,
 });
 
+/** [[south, west], [north, east]] in WGS-84. */
+export type ViewBounds = [[number, number], [number, number]];
+
 type Props = {
   map: MapData;
   /** Region code -> visit color. Regions absent from the record are unvisited. */
   colors: Record<string, string>;
+  /** Region code -> light tint for regions explored only at province level. */
+  softColors?: Record<string, string>;
   /** Boundary coordinates are GCJ-02 and must be shifted to WGS-84 for OSM tiles. */
   convertCoords: boolean;
+  /** Regions whose coordinates are already WGS-84 even when convertCoords is set. */
+  skipConvert?: (code: string) => boolean;
   label: string;
   onToggle: (code: string) => void;
-  onHover: (name: string) => void;
+  onHover: (name: string, code: string) => void;
   onTileError: () => void;
+  /** Tooltip text per region; return null for no label. Defaults to the name without 市. */
+  regionLabel?: (name: string, code: string) => string | null;
+  /** Non-interactive boundary lines drawn over the regions (e.g. provinces over cities). */
+  outline?: MapData;
+  outlineLabel?: (name: string, code: string) => string | null;
+  /** Keyboard activation for outline regions, which cannot be clicked. */
+  onOutlineSelect?: (code: string) => void;
+  /** Fixed initial view; must be a stable reference. Defaults to the region bounds. */
+  viewBounds?: ViewBounds;
+  /** Thin borders for maps with many small regions. */
+  fine?: boolean;
+  resetLabel?: string;
 };
 
-const baseStyle = (color?: string, hover = false): L.PathOptions => ({
-  color: color ? "#ffffff" : "#3d5f49",
-  weight: hover ? 2.6 : color ? 2 : 1.4,
-  fillColor: color || "#ffffff",
-  fillOpacity: color ? (hover ? 0.92 : 0.8) : hover ? 0.42 : 0.2,
-});
+const baseStyle = (
+  color?: string,
+  hover = false,
+  fine = false,
+  soft?: string,
+): L.PathOptions => {
+  if (!color && soft)
+    return {
+      color: "#3d5f49",
+      weight: hover ? 2.2 : fine ? 0.6 : 1.4,
+      fillColor: soft,
+      fillOpacity: hover ? 0.5 : 0.35,
+    };
+  return {
+    color: color ? "#ffffff" : "#3d5f49",
+    weight: hover ? 2.6 : fine ? 0.6 : color ? 2 : 1.4,
+    fillColor: color || "#ffffff",
+    fillOpacity: color ? (hover ? 0.92 : 0.8) : hover ? 0.42 : 0.2,
+  };
+};
+
+const defaultLabel = (name: string) => name.replace(/市$/, "");
 
 export default function OsmProvinceMap({
   map,
   colors,
+  softColors,
   convertCoords,
+  skipConvert,
   label,
   onToggle,
   onHover,
   onTileError,
+  regionLabel,
+  outline,
+  outlineLabel,
+  onOutlineSelect,
+  viewBounds,
+  fine = false,
+  resetLabel = "回到全省视图",
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const leaflet = useRef<L.Map | null>(null);
   const layers = useRef(new Map<string, L.Path>());
-  const latest = useRef({ colors, onToggle, onHover, onTileError });
+  const latest = useRef({
+    colors,
+    softColors,
+    skipConvert,
+    regionLabel,
+    outlineLabel,
+    onToggle,
+    onHover,
+    onTileError,
+    onOutlineSelect,
+    fine,
+  });
   useEffect(() => {
-    latest.current = { colors, onToggle, onHover, onTileError };
+    latest.current = {
+      colors,
+      softColors,
+      skipConvert,
+      regionLabel,
+      outlineLabel,
+      onToggle,
+      onHover,
+      onTileError,
+      onOutlineSelect,
+      fine,
+    };
   });
   const tileFailed = useRef(false);
   const bounds = useRef<L.LatLngBounds | null>(null);
@@ -90,35 +156,63 @@ export default function OsmProvinceMap({
   useEffect(() => {
     const instance = leaflet.current;
     if (!instance) return;
+    const convert = (feature: Feature): Feature => {
+      const code = String(feature.properties?.adcode);
+      return {
+        ...feature,
+        geometry:
+          convertCoords &&
+          !code.startsWith("tw-") &&
+          !latest.current.skipConvert?.(code)
+            ? geometryGcj02ToWgs84(feature.geometry)
+            : feature.geometry,
+      };
+    };
     const regions = new Map<string, L.Path>();
     const geojson = L.geoJSON(undefined, {
-      style: (feature) =>
-        baseStyle(latest.current.colors[String(feature?.properties.adcode)]),
+      style: (feature) => {
+        const code = String(feature?.properties.adcode);
+        return baseStyle(
+          latest.current.colors[code],
+          false,
+          latest.current.fine,
+          latest.current.softColors?.[code],
+        );
+      },
       onEachFeature: (feature, layer) => {
         const code = String(feature.properties.adcode);
         const name: string = feature.properties.name;
         const path = layer as L.Path;
+        const style = (hover = false) =>
+          baseStyle(
+            latest.current.colors[code],
+            hover,
+            latest.current.fine,
+            latest.current.softColors?.[code],
+          );
         regions.set(code, path);
-        layer.bindTooltip(name.replace(/市$/, ""), {
-          permanent: true,
-          direction: "center",
-          className: "osm-region-label",
-        });
+        const text = (latest.current.regionLabel ?? defaultLabel)(name, code);
+        if (text)
+          layer.bindTooltip(text, {
+            permanent: true,
+            direction: "center",
+            className: "osm-region-label",
+          });
         layer.on({
           click: () => latest.current.onToggle(code),
           mouseover: () => {
-            latest.current.onHover(name);
-            path.setStyle(baseStyle(latest.current.colors[code], true));
+            latest.current.onHover(name, code);
+            path.setStyle(style(true));
           },
           mouseout: () => {
-            latest.current.onHover("");
-            path.setStyle(baseStyle(latest.current.colors[code]));
+            latest.current.onHover("", code);
+            path.setStyle(style());
           },
         });
         layer.once("add", () => {
           const el = path.getElement();
           if (!el) return;
-          el.setAttribute("tabindex", "0");
+          el.setAttribute("tabindex", outline ? "-1" : "0");
           el.setAttribute("role", "button");
           el.addEventListener("keydown", (event) => {
             const e = event as KeyboardEvent;
@@ -132,33 +226,79 @@ export default function OsmProvinceMap({
     });
     for (const feature of map.features) {
       if (!feature.properties.name) continue;
-      const code = String(feature.properties.adcode);
-      const converted: Feature = {
-        ...feature,
-        geometry:
-          convertCoords && !code.startsWith("tw-")
-            ? geometryGcj02ToWgs84(feature.geometry)
-            : feature.geometry,
-      };
-      geojson.addData(converted);
+      geojson.addData(convert(feature));
     }
     geojson.addTo(instance);
     layers.current = regions;
+
+    // Province lines over many small regions: not clickable, but focusable so
+    // keyboard users can still enter a province.
+    const lines = outline
+      ? L.geoJSON(undefined, {
+          interactive: false,
+          style: () => ({
+            color: "#3d5f49",
+            weight: 1.2,
+            opacity: 0.75,
+            fill: false,
+          }),
+          onEachFeature: (feature, layer) => {
+            const code = String(feature.properties.adcode);
+            const name: string = feature.properties.name;
+            const text = latest.current.outlineLabel?.(name, code);
+            if (text)
+              layer.bindTooltip(text, {
+                permanent: true,
+                direction: "center",
+                className: "osm-region-label",
+              });
+            layer.once("add", () => {
+              const el = (layer as L.Path).getElement();
+              if (!el) return;
+              el.setAttribute("tabindex", "0");
+              el.setAttribute("role", "button");
+              el.setAttribute("aria-label", name);
+              el.addEventListener("keydown", (event) => {
+                const e = event as KeyboardEvent;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  latest.current.onOutlineSelect?.(code);
+                }
+              });
+            });
+          },
+        })
+      : null;
+    if (lines && outline) {
+      for (const feature of outline.features) {
+        if (!feature.properties.name) continue;
+        lines.addData(convert(feature));
+      }
+      lines.addTo(instance);
+    }
+
     // Faraway Sansha islands must not shrink the initial view of Hainan island.
-    bounds.current = regions.has("460300")
-      ? L.featureGroup([...regions.entries()].filter(([code]) => code !== "460300").map(([, layer]) => layer)).getBounds()
-      : geojson.getBounds();
+    bounds.current = viewBounds
+      ? L.latLngBounds(viewBounds)
+      : regions.has("460300")
+        ? L.featureGroup(
+            [...regions.entries()]
+              .filter(([code]) => code !== "460300")
+              .map(([, layer]) => layer),
+          ).getBounds()
+        : geojson.getBounds();
     fit();
     return () => {
       geojson.remove();
+      lines?.remove();
       layers.current = new Map();
     };
-  }, [map, convertCoords, fit]);
+  }, [map, outline, convertCoords, viewBounds, fit]);
 
   useEffect(() => {
     for (const [code, path] of layers.current) {
       const color = colors[code];
-      path.setStyle(baseStyle(color));
+      path.setStyle(baseStyle(color, false, fine, softColors?.[code]));
       const el = path.getElement();
       el?.setAttribute("aria-pressed", String(!!color));
       el?.setAttribute(
@@ -166,7 +306,7 @@ export default function OsmProvinceMap({
         `${(path as L.Path & { feature?: { properties: { name: string } } }).feature?.properties.name ?? code}${color ? "，已去过" : ""}`,
       );
     }
-  }, [colors, map, convertCoords]);
+  }, [colors, softColors, fine, map, convertCoords]);
 
   return (
     <>
@@ -186,7 +326,7 @@ export default function OsmProvinceMap({
         >
           <Minus size={18} />
         </button>
-        <button aria-label="回到全省视图" title="回到全省视图" onClick={fit}>
+        <button aria-label={resetLabel} title={resetLabel} onClick={fit}>
           <ArrowCounterClockwise size={17} />
         </button>
       </div>

@@ -63,10 +63,16 @@ import TravelReport from "./components/TravelReport";
 import { totalCities, percentage, visitedCityCount, isDistrictDestination } from "./lib/statistics";
 import "./App.css";
 
+import type { ViewBounds } from "./components/OsmProvinceMap";
 const OsmProvinceMap = lazy(() => import("./components/OsmProvinceMap"));
 const BASEMAP_STORAGE = "shanhai-basemap-v1";
 // Taiwan (WGS-84 source), Hong Kong and Macau are not GCJ-02 shifted.
 const WGS84_PROVINCES = ["710000", "810000", "820000"];
+// Initial national OSM view (WGS-84): mainland China without the far south islands.
+const NATIONAL_VIEW: ViewBounds = [
+  [18, 73],
+  [53.6, 135.1],
+];
 function loadBasemap() {
   try {
     return localStorage.getItem(BASEMAP_STORAGE) === "osm";
@@ -80,6 +86,16 @@ const STORAGE = "shanhai-travel-v1";
 const empty: Saved = { version: 1, visits: [], provinces: {} };
 const today = () => new Date().toLocaleDateString("en-CA");
 const provinceByCode = (code: string) => regions.find((p) => p.code === code);
+// City/district code -> province code, and the codes already in WGS-84.
+const cityProvince = new Map(
+  regions.flatMap((r) => r.cities.map((c) => [c.code, r.code] as const)),
+);
+const wgs84Codes = new Set([
+  ...WGS84_PROVINCES,
+  ...regions
+    .filter((r) => WGS84_PROVINCES.includes(r.code))
+    .flatMap((r) => r.cities.map((c) => c.code)),
+]);
 const validateSaved = (data: unknown) => validateSavedData(data, regions);
 const loadSaved = () => loadLocalSaved(localStorage, STORAGE, regions);
 type Unreadable = Extract<LocalLoad, { status: "unreadable" }>;
@@ -372,7 +388,34 @@ function App() {
   }, [province, cityMaps, projection]);
   const cityMode = !province && fillMode === "city";
   const cityLoading = cityMode && !cityShapes && !cityMapError;
-  const showOsm = !!province && basemap;
+  const showOsm = basemap;
+  // National OSM data: every city as one collection, tinted where only the province is marked.
+  const cityCollection = useMemo<MapData | null>(
+    () =>
+      cityMaps
+        ? {
+            type: "FeatureCollection",
+            features: regions.flatMap((r) => cityMaps[r.code]?.features ?? []),
+          }
+        : null,
+    [cityMaps],
+  );
+  const provinceNamed = useMemo(
+    () =>
+      map && !province
+        ? { ...map, features: map.features.filter((f) => f.properties.name) }
+        : null,
+    [map, province],
+  );
+  const cityTints = useMemo(
+    () =>
+      Object.fromEntries(
+        [...cityProvince].flatMap(([code, p]) =>
+          saved.provinces[p] ? [[code, saved.provinces[p]]] : [],
+        ),
+      ),
+    [saved.provinces],
+  );
   const toggleCity = (provinceCode: string, cityCode: string) => {
     const city = provinceByCode(provinceCode)?.cities.find(
       (c) => c.code === cityCode,
@@ -806,19 +849,73 @@ function App() {
                       </div>
                     }
                   >
-                    <OsmProvinceMap
-                      map={map}
-                      colors={visitColors}
-                      convertCoords={!WGS84_PROVINCES.includes(province.code)}
-                      label={`${province.name}${unit}地图（OpenStreetMap 底图）`}
-                      onToggle={(code) => toggleCity(province.code, code)}
-                      onHover={setHover}
-                      onTileError={() =>
-                        notify(
-                          "OpenStreetMap 底图加载失败，可关闭底图后继续标记",
-                        )
-                      }
-                    />
+                    {province ? (
+                      <OsmProvinceMap
+                        key={province.code}
+                        map={map}
+                        colors={visitColors}
+                        convertCoords={!WGS84_PROVINCES.includes(province.code)}
+                        label={`${province.name}${unit}地图（OpenStreetMap 底图）`}
+                        onToggle={(code) => toggleCity(province.code, code)}
+                        onHover={setHover}
+                        onTileError={() =>
+                          notify(
+                            "OpenStreetMap 底图加载失败，可关闭底图后继续标记",
+                          )
+                        }
+                      />
+                    ) : (
+                      <OsmProvinceMap
+                        key={`national-${fillMode}`}
+                        map={
+                          cityMode && cityCollection
+                            ? cityCollection
+                            : (provinceNamed ?? map)
+                        }
+                        colors={cityMode ? visitColors : provinceColors}
+                        softColors={cityMode ? cityTints : undefined}
+                        convertCoords
+                        skipConvert={(code) => wgs84Codes.has(code)}
+                        fine={cityMode}
+                        viewBounds={NATIONAL_VIEW}
+                        resetLabel="回到全国视图"
+                        label={`中国${cityMode ? "城市" : "省份"}地图（OpenStreetMap 底图）`}
+                        regionLabel={
+                          cityMode
+                            ? () => null
+                            : (name, code) =>
+                                provinceByCode(code)?.short || name
+                        }
+                        outline={cityMode ? provinceNamed ?? undefined : undefined}
+                        outlineLabel={(name, code) =>
+                          provinceByCode(code)?.short || name
+                        }
+                        onOutlineSelect={(code) =>
+                          navigate(provinceByCode(code) || null)
+                        }
+                        onToggle={(code) =>
+                          navigate(
+                            provinceByCode(
+                              cityMode ? (cityProvince.get(code) ?? "") : code,
+                            ) || null,
+                          )
+                        }
+                        onHover={(name, code) =>
+                          setHover(
+                            !name
+                              ? ""
+                              : cityMode
+                                ? `${name} · ${provinceByCode(cityProvince.get(code) ?? "")?.short ?? ""}，点击进入省内地图`
+                                : `${name}，点击进入省内地图`,
+                          )
+                        }
+                        onTileError={() =>
+                          notify(
+                            "OpenStreetMap 底图加载失败，可关闭底图后继续浏览",
+                          )
+                        }
+                      />
+                    )}
                   </Suspense>
                 ) : (
                   <svg
@@ -1037,36 +1134,42 @@ function App() {
                         : "山川湖海，下一站总有新的风景")}
                   </span>
                 </div>
-                {province && !mapError && (
-                  <button
-                    className="basemap-toggle"
-                    aria-pressed={basemap}
-                    title="开启后会向 openstreetmap.org 请求地图瓦片"
-                    onClick={() => setBasemap((v) => !v)}
-                  >
-                    <Stack size={16} />
-                    {basemap ? "关闭 OSM 底图" : "OSM 底图"}
-                  </button>
-                )}
-                {!province && !mapError && (
-                  <div className="fill-mode" role="group" aria-label="全国地图着色方式">
-                    {(
-                      [
-                        ["province", "按省份"],
-                        ["city", "按城市"],
-                      ] as const
-                    ).map(([mode, text]) => (
-                      <button
-                        key={mode}
-                        aria-pressed={fillMode === mode}
-                        onClick={() => {
-                          setFillMode(mode);
-                          setHover("");
-                        }}
+                {!mapError && (
+                  <div className="map-options">
+                    {!province && (
+                      <div
+                        className="fill-mode"
+                        role="group"
+                        aria-label="全国地图着色方式"
                       >
-                        {text}
-                      </button>
-                    ))}
+                        {(
+                          [
+                            ["province", "按省份"],
+                            ["city", "按城市"],
+                          ] as const
+                        ).map(([mode, text]) => (
+                          <button
+                            key={mode}
+                            aria-pressed={fillMode === mode}
+                            onClick={() => {
+                              setFillMode(mode);
+                              setHover("");
+                            }}
+                          >
+                            {text}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      className="basemap-toggle"
+                      aria-pressed={basemap}
+                      title="开启后会向 openstreetmap.org 请求地图瓦片"
+                      onClick={() => setBasemap((v) => !v)}
+                    >
+                      <Stack size={16} />
+                      {basemap ? "关闭 OSM 底图" : "OSM 底图"}
+                    </button>
                   </div>
                 )}
                 {!showOsm && (
