@@ -36,7 +36,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 - 未设置、为空或格式无效：纯本地模式，不创建 API 客户端，不向 `/api`、`/ping`、`/readyz` 发请求；全部功能使用浏览器本地存储。当前所有用户可见功能都属于这种情况，`npm run dev`、`npm run build` 以及任意静态托管（含前端镜像默认构建）都无需后端。
 - `/api` 这类同源路径，或 `https://api.example.com` 这类绝对 http(s) 地址：启用后端能力。`/api` 配合 Vite 开发代理或前端镜像的 Nginx 转发使用。
 
-变量在构建时写入，修改后需重新构建；前端镜像通过 `--build-arg VITE_API_BASE_URL=/api` 传入，当前 CI 工作流未传递，因此发布的前端镜像为纯本地模式。解析逻辑见 `src/lib/backend.ts`，传输层见 `src/api/transport.ts`（未启用时不创建，登录入口也不渲染），业务客户端见 `src/api/`。登录与云同步必须通过该开关判断；后端不可用时，未登录用户不受影响，已登录用户进入只读并可重试，也可退出登录回到本地模式，不会阻塞本地足迹的读写。前端同步与会话逻辑在 `src/lib/sync.ts`、`session.ts`、`oauth.ts` 和 `src/hooks/useCloud.ts`。
+变量在构建时写入，修改后需重新构建；前端镜像通过 `--build-arg VITE_API_BASE_URL=/api` 传入，镜像发布工作流未传递，因此发布的前端镜像默认纯本地模式；CI 界面测试构建单独传入 /api。解析逻辑见 `src/lib/backend.ts`，传输层见 `src/api/transport.ts`（未启用时不创建，登录入口也不渲染），业务客户端见 `src/api/`。登录与云同步必须通过该开关判断；后端不可用时，未登录用户不受影响，有有效账号缓存的已登录用户可保留离线修改并重试同步；注销待完成或缓存异常时暂停编辑，也可退出登录回到本地模式，不会阻塞本地足迹的读写。前端同步与会话逻辑在 `src/lib/sync.ts`、`session.ts`、`oauth.ts` 和 `src/hooks/useCloud.ts`。
 
 前端仍位于根目录 `src/`，无需搬迁到 `front/`。后端 Go module 位于根目录；前后端分别构建。
 

@@ -85,3 +85,31 @@ test("pending request is persisted before sending and refusal blocks cloud write
   assert.equal(engine.status, "error");
   assert.equal(engine.pending, true);
 });
+
+test("malformed pending batch is protected instead of silently discarded", async () => {
+  const { loadCloudCache, clearOtherCaches, cacheKey } =
+    await import("../src/lib/session.ts");
+  const data = new Map([
+    [
+      cacheKey("bad"),
+      JSON.stringify({
+        ...empty(),
+        saved: empty(),
+        confirmed: empty(),
+        revision: 0,
+        pendingBatch: false,
+      }),
+    ],
+  ]);
+  const storage = {
+    getItem: (k) => data.get(k) ?? null,
+    removeItem: (k) => data.delete(k),
+    get length() {
+      return data.size;
+    },
+    key: (i) => [...data.keys()][i] ?? null,
+  };
+  assert.throws(() => loadCloudCache(storage, "bad", (x) => x));
+  clearOtherCaches(storage, "different", (x) => x);
+  assert.equal(data.size, 1);
+});

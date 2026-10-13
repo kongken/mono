@@ -32,9 +32,6 @@ func (s *AuthService) DeleteAccount(ctx context.Context, req *connect.Request[tr
 	if err != nil {
 		return nil, err
 	}
-	if req.Msg.Confirmation != "DELETE" {
-		return nil, invalid("explicit DELETE confirmation is required")
-	}
 	if err = s.allow(ctx, st, "delete:"+p.UserID, 10, loginWindow); err != nil {
 		return nil, err
 	}

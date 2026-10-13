@@ -101,7 +101,7 @@ export function loadCloudCache(
     };
     if (!Number.isSafeInteger(data.revision) || (data.revision as number) < 0)
       throw new Error("bad revision");
-    if (data.pendingBatch) {
+    if (data.pendingBatch !== undefined) {
       const batch = data.pendingBatch;
       if (
         typeof batch.id !== "string" ||
@@ -187,7 +187,7 @@ export function clearOtherCaches(
         if (cache.confirmed) validate(cache.confirmed);
       }
       if (
-        cache.pendingBatch ||
+        Object.hasOwn(cache, "pendingBatch") ||
         (cache.confirmed && diffSaved(cache.confirmed, cache.saved).length)
       )
         continue;
