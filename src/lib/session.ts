@@ -1,11 +1,13 @@
+import regions from "../regions.json" with { type: "json" };
 import type { Saved } from "./travel.ts";
-import { diffSaved } from "./sync.ts";
+import { diffSaved, applyOp, type PendingBatch } from "./sync.ts";
 
 export type StoredUser = {
   id: string;
   username: string;
   displayName: string;
   avatarUrl: string;
+  deletionPending?: boolean;
 };
 export type StoredSession = {
   token: string;
@@ -13,7 +15,12 @@ export type StoredSession = {
   expiresAt: number;
   user: StoredUser;
 };
-export type CachedCloud = { saved: Saved; revision: number; confirmed?: Saved };
+export type CachedCloud = {
+  saved: Saved;
+  revision: number;
+  confirmed?: Saved;
+  pendingBatch?: PendingBatch;
+};
 
 type Reader = Pick<Storage, "getItem">;
 type Writer = Pick<Storage, "setItem">;
@@ -56,6 +63,7 @@ export function loadSession(
         username: isString(user.username) ? user.username : "",
         displayName: isString(user.displayName) ? user.displayName : "",
         avatarUrl: isString(user.avatarUrl) ? user.avatarUrl : "",
+        ...(user.deletionPending === true ? { deletionPending: true } : {}),
       },
     };
   } catch {
@@ -89,10 +97,45 @@ export function loadCloudCache(
       saved?: unknown;
       revision?: unknown;
       confirmed?: unknown;
+      pendingBatch?: PendingBatch;
     };
     if (!Number.isSafeInteger(data.revision) || (data.revision as number) < 0)
       throw new Error("bad revision");
+    if (data.pendingBatch !== undefined) {
+      const batch = data.pendingBatch;
+      if (
+        typeof batch.id !== "string" ||
+        !/^[A-Za-z0-9_-]{1,128}$/.test(batch.id) ||
+        batch.revision !== data.revision ||
+        !Array.isArray(batch.ops) ||
+        batch.ops.length < 1 ||
+        batch.ops.length > 100
+      )
+        throw new Error("bad pending batch");
+      let result = validate(data.confirmed);
+      for (const op of batch.ops) {
+        if (
+          !["upsertVisit", "deleteVisit", "upsertMark", "deleteMark"].includes(
+            op.type,
+          )
+        )
+          throw new Error("bad mutation");
+        if (
+          op.type === "deleteVisit" &&
+          !regions.some((p) => p.cities.some((c) => c.code === op.code))
+        )
+          throw new Error("unknown deleted city");
+        if (
+          op.type === "deleteMark" &&
+          !regions.some((p) => p.code === op.province)
+        )
+          throw new Error("unknown deleted province");
+        result = applyOp(result, op);
+      }
+      validate(result);
+    }
     return {
+      ...(data.pendingBatch ? { pendingBatch: data.pendingBatch } : {}),
       saved: validate(data.saved),
       revision: data.revision as number,
       ...(data.confirmed === undefined
@@ -143,7 +186,10 @@ export function clearOtherCaches(
         validate(cache.saved);
         if (cache.confirmed) validate(cache.confirmed);
       }
-      if (cache.confirmed && diffSaved(cache.confirmed, cache.saved).length)
+      if (
+        Object.hasOwn(cache, "pendingBatch") ||
+        (cache.confirmed && diffSaved(cache.confirmed, cache.saved).length)
+      )
         continue;
       storage.removeItem(key);
     } catch {

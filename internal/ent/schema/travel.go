@@ -39,6 +39,7 @@ func (User) Fields() []ent.Field {
 		field.String("external_id").Default(""),
 		field.String("password_hash").Default("").Sensitive(),
 		field.Bool("disabled").Default(false),
+		field.Time("deletion_requested_at").Optional().Nillable(),
 		field.Int64("revision").Default(0).NonNegative(),
 	}, timestamps()...)
 }
@@ -49,6 +50,8 @@ func (User) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("visits", CityVisit.Type).Annotations(entsql.OnDelete(entsql.Cascade)), edge.To("province_marks", ProvinceMark.Type).Annotations(entsql.OnDelete(entsql.Cascade)), edge.To("media_objects", MediaObject.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("sessions", Session.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("footprint_changes", FootprintChange.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("sync_receipts", SyncReceipt.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }
 
@@ -146,3 +149,46 @@ func validDate(v string) error {
 	}
 	return nil
 }
+
+// Changes retain explicit delete tombstones and full upsert values.
+type FootprintChange struct{ ent.Schema }
+
+func (FootprintChange) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").Immutable(),
+		field.Int64("revision").Positive().Immutable(), field.Bytes("payload").Immutable(), field.Time("created_at").Default(now).Immutable(),
+	}
+}
+func (FootprintChange) Edges() []ent.Edge {
+	return []ent.Edge{edge.From("user", User.Type).Ref("footprint_changes").Field("user_id").Unique().Required().Immutable()}
+}
+func (FootprintChange) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("user_id", "revision").Unique()}
+}
+
+type SyncReceipt struct{ ent.Schema }
+
+func (SyncReceipt) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").Immutable(),
+		field.String("mutation_id").NotEmpty().Immutable(), field.String("request_hash").Immutable(),
+		field.Int64("revision").NonNegative().Immutable(), field.Int("changed_count").NonNegative().Immutable(), field.Time("created_at").Default(now).Immutable(),
+	}
+}
+func (SyncReceipt) Edges() []ent.Edge {
+	return []ent.Edge{edge.From("user", User.Type).Ref("sync_receipts").Field("user_id").Unique().Required().Immutable()}
+}
+func (SyncReceipt) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("user_id", "mutation_id").Unique()}
+}
+
+// AccountDeletionReceipt contains no account identity or footprints. It proves
+// completion to the deleting session after a lost response, for at most 24h.
+type AccountDeletionReceipt struct{ ent.Schema }
+
+func (AccountDeletionReceipt) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("token_hash").NotEmpty().Unique().Sensitive().Immutable(), field.Time("expires_at").Immutable(),
+	}
+}
+func (AccountDeletionReceipt) Indexes() []ent.Index { return []ent.Index{index.Fields("expires_at")} }

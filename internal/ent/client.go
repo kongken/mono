@@ -15,10 +15,13 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
+	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -27,14 +30,20 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// AccountDeletionReceipt is the client for interacting with the AccountDeletionReceipt builders.
+	AccountDeletionReceipt *AccountDeletionReceiptClient
 	// CityVisit is the client for interacting with the CityVisit builders.
 	CityVisit *CityVisitClient
+	// FootprintChange is the client for interacting with the FootprintChange builders.
+	FootprintChange *FootprintChangeClient
 	// MediaObject is the client for interacting with the MediaObject builders.
 	MediaObject *MediaObjectClient
 	// ProvinceMark is the client for interacting with the ProvinceMark builders.
 	ProvinceMark *ProvinceMarkClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
+	// SyncReceipt is the client for interacting with the SyncReceipt builders.
+	SyncReceipt *SyncReceiptClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 }
@@ -48,10 +57,13 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.AccountDeletionReceipt = NewAccountDeletionReceiptClient(c.config)
 	c.CityVisit = NewCityVisitClient(c.config)
+	c.FootprintChange = NewFootprintChangeClient(c.config)
 	c.MediaObject = NewMediaObjectClient(c.config)
 	c.ProvinceMark = NewProvinceMarkClient(c.config)
 	c.Session = NewSessionClient(c.config)
+	c.SyncReceipt = NewSyncReceiptClient(c.config)
 	c.User = NewUserClient(c.config)
 }
 
@@ -143,13 +155,16 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:          ctx,
-		config:       cfg,
-		CityVisit:    NewCityVisitClient(cfg),
-		MediaObject:  NewMediaObjectClient(cfg),
-		ProvinceMark: NewProvinceMarkClient(cfg),
-		Session:      NewSessionClient(cfg),
-		User:         NewUserClient(cfg),
+		ctx:                    ctx,
+		config:                 cfg,
+		AccountDeletionReceipt: NewAccountDeletionReceiptClient(cfg),
+		CityVisit:              NewCityVisitClient(cfg),
+		FootprintChange:        NewFootprintChangeClient(cfg),
+		MediaObject:            NewMediaObjectClient(cfg),
+		ProvinceMark:           NewProvinceMarkClient(cfg),
+		Session:                NewSessionClient(cfg),
+		SyncReceipt:            NewSyncReceiptClient(cfg),
+		User:                   NewUserClient(cfg),
 	}, nil
 }
 
@@ -167,20 +182,23 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:          ctx,
-		config:       cfg,
-		CityVisit:    NewCityVisitClient(cfg),
-		MediaObject:  NewMediaObjectClient(cfg),
-		ProvinceMark: NewProvinceMarkClient(cfg),
-		Session:      NewSessionClient(cfg),
-		User:         NewUserClient(cfg),
+		ctx:                    ctx,
+		config:                 cfg,
+		AccountDeletionReceipt: NewAccountDeletionReceiptClient(cfg),
+		CityVisit:              NewCityVisitClient(cfg),
+		FootprintChange:        NewFootprintChangeClient(cfg),
+		MediaObject:            NewMediaObjectClient(cfg),
+		ProvinceMark:           NewProvinceMarkClient(cfg),
+		Session:                NewSessionClient(cfg),
+		SyncReceipt:            NewSyncReceiptClient(cfg),
+		User:                   NewUserClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		CityVisit.
+//		AccountDeletionReceipt.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -202,38 +220,179 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.CityVisit.Use(hooks...)
-	c.MediaObject.Use(hooks...)
-	c.ProvinceMark.Use(hooks...)
-	c.Session.Use(hooks...)
-	c.User.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.MediaObject,
+		c.ProvinceMark, c.Session, c.SyncReceipt, c.User,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.CityVisit.Intercept(interceptors...)
-	c.MediaObject.Intercept(interceptors...)
-	c.ProvinceMark.Intercept(interceptors...)
-	c.Session.Intercept(interceptors...)
-	c.User.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.MediaObject,
+		c.ProvinceMark, c.Session, c.SyncReceipt, c.User,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *AccountDeletionReceiptMutation:
+		return c.AccountDeletionReceipt.mutate(ctx, m)
 	case *CityVisitMutation:
 		return c.CityVisit.mutate(ctx, m)
+	case *FootprintChangeMutation:
+		return c.FootprintChange.mutate(ctx, m)
 	case *MediaObjectMutation:
 		return c.MediaObject.mutate(ctx, m)
 	case *ProvinceMarkMutation:
 		return c.ProvinceMark.mutate(ctx, m)
 	case *SessionMutation:
 		return c.Session.mutate(ctx, m)
+	case *SyncReceiptMutation:
+		return c.SyncReceipt.mutate(ctx, m)
 	case *UserMutation:
 		return c.User.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// AccountDeletionReceiptClient is a client for the AccountDeletionReceipt schema.
+type AccountDeletionReceiptClient struct {
+	config
+}
+
+// NewAccountDeletionReceiptClient returns a client for the AccountDeletionReceipt from the given config.
+func NewAccountDeletionReceiptClient(c config) *AccountDeletionReceiptClient {
+	return &AccountDeletionReceiptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `accountdeletionreceipt.Hooks(f(g(h())))`.
+func (c *AccountDeletionReceiptClient) Use(hooks ...Hook) {
+	c.hooks.AccountDeletionReceipt = append(c.hooks.AccountDeletionReceipt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `accountdeletionreceipt.Intercept(f(g(h())))`.
+func (c *AccountDeletionReceiptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AccountDeletionReceipt = append(c.inters.AccountDeletionReceipt, interceptors...)
+}
+
+// Create returns a builder for creating a AccountDeletionReceipt entity.
+func (c *AccountDeletionReceiptClient) Create() *AccountDeletionReceiptCreate {
+	mutation := newAccountDeletionReceiptMutation(c.config, OpCreate)
+	return &AccountDeletionReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AccountDeletionReceipt entities.
+func (c *AccountDeletionReceiptClient) CreateBulk(builders ...*AccountDeletionReceiptCreate) *AccountDeletionReceiptCreateBulk {
+	return &AccountDeletionReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AccountDeletionReceiptClient) MapCreateBulk(slice any, setFunc func(*AccountDeletionReceiptCreate, int)) *AccountDeletionReceiptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AccountDeletionReceiptCreateBulk{err: fmt.Errorf("calling to AccountDeletionReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AccountDeletionReceiptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AccountDeletionReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AccountDeletionReceipt.
+func (c *AccountDeletionReceiptClient) Update() *AccountDeletionReceiptUpdate {
+	mutation := newAccountDeletionReceiptMutation(c.config, OpUpdate)
+	return &AccountDeletionReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AccountDeletionReceiptClient) UpdateOne(_m *AccountDeletionReceipt) *AccountDeletionReceiptUpdateOne {
+	mutation := newAccountDeletionReceiptMutation(c.config, OpUpdateOne, withAccountDeletionReceipt(_m))
+	return &AccountDeletionReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AccountDeletionReceiptClient) UpdateOneID(id string) *AccountDeletionReceiptUpdateOne {
+	mutation := newAccountDeletionReceiptMutation(c.config, OpUpdateOne, withAccountDeletionReceiptID(id))
+	return &AccountDeletionReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AccountDeletionReceipt.
+func (c *AccountDeletionReceiptClient) Delete() *AccountDeletionReceiptDelete {
+	mutation := newAccountDeletionReceiptMutation(c.config, OpDelete)
+	return &AccountDeletionReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AccountDeletionReceiptClient) DeleteOne(_m *AccountDeletionReceipt) *AccountDeletionReceiptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AccountDeletionReceiptClient) DeleteOneID(id string) *AccountDeletionReceiptDeleteOne {
+	builder := c.Delete().Where(accountdeletionreceipt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AccountDeletionReceiptDeleteOne{builder}
+}
+
+// Query returns a query builder for AccountDeletionReceipt.
+func (c *AccountDeletionReceiptClient) Query() *AccountDeletionReceiptQuery {
+	return &AccountDeletionReceiptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAccountDeletionReceipt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AccountDeletionReceipt entity by its id.
+func (c *AccountDeletionReceiptClient) Get(ctx context.Context, id string) (*AccountDeletionReceipt, error) {
+	return c.Query().Where(accountdeletionreceipt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AccountDeletionReceiptClient) GetX(ctx context.Context, id string) *AccountDeletionReceipt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *AccountDeletionReceiptClient) Hooks() []Hook {
+	return c.hooks.AccountDeletionReceipt
+}
+
+// Interceptors returns the client interceptors.
+func (c *AccountDeletionReceiptClient) Interceptors() []Interceptor {
+	return c.inters.AccountDeletionReceipt
+}
+
+func (c *AccountDeletionReceiptClient) mutate(ctx context.Context, m *AccountDeletionReceiptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AccountDeletionReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AccountDeletionReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AccountDeletionReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AccountDeletionReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AccountDeletionReceipt mutation op: %q", m.Op())
 	}
 }
 
@@ -383,6 +542,155 @@ func (c *CityVisitClient) mutate(ctx context.Context, m *CityVisitMutation) (Val
 		return (&CityVisitDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown CityVisit mutation op: %q", m.Op())
+	}
+}
+
+// FootprintChangeClient is a client for the FootprintChange schema.
+type FootprintChangeClient struct {
+	config
+}
+
+// NewFootprintChangeClient returns a client for the FootprintChange from the given config.
+func NewFootprintChangeClient(c config) *FootprintChangeClient {
+	return &FootprintChangeClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `footprintchange.Hooks(f(g(h())))`.
+func (c *FootprintChangeClient) Use(hooks ...Hook) {
+	c.hooks.FootprintChange = append(c.hooks.FootprintChange, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `footprintchange.Intercept(f(g(h())))`.
+func (c *FootprintChangeClient) Intercept(interceptors ...Interceptor) {
+	c.inters.FootprintChange = append(c.inters.FootprintChange, interceptors...)
+}
+
+// Create returns a builder for creating a FootprintChange entity.
+func (c *FootprintChangeClient) Create() *FootprintChangeCreate {
+	mutation := newFootprintChangeMutation(c.config, OpCreate)
+	return &FootprintChangeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of FootprintChange entities.
+func (c *FootprintChangeClient) CreateBulk(builders ...*FootprintChangeCreate) *FootprintChangeCreateBulk {
+	return &FootprintChangeCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FootprintChangeClient) MapCreateBulk(slice any, setFunc func(*FootprintChangeCreate, int)) *FootprintChangeCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FootprintChangeCreateBulk{err: fmt.Errorf("calling to FootprintChangeClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FootprintChangeCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FootprintChangeCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for FootprintChange.
+func (c *FootprintChangeClient) Update() *FootprintChangeUpdate {
+	mutation := newFootprintChangeMutation(c.config, OpUpdate)
+	return &FootprintChangeUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FootprintChangeClient) UpdateOne(_m *FootprintChange) *FootprintChangeUpdateOne {
+	mutation := newFootprintChangeMutation(c.config, OpUpdateOne, withFootprintChange(_m))
+	return &FootprintChangeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FootprintChangeClient) UpdateOneID(id string) *FootprintChangeUpdateOne {
+	mutation := newFootprintChangeMutation(c.config, OpUpdateOne, withFootprintChangeID(id))
+	return &FootprintChangeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for FootprintChange.
+func (c *FootprintChangeClient) Delete() *FootprintChangeDelete {
+	mutation := newFootprintChangeMutation(c.config, OpDelete)
+	return &FootprintChangeDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FootprintChangeClient) DeleteOne(_m *FootprintChange) *FootprintChangeDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FootprintChangeClient) DeleteOneID(id string) *FootprintChangeDeleteOne {
+	builder := c.Delete().Where(footprintchange.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FootprintChangeDeleteOne{builder}
+}
+
+// Query returns a query builder for FootprintChange.
+func (c *FootprintChangeClient) Query() *FootprintChangeQuery {
+	return &FootprintChangeQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFootprintChange},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a FootprintChange entity by its id.
+func (c *FootprintChangeClient) Get(ctx context.Context, id string) (*FootprintChange, error) {
+	return c.Query().Where(footprintchange.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FootprintChangeClient) GetX(ctx context.Context, id string) *FootprintChange {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a FootprintChange.
+func (c *FootprintChangeClient) QueryUser(_m *FootprintChange) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(footprintchange.Table, footprintchange.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, footprintchange.UserTable, footprintchange.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *FootprintChangeClient) Hooks() []Hook {
+	return c.hooks.FootprintChange
+}
+
+// Interceptors returns the client interceptors.
+func (c *FootprintChangeClient) Interceptors() []Interceptor {
+	return c.inters.FootprintChange
+}
+
+func (c *FootprintChangeClient) mutate(ctx context.Context, m *FootprintChangeMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FootprintChangeCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FootprintChangeUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FootprintChangeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FootprintChangeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown FootprintChange mutation op: %q", m.Op())
 	}
 }
 
@@ -833,6 +1141,155 @@ func (c *SessionClient) mutate(ctx context.Context, m *SessionMutation) (Value, 
 	}
 }
 
+// SyncReceiptClient is a client for the SyncReceipt schema.
+type SyncReceiptClient struct {
+	config
+}
+
+// NewSyncReceiptClient returns a client for the SyncReceipt from the given config.
+func NewSyncReceiptClient(c config) *SyncReceiptClient {
+	return &SyncReceiptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `syncreceipt.Hooks(f(g(h())))`.
+func (c *SyncReceiptClient) Use(hooks ...Hook) {
+	c.hooks.SyncReceipt = append(c.hooks.SyncReceipt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `syncreceipt.Intercept(f(g(h())))`.
+func (c *SyncReceiptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SyncReceipt = append(c.inters.SyncReceipt, interceptors...)
+}
+
+// Create returns a builder for creating a SyncReceipt entity.
+func (c *SyncReceiptClient) Create() *SyncReceiptCreate {
+	mutation := newSyncReceiptMutation(c.config, OpCreate)
+	return &SyncReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SyncReceipt entities.
+func (c *SyncReceiptClient) CreateBulk(builders ...*SyncReceiptCreate) *SyncReceiptCreateBulk {
+	return &SyncReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SyncReceiptClient) MapCreateBulk(slice any, setFunc func(*SyncReceiptCreate, int)) *SyncReceiptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SyncReceiptCreateBulk{err: fmt.Errorf("calling to SyncReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SyncReceiptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SyncReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SyncReceipt.
+func (c *SyncReceiptClient) Update() *SyncReceiptUpdate {
+	mutation := newSyncReceiptMutation(c.config, OpUpdate)
+	return &SyncReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SyncReceiptClient) UpdateOne(_m *SyncReceipt) *SyncReceiptUpdateOne {
+	mutation := newSyncReceiptMutation(c.config, OpUpdateOne, withSyncReceipt(_m))
+	return &SyncReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SyncReceiptClient) UpdateOneID(id string) *SyncReceiptUpdateOne {
+	mutation := newSyncReceiptMutation(c.config, OpUpdateOne, withSyncReceiptID(id))
+	return &SyncReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SyncReceipt.
+func (c *SyncReceiptClient) Delete() *SyncReceiptDelete {
+	mutation := newSyncReceiptMutation(c.config, OpDelete)
+	return &SyncReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SyncReceiptClient) DeleteOne(_m *SyncReceipt) *SyncReceiptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SyncReceiptClient) DeleteOneID(id string) *SyncReceiptDeleteOne {
+	builder := c.Delete().Where(syncreceipt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SyncReceiptDeleteOne{builder}
+}
+
+// Query returns a query builder for SyncReceipt.
+func (c *SyncReceiptClient) Query() *SyncReceiptQuery {
+	return &SyncReceiptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSyncReceipt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SyncReceipt entity by its id.
+func (c *SyncReceiptClient) Get(ctx context.Context, id string) (*SyncReceipt, error) {
+	return c.Query().Where(syncreceipt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SyncReceiptClient) GetX(ctx context.Context, id string) *SyncReceipt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a SyncReceipt.
+func (c *SyncReceiptClient) QueryUser(_m *SyncReceipt) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(syncreceipt.Table, syncreceipt.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, syncreceipt.UserTable, syncreceipt.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *SyncReceiptClient) Hooks() []Hook {
+	return c.hooks.SyncReceipt
+}
+
+// Interceptors returns the client interceptors.
+func (c *SyncReceiptClient) Interceptors() []Interceptor {
+	return c.inters.SyncReceipt
+}
+
+func (c *SyncReceiptClient) mutate(ctx context.Context, m *SyncReceiptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SyncReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SyncReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SyncReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SyncReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SyncReceipt mutation op: %q", m.Op())
+	}
+}
+
 // UserClient is a client for the User schema.
 type UserClient struct {
 	config
@@ -1005,6 +1462,38 @@ func (c *UserClient) QuerySessions(_m *User) *SessionQuery {
 	return query
 }
 
+// QueryFootprintChanges queries the footprint_changes edge of a User.
+func (c *UserClient) QueryFootprintChanges(_m *User) *FootprintChangeQuery {
+	query := (&FootprintChangeClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(footprintchange.Table, footprintchange.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.FootprintChangesTable, user.FootprintChangesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QuerySyncReceipts queries the sync_receipts edge of a User.
+func (c *UserClient) QuerySyncReceipts(_m *User) *SyncReceiptQuery {
+	query := (&SyncReceiptClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(syncreceipt.Table, syncreceipt.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.SyncReceiptsTable, user.SyncReceiptsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	return c.hooks.User
@@ -1033,9 +1522,11 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		CityVisit, MediaObject, ProvinceMark, Session, User []ent.Hook
+		AccountDeletionReceipt, CityVisit, FootprintChange, MediaObject, ProvinceMark,
+		Session, SyncReceipt, User []ent.Hook
 	}
 	inters struct {
-		CityVisit, MediaObject, ProvinceMark, Session, User []ent.Interceptor
+		AccountDeletionReceipt, CityVisit, FootprintChange, MediaObject, ProvinceMark,
+		Session, SyncReceipt, User []ent.Interceptor
 	}
 )

@@ -109,7 +109,7 @@ func (s *AuthService) allow(ctx context.Context, st *Store, key string, limit in
 }
 
 func toUser(u *ent.User) *tripmapv1.User {
-	out := &tripmapv1.User{Id: u.ID, DisplayName: u.DisplayName, AvatarUrl: u.AvatarURL, CreatedAt: timestamppb.New(u.CreatedAt)}
+	out := &tripmapv1.User{Id: u.ID, DisplayName: u.DisplayName, AvatarUrl: u.AvatarURL, CreatedAt: timestamppb.New(u.CreatedAt), DeletionPending: u.DeletionRequestedAt != nil}
 	if u.Username != nil {
 		out.Username = *u.Username
 	}
@@ -225,7 +225,7 @@ func (s *AuthService) Login(ctx context.Context, req *connect.Request[tripmapv1.
 		}
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New(invalidCredential))
 	}
-	if u.Disabled {
+	if u.Disabled && u.DeletionRequestedAt == nil {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("account is disabled"))
 	}
 	token, expires, err := s.issueSession(ctx, st, u.ID)
@@ -387,7 +387,7 @@ func (s *AuthService) CompleteOAuthFlow(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	if u.Disabled {
+	if u.Disabled && u.DeletionRequestedAt == nil {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("account is disabled"))
 	}
 	token, expires, err := s.issueSession(ctx, st, u.ID)

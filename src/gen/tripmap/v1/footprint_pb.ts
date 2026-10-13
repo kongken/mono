@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file tripmap/v1/footprint.proto.
  */
 export const file_tripmap_v1_footprint: GenFile = /*@__PURE__*/
-  fileDesc("Chp0cmlwbWFwL3YxL2Zvb3RwcmludC5wcm90bxIKdHJpcG1hcC52MSKQAQoFVmlzaXQSDAoEY29kZRgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHByb3ZpbmNlGAMgASgJEg0KBWNvbG9yGAQgASgJEgwKBGRhdGUYBSABKAkSDAoEbm90ZRgGIAEoCRIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJfCgxQcm92aW5jZU1hcmsSEAoIcHJvdmluY2UYASABKAkSDQoFY29sb3IYAiABKAkSLgoKdXBkYXRlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiLAoQUmV2aXNpb25Db25mbGljdBIYChBjdXJyZW50X3JldmlzaW9uGAEgASgDIhYKFEdldEZvb3RwcmludHNSZXF1ZXN0In4KFUdldEZvb3RwcmludHNSZXNwb25zZRIhCgZ2aXNpdHMYASADKAsyES50cmlwbWFwLnYxLlZpc2l0EjAKDnByb3ZpbmNlX21hcmtzGAIgAygLMhgudHJpcG1hcC52MS5Qcm92aW5jZU1hcmsSEAoIcmV2aXNpb24YAyABKAMiZwoSVXBzZXJ0VmlzaXRSZXF1ZXN0EiAKBXZpc2l0GAEgASgLMhEudHJpcG1hcC52MS5WaXNpdBIVCg1iYXNlX3JldmlzaW9uGAIgASgDEhgKEHJlcXVpcmVfcmV2aXNpb24YAyABKAgiWgoTVXBzZXJ0VmlzaXRSZXNwb25zZRIgCgV2aXNpdBgBIAEoCzIRLnRyaXBtYXAudjEuVmlzaXQSEAoIcmV2aXNpb24YAiABKAMSDwoHY2hhbmdlZBgDIAEoCCJTChJEZWxldGVWaXNpdFJlcXVlc3QSDAoEY29kZRgBIAEoCRIVCg1iYXNlX3JldmlzaW9uGAIgASgDEhgKEHJlcXVpcmVfcmV2aXNpb24YAyABKAgiOAoTRGVsZXRlVmlzaXRSZXNwb25zZRIQCghyZXZpc2lvbhgBIAEoAxIPCgdkZWxldGVkGAIgASgIInQKGVVwc2VydFByb3ZpbmNlTWFya1JlcXVlc3QSJgoEbWFyaxgBIAEoCzIYLnRyaXBtYXAudjEuUHJvdmluY2VNYXJrEhUKDWJhc2VfcmV2aXNpb24YAiABKAMSGAoQcmVxdWlyZV9yZXZpc2lvbhgDIAEoCCJnChpVcHNlcnRQcm92aW5jZU1hcmtSZXNwb25zZRImCgRtYXJrGAEgASgLMhgudHJpcG1hcC52MS5Qcm92aW5jZU1hcmsSEAoIcmV2aXNpb24YAiABKAMSDwoHY2hhbmdlZBgDIAEoCCJeChlEZWxldGVQcm92aW5jZU1hcmtSZXF1ZXN0EhAKCHByb3ZpbmNlGAEgASgJEhUKDWJhc2VfcmV2aXNpb24YAiABKAMSGAoQcmVxdWlyZV9yZXZpc2lvbhgDIAEoCCI/ChpEZWxldGVQcm92aW5jZU1hcmtSZXNwb25zZRIQCghyZXZpc2lvbhgBIAEoAxIPCgdkZWxldGVkGAIgASgIMtIDChBGb290cHJpbnRTZXJ2aWNlElQKDUdldEZvb3RwcmludHMSIC50cmlwbWFwLnYxLkdldEZvb3RwcmludHNSZXF1ZXN0GiEudHJpcG1hcC52MS5HZXRGb290cHJpbnRzUmVzcG9uc2USTgoLVXBzZXJ0VmlzaXQSHi50cmlwbWFwLnYxLlVwc2VydFZpc2l0UmVxdWVzdBofLnRyaXBtYXAudjEuVXBzZXJ0VmlzaXRSZXNwb25zZRJOCgtEZWxldGVWaXNpdBIeLnRyaXBtYXAudjEuRGVsZXRlVmlzaXRSZXF1ZXN0Gh8udHJpcG1hcC52MS5EZWxldGVWaXNpdFJlc3BvbnNlEmMKElVwc2VydFByb3ZpbmNlTWFyaxIlLnRyaXBtYXAudjEuVXBzZXJ0UHJvdmluY2VNYXJrUmVxdWVzdBomLnRyaXBtYXAudjEuVXBzZXJ0UHJvdmluY2VNYXJrUmVzcG9uc2USYwoSRGVsZXRlUHJvdmluY2VNYXJrEiUudHJpcG1hcC52MS5EZWxldGVQcm92aW5jZU1hcmtSZXF1ZXN0GiYudHJpcG1hcC52MS5EZWxldGVQcm92aW5jZU1hcmtSZXNwb25zZUI4WjZnby5vcngubWUvYXBwcy90cmlwLW1hcC9wa2cvcHJvdG8vdHJpcG1hcC92MTt0cmlwbWFwdjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("Chp0cmlwbWFwL3YxL2Zvb3RwcmludC5wcm90bxIKdHJpcG1hcC52MSKQAQoFVmlzaXQSDAoEY29kZRgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHByb3ZpbmNlGAMgASgJEg0KBWNvbG9yGAQgASgJEgwKBGRhdGUYBSABKAkSDAoEbm90ZRgGIAEoCRIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJfCgxQcm92aW5jZU1hcmsSEAoIcHJvdmluY2UYASABKAkSDQoFY29sb3IYAiABKAkSLgoKdXBkYXRlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiLAoQUmV2aXNpb25Db25mbGljdBIYChBjdXJyZW50X3JldmlzaW9uGAEgASgDIhYKFEdldEZvb3RwcmludHNSZXF1ZXN0In4KFUdldEZvb3RwcmludHNSZXNwb25zZRIhCgZ2aXNpdHMYASADKAsyES50cmlwbWFwLnYxLlZpc2l0EjAKDnByb3ZpbmNlX21hcmtzGAIgAygLMhgudHJpcG1hcC52MS5Qcm92aW5jZU1hcmsSEAoIcmV2aXNpb24YAyABKAMiZwoSVXBzZXJ0VmlzaXRSZXF1ZXN0EiAKBXZpc2l0GAEgASgLMhEudHJpcG1hcC52MS5WaXNpdBIVCg1iYXNlX3JldmlzaW9uGAIgASgDEhgKEHJlcXVpcmVfcmV2aXNpb24YAyABKAgiWgoTVXBzZXJ0VmlzaXRSZXNwb25zZRIgCgV2aXNpdBgBIAEoCzIRLnRyaXBtYXAudjEuVmlzaXQSEAoIcmV2aXNpb24YAiABKAMSDwoHY2hhbmdlZBgDIAEoCCJTChJEZWxldGVWaXNpdFJlcXVlc3QSDAoEY29kZRgBIAEoCRIVCg1iYXNlX3JldmlzaW9uGAIgASgDEhgKEHJlcXVpcmVfcmV2aXNpb24YAyABKAgiOAoTRGVsZXRlVmlzaXRSZXNwb25zZRIQCghyZXZpc2lvbhgBIAEoAxIPCgdkZWxldGVkGAIgASgIInQKGVVwc2VydFByb3ZpbmNlTWFya1JlcXVlc3QSJgoEbWFyaxgBIAEoCzIYLnRyaXBtYXAudjEuUHJvdmluY2VNYXJrEhUKDWJhc2VfcmV2aXNpb24YAiABKAMSGAoQcmVxdWlyZV9yZXZpc2lvbhgDIAEoCCJnChpVcHNlcnRQcm92aW5jZU1hcmtSZXNwb25zZRImCgRtYXJrGAEgASgLMhgudHJpcG1hcC52MS5Qcm92aW5jZU1hcmsSEAoIcmV2aXNpb24YAiABKAMSDwoHY2hhbmdlZBgDIAEoCCJeChlEZWxldGVQcm92aW5jZU1hcmtSZXF1ZXN0EhAKCHByb3ZpbmNlGAEgASgJEhUKDWJhc2VfcmV2aXNpb24YAiABKAMSGAoQcmVxdWlyZV9yZXZpc2lvbhgDIAEoCCI/ChpEZWxldGVQcm92aW5jZU1hcmtSZXNwb25zZRIQCghyZXZpc2lvbhgBIAEoAxIPCgdkZWxldGVkGAIgASgIIqsBChFGb290cHJpbnRNdXRhdGlvbhIpCgx1cHNlcnRfdmlzaXQYASABKAsyES50cmlwbWFwLnYxLlZpc2l0SAASFgoMZGVsZXRlX3Zpc2l0GAIgASgJSAASLwoLdXBzZXJ0X21hcmsYAyABKAsyGC50cmlwbWFwLnYxLlByb3ZpbmNlTWFya0gAEhUKC2RlbGV0ZV9tYXJrGAQgASgJSABCCwoJb3BlcmF0aW9uIlQKD0Zvb3RwcmludENoYW5nZRIQCghyZXZpc2lvbhgBIAEoAxIvCghtdXRhdGlvbhgCIAEoCzIdLnRyaXBtYXAudjEuRm9vdHByaW50TXV0YXRpb24iOgoRR2V0Q2hhbmdlc1JlcXVlc3QSFgoOc2luY2VfcmV2aXNpb24YASABKAMSDQoFbGltaXQYAiABKAUingEKEkdldENoYW5nZXNSZXNwb25zZRIsCgdjaGFuZ2VzGAEgAygLMhsudHJpcG1hcC52MS5Gb290cHJpbnRDaGFuZ2USFQoNbmV4dF9yZXZpc2lvbhgCIAEoAxIYChBjdXJyZW50X3JldmlzaW9uGAMgASgDEhAKCGhhc19tb3JlGAQgASgIEhcKD3Jlc3luY19yZXF1aXJlZBgFIAEoCCJyChJTeW5jQ2hhbmdlc1JlcXVlc3QSEwoLbXV0YXRpb25faWQYASABKAkSFQoNYmFzZV9yZXZpc2lvbhgCIAEoAxIwCgltdXRhdGlvbnMYAyADKAsyHS50cmlwbWFwLnYxLkZvb3RwcmludE11dGF0aW9uIlAKE1N5bmNDaGFuZ2VzUmVzcG9uc2USEAoIcmV2aXNpb24YASABKAMSFQoNY2hhbmdlZF9jb3VudBgCIAEoBRIQCghyZXBsYXllZBgDIAEoCDLvBAoQRm9vdHByaW50U2VydmljZRJLCgpHZXRDaGFuZ2VzEh0udHJpcG1hcC52MS5HZXRDaGFuZ2VzUmVxdWVzdBoeLnRyaXBtYXAudjEuR2V0Q2hhbmdlc1Jlc3BvbnNlEk4KC1N5bmNDaGFuZ2VzEh4udHJpcG1hcC52MS5TeW5jQ2hhbmdlc1JlcXVlc3QaHy50cmlwbWFwLnYxLlN5bmNDaGFuZ2VzUmVzcG9uc2USVAoNR2V0Rm9vdHByaW50cxIgLnRyaXBtYXAudjEuR2V0Rm9vdHByaW50c1JlcXVlc3QaIS50cmlwbWFwLnYxLkdldEZvb3RwcmludHNSZXNwb25zZRJOCgtVcHNlcnRWaXNpdBIeLnRyaXBtYXAudjEuVXBzZXJ0VmlzaXRSZXF1ZXN0Gh8udHJpcG1hcC52MS5VcHNlcnRWaXNpdFJlc3BvbnNlEk4KC0RlbGV0ZVZpc2l0Eh4udHJpcG1hcC52MS5EZWxldGVWaXNpdFJlcXVlc3QaHy50cmlwbWFwLnYxLkRlbGV0ZVZpc2l0UmVzcG9uc2USYwoSVXBzZXJ0UHJvdmluY2VNYXJrEiUudHJpcG1hcC52MS5VcHNlcnRQcm92aW5jZU1hcmtSZXF1ZXN0GiYudHJpcG1hcC52MS5VcHNlcnRQcm92aW5jZU1hcmtSZXNwb25zZRJjChJEZWxldGVQcm92aW5jZU1hcmsSJS50cmlwbWFwLnYxLkRlbGV0ZVByb3ZpbmNlTWFya1JlcXVlc3QaJi50cmlwbWFwLnYxLkRlbGV0ZVByb3ZpbmNlTWFya1Jlc3BvbnNlQjhaNmdvLm9yeC5tZS9hcHBzL3RyaXAtbWFwL3BrZy9wcm90by90cmlwbWFwL3YxO3RyaXBtYXB2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * Visit mirrors the frontend record. Region IDs and names must match the
@@ -373,6 +373,192 @@ export const DeleteProvinceMarkResponseSchema: GenMessage<DeleteProvinceMarkResp
   messageDesc(file_tripmap_v1_footprint, 12);
 
 /**
+ * Mutations set the desired state; replay never toggles a record.
+ *
+ * @generated from message tripmap.v1.FootprintMutation
+ */
+export type FootprintMutation = Message<"tripmap.v1.FootprintMutation"> & {
+  /**
+   * @generated from oneof tripmap.v1.FootprintMutation.operation
+   */
+  operation: {
+    /**
+     * @generated from field: tripmap.v1.Visit upsert_visit = 1;
+     */
+    value: Visit;
+    case: "upsertVisit";
+  } | {
+    /**
+     * @generated from field: string delete_visit = 2;
+     */
+    value: string;
+    case: "deleteVisit";
+  } | {
+    /**
+     * @generated from field: tripmap.v1.ProvinceMark upsert_mark = 3;
+     */
+    value: ProvinceMark;
+    case: "upsertMark";
+  } | {
+    /**
+     * @generated from field: string delete_mark = 4;
+     */
+    value: string;
+    case: "deleteMark";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message tripmap.v1.FootprintMutation.
+ * Use `create(FootprintMutationSchema)` to create a new message.
+ */
+export const FootprintMutationSchema: GenMessage<FootprintMutation> = /*@__PURE__*/
+  messageDesc(file_tripmap_v1_footprint, 13);
+
+/**
+ * @generated from message tripmap.v1.FootprintChange
+ */
+export type FootprintChange = Message<"tripmap.v1.FootprintChange"> & {
+  /**
+   * @generated from field: int64 revision = 1;
+   */
+  revision: bigint;
+
+  /**
+   * @generated from field: tripmap.v1.FootprintMutation mutation = 2;
+   */
+  mutation?: FootprintMutation;
+};
+
+/**
+ * Describes the message tripmap.v1.FootprintChange.
+ * Use `create(FootprintChangeSchema)` to create a new message.
+ */
+export const FootprintChangeSchema: GenMessage<FootprintChange> = /*@__PURE__*/
+  messageDesc(file_tripmap_v1_footprint, 14);
+
+/**
+ * @generated from message tripmap.v1.GetChangesRequest
+ */
+export type GetChangesRequest = Message<"tripmap.v1.GetChangesRequest"> & {
+  /**
+   * @generated from field: int64 since_revision = 1;
+   */
+  sinceRevision: bigint;
+
+  /**
+   * Default 200, maximum 500.
+   *
+   * @generated from field: int32 limit = 2;
+   */
+  limit: number;
+};
+
+/**
+ * Describes the message tripmap.v1.GetChangesRequest.
+ * Use `create(GetChangesRequestSchema)` to create a new message.
+ */
+export const GetChangesRequestSchema: GenMessage<GetChangesRequest> = /*@__PURE__*/
+  messageDesc(file_tripmap_v1_footprint, 15);
+
+/**
+ * @generated from message tripmap.v1.GetChangesResponse
+ */
+export type GetChangesResponse = Message<"tripmap.v1.GetChangesResponse"> & {
+  /**
+   * @generated from field: repeated tripmap.v1.FootprintChange changes = 1;
+   */
+  changes: FootprintChange[];
+
+  /**
+   * @generated from field: int64 next_revision = 2;
+   */
+  nextRevision: bigint;
+
+  /**
+   * @generated from field: int64 current_revision = 3;
+   */
+  currentRevision: bigint;
+
+  /**
+   * @generated from field: bool has_more = 4;
+   */
+  hasMore: boolean;
+
+  /**
+   * Fetch GetFootprints when the requested history is unavailable.
+   *
+   * @generated from field: bool resync_required = 5;
+   */
+  resyncRequired: boolean;
+};
+
+/**
+ * Describes the message tripmap.v1.GetChangesResponse.
+ * Use `create(GetChangesResponseSchema)` to create a new message.
+ */
+export const GetChangesResponseSchema: GenMessage<GetChangesResponse> = /*@__PURE__*/
+  messageDesc(file_tripmap_v1_footprint, 16);
+
+/**
+ * @generated from message tripmap.v1.SyncChangesRequest
+ */
+export type SyncChangesRequest = Message<"tripmap.v1.SyncChangesRequest"> & {
+  /**
+   * Stable unique ID reused verbatim after a lost response, never for another batch.
+   *
+   * @generated from field: string mutation_id = 1;
+   */
+  mutationId: string;
+
+  /**
+   * @generated from field: int64 base_revision = 2;
+   */
+  baseRevision: bigint;
+
+  /**
+   * 1-100 operations, applied atomically.
+   *
+   * @generated from field: repeated tripmap.v1.FootprintMutation mutations = 3;
+   */
+  mutations: FootprintMutation[];
+};
+
+/**
+ * Describes the message tripmap.v1.SyncChangesRequest.
+ * Use `create(SyncChangesRequestSchema)` to create a new message.
+ */
+export const SyncChangesRequestSchema: GenMessage<SyncChangesRequest> = /*@__PURE__*/
+  messageDesc(file_tripmap_v1_footprint, 17);
+
+/**
+ * @generated from message tripmap.v1.SyncChangesResponse
+ */
+export type SyncChangesResponse = Message<"tripmap.v1.SyncChangesResponse"> & {
+  /**
+   * @generated from field: int64 revision = 1;
+   */
+  revision: bigint;
+
+  /**
+   * @generated from field: int32 changed_count = 2;
+   */
+  changedCount: number;
+
+  /**
+   * @generated from field: bool replayed = 3;
+   */
+  replayed: boolean;
+};
+
+/**
+ * Describes the message tripmap.v1.SyncChangesResponse.
+ * Use `create(SyncChangesResponseSchema)` to create a new message.
+ */
+export const SyncChangesResponseSchema: GenMessage<SyncChangesResponse> = /*@__PURE__*/
+  messageDesc(file_tripmap_v1_footprint, 18);
+
+/**
  * FootprintService stores the signed-in user's city visits and independent
  * province marks. All methods require a bearer session and only ever touch the
  * caller's own records.
@@ -386,6 +572,22 @@ export const DeleteProvinceMarkResponseSchema: GenMessage<DeleteProvinceMarkResp
  * @generated from service tripmap.v1.FootprintService
  */
 export const FootprintService: GenService<{
+  /**
+   * @generated from rpc tripmap.v1.FootprintService.GetChanges
+   */
+  getChanges: {
+    methodKind: "unary";
+    input: typeof GetChangesRequestSchema;
+    output: typeof GetChangesResponseSchema;
+  },
+  /**
+   * @generated from rpc tripmap.v1.FootprintService.SyncChanges
+   */
+  syncChanges: {
+    methodKind: "unary";
+    input: typeof SyncChangesRequestSchema;
+    output: typeof SyncChangesResponseSchema;
+  },
   /**
    * GetFootprints returns all of the caller's records and the current revision.
    *

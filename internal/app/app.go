@@ -22,6 +22,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/blobstore"
 	"go.orx.me/apps/trip-map/internal/config"
 	"go.orx.me/apps/trip-map/internal/ent"
+	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/health"
 	"go.orx.me/apps/trip-map/internal/regions"
 	"go.orx.me/apps/trip-map/pkg/proto/tripmap/v1/tripmapv1connect"
@@ -32,6 +33,7 @@ type Resources struct {
 	Redis  *redisclient.Client
 	Blobs  *blobstore.S3
 	Health *health.Checker
+	stop   context.CancelFunc
 }
 type Handlers struct {
 	cfg       *config.AppConfig
@@ -93,13 +95,31 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 		health.Probe{Name: "redis", Check: func(ctx context.Context) error { return cache.Ping(ctx).Err() }},
 		health.Probe{Name: "s3", Check: blobs.Check},
 	)
-	h.resources.Store(&Resources{DB: client, Redis: cache, Blobs: blobs, Health: probes})
+	maintenance, stop := context.WithCancel(context.Background())
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-maintenance.Done():
+				return
+			case <-ticker.C:
+				cleanup, cancel := context.WithTimeout(maintenance, 10*time.Second)
+				_, _ = client.AccountDeletionReceipt.Delete().Where(accountdeletionreceipt.ExpiresAtLTE(time.Now().UTC())).Exec(cleanup)
+				cancel()
+			}
+		}
+	}()
+	h.resources.Store(&Resources{DB: client, Redis: cache, Blobs: blobs, Health: probes, stop: stop})
 	return nil
 }
 func (h *Handlers) Shutdown() error {
 	r := h.resources.Swap(nil)
 	if r == nil {
 		return nil
+	}
+	if r.stop != nil {
+		r.stop()
 	}
 	return errors.Join(r.DB.Close(), r.Redis.Close())
 }
@@ -111,7 +131,7 @@ func (h *Handlers) Store() *application.Store {
 	if r == nil || r.DB == nil || r.Redis == nil {
 		return nil
 	}
-	return &application.Store{DB: r.DB, Redis: r.Redis}
+	return &application.Store{DB: r.DB, Redis: r.Redis, Blobs: r.Blobs}
 }
 func (h *Handlers) Routes(r *gin.Engine) {
 	// A reverse proxy can be explicitly configured later; don't trust arbitrary X-Forwarded-For.

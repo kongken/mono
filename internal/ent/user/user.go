@@ -30,6 +30,8 @@ const (
 	FieldPasswordHash = "password_hash"
 	// FieldDisabled holds the string denoting the disabled field in the database.
 	FieldDisabled = "disabled"
+	// FieldDeletionRequestedAt holds the string denoting the deletion_requested_at field in the database.
+	FieldDeletionRequestedAt = "deletion_requested_at"
 	// FieldRevision holds the string denoting the revision field in the database.
 	FieldRevision = "revision"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -44,6 +46,10 @@ const (
 	EdgeMediaObjects = "media_objects"
 	// EdgeSessions holds the string denoting the sessions edge name in mutations.
 	EdgeSessions = "sessions"
+	// EdgeFootprintChanges holds the string denoting the footprint_changes edge name in mutations.
+	EdgeFootprintChanges = "footprint_changes"
+	// EdgeSyncReceipts holds the string denoting the sync_receipts edge name in mutations.
+	EdgeSyncReceipts = "sync_receipts"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// VisitsTable is the table that holds the visits relation/edge.
@@ -74,6 +80,20 @@ const (
 	SessionsInverseTable = "auth_sessions"
 	// SessionsColumn is the table column denoting the sessions relation/edge.
 	SessionsColumn = "user_id"
+	// FootprintChangesTable is the table that holds the footprint_changes relation/edge.
+	FootprintChangesTable = "footprint_changes"
+	// FootprintChangesInverseTable is the table name for the FootprintChange entity.
+	// It exists in this package in order to avoid circular dependency with the "footprintchange" package.
+	FootprintChangesInverseTable = "footprint_changes"
+	// FootprintChangesColumn is the table column denoting the footprint_changes relation/edge.
+	FootprintChangesColumn = "user_id"
+	// SyncReceiptsTable is the table that holds the sync_receipts relation/edge.
+	SyncReceiptsTable = "sync_receipts"
+	// SyncReceiptsInverseTable is the table name for the SyncReceipt entity.
+	// It exists in this package in order to avoid circular dependency with the "syncreceipt" package.
+	SyncReceiptsInverseTable = "sync_receipts"
+	// SyncReceiptsColumn is the table column denoting the sync_receipts relation/edge.
+	SyncReceiptsColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -87,6 +107,7 @@ var Columns = []string{
 	FieldExternalID,
 	FieldPasswordHash,
 	FieldDisabled,
+	FieldDeletionRequestedAt,
 	FieldRevision,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -177,6 +198,11 @@ func ByDisabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDisabled, opts...).ToFunc()
 }
 
+// ByDeletionRequestedAt orders the results by the deletion_requested_at field.
+func ByDeletionRequestedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDeletionRequestedAt, opts...).ToFunc()
+}
+
 // ByRevision orders the results by the revision field.
 func ByRevision(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRevision, opts...).ToFunc()
@@ -247,6 +273,34 @@ func BySessions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newSessionsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByFootprintChangesCount orders the results by footprint_changes count.
+func ByFootprintChangesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newFootprintChangesStep(), opts...)
+	}
+}
+
+// ByFootprintChanges orders the results by footprint_changes terms.
+func ByFootprintChanges(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newFootprintChangesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// BySyncReceiptsCount orders the results by sync_receipts count.
+func BySyncReceiptsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSyncReceiptsStep(), opts...)
+	}
+}
+
+// BySyncReceipts orders the results by sync_receipts terms.
+func BySyncReceipts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSyncReceiptsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newVisitsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -273,5 +327,19 @@ func newSessionsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(SessionsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, SessionsTable, SessionsColumn),
+	)
+}
+func newFootprintChangesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(FootprintChangesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, FootprintChangesTable, FootprintChangesColumn),
+	)
+}
+func newSyncReceiptsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SyncReceiptsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, SyncReceiptsTable, SyncReceiptsColumn),
 	)
 }

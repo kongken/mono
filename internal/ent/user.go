@@ -33,6 +33,8 @@ type User struct {
 	PasswordHash string `json:"-"`
 	// Disabled holds the value of the "disabled" field.
 	Disabled bool `json:"disabled,omitempty"`
+	// DeletionRequestedAt holds the value of the "deletion_requested_at" field.
+	DeletionRequestedAt *time.Time `json:"deletion_requested_at,omitempty"`
 	// Revision holds the value of the "revision" field.
 	Revision int64 `json:"revision,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -55,9 +57,13 @@ type UserEdges struct {
 	MediaObjects []*MediaObject `json:"media_objects,omitempty"`
 	// Sessions holds the value of the sessions edge.
 	Sessions []*Session `json:"sessions,omitempty"`
+	// FootprintChanges holds the value of the footprint_changes edge.
+	FootprintChanges []*FootprintChange `json:"footprint_changes,omitempty"`
+	// SyncReceipts holds the value of the sync_receipts edge.
+	SyncReceipts []*SyncReceipt `json:"sync_receipts,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [4]bool
+	loadedTypes [6]bool
 }
 
 // VisitsOrErr returns the Visits value or an error if the edge
@@ -96,6 +102,24 @@ func (e UserEdges) SessionsOrErr() ([]*Session, error) {
 	return nil, &NotLoadedError{edge: "sessions"}
 }
 
+// FootprintChangesOrErr returns the FootprintChanges value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) FootprintChangesOrErr() ([]*FootprintChange, error) {
+	if e.loadedTypes[4] {
+		return e.FootprintChanges, nil
+	}
+	return nil, &NotLoadedError{edge: "footprint_changes"}
+}
+
+// SyncReceiptsOrErr returns the SyncReceipts value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) SyncReceiptsOrErr() ([]*SyncReceipt, error) {
+	if e.loadedTypes[5] {
+		return e.SyncReceipts, nil
+	}
+	return nil, &NotLoadedError{edge: "sync_receipts"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -107,7 +131,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullInt64)
 		case user.FieldID, user.FieldEmail, user.FieldUsername, user.FieldDisplayName, user.FieldAvatarURL, user.FieldProvider, user.FieldExternalID, user.FieldPasswordHash:
 			values[i] = new(sql.NullString)
-		case user.FieldCreatedAt, user.FieldUpdatedAt:
+		case user.FieldDeletionRequestedAt, user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -180,6 +204,13 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Disabled = value.Bool
 			}
+		case user.FieldDeletionRequestedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field deletion_requested_at", values[i])
+			} else if value.Valid {
+				_m.DeletionRequestedAt = new(time.Time)
+				*_m.DeletionRequestedAt = value.Time
+			}
 		case user.FieldRevision:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field revision", values[i])
@@ -231,6 +262,16 @@ func (_m *User) QuerySessions() *SessionQuery {
 	return NewUserClient(_m.config).QuerySessions(_m)
 }
 
+// QueryFootprintChanges queries the "footprint_changes" edge of the User entity.
+func (_m *User) QueryFootprintChanges() *FootprintChangeQuery {
+	return NewUserClient(_m.config).QueryFootprintChanges(_m)
+}
+
+// QuerySyncReceipts queries the "sync_receipts" edge of the User entity.
+func (_m *User) QuerySyncReceipts() *SyncReceiptQuery {
+	return NewUserClient(_m.config).QuerySyncReceipts(_m)
+}
+
 // Update returns a builder for updating this User.
 // Note that you need to call User.Unwrap() before calling this method if this User
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -280,6 +321,11 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("disabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Disabled))
+	builder.WriteString(", ")
+	if v := _m.DeletionRequestedAt; v != nil {
+		builder.WriteString("deletion_requested_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("revision=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Revision))

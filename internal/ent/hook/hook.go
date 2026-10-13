@@ -9,6 +9,18 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent"
 )
 
+// The AccountDeletionReceiptFunc type is an adapter to allow the use of ordinary
+// function as AccountDeletionReceipt mutator.
+type AccountDeletionReceiptFunc func(context.Context, *ent.AccountDeletionReceiptMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AccountDeletionReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AccountDeletionReceiptMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AccountDeletionReceiptMutation", m)
+}
+
 // The CityVisitFunc type is an adapter to allow the use of ordinary
 // function as CityVisit mutator.
 type CityVisitFunc func(context.Context, *ent.CityVisitMutation) (ent.Value, error)
@@ -19,6 +31,18 @@ func (f CityVisitFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, e
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CityVisitMutation", m)
+}
+
+// The FootprintChangeFunc type is an adapter to allow the use of ordinary
+// function as FootprintChange mutator.
+type FootprintChangeFunc func(context.Context, *ent.FootprintChangeMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f FootprintChangeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.FootprintChangeMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FootprintChangeMutation", m)
 }
 
 // The MediaObjectFunc type is an adapter to allow the use of ordinary
@@ -55,6 +79,18 @@ func (f SessionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SessionMutation", m)
+}
+
+// The SyncReceiptFunc type is an adapter to allow the use of ordinary
+// function as SyncReceipt mutator.
+type SyncReceiptFunc func(context.Context, *ent.SyncReceiptMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SyncReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SyncReceiptMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SyncReceiptMutation", m)
 }
 
 // The UserFunc type is an adapter to allow the use of ordinary

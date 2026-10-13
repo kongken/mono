@@ -93,11 +93,16 @@ export function rebaseSaved(base: Saved, desired: Saved, remote: Saved) {
 
 export type CloudSnapshot = { saved: Saved; revision: number };
 /** The visible desired data and its server-confirmed ancestor are persisted together. */
-export type SyncCache = CloudSnapshot & { confirmed: Saved };
+export type PendingBatch = { id: string; revision: number; ops: Op[] };
+export type SyncCache = CloudSnapshot & {
+  confirmed: Saved;
+  pendingBatch?: PendingBatch;
+};
 export class RevisionChanged extends Error {}
 export interface FootprintApi {
   get(): Promise<CloudSnapshot>;
   apply(op: Op, revision: number): Promise<number>;
+  applyBatch?(ops: Op[], revision: number, id: string): Promise<number>;
 }
 export type SyncStatus = "idle" | "syncing" | "error" | "conflict";
 export type SyncListener = {
@@ -105,6 +110,7 @@ export type SyncListener = {
   onConfirmed?(snapshot: CloudSnapshot): void;
   onChange?(cache: SyncCache): void;
   onError?(error: unknown): void;
+  onBeforeSend?(cache: SyncCache): void;
 };
 
 export class SyncEngine {
@@ -116,6 +122,7 @@ export class SyncEngine {
   private conflicting: Op[] = [];
   private remote: CloudSnapshot | null = null;
   private stopped = false;
+  private pendingBatch: PendingBatch | undefined;
 
   private readonly api: FootprintApi;
   private readonly listener: SyncListener;
@@ -125,12 +132,14 @@ export class SyncEngine {
     snapshot: CloudSnapshot,
     listener: SyncListener = {},
     desired = snapshot.saved,
+    pendingBatch?: PendingBatch,
   ) {
     this.api = api;
     this.listener = listener;
     this.base = snapshot.saved;
     this.latest = desired;
     this.revision = snapshot.revision;
+    this.pendingBatch = pendingBatch;
   }
   get status() {
     return this.currentStatus;
@@ -143,10 +152,11 @@ export class SyncEngine {
       saved: this.latest,
       confirmed: this.base,
       revision: this.revision,
+      ...(this.pendingBatch ? { pendingBatch: this.pendingBatch } : {}),
     };
   }
   get pending() {
-    return diffSaved(this.base, this.latest).length > 0;
+    return !!this.pendingBatch || diffSaved(this.base, this.latest).length > 0;
   }
   get conflicts() {
     return this.conflicting;
@@ -158,12 +168,17 @@ export class SyncEngine {
     this.revision = snapshot.revision;
     this.conflicting = [];
     this.remote = null;
+    this.pendingBatch = undefined;
     this.setStatus("idle");
     this.changed();
   }
   /** Detached engines must never issue further requests using another account's token. */
   stop() {
     this.stopped = true;
+  }
+  resume() {
+    this.stopped = false;
+    this.retry();
   }
   push(next: Saved) {
     this.latest = next;
@@ -228,6 +243,28 @@ export class SyncEngine {
       let retries = 0;
       for (;;) {
         if (this.stopped) return;
+        if (this.pendingBatch && this.api.applyBatch) {
+          const batch = this.pendingBatch;
+          try {
+            this.listener.onBeforeSend?.(this.cache);
+            const revision = await this.api.applyBatch(
+              batch.ops,
+              batch.revision,
+              batch.id,
+            );
+            if (this.stopped) return;
+            for (const op of batch.ops) this.base = applyOp(this.base, op);
+            this.revision = revision;
+            this.pendingBatch = undefined;
+            this.listener.onConfirmed?.(this.confirmed);
+            this.changed();
+          } catch (error) {
+            if (!(error instanceof RevisionChanged)) throw error;
+            this.pendingBatch = undefined;
+            this.changed();
+            if (++retries > 3) throw error;
+          }
+        }
         const remote = await this.api.get();
         if (this.stopped) return;
         const result = rebaseSaved(this.base, this.latest, remote.saved);
@@ -241,8 +278,19 @@ export class SyncEngine {
         this.revision = remote.revision;
         this.latest = result.saved;
         this.changed();
-        const [op] = diffSaved(this.base, this.latest);
+        const operations = diffSaved(this.base, this.latest);
+        const [op] = operations;
         if (!op) break;
+        if (this.api.applyBatch) {
+          this.pendingBatch = {
+            id: crypto.randomUUID(),
+            revision: this.revision,
+            ops: operations.slice(0, 100),
+          };
+          // Persist the exact request before sending; a reload can replay its receipt.
+          this.changed();
+          continue;
+        }
         try {
           const revision = await this.api.apply(op, this.revision);
           if (this.stopped) return;

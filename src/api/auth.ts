@@ -29,16 +29,21 @@ export function toStoredSession(reply: SessionReply): StoredSession {
       username: reply.user.username,
       displayName: reply.user.displayName,
       avatarUrl: reply.user.avatarUrl,
+      ...(reply.user.deletionPending ? { deletionPending: true } : {}),
     },
   };
 }
 
 export const authApi = {
   register: async (username: string, password: string, displayName: string) =>
-    toStoredSession(await client().register({ username, password, displayName })),
+    toStoredSession(
+      await client().register({ username, password, displayName }),
+    ),
   login: async (username: string, password: string) =>
     toStoredSession(await client().login({ username, password })),
   logout: () => client().logout({}),
+  deleteAccount: (password: string) =>
+    client().deleteAccount({ confirmation: "DELETE", password }),
   me: async () => (await client().me({})).user,
   listSessions: async () =>
     (await client().listSessions({})).sessions.map((s) => ({
@@ -55,7 +60,13 @@ export const authApi = {
     })),
   beginOAuth: (provider: string) => client().beginOAuthFlow({ provider }),
   completeOAuth: async (provider: string, code: string, state: string) =>
-    toStoredSession(await client().completeOAuthFlow({ provider, code, state })),
+    toStoredSession(
+      await client().completeOAuthFlow({ provider, code, state }),
+    ),
 };
-export type SessionInfo = Awaited<ReturnType<typeof authApi.listSessions>>[number];
-export type ProviderInfo = Awaited<ReturnType<typeof authApi.listProviders>>[number];
+export type SessionInfo = Awaited<
+  ReturnType<typeof authApi.listSessions>
+>[number];
+export type ProviderInfo = Awaited<
+  ReturnType<typeof authApi.listProviders>
+>[number];

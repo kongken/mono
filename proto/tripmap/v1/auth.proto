@@ -16,6 +16,8 @@ service AuthService {
   rpc Login(LoginRequest) returns (LoginResponse);
   // Logout revokes the session that made the request.
   rpc Logout(LogoutRequest) returns (LogoutResponse);
+  // DeleteAccount permanently removes the caller and owned data.
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
   // Me returns the signed-in user.
   rpc Me(MeRequest) returns (MeResponse);
   // ListSessions lists the caller's active sessions.
@@ -39,6 +41,7 @@ message User {
   string display_name = 3;
   string avatar_url = 4;
   google.protobuf.Timestamp created_at = 5;
+  bool deletion_pending = 6;
 }
 
 message Session {
@@ -128,3 +131,10 @@ message CompleteOAuthFlowResponse {
   User user = 2;
   google.protobuf.Timestamp expires_at = 3;
 }
+
+message DeleteAccountRequest {
+  // Must be the literal DELETE. Password accounts must re-enter their password.
+  string confirmation = 1;
+  string password = 2;
+}
+message DeleteAccountResponse {}

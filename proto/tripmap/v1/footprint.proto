@@ -16,6 +16,8 @@ option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
 // rejected with ABORTED and a RevisionConflict detail, unless the request
 // would not change anything (a retry of an applied write is a no-op).
 service FootprintService {
+  rpc GetChanges(GetChangesRequest) returns (GetChangesResponse);
+  rpc SyncChanges(SyncChangesRequest) returns (SyncChangesResponse);
   // GetFootprints returns all of the caller's records and the current revision.
   rpc GetFootprints(GetFootprintsRequest) returns (GetFootprintsResponse);
   // UpsertVisit creates or replaces the visit for one city or district.
@@ -112,4 +114,43 @@ message DeleteProvinceMarkRequest {
 message DeleteProvinceMarkResponse {
   int64 revision = 1;
   bool deleted = 2;
+}
+
+// Mutations set the desired state; replay never toggles a record.
+message FootprintMutation {
+  oneof operation {
+    Visit upsert_visit = 1;
+    string delete_visit = 2;
+    ProvinceMark upsert_mark = 3;
+    string delete_mark = 4;
+  }
+}
+message FootprintChange {
+  int64 revision = 1;
+  FootprintMutation mutation = 2;
+}
+message GetChangesRequest {
+  int64 since_revision = 1;
+  // Default 200, maximum 500.
+  int32 limit = 2;
+}
+message GetChangesResponse {
+  repeated FootprintChange changes = 1;
+  int64 next_revision = 2;
+  int64 current_revision = 3;
+  bool has_more = 4;
+  // Fetch GetFootprints when the requested history is unavailable.
+  bool resync_required = 5;
+}
+message SyncChangesRequest {
+  // Stable unique ID reused verbatim after a lost response, never for another batch.
+  string mutation_id = 1;
+  int64 base_revision = 2;
+  // 1-100 operations, applied atomically.
+  repeated FootprintMutation mutations = 3;
+}
+message SyncChangesResponse {
+  int64 revision = 1;
+  int32 changed_count = 2;
+  bool replayed = 3;
 }

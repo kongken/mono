@@ -5,11 +5,14 @@ package ent
 import (
 	"time"
 
+	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
+	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/schema"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -17,6 +20,16 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	accountdeletionreceiptFields := schema.AccountDeletionReceipt{}.Fields()
+	_ = accountdeletionreceiptFields
+	// accountdeletionreceiptDescTokenHash is the schema descriptor for token_hash field.
+	accountdeletionreceiptDescTokenHash := accountdeletionreceiptFields[1].Descriptor()
+	// accountdeletionreceipt.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
+	accountdeletionreceipt.TokenHashValidator = accountdeletionreceiptDescTokenHash.Validators[0].(func(string) error)
+	// accountdeletionreceiptDescID is the schema descriptor for id field.
+	accountdeletionreceiptDescID := accountdeletionreceiptFields[0].Descriptor()
+	// accountdeletionreceipt.DefaultID holds the default value on creation for the id field.
+	accountdeletionreceipt.DefaultID = accountdeletionreceiptDescID.Default.(func() string)
 	cityvisitFields := schema.CityVisit{}.Fields()
 	_ = cityvisitFields
 	// cityvisitDescRegionCode is the schema descriptor for region_code field.
@@ -61,6 +74,20 @@ func init() {
 	cityvisitDescID := cityvisitFields[0].Descriptor()
 	// cityvisit.DefaultID holds the default value on creation for the id field.
 	cityvisit.DefaultID = cityvisitDescID.Default.(func() string)
+	footprintchangeFields := schema.FootprintChange{}.Fields()
+	_ = footprintchangeFields
+	// footprintchangeDescRevision is the schema descriptor for revision field.
+	footprintchangeDescRevision := footprintchangeFields[2].Descriptor()
+	// footprintchange.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
+	footprintchange.RevisionValidator = footprintchangeDescRevision.Validators[0].(func(int64) error)
+	// footprintchangeDescCreatedAt is the schema descriptor for created_at field.
+	footprintchangeDescCreatedAt := footprintchangeFields[4].Descriptor()
+	// footprintchange.DefaultCreatedAt holds the default value on creation for the created_at field.
+	footprintchange.DefaultCreatedAt = footprintchangeDescCreatedAt.Default.(func() time.Time)
+	// footprintchangeDescID is the schema descriptor for id field.
+	footprintchangeDescID := footprintchangeFields[0].Descriptor()
+	// footprintchange.DefaultID holds the default value on creation for the id field.
+	footprintchange.DefaultID = footprintchangeDescID.Default.(func() string)
 	mediaobjectFields := schema.MediaObject{}.Fields()
 	_ = mediaobjectFields
 	// mediaobjectDescObjectKey is the schema descriptor for object_key field.
@@ -131,6 +158,28 @@ func init() {
 	sessionDescID := sessionFields[0].Descriptor()
 	// session.DefaultID holds the default value on creation for the id field.
 	session.DefaultID = sessionDescID.Default.(func() string)
+	syncreceiptFields := schema.SyncReceipt{}.Fields()
+	_ = syncreceiptFields
+	// syncreceiptDescMutationID is the schema descriptor for mutation_id field.
+	syncreceiptDescMutationID := syncreceiptFields[2].Descriptor()
+	// syncreceipt.MutationIDValidator is a validator for the "mutation_id" field. It is called by the builders before save.
+	syncreceipt.MutationIDValidator = syncreceiptDescMutationID.Validators[0].(func(string) error)
+	// syncreceiptDescRevision is the schema descriptor for revision field.
+	syncreceiptDescRevision := syncreceiptFields[4].Descriptor()
+	// syncreceipt.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
+	syncreceipt.RevisionValidator = syncreceiptDescRevision.Validators[0].(func(int64) error)
+	// syncreceiptDescChangedCount is the schema descriptor for changed_count field.
+	syncreceiptDescChangedCount := syncreceiptFields[5].Descriptor()
+	// syncreceipt.ChangedCountValidator is a validator for the "changed_count" field. It is called by the builders before save.
+	syncreceipt.ChangedCountValidator = syncreceiptDescChangedCount.Validators[0].(func(int) error)
+	// syncreceiptDescCreatedAt is the schema descriptor for created_at field.
+	syncreceiptDescCreatedAt := syncreceiptFields[6].Descriptor()
+	// syncreceipt.DefaultCreatedAt holds the default value on creation for the created_at field.
+	syncreceipt.DefaultCreatedAt = syncreceiptDescCreatedAt.Default.(func() time.Time)
+	// syncreceiptDescID is the schema descriptor for id field.
+	syncreceiptDescID := syncreceiptFields[0].Descriptor()
+	// syncreceipt.DefaultID holds the default value on creation for the id field.
+	syncreceipt.DefaultID = syncreceiptDescID.Default.(func() string)
 	userFields := schema.User{}.Fields()
 	_ = userFields
 	// userDescDisplayName is the schema descriptor for display_name field.
@@ -158,17 +207,17 @@ func init() {
 	// user.DefaultDisabled holds the default value on creation for the disabled field.
 	user.DefaultDisabled = userDescDisabled.Default.(bool)
 	// userDescRevision is the schema descriptor for revision field.
-	userDescRevision := userFields[9].Descriptor()
+	userDescRevision := userFields[10].Descriptor()
 	// user.DefaultRevision holds the default value on creation for the revision field.
 	user.DefaultRevision = userDescRevision.Default.(int64)
 	// user.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
 	user.RevisionValidator = userDescRevision.Validators[0].(func(int64) error)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[10].Descriptor()
+	userDescCreatedAt := userFields[11].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[11].Descriptor()
+	userDescUpdatedAt := userFields[12].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

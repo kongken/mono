@@ -33,6 +33,12 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// FootprintServiceGetChangesProcedure is the fully-qualified name of the FootprintService's
+	// GetChanges RPC.
+	FootprintServiceGetChangesProcedure = "/tripmap.v1.FootprintService/GetChanges"
+	// FootprintServiceSyncChangesProcedure is the fully-qualified name of the FootprintService's
+	// SyncChanges RPC.
+	FootprintServiceSyncChangesProcedure = "/tripmap.v1.FootprintService/SyncChanges"
 	// FootprintServiceGetFootprintsProcedure is the fully-qualified name of the FootprintService's
 	// GetFootprints RPC.
 	FootprintServiceGetFootprintsProcedure = "/tripmap.v1.FootprintService/GetFootprints"
@@ -52,6 +58,8 @@ const (
 
 // FootprintServiceClient is a client for the tripmap.v1.FootprintService service.
 type FootprintServiceClient interface {
+	GetChanges(context.Context, *connect.Request[v1.GetChangesRequest]) (*connect.Response[v1.GetChangesResponse], error)
+	SyncChanges(context.Context, *connect.Request[v1.SyncChangesRequest]) (*connect.Response[v1.SyncChangesResponse], error)
 	// GetFootprints returns all of the caller's records and the current revision.
 	GetFootprints(context.Context, *connect.Request[v1.GetFootprintsRequest]) (*connect.Response[v1.GetFootprintsResponse], error)
 	// UpsertVisit creates or replaces the visit for one city or district.
@@ -76,6 +84,18 @@ func NewFootprintServiceClient(httpClient connect.HTTPClient, baseURL string, op
 	baseURL = strings.TrimRight(baseURL, "/")
 	footprintServiceMethods := v1.File_tripmap_v1_footprint_proto.Services().ByName("FootprintService").Methods()
 	return &footprintServiceClient{
+		getChanges: connect.NewClient[v1.GetChangesRequest, v1.GetChangesResponse](
+			httpClient,
+			baseURL+FootprintServiceGetChangesProcedure,
+			connect.WithSchema(footprintServiceMethods.ByName("GetChanges")),
+			connect.WithClientOptions(opts...),
+		),
+		syncChanges: connect.NewClient[v1.SyncChangesRequest, v1.SyncChangesResponse](
+			httpClient,
+			baseURL+FootprintServiceSyncChangesProcedure,
+			connect.WithSchema(footprintServiceMethods.ByName("SyncChanges")),
+			connect.WithClientOptions(opts...),
+		),
 		getFootprints: connect.NewClient[v1.GetFootprintsRequest, v1.GetFootprintsResponse](
 			httpClient,
 			baseURL+FootprintServiceGetFootprintsProcedure,
@@ -111,11 +131,23 @@ func NewFootprintServiceClient(httpClient connect.HTTPClient, baseURL string, op
 
 // footprintServiceClient implements FootprintServiceClient.
 type footprintServiceClient struct {
+	getChanges         *connect.Client[v1.GetChangesRequest, v1.GetChangesResponse]
+	syncChanges        *connect.Client[v1.SyncChangesRequest, v1.SyncChangesResponse]
 	getFootprints      *connect.Client[v1.GetFootprintsRequest, v1.GetFootprintsResponse]
 	upsertVisit        *connect.Client[v1.UpsertVisitRequest, v1.UpsertVisitResponse]
 	deleteVisit        *connect.Client[v1.DeleteVisitRequest, v1.DeleteVisitResponse]
 	upsertProvinceMark *connect.Client[v1.UpsertProvinceMarkRequest, v1.UpsertProvinceMarkResponse]
 	deleteProvinceMark *connect.Client[v1.DeleteProvinceMarkRequest, v1.DeleteProvinceMarkResponse]
+}
+
+// GetChanges calls tripmap.v1.FootprintService.GetChanges.
+func (c *footprintServiceClient) GetChanges(ctx context.Context, req *connect.Request[v1.GetChangesRequest]) (*connect.Response[v1.GetChangesResponse], error) {
+	return c.getChanges.CallUnary(ctx, req)
+}
+
+// SyncChanges calls tripmap.v1.FootprintService.SyncChanges.
+func (c *footprintServiceClient) SyncChanges(ctx context.Context, req *connect.Request[v1.SyncChangesRequest]) (*connect.Response[v1.SyncChangesResponse], error) {
+	return c.syncChanges.CallUnary(ctx, req)
 }
 
 // GetFootprints calls tripmap.v1.FootprintService.GetFootprints.
@@ -145,6 +177,8 @@ func (c *footprintServiceClient) DeleteProvinceMark(ctx context.Context, req *co
 
 // FootprintServiceHandler is an implementation of the tripmap.v1.FootprintService service.
 type FootprintServiceHandler interface {
+	GetChanges(context.Context, *connect.Request[v1.GetChangesRequest]) (*connect.Response[v1.GetChangesResponse], error)
+	SyncChanges(context.Context, *connect.Request[v1.SyncChangesRequest]) (*connect.Response[v1.SyncChangesResponse], error)
 	// GetFootprints returns all of the caller's records and the current revision.
 	GetFootprints(context.Context, *connect.Request[v1.GetFootprintsRequest]) (*connect.Response[v1.GetFootprintsResponse], error)
 	// UpsertVisit creates or replaces the visit for one city or district.
@@ -165,6 +199,18 @@ type FootprintServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewFootprintServiceHandler(svc FootprintServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	footprintServiceMethods := v1.File_tripmap_v1_footprint_proto.Services().ByName("FootprintService").Methods()
+	footprintServiceGetChangesHandler := connect.NewUnaryHandler(
+		FootprintServiceGetChangesProcedure,
+		svc.GetChanges,
+		connect.WithSchema(footprintServiceMethods.ByName("GetChanges")),
+		connect.WithHandlerOptions(opts...),
+	)
+	footprintServiceSyncChangesHandler := connect.NewUnaryHandler(
+		FootprintServiceSyncChangesProcedure,
+		svc.SyncChanges,
+		connect.WithSchema(footprintServiceMethods.ByName("SyncChanges")),
+		connect.WithHandlerOptions(opts...),
+	)
 	footprintServiceGetFootprintsHandler := connect.NewUnaryHandler(
 		FootprintServiceGetFootprintsProcedure,
 		svc.GetFootprints,
@@ -197,6 +243,10 @@ func NewFootprintServiceHandler(svc FootprintServiceHandler, opts ...connect.Han
 	)
 	return "/tripmap.v1.FootprintService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case FootprintServiceGetChangesProcedure:
+			footprintServiceGetChangesHandler.ServeHTTP(w, r)
+		case FootprintServiceSyncChangesProcedure:
+			footprintServiceSyncChangesHandler.ServeHTTP(w, r)
 		case FootprintServiceGetFootprintsProcedure:
 			footprintServiceGetFootprintsHandler.ServeHTTP(w, r)
 		case FootprintServiceUpsertVisitProcedure:
@@ -215,6 +265,14 @@ func NewFootprintServiceHandler(svc FootprintServiceHandler, opts ...connect.Han
 
 // UnimplementedFootprintServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedFootprintServiceHandler struct{}
+
+func (UnimplementedFootprintServiceHandler) GetChanges(context.Context, *connect.Request[v1.GetChangesRequest]) (*connect.Response[v1.GetChangesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("tripmap.v1.FootprintService.GetChanges is not implemented"))
+}
+
+func (UnimplementedFootprintServiceHandler) SyncChanges(context.Context, *connect.Request[v1.SyncChangesRequest]) (*connect.Response[v1.SyncChangesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("tripmap.v1.FootprintService.SyncChanges is not implemented"))
+}
 
 func (UnimplementedFootprintServiceHandler) GetFootprints(context.Context, *connect.Request[v1.GetFootprintsRequest]) (*connect.Response[v1.GetFootprintsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("tripmap.v1.FootprintService.GetFootprints is not implemented"))

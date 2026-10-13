@@ -105,6 +105,11 @@ func Disabled(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldDisabled, v))
 }
 
+// DeletionRequestedAt applies equality check predicate on the "deletion_requested_at" field. It's identical to DeletionRequestedAtEQ.
+func DeletionRequestedAt(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDeletionRequestedAt, v))
+}
+
 // Revision applies equality check predicate on the "revision" field. It's identical to RevisionEQ.
 func Revision(v int64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldRevision, v))
@@ -605,6 +610,56 @@ func DisabledNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldDisabled, v))
 }
 
+// DeletionRequestedAtEQ applies the EQ predicate on the "deletion_requested_at" field.
+func DeletionRequestedAtEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDeletionRequestedAt, v))
+}
+
+// DeletionRequestedAtNEQ applies the NEQ predicate on the "deletion_requested_at" field.
+func DeletionRequestedAtNEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldDeletionRequestedAt, v))
+}
+
+// DeletionRequestedAtIn applies the In predicate on the "deletion_requested_at" field.
+func DeletionRequestedAtIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldIn(FieldDeletionRequestedAt, vs...))
+}
+
+// DeletionRequestedAtNotIn applies the NotIn predicate on the "deletion_requested_at" field.
+func DeletionRequestedAtNotIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldDeletionRequestedAt, vs...))
+}
+
+// DeletionRequestedAtGT applies the GT predicate on the "deletion_requested_at" field.
+func DeletionRequestedAtGT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGT(FieldDeletionRequestedAt, v))
+}
+
+// DeletionRequestedAtGTE applies the GTE predicate on the "deletion_requested_at" field.
+func DeletionRequestedAtGTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldDeletionRequestedAt, v))
+}
+
+// DeletionRequestedAtLT applies the LT predicate on the "deletion_requested_at" field.
+func DeletionRequestedAtLT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLT(FieldDeletionRequestedAt, v))
+}
+
+// DeletionRequestedAtLTE applies the LTE predicate on the "deletion_requested_at" field.
+func DeletionRequestedAtLTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldDeletionRequestedAt, v))
+}
+
+// DeletionRequestedAtIsNil applies the IsNil predicate on the "deletion_requested_at" field.
+func DeletionRequestedAtIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldDeletionRequestedAt))
+}
+
+// DeletionRequestedAtNotNil applies the NotNil predicate on the "deletion_requested_at" field.
+func DeletionRequestedAtNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldDeletionRequestedAt))
+}
+
 // RevisionEQ applies the EQ predicate on the "revision" field.
 func RevisionEQ(v int64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldRevision, v))
@@ -809,6 +864,52 @@ func HasSessions() predicate.User {
 func HasSessionsWith(preds ...predicate.Session) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newSessionsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasFootprintChanges applies the HasEdge predicate on the "footprint_changes" edge.
+func HasFootprintChanges() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, FootprintChangesTable, FootprintChangesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasFootprintChangesWith applies the HasEdge predicate on the "footprint_changes" edge with a given conditions (other predicates).
+func HasFootprintChangesWith(preds ...predicate.FootprintChange) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newFootprintChangesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasSyncReceipts applies the HasEdge predicate on the "sync_receipts" edge.
+func HasSyncReceipts() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, SyncReceiptsTable, SyncReceiptsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasSyncReceiptsWith applies the HasEdge predicate on the "sync_receipts" edge with a given conditions (other predicates).
+func HasSyncReceiptsWith(preds ...predicate.SyncReceipt) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newSyncReceiptsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

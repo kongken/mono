@@ -11,11 +11,14 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
+	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -28,12 +31,401 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeCityVisit    = "CityVisit"
-	TypeMediaObject  = "MediaObject"
-	TypeProvinceMark = "ProvinceMark"
-	TypeSession      = "Session"
-	TypeUser         = "User"
+	TypeAccountDeletionReceipt = "AccountDeletionReceipt"
+	TypeCityVisit              = "CityVisit"
+	TypeFootprintChange        = "FootprintChange"
+	TypeMediaObject            = "MediaObject"
+	TypeProvinceMark           = "ProvinceMark"
+	TypeSession                = "Session"
+	TypeSyncReceipt            = "SyncReceipt"
+	TypeUser                   = "User"
 )
+
+// AccountDeletionReceiptMutation represents an operation that mutates the AccountDeletionReceipt nodes in the graph.
+type AccountDeletionReceiptMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *string
+	token_hash    *string
+	expires_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*AccountDeletionReceipt, error)
+	predicates    []predicate.AccountDeletionReceipt
+}
+
+var _ ent.Mutation = (*AccountDeletionReceiptMutation)(nil)
+
+// accountdeletionreceiptOption allows management of the mutation configuration using functional options.
+type accountdeletionreceiptOption func(*AccountDeletionReceiptMutation)
+
+// newAccountDeletionReceiptMutation creates new mutation for the AccountDeletionReceipt entity.
+func newAccountDeletionReceiptMutation(c config, op Op, opts ...accountdeletionreceiptOption) *AccountDeletionReceiptMutation {
+	m := &AccountDeletionReceiptMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeAccountDeletionReceipt,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withAccountDeletionReceiptID sets the ID field of the mutation.
+func withAccountDeletionReceiptID(id string) accountdeletionreceiptOption {
+	return func(m *AccountDeletionReceiptMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *AccountDeletionReceipt
+		)
+		m.oldValue = func(ctx context.Context) (*AccountDeletionReceipt, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().AccountDeletionReceipt.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withAccountDeletionReceipt sets the old AccountDeletionReceipt of the mutation.
+func withAccountDeletionReceipt(node *AccountDeletionReceipt) accountdeletionreceiptOption {
+	return func(m *AccountDeletionReceiptMutation) {
+		m.oldValue = func(context.Context) (*AccountDeletionReceipt, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m AccountDeletionReceiptMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m AccountDeletionReceiptMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of AccountDeletionReceipt entities.
+func (m *AccountDeletionReceiptMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *AccountDeletionReceiptMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *AccountDeletionReceiptMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().AccountDeletionReceipt.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetTokenHash sets the "token_hash" field.
+func (m *AccountDeletionReceiptMutation) SetTokenHash(s string) {
+	m.token_hash = &s
+}
+
+// TokenHash returns the value of the "token_hash" field in the mutation.
+func (m *AccountDeletionReceiptMutation) TokenHash() (r string, exists bool) {
+	v := m.token_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTokenHash returns the old "token_hash" field's value of the AccountDeletionReceipt entity.
+// If the AccountDeletionReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountDeletionReceiptMutation) OldTokenHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTokenHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTokenHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTokenHash: %w", err)
+	}
+	return oldValue.TokenHash, nil
+}
+
+// ResetTokenHash resets all changes to the "token_hash" field.
+func (m *AccountDeletionReceiptMutation) ResetTokenHash() {
+	m.token_hash = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *AccountDeletionReceiptMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *AccountDeletionReceiptMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the AccountDeletionReceipt entity.
+// If the AccountDeletionReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountDeletionReceiptMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *AccountDeletionReceiptMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// Where appends a list predicates to the AccountDeletionReceiptMutation builder.
+func (m *AccountDeletionReceiptMutation) Where(ps ...predicate.AccountDeletionReceipt) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the AccountDeletionReceiptMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *AccountDeletionReceiptMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.AccountDeletionReceipt, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *AccountDeletionReceiptMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *AccountDeletionReceiptMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (AccountDeletionReceipt).
+func (m *AccountDeletionReceiptMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *AccountDeletionReceiptMutation) Fields() []string {
+	fields := make([]string, 0, 2)
+	if m.token_hash != nil {
+		fields = append(fields, accountdeletionreceipt.FieldTokenHash)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, accountdeletionreceipt.FieldExpiresAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *AccountDeletionReceiptMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case accountdeletionreceipt.FieldTokenHash:
+		return m.TokenHash()
+	case accountdeletionreceipt.FieldExpiresAt:
+		return m.ExpiresAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *AccountDeletionReceiptMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case accountdeletionreceipt.FieldTokenHash:
+		return m.OldTokenHash(ctx)
+	case accountdeletionreceipt.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown AccountDeletionReceipt field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AccountDeletionReceiptMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case accountdeletionreceipt.FieldTokenHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTokenHash(v)
+		return nil
+	case accountdeletionreceipt.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown AccountDeletionReceipt field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *AccountDeletionReceiptMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *AccountDeletionReceiptMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AccountDeletionReceiptMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown AccountDeletionReceipt numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *AccountDeletionReceiptMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *AccountDeletionReceiptMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *AccountDeletionReceiptMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown AccountDeletionReceipt nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *AccountDeletionReceiptMutation) ResetField(name string) error {
+	switch name {
+	case accountdeletionreceipt.FieldTokenHash:
+		m.ResetTokenHash()
+		return nil
+	case accountdeletionreceipt.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	}
+	return fmt.Errorf("unknown AccountDeletionReceipt field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *AccountDeletionReceiptMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *AccountDeletionReceiptMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *AccountDeletionReceiptMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *AccountDeletionReceiptMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *AccountDeletionReceiptMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *AccountDeletionReceiptMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *AccountDeletionReceiptMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown AccountDeletionReceipt unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *AccountDeletionReceiptMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown AccountDeletionReceipt edge %s", name)
+}
 
 // CityVisitMutation represents an operation that mutates the CityVisit nodes in the graph.
 type CityVisitMutation struct {
@@ -851,6 +1243,590 @@ func (m *CityVisitMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown CityVisit edge %s", name)
+}
+
+// FootprintChangeMutation represents an operation that mutates the FootprintChange nodes in the graph.
+type FootprintChangeMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *string
+	revision      *int64
+	addrevision   *int64
+	payload       *[]byte
+	created_at    *time.Time
+	clearedFields map[string]struct{}
+	user          *string
+	cleareduser   bool
+	done          bool
+	oldValue      func(context.Context) (*FootprintChange, error)
+	predicates    []predicate.FootprintChange
+}
+
+var _ ent.Mutation = (*FootprintChangeMutation)(nil)
+
+// footprintchangeOption allows management of the mutation configuration using functional options.
+type footprintchangeOption func(*FootprintChangeMutation)
+
+// newFootprintChangeMutation creates new mutation for the FootprintChange entity.
+func newFootprintChangeMutation(c config, op Op, opts ...footprintchangeOption) *FootprintChangeMutation {
+	m := &FootprintChangeMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeFootprintChange,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withFootprintChangeID sets the ID field of the mutation.
+func withFootprintChangeID(id string) footprintchangeOption {
+	return func(m *FootprintChangeMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *FootprintChange
+		)
+		m.oldValue = func(ctx context.Context) (*FootprintChange, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().FootprintChange.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withFootprintChange sets the old FootprintChange of the mutation.
+func withFootprintChange(node *FootprintChange) footprintchangeOption {
+	return func(m *FootprintChangeMutation) {
+		m.oldValue = func(context.Context) (*FootprintChange, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m FootprintChangeMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m FootprintChangeMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of FootprintChange entities.
+func (m *FootprintChangeMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *FootprintChangeMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *FootprintChangeMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().FootprintChange.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *FootprintChangeMutation) SetUserID(s string) {
+	m.user = &s
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *FootprintChangeMutation) UserID() (r string, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the FootprintChange entity.
+// If the FootprintChange object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FootprintChangeMutation) OldUserID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *FootprintChangeMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetRevision sets the "revision" field.
+func (m *FootprintChangeMutation) SetRevision(i int64) {
+	m.revision = &i
+	m.addrevision = nil
+}
+
+// Revision returns the value of the "revision" field in the mutation.
+func (m *FootprintChangeMutation) Revision() (r int64, exists bool) {
+	v := m.revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRevision returns the old "revision" field's value of the FootprintChange entity.
+// If the FootprintChange object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FootprintChangeMutation) OldRevision(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRevision: %w", err)
+	}
+	return oldValue.Revision, nil
+}
+
+// AddRevision adds i to the "revision" field.
+func (m *FootprintChangeMutation) AddRevision(i int64) {
+	if m.addrevision != nil {
+		*m.addrevision += i
+	} else {
+		m.addrevision = &i
+	}
+}
+
+// AddedRevision returns the value that was added to the "revision" field in this mutation.
+func (m *FootprintChangeMutation) AddedRevision() (r int64, exists bool) {
+	v := m.addrevision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRevision resets all changes to the "revision" field.
+func (m *FootprintChangeMutation) ResetRevision() {
+	m.revision = nil
+	m.addrevision = nil
+}
+
+// SetPayload sets the "payload" field.
+func (m *FootprintChangeMutation) SetPayload(b []byte) {
+	m.payload = &b
+}
+
+// Payload returns the value of the "payload" field in the mutation.
+func (m *FootprintChangeMutation) Payload() (r []byte, exists bool) {
+	v := m.payload
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPayload returns the old "payload" field's value of the FootprintChange entity.
+// If the FootprintChange object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FootprintChangeMutation) OldPayload(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPayload is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPayload requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPayload: %w", err)
+	}
+	return oldValue.Payload, nil
+}
+
+// ResetPayload resets all changes to the "payload" field.
+func (m *FootprintChangeMutation) ResetPayload() {
+	m.payload = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *FootprintChangeMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *FootprintChangeMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the FootprintChange entity.
+// If the FootprintChange object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FootprintChangeMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *FootprintChangeMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *FootprintChangeMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[footprintchange.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *FootprintChangeMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *FootprintChangeMutation) UserIDs() (ids []string) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *FootprintChangeMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the FootprintChangeMutation builder.
+func (m *FootprintChangeMutation) Where(ps ...predicate.FootprintChange) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the FootprintChangeMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *FootprintChangeMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.FootprintChange, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *FootprintChangeMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *FootprintChangeMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (FootprintChange).
+func (m *FootprintChangeMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *FootprintChangeMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.user != nil {
+		fields = append(fields, footprintchange.FieldUserID)
+	}
+	if m.revision != nil {
+		fields = append(fields, footprintchange.FieldRevision)
+	}
+	if m.payload != nil {
+		fields = append(fields, footprintchange.FieldPayload)
+	}
+	if m.created_at != nil {
+		fields = append(fields, footprintchange.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *FootprintChangeMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case footprintchange.FieldUserID:
+		return m.UserID()
+	case footprintchange.FieldRevision:
+		return m.Revision()
+	case footprintchange.FieldPayload:
+		return m.Payload()
+	case footprintchange.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *FootprintChangeMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case footprintchange.FieldUserID:
+		return m.OldUserID(ctx)
+	case footprintchange.FieldRevision:
+		return m.OldRevision(ctx)
+	case footprintchange.FieldPayload:
+		return m.OldPayload(ctx)
+	case footprintchange.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown FootprintChange field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FootprintChangeMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case footprintchange.FieldUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case footprintchange.FieldRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRevision(v)
+		return nil
+	case footprintchange.FieldPayload:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPayload(v)
+		return nil
+	case footprintchange.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown FootprintChange field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *FootprintChangeMutation) AddedFields() []string {
+	var fields []string
+	if m.addrevision != nil {
+		fields = append(fields, footprintchange.FieldRevision)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *FootprintChangeMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case footprintchange.FieldRevision:
+		return m.AddedRevision()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FootprintChangeMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case footprintchange.FieldRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRevision(v)
+		return nil
+	}
+	return fmt.Errorf("unknown FootprintChange numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *FootprintChangeMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *FootprintChangeMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *FootprintChangeMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown FootprintChange nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *FootprintChangeMutation) ResetField(name string) error {
+	switch name {
+	case footprintchange.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case footprintchange.FieldRevision:
+		m.ResetRevision()
+		return nil
+	case footprintchange.FieldPayload:
+		m.ResetPayload()
+		return nil
+	case footprintchange.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown FootprintChange field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *FootprintChangeMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, footprintchange.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *FootprintChangeMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case footprintchange.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *FootprintChangeMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *FootprintChangeMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *FootprintChangeMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, footprintchange.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *FootprintChangeMutation) EdgeCleared(name string) bool {
+	switch name {
+	case footprintchange.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *FootprintChangeMutation) ClearEdge(name string) error {
+	switch name {
+	case footprintchange.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown FootprintChange unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *FootprintChangeMutation) ResetEdge(name string) error {
+	switch name {
+	case footprintchange.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown FootprintChange edge %s", name)
 }
 
 // MediaObjectMutation represents an operation that mutates the MediaObject nodes in the graph.
@@ -2879,40 +3855,772 @@ func (m *SessionMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Session edge %s", name)
 }
 
+// SyncReceiptMutation represents an operation that mutates the SyncReceipt nodes in the graph.
+type SyncReceiptMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *string
+	mutation_id      *string
+	request_hash     *string
+	revision         *int64
+	addrevision      *int64
+	changed_count    *int
+	addchanged_count *int
+	created_at       *time.Time
+	clearedFields    map[string]struct{}
+	user             *string
+	cleareduser      bool
+	done             bool
+	oldValue         func(context.Context) (*SyncReceipt, error)
+	predicates       []predicate.SyncReceipt
+}
+
+var _ ent.Mutation = (*SyncReceiptMutation)(nil)
+
+// syncreceiptOption allows management of the mutation configuration using functional options.
+type syncreceiptOption func(*SyncReceiptMutation)
+
+// newSyncReceiptMutation creates new mutation for the SyncReceipt entity.
+func newSyncReceiptMutation(c config, op Op, opts ...syncreceiptOption) *SyncReceiptMutation {
+	m := &SyncReceiptMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSyncReceipt,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSyncReceiptID sets the ID field of the mutation.
+func withSyncReceiptID(id string) syncreceiptOption {
+	return func(m *SyncReceiptMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *SyncReceipt
+		)
+		m.oldValue = func(ctx context.Context) (*SyncReceipt, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().SyncReceipt.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSyncReceipt sets the old SyncReceipt of the mutation.
+func withSyncReceipt(node *SyncReceipt) syncreceiptOption {
+	return func(m *SyncReceiptMutation) {
+		m.oldValue = func(context.Context) (*SyncReceipt, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SyncReceiptMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SyncReceiptMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of SyncReceipt entities.
+func (m *SyncReceiptMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SyncReceiptMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SyncReceiptMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().SyncReceipt.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *SyncReceiptMutation) SetUserID(s string) {
+	m.user = &s
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *SyncReceiptMutation) UserID() (r string, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the SyncReceipt entity.
+// If the SyncReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SyncReceiptMutation) OldUserID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *SyncReceiptMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (m *SyncReceiptMutation) SetMutationID(s string) {
+	m.mutation_id = &s
+}
+
+// MutationID returns the value of the "mutation_id" field in the mutation.
+func (m *SyncReceiptMutation) MutationID() (r string, exists bool) {
+	v := m.mutation_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMutationID returns the old "mutation_id" field's value of the SyncReceipt entity.
+// If the SyncReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SyncReceiptMutation) OldMutationID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMutationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMutationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMutationID: %w", err)
+	}
+	return oldValue.MutationID, nil
+}
+
+// ResetMutationID resets all changes to the "mutation_id" field.
+func (m *SyncReceiptMutation) ResetMutationID() {
+	m.mutation_id = nil
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (m *SyncReceiptMutation) SetRequestHash(s string) {
+	m.request_hash = &s
+}
+
+// RequestHash returns the value of the "request_hash" field in the mutation.
+func (m *SyncReceiptMutation) RequestHash() (r string, exists bool) {
+	v := m.request_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestHash returns the old "request_hash" field's value of the SyncReceipt entity.
+// If the SyncReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SyncReceiptMutation) OldRequestHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestHash: %w", err)
+	}
+	return oldValue.RequestHash, nil
+}
+
+// ResetRequestHash resets all changes to the "request_hash" field.
+func (m *SyncReceiptMutation) ResetRequestHash() {
+	m.request_hash = nil
+}
+
+// SetRevision sets the "revision" field.
+func (m *SyncReceiptMutation) SetRevision(i int64) {
+	m.revision = &i
+	m.addrevision = nil
+}
+
+// Revision returns the value of the "revision" field in the mutation.
+func (m *SyncReceiptMutation) Revision() (r int64, exists bool) {
+	v := m.revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRevision returns the old "revision" field's value of the SyncReceipt entity.
+// If the SyncReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SyncReceiptMutation) OldRevision(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRevision: %w", err)
+	}
+	return oldValue.Revision, nil
+}
+
+// AddRevision adds i to the "revision" field.
+func (m *SyncReceiptMutation) AddRevision(i int64) {
+	if m.addrevision != nil {
+		*m.addrevision += i
+	} else {
+		m.addrevision = &i
+	}
+}
+
+// AddedRevision returns the value that was added to the "revision" field in this mutation.
+func (m *SyncReceiptMutation) AddedRevision() (r int64, exists bool) {
+	v := m.addrevision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRevision resets all changes to the "revision" field.
+func (m *SyncReceiptMutation) ResetRevision() {
+	m.revision = nil
+	m.addrevision = nil
+}
+
+// SetChangedCount sets the "changed_count" field.
+func (m *SyncReceiptMutation) SetChangedCount(i int) {
+	m.changed_count = &i
+	m.addchanged_count = nil
+}
+
+// ChangedCount returns the value of the "changed_count" field in the mutation.
+func (m *SyncReceiptMutation) ChangedCount() (r int, exists bool) {
+	v := m.changed_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChangedCount returns the old "changed_count" field's value of the SyncReceipt entity.
+// If the SyncReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SyncReceiptMutation) OldChangedCount(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChangedCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChangedCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChangedCount: %w", err)
+	}
+	return oldValue.ChangedCount, nil
+}
+
+// AddChangedCount adds i to the "changed_count" field.
+func (m *SyncReceiptMutation) AddChangedCount(i int) {
+	if m.addchanged_count != nil {
+		*m.addchanged_count += i
+	} else {
+		m.addchanged_count = &i
+	}
+}
+
+// AddedChangedCount returns the value that was added to the "changed_count" field in this mutation.
+func (m *SyncReceiptMutation) AddedChangedCount() (r int, exists bool) {
+	v := m.addchanged_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetChangedCount resets all changes to the "changed_count" field.
+func (m *SyncReceiptMutation) ResetChangedCount() {
+	m.changed_count = nil
+	m.addchanged_count = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *SyncReceiptMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *SyncReceiptMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the SyncReceipt entity.
+// If the SyncReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SyncReceiptMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *SyncReceiptMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *SyncReceiptMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[syncreceipt.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *SyncReceiptMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *SyncReceiptMutation) UserIDs() (ids []string) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *SyncReceiptMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the SyncReceiptMutation builder.
+func (m *SyncReceiptMutation) Where(ps ...predicate.SyncReceipt) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SyncReceiptMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SyncReceiptMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.SyncReceipt, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SyncReceiptMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SyncReceiptMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (SyncReceipt).
+func (m *SyncReceiptMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SyncReceiptMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.user != nil {
+		fields = append(fields, syncreceipt.FieldUserID)
+	}
+	if m.mutation_id != nil {
+		fields = append(fields, syncreceipt.FieldMutationID)
+	}
+	if m.request_hash != nil {
+		fields = append(fields, syncreceipt.FieldRequestHash)
+	}
+	if m.revision != nil {
+		fields = append(fields, syncreceipt.FieldRevision)
+	}
+	if m.changed_count != nil {
+		fields = append(fields, syncreceipt.FieldChangedCount)
+	}
+	if m.created_at != nil {
+		fields = append(fields, syncreceipt.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SyncReceiptMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case syncreceipt.FieldUserID:
+		return m.UserID()
+	case syncreceipt.FieldMutationID:
+		return m.MutationID()
+	case syncreceipt.FieldRequestHash:
+		return m.RequestHash()
+	case syncreceipt.FieldRevision:
+		return m.Revision()
+	case syncreceipt.FieldChangedCount:
+		return m.ChangedCount()
+	case syncreceipt.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SyncReceiptMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case syncreceipt.FieldUserID:
+		return m.OldUserID(ctx)
+	case syncreceipt.FieldMutationID:
+		return m.OldMutationID(ctx)
+	case syncreceipt.FieldRequestHash:
+		return m.OldRequestHash(ctx)
+	case syncreceipt.FieldRevision:
+		return m.OldRevision(ctx)
+	case syncreceipt.FieldChangedCount:
+		return m.OldChangedCount(ctx)
+	case syncreceipt.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown SyncReceipt field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SyncReceiptMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case syncreceipt.FieldUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case syncreceipt.FieldMutationID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMutationID(v)
+		return nil
+	case syncreceipt.FieldRequestHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestHash(v)
+		return nil
+	case syncreceipt.FieldRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRevision(v)
+		return nil
+	case syncreceipt.FieldChangedCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChangedCount(v)
+		return nil
+	case syncreceipt.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SyncReceipt field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SyncReceiptMutation) AddedFields() []string {
+	var fields []string
+	if m.addrevision != nil {
+		fields = append(fields, syncreceipt.FieldRevision)
+	}
+	if m.addchanged_count != nil {
+		fields = append(fields, syncreceipt.FieldChangedCount)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SyncReceiptMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case syncreceipt.FieldRevision:
+		return m.AddedRevision()
+	case syncreceipt.FieldChangedCount:
+		return m.AddedChangedCount()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SyncReceiptMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case syncreceipt.FieldRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRevision(v)
+		return nil
+	case syncreceipt.FieldChangedCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddChangedCount(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SyncReceipt numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SyncReceiptMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SyncReceiptMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SyncReceiptMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown SyncReceipt nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SyncReceiptMutation) ResetField(name string) error {
+	switch name {
+	case syncreceipt.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case syncreceipt.FieldMutationID:
+		m.ResetMutationID()
+		return nil
+	case syncreceipt.FieldRequestHash:
+		m.ResetRequestHash()
+		return nil
+	case syncreceipt.FieldRevision:
+		m.ResetRevision()
+		return nil
+	case syncreceipt.FieldChangedCount:
+		m.ResetChangedCount()
+		return nil
+	case syncreceipt.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown SyncReceipt field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SyncReceiptMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, syncreceipt.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SyncReceiptMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case syncreceipt.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SyncReceiptMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SyncReceiptMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SyncReceiptMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, syncreceipt.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SyncReceiptMutation) EdgeCleared(name string) bool {
+	switch name {
+	case syncreceipt.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SyncReceiptMutation) ClearEdge(name string) error {
+	switch name {
+	case syncreceipt.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown SyncReceipt unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SyncReceiptMutation) ResetEdge(name string) error {
+	switch name {
+	case syncreceipt.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown SyncReceipt edge %s", name)
+}
+
 // UserMutation represents an operation that mutates the User nodes in the graph.
 type UserMutation struct {
 	config
-	op                    Op
-	typ                   string
-	id                    *string
-	email                 *string
-	username              *string
-	display_name          *string
-	avatar_url            *string
-	provider              *string
-	external_id           *string
-	password_hash         *string
-	disabled              *bool
-	revision              *int64
-	addrevision           *int64
-	created_at            *time.Time
-	updated_at            *time.Time
-	clearedFields         map[string]struct{}
-	visits                map[string]struct{}
-	removedvisits         map[string]struct{}
-	clearedvisits         bool
-	province_marks        map[string]struct{}
-	removedprovince_marks map[string]struct{}
-	clearedprovince_marks bool
-	media_objects         map[string]struct{}
-	removedmedia_objects  map[string]struct{}
-	clearedmedia_objects  bool
-	sessions              map[string]struct{}
-	removedsessions       map[string]struct{}
-	clearedsessions       bool
-	done                  bool
-	oldValue              func(context.Context) (*User, error)
-	predicates            []predicate.User
+	op                       Op
+	typ                      string
+	id                       *string
+	email                    *string
+	username                 *string
+	display_name             *string
+	avatar_url               *string
+	provider                 *string
+	external_id              *string
+	password_hash            *string
+	disabled                 *bool
+	deletion_requested_at    *time.Time
+	revision                 *int64
+	addrevision              *int64
+	created_at               *time.Time
+	updated_at               *time.Time
+	clearedFields            map[string]struct{}
+	visits                   map[string]struct{}
+	removedvisits            map[string]struct{}
+	clearedvisits            bool
+	province_marks           map[string]struct{}
+	removedprovince_marks    map[string]struct{}
+	clearedprovince_marks    bool
+	media_objects            map[string]struct{}
+	removedmedia_objects     map[string]struct{}
+	clearedmedia_objects     bool
+	sessions                 map[string]struct{}
+	removedsessions          map[string]struct{}
+	clearedsessions          bool
+	footprint_changes        map[string]struct{}
+	removedfootprint_changes map[string]struct{}
+	clearedfootprint_changes bool
+	sync_receipts            map[string]struct{}
+	removedsync_receipts     map[string]struct{}
+	clearedsync_receipts     bool
+	done                     bool
+	oldValue                 func(context.Context) (*User, error)
+	predicates               []predicate.User
 }
 
 var _ ent.Mutation = (*UserMutation)(nil)
@@ -3333,6 +5041,55 @@ func (m *UserMutation) ResetDisabled() {
 	m.disabled = nil
 }
 
+// SetDeletionRequestedAt sets the "deletion_requested_at" field.
+func (m *UserMutation) SetDeletionRequestedAt(t time.Time) {
+	m.deletion_requested_at = &t
+}
+
+// DeletionRequestedAt returns the value of the "deletion_requested_at" field in the mutation.
+func (m *UserMutation) DeletionRequestedAt() (r time.Time, exists bool) {
+	v := m.deletion_requested_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeletionRequestedAt returns the old "deletion_requested_at" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldDeletionRequestedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeletionRequestedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeletionRequestedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeletionRequestedAt: %w", err)
+	}
+	return oldValue.DeletionRequestedAt, nil
+}
+
+// ClearDeletionRequestedAt clears the value of the "deletion_requested_at" field.
+func (m *UserMutation) ClearDeletionRequestedAt() {
+	m.deletion_requested_at = nil
+	m.clearedFields[user.FieldDeletionRequestedAt] = struct{}{}
+}
+
+// DeletionRequestedAtCleared returns if the "deletion_requested_at" field was cleared in this mutation.
+func (m *UserMutation) DeletionRequestedAtCleared() bool {
+	_, ok := m.clearedFields[user.FieldDeletionRequestedAt]
+	return ok
+}
+
+// ResetDeletionRequestedAt resets all changes to the "deletion_requested_at" field.
+func (m *UserMutation) ResetDeletionRequestedAt() {
+	m.deletion_requested_at = nil
+	delete(m.clearedFields, user.FieldDeletionRequestedAt)
+}
+
 // SetRevision sets the "revision" field.
 func (m *UserMutation) SetRevision(i int64) {
 	m.revision = &i
@@ -3677,6 +5434,114 @@ func (m *UserMutation) ResetSessions() {
 	m.removedsessions = nil
 }
 
+// AddFootprintChangeIDs adds the "footprint_changes" edge to the FootprintChange entity by ids.
+func (m *UserMutation) AddFootprintChangeIDs(ids ...string) {
+	if m.footprint_changes == nil {
+		m.footprint_changes = make(map[string]struct{})
+	}
+	for i := range ids {
+		m.footprint_changes[ids[i]] = struct{}{}
+	}
+}
+
+// ClearFootprintChanges clears the "footprint_changes" edge to the FootprintChange entity.
+func (m *UserMutation) ClearFootprintChanges() {
+	m.clearedfootprint_changes = true
+}
+
+// FootprintChangesCleared reports if the "footprint_changes" edge to the FootprintChange entity was cleared.
+func (m *UserMutation) FootprintChangesCleared() bool {
+	return m.clearedfootprint_changes
+}
+
+// RemoveFootprintChangeIDs removes the "footprint_changes" edge to the FootprintChange entity by IDs.
+func (m *UserMutation) RemoveFootprintChangeIDs(ids ...string) {
+	if m.removedfootprint_changes == nil {
+		m.removedfootprint_changes = make(map[string]struct{})
+	}
+	for i := range ids {
+		delete(m.footprint_changes, ids[i])
+		m.removedfootprint_changes[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedFootprintChanges returns the removed IDs of the "footprint_changes" edge to the FootprintChange entity.
+func (m *UserMutation) RemovedFootprintChangesIDs() (ids []string) {
+	for id := range m.removedfootprint_changes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// FootprintChangesIDs returns the "footprint_changes" edge IDs in the mutation.
+func (m *UserMutation) FootprintChangesIDs() (ids []string) {
+	for id := range m.footprint_changes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetFootprintChanges resets all changes to the "footprint_changes" edge.
+func (m *UserMutation) ResetFootprintChanges() {
+	m.footprint_changes = nil
+	m.clearedfootprint_changes = false
+	m.removedfootprint_changes = nil
+}
+
+// AddSyncReceiptIDs adds the "sync_receipts" edge to the SyncReceipt entity by ids.
+func (m *UserMutation) AddSyncReceiptIDs(ids ...string) {
+	if m.sync_receipts == nil {
+		m.sync_receipts = make(map[string]struct{})
+	}
+	for i := range ids {
+		m.sync_receipts[ids[i]] = struct{}{}
+	}
+}
+
+// ClearSyncReceipts clears the "sync_receipts" edge to the SyncReceipt entity.
+func (m *UserMutation) ClearSyncReceipts() {
+	m.clearedsync_receipts = true
+}
+
+// SyncReceiptsCleared reports if the "sync_receipts" edge to the SyncReceipt entity was cleared.
+func (m *UserMutation) SyncReceiptsCleared() bool {
+	return m.clearedsync_receipts
+}
+
+// RemoveSyncReceiptIDs removes the "sync_receipts" edge to the SyncReceipt entity by IDs.
+func (m *UserMutation) RemoveSyncReceiptIDs(ids ...string) {
+	if m.removedsync_receipts == nil {
+		m.removedsync_receipts = make(map[string]struct{})
+	}
+	for i := range ids {
+		delete(m.sync_receipts, ids[i])
+		m.removedsync_receipts[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedSyncReceipts returns the removed IDs of the "sync_receipts" edge to the SyncReceipt entity.
+func (m *UserMutation) RemovedSyncReceiptsIDs() (ids []string) {
+	for id := range m.removedsync_receipts {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// SyncReceiptsIDs returns the "sync_receipts" edge IDs in the mutation.
+func (m *UserMutation) SyncReceiptsIDs() (ids []string) {
+	for id := range m.sync_receipts {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetSyncReceipts resets all changes to the "sync_receipts" edge.
+func (m *UserMutation) ResetSyncReceipts() {
+	m.sync_receipts = nil
+	m.clearedsync_receipts = false
+	m.removedsync_receipts = nil
+}
+
 // Where appends a list predicates to the UserMutation builder.
 func (m *UserMutation) Where(ps ...predicate.User) {
 	m.predicates = append(m.predicates, ps...)
@@ -3711,7 +5576,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.email != nil {
 		fields = append(fields, user.FieldEmail)
 	}
@@ -3735,6 +5600,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.disabled != nil {
 		fields = append(fields, user.FieldDisabled)
+	}
+	if m.deletion_requested_at != nil {
+		fields = append(fields, user.FieldDeletionRequestedAt)
 	}
 	if m.revision != nil {
 		fields = append(fields, user.FieldRevision)
@@ -3769,6 +5637,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.PasswordHash()
 	case user.FieldDisabled:
 		return m.Disabled()
+	case user.FieldDeletionRequestedAt:
+		return m.DeletionRequestedAt()
 	case user.FieldRevision:
 		return m.Revision()
 	case user.FieldCreatedAt:
@@ -3800,6 +5670,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldPasswordHash(ctx)
 	case user.FieldDisabled:
 		return m.OldDisabled(ctx)
+	case user.FieldDeletionRequestedAt:
+		return m.OldDeletionRequestedAt(ctx)
 	case user.FieldRevision:
 		return m.OldRevision(ctx)
 	case user.FieldCreatedAt:
@@ -3870,6 +5742,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDisabled(v)
+		return nil
+	case user.FieldDeletionRequestedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeletionRequestedAt(v)
 		return nil
 	case user.FieldRevision:
 		v, ok := value.(int64)
@@ -3943,6 +5822,9 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldUsername) {
 		fields = append(fields, user.FieldUsername)
 	}
+	if m.FieldCleared(user.FieldDeletionRequestedAt) {
+		fields = append(fields, user.FieldDeletionRequestedAt)
+	}
 	return fields
 }
 
@@ -3962,6 +5844,9 @@ func (m *UserMutation) ClearField(name string) error {
 		return nil
 	case user.FieldUsername:
 		m.ClearUsername()
+		return nil
+	case user.FieldDeletionRequestedAt:
+		m.ClearDeletionRequestedAt()
 		return nil
 	}
 	return fmt.Errorf("unknown User nullable field %s", name)
@@ -3995,6 +5880,9 @@ func (m *UserMutation) ResetField(name string) error {
 	case user.FieldDisabled:
 		m.ResetDisabled()
 		return nil
+	case user.FieldDeletionRequestedAt:
+		m.ResetDeletionRequestedAt()
+		return nil
 	case user.FieldRevision:
 		m.ResetRevision()
 		return nil
@@ -4010,7 +5898,7 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 6)
 	if m.visits != nil {
 		edges = append(edges, user.EdgeVisits)
 	}
@@ -4022,6 +5910,12 @@ func (m *UserMutation) AddedEdges() []string {
 	}
 	if m.sessions != nil {
 		edges = append(edges, user.EdgeSessions)
+	}
+	if m.footprint_changes != nil {
+		edges = append(edges, user.EdgeFootprintChanges)
+	}
+	if m.sync_receipts != nil {
+		edges = append(edges, user.EdgeSyncReceipts)
 	}
 	return edges
 }
@@ -4054,13 +5948,25 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeFootprintChanges:
+		ids := make([]ent.Value, 0, len(m.footprint_changes))
+		for id := range m.footprint_changes {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeSyncReceipts:
+		ids := make([]ent.Value, 0, len(m.sync_receipts))
+		for id := range m.sync_receipts {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 6)
 	if m.removedvisits != nil {
 		edges = append(edges, user.EdgeVisits)
 	}
@@ -4072,6 +5978,12 @@ func (m *UserMutation) RemovedEdges() []string {
 	}
 	if m.removedsessions != nil {
 		edges = append(edges, user.EdgeSessions)
+	}
+	if m.removedfootprint_changes != nil {
+		edges = append(edges, user.EdgeFootprintChanges)
+	}
+	if m.removedsync_receipts != nil {
+		edges = append(edges, user.EdgeSyncReceipts)
 	}
 	return edges
 }
@@ -4104,13 +6016,25 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeFootprintChanges:
+		ids := make([]ent.Value, 0, len(m.removedfootprint_changes))
+		for id := range m.removedfootprint_changes {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeSyncReceipts:
+		ids := make([]ent.Value, 0, len(m.removedsync_receipts))
+		for id := range m.removedsync_receipts {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 6)
 	if m.clearedvisits {
 		edges = append(edges, user.EdgeVisits)
 	}
@@ -4122,6 +6046,12 @@ func (m *UserMutation) ClearedEdges() []string {
 	}
 	if m.clearedsessions {
 		edges = append(edges, user.EdgeSessions)
+	}
+	if m.clearedfootprint_changes {
+		edges = append(edges, user.EdgeFootprintChanges)
+	}
+	if m.clearedsync_receipts {
+		edges = append(edges, user.EdgeSyncReceipts)
 	}
 	return edges
 }
@@ -4138,6 +6068,10 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 		return m.clearedmedia_objects
 	case user.EdgeSessions:
 		return m.clearedsessions
+	case user.EdgeFootprintChanges:
+		return m.clearedfootprint_changes
+	case user.EdgeSyncReceipts:
+		return m.clearedsync_receipts
 	}
 	return false
 }
@@ -4165,6 +6099,12 @@ func (m *UserMutation) ResetEdge(name string) error {
 		return nil
 	case user.EdgeSessions:
 		m.ResetSessions()
+		return nil
+	case user.EdgeFootprintChanges:
+		m.ResetFootprintChanges()
+		return nil
+	case user.EdgeSyncReceipts:
+		m.ResetSyncReceipts()
 		return nil
 	}
 	return fmt.Errorf("unknown User edge %s", name)
