@@ -24,7 +24,8 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   cloud: Cloud;
   /** Footprints saved on this device before signing in. */
-  localCount: number;
+  local: { status: string; count: number };
+  onMigrate: () => void;
 };
 
 const when = (date: Date | null) =>
@@ -40,7 +41,8 @@ export default function AccountDialog({
   open,
   onOpenChange,
   cloud,
-  localCount,
+  local,
+  onMigrate,
 }: Props) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
@@ -136,11 +138,28 @@ export default function AccountDialog({
                         ? "修改已保留在本机，等待同步"
                         : "已同步"}
             </p>
-            {localCount > 0 && (
+            {local.status === "unreadable" && (
               <p className="unreadable-note">
-                本机还有 {localCount}{" "}
-                条登录前保存的本地足迹。登录期间不会显示，也不会上传到云端（迁移功能待实现）；退出登录后仍可继续使用。
+                本机保存的本地足迹无法读取，暂不能迁移。请退出登录后在本地模式中处理。
               </p>
+            )}
+            {local.status !== "unreadable" && local.count > 0 && (
+              <div className="unreadable-note account-migrate">
+                <span>
+                  本机还有 {local.count}{" "}
+                  条登录前保存的本地足迹，登录期间不显示。可以导入到当前账号；导入后本机副本仍保留。
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    !(cloud.fresh && cloud.canWrite && !cloud.pending && cloud.sync === "idle")
+                  }
+                  onClick={onMigrate}
+                >
+                  导入本机足迹
+                </Button>
+              </div>
             )}
             {sessions && sessions.length > 0 && (
               <div className="account-sessions">

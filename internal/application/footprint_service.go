@@ -27,7 +27,7 @@ const (
 	// noteLimit counts UTF-16 code units, matching the browser's string length.
 	noteLimit       = 1000
 	writeWindow     = time.Minute
-	writesPerWindow = 300
+	writesPerWindow = 600
 )
 
 // footprintColors is the frontend palette; the Ent schema enforces it as well.

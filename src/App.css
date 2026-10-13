@@ -1786,3 +1786,120 @@ button:disabled {
     text-align: left;
   }
 }
+
+/* Local-to-cloud migration */
+.account-migrate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+.account-migrate button {
+  flex-shrink: 0;
+}
+.migration-dialog {
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+.migration-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.migration-summary li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #eef2e8;
+  text-align: center;
+}
+.migration-summary strong {
+  font-size: 20px;
+  color: #3f5a36;
+}
+.migration-summary span {
+  font-size: 11px;
+  color: #6b7d63;
+}
+.migration-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 12px;
+  color: #5d6d55;
+}
+.migration-bulk > span {
+  flex: 1 1 100%;
+}
+.migration-conflicts {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid #e8ede3;
+  border-radius: 8px;
+}
+.migration-conflict {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef1ea;
+}
+.migration-conflict:last-child {
+  border-bottom: 0;
+}
+.migration-conflict-name {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.migration-conflict > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.migration-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 52px;
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid #dfe5d8;
+  border-radius: 8px;
+  background: #fffefa;
+  font-size: 12px;
+}
+.migration-choice.selected {
+  border-color: #78a886;
+  background: #eef5ea;
+}
+.migration-choice small {
+  color: #859186;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.migration-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+@media (max-width: 700px) {
+  .account-migrate {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .migration-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

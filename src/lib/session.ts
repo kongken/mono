@@ -212,3 +212,35 @@ export function clearAccountData(
   clearOtherCaches(storage, undefined, validate);
   storage.removeItem(SESSION_KEY);
 }
+
+export const MIGRATED_PREFIX = "shanhai-migrated-v1:";
+export const migratedKey = (userId: string) => MIGRATED_PREFIX + userId;
+
+/**
+ * Remembers which local data was already migrated for an account, so the
+ * migration prompt is not repeated. Local footprints stay on the device, and
+ * this record survives sign-out; only changed local data is offered again.
+ */
+export function isMigrated(
+  storage: Pick<Storage, "getItem">,
+  userId: string,
+  fingerprint: string,
+): boolean {
+  try {
+    return storage.getItem(migratedKey(userId)) === fingerprint;
+  } catch {
+    return false;
+  }
+}
+export function markMigrated(
+  storage: Pick<Storage, "setItem">,
+  userId: string,
+  fingerprint: string,
+): boolean {
+  try {
+    storage.setItem(migratedKey(userId), fingerprint);
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -96,6 +96,8 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
   await page.getByLabel("用户名", { exact: true }).fill("ci_user");
   await page.getByLabel("密码", { exact: true }).fill("correct horse battery");
   await page.getByRole("button", { name: "登录", exact: true }).click();
+  // The local footprint is offered for migration; this test is about deletion.
+  await page.getByRole("button", { name: "稍后再说" }).click();
   await expect(
     page.getByRole("button", { name: "账号", exact: true }),
   ).toBeVisible();

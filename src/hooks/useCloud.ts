@@ -88,6 +88,9 @@ export function useCloud(options: Options) {
   const [conflictRecords, setConflictRecords] = useState<Op[]>([]);
   const [pending, setPending] = useState(false);
   const [sync, setSync] = useState<SyncStatus>("idle");
+  // True once this session has confirmed the cloud state, not just the cache.
+  const [fresh, setFresh] = useState(false);
+  const sawSync = useRef(false);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [busy, setBusy] = useState("");
   const engineRef = useRef<SyncEngine | null>(null);
@@ -126,6 +129,8 @@ export function useCloud(options: Options) {
     setLoadError("");
     setHasData(false);
     setSync("idle");
+    setFresh(false);
+    sawSync.current = false;
     opts.current.onAccountChange(null);
     if (message) opts.current.notify(message);
   }, []);
@@ -155,6 +160,8 @@ export function useCloud(options: Options) {
         onStatus: (status) => {
           if (sessionRef.current?.token !== s.token) return;
           setSync(status);
+          if (status === "syncing") sawSync.current = true;
+          else if (status === "idle" && sawSync.current) setFresh(true);
           setConflictRecords(engineRef.current?.conflicts ?? []);
           setPending(engineRef.current?.pending ?? false);
           if (status === "idle") {
@@ -256,6 +263,7 @@ export function useCloud(options: Options) {
     if (sessionRef.current?.token !== s.token || editSeq.current !== seq)
       return;
     adopt(s, snapshot);
+    setFresh(true);
     engineRef.current?.retry();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -292,6 +300,8 @@ export function useCloud(options: Options) {
     setLoaded("pending");
     setLoadError("");
     setSync("idle");
+    setFresh(false);
+    sawSync.current = false;
     setHasData(!!cache);
     opts.current.onAccountChange(cache?.saved ?? emptySaved);
     lastRefresh.current = 0;
@@ -433,6 +443,7 @@ export function useCloud(options: Options) {
       !cacheFailed &&
       sync !== "conflict",
     sync,
+    fresh,
     conflicts: conflictRecords.length,
     conflictRecords,
     pending,

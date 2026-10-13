@@ -1135,7 +1135,7 @@ type SyncChangesRequest struct {
 	// Stable unique ID reused verbatim after a lost response, never for another batch.
 	MutationId   string `protobuf:"bytes,1,opt,name=mutation_id,json=mutationId,proto3" json:"mutation_id,omitempty"`
 	BaseRevision int64  `protobuf:"varint,2,opt,name=base_revision,json=baseRevision,proto3" json:"base_revision,omitempty"`
-	// 1-100 operations, applied atomically.
+	// 1-600 operations, applied atomically.
 	Mutations []*FootprintMutation `protobuf:"bytes,3,rep,name=mutations,proto3" json:"mutations,omitempty"`
 }
 

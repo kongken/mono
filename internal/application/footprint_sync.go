@@ -120,6 +120,10 @@ func applyMutation(ctx context.Context, tx *ent.Tx, uid string, m *tripmapv1.Foo
 	return false, invalid("unsupported operation")
 }
 
+// maxSyncMutations covers one atomic migration of a whole local footprint set:
+// at most 497 cities plus 34 province marks fit with room to spare.
+const maxSyncMutations = 600
+
 var mutationIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request[tripmapv1.SyncChangesRequest]) (*connect.Response[tripmapv1.SyncChangesResponse], error) {
@@ -131,8 +135,8 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, err
 	}
-	if !mutationIDPattern.MatchString(req.Msg.MutationId) || req.Msg.BaseRevision < 0 || len(req.Msg.Mutations) < 1 || len(req.Msg.Mutations) > 100 {
-		return nil, invalid("mutation_id, non-negative revision and 1-100 mutations are required")
+	if !mutationIDPattern.MatchString(req.Msg.MutationId) || req.Msg.BaseRevision < 0 || len(req.Msg.Mutations) < 1 || len(req.Msg.Mutations) > maxSyncMutations {
+		return nil, invalid("mutation_id, non-negative revision and 1-600 mutations are required")
 	}
 	normalized := proto.Clone(req.Msg).(*tripmapv1.SyncChangesRequest)
 	for i, m := range normalized.Mutations {
@@ -146,6 +150,17 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 		return nil, internalError(err)
 	}
 	hash := fmt.Sprintf("%x", sha256.Sum256(raw))
+	// A retry of a finished batch is answered from its receipt without spending
+	// write budget, so a lost response never turns into a rate-limit failure.
+	// The transaction below repeats this check under the user row lock.
+	if receipt, err := st.DB.SyncReceipt.Query().Where(syncreceipt.UserID(p.UserID), syncreceipt.MutationIDEQ(normalized.MutationId)).Only(ctx); err == nil {
+		if receipt.RequestHash != hash {
+			return nil, connect.NewError(connect.CodeAlreadyExists, errors.New("mutation_id was already used for another request"))
+		}
+		return connect.NewResponse(&tripmapv1.SyncChangesResponse{Revision: receipt.Revision, ChangedCount: int32(receipt.ChangedCount), Replayed: true}), nil
+	} else if !ent.IsNotFound(err) {
+		return nil, internalError(err)
+	}
 	// Each batch consumes one budget unit per operation.
 	limiter := auth.NewLimiter(st.Redis, st.prefix())
 	for range normalized.Mutations {

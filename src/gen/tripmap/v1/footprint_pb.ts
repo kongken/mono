@@ -517,7 +517,7 @@ export type SyncChangesRequest = Message<"tripmap.v1.SyncChangesRequest"> & {
   baseRevision: bigint;
 
   /**
-   * 1-100 operations, applied atomically.
+   * 1-600 operations, applied atomically.
    *
    * @generated from field: repeated tripmap.v1.FootprintMutation mutations = 3;
    */
