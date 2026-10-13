@@ -18,6 +18,8 @@ type Tx struct {
 	CityVisit *CityVisitClient
 	// FootprintChange is the client for interacting with the FootprintChange builders.
 	FootprintChange *FootprintChangeClient
+	// MediaCleanup is the client for interacting with the MediaCleanup builders.
+	MediaCleanup *MediaCleanupClient
 	// MediaObject is the client for interacting with the MediaObject builders.
 	MediaObject *MediaObjectClient
 	// ProvinceMark is the client for interacting with the ProvinceMark builders.
@@ -164,6 +166,7 @@ func (tx *Tx) init() {
 	tx.AccountDeletionReceipt = NewAccountDeletionReceiptClient(tx.config)
 	tx.CityVisit = NewCityVisitClient(tx.config)
 	tx.FootprintChange = NewFootprintChangeClient(tx.config)
+	tx.MediaCleanup = NewMediaCleanupClient(tx.config)
 	tx.MediaObject = NewMediaObjectClient(tx.config)
 	tx.ProvinceMark = NewProvinceMarkClient(tx.config)
 	tx.Session = NewSessionClient(tx.config)

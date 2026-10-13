@@ -18,6 +18,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
+	"go.orx.me/apps/trip-map/internal/ent/mediacleanup"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
@@ -37,6 +38,8 @@ type Client struct {
 	CityVisit *CityVisitClient
 	// FootprintChange is the client for interacting with the FootprintChange builders.
 	FootprintChange *FootprintChangeClient
+	// MediaCleanup is the client for interacting with the MediaCleanup builders.
+	MediaCleanup *MediaCleanupClient
 	// MediaObject is the client for interacting with the MediaObject builders.
 	MediaObject *MediaObjectClient
 	// ProvinceMark is the client for interacting with the ProvinceMark builders.
@@ -63,6 +66,7 @@ func (c *Client) init() {
 	c.AccountDeletionReceipt = NewAccountDeletionReceiptClient(c.config)
 	c.CityVisit = NewCityVisitClient(c.config)
 	c.FootprintChange = NewFootprintChangeClient(c.config)
+	c.MediaCleanup = NewMediaCleanupClient(c.config)
 	c.MediaObject = NewMediaObjectClient(c.config)
 	c.ProvinceMark = NewProvinceMarkClient(c.config)
 	c.Session = NewSessionClient(c.config)
@@ -164,6 +168,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		AccountDeletionReceipt: NewAccountDeletionReceiptClient(cfg),
 		CityVisit:              NewCityVisitClient(cfg),
 		FootprintChange:        NewFootprintChangeClient(cfg),
+		MediaCleanup:           NewMediaCleanupClient(cfg),
 		MediaObject:            NewMediaObjectClient(cfg),
 		ProvinceMark:           NewProvinceMarkClient(cfg),
 		Session:                NewSessionClient(cfg),
@@ -192,6 +197,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		AccountDeletionReceipt: NewAccountDeletionReceiptClient(cfg),
 		CityVisit:              NewCityVisitClient(cfg),
 		FootprintChange:        NewFootprintChangeClient(cfg),
+		MediaCleanup:           NewMediaCleanupClient(cfg),
 		MediaObject:            NewMediaObjectClient(cfg),
 		ProvinceMark:           NewProvinceMarkClient(cfg),
 		Session:                NewSessionClient(cfg),
@@ -227,8 +233,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.MediaObject,
-		c.ProvinceMark, c.Session, c.Snapshot, c.SyncReceipt, c.User,
+		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.MediaCleanup,
+		c.MediaObject, c.ProvinceMark, c.Session, c.Snapshot, c.SyncReceipt, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -238,8 +244,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.MediaObject,
-		c.ProvinceMark, c.Session, c.Snapshot, c.SyncReceipt, c.User,
+		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.MediaCleanup,
+		c.MediaObject, c.ProvinceMark, c.Session, c.Snapshot, c.SyncReceipt, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -254,6 +260,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.CityVisit.mutate(ctx, m)
 	case *FootprintChangeMutation:
 		return c.FootprintChange.mutate(ctx, m)
+	case *MediaCleanupMutation:
+		return c.MediaCleanup.mutate(ctx, m)
 	case *MediaObjectMutation:
 		return c.MediaObject.mutate(ctx, m)
 	case *ProvinceMarkMutation:
@@ -699,6 +707,139 @@ func (c *FootprintChangeClient) mutate(ctx context.Context, m *FootprintChangeMu
 		return (&FootprintChangeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown FootprintChange mutation op: %q", m.Op())
+	}
+}
+
+// MediaCleanupClient is a client for the MediaCleanup schema.
+type MediaCleanupClient struct {
+	config
+}
+
+// NewMediaCleanupClient returns a client for the MediaCleanup from the given config.
+func NewMediaCleanupClient(c config) *MediaCleanupClient {
+	return &MediaCleanupClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `mediacleanup.Hooks(f(g(h())))`.
+func (c *MediaCleanupClient) Use(hooks ...Hook) {
+	c.hooks.MediaCleanup = append(c.hooks.MediaCleanup, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `mediacleanup.Intercept(f(g(h())))`.
+func (c *MediaCleanupClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MediaCleanup = append(c.inters.MediaCleanup, interceptors...)
+}
+
+// Create returns a builder for creating a MediaCleanup entity.
+func (c *MediaCleanupClient) Create() *MediaCleanupCreate {
+	mutation := newMediaCleanupMutation(c.config, OpCreate)
+	return &MediaCleanupCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MediaCleanup entities.
+func (c *MediaCleanupClient) CreateBulk(builders ...*MediaCleanupCreate) *MediaCleanupCreateBulk {
+	return &MediaCleanupCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MediaCleanupClient) MapCreateBulk(slice any, setFunc func(*MediaCleanupCreate, int)) *MediaCleanupCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MediaCleanupCreateBulk{err: fmt.Errorf("calling to MediaCleanupClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MediaCleanupCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MediaCleanupCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MediaCleanup.
+func (c *MediaCleanupClient) Update() *MediaCleanupUpdate {
+	mutation := newMediaCleanupMutation(c.config, OpUpdate)
+	return &MediaCleanupUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MediaCleanupClient) UpdateOne(_m *MediaCleanup) *MediaCleanupUpdateOne {
+	mutation := newMediaCleanupMutation(c.config, OpUpdateOne, withMediaCleanup(_m))
+	return &MediaCleanupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MediaCleanupClient) UpdateOneID(id string) *MediaCleanupUpdateOne {
+	mutation := newMediaCleanupMutation(c.config, OpUpdateOne, withMediaCleanupID(id))
+	return &MediaCleanupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MediaCleanup.
+func (c *MediaCleanupClient) Delete() *MediaCleanupDelete {
+	mutation := newMediaCleanupMutation(c.config, OpDelete)
+	return &MediaCleanupDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MediaCleanupClient) DeleteOne(_m *MediaCleanup) *MediaCleanupDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MediaCleanupClient) DeleteOneID(id string) *MediaCleanupDeleteOne {
+	builder := c.Delete().Where(mediacleanup.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MediaCleanupDeleteOne{builder}
+}
+
+// Query returns a query builder for MediaCleanup.
+func (c *MediaCleanupClient) Query() *MediaCleanupQuery {
+	return &MediaCleanupQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMediaCleanup},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MediaCleanup entity by its id.
+func (c *MediaCleanupClient) Get(ctx context.Context, id string) (*MediaCleanup, error) {
+	return c.Query().Where(mediacleanup.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MediaCleanupClient) GetX(ctx context.Context, id string) *MediaCleanup {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *MediaCleanupClient) Hooks() []Hook {
+	return c.hooks.MediaCleanup
+}
+
+// Interceptors returns the client interceptors.
+func (c *MediaCleanupClient) Interceptors() []Interceptor {
+	return c.inters.MediaCleanup
+}
+
+func (c *MediaCleanupClient) mutate(ctx context.Context, m *MediaCleanupMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MediaCleanupCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MediaCleanupUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MediaCleanupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MediaCleanupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MediaCleanup mutation op: %q", m.Op())
 	}
 }
 
@@ -1695,11 +1836,11 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AccountDeletionReceipt, CityVisit, FootprintChange, MediaObject, ProvinceMark,
-		Session, Snapshot, SyncReceipt, User []ent.Hook
+		AccountDeletionReceipt, CityVisit, FootprintChange, MediaCleanup, MediaObject,
+		ProvinceMark, Session, Snapshot, SyncReceipt, User []ent.Hook
 	}
 	inters struct {
-		AccountDeletionReceipt, CityVisit, FootprintChange, MediaObject, ProvinceMark,
-		Session, Snapshot, SyncReceipt, User []ent.Interceptor
+		AccountDeletionReceipt, CityVisit, FootprintChange, MediaCleanup, MediaObject,
+		ProvinceMark, Session, Snapshot, SyncReceipt, User []ent.Interceptor
 	}
 )

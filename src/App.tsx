@@ -58,6 +58,7 @@ import { isMigrated, markMigrated } from "./lib/session";
 import AccountDialog from "./components/AccountDialog";
 import MigrationDialog from "./components/MigrationDialog";
 import SnapshotDialog from "./components/SnapshotDialog";
+import MediaDialog, { CityMediaPreview } from "./components/MediaDialog";
 import CityPicker from "./components/CityPicker";
 import { readBoot, useCloud } from "./hooks/useCloud";
 import TravelReport from "./components/TravelReport";
@@ -146,6 +147,7 @@ function App() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [mediaRegion, setMediaRegion] = useState<string | null>(null);
   // Accounts whose migration prompt was postponed in this page session.
   const migrationLater = useRef(new Set<string>());
   const fileInput = useRef<HTMLInputElement>(null);
@@ -173,6 +175,7 @@ function App() {
       setStorageError(false);
       setMigrationOpen(false);
       setSnapshotsOpen(false);
+      setMediaRegion(null);
       if (data) {
         setSaved(data);
         setUnreadable(null);
@@ -1705,6 +1708,15 @@ function App() {
                 onChange={(e) => setDraftNote(e.target.value)}
               />
             </label>
+            {cloud.user && draftCity && (
+              <div>
+              <CityMediaPreview key={`${cloud.user.id}:${draftCity}`} regionCode={draftCity} />
+              <Button type="button" variant="outline" disabled={cloud.deletionBlocked} onClick={() => {setEditor(false);setMediaRegion(draftCity)}}>
+                照片与附件
+              </Button>
+              <p className="media-hint">移除城市足迹会保留照片与附件，文件需在媒体窗口单独删除。</p>
+              </div>
+            )}
             <div className="dialog-actions">
               {saved.visits.some((v) => v.code === draftCity) && (
                 <Button
@@ -1859,7 +1871,11 @@ function App() {
             setAccountOpen(false);
             setSnapshotsOpen(true);
           }}
+          onOpenMedia={() => {setAccountOpen(false);setMediaRegion("")}}
         />
+      )}
+      {cloud.enabled && cloud.user && mediaRegion !== null && (
+        <MediaDialog key={cloud.user.id} regionCode={mediaRegion} writable={cloud.canWrite && cloud.fresh && !cloud.deletionBlocked} onClose={() => setMediaRegion(null)} />
       )}
       {cloud.enabled && cloud.user && snapshotsOpen && (
         <SnapshotDialog

@@ -96,13 +96,41 @@ var (
 			},
 		},
 	}
+	// MediaCleanupsColumns holds the columns for the "media_cleanups" table.
+	MediaCleanupsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "object_key", Type: field.TypeString, Unique: true},
+		{Name: "delete_after", Type: field.TypeTime},
+	}
+	// MediaCleanupsTable holds the schema information for the "media_cleanups" table.
+	MediaCleanupsTable = &schema.Table{
+		Name:       "media_cleanups",
+		Columns:    MediaCleanupsColumns,
+		PrimaryKey: []*schema.Column{MediaCleanupsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "mediacleanup_delete_after",
+				Unique:  false,
+				Columns: []*schema.Column{MediaCleanupsColumns[2]},
+			},
+		},
+	}
 	// MediaObjectsColumns holds the columns for the "media_objects" table.
 	MediaObjectsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
 		{Name: "object_key", Type: field.TypeString, Unique: true},
 		{Name: "content_type", Type: field.TypeString},
 		{Name: "size_bytes", Type: field.TypeInt64},
-		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending", "ready"}, Default: "pending"},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending", "ready", "deleting"}, Default: "pending"},
+		{Name: "region_code", Type: field.TypeString, Default: ""},
+		{Name: "filename", Type: field.TypeString, Default: ""},
+		{Name: "upload_id", Type: field.TypeString, Default: ""},
+		{Name: "request_hash", Type: field.TypeString, Default: ""},
+		{Name: "upload_key", Type: field.TypeString, Default: ""},
+		{Name: "thumbnail_key", Type: field.TypeString, Default: ""},
+		{Name: "upload_expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "width", Type: field.TypeInt, Default: 0},
+		{Name: "height", Type: field.TypeInt, Default: 0},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "user_id", Type: field.TypeString},
@@ -115,9 +143,24 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "media_objects_users_media_objects",
-				Columns:    []*schema.Column{MediaObjectsColumns[7]},
+				Columns:    []*schema.Column{MediaObjectsColumns[16]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "mediaobject_user_id_region_code",
+				Unique:  false,
+				Columns: []*schema.Column{MediaObjectsColumns[16], MediaObjectsColumns[5]},
+			},
+			{
+				Name:    "mediaobject_user_id_upload_id",
+				Unique:  true,
+				Columns: []*schema.Column{MediaObjectsColumns[16], MediaObjectsColumns[7]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "upload_id <> ''",
+				},
 			},
 		},
 	}
@@ -293,6 +336,7 @@ var (
 		AccountDeletionReceiptsTable,
 		CityVisitsTable,
 		FootprintChangesTable,
+		MediaCleanupsTable,
 		MediaObjectsTable,
 		ProvinceMarksTable,
 		AuthSessionsTable,

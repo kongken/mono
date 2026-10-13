@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 )
@@ -30,10 +32,44 @@ type S3 struct {
 	client API
 	bucket string
 	prefix string
+	signer *s3.PresignClient
 }
 
 func NewS3(client API, bucket, prefix string) *S3 {
-	return &S3{client: client, bucket: bucket, prefix: strings.Trim(prefix, "/")}
+	s := &S3{client: client, bucket: bucket, prefix: strings.Trim(prefix, "/")}
+	if c, ok := client.(*s3.Client); ok {
+		s.signer = s3.NewPresignClient(c)
+	}
+	return s
+}
+
+// UploadSigner is optional so other object stores and test doubles remain small.
+type UploadSigner interface {
+	SignUpload(context.Context, string, int64, string, time.Duration) (string, map[string]string, error)
+}
+
+func (s *S3) SignUpload(ctx context.Context, key string, size int64, mime string, ttl time.Duration) (string, map[string]string, error) {
+	k, err := s.key(key)
+	if err != nil {
+		return "", nil, err
+	}
+	if s.signer == nil || size <= 0 || ttl <= 0 {
+		return "", nil, fmt.Errorf("upload signing unavailable")
+	}
+	var out *v4.PresignedHTTPRequest
+	out, err = s.signer.PresignPutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(k), ContentLength: aws.Int64(size), ContentType: aws.String(mime)}, func(o *s3.PresignOptions) { o.Expires = ttl })
+	if err != nil {
+		return "", nil, err
+	}
+	headers := map[string]string{"Content-Type": mime}
+	for name, values := range out.SignedHeader {
+		// Browsers set Host and Content-Length from the request URL and File body.
+		if strings.EqualFold(name, "Host") || strings.EqualFold(name, "Content-Length") {
+			continue
+		}
+		headers[name] = strings.Join(values, ",")
+	}
+	return out.URL, headers, nil
 }
 func (s *S3) key(key string) (string, error) {
 	if key == "" || strings.HasPrefix(key, "/") || strings.Contains(key, "\\") {

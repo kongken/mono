@@ -24,6 +24,7 @@ type env struct {
 	auth  tripmapv1connect.AuthServiceClient
 	foot  tripmapv1connect.FootprintServiceClient
 	snap  tripmapv1connect.SnapshotServiceClient
+	media tripmapv1connect.MediaServiceClient
 	svc   *application.AuthService
 }
 
@@ -51,13 +52,15 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 	mux.Handle(tripmapv1connect.NewAuthServiceHandler(authSvc, opts))
 	mux.Handle(tripmapv1connect.NewFootprintServiceHandler(application.NewFootprintService(cfg, src, idx), opts))
 	mux.Handle(tripmapv1connect.NewSnapshotServiceHandler(application.NewSnapshotService(cfg, src, idx), opts))
+	mux.Handle(tripmapv1connect.NewMediaServiceHandler(application.NewMediaService(src, idx), opts))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return &env{
 		t: t, store: src.st, cfg: cfg, svc: authSvc,
-		auth: tripmapv1connect.NewAuthServiceClient(server.Client(), server.URL),
-		foot: tripmapv1connect.NewFootprintServiceClient(server.Client(), server.URL),
-		snap: tripmapv1connect.NewSnapshotServiceClient(server.Client(), server.URL),
+		auth:  tripmapv1connect.NewAuthServiceClient(server.Client(), server.URL),
+		foot:  tripmapv1connect.NewFootprintServiceClient(server.Client(), server.URL),
+		snap:  tripmapv1connect.NewSnapshotServiceClient(server.Client(), server.URL),
+		media: tripmapv1connect.NewMediaServiceClient(server.Client(), server.URL),
 	}
 }
 

@@ -91,6 +91,152 @@ func (_u *MediaObjectUpdate) SetNillableStatus(v *mediaobject.Status) *MediaObje
 	return _u
 }
 
+// SetRegionCode sets the "region_code" field.
+func (_u *MediaObjectUpdate) SetRegionCode(v string) *MediaObjectUpdate {
+	_u.mutation.SetRegionCode(v)
+	return _u
+}
+
+// SetNillableRegionCode sets the "region_code" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableRegionCode(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetRegionCode(*v)
+	}
+	return _u
+}
+
+// SetFilename sets the "filename" field.
+func (_u *MediaObjectUpdate) SetFilename(v string) *MediaObjectUpdate {
+	_u.mutation.SetFilename(v)
+	return _u
+}
+
+// SetNillableFilename sets the "filename" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableFilename(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetFilename(*v)
+	}
+	return _u
+}
+
+// SetUploadID sets the "upload_id" field.
+func (_u *MediaObjectUpdate) SetUploadID(v string) *MediaObjectUpdate {
+	_u.mutation.SetUploadID(v)
+	return _u
+}
+
+// SetNillableUploadID sets the "upload_id" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableUploadID(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetUploadID(*v)
+	}
+	return _u
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (_u *MediaObjectUpdate) SetRequestHash(v string) *MediaObjectUpdate {
+	_u.mutation.SetRequestHash(v)
+	return _u
+}
+
+// SetNillableRequestHash sets the "request_hash" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableRequestHash(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetRequestHash(*v)
+	}
+	return _u
+}
+
+// SetUploadKey sets the "upload_key" field.
+func (_u *MediaObjectUpdate) SetUploadKey(v string) *MediaObjectUpdate {
+	_u.mutation.SetUploadKey(v)
+	return _u
+}
+
+// SetNillableUploadKey sets the "upload_key" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableUploadKey(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetUploadKey(*v)
+	}
+	return _u
+}
+
+// SetThumbnailKey sets the "thumbnail_key" field.
+func (_u *MediaObjectUpdate) SetThumbnailKey(v string) *MediaObjectUpdate {
+	_u.mutation.SetThumbnailKey(v)
+	return _u
+}
+
+// SetNillableThumbnailKey sets the "thumbnail_key" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableThumbnailKey(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetThumbnailKey(*v)
+	}
+	return _u
+}
+
+// SetUploadExpiresAt sets the "upload_expires_at" field.
+func (_u *MediaObjectUpdate) SetUploadExpiresAt(v time.Time) *MediaObjectUpdate {
+	_u.mutation.SetUploadExpiresAt(v)
+	return _u
+}
+
+// SetNillableUploadExpiresAt sets the "upload_expires_at" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableUploadExpiresAt(v *time.Time) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetUploadExpiresAt(*v)
+	}
+	return _u
+}
+
+// ClearUploadExpiresAt clears the value of the "upload_expires_at" field.
+func (_u *MediaObjectUpdate) ClearUploadExpiresAt() *MediaObjectUpdate {
+	_u.mutation.ClearUploadExpiresAt()
+	return _u
+}
+
+// SetWidth sets the "width" field.
+func (_u *MediaObjectUpdate) SetWidth(v int) *MediaObjectUpdate {
+	_u.mutation.ResetWidth()
+	_u.mutation.SetWidth(v)
+	return _u
+}
+
+// SetNillableWidth sets the "width" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableWidth(v *int) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetWidth(*v)
+	}
+	return _u
+}
+
+// AddWidth adds value to the "width" field.
+func (_u *MediaObjectUpdate) AddWidth(v int) *MediaObjectUpdate {
+	_u.mutation.AddWidth(v)
+	return _u
+}
+
+// SetHeight sets the "height" field.
+func (_u *MediaObjectUpdate) SetHeight(v int) *MediaObjectUpdate {
+	_u.mutation.ResetHeight()
+	_u.mutation.SetHeight(v)
+	return _u
+}
+
+// SetNillableHeight sets the "height" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableHeight(v *int) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetHeight(*v)
+	}
+	return _u
+}
+
+// AddHeight adds value to the "height" field.
+func (_u *MediaObjectUpdate) AddHeight(v int) *MediaObjectUpdate {
+	_u.mutation.AddHeight(v)
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *MediaObjectUpdate) SetUpdatedAt(v time.Time) *MediaObjectUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -160,6 +306,16 @@ func (_u *MediaObjectUpdate) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "MediaObject.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Width(); ok {
+		if err := mediaobject.WidthValidator(v); err != nil {
+			return &ValidationError{Name: "width", err: fmt.Errorf(`ent: validator failed for field "MediaObject.width": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.Height(); ok {
+		if err := mediaobject.HeightValidator(v); err != nil {
+			return &ValidationError{Name: "height", err: fmt.Errorf(`ent: validator failed for field "MediaObject.height": %w`, err)}
+		}
+	}
 	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "MediaObject.user"`)
 	}
@@ -192,6 +348,42 @@ func (_u *MediaObjectUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(mediaobject.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.RegionCode(); ok {
+		_spec.SetField(mediaobject.FieldRegionCode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Filename(); ok {
+		_spec.SetField(mediaobject.FieldFilename, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.UploadID(); ok {
+		_spec.SetField(mediaobject.FieldUploadID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.RequestHash(); ok {
+		_spec.SetField(mediaobject.FieldRequestHash, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.UploadKey(); ok {
+		_spec.SetField(mediaobject.FieldUploadKey, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ThumbnailKey(); ok {
+		_spec.SetField(mediaobject.FieldThumbnailKey, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.UploadExpiresAt(); ok {
+		_spec.SetField(mediaobject.FieldUploadExpiresAt, field.TypeTime, value)
+	}
+	if _u.mutation.UploadExpiresAtCleared() {
+		_spec.ClearField(mediaobject.FieldUploadExpiresAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Width(); ok {
+		_spec.SetField(mediaobject.FieldWidth, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedWidth(); ok {
+		_spec.AddField(mediaobject.FieldWidth, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.Height(); ok {
+		_spec.SetField(mediaobject.FieldHeight, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedHeight(); ok {
+		_spec.AddField(mediaobject.FieldHeight, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(mediaobject.FieldUpdatedAt, field.TypeTime, value)
@@ -279,6 +471,152 @@ func (_u *MediaObjectUpdateOne) SetNillableStatus(v *mediaobject.Status) *MediaO
 	return _u
 }
 
+// SetRegionCode sets the "region_code" field.
+func (_u *MediaObjectUpdateOne) SetRegionCode(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetRegionCode(v)
+	return _u
+}
+
+// SetNillableRegionCode sets the "region_code" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableRegionCode(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetRegionCode(*v)
+	}
+	return _u
+}
+
+// SetFilename sets the "filename" field.
+func (_u *MediaObjectUpdateOne) SetFilename(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetFilename(v)
+	return _u
+}
+
+// SetNillableFilename sets the "filename" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableFilename(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetFilename(*v)
+	}
+	return _u
+}
+
+// SetUploadID sets the "upload_id" field.
+func (_u *MediaObjectUpdateOne) SetUploadID(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetUploadID(v)
+	return _u
+}
+
+// SetNillableUploadID sets the "upload_id" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableUploadID(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetUploadID(*v)
+	}
+	return _u
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (_u *MediaObjectUpdateOne) SetRequestHash(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetRequestHash(v)
+	return _u
+}
+
+// SetNillableRequestHash sets the "request_hash" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableRequestHash(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetRequestHash(*v)
+	}
+	return _u
+}
+
+// SetUploadKey sets the "upload_key" field.
+func (_u *MediaObjectUpdateOne) SetUploadKey(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetUploadKey(v)
+	return _u
+}
+
+// SetNillableUploadKey sets the "upload_key" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableUploadKey(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetUploadKey(*v)
+	}
+	return _u
+}
+
+// SetThumbnailKey sets the "thumbnail_key" field.
+func (_u *MediaObjectUpdateOne) SetThumbnailKey(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetThumbnailKey(v)
+	return _u
+}
+
+// SetNillableThumbnailKey sets the "thumbnail_key" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableThumbnailKey(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetThumbnailKey(*v)
+	}
+	return _u
+}
+
+// SetUploadExpiresAt sets the "upload_expires_at" field.
+func (_u *MediaObjectUpdateOne) SetUploadExpiresAt(v time.Time) *MediaObjectUpdateOne {
+	_u.mutation.SetUploadExpiresAt(v)
+	return _u
+}
+
+// SetNillableUploadExpiresAt sets the "upload_expires_at" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableUploadExpiresAt(v *time.Time) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetUploadExpiresAt(*v)
+	}
+	return _u
+}
+
+// ClearUploadExpiresAt clears the value of the "upload_expires_at" field.
+func (_u *MediaObjectUpdateOne) ClearUploadExpiresAt() *MediaObjectUpdateOne {
+	_u.mutation.ClearUploadExpiresAt()
+	return _u
+}
+
+// SetWidth sets the "width" field.
+func (_u *MediaObjectUpdateOne) SetWidth(v int) *MediaObjectUpdateOne {
+	_u.mutation.ResetWidth()
+	_u.mutation.SetWidth(v)
+	return _u
+}
+
+// SetNillableWidth sets the "width" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableWidth(v *int) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetWidth(*v)
+	}
+	return _u
+}
+
+// AddWidth adds value to the "width" field.
+func (_u *MediaObjectUpdateOne) AddWidth(v int) *MediaObjectUpdateOne {
+	_u.mutation.AddWidth(v)
+	return _u
+}
+
+// SetHeight sets the "height" field.
+func (_u *MediaObjectUpdateOne) SetHeight(v int) *MediaObjectUpdateOne {
+	_u.mutation.ResetHeight()
+	_u.mutation.SetHeight(v)
+	return _u
+}
+
+// SetNillableHeight sets the "height" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableHeight(v *int) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetHeight(*v)
+	}
+	return _u
+}
+
+// AddHeight adds value to the "height" field.
+func (_u *MediaObjectUpdateOne) AddHeight(v int) *MediaObjectUpdateOne {
+	_u.mutation.AddHeight(v)
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *MediaObjectUpdateOne) SetUpdatedAt(v time.Time) *MediaObjectUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -361,6 +699,16 @@ func (_u *MediaObjectUpdateOne) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "MediaObject.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Width(); ok {
+		if err := mediaobject.WidthValidator(v); err != nil {
+			return &ValidationError{Name: "width", err: fmt.Errorf(`ent: validator failed for field "MediaObject.width": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.Height(); ok {
+		if err := mediaobject.HeightValidator(v); err != nil {
+			return &ValidationError{Name: "height", err: fmt.Errorf(`ent: validator failed for field "MediaObject.height": %w`, err)}
+		}
+	}
 	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "MediaObject.user"`)
 	}
@@ -410,6 +758,42 @@ func (_u *MediaObjectUpdateOne) sqlSave(ctx context.Context) (_node *MediaObject
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(mediaobject.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.RegionCode(); ok {
+		_spec.SetField(mediaobject.FieldRegionCode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Filename(); ok {
+		_spec.SetField(mediaobject.FieldFilename, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.UploadID(); ok {
+		_spec.SetField(mediaobject.FieldUploadID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.RequestHash(); ok {
+		_spec.SetField(mediaobject.FieldRequestHash, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.UploadKey(); ok {
+		_spec.SetField(mediaobject.FieldUploadKey, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ThumbnailKey(); ok {
+		_spec.SetField(mediaobject.FieldThumbnailKey, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.UploadExpiresAt(); ok {
+		_spec.SetField(mediaobject.FieldUploadExpiresAt, field.TypeTime, value)
+	}
+	if _u.mutation.UploadExpiresAtCleared() {
+		_spec.ClearField(mediaobject.FieldUploadExpiresAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Width(); ok {
+		_spec.SetField(mediaobject.FieldWidth, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedWidth(); ok {
+		_spec.AddField(mediaobject.FieldWidth, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.Height(); ok {
+		_spec.SetField(mediaobject.FieldHeight, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedHeight(); ok {
+		_spec.AddField(mediaobject.FieldHeight, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(mediaobject.FieldUpdatedAt, field.TypeTime, value)

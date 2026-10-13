@@ -84,7 +84,7 @@ func (s *AuthService) DeleteAccount(ctx context.Context, req *connect.Request[tr
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("object cleanup unavailable; retry account deletion"))
 	}
 	for _, object := range objects {
-		if err = st.Blobs.Delete(ctx, object.ObjectKey); err != nil {
+		if err = deleteMediaKeys(ctx, st, object); err != nil {
 			return nil, connect.NewError(connect.CodeUnavailable, errors.New("object cleanup incomplete; retry account deletion"))
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
+	"go.orx.me/apps/trip-map/internal/ent/mediacleanup"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/schema"
@@ -89,6 +90,12 @@ func init() {
 	footprintchangeDescID := footprintchangeFields[0].Descriptor()
 	// footprintchange.DefaultID holds the default value on creation for the id field.
 	footprintchange.DefaultID = footprintchangeDescID.Default.(func() string)
+	mediacleanupFields := schema.MediaCleanup{}.Fields()
+	_ = mediacleanupFields
+	// mediacleanupDescID is the schema descriptor for id field.
+	mediacleanupDescID := mediacleanupFields[0].Descriptor()
+	// mediacleanup.DefaultID holds the default value on creation for the id field.
+	mediacleanup.DefaultID = mediacleanupDescID.Default.(func() string)
 	mediaobjectFields := schema.MediaObject{}.Fields()
 	_ = mediaobjectFields
 	// mediaobjectDescObjectKey is the schema descriptor for object_key field.
@@ -103,12 +110,48 @@ func init() {
 	mediaobjectDescSizeBytes := mediaobjectFields[4].Descriptor()
 	// mediaobject.SizeBytesValidator is a validator for the "size_bytes" field. It is called by the builders before save.
 	mediaobject.SizeBytesValidator = mediaobjectDescSizeBytes.Validators[0].(func(int64) error)
+	// mediaobjectDescRegionCode is the schema descriptor for region_code field.
+	mediaobjectDescRegionCode := mediaobjectFields[6].Descriptor()
+	// mediaobject.DefaultRegionCode holds the default value on creation for the region_code field.
+	mediaobject.DefaultRegionCode = mediaobjectDescRegionCode.Default.(string)
+	// mediaobjectDescFilename is the schema descriptor for filename field.
+	mediaobjectDescFilename := mediaobjectFields[7].Descriptor()
+	// mediaobject.DefaultFilename holds the default value on creation for the filename field.
+	mediaobject.DefaultFilename = mediaobjectDescFilename.Default.(string)
+	// mediaobjectDescUploadID is the schema descriptor for upload_id field.
+	mediaobjectDescUploadID := mediaobjectFields[8].Descriptor()
+	// mediaobject.DefaultUploadID holds the default value on creation for the upload_id field.
+	mediaobject.DefaultUploadID = mediaobjectDescUploadID.Default.(string)
+	// mediaobjectDescRequestHash is the schema descriptor for request_hash field.
+	mediaobjectDescRequestHash := mediaobjectFields[9].Descriptor()
+	// mediaobject.DefaultRequestHash holds the default value on creation for the request_hash field.
+	mediaobject.DefaultRequestHash = mediaobjectDescRequestHash.Default.(string)
+	// mediaobjectDescUploadKey is the schema descriptor for upload_key field.
+	mediaobjectDescUploadKey := mediaobjectFields[10].Descriptor()
+	// mediaobject.DefaultUploadKey holds the default value on creation for the upload_key field.
+	mediaobject.DefaultUploadKey = mediaobjectDescUploadKey.Default.(string)
+	// mediaobjectDescThumbnailKey is the schema descriptor for thumbnail_key field.
+	mediaobjectDescThumbnailKey := mediaobjectFields[11].Descriptor()
+	// mediaobject.DefaultThumbnailKey holds the default value on creation for the thumbnail_key field.
+	mediaobject.DefaultThumbnailKey = mediaobjectDescThumbnailKey.Default.(string)
+	// mediaobjectDescWidth is the schema descriptor for width field.
+	mediaobjectDescWidth := mediaobjectFields[13].Descriptor()
+	// mediaobject.DefaultWidth holds the default value on creation for the width field.
+	mediaobject.DefaultWidth = mediaobjectDescWidth.Default.(int)
+	// mediaobject.WidthValidator is a validator for the "width" field. It is called by the builders before save.
+	mediaobject.WidthValidator = mediaobjectDescWidth.Validators[0].(func(int) error)
+	// mediaobjectDescHeight is the schema descriptor for height field.
+	mediaobjectDescHeight := mediaobjectFields[14].Descriptor()
+	// mediaobject.DefaultHeight holds the default value on creation for the height field.
+	mediaobject.DefaultHeight = mediaobjectDescHeight.Default.(int)
+	// mediaobject.HeightValidator is a validator for the "height" field. It is called by the builders before save.
+	mediaobject.HeightValidator = mediaobjectDescHeight.Validators[0].(func(int) error)
 	// mediaobjectDescCreatedAt is the schema descriptor for created_at field.
-	mediaobjectDescCreatedAt := mediaobjectFields[6].Descriptor()
+	mediaobjectDescCreatedAt := mediaobjectFields[15].Descriptor()
 	// mediaobject.DefaultCreatedAt holds the default value on creation for the created_at field.
 	mediaobject.DefaultCreatedAt = mediaobjectDescCreatedAt.Default.(func() time.Time)
 	// mediaobjectDescUpdatedAt is the schema descriptor for updated_at field.
-	mediaobjectDescUpdatedAt := mediaobjectFields[7].Descriptor()
+	mediaobjectDescUpdatedAt := mediaobjectFields[16].Descriptor()
 	// mediaobject.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	mediaobject.DefaultUpdatedAt = mediaobjectDescUpdatedAt.Default.(func() time.Time)
 	// mediaobject.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

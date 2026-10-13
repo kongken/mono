@@ -62,6 +62,132 @@ func (_c *MediaObjectCreate) SetNillableStatus(v *mediaobject.Status) *MediaObje
 	return _c
 }
 
+// SetRegionCode sets the "region_code" field.
+func (_c *MediaObjectCreate) SetRegionCode(v string) *MediaObjectCreate {
+	_c.mutation.SetRegionCode(v)
+	return _c
+}
+
+// SetNillableRegionCode sets the "region_code" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableRegionCode(v *string) *MediaObjectCreate {
+	if v != nil {
+		_c.SetRegionCode(*v)
+	}
+	return _c
+}
+
+// SetFilename sets the "filename" field.
+func (_c *MediaObjectCreate) SetFilename(v string) *MediaObjectCreate {
+	_c.mutation.SetFilename(v)
+	return _c
+}
+
+// SetNillableFilename sets the "filename" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableFilename(v *string) *MediaObjectCreate {
+	if v != nil {
+		_c.SetFilename(*v)
+	}
+	return _c
+}
+
+// SetUploadID sets the "upload_id" field.
+func (_c *MediaObjectCreate) SetUploadID(v string) *MediaObjectCreate {
+	_c.mutation.SetUploadID(v)
+	return _c
+}
+
+// SetNillableUploadID sets the "upload_id" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableUploadID(v *string) *MediaObjectCreate {
+	if v != nil {
+		_c.SetUploadID(*v)
+	}
+	return _c
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (_c *MediaObjectCreate) SetRequestHash(v string) *MediaObjectCreate {
+	_c.mutation.SetRequestHash(v)
+	return _c
+}
+
+// SetNillableRequestHash sets the "request_hash" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableRequestHash(v *string) *MediaObjectCreate {
+	if v != nil {
+		_c.SetRequestHash(*v)
+	}
+	return _c
+}
+
+// SetUploadKey sets the "upload_key" field.
+func (_c *MediaObjectCreate) SetUploadKey(v string) *MediaObjectCreate {
+	_c.mutation.SetUploadKey(v)
+	return _c
+}
+
+// SetNillableUploadKey sets the "upload_key" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableUploadKey(v *string) *MediaObjectCreate {
+	if v != nil {
+		_c.SetUploadKey(*v)
+	}
+	return _c
+}
+
+// SetThumbnailKey sets the "thumbnail_key" field.
+func (_c *MediaObjectCreate) SetThumbnailKey(v string) *MediaObjectCreate {
+	_c.mutation.SetThumbnailKey(v)
+	return _c
+}
+
+// SetNillableThumbnailKey sets the "thumbnail_key" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableThumbnailKey(v *string) *MediaObjectCreate {
+	if v != nil {
+		_c.SetThumbnailKey(*v)
+	}
+	return _c
+}
+
+// SetUploadExpiresAt sets the "upload_expires_at" field.
+func (_c *MediaObjectCreate) SetUploadExpiresAt(v time.Time) *MediaObjectCreate {
+	_c.mutation.SetUploadExpiresAt(v)
+	return _c
+}
+
+// SetNillableUploadExpiresAt sets the "upload_expires_at" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableUploadExpiresAt(v *time.Time) *MediaObjectCreate {
+	if v != nil {
+		_c.SetUploadExpiresAt(*v)
+	}
+	return _c
+}
+
+// SetWidth sets the "width" field.
+func (_c *MediaObjectCreate) SetWidth(v int) *MediaObjectCreate {
+	_c.mutation.SetWidth(v)
+	return _c
+}
+
+// SetNillableWidth sets the "width" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableWidth(v *int) *MediaObjectCreate {
+	if v != nil {
+		_c.SetWidth(*v)
+	}
+	return _c
+}
+
+// SetHeight sets the "height" field.
+func (_c *MediaObjectCreate) SetHeight(v int) *MediaObjectCreate {
+	_c.mutation.SetHeight(v)
+	return _c
+}
+
+// SetNillableHeight sets the "height" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableHeight(v *int) *MediaObjectCreate {
+	if v != nil {
+		_c.SetHeight(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *MediaObjectCreate) SetCreatedAt(v time.Time) *MediaObjectCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -148,6 +274,38 @@ func (_c *MediaObjectCreate) defaults() {
 		v := mediaobject.DefaultStatus
 		_c.mutation.SetStatus(v)
 	}
+	if _, ok := _c.mutation.RegionCode(); !ok {
+		v := mediaobject.DefaultRegionCode
+		_c.mutation.SetRegionCode(v)
+	}
+	if _, ok := _c.mutation.Filename(); !ok {
+		v := mediaobject.DefaultFilename
+		_c.mutation.SetFilename(v)
+	}
+	if _, ok := _c.mutation.UploadID(); !ok {
+		v := mediaobject.DefaultUploadID
+		_c.mutation.SetUploadID(v)
+	}
+	if _, ok := _c.mutation.RequestHash(); !ok {
+		v := mediaobject.DefaultRequestHash
+		_c.mutation.SetRequestHash(v)
+	}
+	if _, ok := _c.mutation.UploadKey(); !ok {
+		v := mediaobject.DefaultUploadKey
+		_c.mutation.SetUploadKey(v)
+	}
+	if _, ok := _c.mutation.ThumbnailKey(); !ok {
+		v := mediaobject.DefaultThumbnailKey
+		_c.mutation.SetThumbnailKey(v)
+	}
+	if _, ok := _c.mutation.Width(); !ok {
+		v := mediaobject.DefaultWidth
+		_c.mutation.SetWidth(v)
+	}
+	if _, ok := _c.mutation.Height(); !ok {
+		v := mediaobject.DefaultHeight
+		_c.mutation.SetHeight(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := mediaobject.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -197,6 +355,40 @@ func (_c *MediaObjectCreate) check() error {
 	if v, ok := _c.mutation.Status(); ok {
 		if err := mediaobject.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "MediaObject.status": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.RegionCode(); !ok {
+		return &ValidationError{Name: "region_code", err: errors.New(`ent: missing required field "MediaObject.region_code"`)}
+	}
+	if _, ok := _c.mutation.Filename(); !ok {
+		return &ValidationError{Name: "filename", err: errors.New(`ent: missing required field "MediaObject.filename"`)}
+	}
+	if _, ok := _c.mutation.UploadID(); !ok {
+		return &ValidationError{Name: "upload_id", err: errors.New(`ent: missing required field "MediaObject.upload_id"`)}
+	}
+	if _, ok := _c.mutation.RequestHash(); !ok {
+		return &ValidationError{Name: "request_hash", err: errors.New(`ent: missing required field "MediaObject.request_hash"`)}
+	}
+	if _, ok := _c.mutation.UploadKey(); !ok {
+		return &ValidationError{Name: "upload_key", err: errors.New(`ent: missing required field "MediaObject.upload_key"`)}
+	}
+	if _, ok := _c.mutation.ThumbnailKey(); !ok {
+		return &ValidationError{Name: "thumbnail_key", err: errors.New(`ent: missing required field "MediaObject.thumbnail_key"`)}
+	}
+	if _, ok := _c.mutation.Width(); !ok {
+		return &ValidationError{Name: "width", err: errors.New(`ent: missing required field "MediaObject.width"`)}
+	}
+	if v, ok := _c.mutation.Width(); ok {
+		if err := mediaobject.WidthValidator(v); err != nil {
+			return &ValidationError{Name: "width", err: fmt.Errorf(`ent: validator failed for field "MediaObject.width": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.Height(); !ok {
+		return &ValidationError{Name: "height", err: errors.New(`ent: missing required field "MediaObject.height"`)}
+	}
+	if v, ok := _c.mutation.Height(); ok {
+		if err := mediaobject.HeightValidator(v); err != nil {
+			return &ValidationError{Name: "height", err: fmt.Errorf(`ent: validator failed for field "MediaObject.height": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
@@ -259,6 +451,42 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(mediaobject.FieldStatus, field.TypeEnum, value)
 		_node.Status = value
+	}
+	if value, ok := _c.mutation.RegionCode(); ok {
+		_spec.SetField(mediaobject.FieldRegionCode, field.TypeString, value)
+		_node.RegionCode = value
+	}
+	if value, ok := _c.mutation.Filename(); ok {
+		_spec.SetField(mediaobject.FieldFilename, field.TypeString, value)
+		_node.Filename = value
+	}
+	if value, ok := _c.mutation.UploadID(); ok {
+		_spec.SetField(mediaobject.FieldUploadID, field.TypeString, value)
+		_node.UploadID = value
+	}
+	if value, ok := _c.mutation.RequestHash(); ok {
+		_spec.SetField(mediaobject.FieldRequestHash, field.TypeString, value)
+		_node.RequestHash = value
+	}
+	if value, ok := _c.mutation.UploadKey(); ok {
+		_spec.SetField(mediaobject.FieldUploadKey, field.TypeString, value)
+		_node.UploadKey = value
+	}
+	if value, ok := _c.mutation.ThumbnailKey(); ok {
+		_spec.SetField(mediaobject.FieldThumbnailKey, field.TypeString, value)
+		_node.ThumbnailKey = value
+	}
+	if value, ok := _c.mutation.UploadExpiresAt(); ok {
+		_spec.SetField(mediaobject.FieldUploadExpiresAt, field.TypeTime, value)
+		_node.UploadExpiresAt = &value
+	}
+	if value, ok := _c.mutation.Width(); ok {
+		_spec.SetField(mediaobject.FieldWidth, field.TypeInt, value)
+		_node.Width = value
+	}
+	if value, ok := _c.mutation.Height(); ok {
+		_spec.SetField(mediaobject.FieldHeight, field.TypeInt, value)
+		_node.Height = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(mediaobject.FieldCreatedAt, field.TypeTime, value)
@@ -391,6 +619,132 @@ func (u *MediaObjectUpsert) UpdateStatus() *MediaObjectUpsert {
 	return u
 }
 
+// SetRegionCode sets the "region_code" field.
+func (u *MediaObjectUpsert) SetRegionCode(v string) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldRegionCode, v)
+	return u
+}
+
+// UpdateRegionCode sets the "region_code" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateRegionCode() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldRegionCode)
+	return u
+}
+
+// SetFilename sets the "filename" field.
+func (u *MediaObjectUpsert) SetFilename(v string) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldFilename, v)
+	return u
+}
+
+// UpdateFilename sets the "filename" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateFilename() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldFilename)
+	return u
+}
+
+// SetUploadID sets the "upload_id" field.
+func (u *MediaObjectUpsert) SetUploadID(v string) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldUploadID, v)
+	return u
+}
+
+// UpdateUploadID sets the "upload_id" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateUploadID() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldUploadID)
+	return u
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (u *MediaObjectUpsert) SetRequestHash(v string) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldRequestHash, v)
+	return u
+}
+
+// UpdateRequestHash sets the "request_hash" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateRequestHash() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldRequestHash)
+	return u
+}
+
+// SetUploadKey sets the "upload_key" field.
+func (u *MediaObjectUpsert) SetUploadKey(v string) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldUploadKey, v)
+	return u
+}
+
+// UpdateUploadKey sets the "upload_key" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateUploadKey() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldUploadKey)
+	return u
+}
+
+// SetThumbnailKey sets the "thumbnail_key" field.
+func (u *MediaObjectUpsert) SetThumbnailKey(v string) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldThumbnailKey, v)
+	return u
+}
+
+// UpdateThumbnailKey sets the "thumbnail_key" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateThumbnailKey() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldThumbnailKey)
+	return u
+}
+
+// SetUploadExpiresAt sets the "upload_expires_at" field.
+func (u *MediaObjectUpsert) SetUploadExpiresAt(v time.Time) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldUploadExpiresAt, v)
+	return u
+}
+
+// UpdateUploadExpiresAt sets the "upload_expires_at" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateUploadExpiresAt() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldUploadExpiresAt)
+	return u
+}
+
+// ClearUploadExpiresAt clears the value of the "upload_expires_at" field.
+func (u *MediaObjectUpsert) ClearUploadExpiresAt() *MediaObjectUpsert {
+	u.SetNull(mediaobject.FieldUploadExpiresAt)
+	return u
+}
+
+// SetWidth sets the "width" field.
+func (u *MediaObjectUpsert) SetWidth(v int) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldWidth, v)
+	return u
+}
+
+// UpdateWidth sets the "width" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateWidth() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldWidth)
+	return u
+}
+
+// AddWidth adds v to the "width" field.
+func (u *MediaObjectUpsert) AddWidth(v int) *MediaObjectUpsert {
+	u.Add(mediaobject.FieldWidth, v)
+	return u
+}
+
+// SetHeight sets the "height" field.
+func (u *MediaObjectUpsert) SetHeight(v int) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldHeight, v)
+	return u
+}
+
+// UpdateHeight sets the "height" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateHeight() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldHeight)
+	return u
+}
+
+// AddHeight adds v to the "height" field.
+func (u *MediaObjectUpsert) AddHeight(v int) *MediaObjectUpsert {
+	u.Add(mediaobject.FieldHeight, v)
+	return u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (u *MediaObjectUpsert) SetUpdatedAt(v time.Time) *MediaObjectUpsert {
 	u.Set(mediaobject.FieldUpdatedAt, v)
@@ -517,6 +871,153 @@ func (u *MediaObjectUpsertOne) SetStatus(v mediaobject.Status) *MediaObjectUpser
 func (u *MediaObjectUpsertOne) UpdateStatus() *MediaObjectUpsertOne {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetRegionCode sets the "region_code" field.
+func (u *MediaObjectUpsertOne) SetRegionCode(v string) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetRegionCode(v)
+	})
+}
+
+// UpdateRegionCode sets the "region_code" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateRegionCode() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateRegionCode()
+	})
+}
+
+// SetFilename sets the "filename" field.
+func (u *MediaObjectUpsertOne) SetFilename(v string) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetFilename(v)
+	})
+}
+
+// UpdateFilename sets the "filename" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateFilename() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateFilename()
+	})
+}
+
+// SetUploadID sets the "upload_id" field.
+func (u *MediaObjectUpsertOne) SetUploadID(v string) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetUploadID(v)
+	})
+}
+
+// UpdateUploadID sets the "upload_id" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateUploadID() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateUploadID()
+	})
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (u *MediaObjectUpsertOne) SetRequestHash(v string) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetRequestHash(v)
+	})
+}
+
+// UpdateRequestHash sets the "request_hash" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateRequestHash() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateRequestHash()
+	})
+}
+
+// SetUploadKey sets the "upload_key" field.
+func (u *MediaObjectUpsertOne) SetUploadKey(v string) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetUploadKey(v)
+	})
+}
+
+// UpdateUploadKey sets the "upload_key" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateUploadKey() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateUploadKey()
+	})
+}
+
+// SetThumbnailKey sets the "thumbnail_key" field.
+func (u *MediaObjectUpsertOne) SetThumbnailKey(v string) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetThumbnailKey(v)
+	})
+}
+
+// UpdateThumbnailKey sets the "thumbnail_key" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateThumbnailKey() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateThumbnailKey()
+	})
+}
+
+// SetUploadExpiresAt sets the "upload_expires_at" field.
+func (u *MediaObjectUpsertOne) SetUploadExpiresAt(v time.Time) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetUploadExpiresAt(v)
+	})
+}
+
+// UpdateUploadExpiresAt sets the "upload_expires_at" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateUploadExpiresAt() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateUploadExpiresAt()
+	})
+}
+
+// ClearUploadExpiresAt clears the value of the "upload_expires_at" field.
+func (u *MediaObjectUpsertOne) ClearUploadExpiresAt() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.ClearUploadExpiresAt()
+	})
+}
+
+// SetWidth sets the "width" field.
+func (u *MediaObjectUpsertOne) SetWidth(v int) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetWidth(v)
+	})
+}
+
+// AddWidth adds v to the "width" field.
+func (u *MediaObjectUpsertOne) AddWidth(v int) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.AddWidth(v)
+	})
+}
+
+// UpdateWidth sets the "width" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateWidth() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateWidth()
+	})
+}
+
+// SetHeight sets the "height" field.
+func (u *MediaObjectUpsertOne) SetHeight(v int) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetHeight(v)
+	})
+}
+
+// AddHeight adds v to the "height" field.
+func (u *MediaObjectUpsertOne) AddHeight(v int) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.AddHeight(v)
+	})
+}
+
+// UpdateHeight sets the "height" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateHeight() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateHeight()
 	})
 }
 
@@ -815,6 +1316,153 @@ func (u *MediaObjectUpsertBulk) SetStatus(v mediaobject.Status) *MediaObjectUpse
 func (u *MediaObjectUpsertBulk) UpdateStatus() *MediaObjectUpsertBulk {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetRegionCode sets the "region_code" field.
+func (u *MediaObjectUpsertBulk) SetRegionCode(v string) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetRegionCode(v)
+	})
+}
+
+// UpdateRegionCode sets the "region_code" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateRegionCode() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateRegionCode()
+	})
+}
+
+// SetFilename sets the "filename" field.
+func (u *MediaObjectUpsertBulk) SetFilename(v string) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetFilename(v)
+	})
+}
+
+// UpdateFilename sets the "filename" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateFilename() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateFilename()
+	})
+}
+
+// SetUploadID sets the "upload_id" field.
+func (u *MediaObjectUpsertBulk) SetUploadID(v string) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetUploadID(v)
+	})
+}
+
+// UpdateUploadID sets the "upload_id" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateUploadID() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateUploadID()
+	})
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (u *MediaObjectUpsertBulk) SetRequestHash(v string) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetRequestHash(v)
+	})
+}
+
+// UpdateRequestHash sets the "request_hash" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateRequestHash() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateRequestHash()
+	})
+}
+
+// SetUploadKey sets the "upload_key" field.
+func (u *MediaObjectUpsertBulk) SetUploadKey(v string) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetUploadKey(v)
+	})
+}
+
+// UpdateUploadKey sets the "upload_key" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateUploadKey() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateUploadKey()
+	})
+}
+
+// SetThumbnailKey sets the "thumbnail_key" field.
+func (u *MediaObjectUpsertBulk) SetThumbnailKey(v string) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetThumbnailKey(v)
+	})
+}
+
+// UpdateThumbnailKey sets the "thumbnail_key" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateThumbnailKey() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateThumbnailKey()
+	})
+}
+
+// SetUploadExpiresAt sets the "upload_expires_at" field.
+func (u *MediaObjectUpsertBulk) SetUploadExpiresAt(v time.Time) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetUploadExpiresAt(v)
+	})
+}
+
+// UpdateUploadExpiresAt sets the "upload_expires_at" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateUploadExpiresAt() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateUploadExpiresAt()
+	})
+}
+
+// ClearUploadExpiresAt clears the value of the "upload_expires_at" field.
+func (u *MediaObjectUpsertBulk) ClearUploadExpiresAt() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.ClearUploadExpiresAt()
+	})
+}
+
+// SetWidth sets the "width" field.
+func (u *MediaObjectUpsertBulk) SetWidth(v int) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetWidth(v)
+	})
+}
+
+// AddWidth adds v to the "width" field.
+func (u *MediaObjectUpsertBulk) AddWidth(v int) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.AddWidth(v)
+	})
+}
+
+// UpdateWidth sets the "width" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateWidth() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateWidth()
+	})
+}
+
+// SetHeight sets the "height" field.
+func (u *MediaObjectUpsertBulk) SetHeight(v int) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetHeight(v)
+	})
+}
+
+// AddHeight adds v to the "height" field.
+func (u *MediaObjectUpsertBulk) AddHeight(v int) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.AddHeight(v)
+	})
+}
+
+// UpdateHeight sets the "height" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateHeight() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateHeight()
 	})
 }
 

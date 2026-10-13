@@ -59,3 +59,5 @@ GitHub Actions 分别构建并发布 `ghcr.io/kongken/trip-map`（后端）和 `
 
 - [文档索引](docs/README.md)
 - [项目协作与文档同步规范](AGENTS.md)
+
+照片与附件直传需要配置私有 S3 的浏览器 CORS 和临时目录生命周期，初始化命令及部署顺序见 [后端媒体说明](docs/backend.md#直传部署配置)。
