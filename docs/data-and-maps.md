@@ -74,7 +74,7 @@
 | `src/lib/maps.ts` | GeoJSON 多边形方向归一化，适配 d3 的球面绘制 |
 | `src/lib/tiles.ts` | 解析瓦片源环境变量并提供默认值 |
 | `src/lib/coords.ts` | GCJ-02 与 WGS-84 坐标转换，用于把边界叠加到 OSM 底图 |
-| `src/components/OsmProvinceMap.tsx` | 省内可选 OSM 底图（Leaflet），按需加载 |
+| `src/components/OsmProvinceMap.tsx` | 省内与全国可选 OSM 底图（Leaflet），按需加载 |
 | `scripts/download-maps.mjs` | 根据现有全国地图下载省内地图并重建索引 |
 | `scripts/prepare-taiwan.mjs` | 处理补充县市边界数据的名称、ID、中心点及多边形方向 |
 | `scripts/split-fujian-regions.mjs` | 将补充边界中的金门、马祖拆入福建，并移除福州、泉州中的重复岛屿组件 |
@@ -100,7 +100,7 @@
 - DataV 边界为 GCJ-02 坐标，而 OSM 使用 WGS-84。开启底图时对除 `tw-` 补充数据（含福建金门、马祖）、香港、澳门以外的区域做 GCJ-02 到 WGS-84 的近似转换；转换仅用于底图视图，`public/maps` 数据与区域 ID 不变，SVG 视图仍使用原坐标。
 - 瓦片通过 CSS 滤镜降低饱和度与对比度，使叠加的区域颜色和标签更清晰。评估过 Carto Positron 公共瓦片，目前需要 API Key，不可直接使用；更浅的底图建议改用自托管瓦片。
 - 瓦片源可在构建时通过环境变量配置，未设置或格式无效时回落到上述 OSM 公共瓦片：`VITE_OSM_TILE_URL`（必须包含 `{z}`、`{x}`、`{y}`）、`VITE_OSM_TILE_MAX_ZOOM`（1–22 的整数；自定义地址默认 18，默认地址为 19）、`VITE_OSM_TILE_ATTRIBUTION`（附加署名，作为 HTML 显示，仅用于受信任的构建配置；OpenStreetMap 署名始终保留）。变量在构建时写入，修改后需重新构建；Docker 镜像通过 `--build-arg` 传入，当前 CI 工作流尚未传递这些参数。源码见 `src/lib/tiles.ts`。
-- 全国地图使用圆锥投影，且包含南海附图，不使用 OSM 底图。
+- 全国地图的 SVG 视图使用圆锥投影并包含南海附图；开启 OSM 时改用 Leaflet 的 Web 墨卡托，不绘制南海附图，南海诸岛按原始坐标出现在底图上（三沙岛屿可拖动查看），海南主体视图范围固定为 `src/App.tsx` 中的 `NATIONAL_VIEW`。全国 OSM 的省份边界取自 `100000.json`，按城市着色复用各省内文件（首次开启时才加载，约 4 MB），并叠加省份边界线。对 GCJ-02 的转换与省内一致，台湾、香港、澳门及其下级区域不转换。
 - 当前限制：开发阶段直接使用 OSM 公共瓦片，其[使用政策](https://operations.osmfoundation.org/policies/tiles/)不适合大流量生产场景，正式上线前需改为自托管瓦片或商业服务；香港、澳门边界未做坐标转换，台湾边界精度以数据源为准；边界与底图的行政区域线可能存在差异和偏移。
 
 ## 绘制与维护
