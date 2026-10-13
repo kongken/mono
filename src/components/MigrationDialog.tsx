@@ -8,7 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { snapshotApi } from "@/api/snapshots";
 import type { Cloud } from "@/hooks/useCloud";
+import { describeApiError } from "@/lib/errors";
+import { hasFootprints } from "@/lib/snapshots";
 import {
   isNoop,
   migratedSaved,
@@ -100,6 +103,8 @@ export default function MigrationDialog({
   const [choices, setChoices] = useState<MigrationChoices>({});
   const [frozen, setFrozen] = useState(() => ({ local, cloud: cloudSaved }));
   const [error, setError] = useState("");
+  // True while the pre-migration cloud snapshot is being saved.
+  const [saving, setSaving] = useState(false);
 
   // The preview is fixed when the dialog opens, so it cannot shift under the
   // user while their own migration is being written.
@@ -136,8 +141,20 @@ export default function MigrationDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, cloud.pending, cloud.sync, cloud.loadFailed]);
 
-  const confirm = () => {
+  const confirm = async () => {
     setError("");
+    // Keep a restorable copy of the cloud data before anything is changed.
+    if (hasFootprints(frozen.cloud)) {
+      setSaving(true);
+      try {
+        await snapshotApi.create("beforeMigration");
+      } catch (e) {
+        setError(`无法先保存云端快照，未开始迁移：${describeApiError(e)}`);
+        return;
+      } finally {
+        setSaving(false);
+      }
+    }
     const target = migratedSaved(frozen.cloud, plan, choices);
     if (!apply(target)) {
       setError("无法开始迁移，请先处理页面上的提示后重试");
@@ -168,7 +185,7 @@ export default function MigrationDialog({
           <DialogDescription>
             本机有 {frozen.local.visits.length} 条城市足迹、
             {Object.keys(frozen.local.provinces).length}{" "}
-            个省份标记。迁移只会新增或覆盖云端记录，不会删除云端已有内容；本机副本始终保留。
+            个省份标记。迁移只会新增或覆盖云端记录，不会删除云端已有内容；本机副本始终保留。云端已有足迹时，迁移前会先自动保存快照，可在“账号 → 历史版本”中恢复。
           </DialogDescription>
         </DialogHeader>
 
@@ -292,16 +309,16 @@ export default function MigrationDialog({
                 <>
                   <Button
                     variant="outline"
-                    disabled={stage === "applying"}
+                    disabled={stage === "applying" || saving}
                     onClick={() => close(false)}
                   >
                     稍后再说
                   </Button>
                   <Button
-                    disabled={!ready || stage === "applying"}
-                    onClick={confirm}
+                    disabled={!ready || stage === "applying" || saving}
+                    onClick={() => void confirm()}
                   >
-                    确认迁移
+                    {saving ? "正在保存快照…" : "确认迁移"}
                   </Button>
                 </>
               )}

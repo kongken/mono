@@ -26,6 +26,8 @@ const (
 	FieldChangedCount = "changed_count"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
+	// FieldSnapshotID holds the string denoting the snapshot_id field in the database.
+	FieldSnapshotID = "snapshot_id"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// Table holds the table name of the syncreceipt in the database.
@@ -48,6 +50,7 @@ var Columns = []string{
 	FieldRevision,
 	FieldChangedCount,
 	FieldCreatedAt,
+	FieldSnapshotID,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -109,6 +112,11 @@ func ByChangedCount(opts ...sql.OrderTermOption) OrderOption {
 // ByCreatedAt orders the results by the created_at field.
 func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
+}
+
+// BySnapshotID orders the results by the snapshot_id field.
+func BySnapshotID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSnapshotID, opts...).ToFunc()
 }
 
 // ByUserField orders the results by user field.

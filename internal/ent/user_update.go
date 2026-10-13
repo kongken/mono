@@ -17,6 +17,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
@@ -295,6 +296,21 @@ func (_u *UserUpdate) AddSyncReceipts(v ...*SyncReceipt) *UserUpdate {
 	return _u.AddSyncReceiptIDs(ids...)
 }
 
+// AddSnapshotIDs adds the "snapshots" edge to the Snapshot entity by IDs.
+func (_u *UserUpdate) AddSnapshotIDs(ids ...string) *UserUpdate {
+	_u.mutation.AddSnapshotIDs(ids...)
+	return _u
+}
+
+// AddSnapshots adds the "snapshots" edges to the Snapshot entity.
+func (_u *UserUpdate) AddSnapshots(v ...*Snapshot) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSnapshotIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -424,6 +440,27 @@ func (_u *UserUpdate) RemoveSyncReceipts(v ...*SyncReceipt) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSyncReceiptIDs(ids...)
+}
+
+// ClearSnapshots clears all "snapshots" edges to the Snapshot entity.
+func (_u *UserUpdate) ClearSnapshots() *UserUpdate {
+	_u.mutation.ClearSnapshots()
+	return _u
+}
+
+// RemoveSnapshotIDs removes the "snapshots" edge to Snapshot entities by IDs.
+func (_u *UserUpdate) RemoveSnapshotIDs(ids ...string) *UserUpdate {
+	_u.mutation.RemoveSnapshotIDs(ids...)
+	return _u
+}
+
+// RemoveSnapshots removes "snapshots" edges to Snapshot entities.
+func (_u *UserUpdate) RemoveSnapshots(v ...*Snapshot) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSnapshotIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -799,6 +836,51 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.SnapshotsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SnapshotsTable,
+			Columns: []string{user.SnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSnapshotsIDs(); len(nodes) > 0 && !_u.mutation.SnapshotsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SnapshotsTable,
+			Columns: []string{user.SnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SnapshotsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SnapshotsTable,
+			Columns: []string{user.SnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -1080,6 +1162,21 @@ func (_u *UserUpdateOne) AddSyncReceipts(v ...*SyncReceipt) *UserUpdateOne {
 	return _u.AddSyncReceiptIDs(ids...)
 }
 
+// AddSnapshotIDs adds the "snapshots" edge to the Snapshot entity by IDs.
+func (_u *UserUpdateOne) AddSnapshotIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.AddSnapshotIDs(ids...)
+	return _u
+}
+
+// AddSnapshots adds the "snapshots" edges to the Snapshot entity.
+func (_u *UserUpdateOne) AddSnapshots(v ...*Snapshot) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSnapshotIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -1209,6 +1306,27 @@ func (_u *UserUpdateOne) RemoveSyncReceipts(v ...*SyncReceipt) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSyncReceiptIDs(ids...)
+}
+
+// ClearSnapshots clears all "snapshots" edges to the Snapshot entity.
+func (_u *UserUpdateOne) ClearSnapshots() *UserUpdateOne {
+	_u.mutation.ClearSnapshots()
+	return _u
+}
+
+// RemoveSnapshotIDs removes the "snapshots" edge to Snapshot entities by IDs.
+func (_u *UserUpdateOne) RemoveSnapshotIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.RemoveSnapshotIDs(ids...)
+	return _u
+}
+
+// RemoveSnapshots removes "snapshots" edges to Snapshot entities.
+func (_u *UserUpdateOne) RemoveSnapshots(v ...*Snapshot) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSnapshotIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -1607,6 +1725,51 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(syncreceipt.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SnapshotsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SnapshotsTable,
+			Columns: []string{user.SnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSnapshotsIDs(); len(nodes) > 0 && !_u.mutation.SnapshotsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SnapshotsTable,
+			Columns: []string{user.SnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SnapshotsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SnapshotsTable,
+			Columns: []string{user.SnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

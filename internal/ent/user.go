@@ -61,9 +61,11 @@ type UserEdges struct {
 	FootprintChanges []*FootprintChange `json:"footprint_changes,omitempty"`
 	// SyncReceipts holds the value of the sync_receipts edge.
 	SyncReceipts []*SyncReceipt `json:"sync_receipts,omitempty"`
+	// Snapshots holds the value of the snapshots edge.
+	Snapshots []*Snapshot `json:"snapshots,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [6]bool
+	loadedTypes [7]bool
 }
 
 // VisitsOrErr returns the Visits value or an error if the edge
@@ -118,6 +120,15 @@ func (e UserEdges) SyncReceiptsOrErr() ([]*SyncReceipt, error) {
 		return e.SyncReceipts, nil
 	}
 	return nil, &NotLoadedError{edge: "sync_receipts"}
+}
+
+// SnapshotsOrErr returns the Snapshots value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) SnapshotsOrErr() ([]*Snapshot, error) {
+	if e.loadedTypes[6] {
+		return e.Snapshots, nil
+	}
+	return nil, &NotLoadedError{edge: "snapshots"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -270,6 +281,11 @@ func (_m *User) QueryFootprintChanges() *FootprintChangeQuery {
 // QuerySyncReceipts queries the "sync_receipts" edge of the User entity.
 func (_m *User) QuerySyncReceipts() *SyncReceiptQuery {
 	return NewUserClient(_m.config).QuerySyncReceipts(_m)
+}
+
+// QuerySnapshots queries the "snapshots" edge of the User entity.
+func (_m *User) QuerySnapshots() *SnapshotQuery {
+	return NewUserClient(_m.config).QuerySnapshots(_m)
 }
 
 // Update returns a builder for updating this User.

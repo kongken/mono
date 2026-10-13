@@ -95,6 +95,11 @@ func CreatedAt(v time.Time) predicate.SyncReceipt {
 	return predicate.SyncReceipt(sql.FieldEQ(FieldCreatedAt, v))
 }
 
+// SnapshotID applies equality check predicate on the "snapshot_id" field. It's identical to SnapshotIDEQ.
+func SnapshotID(v string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldEQ(FieldSnapshotID, v))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v string) predicate.SyncReceipt {
 	return predicate.SyncReceipt(sql.FieldEQ(FieldUserID, v))
@@ -408,6 +413,81 @@ func CreatedAtLT(v time.Time) predicate.SyncReceipt {
 // CreatedAtLTE applies the LTE predicate on the "created_at" field.
 func CreatedAtLTE(v time.Time) predicate.SyncReceipt {
 	return predicate.SyncReceipt(sql.FieldLTE(FieldCreatedAt, v))
+}
+
+// SnapshotIDEQ applies the EQ predicate on the "snapshot_id" field.
+func SnapshotIDEQ(v string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldEQ(FieldSnapshotID, v))
+}
+
+// SnapshotIDNEQ applies the NEQ predicate on the "snapshot_id" field.
+func SnapshotIDNEQ(v string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldNEQ(FieldSnapshotID, v))
+}
+
+// SnapshotIDIn applies the In predicate on the "snapshot_id" field.
+func SnapshotIDIn(vs ...string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldIn(FieldSnapshotID, vs...))
+}
+
+// SnapshotIDNotIn applies the NotIn predicate on the "snapshot_id" field.
+func SnapshotIDNotIn(vs ...string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldNotIn(FieldSnapshotID, vs...))
+}
+
+// SnapshotIDGT applies the GT predicate on the "snapshot_id" field.
+func SnapshotIDGT(v string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldGT(FieldSnapshotID, v))
+}
+
+// SnapshotIDGTE applies the GTE predicate on the "snapshot_id" field.
+func SnapshotIDGTE(v string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldGTE(FieldSnapshotID, v))
+}
+
+// SnapshotIDLT applies the LT predicate on the "snapshot_id" field.
+func SnapshotIDLT(v string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldLT(FieldSnapshotID, v))
+}
+
+// SnapshotIDLTE applies the LTE predicate on the "snapshot_id" field.
+func SnapshotIDLTE(v string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldLTE(FieldSnapshotID, v))
+}
+
+// SnapshotIDContains applies the Contains predicate on the "snapshot_id" field.
+func SnapshotIDContains(v string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldContains(FieldSnapshotID, v))
+}
+
+// SnapshotIDHasPrefix applies the HasPrefix predicate on the "snapshot_id" field.
+func SnapshotIDHasPrefix(v string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldHasPrefix(FieldSnapshotID, v))
+}
+
+// SnapshotIDHasSuffix applies the HasSuffix predicate on the "snapshot_id" field.
+func SnapshotIDHasSuffix(v string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldHasSuffix(FieldSnapshotID, v))
+}
+
+// SnapshotIDIsNil applies the IsNil predicate on the "snapshot_id" field.
+func SnapshotIDIsNil() predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldIsNull(FieldSnapshotID))
+}
+
+// SnapshotIDNotNil applies the NotNil predicate on the "snapshot_id" field.
+func SnapshotIDNotNil() predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldNotNull(FieldSnapshotID))
+}
+
+// SnapshotIDEqualFold applies the EqualFold predicate on the "snapshot_id" field.
+func SnapshotIDEqualFold(v string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldEqualFold(FieldSnapshotID, v))
+}
+
+// SnapshotIDContainsFold applies the ContainsFold predicate on the "snapshot_id" field.
+func SnapshotIDContainsFold(v string) predicate.SyncReceipt {
+	return predicate.SyncReceipt(sql.FieldContainsFold(FieldSnapshotID, v))
 }
 
 // HasUser applies the HasEdge predicate on the "user" edge.

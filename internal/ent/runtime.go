@@ -12,6 +12,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/schema"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
@@ -158,6 +159,28 @@ func init() {
 	sessionDescID := sessionFields[0].Descriptor()
 	// session.DefaultID holds the default value on creation for the id field.
 	session.DefaultID = sessionDescID.Default.(func() string)
+	snapshotFields := schema.Snapshot{}.Fields()
+	_ = snapshotFields
+	// snapshotDescRevision is the schema descriptor for revision field.
+	snapshotDescRevision := snapshotFields[3].Descriptor()
+	// snapshot.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
+	snapshot.RevisionValidator = snapshotDescRevision.Validators[0].(func(int64) error)
+	// snapshotDescVisitCount is the schema descriptor for visit_count field.
+	snapshotDescVisitCount := snapshotFields[4].Descriptor()
+	// snapshot.VisitCountValidator is a validator for the "visit_count" field. It is called by the builders before save.
+	snapshot.VisitCountValidator = snapshotDescVisitCount.Validators[0].(func(int) error)
+	// snapshotDescMarkCount is the schema descriptor for mark_count field.
+	snapshotDescMarkCount := snapshotFields[5].Descriptor()
+	// snapshot.MarkCountValidator is a validator for the "mark_count" field. It is called by the builders before save.
+	snapshot.MarkCountValidator = snapshotDescMarkCount.Validators[0].(func(int) error)
+	// snapshotDescCreatedAt is the schema descriptor for created_at field.
+	snapshotDescCreatedAt := snapshotFields[7].Descriptor()
+	// snapshot.DefaultCreatedAt holds the default value on creation for the created_at field.
+	snapshot.DefaultCreatedAt = snapshotDescCreatedAt.Default.(func() time.Time)
+	// snapshotDescID is the schema descriptor for id field.
+	snapshotDescID := snapshotFields[0].Descriptor()
+	// snapshot.DefaultID holds the default value on creation for the id field.
+	snapshot.DefaultID = snapshotDescID.Default.(func() string)
 	syncreceiptFields := schema.SyncReceipt{}.Fields()
 	_ = syncreceiptFields
 	// syncreceiptDescMutationID is the schema descriptor for mutation_id field.

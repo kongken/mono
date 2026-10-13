@@ -79,6 +79,9 @@ func (_u *SyncReceiptUpdate) sqlSave(ctx context.Context) (_node int, err error)
 			}
 		}
 	}
+	if _u.mutation.SnapshotIDCleared() {
+		_spec.ClearField(syncreceipt.FieldSnapshotID, field.TypeString)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{syncreceipt.Label}
@@ -180,6 +183,9 @@ func (_u *SyncReceiptUpdateOne) sqlSave(ctx context.Context) (_node *SyncReceipt
 				ps[i](selector)
 			}
 		}
+	}
+	if _u.mutation.SnapshotIDCleared() {
+		_spec.ClearField(syncreceipt.FieldSnapshotID, field.TypeString)
 	}
 	_node = &SyncReceipt{config: _u.config}
 	_spec.Assign = _node.assignValues

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
+  ClockCounterClockwise,
   CloudCheck,
   GithubLogo,
   GoogleLogo,
@@ -26,6 +27,7 @@ type Props = {
   /** Footprints saved on this device before signing in. */
   local: { status: string; count: number };
   onMigrate: () => void;
+  onOpenSnapshots: () => void;
 };
 
 const when = (date: Date | null) =>
@@ -43,6 +45,7 @@ export default function AccountDialog({
   cloud,
   local,
   onMigrate,
+  onOpenSnapshots,
 }: Props) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
@@ -161,6 +164,20 @@ export default function AccountDialog({
                 </Button>
               </div>
             )}
+            <div className="unreadable-note account-migrate">
+              <span>
+                云端自动保存历史快照；误删或误导入后，可以恢复到之前的版本。
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={cloud.deletionBlocked}
+                onClick={onOpenSnapshots}
+              >
+                <ClockCounterClockwise size={16} />
+                历史版本
+              </Button>
+            </div>
             {sessions && sessions.length > 0 && (
               <div className="account-sessions">
                 <h3>已登录的设备</h3>

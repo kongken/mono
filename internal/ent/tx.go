@@ -24,6 +24,8 @@ type Tx struct {
 	ProvinceMark *ProvinceMarkClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
+	// Snapshot is the client for interacting with the Snapshot builders.
+	Snapshot *SnapshotClient
 	// SyncReceipt is the client for interacting with the SyncReceipt builders.
 	SyncReceipt *SyncReceiptClient
 	// User is the client for interacting with the User builders.
@@ -165,6 +167,7 @@ func (tx *Tx) init() {
 	tx.MediaObject = NewMediaObjectClient(tx.config)
 	tx.ProvinceMark = NewProvinceMarkClient(tx.config)
 	tx.Session = NewSessionClient(tx.config)
+	tx.Snapshot = NewSnapshotClient(tx.config)
 	tx.SyncReceipt = NewSyncReceiptClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }

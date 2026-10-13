@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
 	"sync/atomic"
@@ -107,11 +108,27 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 				cleanup, cancel := context.WithTimeout(maintenance, 10*time.Second)
 				_, _ = client.AccountDeletionReceipt.Delete().Where(accountdeletionreceipt.ExpiresAtLTE(time.Now().UTC())).Exec(cleanup)
 				cancel()
+				runSnapshotMaintenance(maintenance, client, cache)
 			}
 		}
 	}()
 	h.resources.Store(&Resources{DB: client, Redis: cache, Blobs: blobs, Health: probes, stop: stop})
 	return nil
+}
+
+// snapshotLockKey makes one instance at a time run the snapshot job; the job is
+// also safe without it, the lock only avoids repeated work across replicas.
+const snapshotLockKey = "tripmap:snapshot-maintenance"
+
+func runSnapshotMaintenance(ctx context.Context, db *ent.Client, cache *redisclient.Client) {
+	if ok, err := cache.SetNX(ctx, snapshotLockKey, "1", 50*time.Minute).Result(); err != nil || !ok {
+		return
+	}
+	run, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	if err := application.RunSnapshotMaintenance(run, db, time.Now().UTC()); err != nil {
+		slog.Error("snapshot maintenance", "error", err)
+	}
 }
 func (h *Handlers) Shutdown() error {
 	r := h.resources.Swap(nil)
@@ -159,6 +176,8 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	path, handler = tripmapv1connect.NewAuthServiceHandler(application.NewAuthService(h.cfg, h), opts)
 	mount(path, handler)
 	path, handler = tripmapv1connect.NewFootprintServiceHandler(application.NewFootprintService(h.cfg, h, index), opts)
+	mount(path, handler)
+	path, handler = tripmapv1connect.NewSnapshotServiceHandler(application.NewSnapshotService(h.cfg, h, index), opts)
 	mount(path, handler)
 }
 
