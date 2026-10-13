@@ -30,6 +30,8 @@ type SyncReceipt struct {
 	ChangedCount int `json:"changed_count,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
+	// SnapshotID holds the value of the "snapshot_id" field.
+	SnapshotID *string `json:"snapshot_id,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the SyncReceiptQuery when eager-loading is set.
 	Edges        SyncReceiptEdges `json:"edges"`
@@ -63,7 +65,7 @@ func (*SyncReceipt) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case syncreceipt.FieldRevision, syncreceipt.FieldChangedCount:
 			values[i] = new(sql.NullInt64)
-		case syncreceipt.FieldID, syncreceipt.FieldUserID, syncreceipt.FieldMutationID, syncreceipt.FieldRequestHash:
+		case syncreceipt.FieldID, syncreceipt.FieldUserID, syncreceipt.FieldMutationID, syncreceipt.FieldRequestHash, syncreceipt.FieldSnapshotID:
 			values[i] = new(sql.NullString)
 		case syncreceipt.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -124,6 +126,13 @@ func (_m *SyncReceipt) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.CreatedAt = value.Time
 			}
+		case syncreceipt.FieldSnapshotID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field snapshot_id", values[i])
+			} else if value.Valid {
+				_m.SnapshotID = new(string)
+				*_m.SnapshotID = value.String
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -182,6 +191,11 @@ func (_m *SyncReceipt) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	if v := _m.SnapshotID; v != nil {
+		builder.WriteString("snapshot_id=")
+		builder.WriteString(*v)
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

@@ -416,6 +416,12 @@ export function useCloud(options: Options) {
     opts.current.notify(`已登录：${s.user.displayName || s.user.username}`);
   };
 
+  /** Server-confirmed revision of the loaded data, or null before it is loaded. */
+  const revision = useCallback(
+    () => engineRef.current?.confirmed.revision ?? null,
+    [],
+  );
+
   const loadProviders = useCallback(async () => {
     try {
       setProviders(await authApi.listProviders());
@@ -448,6 +454,7 @@ export function useCloud(options: Options) {
     conflictRecords,
     pending,
     cacheFailed,
+    revision,
     resolveConflict: (choice: "local" | "cloud") =>
       engineRef.current?.resolve(choice),
     exportRawCache: () => {

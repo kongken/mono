@@ -68,6 +68,20 @@ func (_c *SyncReceiptCreate) SetNillableCreatedAt(v *time.Time) *SyncReceiptCrea
 	return _c
 }
 
+// SetSnapshotID sets the "snapshot_id" field.
+func (_c *SyncReceiptCreate) SetSnapshotID(v string) *SyncReceiptCreate {
+	_c.mutation.SetSnapshotID(v)
+	return _c
+}
+
+// SetNillableSnapshotID sets the "snapshot_id" field if the given value is not nil.
+func (_c *SyncReceiptCreate) SetNillableSnapshotID(v *string) *SyncReceiptCreate {
+	if v != nil {
+		_c.SetSnapshotID(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *SyncReceiptCreate) SetID(v string) *SyncReceiptCreate {
 	_c.mutation.SetID(v)
@@ -226,6 +240,10 @@ func (_c *SyncReceiptCreate) createSpec() (*SyncReceipt, *sqlgraph.CreateSpec) {
 		_spec.SetField(syncreceipt.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
 	}
+	if value, ok := _c.mutation.SnapshotID(); ok {
+		_spec.SetField(syncreceipt.FieldSnapshotID, field.TypeString, value)
+		_node.SnapshotID = &value
+	}
 	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -329,6 +347,9 @@ func (u *SyncReceiptUpsertOne) UpdateNewValues() *SyncReceiptUpsertOne {
 		}
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(syncreceipt.FieldCreatedAt)
+		}
+		if _, exists := u.create.mutation.SnapshotID(); exists {
+			s.SetIgnore(syncreceipt.FieldSnapshotID)
 		}
 	}))
 	return u
@@ -561,6 +582,9 @@ func (u *SyncReceiptUpsertBulk) UpdateNewValues() *SyncReceiptUpsertBulk {
 			}
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(syncreceipt.FieldCreatedAt)
+			}
+			if _, exists := b.mutation.SnapshotID(); exists {
+				s.SetIgnore(syncreceipt.FieldSnapshotID)
 			}
 		}
 	}))

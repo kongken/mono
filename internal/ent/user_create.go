@@ -17,6 +17,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
@@ -299,6 +300,21 @@ func (_c *UserCreate) AddSyncReceipts(v ...*SyncReceipt) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddSyncReceiptIDs(ids...)
+}
+
+// AddSnapshotIDs adds the "snapshots" edge to the Snapshot entity by IDs.
+func (_c *UserCreate) AddSnapshotIDs(ids ...string) *UserCreate {
+	_c.mutation.AddSnapshotIDs(ids...)
+	return _c
+}
+
+// AddSnapshots adds the "snapshots" edges to the Snapshot entity.
+func (_c *UserCreate) AddSnapshots(v ...*Snapshot) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddSnapshotIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -585,6 +601,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(syncreceipt.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SnapshotsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SnapshotsTable,
+			Columns: []string{user.SnapshotsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

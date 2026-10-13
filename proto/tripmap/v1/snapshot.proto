@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package tripmap.v1;
+
+import "google/protobuf/timestamp.proto";
+import "tripmap/v1/footprint.proto";
+
+option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
+
+// SnapshotService keeps immutable copies of the caller's footprints so a bad
+// import, deletion or overwrite can be undone. Every method requires a bearer
+// session and only touches the caller's own snapshots.
+//
+// Retention (server defaults): snapshots are kept for 30 days, the newest 10
+// are always kept, and at most 50 are kept per account. A snapshot is never
+// modified; it is only removed by retention or by account deletion.
+service SnapshotService {
+  // ListSnapshots returns the caller's snapshots, newest first, without records.
+  rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
+  // CreateSnapshot saves the current footprints. When a snapshot of the same
+  // revision already exists it is returned instead of storing a duplicate.
+  rpc CreateSnapshot(CreateSnapshotRequest) returns (CreateSnapshotResponse);
+  // GetSnapshot returns one snapshot with its records, for preview or export.
+  rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
+  // RestoreSnapshot atomically makes the caller's footprints equal the
+  // snapshot. The current state is saved first ("before_restore"), so a restore
+  // is undone by restoring that snapshot.
+  rpc RestoreSnapshot(RestoreSnapshotRequest) returns (RestoreSnapshotResponse);
+}
+
+message SnapshotInfo {
+  string id = 1;
+  // Why the snapshot exists: "manual" (saved on the user's request),
+  // "scheduled" (saved by the server's periodic job after changes),
+  // "before_migration" (saved by the client just before a local-to-cloud
+  // migration) or "before_restore" (saved by the server just before a restore).
+  // A string rather than an enum keeps the generated TypeScript free of enum
+  // syntax, which the frontend build forbids.
+  string reason = 2;
+  google.protobuf.Timestamp created_at = 3;
+  int32 visit_count = 4;
+  int32 province_mark_count = 5;
+  // The account revision the snapshot was taken at.
+  int64 revision = 6;
+}
+
+// SnapshotData is the content of a snapshot.
+message SnapshotData {
+  repeated Visit visits = 1;
+  repeated ProvinceMark province_marks = 2;
+}
+
+message ListSnapshotsRequest {}
+
+message ListSnapshotsResponse {
+  repeated SnapshotInfo snapshots = 1;
+}
+
+message CreateSnapshotRequest {
+  // Only "manual" and "before_migration" may be requested by a client.
+  string reason = 1;
+}
+
+message CreateSnapshotResponse {
+  SnapshotInfo snapshot = 1;
+  // False when an existing snapshot of the current revision was returned.
+  bool created = 2;
+}
+
+message GetSnapshotRequest {
+  string id = 1;
+}
+
+message GetSnapshotResponse {
+  SnapshotInfo snapshot = 1;
+  SnapshotData data = 2;
+}
+
+message RestoreSnapshotRequest {
+  string snapshot_id = 1;
+  // Exact revision the client previewed; a different current revision is
+  // rejected with ABORTED and a RevisionConflict detail, even for zero.
+  int64 base_revision = 2;
+  // Stable unique ID reused verbatim after a lost response, never for another restore.
+  string mutation_id = 3;
+}
+
+message RestoreSnapshotResponse {
+  // The account revision after the restore.
+  int64 revision = 1;
+  // Number of footprint records added, changed or removed; 0 when the account
+  // already matched the snapshot.
+  int32 changed_count = 2;
+  // The snapshot of the state before the restore; restore it to undo. May be
+  // unset on a replay once retention has removed it.
+  SnapshotInfo undo_snapshot = 3;
+  bool replayed = 4;
+}

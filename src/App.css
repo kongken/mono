@@ -1894,6 +1894,57 @@ button:disabled {
   margin-right: 6px;
   border-radius: 50%;
 }
+/* Cloud snapshots */
+.snapshot-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #e8ede3;
+  border-radius: 8px;
+}
+.snapshot-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef1ea;
+  font-size: 13px;
+}
+.snapshot-list li:last-child {
+  border-bottom: 0;
+}
+.snapshot-list li > span {
+  min-width: 0;
+}
+.snapshot-list li small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #859186;
+  overflow-wrap: anywhere;
+}
+.snapshot-list li button {
+  flex-shrink: 0;
+}
+.snapshot-list .snapshot-empty {
+  justify-content: center;
+  color: #a4ae9c;
+}
+.snapshot-retention {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: #a4ae9c;
+  line-height: 1.5;
+}
+.snapshot-done {
+  flex-wrap: wrap;
+}
+.snapshot-done > span {
+  flex: 1 1 140px;
+}
 @media (max-width: 700px) {
   .account-migrate {
     flex-direction: column;

@@ -19,6 +19,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
@@ -36,6 +37,7 @@ type UserQuery struct {
 	withSessions         *SessionQuery
 	withFootprintChanges *FootprintChangeQuery
 	withSyncReceipts     *SyncReceiptQuery
+	withSnapshots        *SnapshotQuery
 	modifiers            []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -198,6 +200,28 @@ func (_q *UserQuery) QuerySyncReceipts() *SyncReceiptQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(syncreceipt.Table, syncreceipt.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.SyncReceiptsTable, user.SyncReceiptsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QuerySnapshots chains the current query on the "snapshots" edge.
+func (_q *UserQuery) QuerySnapshots() *SnapshotQuery {
+	query := (&SnapshotClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(snapshot.Table, snapshot.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.SnapshotsTable, user.SnapshotsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -403,6 +427,7 @@ func (_q *UserQuery) Clone() *UserQuery {
 		withSessions:         _q.withSessions.Clone(),
 		withFootprintChanges: _q.withFootprintChanges.Clone(),
 		withSyncReceipts:     _q.withSyncReceipts.Clone(),
+		withSnapshots:        _q.withSnapshots.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -472,6 +497,17 @@ func (_q *UserQuery) WithSyncReceipts(opts ...func(*SyncReceiptQuery)) *UserQuer
 		opt(query)
 	}
 	_q.withSyncReceipts = query
+	return _q
+}
+
+// WithSnapshots tells the query-builder to eager-load the nodes that are connected to
+// the "snapshots" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithSnapshots(opts ...func(*SnapshotQuery)) *UserQuery {
+	query := (&SnapshotClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withSnapshots = query
 	return _q
 }
 
@@ -553,13 +589,14 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [6]bool{
+		loadedTypes = [7]bool{
 			_q.withVisits != nil,
 			_q.withProvinceMarks != nil,
 			_q.withMediaObjects != nil,
 			_q.withSessions != nil,
 			_q.withFootprintChanges != nil,
 			_q.withSyncReceipts != nil,
+			_q.withSnapshots != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -622,6 +659,13 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadSyncReceipts(ctx, query, nodes,
 			func(n *User) { n.Edges.SyncReceipts = []*SyncReceipt{} },
 			func(n *User, e *SyncReceipt) { n.Edges.SyncReceipts = append(n.Edges.SyncReceipts, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withSnapshots; query != nil {
+		if err := _q.loadSnapshots(ctx, query, nodes,
+			func(n *User) { n.Edges.Snapshots = []*Snapshot{} },
+			func(n *User, e *Snapshot) { n.Edges.Snapshots = append(n.Edges.Snapshots, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -793,6 +837,36 @@ func (_q *UserQuery) loadSyncReceipts(ctx context.Context, query *SyncReceiptQue
 	}
 	query.Where(predicate.SyncReceipt(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(user.SyncReceiptsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadSnapshots(ctx context.Context, query *SnapshotQuery, nodes []*User, init func(*User), assign func(*User, *Snapshot)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(snapshot.FieldUserID)
+	}
+	query.Where(predicate.Snapshot(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.SnapshotsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

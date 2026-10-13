@@ -56,6 +56,7 @@ import { fingerprint, isNoop, planMigration } from "./lib/migration";
 import { isMigrated, markMigrated } from "./lib/session";
 import AccountDialog from "./components/AccountDialog";
 import MigrationDialog from "./components/MigrationDialog";
+import SnapshotDialog from "./components/SnapshotDialog";
 import CityPicker from "./components/CityPicker";
 import { readBoot, useCloud } from "./hooks/useCloud";
 import TravelReport from "./components/TravelReport";
@@ -122,6 +123,7 @@ function App() {
   const [importOpen, setImportOpen] = useState<Saved | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   // Accounts whose migration prompt was postponed in this page session.
   const migrationLater = useRef(new Set<string>());
   const fileInput = useRef<HTMLInputElement>(null);
@@ -148,6 +150,7 @@ function App() {
       setUndoVisit(null);
       setStorageError(false);
       setMigrationOpen(false);
+      setSnapshotsOpen(false);
       if (data) {
         setSaved(data);
         setUnreadable(null);
@@ -1625,6 +1628,18 @@ function App() {
             setAccountOpen(false);
             setMigrationOpen(true);
           }}
+          onOpenSnapshots={() => {
+            setAccountOpen(false);
+            setSnapshotsOpen(true);
+          }}
+        />
+      )}
+      {cloud.enabled && cloud.user && snapshotsOpen && (
+        <SnapshotDialog
+          open
+          onOpenChange={setSnapshotsOpen}
+          cloud={cloud}
+          current={saved}
         />
       )}
       {cloud.enabled && cloud.user && migrationOpen && (

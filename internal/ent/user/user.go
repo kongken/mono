@@ -50,6 +50,8 @@ const (
 	EdgeFootprintChanges = "footprint_changes"
 	// EdgeSyncReceipts holds the string denoting the sync_receipts edge name in mutations.
 	EdgeSyncReceipts = "sync_receipts"
+	// EdgeSnapshots holds the string denoting the snapshots edge name in mutations.
+	EdgeSnapshots = "snapshots"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// VisitsTable is the table that holds the visits relation/edge.
@@ -94,6 +96,13 @@ const (
 	SyncReceiptsInverseTable = "sync_receipts"
 	// SyncReceiptsColumn is the table column denoting the sync_receipts relation/edge.
 	SyncReceiptsColumn = "user_id"
+	// SnapshotsTable is the table that holds the snapshots relation/edge.
+	SnapshotsTable = "snapshots"
+	// SnapshotsInverseTable is the table name for the Snapshot entity.
+	// It exists in this package in order to avoid circular dependency with the "snapshot" package.
+	SnapshotsInverseTable = "snapshots"
+	// SnapshotsColumn is the table column denoting the snapshots relation/edge.
+	SnapshotsColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -301,6 +310,20 @@ func BySyncReceipts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newSyncReceiptsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// BySnapshotsCount orders the results by snapshots count.
+func BySnapshotsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSnapshotsStep(), opts...)
+	}
+}
+
+// BySnapshots orders the results by snapshots terms.
+func BySnapshots(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSnapshotsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newVisitsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -341,5 +364,12 @@ func newSyncReceiptsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(SyncReceiptsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, SyncReceiptsTable, SyncReceiptsColumn),
+	)
+}
+func newSnapshotsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SnapshotsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, SnapshotsTable, SnapshotsColumn),
 	)
 }

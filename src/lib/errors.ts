@@ -17,6 +17,8 @@ const KNOWN_MESSAGES: [string, string][] = [
   ["account is disabled", "该账号已被停用"],
   ["invalid or expired state", "登录请求无效或已过期，请重新发起登录"],
   ["oauth sign-in failed", "第三方登录失败，请重试"],
+  ["snapshot not found", "该快照已过期或不存在"],
+  ["snapshot contains", "该快照包含当前行政区划不再支持的区域，无法恢复"],
 ];
 
 /** User-facing Chinese text for a failed API call. */

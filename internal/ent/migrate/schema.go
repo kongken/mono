@@ -187,6 +187,43 @@ var (
 			},
 		},
 	}
+	// SnapshotsColumns holds the columns for the "snapshots" table.
+	SnapshotsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "reason", Type: field.TypeEnum, Enums: []string{"manual", "scheduled", "before_migration", "before_restore"}},
+		{Name: "revision", Type: field.TypeInt64},
+		{Name: "visit_count", Type: field.TypeInt},
+		{Name: "mark_count", Type: field.TypeInt},
+		{Name: "payload", Type: field.TypeBytes},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeString},
+	}
+	// SnapshotsTable holds the schema information for the "snapshots" table.
+	SnapshotsTable = &schema.Table{
+		Name:       "snapshots",
+		Columns:    SnapshotsColumns,
+		PrimaryKey: []*schema.Column{SnapshotsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "snapshots_users_snapshots",
+				Columns:    []*schema.Column{SnapshotsColumns[7]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "snapshot_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{SnapshotsColumns[7], SnapshotsColumns[6]},
+			},
+			{
+				Name:    "snapshot_user_id_revision",
+				Unique:  false,
+				Columns: []*schema.Column{SnapshotsColumns[7], SnapshotsColumns[2]},
+			},
+		},
+	}
 	// SyncReceiptsColumns holds the columns for the "sync_receipts" table.
 	SyncReceiptsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -195,6 +232,7 @@ var (
 		{Name: "revision", Type: field.TypeInt64},
 		{Name: "changed_count", Type: field.TypeInt},
 		{Name: "created_at", Type: field.TypeTime},
+		{Name: "snapshot_id", Type: field.TypeString, Nullable: true},
 		{Name: "user_id", Type: field.TypeString},
 	}
 	// SyncReceiptsTable holds the schema information for the "sync_receipts" table.
@@ -205,7 +243,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "sync_receipts_users_sync_receipts",
-				Columns:    []*schema.Column{SyncReceiptsColumns[6]},
+				Columns:    []*schema.Column{SyncReceiptsColumns[7]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -214,7 +252,7 @@ var (
 			{
 				Name:    "syncreceipt_user_id_mutation_id",
 				Unique:  true,
-				Columns: []*schema.Column{SyncReceiptsColumns[6], SyncReceiptsColumns[1]},
+				Columns: []*schema.Column{SyncReceiptsColumns[7], SyncReceiptsColumns[1]},
 			},
 		},
 	}
@@ -258,6 +296,7 @@ var (
 		MediaObjectsTable,
 		ProvinceMarksTable,
 		AuthSessionsTable,
+		SnapshotsTable,
 		SyncReceiptsTable,
 		UsersTable,
 	}
@@ -281,6 +320,7 @@ func init() {
 	AuthSessionsTable.Annotation = &entsql.Annotation{
 		Table: "auth_sessions",
 	}
+	SnapshotsTable.ForeignKeys[0].RefTable = UsersTable
 	SyncReceiptsTable.ForeignKeys[0].RefTable = UsersTable
 	UsersTable.Annotation = &entsql.Annotation{
 		Table: "users",

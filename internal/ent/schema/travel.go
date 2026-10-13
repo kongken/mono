@@ -52,6 +52,7 @@ func (User) Edges() []ent.Edge {
 		edge.To("sessions", Session.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("footprint_changes", FootprintChange.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("sync_receipts", SyncReceipt.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("snapshots", Snapshot.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }
 
@@ -173,6 +174,8 @@ func (SyncReceipt) Fields() []ent.Field {
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").Immutable(),
 		field.String("mutation_id").NotEmpty().Immutable(), field.String("request_hash").Immutable(),
 		field.Int64("revision").NonNegative().Immutable(), field.Int("changed_count").NonNegative().Immutable(), field.Time("created_at").Default(now).Immutable(),
+		// Set by snapshot restores: the pre-restore snapshot, so a replay can answer with it.
+		field.String("snapshot_id").Optional().Nillable().Immutable(),
 	}
 }
 func (SyncReceipt) Edges() []ent.Edge {
@@ -192,3 +195,24 @@ func (AccountDeletionReceipt) Fields() []ent.Field {
 	}
 }
 func (AccountDeletionReceipt) Indexes() []ent.Index { return []ent.Index{index.Fields("expires_at")} }
+
+// Snapshot is an immutable copy of a user's footprints at one revision. The
+// payload is a gzip-compressed tripmap.v1.SnapshotData. Snapshots are removed
+// only by retention or when the account is deleted.
+type Snapshot struct{ ent.Schema }
+
+func (Snapshot) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").Immutable(),
+		field.Enum("reason").Values("manual", "scheduled", "before_migration", "before_restore").Immutable(),
+		field.Int64("revision").NonNegative().Immutable(),
+		field.Int("visit_count").NonNegative().Immutable(), field.Int("mark_count").NonNegative().Immutable(),
+		field.Bytes("payload").Immutable(), field.Time("created_at").Default(now).Immutable(),
+	}
+}
+func (Snapshot) Edges() []ent.Edge {
+	return []ent.Edge{edge.From("user", User.Type).Ref("snapshots").Field("user_id").Unique().Required().Immutable()}
+}
+func (Snapshot) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("user_id", "created_at"), index.Fields("user_id", "revision")}
+}

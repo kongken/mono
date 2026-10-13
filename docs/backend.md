@@ -4,7 +4,7 @@
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
-当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1：账号与会话（`AuthService`）、足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流），前端登录与云端读写闭环也已接入（配置 `VITE_API_BASE_URL` 后出现登录入口，见 [功能描述](features.md)）。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号注销、增量变更日志与批量同步；快照、上传签名和分享仍待实现，真实 OAuth 授权验收待部署。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录。
+当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1：账号与会话（`AuthService`）、足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流），前端登录与云端读写闭环也已接入（配置 `VITE_API_BASE_URL` 后出现登录入口，见 [功能描述](features.md)）。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号注销、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；上传签名和分享仍待实现，真实 OAuth 授权验收待部署。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
 
 Redis 客户端已接入，后续用于会话、缓存或限流；本次没有把城市足迹存入 Redis。对象内容使用 S3，PostgreSQL 只存业务记录和媒体元数据。
 
@@ -15,7 +15,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `internal/app/` | Bootstrap、依赖注入、Gin 路由 |
 | `internal/config/` | 业务配置及必填存储名称校验 |
-| `internal/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService` 及认证拦截器 |
+| `internal/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）及认证拦截器 |
 | `internal/auth/` | 会话令牌、Redis 限流与 OAuth state 存储；`provider/` 为 GitHub、Google OAuth 适配 |
 | `internal/regions/` | 嵌入的行政区域索引，供服务端校验区域 ID、名称与归属 |
 | `internal/testutil/` | 带独立 schema 和 Redis key 前缀的集成测试辅助 |
@@ -152,6 +152,24 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
 - 这两项旧云端记录若仍存为台湾 `710000`，快照和写入响应会返回规范化的福建归属，不修改原行、不提升 revision；旧客户端提交台湾归属时也先规范化再严格校验。与既有记录相同的规范化重放仍幂等，实际修改日期、颜色或备注后才按原有用户锁与 revision 机制写回福建归属。其他错误归属仍拒绝；没有数据库 schema 变化或批量数据迁移。独立台湾省份标记保留。
 - 此归属修正需先部署后端，再部署前端，以免新前端向尚未更新区域索引的旧后端提交福建记录被拒绝。
 
+### 快照（`tripmap.v1.SnapshotService`，F3）
+
+所有方法都要求登录，只访问当前用户自己的快照；快照内容是 `SnapshotData`（城市足迹和省份标记），保存为 gzip 压缩的 Protobuf，不可修改。
+
+| 方法 | 行为 |
+| --- | --- |
+| `ListSnapshots` | 按时间倒序返回元数据（ID、来源 `reason`、时间、城市与省份标记数量、快照时的 `revision`），不读取内容 |
+| `CreateSnapshot` | 在持有用户行锁的事务中保存当前足迹。客户端只能请求 `manual` 或 `before_migration`，其他值返回 `invalid_argument`；该 `revision` 已有快照时返回已有的（`created: false`），不重复保存。每用户每小时最多 30 次 |
+| `GetSnapshot` | 返回元数据与全部记录，供预览与比较；他人或不存在的 ID 返回 `not_found` |
+| `RestoreSnapshot` | 参数 `snapshot_id`、`base_revision`、`mutation_id`。同一事务内：校验 `base_revision` 等于当前 revision（含 0，不同则 `aborted` 并附 `RevisionConflict`），保存 `before_restore` 快照，按最小差异（先删除、再新增或改写）把足迹改成与快照一致，每条变更照常写入变更日志并推进 revision。每用户每分钟最多 6 次 |
+
+- 恢复的变更与普通编辑一样进入 `footprint_changes`，其他设备通过 `GetChanges` 增量同步；全部成功才提交，失败不留下部分结果，也不留下 `before_restore` 快照。
+- `mutation_id` 与请求内容（快照 ID 和 `base_revision`）的哈希存入 `sync_receipts`（同一张表，`snapshot_id` 记录撤销用快照）：同 ID 同内容的重试不再次执行，返回原 revision、变更数和撤销快照（`replayed: true`；该快照已被保留规则清理时为空）；同 ID 不同内容返回 `already_exists`。回执检查先于 revision 检查，因此丢失响应后的重试不会误报冲突。
+- 快照记录在恢复时用当前区域索引重新校验，名称、归属或区域 ID 已不被接受的返回 `failed_precondition`，云端不变。快照内的省份沿用既有规范化（金门、连江归福建）。
+- `reason` 取值：`manual`、`scheduled`、`before_migration`、`before_restore`。Protobuf 中用字符串而非 enum，是因为前端 `erasableSyntaxOnly` 禁止生成的 TypeScript enum。
+
+**保留与定时（默认值，常量在 `internal/application/snapshot_service.go`）。** 保留 30 天、始终保留最新 10 个、每账号最多 50 个，每次保存快照时对该账号执行，恢复期间不会清理正在恢复的快照；快照间隔 24 小时。`app.go` 的每小时维护任务在 Redis 锁 `tripmap:snapshot-maintenance`（50 分钟）保护下调用 `RunSnapshotMaintenance`：为“有足迹、自最新快照后有改动、且 24 小时内没有任何快照”的账号保存 `scheduled` 快照（在用户行锁内再次判断，多实例或重复运行不会产生重复），并对不再变化账号的过期快照执行保留规则。账号注销通过外键级联删除全部快照。
+
 ```bash
 # 用 curl 体验（令牌来自 Register 或 Login 的响应）
 curl -s http://127.0.0.1:18081/api/tripmap.v1.AuthService/Register \
@@ -170,6 +188,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 | `city_visits` | 所属用户、区域 ID/名称、所属省份、颜色、日期字符串、备注；`user_id + region_code` 唯一 |
 | `province_marks` | 所属用户、省份 ID、颜色；`user_id + province_code` 唯一 |
 | `media_objects` | 所属用户、唯一 object key、内容类型、非负字节大小、pending/ready 状态 |
+| `snapshots` | 所属用户、`reason`（manual / scheduled / before_migration / before_restore）、快照时的 `revision`、城市与省份标记数量、gzip 压缩的 `SnapshotData` 载荷、创建时间；所有字段不可修改；`user_id + created_at`、`user_id + revision` 索引；用户删除时级联 |
 
 城市足迹与省份独立标记分表。删除城市不影响省份独立标记；用户归属为必填外键，删除用户时数据库级联删除这些元数据。注销服务先清理 S3 实体对象，再级联删除元数据；对象清理失败保留已暂停账号以便重试。
 
@@ -199,13 +218,13 @@ make test-integration
 
 PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除。
 
-`internal/application` 的测试通过 HTTP 调用真实的处理器和拦截器，使用同样的隔离方式（随机 schema 与 Redis key 前缀），未设置 `TRIPMAP_TEST_POSTGRES_DSN` 和 `TRIPMAP_TEST_REDIS_ADDR` 时跳过。覆盖：令牌与密码只存哈希、注册/登录校验与限流、会话过期/撤销/禁用、他人会话不可见、OAuth state 单次使用与注册关闭、用户 A/B 足迹隔离、非法数据、幂等、revision 冲突、省份标记与城市足迹互不影响，以及并发写入不丢失。`.github/workflows/ci.yml` 在 PostgreSQL 与 Redis 服务容器中运行 `go vet`、`go test -race ./...` 和前端测试、地图检查、构建。
+`internal/application` 的测试通过 HTTP 调用真实的处理器和拦截器，使用同样的隔离方式（随机 schema 与 Redis key 前缀），未设置 `TRIPMAP_TEST_POSTGRES_DSN` 和 `TRIPMAP_TEST_REDIS_ADDR` 时跳过。覆盖：快照的保存与去重、恢复的差异/撤销/revision 条件/幂等重放/原子性、用户隔离、保留与定时任务、注销清除快照；令牌与密码只存哈希、注册/登录校验与限流、会话过期/撤销/禁用、他人会话不可见、OAuth state 单次使用与注册关闭、用户 A/B 足迹隔离、非法数据、幂等、revision 冲突、省份标记与城市足迹互不影响，以及并发写入不丢失。`.github/workflows/ci.yml` 在 PostgreSQL 与 Redis 服务容器中运行 `go vet`、`go test -race ./...` 和前端测试、地图检查、构建。
 
 [Docker 镜像与 Actions](docker-images.md) 说明前后端两个镜像的构建发布。根目录 `Dockerfile` 仅构建后端镜像，运行时挂载 `/config/config.yaml`；容器中连接 Compose 依赖时，配置地址使用服务名和容器端口，而不是宿主机的 `127.0.0.1`。
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：快照（F3）等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）已实现；F3–F12 仍待完整实现。
+从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：多次旅行（F5）、照片（F4）等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）与 F3（云端快照与恢复）已实现；F4–F12 仍待完整实现。
 
 ## F1 新接口与部署
 
@@ -213,7 +232,7 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 - `FootprintService.GetChanges`：参数 `since_revision` / `limit`，返回有序 `changes`、`next_revision`、`current_revision`、`has_more` 与 `resync_required`。
 - `FootprintService.SyncChanges`：参数 `mutation_id`、`base_revision` 和 1–600 条 oneof 变更（上限由 F2 迁移需要决定：497 个城市加 34 个省份标记）。全批原子处理，冲突返回 ABORTED；同一 ID 相同内容返回原结果，复用 ID 提交不同内容返回 ALREADY_EXISTS。日志、revision、回执与记录在同一事务提交。
 
-新增 `users.deletion_requested_at`、`footprint_changes`、`sync_receipts` 和无账号外键的短期 `account_deletion_receipts`，应在部署前审核 Ent 迁移并**先升级后端，再部署前端**。旧 RPC 保留原语义并自动记录变化。旧数据不会被清空，也不会被服务端自动迁移上云（由用户在前端主动迁移），缺失旧日志时走全量快照。
+新增 `users.deletion_requested_at`、`footprint_changes`、`sync_receipts` 和无账号外键的短期 `account_deletion_receipts`；F3 再新增 `snapshots` 表和 `sync_receipts.snapshot_id`（可空列），应在部署前审核 Ent 迁移并**先升级后端，再部署前端**。旧 RPC 保留原语义并自动记录变化。旧数据不会被清空，也不会被服务端自动迁移上云（由用户在前端主动迁移），缺失旧日志时走全量快照。
 
 CI 现在启动 PostgreSQL、Redis 和 S3 兼容测试服务，执行真实处理器/race 与对象读写检查。前端 CI 构建启用 `/api`，自动执行桌面及手机注销界面验收（模拟 RPC）。真实 OAuth、生产凭据和生产数据不进入 CI；前端发布镜像仍保持默认纯本地模式，部署云端能力需设置构建参数。
 
