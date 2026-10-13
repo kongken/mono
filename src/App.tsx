@@ -52,7 +52,10 @@ import {
   validateSaved as validateSavedData,
   type LocalLoad,
 } from "./lib/persistence";
+import { fingerprint, isNoop, planMigration } from "./lib/migration";
+import { isMigrated, markMigrated } from "./lib/session";
 import AccountDialog from "./components/AccountDialog";
+import MigrationDialog from "./components/MigrationDialog";
 import CityPicker from "./components/CityPicker";
 import { readBoot, useCloud } from "./hooks/useCloud";
 import TravelReport from "./components/TravelReport";
@@ -118,6 +121,9 @@ function App() {
   const [basemap, setBasemap] = useState(loadBasemap);
   const [importOpen, setImportOpen] = useState<Saved | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [migrationOpen, setMigrationOpen] = useState(false);
+  // Accounts whose migration prompt was postponed in this page session.
+  const migrationLater = useRef(new Set<string>());
   const fileInput = useRef<HTMLInputElement>(null);
   const savedRef = useRef(saved);
   savedRef.current = saved;
@@ -141,6 +147,7 @@ function App() {
       setToast("");
       setUndoVisit(null);
       setStorageError(false);
+      setMigrationOpen(false);
       if (data) {
         setSaved(data);
         setUnreadable(null);
@@ -178,6 +185,32 @@ function App() {
     setSaved(update);
     return true;
   };
+  // Offer to move this device's footprints once the account's cloud data is
+  // confirmed. Nothing is prompted when there is nothing to move.
+  const userId = cloud.user?.id;
+  const cloudReady =
+    cloud.mode === "cloud" &&
+    cloud.fresh &&
+    cloud.canWrite &&
+    !cloud.pending &&
+    cloud.sync === "idle";
+  useEffect(() => {
+    if (!userId || !cloudReady || migrationOpen) return;
+    if (migrationLater.current.has(userId)) return;
+    const local = loadSaved();
+    if (local.status !== "ok") return;
+    const print = fingerprint(local.saved);
+    if (
+      !local.saved.visits.length && !Object.keys(local.saved.provinces).length
+    )
+      return;
+    if (isMigrated(localStorage, userId, print)) return;
+    if (isNoop(planMigration(local.saved, savedRef.current))) {
+      markMigrated(localStorage, userId, print);
+      return;
+    }
+    setMigrationOpen(true);
+  }, [userId, cloudReady, migrationOpen]);
   useEffect(() => {
     // Cloud data is not written to the local key: that key belongs to local mode.
     if (unreadable || cloud.mode === "cloud") return;
@@ -1577,11 +1610,44 @@ function App() {
           open={accountOpen}
           onOpenChange={setAccountOpen}
           cloud={cloud}
-          localCount={
+          local={
             accountOpen && cloud.mode === "cloud"
-              ? loadSaved().saved.visits.length
-              : 0
+              ? (() => {
+                  const l = loadSaved();
+                  return {
+                    status: l.status,
+                    count: l.saved.visits.length + Object.keys(l.saved.provinces).length,
+                  };
+                })()
+              : { status: "empty", count: 0 }
           }
+          onMigrate={() => {
+            setAccountOpen(false);
+            setMigrationOpen(true);
+          }}
+        />
+      )}
+      {cloud.enabled && cloud.user && migrationOpen && (
+        <MigrationDialog
+          open
+          onOpenChange={setMigrationOpen}
+          local={loadSaved().saved}
+          cloudSaved={saved}
+          cloud={cloud}
+          provinceName={(code) => provinceByCode(code)?.name ?? code}
+          apply={(target) => commit(() => target)}
+          onExportCloud={exportData}
+          onLater={() => {
+            if (userId) migrationLater.current.add(userId);
+          }}
+          onMigrated={() => {
+            if (userId)
+              markMigrated(
+                localStorage,
+                userId,
+                fingerprint(loadSaved().saved),
+              );
+          }}
         />
       )}
       {toast && (

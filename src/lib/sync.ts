@@ -6,7 +6,10 @@ export type Op =
   | { type: "upsertMark"; province: string; color: string }
   | { type: "deleteMark"; province: string };
 
-const sameVisit = (a: Visit, b: Visit) =>
+/** One SyncChanges batch is atomic; the server accepts up to this many operations. */
+export const MAX_BATCH_OPS = 600;
+
+export const sameVisit = (a: Visit, b: Visit) =>
   a.name === b.name &&
   a.province === b.province &&
   a.color === b.color &&
@@ -285,7 +288,7 @@ export class SyncEngine {
           this.pendingBatch = {
             id: crypto.randomUUID(),
             revision: this.revision,
-            ops: operations.slice(0, 100),
+            ops: operations.slice(0, MAX_BATCH_OPS),
           };
           // Persist the exact request before sending; a reload can replay its receipt.
           this.changed();
