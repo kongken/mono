@@ -1,4 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { prepareProvinceNeighbors } from "./prepare-province-neighbors.mjs";
 import { prepareTaiwan } from "./prepare-taiwan.mjs";
 import { splitFujianRegions } from "./split-fujian-regions.mjs";
 const china = JSON.parse(await readFile("public/maps/100000.json", "utf8"));
@@ -65,3 +66,5 @@ const index = await Promise.all(
 await writeFile("src/regions.json", JSON.stringify(index));
 // The Go backend validates region IDs against its own embedded copy.
 await writeFile("internal/regions/regions.json", JSON.stringify(index));
+
+await prepareProvinceNeighbors();

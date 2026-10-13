@@ -1,3 +1,5 @@
+import provinceNeighbors from "../province-neighbors.json" with { type: "json" };
+
 export type Visit = {
   code: string;
   name: string;
@@ -28,14 +30,42 @@ export function provinceColor(saved: Saved, province: string): string | undefine
   return saved.provinces[province] || saved.visits.find((visit) => visit.province === province)?.color;
 }
 
+function assignProvinceColors(): Record<string, string> {
+  const graph: Record<string, string[]> = provinceNeighbors;
+  const assigned: Record<string, string> = {};
+  const remaining = Object.keys(graph);
+  const counts = colors.map(() => 0);
+  const neighborColors = (code: string) =>
+    new Set(graph[code].map(neighbor => assigned[neighbor]).filter(Boolean));
+  while (remaining.length) {
+    // Color the most constrained province first; ID breaks ties deterministically.
+    remaining.sort((a, b) =>
+      neighborColors(b).size - neighborColors(a).size ||
+      graph[b].length - graph[a].length || a.localeCompare(b),
+    );
+    const code = remaining.shift()!;
+    const used = neighborColors(code);
+    const candidates = colors.map((color, index) => ({ ...color, index }))
+      .filter(color => !used.has(color.value))
+      .sort((a, b) => counts[a.index] - counts[b.index] || a.index - b.index);
+    const selected = candidates[0];
+    if (!selected) throw new Error(`Province palette cannot color ${code}`);
+    assigned[code] = selected.value;
+    counts[selected.index]++;
+  }
+  return assigned;
+}
+
+// Assign all provinces once so exploration changes never recolor other provinces.
+const nationalColors = assignProvinceColors();
+
 export function nationalProvinceColors(saved: Saved): Record<string, string> {
-  // Derive display colors independently from stored city colors, including old backups.
   const explored = new Set([
     ...Object.keys(saved.provinces),
     ...saved.visits.map((visit) => visit.province),
   ]);
   return Object.fromEntries(
-    [...explored].sort().map((code, index) => [code, colors[index % colors.length].value]),
+    [...explored].sort().map(code => [code, nationalColors[code] || colors[0].value]),
   );
 }
 

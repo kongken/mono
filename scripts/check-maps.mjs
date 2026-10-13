@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { provinceNeighbors } from "./prepare-province-neighbors.mjs";
 import { readFile } from "node:fs/promises";
 import { geoArea, geoMercator, geoPath } from "d3-geo";
 import { normalizeMap } from "../src/lib/maps.ts";
@@ -7,6 +8,8 @@ assert.equal(regions.length, 34);
 const national = normalizeMap(JSON.parse(await readFile('public/maps/100000.json', 'utf8')));
 assert.equal(national.features.filter(f => f.properties.name).length, 34);
 for (const f of national.features) assert.ok(geoArea(f) < 2 * Math.PI, `National map: ${f.properties.name} has inverted winding`);
+const storedNeighbors = JSON.parse(await readFile("src/province-neighbors.json", "utf8"));
+assert.deepEqual(storedNeighbors, provinceNeighbors(national), "Province adjacency is stale: run npm run prepare:map-colors");
 const codes = new Set();
 let total = 0;
 for (const province of regions) {

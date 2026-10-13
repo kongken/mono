@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { automaticColor, automaticProvinceColor, provinceColor, colors, toggleProvince, toggleVisit } from "../src/lib/travel.ts";
 const initial = () => ({
   version: 1,
@@ -103,15 +104,15 @@ test("national map balances legacy imported province colors without changing sav
   const state = {
     version: 1,
     provinces: { "130000": colors[0].value },
-    visits: Array.from({ length: 29 }, (_, i) => ({
-      code: `city-${i}`, name: `城市${i}`, province: `province-${String(i).padStart(2, "0")}`,
+    visits: JSON.parse(readFileSync("src/regions.json", "utf8")).filter(region => region.code !== "130000").slice(0, 29).map((region, i) => ({
+      code: `city-${i}`, name: `城市${i}`, province: region.code,
       color: colors[0].value, date: "2026-10-13", note: "保留旅行记忆",
     })),
   };
   const before = structuredClone(state);
   const result = nationalProvinceColors(state);
   assert.equal(Object.keys(result).length, 30);
-  for (const color of colors) assert.equal(Object.values(result).filter(value => value === color.value).length, 6);
+  assert.equal(new Set(Object.values(result)).size, colors.length);
   assert.deepEqual(state, before);
   assert.deepEqual(nationalProvinceColors({ ...state, visits: [...state.visits].reverse() }), result);
 });
