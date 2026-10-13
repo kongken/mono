@@ -504,6 +504,55 @@ h1 > span {
   background: #4b937d;
   border-color: #4b937d;
 }
+.fill-mode {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 3;
+  display: flex;
+  height: 32px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #dfe6d8;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px #263e3310;
+}
+.fill-mode button {
+  padding: 0 12px;
+  font-size: 11px;
+  color: #5d7356;
+  background: transparent;
+  border: 0;
+}
+.fill-mode button + button {
+  border-left: 1px solid #e9ede4;
+}
+.fill-mode button[aria-pressed="true"] {
+  color: #fff;
+  background: #4b937d;
+}
+.city-shape {
+  cursor: pointer;
+  transition: filter 0.2s;
+  stroke-linejoin: round;
+}
+.city-shape:hover {
+  filter: brightness(0.9);
+}
+.map-region.province-outline:hover path,
+.map-region.province-outline.visited:hover path {
+  fill: none;
+  filter: none;
+  stroke: #6f8a72;
+  stroke-width: 1;
+}
+.map-region.province-outline:focus-visible path,
+.map-region.province-outline.visited:focus-visible path {
+  fill: none;
+  filter: none;
+  stroke: #355943;
+  stroke-width: 2.4;
+}
 .map-message {
   min-height: 515px;
   display: flex;
