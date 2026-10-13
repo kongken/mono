@@ -127,12 +127,30 @@ func (MediaObject) Fields() []ent.Field {
 	return append([]ent.Field{
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").Immutable(),
 		field.String("object_key").NotEmpty().Unique(), field.String("content_type").NotEmpty(), field.Int64("size_bytes").NonNegative(),
-		field.Enum("status").Values("pending", "ready").Default("pending"),
+		field.Enum("status").Values("pending", "ready", "deleting").Default("pending"),
+		field.String("region_code").Default(""), field.String("filename").Default(""),
+		field.String("upload_id").Default(""), field.String("request_hash").Default(""),
+		field.String("upload_key").Default(""), field.String("thumbnail_key").Default(""),
+		field.Time("upload_expires_at").Optional().Nillable(),
+		field.Int("width").Default(0).NonNegative(), field.Int("height").Default(0).NonNegative(),
 	}, timestamps()...)
 }
 func (MediaObject) Edges() []ent.Edge {
 	return []ent.Edge{edge.From("user", User.Type).Ref("media_objects").Field("user_id").Unique().Required().Immutable()}
 }
+
+func (MediaObject) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("user_id", "region_code"), index.Fields("user_id", "upload_id").Unique().Annotations(entsql.IndexWhere("upload_id <> ''"))}
+}
+
+// Upload cleanup outlives the owning account: a signed PUT can still finish
+// after account deletion. No personal information is retained here.
+type MediaCleanup struct{ ent.Schema }
+
+func (MediaCleanup) Fields() []ent.Field {
+	return []ent.Field{field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("object_key").Unique(), field.Time("delete_after")}
+}
+func (MediaCleanup) Indexes() []ent.Index { return []ent.Index{index.Fields("delete_after")} }
 
 func validColor(v string) error {
 	switch v {

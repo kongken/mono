@@ -85,6 +85,51 @@ func SizeBytes(v int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldSizeBytes, v))
 }
 
+// RegionCode applies equality check predicate on the "region_code" field. It's identical to RegionCodeEQ.
+func RegionCode(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldRegionCode, v))
+}
+
+// Filename applies equality check predicate on the "filename" field. It's identical to FilenameEQ.
+func Filename(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldFilename, v))
+}
+
+// UploadID applies equality check predicate on the "upload_id" field. It's identical to UploadIDEQ.
+func UploadID(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldUploadID, v))
+}
+
+// RequestHash applies equality check predicate on the "request_hash" field. It's identical to RequestHashEQ.
+func RequestHash(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldRequestHash, v))
+}
+
+// UploadKey applies equality check predicate on the "upload_key" field. It's identical to UploadKeyEQ.
+func UploadKey(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldUploadKey, v))
+}
+
+// ThumbnailKey applies equality check predicate on the "thumbnail_key" field. It's identical to ThumbnailKeyEQ.
+func ThumbnailKey(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldThumbnailKey, v))
+}
+
+// UploadExpiresAt applies equality check predicate on the "upload_expires_at" field. It's identical to UploadExpiresAtEQ.
+func UploadExpiresAt(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldUploadExpiresAt, v))
+}
+
+// Width applies equality check predicate on the "width" field. It's identical to WidthEQ.
+func Width(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldWidth, v))
+}
+
+// Height applies equality check predicate on the "height" field. It's identical to HeightEQ.
+func Height(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldHeight, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldCreatedAt, v))
@@ -348,6 +393,526 @@ func StatusIn(vs ...Status) predicate.MediaObject {
 // StatusNotIn applies the NotIn predicate on the "status" field.
 func StatusNotIn(vs ...Status) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldNotIn(FieldStatus, vs...))
+}
+
+// RegionCodeEQ applies the EQ predicate on the "region_code" field.
+func RegionCodeEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldRegionCode, v))
+}
+
+// RegionCodeNEQ applies the NEQ predicate on the "region_code" field.
+func RegionCodeNEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldRegionCode, v))
+}
+
+// RegionCodeIn applies the In predicate on the "region_code" field.
+func RegionCodeIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldRegionCode, vs...))
+}
+
+// RegionCodeNotIn applies the NotIn predicate on the "region_code" field.
+func RegionCodeNotIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldRegionCode, vs...))
+}
+
+// RegionCodeGT applies the GT predicate on the "region_code" field.
+func RegionCodeGT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldRegionCode, v))
+}
+
+// RegionCodeGTE applies the GTE predicate on the "region_code" field.
+func RegionCodeGTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldRegionCode, v))
+}
+
+// RegionCodeLT applies the LT predicate on the "region_code" field.
+func RegionCodeLT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldRegionCode, v))
+}
+
+// RegionCodeLTE applies the LTE predicate on the "region_code" field.
+func RegionCodeLTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldRegionCode, v))
+}
+
+// RegionCodeContains applies the Contains predicate on the "region_code" field.
+func RegionCodeContains(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContains(FieldRegionCode, v))
+}
+
+// RegionCodeHasPrefix applies the HasPrefix predicate on the "region_code" field.
+func RegionCodeHasPrefix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasPrefix(FieldRegionCode, v))
+}
+
+// RegionCodeHasSuffix applies the HasSuffix predicate on the "region_code" field.
+func RegionCodeHasSuffix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasSuffix(FieldRegionCode, v))
+}
+
+// RegionCodeEqualFold applies the EqualFold predicate on the "region_code" field.
+func RegionCodeEqualFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEqualFold(FieldRegionCode, v))
+}
+
+// RegionCodeContainsFold applies the ContainsFold predicate on the "region_code" field.
+func RegionCodeContainsFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContainsFold(FieldRegionCode, v))
+}
+
+// FilenameEQ applies the EQ predicate on the "filename" field.
+func FilenameEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldFilename, v))
+}
+
+// FilenameNEQ applies the NEQ predicate on the "filename" field.
+func FilenameNEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldFilename, v))
+}
+
+// FilenameIn applies the In predicate on the "filename" field.
+func FilenameIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldFilename, vs...))
+}
+
+// FilenameNotIn applies the NotIn predicate on the "filename" field.
+func FilenameNotIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldFilename, vs...))
+}
+
+// FilenameGT applies the GT predicate on the "filename" field.
+func FilenameGT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldFilename, v))
+}
+
+// FilenameGTE applies the GTE predicate on the "filename" field.
+func FilenameGTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldFilename, v))
+}
+
+// FilenameLT applies the LT predicate on the "filename" field.
+func FilenameLT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldFilename, v))
+}
+
+// FilenameLTE applies the LTE predicate on the "filename" field.
+func FilenameLTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldFilename, v))
+}
+
+// FilenameContains applies the Contains predicate on the "filename" field.
+func FilenameContains(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContains(FieldFilename, v))
+}
+
+// FilenameHasPrefix applies the HasPrefix predicate on the "filename" field.
+func FilenameHasPrefix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasPrefix(FieldFilename, v))
+}
+
+// FilenameHasSuffix applies the HasSuffix predicate on the "filename" field.
+func FilenameHasSuffix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasSuffix(FieldFilename, v))
+}
+
+// FilenameEqualFold applies the EqualFold predicate on the "filename" field.
+func FilenameEqualFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEqualFold(FieldFilename, v))
+}
+
+// FilenameContainsFold applies the ContainsFold predicate on the "filename" field.
+func FilenameContainsFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContainsFold(FieldFilename, v))
+}
+
+// UploadIDEQ applies the EQ predicate on the "upload_id" field.
+func UploadIDEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldUploadID, v))
+}
+
+// UploadIDNEQ applies the NEQ predicate on the "upload_id" field.
+func UploadIDNEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldUploadID, v))
+}
+
+// UploadIDIn applies the In predicate on the "upload_id" field.
+func UploadIDIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldUploadID, vs...))
+}
+
+// UploadIDNotIn applies the NotIn predicate on the "upload_id" field.
+func UploadIDNotIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldUploadID, vs...))
+}
+
+// UploadIDGT applies the GT predicate on the "upload_id" field.
+func UploadIDGT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldUploadID, v))
+}
+
+// UploadIDGTE applies the GTE predicate on the "upload_id" field.
+func UploadIDGTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldUploadID, v))
+}
+
+// UploadIDLT applies the LT predicate on the "upload_id" field.
+func UploadIDLT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldUploadID, v))
+}
+
+// UploadIDLTE applies the LTE predicate on the "upload_id" field.
+func UploadIDLTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldUploadID, v))
+}
+
+// UploadIDContains applies the Contains predicate on the "upload_id" field.
+func UploadIDContains(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContains(FieldUploadID, v))
+}
+
+// UploadIDHasPrefix applies the HasPrefix predicate on the "upload_id" field.
+func UploadIDHasPrefix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasPrefix(FieldUploadID, v))
+}
+
+// UploadIDHasSuffix applies the HasSuffix predicate on the "upload_id" field.
+func UploadIDHasSuffix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasSuffix(FieldUploadID, v))
+}
+
+// UploadIDEqualFold applies the EqualFold predicate on the "upload_id" field.
+func UploadIDEqualFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEqualFold(FieldUploadID, v))
+}
+
+// UploadIDContainsFold applies the ContainsFold predicate on the "upload_id" field.
+func UploadIDContainsFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContainsFold(FieldUploadID, v))
+}
+
+// RequestHashEQ applies the EQ predicate on the "request_hash" field.
+func RequestHashEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldRequestHash, v))
+}
+
+// RequestHashNEQ applies the NEQ predicate on the "request_hash" field.
+func RequestHashNEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldRequestHash, v))
+}
+
+// RequestHashIn applies the In predicate on the "request_hash" field.
+func RequestHashIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldRequestHash, vs...))
+}
+
+// RequestHashNotIn applies the NotIn predicate on the "request_hash" field.
+func RequestHashNotIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldRequestHash, vs...))
+}
+
+// RequestHashGT applies the GT predicate on the "request_hash" field.
+func RequestHashGT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldRequestHash, v))
+}
+
+// RequestHashGTE applies the GTE predicate on the "request_hash" field.
+func RequestHashGTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldRequestHash, v))
+}
+
+// RequestHashLT applies the LT predicate on the "request_hash" field.
+func RequestHashLT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldRequestHash, v))
+}
+
+// RequestHashLTE applies the LTE predicate on the "request_hash" field.
+func RequestHashLTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldRequestHash, v))
+}
+
+// RequestHashContains applies the Contains predicate on the "request_hash" field.
+func RequestHashContains(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContains(FieldRequestHash, v))
+}
+
+// RequestHashHasPrefix applies the HasPrefix predicate on the "request_hash" field.
+func RequestHashHasPrefix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasPrefix(FieldRequestHash, v))
+}
+
+// RequestHashHasSuffix applies the HasSuffix predicate on the "request_hash" field.
+func RequestHashHasSuffix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasSuffix(FieldRequestHash, v))
+}
+
+// RequestHashEqualFold applies the EqualFold predicate on the "request_hash" field.
+func RequestHashEqualFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEqualFold(FieldRequestHash, v))
+}
+
+// RequestHashContainsFold applies the ContainsFold predicate on the "request_hash" field.
+func RequestHashContainsFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContainsFold(FieldRequestHash, v))
+}
+
+// UploadKeyEQ applies the EQ predicate on the "upload_key" field.
+func UploadKeyEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldUploadKey, v))
+}
+
+// UploadKeyNEQ applies the NEQ predicate on the "upload_key" field.
+func UploadKeyNEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldUploadKey, v))
+}
+
+// UploadKeyIn applies the In predicate on the "upload_key" field.
+func UploadKeyIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldUploadKey, vs...))
+}
+
+// UploadKeyNotIn applies the NotIn predicate on the "upload_key" field.
+func UploadKeyNotIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldUploadKey, vs...))
+}
+
+// UploadKeyGT applies the GT predicate on the "upload_key" field.
+func UploadKeyGT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldUploadKey, v))
+}
+
+// UploadKeyGTE applies the GTE predicate on the "upload_key" field.
+func UploadKeyGTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldUploadKey, v))
+}
+
+// UploadKeyLT applies the LT predicate on the "upload_key" field.
+func UploadKeyLT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldUploadKey, v))
+}
+
+// UploadKeyLTE applies the LTE predicate on the "upload_key" field.
+func UploadKeyLTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldUploadKey, v))
+}
+
+// UploadKeyContains applies the Contains predicate on the "upload_key" field.
+func UploadKeyContains(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContains(FieldUploadKey, v))
+}
+
+// UploadKeyHasPrefix applies the HasPrefix predicate on the "upload_key" field.
+func UploadKeyHasPrefix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasPrefix(FieldUploadKey, v))
+}
+
+// UploadKeyHasSuffix applies the HasSuffix predicate on the "upload_key" field.
+func UploadKeyHasSuffix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasSuffix(FieldUploadKey, v))
+}
+
+// UploadKeyEqualFold applies the EqualFold predicate on the "upload_key" field.
+func UploadKeyEqualFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEqualFold(FieldUploadKey, v))
+}
+
+// UploadKeyContainsFold applies the ContainsFold predicate on the "upload_key" field.
+func UploadKeyContainsFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContainsFold(FieldUploadKey, v))
+}
+
+// ThumbnailKeyEQ applies the EQ predicate on the "thumbnail_key" field.
+func ThumbnailKeyEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldThumbnailKey, v))
+}
+
+// ThumbnailKeyNEQ applies the NEQ predicate on the "thumbnail_key" field.
+func ThumbnailKeyNEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldThumbnailKey, v))
+}
+
+// ThumbnailKeyIn applies the In predicate on the "thumbnail_key" field.
+func ThumbnailKeyIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldThumbnailKey, vs...))
+}
+
+// ThumbnailKeyNotIn applies the NotIn predicate on the "thumbnail_key" field.
+func ThumbnailKeyNotIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldThumbnailKey, vs...))
+}
+
+// ThumbnailKeyGT applies the GT predicate on the "thumbnail_key" field.
+func ThumbnailKeyGT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldThumbnailKey, v))
+}
+
+// ThumbnailKeyGTE applies the GTE predicate on the "thumbnail_key" field.
+func ThumbnailKeyGTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldThumbnailKey, v))
+}
+
+// ThumbnailKeyLT applies the LT predicate on the "thumbnail_key" field.
+func ThumbnailKeyLT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldThumbnailKey, v))
+}
+
+// ThumbnailKeyLTE applies the LTE predicate on the "thumbnail_key" field.
+func ThumbnailKeyLTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldThumbnailKey, v))
+}
+
+// ThumbnailKeyContains applies the Contains predicate on the "thumbnail_key" field.
+func ThumbnailKeyContains(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContains(FieldThumbnailKey, v))
+}
+
+// ThumbnailKeyHasPrefix applies the HasPrefix predicate on the "thumbnail_key" field.
+func ThumbnailKeyHasPrefix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasPrefix(FieldThumbnailKey, v))
+}
+
+// ThumbnailKeyHasSuffix applies the HasSuffix predicate on the "thumbnail_key" field.
+func ThumbnailKeyHasSuffix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasSuffix(FieldThumbnailKey, v))
+}
+
+// ThumbnailKeyEqualFold applies the EqualFold predicate on the "thumbnail_key" field.
+func ThumbnailKeyEqualFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEqualFold(FieldThumbnailKey, v))
+}
+
+// ThumbnailKeyContainsFold applies the ContainsFold predicate on the "thumbnail_key" field.
+func ThumbnailKeyContainsFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContainsFold(FieldThumbnailKey, v))
+}
+
+// UploadExpiresAtEQ applies the EQ predicate on the "upload_expires_at" field.
+func UploadExpiresAtEQ(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldUploadExpiresAt, v))
+}
+
+// UploadExpiresAtNEQ applies the NEQ predicate on the "upload_expires_at" field.
+func UploadExpiresAtNEQ(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldUploadExpiresAt, v))
+}
+
+// UploadExpiresAtIn applies the In predicate on the "upload_expires_at" field.
+func UploadExpiresAtIn(vs ...time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldUploadExpiresAt, vs...))
+}
+
+// UploadExpiresAtNotIn applies the NotIn predicate on the "upload_expires_at" field.
+func UploadExpiresAtNotIn(vs ...time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldUploadExpiresAt, vs...))
+}
+
+// UploadExpiresAtGT applies the GT predicate on the "upload_expires_at" field.
+func UploadExpiresAtGT(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldUploadExpiresAt, v))
+}
+
+// UploadExpiresAtGTE applies the GTE predicate on the "upload_expires_at" field.
+func UploadExpiresAtGTE(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldUploadExpiresAt, v))
+}
+
+// UploadExpiresAtLT applies the LT predicate on the "upload_expires_at" field.
+func UploadExpiresAtLT(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldUploadExpiresAt, v))
+}
+
+// UploadExpiresAtLTE applies the LTE predicate on the "upload_expires_at" field.
+func UploadExpiresAtLTE(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldUploadExpiresAt, v))
+}
+
+// UploadExpiresAtIsNil applies the IsNil predicate on the "upload_expires_at" field.
+func UploadExpiresAtIsNil() predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIsNull(FieldUploadExpiresAt))
+}
+
+// UploadExpiresAtNotNil applies the NotNil predicate on the "upload_expires_at" field.
+func UploadExpiresAtNotNil() predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotNull(FieldUploadExpiresAt))
+}
+
+// WidthEQ applies the EQ predicate on the "width" field.
+func WidthEQ(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldWidth, v))
+}
+
+// WidthNEQ applies the NEQ predicate on the "width" field.
+func WidthNEQ(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldWidth, v))
+}
+
+// WidthIn applies the In predicate on the "width" field.
+func WidthIn(vs ...int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldWidth, vs...))
+}
+
+// WidthNotIn applies the NotIn predicate on the "width" field.
+func WidthNotIn(vs ...int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldWidth, vs...))
+}
+
+// WidthGT applies the GT predicate on the "width" field.
+func WidthGT(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldWidth, v))
+}
+
+// WidthGTE applies the GTE predicate on the "width" field.
+func WidthGTE(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldWidth, v))
+}
+
+// WidthLT applies the LT predicate on the "width" field.
+func WidthLT(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldWidth, v))
+}
+
+// WidthLTE applies the LTE predicate on the "width" field.
+func WidthLTE(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldWidth, v))
+}
+
+// HeightEQ applies the EQ predicate on the "height" field.
+func HeightEQ(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldHeight, v))
+}
+
+// HeightNEQ applies the NEQ predicate on the "height" field.
+func HeightNEQ(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldHeight, v))
+}
+
+// HeightIn applies the In predicate on the "height" field.
+func HeightIn(vs ...int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldHeight, vs...))
+}
+
+// HeightNotIn applies the NotIn predicate on the "height" field.
+func HeightNotIn(vs ...int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldHeight, vs...))
+}
+
+// HeightGT applies the GT predicate on the "height" field.
+func HeightGT(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldHeight, v))
+}
+
+// HeightGTE applies the GTE predicate on the "height" field.
+func HeightGTE(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldHeight, v))
+}
+
+// HeightLT applies the LT predicate on the "height" field.
+func HeightLT(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldHeight, v))
+}
+
+// HeightLTE applies the LTE predicate on the "height" field.
+func HeightLTE(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldHeight, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

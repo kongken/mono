@@ -4,7 +4,7 @@
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
-当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1：账号与会话（`AuthService`）、足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流），前端登录与云端读写闭环也已接入（配置 `VITE_API_BASE_URL` 后出现登录入口，见 [功能描述](features.md)）。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号注销、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；上传签名和分享仍待实现，真实 OAuth 授权验收待部署。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
+当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1：账号与会话（`AuthService`）、足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流），前端登录与云端读写闭环也已接入（配置 `VITE_API_BASE_URL` 后出现登录入口，见 [功能描述](features.md)）。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号注销、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；F4 照片与附件已实现，分享仍待实现，真实 OAuth 授权验收待部署。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
 
 Redis 客户端已接入，后续用于会话、缓存或限流；本次没有把城市足迹存入 Redis。对象内容使用 S3，PostgreSQL 只存业务记录和媒体元数据。
 
@@ -28,6 +28,38 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `src/api/system.ts` | 前端 Connect-Web 健康状态客户端 |
 | `cmd/storage-init/` | 显式初始化配置中指定的 S3 bucket |
 | `internal/integration/` | 可选的实际 PostgreSQL、Redis、S3 集成测试 |
+
+## 媒体接口（F4，`tripmap.v1.MediaService`）
+
+全部方法要求会话，只取当前用户 ID。媒体使用 `region_code` 关联目的地，和足迹 revision、快照独立。
+
+| 方法 | 行为 |
+| --- | --- |
+| `PrepareUpload` | 接收区域、文件名、MIME、大小和 UUID `upload_id`；原子预留数量，返回媒体 ID、10 分钟上传 URL 与必须携带的头。相同 ID/内容重放返回原预留；内容不同返回 `already_exists`。已完成项不再签发上传 URL，过期预留需删除后重新创建 |
+| `CompleteUpload` | 读取临时对象，限量读取并校验实际大小/图片格式、尺寸、解码或 PDF 头尾，生成处理后文件与缩略图，再标记 `ready`；响应丢失可重复确认，失败仍可重试，超过 24 小时拒绝确认 |
+| `ListMedia` | 返回当前用户媒体元数据，可按区域筛选；包括 `pending`，隐藏 `deleting`，不泄露对象 key |
+| `ReadMedia` | 只读取本人 `ready` 文件/缩略图，以 RPC bytes 返回，`Cache-Control: no-store`；他人、不存在或已删除项不提供内容，PDF 不提供缩略图 |
+| `DeleteMedia` | 先关闭访问再清理三个对象 key，重复删除幂等；S3 失败返回 `unavailable`，保留清理任务供重试与维护任务处理 |
+
+默认 JPEG/PNG/WebP/PDF，10 MiB，20 个/城市（含待确认），签发 60 次/用户/小时；图片最多 24 MP、最长边 8000 px，缩略图最长边 480 px。照片重新编码 JPEG 不复制 EXIF/GPS；PDF 只校验头尾、供下载，不做内容解析或杀毒。上传/确认通过用户行锁串行，与账号注销互斥；服务端并发图像处理最多两个，并在像素解码前检查尺寸。确认最多 30 秒。尚未支持 HEIC、多次旅行关联、媒体离线队列和分享。
+
+临时 URL 仅签发随机 staging key；确认后的 canonical key 不可用该 URL 改写。[S3 签名 URL 可在有效期内重复使用](https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html)，因此删除账号时仍保留不含身份的临时对象清理队列。每小时处理删除失败与 24 小时未完成的上传；队列 24 小时后再次删除临时对象。超长在途上传需由 staging 生命周期兜底；该规则不会删除处理后照片。
+
+### 直传部署配置
+
+先升级后端 schema（新增媒体字段和 `media_cleanups`），再部署前端。S3 endpoint 必须同时被后端和浏览器访问，正式站点使用 HTTPS；不可把容器内网地址签发给公网浏览器。Bucket 应为本项目私有、非版本化存储，不配置公共读取策略。
+
+浏览器直传需要 S3 CORS（和 API 的 `auth.cors_allowed_origins` 分开配置）。`storage-init` 提供显式选项，保留其他规则，仅替换 ID 为 `tripmap-media-upload` / `tripmap-media-staging` 的规则；不会在服务启动时更改 bucket：
+
+```bash
+go run ./cmd/storage-init -config config.yaml \
+  -media-cors-origins 'http://localhost:5173,http://127.0.0.1:5173' \
+  -media-staging-lifecycle
+```
+
+正式环境换成实际前端来源，不允许 `*`；CORS 允许 PUT 与签名所需的请求头。生命周期仅对配置前缀下的 `media/staging/` 设置 2 天过期，用于清理极长在途或重放上传。初始化权限另需读写 bucket CORS / Lifecycle；运行服务只需已有对象读写删除权限。兼容供应方须支持这两类规则；不支持时由供应方配置等效临时目录清理任务。
+
+CI 增加真实 S3 签名 PUT→校验/缩略图→私有读取→删除链路，真实 PostgreSQL/Redis 验证跨用户隔离、并发配额、请求重放、删除失败拒绝读取及注销后的临时清理；浏览器测试使用模拟 RPC，覆盖桌面/手机上传、丢失响应重试、下载、删除与格式拒绝，不表示正式部署已验收。
 
 ## 前端独立运行
 

@@ -1,0 +1,125 @@
+.media-dialog {
+  max-width: 680px;
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+.media-dialog select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #dde6df;
+  border-radius: 9px;
+  padding: 8px;
+  background: white;
+}
+.media-hint,
+.media-card small {
+  color: #77877e;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.media-toolbar,
+.media-card-actions,
+.media-retry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.media-upload {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  min-height: 44px;
+  border-radius: 9px;
+  background: #4b937d;
+  color: white;
+  cursor: pointer;
+}
+.media-upload:focus-within {
+  outline: 2px solid #4b937d;
+  outline-offset: 3px;
+}
+.media-upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.media-upload.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.media-card {
+  min-width: 0;
+  border: 1px solid #e4eae5;
+  border-radius: 12px;
+  overflow: hidden;
+  padding: 8px;
+}
+.media-card strong {
+  display: block;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 8px;
+}
+.media-card small {
+  display: block;
+}
+.media-preview {
+  width: 100%;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f0;
+  border-radius: 6px;
+  color: #4b937d;
+}
+.media-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.media-card-actions {
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.media-remove,
+.media-retry {
+  background: #faf4e9;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 13px;
+}
+.media-empty {
+  padding: 20px 0;
+  text-align: center;
+  font-size: 13px;
+  color: #77877e;
+}
+.city-media-preview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+.city-media-preview .media-preview {
+  height: 80px;
+}
+@media (max-width: 600px) {
+  .media-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .media-preview {
+    height: 100px;
+  }
+}

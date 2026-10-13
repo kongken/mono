@@ -25,6 +25,24 @@ const (
 	FieldSizeBytes = "size_bytes"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldRegionCode holds the string denoting the region_code field in the database.
+	FieldRegionCode = "region_code"
+	// FieldFilename holds the string denoting the filename field in the database.
+	FieldFilename = "filename"
+	// FieldUploadID holds the string denoting the upload_id field in the database.
+	FieldUploadID = "upload_id"
+	// FieldRequestHash holds the string denoting the request_hash field in the database.
+	FieldRequestHash = "request_hash"
+	// FieldUploadKey holds the string denoting the upload_key field in the database.
+	FieldUploadKey = "upload_key"
+	// FieldThumbnailKey holds the string denoting the thumbnail_key field in the database.
+	FieldThumbnailKey = "thumbnail_key"
+	// FieldUploadExpiresAt holds the string denoting the upload_expires_at field in the database.
+	FieldUploadExpiresAt = "upload_expires_at"
+	// FieldWidth holds the string denoting the width field in the database.
+	FieldWidth = "width"
+	// FieldHeight holds the string denoting the height field in the database.
+	FieldHeight = "height"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -50,6 +68,15 @@ var Columns = []string{
 	FieldContentType,
 	FieldSizeBytes,
 	FieldStatus,
+	FieldRegionCode,
+	FieldFilename,
+	FieldUploadID,
+	FieldRequestHash,
+	FieldUploadKey,
+	FieldThumbnailKey,
+	FieldUploadExpiresAt,
+	FieldWidth,
+	FieldHeight,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -71,6 +98,26 @@ var (
 	ContentTypeValidator func(string) error
 	// SizeBytesValidator is a validator for the "size_bytes" field. It is called by the builders before save.
 	SizeBytesValidator func(int64) error
+	// DefaultRegionCode holds the default value on creation for the "region_code" field.
+	DefaultRegionCode string
+	// DefaultFilename holds the default value on creation for the "filename" field.
+	DefaultFilename string
+	// DefaultUploadID holds the default value on creation for the "upload_id" field.
+	DefaultUploadID string
+	// DefaultRequestHash holds the default value on creation for the "request_hash" field.
+	DefaultRequestHash string
+	// DefaultUploadKey holds the default value on creation for the "upload_key" field.
+	DefaultUploadKey string
+	// DefaultThumbnailKey holds the default value on creation for the "thumbnail_key" field.
+	DefaultThumbnailKey string
+	// DefaultWidth holds the default value on creation for the "width" field.
+	DefaultWidth int
+	// WidthValidator is a validator for the "width" field. It is called by the builders before save.
+	WidthValidator func(int) error
+	// DefaultHeight holds the default value on creation for the "height" field.
+	DefaultHeight int
+	// HeightValidator is a validator for the "height" field. It is called by the builders before save.
+	HeightValidator func(int) error
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -89,8 +136,9 @@ const DefaultStatus = StatusPending
 
 // Status values.
 const (
-	StatusPending Status = "pending"
-	StatusReady   Status = "ready"
+	StatusPending  Status = "pending"
+	StatusReady    Status = "ready"
+	StatusDeleting Status = "deleting"
 )
 
 func (s Status) String() string {
@@ -100,7 +148,7 @@ func (s Status) String() string {
 // StatusValidator is a validator for the "status" field enum values. It is called by the builders before save.
 func StatusValidator(s Status) error {
 	switch s {
-	case StatusPending, StatusReady:
+	case StatusPending, StatusReady, StatusDeleting:
 		return nil
 	default:
 		return fmt.Errorf("mediaobject: invalid enum value for status field: %q", s)
@@ -138,6 +186,51 @@ func BySizeBytes(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByRegionCode orders the results by the region_code field.
+func ByRegionCode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRegionCode, opts...).ToFunc()
+}
+
+// ByFilename orders the results by the filename field.
+func ByFilename(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFilename, opts...).ToFunc()
+}
+
+// ByUploadID orders the results by the upload_id field.
+func ByUploadID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUploadID, opts...).ToFunc()
+}
+
+// ByRequestHash orders the results by the request_hash field.
+func ByRequestHash(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRequestHash, opts...).ToFunc()
+}
+
+// ByUploadKey orders the results by the upload_key field.
+func ByUploadKey(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUploadKey, opts...).ToFunc()
+}
+
+// ByThumbnailKey orders the results by the thumbnail_key field.
+func ByThumbnailKey(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldThumbnailKey, opts...).ToFunc()
+}
+
+// ByUploadExpiresAt orders the results by the upload_expires_at field.
+func ByUploadExpiresAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUploadExpiresAt, opts...).ToFunc()
+}
+
+// ByWidth orders the results by the width field.
+func ByWidth(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldWidth, opts...).ToFunc()
+}
+
+// ByHeight orders the results by the height field.
+func ByHeight(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldHeight, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

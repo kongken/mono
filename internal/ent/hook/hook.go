@@ -45,6 +45,18 @@ func (f FootprintChangeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Va
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FootprintChangeMutation", m)
 }
 
+// The MediaCleanupFunc type is an adapter to allow the use of ordinary
+// function as MediaCleanup mutator.
+type MediaCleanupFunc func(context.Context, *ent.MediaCleanupMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MediaCleanupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MediaCleanupMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MediaCleanupMutation", m)
+}
+
 // The MediaObjectFunc type is an adapter to allow the use of ordinary
 // function as MediaObject mutator.
 type MediaObjectFunc func(context.Context, *ent.MediaObjectMutation) (ent.Value, error)

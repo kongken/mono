@@ -28,6 +28,7 @@ type Props = {
   local: { status: string; count: number };
   onMigrate: () => void;
   onOpenSnapshots: () => void;
+  onOpenMedia: () => void;
 };
 
 const when = (date: Date | null) =>
@@ -46,6 +47,7 @@ export default function AccountDialog({
   local,
   onMigrate,
   onOpenSnapshots,
+  onOpenMedia,
 }: Props) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
@@ -177,6 +179,10 @@ export default function AccountDialog({
                 <ClockCounterClockwise size={16} />
                 历史版本
               </Button>
+            </div>
+            <div className="unreadable-note account-migrate">
+              <span>私有保存旅途照片和附件，取消打卡后仍可在这里查看。</span>
+              <Button variant="outline" size="sm" disabled={cloud.deletionBlocked} onClick={onOpenMedia}>照片与附件</Button>
             </div>
             {sessions && sessions.length > 0 && (
               <div className="account-sessions">

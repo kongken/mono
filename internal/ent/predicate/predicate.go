@@ -15,6 +15,9 @@ type CityVisit func(*sql.Selector)
 // FootprintChange is the predicate function for footprintchange builders.
 type FootprintChange func(*sql.Selector)
 
+// MediaCleanup is the predicate function for mediacleanup builders.
+type MediaCleanup func(*sql.Selector)
+
 // MediaObject is the predicate function for mediaobject builders.
 type MediaObject func(*sql.Selector)
 

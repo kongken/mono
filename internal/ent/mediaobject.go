@@ -28,6 +28,24 @@ type MediaObject struct {
 	SizeBytes int64 `json:"size_bytes,omitempty"`
 	// Status holds the value of the "status" field.
 	Status mediaobject.Status `json:"status,omitempty"`
+	// RegionCode holds the value of the "region_code" field.
+	RegionCode string `json:"region_code,omitempty"`
+	// Filename holds the value of the "filename" field.
+	Filename string `json:"filename,omitempty"`
+	// UploadID holds the value of the "upload_id" field.
+	UploadID string `json:"upload_id,omitempty"`
+	// RequestHash holds the value of the "request_hash" field.
+	RequestHash string `json:"request_hash,omitempty"`
+	// UploadKey holds the value of the "upload_key" field.
+	UploadKey string `json:"upload_key,omitempty"`
+	// ThumbnailKey holds the value of the "thumbnail_key" field.
+	ThumbnailKey string `json:"thumbnail_key,omitempty"`
+	// UploadExpiresAt holds the value of the "upload_expires_at" field.
+	UploadExpiresAt *time.Time `json:"upload_expires_at,omitempty"`
+	// Width holds the value of the "width" field.
+	Width int `json:"width,omitempty"`
+	// Height holds the value of the "height" field.
+	Height int `json:"height,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -63,11 +81,11 @@ func (*MediaObject) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case mediaobject.FieldSizeBytes:
+		case mediaobject.FieldSizeBytes, mediaobject.FieldWidth, mediaobject.FieldHeight:
 			values[i] = new(sql.NullInt64)
-		case mediaobject.FieldID, mediaobject.FieldUserID, mediaobject.FieldObjectKey, mediaobject.FieldContentType, mediaobject.FieldStatus:
+		case mediaobject.FieldID, mediaobject.FieldUserID, mediaobject.FieldObjectKey, mediaobject.FieldContentType, mediaobject.FieldStatus, mediaobject.FieldRegionCode, mediaobject.FieldFilename, mediaobject.FieldUploadID, mediaobject.FieldRequestHash, mediaobject.FieldUploadKey, mediaobject.FieldThumbnailKey:
 			values[i] = new(sql.NullString)
-		case mediaobject.FieldCreatedAt, mediaobject.FieldUpdatedAt:
+		case mediaobject.FieldUploadExpiresAt, mediaobject.FieldCreatedAt, mediaobject.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -119,6 +137,61 @@ func (_m *MediaObject) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field status", values[i])
 			} else if value.Valid {
 				_m.Status = mediaobject.Status(value.String)
+			}
+		case mediaobject.FieldRegionCode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field region_code", values[i])
+			} else if value.Valid {
+				_m.RegionCode = value.String
+			}
+		case mediaobject.FieldFilename:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field filename", values[i])
+			} else if value.Valid {
+				_m.Filename = value.String
+			}
+		case mediaobject.FieldUploadID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field upload_id", values[i])
+			} else if value.Valid {
+				_m.UploadID = value.String
+			}
+		case mediaobject.FieldRequestHash:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field request_hash", values[i])
+			} else if value.Valid {
+				_m.RequestHash = value.String
+			}
+		case mediaobject.FieldUploadKey:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field upload_key", values[i])
+			} else if value.Valid {
+				_m.UploadKey = value.String
+			}
+		case mediaobject.FieldThumbnailKey:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field thumbnail_key", values[i])
+			} else if value.Valid {
+				_m.ThumbnailKey = value.String
+			}
+		case mediaobject.FieldUploadExpiresAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field upload_expires_at", values[i])
+			} else if value.Valid {
+				_m.UploadExpiresAt = new(time.Time)
+				*_m.UploadExpiresAt = value.Time
+			}
+		case mediaobject.FieldWidth:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field width", values[i])
+			} else if value.Valid {
+				_m.Width = int(value.Int64)
+			}
+		case mediaobject.FieldHeight:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field height", values[i])
+			} else if value.Valid {
+				_m.Height = int(value.Int64)
 			}
 		case mediaobject.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -187,6 +260,35 @@ func (_m *MediaObject) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Status))
+	builder.WriteString(", ")
+	builder.WriteString("region_code=")
+	builder.WriteString(_m.RegionCode)
+	builder.WriteString(", ")
+	builder.WriteString("filename=")
+	builder.WriteString(_m.Filename)
+	builder.WriteString(", ")
+	builder.WriteString("upload_id=")
+	builder.WriteString(_m.UploadID)
+	builder.WriteString(", ")
+	builder.WriteString("request_hash=")
+	builder.WriteString(_m.RequestHash)
+	builder.WriteString(", ")
+	builder.WriteString("upload_key=")
+	builder.WriteString(_m.UploadKey)
+	builder.WriteString(", ")
+	builder.WriteString("thumbnail_key=")
+	builder.WriteString(_m.ThumbnailKey)
+	builder.WriteString(", ")
+	if v := _m.UploadExpiresAt; v != nil {
+		builder.WriteString("upload_expires_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("width=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Width))
+	builder.WriteString(", ")
+	builder.WriteString("height=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Height))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

@@ -109,6 +109,11 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 				_, _ = client.AccountDeletionReceipt.Delete().Where(accountdeletionreceipt.ExpiresAtLTE(time.Now().UTC())).Exec(cleanup)
 				cancel()
 				runSnapshotMaintenance(maintenance, client, cache)
+				mediaCtx, mediaCancel := context.WithTimeout(maintenance, 5*time.Minute)
+				if err := application.RunMediaMaintenance(mediaCtx, &application.Store{DB: client, Redis: cache, Blobs: blobs}, time.Now().UTC()); err != nil {
+					slog.Error("media maintenance", "error", err)
+				}
+				mediaCancel()
 			}
 		}
 	}()
@@ -178,6 +183,8 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	path, handler = tripmapv1connect.NewFootprintServiceHandler(application.NewFootprintService(h.cfg, h, index), opts)
 	mount(path, handler)
 	path, handler = tripmapv1connect.NewSnapshotServiceHandler(application.NewSnapshotService(h.cfg, h, index), opts)
+	mount(path, handler)
+	path, handler = tripmapv1connect.NewMediaServiceHandler(application.NewMediaService(h, index), opts, connect.WithReadMaxBytes(16*1024*1024))
 	mount(path, handler)
 }
 
