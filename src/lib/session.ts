@@ -1,4 +1,5 @@
 import type { Saved } from "./travel.ts";
+import { diffSaved } from "./sync.ts";
 
 export type StoredUser = {
   id: string;
@@ -12,7 +13,7 @@ export type StoredSession = {
   expiresAt: number;
   user: StoredUser;
 };
-export type CachedCloud = { saved: Saved; revision: number };
+export type CachedCloud = { saved: Saved; revision: number; confirmed?: Saved };
 
 type Reader = Pick<Storage, "getItem">;
 type Writer = Pick<Storage, "setItem">;
@@ -72,8 +73,9 @@ export function saveSession(storage: Writer, session: StoredSession): boolean {
 }
 
 /**
- * The cloud cache only speeds up startup. Anything unreadable is dropped and
- * refetched, since the server holds the truth.
+ * Old {saved, revision} caches remain readable. New caches also keep the
+ * confirmed ancestor so unsent edits can be rebased after a reload.
+ * Never discard unreadable data: it may contain the only copy of offline edits.
  */
 export function loadCloudCache(
   storage: Reader & Remover,
@@ -83,16 +85,24 @@ export function loadCloudCache(
   try {
     const raw = storage.getItem(cacheKey(userId));
     if (!raw) return null;
-    const data = JSON.parse(raw) as { saved?: unknown; revision?: unknown };
-    if (typeof data.revision !== "number") throw new Error("bad revision");
-    return { saved: validate(data.saved), revision: data.revision };
+    const data = JSON.parse(raw) as {
+      saved?: unknown;
+      revision?: unknown;
+      confirmed?: unknown;
+    };
+    if (!Number.isSafeInteger(data.revision) || (data.revision as number) < 0)
+      throw new Error("bad revision");
+    return {
+      saved: validate(data.saved),
+      revision: data.revision as number,
+      ...(data.confirmed === undefined
+        ? {}
+        : { confirmed: validate(data.confirmed) }),
+    };
   } catch {
-    try {
-      storage.removeItem(cacheKey(userId));
-    } catch {
-      // Nothing more to do; the next fetch replaces the cache.
-    }
-    return null;
+    throw new Error(
+      "账号缓存无法读取，已保留原始数据。请先导出原始缓存，不要清除网站存储。",
+    );
   }
 }
 
@@ -118,20 +128,41 @@ function cacheKeys(storage: Enumerable) {
   return keys;
 }
 
-/** Removes every cached cloud copy except the one for `keepUserId`. */
+/** Clean copies may be discarded; another account's unsent/invalid data may not. */
 export function clearOtherCaches(
-  storage: Enumerable & Remover,
+  storage: Enumerable & Remover & Reader,
   keepUserId?: string,
+  validate?: (data: unknown) => Saved,
 ) {
-  for (const key of cacheKeys(storage))
-    if (key !== (keepUserId ? cacheKey(keepUserId) : "")) storage.removeItem(key);
+  for (const key of cacheKeys(storage)) {
+    if (key === (keepUserId ? cacheKey(keepUserId) : "")) continue;
+    try {
+      const cache = JSON.parse(storage.getItem(key) ?? "null") as CachedCloud;
+      if (!cache) continue;
+      if (validate) {
+        validate(cache.saved);
+        if (cache.confirmed) validate(cache.confirmed);
+      }
+      if (cache.confirmed && diffSaved(cache.confirmed, cache.saved).length)
+        continue;
+      storage.removeItem(key);
+    } catch {
+      /* Preserve unrecognisable data for its owner's recovery. */
+    }
+  }
 }
 
 /**
- * Sign-out cleanup: the session and all account caches. Footprints saved in
+ * Sign-out cleanup: the session and explicitly discarded account cache;
+ * other accounts' pending/unreadable caches stay intact. Footprints saved in
  * local mode before signing in are not account data and are left alone.
  */
-export function clearAccountData(storage: Enumerable & Remover) {
-  clearOtherCaches(storage);
+export function clearAccountData(
+  storage: Enumerable & Remover & Reader,
+  currentUserId?: string,
+  validate?: (data: unknown) => Saved,
+) {
+  if (currentUserId) storage.removeItem(cacheKey(currentUserId));
+  clearOtherCaches(storage, undefined, validate);
   storage.removeItem(SESSION_KEY);
 }

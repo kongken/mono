@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file tripmap/v1/footprint.proto.
  */
 export const file_tripmap_v1_footprint: GenFile = /*@__PURE__*/
-  fileDesc("Chp0cmlwbWFwL3YxL2Zvb3RwcmludC5wcm90bxIKdHJpcG1hcC52MSKQAQoFVmlzaXQSDAoEY29kZRgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHByb3ZpbmNlGAMgASgJEg0KBWNvbG9yGAQgASgJEgwKBGRhdGUYBSABKAkSDAoEbm90ZRgGIAEoCRIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJfCgxQcm92aW5jZU1hcmsSEAoIcHJvdmluY2UYASABKAkSDQoFY29sb3IYAiABKAkSLgoKdXBkYXRlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiLAoQUmV2aXNpb25Db25mbGljdBIYChBjdXJyZW50X3JldmlzaW9uGAEgASgDIhYKFEdldEZvb3RwcmludHNSZXF1ZXN0In4KFUdldEZvb3RwcmludHNSZXNwb25zZRIhCgZ2aXNpdHMYASADKAsyES50cmlwbWFwLnYxLlZpc2l0EjAKDnByb3ZpbmNlX21hcmtzGAIgAygLMhgudHJpcG1hcC52MS5Qcm92aW5jZU1hcmsSEAoIcmV2aXNpb24YAyABKAMiTQoSVXBzZXJ0VmlzaXRSZXF1ZXN0EiAKBXZpc2l0GAEgASgLMhEudHJpcG1hcC52MS5WaXNpdBIVCg1iYXNlX3JldmlzaW9uGAIgASgDIloKE1Vwc2VydFZpc2l0UmVzcG9uc2USIAoFdmlzaXQYASABKAsyES50cmlwbWFwLnYxLlZpc2l0EhAKCHJldmlzaW9uGAIgASgDEg8KB2NoYW5nZWQYAyABKAgiOQoSRGVsZXRlVmlzaXRSZXF1ZXN0EgwKBGNvZGUYASABKAkSFQoNYmFzZV9yZXZpc2lvbhgCIAEoAyI4ChNEZWxldGVWaXNpdFJlc3BvbnNlEhAKCHJldmlzaW9uGAEgASgDEg8KB2RlbGV0ZWQYAiABKAgiWgoZVXBzZXJ0UHJvdmluY2VNYXJrUmVxdWVzdBImCgRtYXJrGAEgASgLMhgudHJpcG1hcC52MS5Qcm92aW5jZU1hcmsSFQoNYmFzZV9yZXZpc2lvbhgCIAEoAyJnChpVcHNlcnRQcm92aW5jZU1hcmtSZXNwb25zZRImCgRtYXJrGAEgASgLMhgudHJpcG1hcC52MS5Qcm92aW5jZU1hcmsSEAoIcmV2aXNpb24YAiABKAMSDwoHY2hhbmdlZBgDIAEoCCJEChlEZWxldGVQcm92aW5jZU1hcmtSZXF1ZXN0EhAKCHByb3ZpbmNlGAEgASgJEhUKDWJhc2VfcmV2aXNpb24YAiABKAMiPwoaRGVsZXRlUHJvdmluY2VNYXJrUmVzcG9uc2USEAoIcmV2aXNpb24YASABKAMSDwoHZGVsZXRlZBgCIAEoCDLSAwoQRm9vdHByaW50U2VydmljZRJUCg1HZXRGb290cHJpbnRzEiAudHJpcG1hcC52MS5HZXRGb290cHJpbnRzUmVxdWVzdBohLnRyaXBtYXAudjEuR2V0Rm9vdHByaW50c1Jlc3BvbnNlEk4KC1Vwc2VydFZpc2l0Eh4udHJpcG1hcC52MS5VcHNlcnRWaXNpdFJlcXVlc3QaHy50cmlwbWFwLnYxLlVwc2VydFZpc2l0UmVzcG9uc2USTgoLRGVsZXRlVmlzaXQSHi50cmlwbWFwLnYxLkRlbGV0ZVZpc2l0UmVxdWVzdBofLnRyaXBtYXAudjEuRGVsZXRlVmlzaXRSZXNwb25zZRJjChJVcHNlcnRQcm92aW5jZU1hcmsSJS50cmlwbWFwLnYxLlVwc2VydFByb3ZpbmNlTWFya1JlcXVlc3QaJi50cmlwbWFwLnYxLlVwc2VydFByb3ZpbmNlTWFya1Jlc3BvbnNlEmMKEkRlbGV0ZVByb3ZpbmNlTWFyaxIlLnRyaXBtYXAudjEuRGVsZXRlUHJvdmluY2VNYXJrUmVxdWVzdBomLnRyaXBtYXAudjEuRGVsZXRlUHJvdmluY2VNYXJrUmVzcG9uc2VCOFo2Z28ub3J4Lm1lL2FwcHMvdHJpcC1tYXAvcGtnL3Byb3RvL3RyaXBtYXAvdjE7dHJpcG1hcHYxYgZwcm90bzM", [file_google_protobuf_timestamp]);
+  fileDesc("Chp0cmlwbWFwL3YxL2Zvb3RwcmludC5wcm90bxIKdHJpcG1hcC52MSKQAQoFVmlzaXQSDAoEY29kZRgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHByb3ZpbmNlGAMgASgJEg0KBWNvbG9yGAQgASgJEgwKBGRhdGUYBSABKAkSDAoEbm90ZRgGIAEoCRIuCgp1cGRhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJfCgxQcm92aW5jZU1hcmsSEAoIcHJvdmluY2UYASABKAkSDQoFY29sb3IYAiABKAkSLgoKdXBkYXRlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiLAoQUmV2aXNpb25Db25mbGljdBIYChBjdXJyZW50X3JldmlzaW9uGAEgASgDIhYKFEdldEZvb3RwcmludHNSZXF1ZXN0In4KFUdldEZvb3RwcmludHNSZXNwb25zZRIhCgZ2aXNpdHMYASADKAsyES50cmlwbWFwLnYxLlZpc2l0EjAKDnByb3ZpbmNlX21hcmtzGAIgAygLMhgudHJpcG1hcC52MS5Qcm92aW5jZU1hcmsSEAoIcmV2aXNpb24YAyABKAMiZwoSVXBzZXJ0VmlzaXRSZXF1ZXN0EiAKBXZpc2l0GAEgASgLMhEudHJpcG1hcC52MS5WaXNpdBIVCg1iYXNlX3JldmlzaW9uGAIgASgDEhgKEHJlcXVpcmVfcmV2aXNpb24YAyABKAgiWgoTVXBzZXJ0VmlzaXRSZXNwb25zZRIgCgV2aXNpdBgBIAEoCzIRLnRyaXBtYXAudjEuVmlzaXQSEAoIcmV2aXNpb24YAiABKAMSDwoHY2hhbmdlZBgDIAEoCCJTChJEZWxldGVWaXNpdFJlcXVlc3QSDAoEY29kZRgBIAEoCRIVCg1iYXNlX3JldmlzaW9uGAIgASgDEhgKEHJlcXVpcmVfcmV2aXNpb24YAyABKAgiOAoTRGVsZXRlVmlzaXRSZXNwb25zZRIQCghyZXZpc2lvbhgBIAEoAxIPCgdkZWxldGVkGAIgASgIInQKGVVwc2VydFByb3ZpbmNlTWFya1JlcXVlc3QSJgoEbWFyaxgBIAEoCzIYLnRyaXBtYXAudjEuUHJvdmluY2VNYXJrEhUKDWJhc2VfcmV2aXNpb24YAiABKAMSGAoQcmVxdWlyZV9yZXZpc2lvbhgDIAEoCCJnChpVcHNlcnRQcm92aW5jZU1hcmtSZXNwb25zZRImCgRtYXJrGAEgASgLMhgudHJpcG1hcC52MS5Qcm92aW5jZU1hcmsSEAoIcmV2aXNpb24YAiABKAMSDwoHY2hhbmdlZBgDIAEoCCJeChlEZWxldGVQcm92aW5jZU1hcmtSZXF1ZXN0EhAKCHByb3ZpbmNlGAEgASgJEhUKDWJhc2VfcmV2aXNpb24YAiABKAMSGAoQcmVxdWlyZV9yZXZpc2lvbhgDIAEoCCI/ChpEZWxldGVQcm92aW5jZU1hcmtSZXNwb25zZRIQCghyZXZpc2lvbhgBIAEoAxIPCgdkZWxldGVkGAIgASgIMtIDChBGb290cHJpbnRTZXJ2aWNlElQKDUdldEZvb3RwcmludHMSIC50cmlwbWFwLnYxLkdldEZvb3RwcmludHNSZXF1ZXN0GiEudHJpcG1hcC52MS5HZXRGb290cHJpbnRzUmVzcG9uc2USTgoLVXBzZXJ0VmlzaXQSHi50cmlwbWFwLnYxLlVwc2VydFZpc2l0UmVxdWVzdBofLnRyaXBtYXAudjEuVXBzZXJ0VmlzaXRSZXNwb25zZRJOCgtEZWxldGVWaXNpdBIeLnRyaXBtYXAudjEuRGVsZXRlVmlzaXRSZXF1ZXN0Gh8udHJpcG1hcC52MS5EZWxldGVWaXNpdFJlc3BvbnNlEmMKElVwc2VydFByb3ZpbmNlTWFyaxIlLnRyaXBtYXAudjEuVXBzZXJ0UHJvdmluY2VNYXJrUmVxdWVzdBomLnRyaXBtYXAudjEuVXBzZXJ0UHJvdmluY2VNYXJrUmVzcG9uc2USYwoSRGVsZXRlUHJvdmluY2VNYXJrEiUudHJpcG1hcC52MS5EZWxldGVQcm92aW5jZU1hcmtSZXF1ZXN0GiYudHJpcG1hcC52MS5EZWxldGVQcm92aW5jZU1hcmtSZXNwb25zZUI4WjZnby5vcngubWUvYXBwcy90cmlwLW1hcC9wa2cvcHJvdG8vdHJpcG1hcC92MTt0cmlwbWFwdjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * Visit mirrors the frontend record. Region IDs and names must match the
@@ -173,6 +173,13 @@ export type UpsertVisitRequest = Message<"tripmap.v1.UpsertVisitRequest"> & {
    * @generated from field: int64 base_revision = 2;
    */
   baseRevision: bigint;
+
+  /**
+   * Require an exact revision match, including an initial revision of zero.
+   *
+   * @generated from field: bool require_revision = 3;
+   */
+  requireRevision: boolean;
 };
 
 /**
@@ -224,6 +231,11 @@ export type DeleteVisitRequest = Message<"tripmap.v1.DeleteVisitRequest"> & {
    * @generated from field: int64 base_revision = 2;
    */
   baseRevision: bigint;
+
+  /**
+   * @generated from field: bool require_revision = 3;
+   */
+  requireRevision: boolean;
 };
 
 /**
@@ -270,6 +282,11 @@ export type UpsertProvinceMarkRequest = Message<"tripmap.v1.UpsertProvinceMarkRe
    * @generated from field: int64 base_revision = 2;
    */
   baseRevision: bigint;
+
+  /**
+   * @generated from field: bool require_revision = 3;
+   */
+  requireRevision: boolean;
 };
 
 /**
@@ -319,6 +336,11 @@ export type DeleteProvinceMarkRequest = Message<"tripmap.v1.DeleteProvinceMarkRe
    * @generated from field: int64 base_revision = 2;
    */
   baseRevision: bigint;
+
+  /**
+   * @generated from field: bool require_revision = 3;
+   */
+  requireRevision: boolean;
 };
 
 /**
@@ -356,7 +378,8 @@ export const DeleteProvinceMarkResponseSchema: GenMessage<DeleteProvinceMarkResp
  * caller's own records.
  *
  * Every write bumps the user's revision. `base_revision` is optional: 0 means
- * "do not check"; a non-zero value that differs from the current revision is
+ * "do not check" for legacy clients; require_revision also checks zero.
+ * A checked value that differs from the current revision is
  * rejected with ABORTED and a RevisionConflict detail, unless the request
  * would not change anything (a retry of an applied write is a no-op).
  *

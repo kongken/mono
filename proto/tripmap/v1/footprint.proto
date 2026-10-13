@@ -11,7 +11,8 @@ option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
 // caller's own records.
 //
 // Every write bumps the user's revision. `base_revision` is optional: 0 means
-// "do not check"; a non-zero value that differs from the current revision is
+// "do not check" for legacy clients; require_revision also checks zero.
+// A checked value that differs from the current revision is
 // rejected with ABORTED and a RevisionConflict detail, unless the request
 // would not change anything (a retry of an applied write is a no-op).
 service FootprintService {
@@ -67,6 +68,8 @@ message GetFootprintsResponse {
 message UpsertVisitRequest {
   Visit visit = 1;
   int64 base_revision = 2;
+  // Require an exact revision match, including an initial revision of zero.
+  bool require_revision = 3;
 }
 
 message UpsertVisitResponse {
@@ -79,6 +82,7 @@ message UpsertVisitResponse {
 message DeleteVisitRequest {
   string code = 1;
   int64 base_revision = 2;
+  bool require_revision = 3;
 }
 
 message DeleteVisitResponse {
@@ -90,6 +94,7 @@ message DeleteVisitResponse {
 message UpsertProvinceMarkRequest {
   ProvinceMark mark = 1;
   int64 base_revision = 2;
+  bool require_revision = 3;
 }
 
 message UpsertProvinceMarkResponse {
@@ -101,6 +106,7 @@ message UpsertProvinceMarkResponse {
 message DeleteProvinceMarkRequest {
   string province = 1;
   int64 base_revision = 2;
+  bool require_revision = 3;
 }
 
 message DeleteProvinceMarkResponse {

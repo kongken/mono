@@ -161,15 +161,17 @@ function App() {
     if (cloud.mode === "cloud") {
       if (!cloud.canWrite) {
         notify(
-          cloud.loadFailed
-            ? "无法连接云端，暂时不能修改"
-            : "正在连接云端，请稍候再修改",
+          cloud.cacheFailed
+            ? "本机保存失败，请先导出备份"
+            : cloud.sync === "conflict"
+              ? "请先处理相同记录的同步冲突"
+              : "正在连接云端，请稍候再修改",
         );
         return false;
       }
       const next = update(savedRef.current);
+      if (!cloud.push(next)) return false;
       savedRef.current = next;
-      cloud.push(next);
       setSaved(next);
       return true;
     }
@@ -240,7 +242,12 @@ function App() {
   const unit = isDistrict ? "区县" : "城市";
   const projection = useMemo(() => {
     if (!map) return null;
-    const shapes = map.features.filter((f) => f.properties.name && (province?.code !== "460000" || String(f.properties.adcode) !== "460300"));
+    const shapes = map.features.filter(
+      (f) =>
+        f.properties.name &&
+        (province?.code !== "460000" ||
+          String(f.properties.adcode) !== "460300"),
+    );
     // Mainland bounds define the national camera. Maritime lines have their own inset.
     const bounds = province
       ? { ...map, features: shapes }
@@ -272,10 +279,25 @@ function App() {
     );
   }, [map, province]);
   const path = projection ? geoPath(projection) : null;
-  const sansha = province?.code === "460000" ? map?.features.find(f => String(f.properties.adcode) === "460300") : undefined;
-  const sanshaPath = sansha ? geoPath(geoMercator().fitExtent([[670, 355], [795, 505]], sansha))(sansha) : null;
+  const sansha =
+    province?.code === "460000"
+      ? map?.features.find((f) => String(f.properties.adcode) === "460300")
+      : undefined;
+  const sanshaPath = sansha
+    ? geoPath(
+        geoMercator().fitExtent(
+          [
+            [670, 355],
+            [795, 505],
+          ],
+          sansha,
+        ),
+      )(sansha)
+    : null;
   const drawPath = (feature: MapData["features"][number]) =>
-    String(feature.properties.adcode) === "460300" && sanshaPath ? sanshaPath : path?.(feature) || "";
+    String(feature.properties.adcode) === "460300" && sanshaPath
+      ? sanshaPath
+      : path?.(feature) || "";
   const visitColors = useMemo(
     () => Object.fromEntries(saved.visits.map((v) => [v.code, v.color])),
     [saved.visits],
@@ -404,8 +426,20 @@ function App() {
             <h2>无法加载云端足迹</h2>
             <p role="alert">{cloud.loadError}</p>
             <div className="dialog-actions">
-              <Button variant="outline" onClick={() => void cloud.logout()}>
-                退出登录，使用本地模式
+              <Button
+                variant="outline"
+                onClick={() => {
+                  try {
+                    cloud.exportRawCache();
+                    void cloud
+                      .logout(true)
+                      .catch((error) => notify(String(error)));
+                  } catch {
+                    notify("导出失败，未清除账号缓存");
+                  }
+                }}
+              >
+                导出原始账号缓存并退出
               </Button>
               <Button onClick={() => void cloud.retry()}>重试</Button>
             </div>
@@ -453,11 +487,15 @@ function App() {
           <span className="local-status">
             <span />
             {cloud.mode === "cloud"
-              ? !cloud.canWrite
-                ? "云端未连接"
-                : cloud.sync === "syncing"
-                  ? "同步中…"
-                  : "已同步到云端"
+              ? cloud.cacheFailed
+                ? "本机保存失败"
+                : cloud.sync === "conflict"
+                  ? "同步冲突待处理"
+                  : cloud.sync === "syncing"
+                    ? "同步中…"
+                    : cloud.loadFailed || cloud.pending
+                      ? "本机已保存，待同步"
+                      : "已同步到云端"
               : storageError
                 ? "保存失败，请导出备份"
                 : "本地自动保存"}
@@ -496,19 +534,59 @@ function App() {
           )}
         </div>
       </header>
-      {cloud.mode === "cloud" && !cloud.canWrite && !cloud.waiting && (
-        <div className="cloud-banner" role="status">
-          <WifiSlash size={17} />
-          <span>
-            {cloud.loadFailed
-              ? "无法连接云端，显示的是上次同步的数据，暂时不能修改。"
-              : "正在连接云端…"}
-          </span>
-          {cloud.loadFailed && (
-            <button onClick={() => void cloud.retry()}>重试</button>
-          )}
-        </div>
-      )}
+      {cloud.mode === "cloud" &&
+        (cloud.loadFailed || cloud.cacheFailed) &&
+        !cloud.waiting && (
+          <div className="cloud-banner" role="status">
+            <WifiSlash size={17} />
+            <span>
+              {cloud.cacheFailed
+                ? "本机缓存无法保存，已暂停编辑，请先导出备份。"
+                : `云端未连接，修改保留在本机，联网后重试同步。${cloud.loadError}`}
+            </span>
+            {cloud.loadFailed && (
+              <button onClick={() => void cloud.retry()}>重试</button>
+            )}
+          </div>
+        )}
+      <Dialog open={cloud.sync === "conflict"} onOpenChange={() => {}}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>多台设备修改了相同足迹</DialogTitle>
+            <DialogDescription>
+              有 {cloud.conflicts}{" "}
+              条城市足迹或省份标记冲突（包括删除）。请选择这些冲突记录保留哪一份；其他记录会自动合并。处理前可导出当前本机足迹。
+            </DialogDescription>
+          </DialogHeader>
+          <ul>
+            {cloud.conflictRecords.map((op, i) => (
+              <li key={i}>
+                {op.type === "upsertVisit"
+                  ? op.visit.name
+                  : op.type === "deleteVisit"
+                    ? (regions
+                        .flatMap((r) => r.cities)
+                        .find((c) => c.code === op.code)?.name ?? op.code)
+                    : (provinceByCode(op.province)?.name ?? op.province)}
+              </li>
+            ))}
+          </ul>
+          <div className="dialog-actions">
+            <Button variant="outline" onClick={exportData}>
+              导出本机足迹
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => cloud.resolveConflict("cloud")}
+            >
+              冲突以云端为准
+            </Button>
+            <Button onClick={() => cloud.resolveConflict("local")}>
+              冲突以本机为准
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <main>
         <section className="intro">
           <div>
@@ -531,8 +609,13 @@ function App() {
             </div>
             <i />
             <div>
-              <strong>{saved.visits.length}<small>/ {totalCities}</small></strong>
-              <span>已打卡城市 · {percentage(saved.visits.length, totalCities)}</span>
+              <strong>
+                {saved.visits.length}
+                <small>/ {totalCities}</small>
+              </strong>
+              <span>
+                已打卡城市 · {percentage(saved.visits.length, totalCities)}
+              </span>
             </div>
             <i />
             <div>
@@ -546,7 +629,10 @@ function App() {
         </section>
         <div className="report-entry">
           <span>每一站都算数，看看你的山海进度。</span>
-          <Button variant="outline" onClick={() => setReportOpen(true)}><DownloadSimple size={17} />足迹统计 / 生成图片</Button>
+          <Button variant="outline" onClick={() => setReportOpen(true)}>
+            <DownloadSimple size={17} />
+            足迹统计 / 生成图片
+          </Button>
         </div>
         <div className="workspace">
           <section className="map-panel">
@@ -570,7 +656,16 @@ function App() {
                     ? `${unit}地图`
                     : "全国地图"}
               </span>
-              {province && <Button size="sm" className="mobile-city-picker" onClick={() => setCityPickerOpen(true)}><MagnifyingGlass size={16} />选择城市</Button>}
+              {province && (
+                <Button
+                  size="sm"
+                  className="mobile-city-picker"
+                  onClick={() => setCityPickerOpen(true)}
+                >
+                  <MagnifyingGlass size={16} />
+                  选择城市
+                </Button>
+              )}
               <Button
                 size="sm"
                 className={`add-main ${province ? "province-add" : ""}`}
@@ -637,7 +732,9 @@ function App() {
                       onToggle={(code) => toggleCity(province.code, code)}
                       onHover={setHover}
                       onTileError={() =>
-                        notify("OpenStreetMap 底图加载失败，可关闭底图后继续标记")
+                        notify(
+                          "OpenStreetMap 底图加载失败，可关闭底图后继续标记",
+                        )
                       }
                     />
                   </Suspense>
@@ -674,9 +771,16 @@ function App() {
                           const center =
                             feature.properties.centroid ||
                             feature.properties.center;
-                          const point = code === "460300" && sanshaPath ? [732, 530] : center ? projection(center) : null;
+                          const point =
+                            code === "460300" && sanshaPath
+                              ? [732, 530]
+                              : center
+                                ? projection(center)
+                                : null;
                           const label = province
-                            ? feature.properties.name.replace(/(?:黎族苗族|黎族)自治县$/, "").replace(/市$/, "")
+                            ? feature.properties.name
+                                .replace(/(?:黎族苗族|黎族)自治县$/, "")
+                                .replace(/市$/, "")
                             : provinceByCode(code)?.short ||
                               feature.properties.name;
                           const activate = () => {
@@ -703,15 +807,46 @@ function App() {
                               }
                               onMouseLeave={() => setHover("")}
                             >
-                              {code === "460300" && sanshaPath && <>
-                                <rect x="650" y="325" width="165" height="225" rx="8" fill={fill ? `${fill}22` : "#fafbf8"} stroke="#a5b6a6" />
-                                <text x="732" y="345" textAnchor="middle" fill="#61765a" fontSize="14" pointerEvents="none">三沙 · 岛屿附图</text>
-                              </>}
+                              {code === "460300" && sanshaPath && (
+                                <>
+                                  <rect
+                                    x="650"
+                                    y="325"
+                                    width="165"
+                                    height="225"
+                                    rx="8"
+                                    fill={fill ? `${fill}22` : "#fafbf8"}
+                                    stroke="#a5b6a6"
+                                  />
+                                  <text
+                                    x="732"
+                                    y="345"
+                                    textAnchor="middle"
+                                    fill="#61765a"
+                                    fontSize="14"
+                                    pointerEvents="none"
+                                  >
+                                    三沙 · 岛屿附图
+                                  </text>
+                                </>
+                              )}
                               <path
                                 d={drawPath(feature)}
                                 fill={fill || "#e9eee9"}
-                                stroke={code === "460300" && sanshaPath ? fill || "#8aa18c" : fill ? "#ffffff" : "#fafcf9"}
-                                strokeWidth={code === "460300" && sanshaPath ? 2 : province ? 1.4 : 1.5}
+                                stroke={
+                                  code === "460300" && sanshaPath
+                                    ? fill || "#8aa18c"
+                                    : fill
+                                      ? "#ffffff"
+                                      : "#fafcf9"
+                                }
+                                strokeWidth={
+                                  code === "460300" && sanshaPath
+                                    ? 2
+                                    : province
+                                      ? 1.4
+                                      : 1.5
+                                }
                                 vectorEffect="non-scaling-stroke"
                               >
                                 <title>
@@ -798,25 +933,28 @@ function App() {
                   </button>
                 )}
                 {!showOsm && (
-                <div className="map-controls">
-                  <button
-                    aria-label="放大地图"
-                    disabled={zoom >= 1.6}
-                    onClick={() => setZoom((z) => Math.min(1.6, z + 0.2))}
-                  >
-                    <Plus size={18} />
-                  </button>
-                  <button
-                    aria-label="缩小地图"
-                    disabled={zoom <= 1}
-                    onClick={() => setZoom((z) => Math.max(1, z - 0.2))}
-                  >
-                    <Minus size={18} />
-                  </button>
-                  <button aria-label="重置地图缩放" onClick={() => setZoom(1)}>
-                    <ArrowCounterClockwise size={17} />
-                  </button>
-                </div>
+                  <div className="map-controls">
+                    <button
+                      aria-label="放大地图"
+                      disabled={zoom >= 1.6}
+                      onClick={() => setZoom((z) => Math.min(1.6, z + 0.2))}
+                    >
+                      <Plus size={18} />
+                    </button>
+                    <button
+                      aria-label="缩小地图"
+                      disabled={zoom <= 1}
+                      onClick={() => setZoom((z) => Math.max(1, z - 0.2))}
+                    >
+                      <Minus size={18} />
+                    </button>
+                    <button
+                      aria-label="重置地图缩放"
+                      onClick={() => setZoom(1)}
+                    >
+                      <ArrowCounterClockwise size={17} />
+                    </button>
+                  </div>
                 )}
               </div>
             ) : (
@@ -880,7 +1018,11 @@ function App() {
                         aria-label={`进入${region.name}地图${color ? "，已探索" : "，未探索"}`}
                         onClick={() => navigate(region)}
                       >
-                        <span className="compact-region-dot" style={{ background: color || "#e9eee9" }} aria-hidden="true" />
+                        <span
+                          className="compact-region-dot"
+                          style={{ background: color || "#e9eee9" }}
+                          aria-hidden="true"
+                        />
                         {region.short}
                         <CaretRight size={14} aria-hidden="true" />
                       </Button>
@@ -979,7 +1121,8 @@ function App() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      if (!commit((s) => toggleProvince(s, province.code))) return;
+                      if (!commit((s) => toggleProvince(s, province.code)))
+                        return;
                       notify(
                         saved.provinces[province.code]
                           ? "已取消省份单独标记，城市足迹保留"
@@ -1120,7 +1263,9 @@ function App() {
           <div>
             <button
               disabled={cloud.mode === "cloud"}
-              title={cloud.mode === "cloud" ? "登录期间暂不支持导入备份" : undefined}
+              title={
+                cloud.mode === "cloud" ? "登录期间暂不支持导入备份" : undefined
+              }
               onClick={() => fileInput.current?.click()}
             >
               <UploadSimple size={14} />
@@ -1141,15 +1286,64 @@ function App() {
         ref={fileInput}
         onChange={(e) => void importFile(e.target.files?.[0])}
       />
-      {cityPickerOpen && province && <CityPicker name={province.short} cities={province.cities} visits={saved.visits}
-        onClose={() => setCityPickerOpen(false)} onToggle={code => toggleCity(province.code, code)}
-        onEdit={code => { setCityPickerOpen(false); openEditor(province.code, code); }} />}
-      {reportOpen && <TravelReport open={reportOpen} onOpenChange={setReportOpen} saved={saved} province={province}
-        shapes={map && path ? map.features.filter(f => f.properties.name).map(f => ({
-          d: drawPath(f), stroke: province?.code === "460000" && String(f.properties.adcode) === "460300" ? "#8aa18c" : undefined, fill: (province ? visitColors[String(f.properties.adcode)] : provinceColor(String(f.properties.adcode))) || "#e9eee9",
-        })) : null}
-        inset={map && !province ? map.features.filter(f => !f.properties.name).map(f => geoPath(geoMercator().fitExtent([[9, 7], [74, 87]], f))(f) || "") : []}
-      />}
+      {cityPickerOpen && province && (
+        <CityPicker
+          name={province.short}
+          cities={province.cities}
+          visits={saved.visits}
+          onClose={() => setCityPickerOpen(false)}
+          onToggle={(code) => toggleCity(province.code, code)}
+          onEdit={(code) => {
+            setCityPickerOpen(false);
+            openEditor(province.code, code);
+          }}
+        />
+      )}
+      {reportOpen && (
+        <TravelReport
+          open={reportOpen}
+          onOpenChange={setReportOpen}
+          saved={saved}
+          province={province}
+          shapes={
+            map && path
+              ? map.features
+                  .filter((f) => f.properties.name)
+                  .map((f) => ({
+                    d: drawPath(f),
+                    stroke:
+                      province?.code === "460000" &&
+                      String(f.properties.adcode) === "460300"
+                        ? "#8aa18c"
+                        : undefined,
+                    fill:
+                      (province
+                        ? visitColors[String(f.properties.adcode)]
+                        : provinceColor(String(f.properties.adcode))) ||
+                      "#e9eee9",
+                  }))
+              : null
+          }
+          inset={
+            map && !province
+              ? map.features
+                  .filter((f) => !f.properties.name)
+                  .map(
+                    (f) =>
+                      geoPath(
+                        geoMercator().fitExtent(
+                          [
+                            [9, 7],
+                            [74, 87],
+                          ],
+                          f,
+                        ),
+                      )(f) || "",
+                  )
+              : []
+          }
+        />
+      )}
       <Dialog open={editor} onOpenChange={setEditor}>
         <DialogContent className="editor-dialog">
           <DialogHeader>
@@ -1300,14 +1494,16 @@ function App() {
             </span>
             <DialogTitle>本地足迹数据无法读取</DialogTitle>
             <DialogDescription>
-              {unreadable?.reason}。为避免覆盖，已暂停自动保存，原始数据仍保留在浏览器中，处理前请先导出。
+              {unreadable?.reason}
+              。为避免覆盖，已暂停自动保存，原始数据仍保留在浏览器中，处理前请先导出。
             </DialogDescription>
           </DialogHeader>
           {unreadable?.recovery && (
             <p className="unreadable-note">
               可识别 {unreadable.recovery.saved.visits.length} 条城市足迹、
-              {Object.keys(unreadable.recovery.saved.provinces).length} 个省份标记；
-              恢复时将丢弃 {unreadable.recovery.discardedVisits} 条足迹、
+              {Object.keys(unreadable.recovery.saved.provinces).length}{" "}
+              个省份标记； 恢复时将丢弃 {unreadable.recovery.discardedVisits}{" "}
+              条足迹、
               {unreadable.recovery.discardedProvinces} 个省份标记。
             </p>
           )}
@@ -1326,7 +1522,10 @@ function App() {
                 variant="outline"
                 onClick={() =>
                   unreadable.recovery &&
-                  resolveUnreadable(unreadable.recovery.saved, "已恢复可识别的记录")
+                  resolveUnreadable(
+                    unreadable.recovery.saved,
+                    "已恢复可识别的记录",
+                  )
                 }
               >
                 恢复可识别的记录

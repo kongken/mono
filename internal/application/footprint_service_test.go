@@ -41,6 +41,56 @@ func snapshot(t *testing.T, e *env, token string) *tripmapv1.GetFootprintsRespon
 	return res.Msg
 }
 
+func TestRequiredInitialRevision(t *testing.T) {
+	e := newEnv(t)
+	token := e.register("initial_revision")
+	ctx := t.Context()
+	first := hangzhou()
+	request := func(v *tripmapv1.Visit) (*tripmapv1.UpsertVisitResponse, error) {
+		r, err := e.foot.UpsertVisit(ctx, bearer(token, &tripmapv1.UpsertVisitRequest{
+			Visit: v, BaseRevision: 0, RequireRevision: true,
+		}))
+		if err != nil {
+			return nil, err
+		}
+		return r.Msg, nil
+	}
+	if _, err := request(first); err != nil {
+		t.Fatal(err)
+	}
+	// An acknowledged request can be safely replayed against the old revision.
+	if r, err := request(first); err != nil || r.Changed || r.Revision != 1 {
+		t.Fatalf("idempotent retry: %v %v", r, err)
+	}
+	changed := hangzhou(func(v *tripmapv1.Visit) { v.Note = "another device" })
+	_, err := request(changed)
+	wantCode(t, err, connect.CodeAborted)
+	if got := snapshot(t, e, token); got.Revision != 1 || got.Visits[0].Note != first.Note {
+		t.Fatalf("stale zero revision changed data: %v", got)
+	}
+	_, err = e.foot.DeleteVisit(ctx, bearer(token, &tripmapv1.DeleteVisitRequest{
+		Code: first.Code, RequireRevision: true,
+	}))
+	wantCode(t, err, connect.CodeAborted)
+	_, err = e.foot.UpsertProvinceMark(ctx, bearer(token, &tripmapv1.UpsertProvinceMarkRequest{
+		Mark: &tripmapv1.ProvinceMark{Province: "330000", Color: first.Color}, RequireRevision: true,
+	}))
+	wantCode(t, err, connect.CodeAborted)
+	// Legacy callers without the new flag still retain their old semantics.
+	if _, err := upsert(e, token, changed, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.foot.UpsertProvinceMark(ctx, bearer(token, &tripmapv1.UpsertProvinceMarkRequest{
+		Mark: &tripmapv1.ProvinceMark{Province: "330000", Color: first.Color},
+	})); err != nil {
+		t.Fatal(err)
+	}
+	_, err = e.foot.DeleteProvinceMark(ctx, bearer(token, &tripmapv1.DeleteProvinceMarkRequest{
+		Province: "330000", RequireRevision: true,
+	}))
+	wantCode(t, err, connect.CodeAborted)
+}
+
 func TestFootprintsRoundTrip(t *testing.T) {
 	e := newEnv(t)
 	token := e.register("alice")
