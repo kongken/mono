@@ -19,6 +19,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/user"
 	"go.orx.me/apps/trip-map/internal/regions"
 	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -92,7 +93,7 @@ func (s *FootprintService) validateMark(m *tripmapv1.ProvinceMark) error {
 }
 
 func toVisit(v *ent.CityVisit) *tripmapv1.Visit {
-	return &tripmapv1.Visit{Code: v.RegionCode, Name: v.RegionName, Province: v.ProvinceCode, Color: v.Color, Date: v.TravelDate, Note: v.Note, UpdatedAt: timestamppb.New(v.UpdatedAt)}
+	return &tripmapv1.Visit{Code: v.RegionCode, Name: v.RegionName, Province: regions.CanonicalProvince(v.RegionCode, v.ProvinceCode), Color: v.Color, Date: v.TravelDate, Note: v.Note, UpdatedAt: timestamppb.New(v.UpdatedAt)}
 }
 
 func toMark(m *ent.ProvinceMark) *tripmapv1.ProvinceMark {
@@ -200,10 +201,14 @@ func (s *FootprintService) write(ctx context.Context, base int64, requireRevisio
 }
 
 func (s *FootprintService) UpsertVisit(ctx context.Context, req *connect.Request[tripmapv1.UpsertVisitRequest]) (*connect.Response[tripmapv1.UpsertVisitResponse], error) {
-	if err := s.validateVisit(req.Msg.GetVisit()); err != nil {
+	v := req.Msg.GetVisit()
+	if v != nil {
+		v = proto.Clone(v).(*tripmapv1.Visit)
+		v.Province = regions.CanonicalProvince(v.Code, v.Province)
+	}
+	if err := s.validateVisit(v); err != nil {
 		return nil, err
 	}
-	v := req.Msg.GetVisit()
 	var stored *ent.CityVisit
 	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), func(tx *ent.Tx, uid string) (bool, error) {
 		existing, err := tx.CityVisit.Query().Where(cityvisit.UserID(uid), cityvisit.RegionCode(v.GetCode())).Only(ctx)
@@ -216,7 +221,7 @@ func (s *FootprintService) UpsertVisit(ctx context.Context, req *connect.Request
 			return false, internalError(err)
 		}
 		stored = existing
-		if existing.RegionName == v.GetName() && existing.ProvinceCode == v.GetProvince() && existing.Color == v.GetColor() && existing.TravelDate == v.GetDate() && existing.Note == v.GetNote() {
+		if existing.RegionName == v.GetName() && regions.CanonicalProvince(existing.RegionCode, existing.ProvinceCode) == v.GetProvince() && existing.Color == v.GetColor() && existing.TravelDate == v.GetDate() && existing.Note == v.GetNote() {
 			return false, nil
 		}
 		stored, err = existing.Update().SetRegionName(v.GetName()).SetProvinceCode(v.GetProvince()).SetColor(v.GetColor()).SetTravelDate(v.GetDate()).SetNote(v.GetNote()).Save(ctx)

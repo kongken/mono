@@ -56,7 +56,7 @@ import AccountDialog from "./components/AccountDialog";
 import CityPicker from "./components/CityPicker";
 import { readBoot, useCloud } from "./hooks/useCloud";
 import TravelReport from "./components/TravelReport";
-import { totalCities, percentage } from "./lib/statistics";
+import { totalCities, percentage, visitedCityCount, isDistrictDestination } from "./lib/statistics";
 import "./App.css";
 
 const OsmProvinceMap = lazy(() => import("./components/OsmProvinceMap"));
@@ -234,11 +234,8 @@ function App() {
       p.name.includes(query) || p.cities.some((c) => c.name.includes(query)),
   );
   const draftRegion = provinceByCode(draftProvince)!;
-  const isDistrict =
-    province &&
-    ["110000", "120000", "310000", "500000", "810000", "820000"].includes(
-      province.code,
-    );
+  const cityCount = visitedCityCount(saved);
+  const isDistrict = province && isDistrictDestination(province.code);
   const unit = isDistrict ? "区县" : "城市";
   const projection = useMemo(() => {
     if (!map) return null;
@@ -610,11 +607,11 @@ function App() {
             <i />
             <div>
               <strong>
-                {saved.visits.length}
+                {cityCount}
                 <small>/ {totalCities}</small>
               </strong>
               <span>
-                已打卡城市 · {percentage(saved.visits.length, totalCities)}
+                已打卡城市 · {percentage(cityCount, totalCities)}
               </span>
             </div>
             <i />

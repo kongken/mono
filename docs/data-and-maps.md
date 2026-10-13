@@ -48,7 +48,8 @@
 - 后端 PostgreSQL/Redis/S3 基础设施已初始化，详见 [后端初始化](backend.md)。配置后端并登录后，足迹以服务端确认副本与本机待同步差异做三方合并：前端逐条发送变更（城市足迹按区域 ID、省份标记按省份 ID，逻辑在 `src/lib/sync.ts`），不会整体覆盖云端；结构版本迁移尚未实现。
 - 登录相关的浏览器存储：`shanhai-session-v1`（令牌、过期时间与用户信息）、`shanhai-cloud-v1:<用户 ID>`（`{saved, revision, confirmed}`，`saved` 为页面目标足迹，`confirmed` 为最后确认的祖先足迹，`revision` 对应祖先；差异表示待同步新增、编辑或删除，原有 `{saved, revision}` 缓存兼容为已确认副本。无法解析或任一副本校验失败时保留原始字符串并停止覆盖，供导出恢复）、`sessionStorage` 中的 `shanhai-oauth-pending-v1`（OAuth 回调校验）。登录期间不读写 `shanhai-travel-v1`；确认退出登录清除当前账号缓存及会话，不触碰本地足迹及其 `-unreadable-*` 副本；其他账号的未同步或损坏缓存不自动清理。每次编辑先保存完整目标及祖先再发送，保存失败拒绝编辑；重连先三方合并，无整体云端覆盖。同记录冲突需用户选择，旅行日期不充当修改时间。浏览器清理存储或用户确认退出会丢失未同步修改，应先导出备份。
 - 读取失败（JSON 无法解析、版本不是 1、记录未通过校验）时保留原始缓存字符串，暂停自动保存，由用户选择导出原始数据、恢复可识别的记录或以空数据开始；后两者先把原始数据复制到 `shanhai-travel-v1-unreadable-<时间戳>`。缓存不存在或为空属于正常首次使用。这些副本不会自动清理，也不会被应用读取。
-- 修改版本、名称或区域 ID 前仍需设计兼容或迁移路径，保留已有足迹；区域索引更新会使旧缓存校验失败并进入上述保护流程，而不是被清空。
+- 金门 `tw-09020`、连江县（马祖）`tw-09007` 保留原 ID，省份归属改为福建 `350000`。版本 1 的本地缓存、导入备份和账号缓存的 `saved` / `confirmed` 中，原归属台湾 `710000` 的这两项在校验时规范化到福建；名称及其余字段仍须通过严格校验，重复 ID 仍拒绝，恢复可识别记录也使用相同迁移。颜色、日期、备注及独立省份标记均保留，不移动或删除独立台湾标记。两个账号缓存副本同时规范化，保留待同步差异及 revision，不产生虚假的归属冲突。
+- 其他版本、名称或区域 ID 变更仍需设计兼容或迁移路径，保留已有足迹；未提供迁移的区域索引更新会使旧缓存校验失败并进入上述保护流程，而不是被清空。
 - 写入失败会显示保存异常提示，内存中的记录仍可导出；页面关闭后不能保证保留未写入数据。
 
 ## 备份导入导出
@@ -71,18 +72,19 @@
 | `src/lib/coords.ts` | GCJ-02 与 WGS-84 坐标转换，用于把边界叠加到 OSM 底图 |
 | `src/components/OsmProvinceMap.tsx` | 省内可选 OSM 底图（Leaflet），按需加载 |
 | `scripts/download-maps.mjs` | 根据现有全国地图下载省内地图并重建索引 |
-| `scripts/prepare-taiwan.mjs` | 处理台湾补充数据的名称、ID、中心点及多边形方向 |
+| `scripts/prepare-taiwan.mjs` | 处理补充县市边界数据的名称、ID、中心点及多边形方向 |
+| `scripts/split-fujian-regions.mjs` | 将补充边界中的金门、马祖拆入福建，并移除福州、泉州中的重复岛屿组件 |
 | `scripts/check-maps.mjs` | 校验全国覆盖、省内索引一致性、ID 唯一性、多边形方向及投影路径 |
 
-当前共有 34 个省级区域和 497 个可记录下级区域。数量是当前数据快照；更新后以 `npm run check:maps` 的实际结果为准。
+当前共有 34 个省级区域和 497 个可记录下级区域（福建 11、台湾 20）。全国城市统计将直辖市和港澳的 112 个区县合并为 6 个目的地，分母为 391；这只改变统计，不合并或删除足迹记录。数量是当前数据快照；更新后以 `npm run check:maps` 的实际结果为准。
 
-普通区域 ID 来自数据中的 `adcode`，应用统一转换为字符串；台湾补充区域使用 `tw-<county_id>`，例如台北市为 `tw-63000`，避免与其他区域 ID 冲突。
+普通区域 ID 来自数据中的 `adcode`，应用统一转换为字符串；补充数据使用 `tw-<county_id>`，例如台北市为 `tw-63000`，避免与其他区域 ID 冲突。`tw-` 表示数据源而非省份归属，迁入福建的金门与马祖仍沿用该前缀，避免破坏已有记录。
 
 ## 来源与边界限制
 
-全国及除台湾外的省内数据来自 [阿里云 DataV GeoAtlas](https://datav.aliyun.com/portal/school/atlas/area_selector)，省内下载接口为 `https://geo.datav.aliyun.com/areas_v3/bound/<adcode>_full.json`。
+全国及除补充县市边界外的省内数据来自 [阿里云 DataV GeoAtlas](https://datav.aliyun.com/portal/school/atlas/area_selector)，省内下载接口为 `https://geo.datav.aliyun.com/areas_v3/bound/<adcode>_full.json`。
 
-台湾县市边界来自 [ronnywang/twgeojson](https://github.com/ronnywang/twgeojson) 的 `twcounty2010.2.json`。其源数据为 2012 年县市边界；处理脚本将部分名称转换为简体，并把桃园县显示为桃园市，未据此重绘边界。
+台湾县市及福建金门、马祖的补充边界来自 [ronnywang/twgeojson](https://github.com/ronnywang/twgeojson) 的 `twcounty2010.2.json`。其源数据为 2012 年县市边界；处理脚本将部分名称转换为简体，并把桃园县显示为桃园市，未据此重绘边界。下载全部省内文件后，拆分脚本将金门、马祖归入福建，从福州、泉州的 DataV 多多边形中移除对应的独立岛屿组件，避免重复点选；小组件按转换到 WGS-84 的球面中心与补充岛屿范围匹配，仅作用于这两个城市。全国地图原有福建轮廓不变。
 
 直辖市和港澳提供区县数据，而不是常规省份的地级市数据。地图用于旅行可视化，下载快照可能与最新行政区划不同。
 
@@ -91,7 +93,7 @@
 省内地图可通过开关改用 [OpenStreetMap](https://www.openstreetmap.org/copyright) 瓦片（`https://tile.openstreetmap.org/{z}/{x}/{y}.png`）作为底图，使用 Leaflet 绘制，并在首次开启时按需加载。偏好保存在独立存储键 `shanhai-basemap-v1`（`osm` 或 `off`），不属于足迹数据，也不进入导出备份。
 
 - 默认关闭，关闭时不发起任何第三方地图请求，仍满足“运行时无需第三方地图请求或 API Key”；开启后才会请求瓦片，无需 API Key。
-- DataV 边界为 GCJ-02 坐标，而 OSM 使用 WGS-84。开启底图时对除台湾（`tw-` 补充数据）、香港、澳门以外的区域做 GCJ-02 到 WGS-84 的近似转换；转换仅用于底图视图，`public/maps` 数据与区域 ID 不变，SVG 视图仍使用原坐标。
+- DataV 边界为 GCJ-02 坐标，而 OSM 使用 WGS-84。开启底图时对除 `tw-` 补充数据（含福建金门、马祖）、香港、澳门以外的区域做 GCJ-02 到 WGS-84 的近似转换；转换仅用于底图视图，`public/maps` 数据与区域 ID 不变，SVG 视图仍使用原坐标。
 - 瓦片通过 CSS 滤镜降低饱和度与对比度，使叠加的区域颜色和标签更清晰。评估过 Carto Positron 公共瓦片，目前需要 API Key，不可直接使用；更浅的底图建议改用自托管瓦片。
 - 瓦片源可在构建时通过环境变量配置，未设置或格式无效时回落到上述 OSM 公共瓦片：`VITE_OSM_TILE_URL`（必须包含 `{z}`、`{x}`、`{y}`）、`VITE_OSM_TILE_MAX_ZOOM`（1–22 的整数；自定义地址默认 18，默认地址为 19）、`VITE_OSM_TILE_ATTRIBUTION`（附加署名，作为 HTML 显示，仅用于受信任的构建配置；OpenStreetMap 署名始终保留）。变量在构建时写入，修改后需重新构建；Docker 镜像通过 `--build-arg` 传入，当前 CI 工作流尚未传递这些参数。源码见 `src/lib/tiles.ts`。
 - 全国地图使用圆锥投影，且包含南海附图，不使用 OSM 底图。

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import regions from "../regions.json";
 import type { Saved } from "../lib/travel";
 
-import { totalCities, percentage } from "../lib/statistics";
+import { totalCities, percentage, visitedCityCount } from "../lib/statistics";
 
 type Props = {
   open: boolean;
@@ -23,7 +23,8 @@ export default function TravelReport({ open, onOpenChange, saved, province, shap
   const [imageUrl, setImageUrl] = useState("");
   useEffect(() => () => { if (imageUrl) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
   const explored = new Set([...Object.keys(saved.provinces), ...saved.visits.map(v => v.province)]).size;
-  const count = province ? saved.visits.filter(v => v.province === province.code).length : saved.visits.length;
+  const cityCount = visitedCityCount(saved);
+  const count = province ? saved.visits.filter(v => v.province === province.code).length : cityCount;
   const total = province ? province.cities.length : totalCities;
   const scope = province?.name || "中国";
   const [date] = useState(() => new Date().toLocaleDateString("en-CA"));
@@ -72,9 +73,9 @@ export default function TravelReport({ open, onOpenChange, saved, province, shap
       </DialogHeader>
       <div className="report-summary">
         <div><strong>{explored} / {regions.length}</strong><span>已探索省份 · {percentage(explored, regions.length)}</span></div>
-        <div><strong>{saved.visits.length} / {totalCities}</strong><span>全国城市打卡率 · {percentage(saved.visits.length, totalCities)}</span></div>
+        <div><strong>{cityCount} / {totalCities}</strong><span>全国城市打卡率 · {percentage(cityCount, totalCities)}</span></div>
       </div>
-      <p className="report-hint">城市含自治州、县市及区县；省份独立标记仅计入已探索省份。打卡率按当前地图数据计算。</p>
+      <p className="report-hint">全国城市含自治州及县市；直辖市、香港、澳门各计一座，省内仍按区县统计。省份独立标记不增加城市数。</p>
       <div className="report-poster">
         {!shapes ? <p role="status">地图暂不可用，请关闭弹窗后重新加载地图，再生成图片。</p> :
           <svg ref={poster} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1000" width="900" height="1000" role="img" aria-label={`${scope}足迹分享图片预览`}
@@ -93,13 +94,13 @@ export default function TravelReport({ open, onOpenChange, saved, province, shap
               </g>}
             </g>
             <line x1="70" x2="830" y1="810" y2="810" stroke="#dee5d9" />
-            {[{ value: `${count} / ${total}`, label: province ? "省内打卡区域" : "全国打卡区域" },
+            {[{ value: `${count} / ${total}`, label: province ? "省内打卡区域" : "全国打卡城市" },
               { value: percentage(count, total), label: province ? "省内打卡率" : "全国城市打卡率" },
               { value: `${explored} / ${regions.length}`, label: "已探索省份" }].map((metric, i) => <g key={metric.label} transform={`translate(${70 + i * 260},860)`}>
                 <text fontSize="34" fill="#355943">{metric.value}</text>
                 <text y="35" fontSize="17" fill="#7b8874">{metric.label}</text>
               </g>)}
-            <text x="70" y="937" fontSize="14" fill="#929b89">记录于 {date} · 城市含自治州、县市及区县</text>
+            <text x="70" y="937" fontSize="14" fill="#929b89">记录于 {date} · {province ? "省内按地图区域统计" : "直辖市及港澳各计一座城市"}</text>
           </svg>}
       </div>
       <Button onClick={download} disabled={!shapes || busy}><DownloadSimple size={18} />{busy ? "正在生成…" : "生成并下载 PNG 图片"}</Button>

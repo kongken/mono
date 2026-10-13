@@ -1,4 +1,5 @@
 import { colors, type Saved, type Visit } from "./travel.ts";
+import { canonicalVisitProvince } from "./region-compatibility.ts";
 
 export type RegionIndex = readonly {
   code: string;
@@ -14,7 +15,7 @@ const validColor = (color: unknown) =>
 
 function isValidVisit(v: unknown, regions: RegionIndex): v is Visit {
   if (!isObject(v)) return false;
-  const province = regions.find((p) => p.code === v.province);
+  const province = regions.find((p) => p.code === canonicalVisitProvince(v.code, v.province));
   return (
     !!province?.cities.some((c) => c.code === v.code && c.name === v.name) &&
     validColor(v.color) &&
@@ -34,7 +35,7 @@ const isValidProvinceMark = (
 const cleanVisit = (v: Visit): Visit => ({
   code: v.code,
   name: v.name,
-  province: v.province,
+  province: canonicalVisitProvince(v.code, v.province),
   color: v.color,
   date: v.date,
   note: v.note,
