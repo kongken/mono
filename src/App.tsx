@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { geoConicConformal, geoMercator, geoPath } from "d3-geo";
 import { normalizeMap, type MapData } from "./lib/maps";
+import { loadCityMaps, type CityMaps } from "./lib/cityMaps";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -103,6 +104,11 @@ function App() {
   const [map, setMap] = useState<MapData | null>(null);
   const [mapError, setMapError] = useState(false);
   const [retry, setRetry] = useState(0);
+  // National map fill: by province (default) or by city. Not persisted.
+  const [fillMode, setFillMode] = useState<"province" | "city">("province");
+  const [cityMaps, setCityMaps] = useState<CityMaps | null>(null);
+  const [cityMapError, setCityMapError] = useState(false);
+  const [cityRetry, setCityRetry] = useState(0);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"map" | "visits">("map");
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
@@ -253,6 +259,23 @@ function App() {
       });
     return () => controller.abort();
   }, [province, retry]);
+  // City boundaries are only requested the first time the city fill is chosen.
+  const needCityMaps = !province && fillMode === "city" && !cityMaps;
+  useEffect(() => {
+    if (!needCityMaps) return;
+    const controller = new AbortController();
+    setCityMapError(false);
+    loadCityMaps(
+      import.meta.env.BASE_URL,
+      regions.map((r) => r.code),
+      controller.signal,
+    )
+      .then(setCityMaps)
+      .catch((e) => {
+        if (e.name !== "AbortError") setCityMapError(true);
+      });
+    return () => controller.abort();
+  }, [needCityMaps, cityRetry]);
   const visitedProvinces = new Set([
     ...Object.keys(saved.provinces),
     ...saved.visits.map((v) => v.province),
@@ -332,6 +355,23 @@ function App() {
     () => Object.fromEntries(saved.visits.map((v) => [v.code, v.color])),
     [saved.visits],
   );
+  // Per-city paths for the national map, drawn with the national projection.
+  const cityShapes = useMemo(() => {
+    if (province || !cityMaps || !projection) return null;
+    const draw = geoPath(projection);
+    return regions.flatMap((r) =>
+      (cityMaps[r.code]?.features ?? [])
+        .filter((f) => f.properties.name)
+        .map((f) => ({
+          code: String(f.properties.adcode),
+          province: r.code,
+          name: f.properties.name,
+          d: draw(f) || "",
+        })),
+    );
+  }, [province, cityMaps, projection]);
+  const cityMode = !province && fillMode === "city";
+  const cityLoading = cityMode && !cityShapes && !cityMapError;
   const showOsm = !!province && basemap;
   const toggleCity = (provinceCode: string, cityCode: string) => {
     const city = provinceByCode(provinceCode)?.cities.find(
@@ -726,7 +766,9 @@ function App() {
                     <p>
                       {province
                         ? `点击${unit}标记去过，再次点击取消 · 自动配色`
-                        : "点击一个省份，开启你的城市足迹"}
+                        : fillMode === "city"
+                          ? "按城市着色 · 点击任意城市进入所在省份"
+                          : "点击一个省份，开启你的城市足迹"}
                     </p>
                   </div>
                 </div>
@@ -740,10 +782,20 @@ function App() {
                       重新加载
                     </Button>
                   </div>
-                ) : !map || !path || !projection ? (
+                ) : cityMode && cityMapError ? (
+                  <div className="map-message">
+                    城市地图加载失败
+                    <Button
+                      variant="outline"
+                      onClick={() => setCityRetry((r) => r + 1)}
+                    >
+                      重新加载
+                    </Button>
+                  </div>
+                ) : !map || !path || !projection || cityLoading ? (
                   <div className="map-message">
                     <Compass className="loading" size={30} />
-                    正在展开地图…
+                    {cityLoading && map ? "正在加载城市边界…" : "正在展开地图…"}
                   </div>
                 ) : showOsm ? (
                   <Suspense
@@ -791,6 +843,34 @@ function App() {
                     <g
                       transform={`translate(${425 * (1 - zoom)},${310 * (1 - zoom)}) scale(${zoom})`}
                     >
+                      {cityMode && cityShapes && (
+                        <g className="city-layer" aria-hidden="true">
+                          {cityShapes.map((shape) => {
+                            const color = visitColors[shape.code];
+                            const tint = saved.provinces[shape.province];
+                            return (
+                              <path
+                                key={shape.code}
+                                className={`city-shape ${color ? "visited" : ""}`}
+                                d={shape.d}
+                                fill={color || (tint ? `${tint}40` : "#e9eee9")}
+                                stroke={color ? "#ffffff" : "#fafcf9"}
+                                strokeWidth={0.6}
+                                vectorEffect="non-scaling-stroke"
+                                onClick={() =>
+                                  navigate(provinceByCode(shape.province) || null)
+                                }
+                                onMouseEnter={() =>
+                                  setHover(
+                                    `${shape.name} · ${provinceByCode(shape.province)?.short}${color ? " · 已去过" : ""}，点击进入省内地图`,
+                                  )
+                                }
+                                onMouseLeave={() => setHover("")}
+                              />
+                            );
+                          })}
+                        </g>
+                      )}
                       {map.features
                         .filter((f) => f.properties.name)
                         .map((feature) => {
@@ -820,7 +900,7 @@ function App() {
                           return (
                             <g
                               key={code}
-                              className={`map-region ${fill ? "visited" : ""}`}
+                              className={`map-region ${fill ? "visited" : ""} ${cityMode ? "province-outline" : ""}`}
                               role="button"
                               tabIndex={0}
                               aria-label={`${feature.properties.name}${fill ? "，已去过" : ""}`}
@@ -862,20 +942,26 @@ function App() {
                               )}
                               <path
                                 d={drawPath(feature)}
-                                fill={fill || "#e9eee9"}
+                                fill={cityMode ? "none" : fill || "#e9eee9"}
+                                pointerEvents={cityMode ? "stroke" : undefined}
                                 stroke={
-                                  code === "460300" && sanshaPath
-                                    ? fill || "#8aa18c"
-                                    : fill
-                                      ? "#ffffff"
-                                      : "#fafcf9"
+                                  cityMode
+                                    ? "#6f8a72"
+                                    : code === "460300" && sanshaPath
+                                      ? fill || "#8aa18c"
+                                      : fill
+                                        ? "#ffffff"
+                                        : "#fafcf9"
                                 }
+                                strokeOpacity={cityMode ? 0.7 : undefined}
                                 strokeWidth={
-                                  code === "460300" && sanshaPath
-                                    ? 2
-                                    : province
-                                      ? 1.4
-                                      : 1.5
+                                  cityMode
+                                    ? 1
+                                    : code === "460300" && sanshaPath
+                                      ? 2
+                                      : province
+                                        ? 1.4
+                                        : 1.5
                                 }
                                 vectorEffect="non-scaling-stroke"
                               >
@@ -961,6 +1047,27 @@ function App() {
                     <Stack size={16} />
                     {basemap ? "关闭 OSM 底图" : "OSM 底图"}
                   </button>
+                )}
+                {!province && !mapError && (
+                  <div className="fill-mode" role="group" aria-label="全国地图着色方式">
+                    {(
+                      [
+                        ["province", "按省份"],
+                        ["city", "按城市"],
+                      ] as const
+                    ).map(([mode, text]) => (
+                      <button
+                        key={mode}
+                        aria-pressed={fillMode === mode}
+                        onClick={() => {
+                          setFillMode(mode);
+                          setHover("");
+                        }}
+                      >
+                        {text}
+                      </button>
+                    ))}
+                  </div>
                 )}
                 {!showOsm && (
                   <div className="map-controls">
@@ -1336,22 +1443,39 @@ function App() {
           saved={saved}
           province={province}
           shapes={
-            map && path
-              ? map.features
-                  .filter((f) => f.properties.name)
-                  .map((f) => ({
-                    d: drawPath(f),
-                    stroke:
-                      province?.code === "460000" &&
-                      String(f.properties.adcode) === "460300"
-                        ? "#8aa18c"
-                        : undefined,
-                    fill:
-                      (province
-                        ? visitColors[String(f.properties.adcode)]
-                        : provinceColor(String(f.properties.adcode))) ||
-                      "#e9eee9",
-                  }))
+            map && path && !(cityMode && !cityShapes)
+              ? [
+                  ...(cityMode && cityShapes
+                    ? cityShapes.map((s) => {
+                        const tint = saved.provinces[s.province];
+                        return {
+                          d: s.d,
+                          strokeWidth: 0.5,
+                          fill:
+                            visitColors[s.code] ||
+                            (tint ? `${tint}40` : "#e9eee9"),
+                        };
+                      })
+                    : []),
+                  ...map.features
+                    .filter((f) => f.properties.name)
+                    .map((f) => ({
+                      d: drawPath(f),
+                      stroke: cityMode
+                        ? "#6f8a72"
+                        : province?.code === "460000" &&
+                            String(f.properties.adcode) === "460300"
+                          ? "#8aa18c"
+                          : undefined,
+                      strokeWidth: cityMode ? 1 : undefined,
+                      fill: cityMode
+                        ? "none"
+                        : (province
+                            ? visitColors[String(f.properties.adcode)]
+                            : provinceColor(String(f.properties.adcode))) ||
+                          "#e9eee9",
+                    })),
+                ]
               : null
           }
           inset={
