@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { prepareTaiwan } from "./prepare-taiwan.mjs";
+import { splitFujianRegions } from "./split-fujian-regions.mjs";
 const china = JSON.parse(await readFile("public/maps/100000.json", "utf8"));
 const provinces = china.features.filter((f) => f.properties.name);
 let cursor = 0;
@@ -32,6 +33,13 @@ await Promise.all(
     }
   }),
 );
+// Both downloads must finish before splitting the supplemental island dataset.
+const split = splitFujianRegions(
+  JSON.parse(await readFile("public/maps/710000.json", "utf8")),
+  JSON.parse(await readFile("public/maps/350000.json", "utf8")),
+);
+await writeFile("public/maps/710000.json", JSON.stringify(split.taiwan));
+await writeFile("public/maps/350000.json", JSON.stringify(split.fujian));
 const index = await Promise.all(
   provinces.map(async (f) => {
     const p = f.properties;

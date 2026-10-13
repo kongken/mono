@@ -23,6 +23,28 @@ func TestDefaultIndex(t *testing.T) {
 	}
 }
 
+func TestFujianSupplementalRegions(t *testing.T) {
+	idx, err := Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for code, wantName := range map[string]string{"tw-09020": "金门县", "tw-09007": "连江县"} {
+		name, province, ok := idx.City(code)
+		if !ok || name != wantName || province != "350000" {
+			t.Fatalf("%s = %q %q %v", code, name, province, ok)
+		}
+		if got := CanonicalProvince(code, "710000"); got != "350000" {
+			t.Fatalf("legacy %s province = %s", code, got)
+		}
+		if got := CanonicalProvince(code, "330000"); got != "330000" {
+			t.Fatalf("unexpected migration of invalid province: %s", got)
+		}
+	}
+	if got := CanonicalProvince("tw-63000", "710000"); got != "710000" {
+		t.Fatalf("Taipei province changed: %s", got)
+	}
+}
+
 // The frontend validates against src/regions.json; both copies must match.
 func TestMatchesFrontendIndex(t *testing.T) {
 	frontend, err := os.ReadFile("../../src/regions.json")
