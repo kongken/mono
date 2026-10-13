@@ -44,3 +44,34 @@ func TestRoutesBeforeBootstrap(t *testing.T) {
 		t.Fatalf("RPC after resource wiring: %v", err)
 	}
 }
+
+func TestCORSAllowsOnlyConfiguredOrigins(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.AppConfig{Auth: config.AuthConfig{CORSAllowedOrigins: []string{"https://trip.example.com"}}}
+	router := gin.New()
+	New(cfg).Routes(router)
+	do := func(method, origin string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, "/api/tripmap.v1.AuthService/Login", strings.NewReader("{}"))
+		req.Header.Set("Content-Type", "application/json")
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+	preflight := do(http.MethodOptions, "https://trip.example.com")
+	if preflight.Code != http.StatusNoContent || preflight.Header().Get("Access-Control-Allow-Origin") != "https://trip.example.com" ||
+		!strings.Contains(preflight.Header().Get("Access-Control-Allow-Headers"), "Authorization") {
+		t.Fatalf("allowed preflight: %d %v", preflight.Code, preflight.Header())
+	}
+	if got := do(http.MethodOptions, "https://evil.example.com"); got.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatalf("unlisted origin was allowed: %v", got.Header())
+	}
+	if got := do(http.MethodPost, "https://trip.example.com"); got.Header().Get("Access-Control-Allow-Origin") != "https://trip.example.com" {
+		t.Fatalf("actual request lacks CORS header: %v", got.Header())
+	}
+	if got := do(http.MethodPost, ""); got.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatal("same-origin request got CORS headers")
+	}
+}

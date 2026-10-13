@@ -4,7 +4,7 @@
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
-当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端。当前接口只提供健康状态；登录、足迹读写、云同步、上传签名、备份和分享仍待实现。前端城市足迹继续保存在浏览器，初始化后端不会迁移或覆盖本地记录。
+当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1 的后端部分：账号与会话（`AuthService`）和足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流）。尚未实现的有前端登录与云端读写闭环、迁移（F2）、增量同步、快照、上传签名和分享。前端城市足迹继续保存在浏览器，后端不会迁移或覆盖本地记录。
 
 Redis 客户端已接入，后续用于会话、缓存或限流；本次没有把城市足迹存入 Redis。对象内容使用 S3，PostgreSQL 只存业务记录和媒体元数据。
 
@@ -15,7 +15,10 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `internal/app/` | Bootstrap、依赖注入、Gin 路由 |
 | `internal/config/` | 业务配置及必填存储名称校验 |
-| `internal/application/` | ConnectRPC 服务实现 |
+| `internal/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService` 及认证拦截器 |
+| `internal/auth/` | 会话令牌、Redis 限流与 OAuth state 存储；`provider/` 为 GitHub、Google OAuth 适配 |
+| `internal/regions/` | 嵌入的行政区域索引，供服务端校验区域 ID、名称与归属 |
+| `internal/testutil/` | 带独立 schema 和 Redis key 前缀的集成测试辅助 |
 | `internal/health/` | 有超时的依赖就绪检查 |
 | `internal/blobstore/` | S3 Put/Get/Delete 与 bucket 检查，不依赖具体供应方 |
 | `internal/ent/schema/` | 数据库 schema 源文件 |
@@ -80,6 +83,11 @@ Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CON
 - `redis_store` 指向 `store.redis` 的命名连接。
 - `storage.s3_store` 指向 `store.s3` 的命名客户端，必须配置 bucket。
 - `storage.key_prefix` 设置对象 key 前缀，示例为 `tripmap`。
+- `auth.session_ttl` 会话有效期，默认 `168h`（7 天）。
+- `auth.registration_disabled` 为 `true` 时关闭注册（密码与 OAuth 新账号都被拒绝），默认开放注册。
+- `auth.client_ip_header` 指向可信反向代理写入的客户端地址头（如 `CF-Connecting-IP`），用于登录限流；不设置则使用 TCP 对端地址。直接暴露在公网时不要设置，否则客户端可伪造该头绕过限流。
+- `auth.cors_allowed_origins` 允许跨站调用 API 的浏览器来源（精确匹配，如 `https://trip.example.com`，不支持通配符）。同源部署（前端镜像的 Nginx 转发 `/api`）无需配置。
+- `auth.oauth_providers.<github|google>` 配置 `client_id`、`client_secret`、`redirect_url`（OAuth 应用登记的前端回调页）、可选 `scopes` 与 `display_name`；缺少 `client_id` 或 `client_secret` 的提供方不会出现在 `ListOAuthProviders` 中。
 - `auto_migrate: true` 在启动时通过 Ent 创建或补充表结构。本地示例开启；生产 schema 变更应先评审迁移，关闭自动迁移后仍需自行执行经过验证的迁移。本次尚无独立的版本化迁移流水线。
 
 启动时检查 PostgreSQL、Redis 与 S3 bucket，缺失或不可连接则启动失败。后端不会在启动时自动创建 bucket；`make storage-init` 是独立显式操作，bucket 已存在且可访问时直接成功，不会配置公共访问策略。
@@ -105,22 +113,67 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
   -d '{}'
 ```
 
-健康接口无用户数据，无需登录。本次没有开放用户或媒体读写接口；新增私有业务接口前应先接入认证、用户隔离和服务端区域索引校验。前端 `getBackendStatus()` 已可调用生成客户端，但界面尚未主动请求后端。
+健康接口无用户数据，无需登录。前端 `getBackendStatus()` 已可调用生成客户端，但界面尚未主动请求后端；没有配置 `VITE_API_BASE_URL` 时前端根本不会发请求。
+
+### 账号与会话（`tripmap.v1.AuthService`）
+
+除公共方法外，所有 RPC 都要求 `Authorization: Bearer <token>`，由 ConnectRPC 拦截器统一校验；未知、过期、已撤销令牌以及被禁用用户的会话返回相同的 `unauthenticated`。
+
+| 方法 | 公共 | 行为 |
+| --- | --- | --- |
+| `Register` | 是 | 用户名（3–32 位 `a-z0-9_`，不区分大小写）和密码（8–72 字节）创建账号并登录；用户名冲突返回 `already_exists`；注册关闭返回 `permission_denied` |
+| `Login` | 是 | 用户名 + 密码换取令牌；用户名不存在与密码错误返回同样的错误，并做等耗时的哈希比较 |
+| `Logout` / `Me` | 否 | 撤销当前会话 / 返回当前用户 |
+| `ListSessions` / `RevokeSession` | 否 | 列出自己未过期未撤销的会话（标记 `current`）/ 撤销自己的会话；他人的会话返回 `not_found` |
+| `ListOAuthProviders` | 是 | 已配置的 OAuth 提供方，供客户端决定显示哪些登录按钮 |
+| `BeginOAuthFlow` | 是 | 返回提供方授权地址和单次使用的 state（Redis，10 分钟） |
+| `CompleteOAuthFlow` | 是 | 校验并消耗 state，用授权码换取身份，找到或创建账号并登录 |
+
+- 令牌为 `tm_` 加 32 字节随机十六进制；数据库只保存 SHA-256，密码使用 bcrypt。
+- OAuth 账号按 `(provider, external_id)` 识别，不按邮箱合并；不保存提供方邮箱。OAuth 账号没有用户名和密码。
+- `state` 只能防止服务端重放；客户端必须在发起前保存 `state` 并在回调时比对，否则存在登录 CSRF，前端接入时需实现。
+- 限流（Redis 固定窗口）：登录每用户名 10 次 / 15 分钟、每客户端地址 40 次 / 15 分钟；注册每地址 10 次 / 小时；OAuth 每地址 60 次 / 15 分钟；足迹写入每用户 300 次 / 分钟。超限返回 `resource_exhausted`，Redis 不可用时返回 `unavailable`（不放行）。
+- 当前没有找回密码、修改密码、账号注销与邮箱验证；密码账号忘记密码无法自助恢复。
+
+### 足迹（`tripmap.v1.FootprintService`）
+
+所有方法都要求登录，用户 ID 只取自会话，请求中没有用户字段。
+
+| 方法 | 行为 |
+| --- | --- |
+| `GetFootprints` | 在同一事务快照中返回全部城市足迹、省份标记和 `revision`（城市按区域 ID、省份按省份 ID 排序） |
+| `UpsertVisit` / `DeleteVisit` | 保存或取消一个城市足迹 |
+| `UpsertProvinceMark` / `DeleteProvinceMark` | 保存或取消独立省份标记；与城市足迹互不影响 |
+
+- 服务端用嵌入的区域索引校验：区域 ID 存在，名称、所属省份与索引一致，颜色是五种之一，日期为空或真实日历日期，备注不超过 1000 个 UTF-16 码元。校验失败返回 `invalid_argument`。
+- 每次写入在持有用户行锁的事务中执行，同一用户的写入串行；只有实际改变数据才使 `revision` +1。内容相同的重复保存、删除不存在的记录都成功且不增加 revision，因此重试幂等，响应中的 `changed` / `deleted` 表示是否发生变化。
+- `base_revision` 可选：为 0 表示不检查；非 0 且与当前 revision 不同、且本次写入会改变数据时返回 `aborted`，并附带 `RevisionConflict.current_revision`。合并、离线队列和冲突规则属于 F2 之后的增量同步，尚未实现。
+- 区域索引的后端副本是 `internal/regions/regions.json`，必须与 `src/regions.json` 一致；`npm run download:maps` 会同时写入两份，Go 测试会比对。
+
+```bash
+# 用 curl 体验（令牌来自 Register 或 Login 的响应）
+curl -s http://127.0.0.1:18081/api/tripmap.v1.AuthService/Register \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"demo","password":"correct horse battery"}'
+curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
+  -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" -d '{}'
+```
 
 ## 数据库模型
 
 | 表 | 关键字段与约束 |
 | --- | --- |
-| `users` | UUID 字符串 ID、可空唯一邮箱、显示名、预留 revision、创建/更新时间 |
+| `users` | UUID 字符串 ID、可空唯一用户名（密码账号）、`provider` + `external_id`（OAuth 账号，非空时唯一）、bcrypt 密码哈希、显示名、头像、禁用标记、足迹 `revision`、创建/更新时间；`email` 字段保留但目前不写入 |
+| `auth_sessions` | 所属用户、唯一令牌哈希、创建/过期/最近使用时间、撤销标记；用户删除时级联 |
 | `city_visits` | 所属用户、区域 ID/名称、所属省份、颜色、日期字符串、备注；`user_id + region_code` 唯一 |
 | `province_marks` | 所属用户、省份 ID、颜色；`user_id + province_code` 唯一 |
 | `media_objects` | 所属用户、唯一 object key、内容类型、非负字节大小、pending/ready 状态 |
 
 城市足迹与省份独立标记分表。删除城市不影响省份独立标记；用户归属为必填外键，删除用户时数据库级联删除这些元数据。级联删除媒体元数据不会删除 S3 实体对象，未来账号删除功能需另行实现对象清理。
 
-时间戳默认 UTC。旅行日期仍是 `YYYY-MM-DD` 字符串，允许空值，不做时区转换。Ent 验证日期是否为有效日历日期，并限制颜色为前端五种色值、备注按与前端一致的 UTF-16 长度限制为最多 1000。完整区域有效性校验尚待业务服务实现。
+时间戳默认 UTC。旅行日期仍是 `YYYY-MM-DD` 字符串，允许空值，不做时区转换。Ent 验证日期是否为有效日历日期，并限制颜色为前端五种色值、备注按与前端一致的 UTF-16 长度限制为最多 1000。区域有效性、名称与归属由 `FootprintService` 在写入前校验。
 
-当前模型保留一用户一城市一足迹，预留表不等于已实现云同步或附件上传。现有浏览器备份格式仍为 `version: 1`，尚无从本地数据到上述表的迁移逻辑。
+当前模型保留一用户一城市一足迹；`media_objects` 仍是预留表，不等于已实现附件上传。现有浏览器备份格式仍为 `version: 1`，尚无从本地数据到上述表的迁移逻辑。
 
 ## 生成、构建与验证
 
@@ -144,8 +197,10 @@ make test-integration
 
 PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除。
 
+`internal/application` 的测试通过 HTTP 调用真实的处理器和拦截器，使用同样的隔离方式（随机 schema 与 Redis key 前缀），未设置 `TRIPMAP_TEST_POSTGRES_DSN` 和 `TRIPMAP_TEST_REDIS_ADDR` 时跳过。覆盖：令牌与密码只存哈希、注册/登录校验与限流、会话过期/撤销/禁用、他人会话不可见、OAuth state 单次使用与注册关闭、用户 A/B 足迹隔离、非法数据、幂等、revision 冲突、省份标记与城市足迹互不影响，以及并发写入不丢失。`.github/workflows/ci.yml` 在 PostgreSQL 与 Redis 服务容器中运行 `go vet`、`go test -race ./...` 和前端测试、地图检查、构建。
+
 [Docker 镜像与 Actions](docker-images.md) 说明前后端两个镜像的构建发布。根目录 `Dockerfile` 仅构建后端镜像，运行时挂载 `/config/config.yaml`；容器中连接 Compose 依赖时，配置地址使用服务名和容器端口，而不是宿主机的 `127.0.0.1`。
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：先明确认证和用户归属，再实现足迹读写及迁移（前端的本地读取失败保护 F0 已完成）。基础设施初始化不代表 F1–F12 已完成。
+从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：前端的登录与云端读写闭环（F1 剩余部分）、迁移上云（F2）、增量同步与快照。F0（本地读取失败保护）和 F1 的后端部分已完成；F2–F12 仍待实现。

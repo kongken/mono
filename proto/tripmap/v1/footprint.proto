@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package tripmap.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
+
+// FootprintService stores the signed-in user's city visits and independent
+// province marks. All methods require a bearer session and only ever touch the
+// caller's own records.
+//
+// Every write bumps the user's revision. `base_revision` is optional: 0 means
+// "do not check"; a non-zero value that differs from the current revision is
+// rejected with ABORTED and a RevisionConflict detail, unless the request
+// would not change anything (a retry of an applied write is a no-op).
+service FootprintService {
+  // GetFootprints returns all of the caller's records and the current revision.
+  rpc GetFootprints(GetFootprintsRequest) returns (GetFootprintsResponse);
+  // UpsertVisit creates or replaces the visit for one city or district.
+  rpc UpsertVisit(UpsertVisitRequest) returns (UpsertVisitResponse);
+  // DeleteVisit removes a visit; deleting a missing visit succeeds.
+  rpc DeleteVisit(DeleteVisitRequest) returns (DeleteVisitResponse);
+  // UpsertProvinceMark creates or replaces an independent province mark.
+  rpc UpsertProvinceMark(UpsertProvinceMarkRequest) returns (UpsertProvinceMarkResponse);
+  // DeleteProvinceMark removes a province mark but keeps the province's city
+  // visits; deleting a missing mark succeeds.
+  rpc DeleteProvinceMark(DeleteProvinceMarkRequest) returns (DeleteProvinceMarkResponse);
+}
+
+// Visit mirrors the frontend record. Region IDs and names must match the
+// bundled region index.
+message Visit {
+  // City or district region ID.
+  string code = 1;
+  string name = 2;
+  // Province region ID.
+  string province = 3;
+  // One of the five footprint colors, e.g. "#4b937d".
+  string color = 4;
+  // YYYY-MM-DD, or empty. Must be a real calendar date.
+  string date = 5;
+  // At most 1000 UTF-16 code units.
+  string note = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message ProvinceMark {
+  string province = 1;
+  string color = 2;
+  google.protobuf.Timestamp updated_at = 3;
+}
+
+// RevisionConflict is attached to ABORTED errors.
+message RevisionConflict {
+  int64 current_revision = 1;
+}
+
+message GetFootprintsRequest {}
+
+message GetFootprintsResponse {
+  repeated Visit visits = 1;
+  repeated ProvinceMark province_marks = 2;
+  int64 revision = 3;
+}
+
+message UpsertVisitRequest {
+  Visit visit = 1;
+  int64 base_revision = 2;
+}
+
+message UpsertVisitResponse {
+  Visit visit = 1;
+  int64 revision = 2;
+  // False when the stored record already matched and nothing was written.
+  bool changed = 3;
+}
+
+message DeleteVisitRequest {
+  string code = 1;
+  int64 base_revision = 2;
+}
+
+message DeleteVisitResponse {
+  int64 revision = 1;
+  // False when there was nothing to delete.
+  bool deleted = 2;
+}
+
+message UpsertProvinceMarkRequest {
+  ProvinceMark mark = 1;
+  int64 base_revision = 2;
+}
+
+message UpsertProvinceMarkResponse {
+  ProvinceMark mark = 1;
+  int64 revision = 2;
+  bool changed = 3;
+}
+
+message DeleteProvinceMarkRequest {
+  string province = 1;
+  int64 base_revision = 2;
+}
+
+message DeleteProvinceMarkResponse {
+  int64 revision = 1;
+  bool deleted = 2;
+}

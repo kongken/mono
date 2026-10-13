@@ -103,11 +103,53 @@ var (
 			},
 		},
 	}
+	// AuthSessionsColumns holds the columns for the "auth_sessions" table.
+	AuthSessionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "token_hash", Type: field.TypeString, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
+		{Name: "revoked", Type: field.TypeBool, Default: false},
+		{Name: "user_id", Type: field.TypeString},
+	}
+	// AuthSessionsTable holds the schema information for the "auth_sessions" table.
+	AuthSessionsTable = &schema.Table{
+		Name:       "auth_sessions",
+		Columns:    AuthSessionsColumns,
+		PrimaryKey: []*schema.Column{AuthSessionsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "auth_sessions_users_sessions",
+				Columns:    []*schema.Column{AuthSessionsColumns[6]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "session_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{AuthSessionsColumns[6]},
+			},
+			{
+				Name:    "session_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{AuthSessionsColumns[3]},
+			},
+		},
+	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
 		{Name: "email", Type: field.TypeString, Unique: true, Nullable: true},
+		{Name: "username", Type: field.TypeString, Unique: true, Nullable: true},
 		{Name: "display_name", Type: field.TypeString, Default: ""},
+		{Name: "avatar_url", Type: field.TypeString, Default: ""},
+		{Name: "provider", Type: field.TypeString, Default: ""},
+		{Name: "external_id", Type: field.TypeString, Default: ""},
+		{Name: "password_hash", Type: field.TypeString, Default: ""},
+		{Name: "disabled", Type: field.TypeBool, Default: false},
 		{Name: "revision", Type: field.TypeInt64, Default: 0},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
@@ -117,12 +159,23 @@ var (
 		Name:       "users",
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "user_provider_external_id",
+				Unique:  true,
+				Columns: []*schema.Column{UsersColumns[5], UsersColumns[6]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "external_id <> ''",
+				},
+			},
+		},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		CityVisitsTable,
 		MediaObjectsTable,
 		ProvinceMarksTable,
+		AuthSessionsTable,
 		UsersTable,
 	}
 )
@@ -139,6 +192,10 @@ func init() {
 	ProvinceMarksTable.ForeignKeys[0].RefTable = UsersTable
 	ProvinceMarksTable.Annotation = &entsql.Annotation{
 		Table: "province_marks",
+	}
+	AuthSessionsTable.ForeignKeys[0].RefTable = UsersTable
+	AuthSessionsTable.Annotation = &entsql.Annotation{
+		Table: "auth_sessions",
 	}
 	UsersTable.Annotation = &entsql.Annotation{
 		Table: "users",

@@ -13,6 +13,25 @@ storage:
   s3_store: main
   key_prefix: tripmap
 
+auth:
+  session_ttl: 168h
+  # registration_disabled: true
+  # Only behind a trusted reverse proxy that sets this header.
+  # client_ip_header: CF-Connecting-IP
+  # Exact browser origins allowed to call the API from another site.
+  # cors_allowed_origins: ["http://localhost:5173"]
+  # OAuth sign-in; a provider is offered only when client_id and client_secret are set.
+  # redirect_url must be the frontend callback page registered with the OAuth app.
+  oauth_providers:
+    github:
+      client_id: ""
+      client_secret: ""
+      redirect_url: http://localhost:5173/auth/callback/github
+    google:
+      client_id: ""
+      client_secret: ""
+      redirect_url: http://localhost:5173/auth/callback/google
+
 store:
   db:
     main:

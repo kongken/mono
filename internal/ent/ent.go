@@ -15,6 +15,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
+	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -79,6 +80,7 @@ func checkColumn(t, c string) error {
 			cityvisit.Table:    cityvisit.ValidColumn,
 			mediaobject.Table:  mediaobject.ValidColumn,
 			provincemark.Table: provincemark.ValidColumn,
+			session.Table:      session.ValidColumn,
 			user.Table:         user.ValidColumn,
 		})
 	})

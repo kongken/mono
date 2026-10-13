@@ -18,6 +18,8 @@ type Tx struct {
 	MediaObject *MediaObjectClient
 	// ProvinceMark is the client for interacting with the ProvinceMark builders.
 	ProvinceMark *ProvinceMarkClient
+	// Session is the client for interacting with the Session builders.
+	Session *SessionClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 
@@ -154,6 +156,7 @@ func (tx *Tx) init() {
 	tx.CityVisit = NewCityVisitClient(tx.config)
 	tx.MediaObject = NewMediaObjectClient(tx.config)
 	tx.ProvinceMark = NewProvinceMarkClient(tx.config)
+	tx.Session = NewSessionClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }
 
