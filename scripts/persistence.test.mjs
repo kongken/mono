@@ -1,4 +1,5 @@
 import test from "node:test";
+import { stampRegions } from "../src/lib/region-catalog.ts";
 import assert from "node:assert/strict";
 import {
   LEGACY_LOCAL_KEY,
@@ -200,7 +201,7 @@ test("first save upgrades into the canonical key and leaves the legacy bytes exa
   const next = { ...load.saved, provinces: { 110000: green } };
   assert.deepEqual(writer.write(next), { status: "ok" });
   assert.equal(s.getItem(LEGACY_LOCAL_KEY), legacyRaw, "legacy bytes untouched");
-  assert.equal(s.getItem(LOCAL_KEY), JSON.stringify(next));
+  assert.equal(s.getItem(LOCAL_KEY), JSON.stringify(stampRegions(next)));
   assert.equal(s.getItem(LEGACY_SEEN_KEY), digestText(legacyRaw));
   assert.deepEqual([...s.data.keys()].sort(), [LEGACY_LOCAL_KEY, LEGACY_SEEN_KEY, LOCAL_KEY].sort(), "no stray copies");
   const again = loadLocalSaved(s, regions);

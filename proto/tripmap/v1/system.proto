@@ -19,6 +19,8 @@ message GetStatusResponse {
   int32 footprint_schema = 3;
   // True when the server has public sharing configured (share.public_base_url).
   bool share_enabled = 4;
+  // Digest of the exact bundled index and its reviewed migration rules (F10).
+  string region_version = 5;
 }
 
 message DependencyStatus {

@@ -76,6 +76,12 @@ func NewAuthInterceptor(src StoreSource) connect.Interceptor {
 					slog.Warn("touch session failed", "error", err)
 				}
 			}
+			procedure := req.Spec().Procedure
+			if !strings.Contains(procedure, ".AuthService/") && !strings.Contains(procedure, ".RegionService/") && procedure != tripmapv1connect.FootprintServiceSyncChangesProcedure {
+				if err := checkRegionVersion(req.Header().Get(regionVersionHeader)); err != nil {
+					return nil, err
+				}
+			}
 			ctx = withSchemas(ctx, req.Header(), sess.Edges.User.SchemaVersion)
 			return next(auth.WithPrincipal(ctx, auth.Principal{UserID: sess.UserID, SessionID: sess.ID}), req)
 		}

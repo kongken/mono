@@ -2,6 +2,7 @@ import type { Interceptor } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import { resolveApiConfig } from "@/lib/backend";
 import { getToken } from "./token";
+import { REGION_HEADER, REGION_VERSION } from "@/lib/region-catalog";
 
 // The backend is optional: without VITE_API_BASE_URL the app stays local-only
 // and no transport or client is created, so no request can reach a missing server.
@@ -18,6 +19,7 @@ const bearer: Interceptor = (next) => (req) => {
   // older page can never overwrite them; one that does not know it is detected by
   // the schema fields missing from its replies.
   req.header.set("X-Tripmap-Schema", "2");
+  req.header.set(REGION_HEADER, REGION_VERSION);
   return next(req);
 };
 

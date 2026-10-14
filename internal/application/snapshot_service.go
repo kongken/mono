@@ -85,18 +85,24 @@ type footState struct {
 // encodeSnapshot stores the state in the account's own schema. A schema 1
 // snapshot is never rewritten later; readers convert it.
 func encodeSnapshot(st *footState, schema int) ([]byte, error) {
-	data := &tripmapv1.SnapshotData{}
+	data := &tripmapv1.SnapshotData{RegionVersion: regions.CurrentVersion()}
 	if schema >= schemaTrips {
 		data.SchemaVersion = schemaTrips
 		for _, v := range st.visits {
-			data.Visits = append(data.Visits, toCity(v))
+			city := toCity(v)
+			city.Code, city.Name, city.Province = v.RegionCode, v.RegionName, v.ProvinceCode
+			data.Visits = append(data.Visits, city)
 		}
 		for _, t := range st.trips {
-			data.Trips = append(data.Trips, toTrip(t))
+			record := toTrip(t)
+			record.RegionCode = t.RegionCode
+			data.Trips = append(data.Trips, record)
 		}
 	} else {
 		for _, v := range st.visits {
-			data.Visits = append(data.Visits, toVisit(v))
+			visit := toVisit(v)
+			visit.Code, visit.Name, visit.Province = v.RegionCode, v.RegionName, v.ProvinceCode
+			data.Visits = append(data.Visits, visit)
 		}
 	}
 	for _, m := range st.marks {
@@ -124,7 +130,7 @@ func asSchema2(data *tripmapv1.SnapshotData) *tripmapv1.SnapshotData {
 	if data.SchemaVersion >= schemaTrips {
 		return data
 	}
-	out := &tripmapv1.SnapshotData{SchemaVersion: schemaTrips, ProvinceMarks: data.ProvinceMarks}
+	out := &tripmapv1.SnapshotData{SchemaVersion: schemaTrips, ProvinceMarks: data.ProvinceMarks, RegionVersion: data.RegionVersion}
 	for _, v := range data.Visits {
 		city := proto.Clone(v).(*tripmapv1.Visit)
 		city.Date, city.Note = "", ""
@@ -360,6 +366,10 @@ func (s *SnapshotService) GetSnapshot(ctx context.Context, req *connect.Request[
 	if clientSchema(ctx) >= schemaTrips {
 		data = asSchema2(data)
 	}
+	data, err = s.normalizeSnapshot(data)
+	if err != nil {
+		return nil, err
+	}
 	return connect.NewResponse(&tripmapv1.GetSnapshotResponse{Snapshot: toSnapshotInfo(row), Data: data}), nil
 }
 
@@ -369,7 +379,14 @@ func (s *SnapshotService) GetSnapshot(ctx context.Context, req *connect.Request[
 // have changed since the snapshot was taken.
 func (s *SnapshotService) restoreMutations(data *tripmapv1.SnapshotData, st *footState, schema int) ([]*tripmapv1.FootprintMutation, error) {
 	if schema >= schemaTrips {
-		return s.restoreMutationsV2(asSchema2(data), st)
+		data = asSchema2(data)
+	}
+	data, err := s.normalizeSnapshot(data)
+	if err != nil {
+		return nil, err
+	}
+	if schema >= schemaTrips {
+		return s.restoreMutationsV2(data, st)
 	}
 	if data.SchemaVersion >= schemaTrips {
 		return nil, upgradeRequired()
@@ -594,6 +611,9 @@ func (s *SnapshotService) RestoreSnapshot(ctx context.Context, req *connect.Requ
 	if err != nil {
 		slog.Error("snapshot decode", "error", err)
 		return nil, internalError(err)
+	}
+	if err := requireCurrentRegionIDs(ctx, tx.CityVisit.Query().Where(cityvisit.UserID(u.ID)), s.fp.regions); err != nil {
+		return nil, err
 	}
 	schema, err := gateWrite(ctx, tx, u)
 	if err != nil {

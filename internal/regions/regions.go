@@ -3,6 +3,7 @@
 package regions
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -25,6 +26,8 @@ type province struct {
 
 // Index answers membership questions about provinces and cities.
 type Index struct {
+	raw       []byte
+	catalog   *Catalog
 	provinces map[string]string
 	cities    map[string]cityEntry
 	// perProvince counts every city or district record of a province.
@@ -38,7 +41,7 @@ func Parse(data []byte) (*Index, error) {
 	if err := json.Unmarshal(data, &list); err != nil {
 		return nil, fmt.Errorf("parse region index: %w", err)
 	}
-	idx := &Index{provinces: map[string]string{}, cities: map[string]cityEntry{}, perProvince: map[string]int{}}
+	idx := &Index{raw: bytes.Clone(data), provinces: map[string]string{}, cities: map[string]cityEntry{}, perProvince: map[string]int{}}
 	for _, p := range list {
 		if p.Code == "" {
 			return nil, fmt.Errorf("region index: province without code")
@@ -63,7 +66,12 @@ var (
 
 // Default returns the index embedded in the binary.
 func Default() (*Index, error) {
-	defaultOnce.Do(func() { defaultIndex, defaultErr = Parse(raw) })
+	defaultOnce.Do(func() {
+		defaultIndex, defaultErr = Parse(raw)
+		if defaultErr == nil {
+			defaultIndex, defaultErr = defaultIndex.WithCatalog(catalogRaw)
+		}
+	})
 	return defaultIndex, defaultErr
 }
 

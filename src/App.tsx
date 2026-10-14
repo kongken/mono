@@ -95,6 +95,7 @@ import AccountDialog from "./components/AccountDialog";
 import MigrationDialog from "./components/MigrationDialog";
 import LegacyDialog from "./components/LegacyDialog";
 import SnapshotDialog from "./components/SnapshotDialog";
+import RegionDialog from "./components/RegionDialog";
 import ShareDialog from "./components/ShareDialog";
 import CollaborationDialog, {
   type CollaborationTarget,
@@ -109,6 +110,7 @@ import {
 import CityPicker from "./components/CityPicker";
 import NoteSearch from "./components/NoteSearch";
 import { searchAreas, searchProvinces } from "./lib/search";
+import { stampRegions } from "./lib/region-catalog";
 import { readBoot, useCloud } from "./hooks/useCloud";
 import TravelReport from "./components/TravelReport";
 import {
@@ -241,6 +243,7 @@ function App() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [regionsOpen, setRegionsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [collabOpen, setCollabOpen] = useState(false);
   const [collabTarget, setCollabTarget] = useState<CollaborationTarget>(null);
@@ -823,7 +826,7 @@ function App() {
   };
   const exportData = () => {
     const url = URL.createObjectURL(
-      new Blob([JSON.stringify(saved, null, 2)], { type: "application/json" }),
+      new Blob([JSON.stringify(stampRegions(saved), null, 2)], { type: "application/json" }),
     );
     const a = document.createElement("a");
     a.href = url;
@@ -860,6 +863,7 @@ function App() {
       localStorage,
       unreadable.canonicalRaw,
       unreadable.legacyDigest,
+      true, // The exact raw source was preserved/exported above.
     );
     const result = fresh.write(next);
     if (result.status !== "ok") {
@@ -978,7 +982,7 @@ function App() {
         null,
         digestText(other),
       );
-    else writer.current.adopt(other);
+    else writer.current.adopt(other, true);
     const result = writer.current.write(savedRef.current);
     if (result.status !== "ok") {
       setClashError(
@@ -2683,6 +2687,10 @@ function App() {
             setAccountOpen(false);
             setMigrationOpen(true);
           }}
+          onOpenRegions={() => {
+            setAccountOpen(false);
+            setRegionsOpen(true);
+          }}
           onOpenSnapshots={() => {
             setAccountOpen(false);
             setSnapshotsOpen(true);
@@ -2735,6 +2743,9 @@ function App() {
           returnsToEditor={returnToEditor}
           onClose={closeMedia}
         />
+      )}
+      {cloud.enabled && cloud.user && regionsOpen && (
+        <RegionDialog key={cloud.user.id} open onOpenChange={setRegionsOpen} cloud={cloud} />
       )}
       {cloud.enabled && cloud.user && snapshotsOpen && (
         <SnapshotDialog

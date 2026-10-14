@@ -1,0 +1,21 @@
+{
+  "version": "sha256:b5c00d1079325e937e2d6fd2ebf7f5b43a9fba72c875b0972bfcdc000a47846e",
+  "supportedVersions": [
+    "legacy",
+    "sha256:b5c00d1079325e937e2d6fd2ebf7f5b43a9fba72c875b0972bfcdc000a47846e"
+  ],
+  "mappings": [
+    {
+      "fromCode": "tw-09020",
+      "fromName": "金门县",
+      "fromProvince": "710000",
+      "toCode": "tw-09020"
+    },
+    {
+      "fromCode": "tw-09007",
+      "fromName": "连江县",
+      "fromProvince": "710000",
+      "toCode": "tw-09007"
+    }
+  ]
+}

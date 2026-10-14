@@ -1,0 +1,9 @@
+.region-dialog { max-height: min(85dvh, 700px); overflow-y: auto; }
+.region-version { font-size: .85rem; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.region-version code { font-size: .8rem; }
+.region-hint { font-size: .85rem; color: var(--muted-foreground); line-height: 1.7; }
+.region-upgrade-list { display: grid; gap: .6rem; padding: .8rem; border-radius: .6rem; background: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.region-upgrade-list li { display: grid; gap: .25rem; }
+.region-upgrade-list span { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
+.region-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .6rem; }
+@media (max-width: 480px) { .region-actions > button { flex: 1; } }

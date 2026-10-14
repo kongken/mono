@@ -1,5 +1,6 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { AtomicBatchTooLarge, AtomicBatchUnavailable } from "./sync.ts";
+import { RegionCompatibilityError } from "./region-catalog.ts";
 
 /** The backend predates several trips per city; writing to it would flatten or drop trips. */
 export class BackendNotUpgraded extends Error {
@@ -15,6 +16,10 @@ export function isUnauthenticated(error: unknown) {
 // Server messages are English and meant for developers; these are the ones a
 // person can act on, matched by prefix so wording details can change.
 const KNOWN_MESSAGES: [string, string][] = [
+  ["region index version mismatch", "前后端区域索引版本不一致；同步已暂停，缓存和足迹已保留。请刷新页面或升级服务器"],
+  ["region upgrade required before writes", "云端含待迁移或无法映射的旧区域，修改尚未提交。原请求和缓存已保留；请先导出备份，再在账号的“区域数据与兼容”中处理"],
+  ["region upgrade blocked", "存在无法映射、发生碰撞或需要共同旅行协调的区域；没有修改任何数据。请先导出备份并联系维护者"],
+  ["footprints changed since region preview", "云端数据已在预览后更新，没有迁移任何记录。请重新预览"],
   ["maximum 20 files", "每座城市最多 20 个文件，请先删除媒体或未完成的上传"],
   ["media upload limit", "上传操作太频繁，每小时最多 60 次，请稍后再试"],
   ["media not found", "文件不存在或已经删除"],
@@ -60,6 +65,7 @@ const KNOWN_MESSAGES: [string, string][] = [
 
 /** User-facing Chinese text for a failed API call. */
 export function describeApiError(error: unknown): string {
+  if (error instanceof RegionCompatibilityError) return error.message;
   if (error instanceof BackendNotUpgraded)
     return "云端服务尚未升级到支持“同城多次旅行”的版本。为避免旅行记录丢失，已暂停同步；修改保留在本机，请待服务升级后重试";
   if (error instanceof AtomicBatchTooLarge)

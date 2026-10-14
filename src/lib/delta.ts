@@ -9,6 +9,7 @@ export type DeltaPage = {
 export function applyDelta(
   snapshot: CloudSnapshot,
   page: DeltaPage,
+  project: (ops: Op[]) => Op[] = ops => ops,
 ): CloudSnapshot {
   if (
     ![snapshot.revision, page.nextRevision, page.currentRevision].every(
@@ -22,7 +23,7 @@ export function applyDelta(
   for (const change of page.changes) {
     if (change.revision !== revision + 1)
       throw new Error("non-contiguous delta");
-    saved = applyOp(saved, change.op);
+    for (const op of project([change.op])) saved = applyOp(saved, op);
     revision = change.revision;
   }
   if (
@@ -39,6 +40,8 @@ export function applyDelta(
 export function createIncrementalReader(
   source: {
     full(): Promise<CloudSnapshot>;
+    /** Regional projections may expand one legacy mutation without changing its revision. */
+    project?(ops: Op[]): Op[];
     delta(revision: number): Promise<DeltaPage>;
   },
   seed?: CloudSnapshot,
@@ -57,7 +60,7 @@ export function createIncrementalReader(
           cursor = await source.full();
           return cursor;
         }
-        candidate = applyDelta(candidate, page);
+        candidate = applyDelta(candidate, page, source.project);
         if (!page.hasMore) {
           cursor = candidate;
           return cursor;

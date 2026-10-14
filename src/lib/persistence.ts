@@ -1,5 +1,5 @@
 import { colors, type Saved, type Trip, type Visit } from "./travel.ts";
-import { canonicalVisitProvince } from "./region-compatibility.ts";
+import { createRegionCatalog, REGION_VERSION, RegionCompatibilityError, stampRegions } from "./region-catalog.ts";
 import {
   TRIP_ID_PATTERN,
   TRIP_NOTE_LIMIT,
@@ -61,19 +61,22 @@ function parseTrip(t: unknown, mode: DateMode): { trip: Trip; badDate: boolean }
   return { trip: { id: t.id, date, note: t.note }, badDate };
 }
 
-function parseCity(v: Record<string, unknown>, regions: RegionIndex) {
-  const province = regions.find((p) => p.code === canonicalVisitProvince(v.code, v.province));
-  if (
-    !province?.cities.some((c) => c.code === v.code && c.name === v.name) ||
-    !validColor(v.color)
-  )
-    return null;
-  return {
-    code: v.code as string,
-    name: v.name as string,
-    province: province.code,
-    color: v.color as string,
-  };
+function parseCity(v: Record<string, unknown>, catalog: ReturnType<typeof createRegionCatalog>) {
+  const city = catalog.city(v.code, v.name, v.province);
+  if (!city || !validColor(v.color)) return null;
+  return { ...city, color: v.color as string };
+}
+
+function assertNoAliasCollision(visits: unknown[], catalog: ReturnType<typeof createRegionCatalog>) {
+  const sources = new Map<string, string>();
+  for (const raw of visits) {
+    if (!isObject(raw)) continue;
+    const city = catalog.city(raw.code, raw.name, raw.province);
+    if (!city) continue;
+    const previous = sources.get(city.code);
+    if (previous !== undefined && previous !== raw.code) throw new RegionCompatibilityError("旧区域映射后发生 ID 碰撞，整份原数据已保留；不能自动合并旅行记录");
+    sources.set(city.code, raw.code as string);
+  }
 }
 
 const isValidProvinceMark = (code: string, color: unknown, regions: RegionIndex) =>
@@ -97,7 +100,7 @@ function rawTrips(v: Record<string, unknown>, version: 1 | 2, code: string): unk
 export function validateSaved(
   data: unknown,
   regions: RegionIndex,
-  options: { correctDates?: boolean } = {},
+  options: { correctDates?: boolean; catalog?: ReturnType<typeof createRegionCatalog> } = {},
 ): Saved {
   if (!isObject(data)) throw new Error("文件格式不正确");
   if (
@@ -106,16 +109,19 @@ export function validateSaved(
     !isObject(data.provinces)
   )
     throw new Error("请选择山海足迹导出的 JSON 文件");
+  const catalog = options.catalog ?? createRegionCatalog(regions);
+  catalog.assertVersion(data.regionVersion);
+  assertNoAliasCollision(data.visits, catalog);
   const version = data.version;
   const mode: DateMode = { fix: !!options.correctDates, found: 0 };
   const codes = new Set<string>();
   const tripIds = new Set<string>();
   const visits: Visit[] = [];
   for (const raw of data.visits) {
-    const city = isObject(raw) ? parseCity(raw, regions) : null;
+    const city = isObject(raw) ? parseCity(raw, catalog) : null;
     if (!city || codes.has(city.code)) throw new Error("足迹数据无效或重复");
     codes.add(city.code);
-    const list = rawTrips(raw as Record<string, unknown>, version, city.code);
+    const list = rawTrips(raw as Record<string, unknown>, version, (raw as Record<string, unknown>).code as string);
     if (!list) throw new Error("足迹数据无效或重复");
     const trips: Trip[] = [];
     for (const item of list) {
@@ -150,7 +156,7 @@ export type Recovery = {
 export function recoverSaved(
   raw: string,
   regions: RegionIndex,
-  options: { correctDates?: boolean } = {},
+  options: { correctDates?: boolean; catalog?: ReturnType<typeof createRegionCatalog> } = {},
 ): Recovery | null {
   let data: unknown;
   try {
@@ -165,6 +171,8 @@ export function recoverSaved(
     !isObject(data.provinces)
   )
     return null;
+  const catalog = options.catalog ?? createRegionCatalog(regions);
+  try { catalog.assertVersion(data.regionVersion); assertNoAliasCollision(data.visits, catalog); } catch { return null; }
   const version = data.version;
   const fix = !!options.correctDates;
   const codes = new Set<string>();
@@ -173,14 +181,14 @@ export function recoverSaved(
   let discardedTrips = 0;
   let correctedDates = 0;
   for (const rawVisit of data.visits) {
-    const city = isObject(rawVisit) ? parseCity(rawVisit, regions) : null;
+    const city = isObject(rawVisit) ? parseCity(rawVisit, catalog) : null;
     // Whatever trips a dropped city carried are dropped with it, and counted.
     const carried = isObject(rawVisit) ? (version === 1 ? 1 : Array.isArray(rawVisit.trips) ? rawVisit.trips.length : 0) : 0;
     if (!city || codes.has(city.code)) {
       discardedTrips += carried;
       continue;
     }
-    const list = rawTrips(rawVisit as Record<string, unknown>, version, city.code);
+    const list = rawTrips(rawVisit as Record<string, unknown>, version, (rawVisit as Record<string, unknown>).code as string);
     if (!list) {
       discardedTrips += carried;
       continue;
@@ -299,7 +307,7 @@ function parseStored(raw: string, regions: RegionIndex): Parsed {
   try {
     return { ok: true, saved: validateSaved(JSON.parse(raw), regions) };
   } catch (e) {
-    const recovery = recoverSaved(raw, regions);
+    const recovery = e instanceof RegionCompatibilityError ? null : recoverSaved(raw, regions);
     const corrected = e instanceof InvalidDatesError ? recoverSaved(raw, regions, { correctDates: true }) : null;
     return {
       ok: false,
@@ -401,6 +409,23 @@ function preserveCopy(storage: Pick<Storage, "setItem">, key: string, raw: strin
   }
 }
 
+export const regionOriginalPrefix = (key: string) => `shanhai-regions-original:${key}:`;
+
+/** Version upgrades keep an exact, stable-key copy before replacing any cache.
+ * Unknown/corrupt versions are never eligible for automatic replacement.
+ */
+export function preserveRegionOriginal(storage: Pick<Storage, "getItem" | "setItem">, key: string, raw: string): boolean {
+  try {
+    let version: unknown;
+    try { const data = JSON.parse(raw); version = data?.regionVersion ?? data?.saved?.regionVersion; } catch { /* Explicit recovery may replace corrupt bytes, but only after preserving them. */ }
+    if (version === REGION_VERSION) return true;
+    const copyKey = regionOriginalPrefix(key) + digestText(raw);
+    if (storage.getItem(copyKey) === raw) return true;
+    storage.setItem(copyKey, raw);
+    return storage.getItem(copyKey) === raw;
+  } catch { return false; }
+}
+
 export type LocalWrite =
   | { status: "ok" }
   | { status: "conflict"; other: string | null }
@@ -418,7 +443,10 @@ export function createLocalWriter(
   storage: Pick<Storage, "getItem" | "setItem">,
   initialRaw: string | null,
   legacyDigest?: string,
+  /** Only for a user-confirmed recovery whose exact source was copied/exported. */
+  originalAlreadySafe = false,
 ) {
+  let originalSafe = originalAlreadySafe;
   let last = initialRaw === "" ? null : initialRaw;
   let pendingDigest = last === null ? legacyDigest : undefined;
   return {
@@ -435,19 +463,23 @@ export function createLocalWriter(
         if (!preserveCopy(storage, LEGACY_SEEN_KEY, pendingDigest)) return { status: "error" };
         pendingDigest = undefined;
       }
-      const text = JSON.stringify(saved);
+      // Preserve the exact pre-F10 bytes before the first versioned write.
+      if (!originalSafe && last !== null && !preserveRegionOriginal(storage, LOCAL_KEY, last)) return { status: "error" };
+      const text = JSON.stringify(stampRegions(saved));
       try {
         storage.setItem(LOCAL_KEY, text);
       } catch {
         return { status: "error" };
       }
       last = text;
+      originalSafe = false;
       return { status: "ok" };
     },
     /** Accept whatever storage holds now as the new baseline, e.g. after the user chose how to resolve a conflict. */
-    adopt(raw: string | null) {
+    adopt(raw: string | null, alreadySafe = false) {
       last = raw === "" ? null : raw;
       pendingDigest = undefined;
+      originalSafe = alreadySafe;
     },
   };
 }

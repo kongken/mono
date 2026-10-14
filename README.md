@@ -47,8 +47,9 @@ make dev
 地图文件已包含在 `public/maps/`，构建后随静态资源部署。来源、边界年份、区域 ID 及存储格式见 [数据与地图说明](docs/data-and-maps.md)。
 
 ```bash
+npm run prepare:regions  # 区域索引变更后归档旧版本并重建版本/迁移表（详见数据说明）
 npm run prepare:map-colors  # 更换全国地图后重建省份邻接表
-npm run check:maps  # 检查地图完整性、投影、多边形方向、区域 ID 和分享预览几何
+npm run check:maps  # 检查区域版本副本、地图完整性、投影、多边形方向、区域 ID 和分享预览几何
 npm run prepare:share-geometry  # 更换全国地图后重建分享预览几何
 npm run download:maps  # 联网更新省内地图与城市索引
 ```

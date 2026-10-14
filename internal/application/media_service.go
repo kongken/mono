@@ -141,6 +141,21 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("upload expired; start a new upload"))
 		}
 	} else {
+		if err := requireCurrentRegionIDs(ctx, tx.CityVisit.Query().Where(cityvisit.UserID(p.UserID)), s.regions); err != nil {
+			return nil, err
+		}
+		// Retired orphan-media IDs must be migrated before accepting new files
+		// into their canonical destination's separate quota bucket.
+		rows, err := tx.MediaObject.Query().Where(mediaobject.UserID(p.UserID), mediaobject.StatusNEQ(mediaobject.StatusDeleting)).Select(mediaobject.FieldRegionCode).All(ctx)
+		if err != nil {
+			return nil, internalError(err)
+		}
+		for _, row := range rows {
+			code, ok := s.regions.ResolveCode(row.RegionCode)
+			if !ok || code != row.RegionCode {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("region upgrade required before writes: migrate old media regions first"))
+			}
+		}
 		if r.TripId != "" {
 			if err = requireTrip(ctx, tx, p.UserID, r.RegionCode, r.TripId); err != nil {
 				return nil, err
