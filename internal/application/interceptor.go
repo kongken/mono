@@ -76,6 +76,7 @@ func NewAuthInterceptor(src StoreSource) connect.Interceptor {
 					slog.Warn("touch session failed", "error", err)
 				}
 			}
+			ctx = withSchemas(ctx, req.Header(), sess.Edges.User.SchemaVersion)
 			return next(auth.WithPrincipal(ctx, auth.Principal{UserID: sess.UserID, SessionID: sess.ID}), req)
 		}
 	})

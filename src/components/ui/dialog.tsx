@@ -45,14 +45,32 @@ function DialogOverlay({
   )
 }
 
+/** Remembers what had focus when the dialog opened. Its layout effect runs before Radix moves focus inside. */
+function RememberOpener({
+  target,
+}: {
+  target: React.RefObject<HTMLElement | null>
+}) {
+  React.useLayoutEffect(() => {
+    const active = document.activeElement
+    target.current =
+      active instanceof HTMLElement && active !== document.body ? active : null
+  }, [target])
+  return null
+}
+
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  // Dialogs here are controlled, without a DialogTrigger, and Radix only returns
+  // focus to a trigger: send it back to the element that opened the dialog instead.
+  const opener = React.useRef<HTMLElement | null>(null)
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -62,8 +80,16 @@ function DialogContent({
           "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
           className
         )}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          if (event.defaultPrevented) return
+          event.preventDefault()
+          const el = opener.current
+          if (el?.isConnected && !(el as HTMLButtonElement).disabled) el.focus()
+        }}
         {...props}
       >
+        <RememberOpener target={opener} />
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close

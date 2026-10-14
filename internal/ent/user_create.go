@@ -19,6 +19,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
+	"go.orx.me/apps/trip-map/internal/ent/trip"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -170,6 +171,20 @@ func (_c *UserCreate) SetNillableRevision(v *int64) *UserCreate {
 	return _c
 }
 
+// SetSchemaVersion sets the "schema_version" field.
+func (_c *UserCreate) SetSchemaVersion(v int) *UserCreate {
+	_c.mutation.SetSchemaVersion(v)
+	return _c
+}
+
+// SetNillableSchemaVersion sets the "schema_version" field if the given value is not nil.
+func (_c *UserCreate) SetNillableSchemaVersion(v *int) *UserCreate {
+	if v != nil {
+		_c.SetSchemaVersion(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *UserCreate) SetCreatedAt(v time.Time) *UserCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -225,6 +240,21 @@ func (_c *UserCreate) AddVisits(v ...*CityVisit) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddVisitIDs(ids...)
+}
+
+// AddTripIDs adds the "trips" edge to the Trip entity by IDs.
+func (_c *UserCreate) AddTripIDs(ids ...string) *UserCreate {
+	_c.mutation.AddTripIDs(ids...)
+	return _c
+}
+
+// AddTrips adds the "trips" edges to the Trip entity.
+func (_c *UserCreate) AddTrips(v ...*Trip) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddTripIDs(ids...)
 }
 
 // AddProvinceMarkIDs adds the "province_marks" edge to the ProvinceMark entity by IDs.
@@ -380,6 +410,10 @@ func (_c *UserCreate) defaults() {
 		v := user.DefaultRevision
 		_c.mutation.SetRevision(v)
 	}
+	if _, ok := _c.mutation.SchemaVersion(); !ok {
+		v := user.DefaultSchemaVersion
+		_c.mutation.SetSchemaVersion(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := user.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -420,6 +454,14 @@ func (_c *UserCreate) check() error {
 	if v, ok := _c.mutation.Revision(); ok {
 		if err := user.RevisionValidator(v); err != nil {
 			return &ValidationError{Name: "revision", err: fmt.Errorf(`ent: validator failed for field "User.revision": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.SchemaVersion(); !ok {
+		return &ValidationError{Name: "schema_version", err: errors.New(`ent: missing required field "User.schema_version"`)}
+	}
+	if v, ok := _c.mutation.SchemaVersion(); ok {
+		if err := user.SchemaVersionValidator(v); err != nil {
+			return &ValidationError{Name: "schema_version", err: fmt.Errorf(`ent: validator failed for field "User.schema_version": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
@@ -504,6 +546,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldRevision, field.TypeInt64, value)
 		_node.Revision = value
 	}
+	if value, ok := _c.mutation.SchemaVersion(); ok {
+		_spec.SetField(user.FieldSchemaVersion, field.TypeInt, value)
+		_node.SchemaVersion = value
+	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
@@ -521,6 +567,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(cityvisit.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.TripsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripsTable,
+			Columns: []string{user.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -820,6 +882,24 @@ func (u *UserUpsert) AddRevision(v int64) *UserUpsert {
 	return u
 }
 
+// SetSchemaVersion sets the "schema_version" field.
+func (u *UserUpsert) SetSchemaVersion(v int) *UserUpsert {
+	u.Set(user.FieldSchemaVersion, v)
+	return u
+}
+
+// UpdateSchemaVersion sets the "schema_version" field to the value that was provided on create.
+func (u *UserUpsert) UpdateSchemaVersion() *UserUpsert {
+	u.SetExcluded(user.FieldSchemaVersion)
+	return u
+}
+
+// AddSchemaVersion adds v to the "schema_version" field.
+func (u *UserUpsert) AddSchemaVersion(v int) *UserUpsert {
+	u.Add(user.FieldSchemaVersion, v)
+	return u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (u *UserUpsert) SetUpdatedAt(v time.Time) *UserUpsert {
 	u.Set(user.FieldUpdatedAt, v)
@@ -1048,6 +1128,27 @@ func (u *UserUpsertOne) AddRevision(v int64) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateRevision() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRevision()
+	})
+}
+
+// SetSchemaVersion sets the "schema_version" field.
+func (u *UserUpsertOne) SetSchemaVersion(v int) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSchemaVersion(v)
+	})
+}
+
+// AddSchemaVersion adds v to the "schema_version" field.
+func (u *UserUpsertOne) AddSchemaVersion(v int) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddSchemaVersion(v)
+	})
+}
+
+// UpdateSchemaVersion sets the "schema_version" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateSchemaVersion() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSchemaVersion()
 	})
 }
 
@@ -1448,6 +1549,27 @@ func (u *UserUpsertBulk) AddRevision(v int64) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateRevision() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRevision()
+	})
+}
+
+// SetSchemaVersion sets the "schema_version" field.
+func (u *UserUpsertBulk) SetSchemaVersion(v int) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSchemaVersion(v)
+	})
+}
+
+// AddSchemaVersion adds v to the "schema_version" field.
+func (u *UserUpsertBulk) AddSchemaVersion(v int) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddSchemaVersion(v)
+	})
+}
+
+// UpdateSchemaVersion sets the "schema_version" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateSchemaVersion() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSchemaVersion()
 	})
 }
 

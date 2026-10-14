@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"regexp"
 	"time"
-	"unicode/utf16"
-	"unicode/utf8"
 
 	"connectrpc.com/connect"
 	"go.orx.me/apps/trip-map/internal/auth"
@@ -63,20 +61,7 @@ func (s *FootprintService) validateVisit(v *tripmapv1.Visit) error {
 	if !footprintColors[v.GetColor()] {
 		return invalid("unsupported color")
 	}
-	if d := v.GetDate(); d != "" {
-		parsed, err := time.Parse("2006-01-02", d)
-		if err != nil || !datePattern.MatchString(d) || parsed.Format("2006-01-02") != d {
-			return invalid("date must be a real YYYY-MM-DD date or empty")
-		}
-	}
-	note := v.GetNote()
-	if !utf8.ValidString(note) {
-		return invalid("note must be valid UTF-8")
-	}
-	if len(utf16.Encode([]rune(note))) > noteLimit {
-		return invalid("note exceeds 1000 characters")
-	}
-	return nil
+	return validateDateNote(v.GetDate(), v.GetNote())
 }
 
 func (s *FootprintService) validateMark(m *tripmapv1.ProvinceMark) error {
@@ -130,9 +115,34 @@ func (s *FootprintService) GetFootprints(ctx context.Context, _ *connect.Request
 	if err != nil {
 		return nil, internalError(err)
 	}
+	if err = gateRead(ctx, u.SchemaVersion); err != nil {
+		return nil, err
+	}
 	out := &tripmapv1.GetFootprintsResponse{Revision: u.Revision}
-	for _, v := range visits {
-		out.Visits = append(out.Visits, toVisit(v))
+	if clientSchema(ctx) >= schemaTrips {
+		// Schema 2 view: cities without date or note, and the trips. A schema 1
+		// account that has not been upgraded yet is read as one legacy trip per city.
+		out.SchemaVersion = schemaTrips
+		for _, v := range visits {
+			out.Visits = append(out.Visits, toCity(v))
+		}
+		if u.SchemaVersion >= schemaTrips {
+			trips, terr := loadTrips(ctx, tx, p.UserID)
+			if terr != nil {
+				return nil, internalError(terr)
+			}
+			for _, t := range trips {
+				out.Trips = append(out.Trips, toTrip(t))
+			}
+		} else {
+			for _, v := range visits {
+				out.Trips = append(out.Trips, legacyTrip(v))
+			}
+		}
+	} else {
+		for _, v := range visits {
+			out.Visits = append(out.Visits, toVisit(v))
+		}
 	}
 	for _, m := range marks {
 		out.ProvinceMarks = append(out.ProvinceMarks, toMark(m))
@@ -145,7 +155,7 @@ func (s *FootprintService) GetFootprints(ctx context.Context, _ *connect.Request
 // whether it changed anything; only changes bump the revision, which keeps
 // retries idempotent. A stale checked base revision aborts a changing write;
 // requireRevision also checks zero without changing legacy client semantics.
-func (s *FootprintService) write(ctx context.Context, base int64, requireRevision bool, mutation *tripmapv1.FootprintMutation, apply func(tx *ent.Tx, userID string) (bool, error)) (revision int64, changed bool, err error) {
+func (s *FootprintService) write(ctx context.Context, base int64, requireRevision bool, mutation *tripmapv1.FootprintMutation, apply func(tx *ent.Tx, userID string, schema int) (bool, error)) (revision int64, changed bool, err error) {
 	p, err := principal(ctx)
 	if err != nil {
 		return 0, false, err
@@ -180,7 +190,11 @@ func (s *FootprintService) write(ctx context.Context, base int64, requireRevisio
 	if u.Disabled {
 		return 0, false, errUnauthenticated
 	}
-	changed, err = apply(tx, p.UserID)
+	schema, err := gateWrite(ctx, tx, u)
+	if err != nil {
+		return 0, false, err
+	}
+	changed, err = apply(tx, p.UserID, schema)
 	if err != nil {
 		return 0, false, err
 	}
@@ -197,7 +211,7 @@ func (s *FootprintService) write(ctx context.Context, base int64, requireRevisio
 	if err = tx.User.UpdateOneID(p.UserID).AddRevision(1).Exec(ctx); err != nil {
 		return 0, false, internalError(err)
 	}
-	if err = recordChange(ctx, tx, p.UserID, u.Revision+1, mutation); err != nil {
+	if err = recordChange(ctx, tx, p.UserID, u.Revision+1, mutation, schema); err != nil {
 		return 0, false, internalError(err)
 	}
 	if err = tx.Commit(); err != nil {
@@ -215,35 +229,41 @@ func (s *FootprintService) UpsertVisit(ctx context.Context, req *connect.Request
 	if err := s.validateVisit(v); err != nil {
 		return nil, err
 	}
+	mutation := &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_UpsertVisit{UpsertVisit: v}}
 	var stored *ent.CityVisit
-	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_UpsertVisit{UpsertVisit: v}}, func(tx *ent.Tx, uid string) (bool, error) {
-		existing, err := tx.CityVisit.Query().Where(cityvisit.UserID(uid), cityvisit.RegionCode(v.GetCode())).Only(ctx)
-		switch {
-		case ent.IsNotFound(err):
-			stored, err = tx.CityVisit.Create().SetUserID(uid).SetRegionCode(v.GetCode()).SetRegionName(v.GetName()).SetProvinceCode(v.GetProvince()).
-				SetColor(v.GetColor()).SetTravelDate(v.GetDate()).SetNote(v.GetNote()).Save(ctx)
-			return true, wrapWrite(err)
-		case err != nil:
-			return false, internalError(err)
+	var storedSchema int
+	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), mutation, func(tx *ent.Tx, uid string, schema int) (bool, error) {
+		changed, err := s.applyMutation(ctx, tx, uid, mutation, schema)
+		if err != nil {
+			return false, err
 		}
-		stored = existing
-		if existing.RegionName == v.GetName() && regions.CanonicalProvince(existing.RegionCode, existing.ProvinceCode) == v.GetProvince() && existing.Color == v.GetColor() && existing.TravelDate == v.GetDate() && existing.Note == v.GetNote() {
-			return false, nil
-		}
-		stored, err = existing.Update().SetRegionName(v.GetName()).SetProvinceCode(v.GetProvince()).SetColor(v.GetColor()).SetTravelDate(v.GetDate()).SetNote(v.GetNote()).Save(ctx)
-		return true, wrapWrite(err)
+		stored, err = tx.CityVisit.Query().Where(cityvisit.UserID(uid), cityvisit.RegionCode(v.GetCode())).Only(ctx)
+		storedSchema = schema
+		return changed, internalIf(err)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&tripmapv1.UpsertVisitResponse{Visit: toVisit(stored), Revision: rev, Changed: changed}), nil
+	out := toVisit(stored)
+	if storedSchema >= schemaTrips {
+		// The date and note live in the legacy trip; the request carried the values just stored.
+		out.Date, out.Note = v.GetDate(), v.GetNote()
+	}
+	return connect.NewResponse(&tripmapv1.UpsertVisitResponse{Visit: out, Revision: rev, Changed: changed}), nil
+}
+
+func internalIf(err error) error {
+	if err == nil {
+		return nil
+	}
+	return internalError(err)
 }
 
 func (s *FootprintService) DeleteVisit(ctx context.Context, req *connect.Request[tripmapv1.DeleteVisitRequest]) (*connect.Response[tripmapv1.DeleteVisitResponse], error) {
 	if _, _, ok := s.regions.City(req.Msg.GetCode()); !ok {
 		return nil, invalid("unknown region code")
 	}
-	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_DeleteVisit{DeleteVisit: req.Msg.GetCode()}}, func(tx *ent.Tx, uid string) (bool, error) {
+	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_DeleteVisit{DeleteVisit: req.Msg.GetCode()}}, func(tx *ent.Tx, uid string, schema int) (bool, error) {
 		n, err := tx.CityVisit.Delete().Where(cityvisit.UserID(uid), cityvisit.RegionCode(req.Msg.GetCode())).Exec(ctx)
 		return n > 0, wrapWrite(err)
 	})
@@ -259,7 +279,7 @@ func (s *FootprintService) UpsertProvinceMark(ctx context.Context, req *connect.
 	}
 	m := req.Msg.GetMark()
 	var stored *ent.ProvinceMark
-	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_UpsertMark{UpsertMark: m}}, func(tx *ent.Tx, uid string) (bool, error) {
+	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_UpsertMark{UpsertMark: m}}, func(tx *ent.Tx, uid string, schema int) (bool, error) {
 		existing, err := tx.ProvinceMark.Query().Where(provincemark.UserID(uid), provincemark.ProvinceCode(m.GetProvince())).Only(ctx)
 		switch {
 		case ent.IsNotFound(err):
@@ -285,7 +305,7 @@ func (s *FootprintService) DeleteProvinceMark(ctx context.Context, req *connect.
 	if !s.regions.HasProvince(req.Msg.GetProvince()) {
 		return nil, invalid("unknown province code")
 	}
-	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_DeleteMark{DeleteMark: req.Msg.GetProvince()}}, func(tx *ent.Tx, uid string) (bool, error) {
+	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_DeleteMark{DeleteMark: req.Msg.GetProvince()}}, func(tx *ent.Tx, uid string, schema int) (bool, error) {
 		n, err := tx.ProvinceMark.Delete().Where(provincemark.UserID(uid), provincemark.ProvinceCode(req.Msg.GetProvince())).Exec(ctx)
 		return n > 0, wrapWrite(err)
 	})

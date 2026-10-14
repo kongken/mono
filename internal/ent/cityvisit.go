@@ -46,9 +46,11 @@ type CityVisit struct {
 type CityVisitEdges struct {
 	// User holds the value of the user edge.
 	User *User `json:"user,omitempty"`
+	// Trips holds the value of the trips edge.
+	Trips []*Trip `json:"trips,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // UserOrErr returns the User value or an error if the edge
@@ -60,6 +62,15 @@ func (e CityVisitEdges) UserOrErr() (*User, error) {
 		return nil, &NotFoundError{label: user.Label}
 	}
 	return nil, &NotLoadedError{edge: "user"}
+}
+
+// TripsOrErr returns the Trips value or an error if the edge
+// was not loaded in eager-loading.
+func (e CityVisitEdges) TripsOrErr() ([]*Trip, error) {
+	if e.loadedTypes[1] {
+		return e.Trips, nil
+	}
+	return nil, &NotLoadedError{edge: "trips"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -162,6 +173,11 @@ func (_m *CityVisit) Value(name string) (ent.Value, error) {
 // QueryUser queries the "user" edge of the CityVisit entity.
 func (_m *CityVisit) QueryUser() *UserQuery {
 	return NewCityVisitClient(_m.config).QueryUser(_m)
+}
+
+// QueryTrips queries the "trips" edge of the CityVisit entity.
+func (_m *CityVisit) QueryTrips() *TripQuery {
+	return NewCityVisitClient(_m.config).QueryTrips(_m)
 }
 
 // Update returns a builder for updating this CityVisit.

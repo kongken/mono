@@ -180,7 +180,7 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	mount(path, handler)
 	path, handler = tripmapv1connect.NewAuthServiceHandler(application.NewAuthService(h.cfg, h), opts)
 	mount(path, handler)
-	path, handler = tripmapv1connect.NewFootprintServiceHandler(application.NewFootprintService(h.cfg, h, index), opts)
+	path, handler = tripmapv1connect.NewFootprintServiceHandler(application.NewFootprintService(h.cfg, h, index), opts, connect.WithReadMaxBytes(16*1024*1024))
 	mount(path, handler)
 	path, handler = tripmapv1connect.NewSnapshotServiceHandler(application.NewSnapshotService(h.cfg, h, index), opts)
 	mount(path, handler)
@@ -205,7 +205,7 @@ func (h *Handlers) cors() gin.HandlerFunc {
 		header.Set("Access-Control-Expose-Headers", "Connect-Protocol-Version, Content-Type, Grpc-Status, Grpc-Message, Grpc-Status-Details-Bin, Connect-Content-Encoding, Connect-Accept-Encoding")
 		if c.Request.Method == http.MethodOptions {
 			header.Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-			header.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms, X-User-Agent")
+			header.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms, X-User-Agent, X-Tripmap-Schema")
 			header.Set("Access-Control-Max-Age", "7200")
 			c.AbortWithStatus(http.StatusNoContent)
 		}

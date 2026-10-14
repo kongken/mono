@@ -25,6 +25,10 @@ const (
 	FieldVisitCount = "visit_count"
 	// FieldMarkCount holds the string denoting the mark_count field in the database.
 	FieldMarkCount = "mark_count"
+	// FieldSchemaVersion holds the string denoting the schema_version field in the database.
+	FieldSchemaVersion = "schema_version"
+	// FieldTripCount holds the string denoting the trip_count field in the database.
+	FieldTripCount = "trip_count"
 	// FieldPayload holds the string denoting the payload field in the database.
 	FieldPayload = "payload"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -50,6 +54,8 @@ var Columns = []string{
 	FieldRevision,
 	FieldVisitCount,
 	FieldMarkCount,
+	FieldSchemaVersion,
+	FieldTripCount,
 	FieldPayload,
 	FieldCreatedAt,
 }
@@ -71,6 +77,12 @@ var (
 	VisitCountValidator func(int) error
 	// MarkCountValidator is a validator for the "mark_count" field. It is called by the builders before save.
 	MarkCountValidator func(int) error
+	// DefaultSchemaVersion holds the default value on creation for the "schema_version" field.
+	DefaultSchemaVersion int
+	// DefaultTripCount holds the default value on creation for the "trip_count" field.
+	DefaultTripCount int
+	// TripCountValidator is a validator for the "trip_count" field. It is called by the builders before save.
+	TripCountValidator func(int) error
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultID holds the default value on creation for the "id" field.
@@ -133,6 +145,16 @@ func ByVisitCount(opts ...sql.OrderTermOption) OrderOption {
 // ByMarkCount orders the results by the mark_count field.
 func ByMarkCount(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMarkCount, opts...).ToFunc()
+}
+
+// BySchemaVersion orders the results by the schema_version field.
+func BySchemaVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSchemaVersion, opts...).ToFunc()
+}
+
+// ByTripCount orders the results by the trip_count field.
+func ByTripCount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTripCount, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

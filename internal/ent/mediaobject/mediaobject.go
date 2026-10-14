@@ -43,6 +43,8 @@ const (
 	FieldWidth = "width"
 	// FieldHeight holds the string denoting the height field in the database.
 	FieldHeight = "height"
+	// FieldTripID holds the string denoting the trip_id field in the database.
+	FieldTripID = "trip_id"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -77,6 +79,7 @@ var Columns = []string{
 	FieldUploadExpiresAt,
 	FieldWidth,
 	FieldHeight,
+	FieldTripID,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -118,6 +121,8 @@ var (
 	DefaultHeight int
 	// HeightValidator is a validator for the "height" field. It is called by the builders before save.
 	HeightValidator func(int) error
+	// DefaultTripID holds the default value on creation for the "trip_id" field.
+	DefaultTripID string
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -231,6 +236,11 @@ func ByWidth(opts ...sql.OrderTermOption) OrderOption {
 // ByHeight orders the results by the height field.
 func ByHeight(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldHeight, opts...).ToFunc()
+}
+
+// ByTripID orders the results by the trip_id field.
+func ByTripID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTripID, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

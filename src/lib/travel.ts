@@ -1,15 +1,20 @@
 import provinceNeighbors from "../province-neighbors.json" with { type: "json" };
+import { newTripId } from "./trips.ts";
 
+/** One journey to a city. IDs are stable, so trips can be edited and synced one by one. */
+export type Trip = { id: string; date: string; note: string };
+/** A city check-in with its color and any number of trips (possibly none). */
 export type Visit = {
   code: string;
   name: string;
   province: string;
   color: string;
-  date: string;
-  note: string;
+  trips: Trip[];
 };
+/** The city fields only; trips are synced as their own records. */
+export type City = Omit<Visit, "trips">;
 export type Saved = {
-  version: 1;
+  version: 2;
   visits: Visit[];
   provinces: Record<string, string>;
 };
@@ -95,6 +100,7 @@ export function toggleVisit(
   province: string,
   city: { code: string; name: string },
   date: string,
+  tripId: string = newTripId(),
 ): Saved {
   if (saved.visits.some((visit) => visit.code === city.code)) {
     return {
@@ -111,8 +117,7 @@ export function toggleVisit(
         name: city.name,
         province,
         color: automaticColor(saved, province),
-        date,
-        note: "",
+        trips: [{ id: tripId, date, note: "" }],
       },
     ],
   };

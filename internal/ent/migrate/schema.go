@@ -131,6 +131,7 @@ var (
 		{Name: "upload_expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "width", Type: field.TypeInt, Default: 0},
 		{Name: "height", Type: field.TypeInt, Default: 0},
+		{Name: "trip_id", Type: field.TypeString, Default: ""},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "user_id", Type: field.TypeString},
@@ -143,7 +144,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "media_objects_users_media_objects",
-				Columns:    []*schema.Column{MediaObjectsColumns[16]},
+				Columns:    []*schema.Column{MediaObjectsColumns[17]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -152,12 +153,17 @@ var (
 			{
 				Name:    "mediaobject_user_id_region_code",
 				Unique:  false,
-				Columns: []*schema.Column{MediaObjectsColumns[16], MediaObjectsColumns[5]},
+				Columns: []*schema.Column{MediaObjectsColumns[17], MediaObjectsColumns[5]},
+			},
+			{
+				Name:    "mediaobject_user_id_trip_id",
+				Unique:  false,
+				Columns: []*schema.Column{MediaObjectsColumns[17], MediaObjectsColumns[14]},
 			},
 			{
 				Name:    "mediaobject_user_id_upload_id",
 				Unique:  true,
-				Columns: []*schema.Column{MediaObjectsColumns[16], MediaObjectsColumns[7]},
+				Columns: []*schema.Column{MediaObjectsColumns[17], MediaObjectsColumns[7]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "upload_id <> ''",
 				},
@@ -237,6 +243,8 @@ var (
 		{Name: "revision", Type: field.TypeInt64},
 		{Name: "visit_count", Type: field.TypeInt},
 		{Name: "mark_count", Type: field.TypeInt},
+		{Name: "schema_version", Type: field.TypeInt, Default: 1},
+		{Name: "trip_count", Type: field.TypeInt, Default: 0},
 		{Name: "payload", Type: field.TypeBytes},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "user_id", Type: field.TypeString},
@@ -249,7 +257,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "snapshots_users_snapshots",
-				Columns:    []*schema.Column{SnapshotsColumns[7]},
+				Columns:    []*schema.Column{SnapshotsColumns[9]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -258,12 +266,12 @@ var (
 			{
 				Name:    "snapshot_user_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{SnapshotsColumns[7], SnapshotsColumns[6]},
+				Columns: []*schema.Column{SnapshotsColumns[9], SnapshotsColumns[8]},
 			},
 			{
 				Name:    "snapshot_user_id_revision",
 				Unique:  false,
-				Columns: []*schema.Column{SnapshotsColumns[7], SnapshotsColumns[2]},
+				Columns: []*schema.Column{SnapshotsColumns[9], SnapshotsColumns[2]},
 			},
 		},
 	}
@@ -299,6 +307,55 @@ var (
 			},
 		},
 	}
+	// CityTripsColumns holds the columns for the "city_trips" table.
+	CityTripsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "trip_id", Type: field.TypeString},
+		{Name: "region_code", Type: field.TypeString},
+		{Name: "travel_date", Type: field.TypeString, Default: ""},
+		{Name: "note", Type: field.TypeString, Default: ""},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "visit_id", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeString},
+	}
+	// CityTripsTable holds the schema information for the "city_trips" table.
+	CityTripsTable = &schema.Table{
+		Name:       "city_trips",
+		Columns:    CityTripsColumns,
+		PrimaryKey: []*schema.Column{CityTripsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "city_trips_city_visits_trips",
+				Columns:    []*schema.Column{CityTripsColumns[7]},
+				RefColumns: []*schema.Column{CityVisitsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "city_trips_users_trips",
+				Columns:    []*schema.Column{CityTripsColumns[8]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "trip_user_id_trip_id",
+				Unique:  true,
+				Columns: []*schema.Column{CityTripsColumns[8], CityTripsColumns[1]},
+			},
+			{
+				Name:    "trip_user_id_region_code",
+				Unique:  false,
+				Columns: []*schema.Column{CityTripsColumns[8], CityTripsColumns[2]},
+			},
+			{
+				Name:    "trip_visit_id",
+				Unique:  false,
+				Columns: []*schema.Column{CityTripsColumns[7]},
+			},
+		},
+	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -312,6 +369,7 @@ var (
 		{Name: "disabled", Type: field.TypeBool, Default: false},
 		{Name: "deletion_requested_at", Type: field.TypeTime, Nullable: true},
 		{Name: "revision", Type: field.TypeInt64, Default: 0},
+		{Name: "schema_version", Type: field.TypeInt, Default: 1},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}
@@ -342,6 +400,7 @@ var (
 		AuthSessionsTable,
 		SnapshotsTable,
 		SyncReceiptsTable,
+		CityTripsTable,
 		UsersTable,
 	}
 )
@@ -366,6 +425,11 @@ func init() {
 	}
 	SnapshotsTable.ForeignKeys[0].RefTable = UsersTable
 	SyncReceiptsTable.ForeignKeys[0].RefTable = UsersTable
+	CityTripsTable.ForeignKeys[0].RefTable = CityVisitsTable
+	CityTripsTable.ForeignKeys[1].RefTable = UsersTable
+	CityTripsTable.Annotation = &entsql.Annotation{
+		Table: "city_trips",
+	}
 	UsersTable.Annotation = &entsql.Annotation{
 		Table: "users",
 	}

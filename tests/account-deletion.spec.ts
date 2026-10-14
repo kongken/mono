@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { create, toBinary, toJsonString, fromBinary } from "@bufbuild/protobuf";
 import * as auth from "../src/gen/tripmap/v1/auth_pb";
 import * as footprint from "../src/gen/tripmap/v1/footprint_pb";
+import * as system from "../src/gen/tripmap/v1/system_pb";
 
 test("confirmed account deletion retries cleanup, clears account cache and preserves local footprints", async ({
   page,
@@ -46,11 +47,17 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
       case "ListSessions":
         schema = auth.ListSessionsResponseSchema;
         break;
+      case "GetStatus":
+        schema = system.GetStatusResponseSchema;
+        data = { footprintSchema: 2 };
+        break;
       case "GetFootprints":
         schema = footprint.GetFootprintsResponseSchema;
+        data = { schemaVersion: 2 };
         break;
       case "GetChanges":
         schema = footprint.GetChangesResponseSchema;
+        data = { schemaVersion: 2 };
         break;
       case "DeleteAccount": {
         const raw = route.request().postDataBuffer()!;
@@ -101,6 +108,21 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
   await expect(
     page.getByRole("button", { name: "账号", exact: true }),
   ).toBeVisible();
+  // An older page that is still open changes this account's old-format cache and leaves it
+  // unreadable; another account's unsynced cache sits in the same browser.
+  const theirs = JSON.stringify({ schema: 2, saved: { version: 2, visits: [], provinces: {} }, revision: 1, pendingBatch: { id: "b", revision: 1, ops: [] } });
+  // (storage events reach other pages only, so the old page is a second one)
+  const old = await page.context().newPage();
+  await old.goto("/");
+  await old.evaluate((other) => {
+    localStorage.setItem("shanhai-cloud-v1:ci-account", "{invalid json from an old page");
+    localStorage.setItem("shanhai-cloud-v2:someone-else", other);
+    localStorage.setItem("shanhai-cloud-v1:someone-else", "{their unreadable cache");
+  }, theirs);
+  await old.close();
+  const notice = page.getByRole("dialog", { name: "旧版页面修改了账号缓存" });
+  await expect(notice).toBeVisible();
+  await notice.getByRole("button", { name: "不合并，保留在旧位置" }).click();
   await page.getByRole("button", { name: "账号", exact: true }).click();
   await page.getByRole("button", { name: "注销账号", exact: true }).click();
   const confirm = page.getByRole("button", {
@@ -125,9 +147,16 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
   ).toBeNull();
   expect(
     await page.evaluate(() =>
-      localStorage.getItem("shanhai-cloud-v1:ci-account"),
+      Object.keys(localStorage).filter((k) => k.includes("ci-account")),
     ),
-  ).toBeNull();
+  ).toEqual([]);
+  // The other account's data is not this account's to discard.
+  expect(
+    await page.evaluate(() => [
+      localStorage.getItem("shanhai-cloud-v2:someone-else") !== null,
+      localStorage.getItem("shanhai-cloud-v1:someone-else"),
+    ]),
+  ).toEqual([true, "{their unreadable cache"]);
   expect(
     await page.evaluate(() =>
       JSON.parse(localStorage.getItem("shanhai-travel-v1")!),

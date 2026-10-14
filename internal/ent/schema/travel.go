@@ -2,6 +2,7 @@ package schema
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 	"unicode/utf16"
 
@@ -41,6 +42,9 @@ func (User) Fields() []ent.Field {
 		field.Bool("disabled").Default(false),
 		field.Time("deletion_requested_at").Optional().Nillable(),
 		field.Int64("revision").Default(0).NonNegative(),
+		// 1 = date/note live on city_visits (frozen once upgraded); 2 = trips live in
+		// city_trips. Upgraded in place by the first write from a schema 2 client.
+		field.Int("schema_version").Default(1).Min(1),
 	}, timestamps()...)
 }
 func (User) Indexes() []ent.Index {
@@ -48,7 +52,7 @@ func (User) Indexes() []ent.Index {
 }
 func (User) Edges() []ent.Edge {
 	return []ent.Edge{
-		edge.To("visits", CityVisit.Type).Annotations(entsql.OnDelete(entsql.Cascade)), edge.To("province_marks", ProvinceMark.Type).Annotations(entsql.OnDelete(entsql.Cascade)), edge.To("media_objects", MediaObject.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("visits", CityVisit.Type).Annotations(entsql.OnDelete(entsql.Cascade)), edge.To("trips", Trip.Type).Annotations(entsql.OnDelete(entsql.Cascade)), edge.To("province_marks", ProvinceMark.Type).Annotations(entsql.OnDelete(entsql.Cascade)), edge.To("media_objects", MediaObject.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("sessions", Session.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("footprint_changes", FootprintChange.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("sync_receipts", SyncReceipt.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
@@ -97,10 +101,50 @@ func (CityVisit) Fields() []ent.Field {
 	}, timestamps()...)
 }
 func (CityVisit) Edges() []ent.Edge {
-	return []ent.Edge{edge.From("user", User.Type).Ref("visits").Field("user_id").Unique().Required().Immutable()}
+	return []ent.Edge{
+		edge.From("user", User.Type).Ref("visits").Field("user_id").Unique().Required().Immutable(),
+		// Removing a city removes its trips; media is a separate, soft reference.
+		edge.To("trips", Trip.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+	}
 }
 func (CityVisit) Indexes() []ent.Index {
 	return []ent.Index{index.Fields("user_id", "region_code").Unique(), index.Fields("user_id", "province_code")}
+}
+
+// Trip is one visit to a city (F5). travel_date and note on city_visits are the
+// frozen schema 1 copy: they are read to build "legacy-<region>" trips when an
+// account is upgraded and never written afterwards. A trip has its own
+// updated_at, so editing one trip does not touch the city or other trips.
+type Trip struct{ ent.Schema }
+
+func (Trip) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "city_trips"}}
+}
+func (Trip) Fields() []ent.Field {
+	return append([]ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").Immutable(),
+		field.String("visit_id").Immutable(),
+		// The client-visible trip ID, unique per user.
+		field.String("trip_id").Immutable().Validate(validTripID),
+		// Denormalized from the city so media can check city ownership cheaply.
+		field.String("region_code").NotEmpty().Immutable(),
+		field.String("travel_date").Default("").Validate(validDate),
+		field.String("note").Default("").Validate(func(v string) error {
+			if len(utf16.Encode([]rune(v))) > 1000 {
+				return fmt.Errorf("note exceeds 1000 characters")
+			}
+			return nil
+		}),
+	}, timestamps()...)
+}
+func (Trip) Edges() []ent.Edge {
+	return []ent.Edge{
+		edge.From("user", User.Type).Ref("trips").Field("user_id").Unique().Required().Immutable(),
+		edge.From("visit", CityVisit.Type).Ref("trips").Field("visit_id").Unique().Required().Immutable(),
+	}
+}
+func (Trip) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("user_id", "trip_id").Unique(), index.Fields("user_id", "region_code"), index.Fields("visit_id")}
 }
 
 type ProvinceMark struct{ ent.Schema }
@@ -133,6 +177,9 @@ func (MediaObject) Fields() []ent.Field {
 		field.String("upload_key").Default(""), field.String("thumbnail_key").Default(""),
 		field.Time("upload_expires_at").Optional().Nillable(),
 		field.Int("width").Default(0).NonNegative(), field.Int("height").Default(0).NonNegative(),
+		// Soft reference to city_trips.trip_id; empty for city-level files. No foreign
+		// key on purpose: deleting a trip or city must never delete a photo.
+		field.String("trip_id").Default(""),
 	}, timestamps()...)
 }
 func (MediaObject) Edges() []ent.Edge {
@@ -140,7 +187,7 @@ func (MediaObject) Edges() []ent.Edge {
 }
 
 func (MediaObject) Indexes() []ent.Index {
-	return []ent.Index{index.Fields("user_id", "region_code"), index.Fields("user_id", "upload_id").Unique().Annotations(entsql.IndexWhere("upload_id <> ''"))}
+	return []ent.Index{index.Fields("user_id", "region_code"), index.Fields("user_id", "trip_id"), index.Fields("user_id", "upload_id").Unique().Annotations(entsql.IndexWhere("upload_id <> ''"))}
 }
 
 // Upload cleanup outlives the owning account: a signed PUT can still finish
@@ -158,6 +205,15 @@ func validColor(v string) error {
 		return nil
 	}
 	return fmt.Errorf("unsupported footprint color")
+}
+
+var tripIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
+func validTripID(v string) error {
+	if !tripIDPattern.MatchString(v) {
+		return fmt.Errorf("invalid trip id")
+	}
+	return nil
 }
 func validDate(v string) error {
 	if v == "" {
@@ -225,6 +281,9 @@ func (Snapshot) Fields() []ent.Field {
 		field.Enum("reason").Values("manual", "scheduled", "before_migration", "before_restore").Immutable(),
 		field.Int64("revision").NonNegative().Immutable(),
 		field.Int("visit_count").NonNegative().Immutable(), field.Int("mark_count").NonNegative().Immutable(),
+		// Rows written before F5 have schema_version 1 and trip_count 0 (read as one
+		// legacy trip per city). The stored payload is never rewritten.
+		field.Int("schema_version").Default(1).Immutable(), field.Int("trip_count").Default(0).NonNegative().Immutable(),
 		field.Bytes("payload").Immutable(), field.Time("created_at").Default(now).Immutable(),
 	}
 }

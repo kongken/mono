@@ -35,13 +35,13 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 
 | 方法 | 行为 |
 | --- | --- |
-| `PrepareUpload` | 接收区域、文件名、MIME、大小和 UUID `upload_id`；原子预留数量，返回媒体 ID、10 分钟上传 URL 与必须携带的头。相同 ID/内容重放返回原预留；内容不同返回 `already_exists`。已完成项不再签发上传 URL，过期预留需删除后重新创建 |
+| `PrepareUpload` | 接收区域、可选 `trip_id`、文件名、MIME、大小和 UUID `upload_id`；`trip_id` 非空时该旅行必须属于同一用户和该区域（版本 1 账号只接受 `legacy-<区域 ID>`），否则 `invalid_argument`；原子预留数量，返回媒体 ID、10 分钟上传 URL 与必须携带的头。相同 ID/内容重放返回原预留；内容不同返回 `already_exists`。已完成项不再签发上传 URL，过期预留需删除后重新创建 |
 | `CompleteUpload` | 读取临时对象，限量读取并校验实际大小/图片格式、尺寸、解码或 PDF 头尾，生成处理后文件与缩略图，再标记 `ready`；响应丢失可重复确认，失败仍可重试，超过 24 小时拒绝确认 |
-| `ListMedia` | 返回当前用户媒体元数据，可按区域筛选；包括 `pending`，隐藏 `deleting`，不泄露对象 key |
+| `ListMedia` | 返回当前用户媒体元数据，可按区域和 `trip_id` 筛选，元数据含 `trip_id`；包括 `pending`，隐藏 `deleting`，不泄露对象 key |
 | `ReadMedia` | 只读取本人 `ready` 文件/缩略图，以 RPC bytes 返回，`Cache-Control: no-store`；他人、不存在或已删除项不提供内容，PDF 不提供缩略图 |
 | `DeleteMedia` | 先关闭访问再清理三个对象 key，重复删除幂等；S3 失败返回 `unavailable`，保留清理任务供重试与维护任务处理 |
 
-默认 JPEG/PNG/WebP/PDF，10 MiB，20 个/城市（含待确认），签发 60 次/用户/小时；图片最多 24 MP、最长边 8000 px，缩略图最长边 480 px。照片重新编码 JPEG 不复制 EXIF/GPS；PDF 只校验头尾、供下载，不做内容解析或杀毒。上传/确认通过用户行锁串行，与账号注销互斥；服务端并发图像处理最多两个，并在像素解码前检查尺寸。确认最多 30 秒。尚未支持 HEIC、多次旅行关联、媒体离线队列和分享。
+默认 JPEG/PNG/WebP/PDF，10 MiB，20 个/城市（含待确认），签发 60 次/用户/小时；图片最多 24 MP、最长边 8000 px，缩略图最长边 480 px。照片重新编码 JPEG 不复制 EXIF/GPS；PDF 只校验头尾、供下载，不做内容解析或杀毒。上传/确认通过用户行锁串行，与账号注销互斥；服务端并发图像处理最多两个，并在像素解码前检查尺寸。确认最多 30 秒。`trip_id` 是软引用（无外键）：删除旅行、取消城市、快照恢复都不改写或删除媒体；媒体接口不受 F5 请求头门控，旧客户端仍可上传和读取。尚未支持 HEIC、媒体离线队列和分享。
 
 临时 URL 仅签发随机 staging key；确认后的 canonical key 不可用该 URL 改写。[S3 签名 URL 可在有效期内重复使用](https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html)，因此删除账号时仍保留不含身份的临时对象清理队列。每小时处理删除失败与 24 小时未完成的上传；队列 24 小时后再次删除临时对象。超长在途上传需由 staging 生命周期兜底；该规则不会删除处理后照片。
 
@@ -120,7 +120,7 @@ Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CON
 - `auth.client_ip_header` 指向可信反向代理写入的客户端地址头（如 `CF-Connecting-IP`），用于登录限流；不设置则使用 TCP 对端地址。直接暴露在公网时不要设置，否则客户端可伪造该头绕过限流。
 - `auth.cors_allowed_origins` 允许跨站调用 API 的浏览器来源（精确匹配，如 `https://trip.example.com`，不支持通配符）。同源部署（前端镜像的 Nginx 转发 `/api`）无需配置。
 - `auth.oauth_providers.<github|google>` 配置 `client_id`、`client_secret`、`redirect_url`（OAuth 应用登记的前端回调页）、可选 `scopes` 与 `display_name`；缺少 `client_id` 或 `client_secret` 的提供方不会出现在 `ListOAuthProviders` 中。
-- `auto_migrate: true` 在启动时通过 Ent 创建或补充表结构。本地示例开启；生产 schema 变更应先评审迁移，关闭自动迁移后仍需自行执行经过验证的迁移。本次尚无独立的版本化迁移流水线。
+- `auto_migrate: true` 在启动时通过 Ent 创建或补充表结构。本地示例开启；生产环境应设为 `false`，改由下文“版本化数据库迁移”中评审过的 SQL 文件升级，再启动新版本后端。
 
 启动时检查 PostgreSQL、Redis 与 S3 bucket，缺失或不可连接则启动失败。后端不会在启动时自动创建 bucket；`make storage-init` 是独立显式操作，bucket 已存在且可访问时直接成功，不会配置公共访问策略。
 
@@ -164,7 +164,7 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
 - 令牌为 `tm_` 加 32 字节随机十六进制；数据库只保存 SHA-256，密码使用 bcrypt。
 - OAuth 账号按 `(provider, external_id)` 识别，不按邮箱合并；不保存提供方邮箱。OAuth 账号没有用户名和密码。
 - `state` 只能防止服务端重放；客户端必须在发起前保存 `state` 并在回调时比对，否则存在登录 CSRF。前端已实现：发起前把 provider 与 state 存入 `sessionStorage`，回调时比对并立即消耗，不一致则不调用 `CompleteOAuthFlow`。
-- 限流（Redis 固定窗口）：登录每用户名 10 次 / 15 分钟、每客户端地址 40 次 / 15 分钟；注册每地址 10 次 / 小时；OAuth 每地址 60 次 / 15 分钟；足迹写入每用户 600 次 / 分钟（批量按项计，足够一次迁移全部足迹）；已有回执的批量重放不消耗额度。超限返回 `resource_exhausted`，Redis 不可用时返回 `unavailable`（不放行）。
+- 限流（Redis 固定窗口）：登录每用户名 10 次 / 15 分钟、每客户端地址 40 次 / 15 分钟；注册每地址 10 次 / 小时；OAuth 每地址 60 次 / 15 分钟；单条足迹写入每用户 600 次 / 分钟；批量同步按项一次性扣减，每用户每分钟共 6000 项（一个满批 2000 项，一次迁移可连续发送数批）；已有回执的批量重放不消耗额度。超限返回 `resource_exhausted`，Redis 不可用时返回 `unavailable`（不放行）。
 - 当前没有找回密码、修改密码与邮箱验证；密码账号忘记密码无法自助恢复。
 
 ### 足迹（`tripmap.v1.FootprintService`）
@@ -173,13 +173,13 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
 
 | 方法 | 行为 |
 | --- | --- |
-| `GetFootprints` | 在同一事务快照中返回全部城市足迹、省份标记和 `revision`（城市按区域 ID、省份按省份 ID 排序） |
-| `UpsertVisit` / `DeleteVisit` | 保存或取消一个城市足迹 |
+| `GetFootprints` | 在同一事务快照中返回全部城市足迹、旅行、省份标记、`revision` 与 `schema_version`（城市按区域 ID、省份按省份 ID、旅行按 ID 排序）。城市的 `date` / `note` 为空；版本 1 账号读取时为每个城市合成一次 `legacy-<区域 ID>` 旅行，不修改数据 |
+| `UpsertVisit` / `DeleteVisit` | 旧接口：保存或取消一个城市足迹；`UpsertVisit` 等于“城市加 `legacy-<区域 ID>` 旅行”，`DeleteVisit` 连同旅行一起删除 |
 | `UpsertProvinceMark` / `DeleteProvinceMark` | 保存或取消独立省份标记；与城市足迹互不影响 |
 
-- 服务端用嵌入的区域索引校验：区域 ID 存在，名称、所属省份与索引一致，颜色是五种之一，日期为空或真实日历日期，备注不超过 1000 个 UTF-16 码元。校验失败返回 `invalid_argument`。
+- 服务端用嵌入的区域索引校验：区域 ID 存在，名称、所属省份与索引一致，颜色是五种之一，旅行日期为空或真实日历日期，备注不超过 1000 个 UTF-16 码元，旅行 ID 匹配 `^[A-Za-z0-9_-]{1,64}$`。校验失败返回 `invalid_argument`。
 - 每次写入在持有用户行锁的事务中执行，同一用户的写入串行；只有实际改变数据才使 `revision` +1。内容相同的重复保存、删除不存在的记录都成功且不增加 revision，因此重试幂等，响应中的 `changed` / `deleted` 表示是否发生变化。
-- `base_revision` 保持旧客户端兼容：未设置 `require_revision` 时，0 表示不检查，非 0 表示检查。新增 `require_revision: true` 会检查任何 base_revision（包含 0）。检查版本与当前 revision 不同、且写入会改变数据时返回 `aborted`，附带 `RevisionConflict.current_revision`；已生效请求的同内容重放仍幂等成功。新前端读取完整快照后逐记录精确版本写入，版本变化时重新三方合并，同记录冲突需要用户选择。部署须先更新支持 `require_revision` 的后端，再部署新前端（旧后端忽略该字段，无法保护初始 revision=0）。尚无服务端增量变更日志、删除 tombstone 和 `SyncChanges` 接口。
+- `base_revision` 保持旧客户端兼容：未设置 `require_revision` 时，0 表示不检查，非 0 表示检查。新增 `require_revision: true` 会检查任何 base_revision（包含 0）。检查版本与当前 revision 不同、且写入会改变数据时返回 `aborted`，附带 `RevisionConflict.current_revision`；已生效请求的同内容重放仍幂等成功。新前端读取完整快照后逐记录精确版本写入，版本变化时重新三方合并，同记录冲突需要用户选择。部署须先更新支持 `require_revision` 的后端，再部署新前端（旧后端忽略该字段，无法保护初始 revision=0）。增量变更日志、删除 tombstone 和批量接口见下文 F1 新接口。
 - 区域索引的后端副本是 `internal/regions/regions.json`，必须与 `src/regions.json` 一致；`npm run download:maps` 会同时写入两份，Go 测试会比对。金门 `tw-09020`、连江县（马祖）`tw-09007` 归福建 `350000`，ID 和名称保持不变。
 - 这两项旧云端记录若仍存为台湾 `710000`，快照和写入响应会返回规范化的福建归属，不修改原行、不提升 revision；旧客户端提交台湾归属时也先规范化再严格校验。与既有记录相同的规范化重放仍幂等，实际修改日期、颜色或备注后才按原有用户锁与 revision 机制写回福建归属。其他错误归属仍拒绝；没有数据库 schema 变化或批量数据迁移。独立台湾省份标记保留。
 - 此归属修正需先部署后端，再部署前端，以免新前端向尚未更新区域索引的旧后端提交福建记录被拒绝。
@@ -190,10 +190,10 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
 
 | 方法 | 行为 |
 | --- | --- |
-| `ListSnapshots` | 按时间倒序返回元数据（ID、来源 `reason`、时间、城市与省份标记数量、快照时的 `revision`），不读取内容 |
+| `ListSnapshots` | 按时间倒序返回元数据（ID、来源 `reason`、时间、城市、旅行与省份标记数量、快照时的 `revision`、`schema_version`），不读取内容 |
 | `CreateSnapshot` | 在持有用户行锁的事务中保存当前足迹。客户端只能请求 `manual` 或 `before_migration`，其他值返回 `invalid_argument`；该 `revision` 已有快照时返回已有的（`created: false`），不重复保存。每用户每小时最多 30 次 |
-| `GetSnapshot` | 返回元数据与全部记录，供预览与比较；他人或不存在的 ID 返回 `not_found` |
-| `RestoreSnapshot` | 参数 `snapshot_id`、`base_revision`、`mutation_id`。同一事务内：校验 `base_revision` 等于当前 revision（含 0，不同则 `aborted` 并附 `RevisionConflict`），保存 `before_restore` 快照，按最小差异（先删除、再新增或改写）把足迹改成与快照一致，每条变更照常写入变更日志并推进 revision。每用户每分钟最多 6 次 |
+| `GetSnapshot` | 返回元数据与全部记录（含旅行），供预览与比较；他人或不存在的 ID 返回 `not_found`。升级前保存的版本 1 快照在读取时转为版本 2（城市的日期与备注成为 `legacy-<区域 ID>` 旅行），已存储的载荷不被改写 |
+| `RestoreSnapshot` | 参数 `snapshot_id`、`base_revision`、`mutation_id`。同一事务内：校验 `base_revision` 等于当前 revision（含 0，不同则 `aborted` 并附 `RevisionConflict`），保存 `before_restore` 快照，按最小差异（先删除、再新增或改写）把足迹改成与快照一致（先删旅行与城市，再新增或改写城市，最后新增或改写旅行；旅行换了所属城市时先删后建），每条变更照常写入变更日志并推进 revision。每用户每分钟最多 6 次 |
 
 - 恢复的变更与普通编辑一样进入 `footprint_changes`，其他设备通过 `GetChanges` 增量同步；全部成功才提交，失败不留下部分结果，也不留下 `before_restore` 快照。
 - `mutation_id` 与请求内容（快照 ID 和 `base_revision`）的哈希存入 `sync_receipts`（同一张表，`snapshot_id` 记录撤销用快照）：同 ID 同内容的重试不再次执行，返回原 revision、变更数和撤销快照（`replayed: true`；该快照已被保留规则清理时为空）；同 ID 不同内容返回 `already_exists`。回执检查先于 revision 检查，因此丢失响应后的重试不会误报冲突。
@@ -215,18 +215,42 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 | 表 | 关键字段与约束 |
 | --- | --- |
-| `users` | UUID 字符串 ID、可空唯一用户名（密码账号）、`provider` + `external_id`（OAuth 账号，非空时唯一）、bcrypt 密码哈希、显示名、头像、禁用标记、足迹 `revision`、创建/更新时间；`email` 字段保留但目前不写入 |
+| `users` | UUID 字符串 ID、`schema_version`（足迹结构，默认 1，F5 升级后为 2）、可空唯一用户名（密码账号）、`provider` + `external_id`（OAuth 账号，非空时唯一）、bcrypt 密码哈希、显示名、头像、禁用标记、足迹 `revision`、创建/更新时间；`email` 字段保留但目前不写入 |
 | `auth_sessions` | 所属用户、唯一令牌哈希、创建/过期/最近使用时间、撤销标记；用户删除时级联 |
-| `city_visits` | 所属用户、区域 ID/名称、所属省份、颜色、日期字符串、备注；`user_id + region_code` 唯一 |
+| `city_visits` | 所属用户、区域 ID/名称、所属省份、颜色、日期字符串、备注；`user_id + region_code` 唯一。F5 起日期与备注列是版本 1 的冻结副本，不再更新 |
+| `city_trips` | F5：所属用户、所属城市行（外键，级联删除）、旅行 ID（`user_id + trip_id` 唯一）、区域 ID、日期字符串、备注、创建/更新时间 |
 | `province_marks` | 所属用户、省份 ID、颜色；`user_id + province_code` 唯一 |
-| `media_objects` | 所属用户、唯一 object key、内容类型、非负字节大小、pending/ready 状态 |
-| `snapshots` | 所属用户、`reason`（manual / scheduled / before_migration / before_restore）、快照时的 `revision`、城市与省份标记数量、gzip 压缩的 `SnapshotData` 载荷、创建时间；所有字段不可修改；`user_id + created_at`、`user_id + revision` 索引；用户删除时级联 |
+| `media_objects` | 所属用户、唯一 object key、内容类型、非负字节大小、pending/ready/deleting 状态、区域 ID、可空软引用 `trip_id` 等 F4 字段 |
+| `snapshots` | 所属用户、`reason`（manual / scheduled / before_migration / before_restore）、快照时的 `revision`、城市、旅行（`trip_count`）与省份标记数量、`schema_version`（旧行为 1）、gzip 压缩的 `SnapshotData` 载荷、创建时间；所有字段不可修改；`user_id + created_at`、`user_id + revision` 索引；用户删除时级联 |
 
 城市足迹与省份独立标记分表。删除城市不影响省份独立标记；用户归属为必填外键，删除用户时数据库级联删除这些元数据。注销服务先清理 S3 实体对象，再级联删除元数据；对象清理失败保留已暂停账号以便重试。
 
-时间戳默认 UTC。旅行日期仍是 `YYYY-MM-DD` 字符串，允许空值，不做时区转换。Ent 验证日期是否为有效日历日期，并限制颜色为前端五种色值、备注按与前端一致的 UTF-16 长度限制为最多 1000。区域有效性、名称与归属由 `FootprintService` 在写入前校验。
+时间戳默认 UTC。旅行日期仍是 `YYYY-MM-DD` 字符串，允许空值，不做时区转换。Ent 验证日期是否为有效日历日期（年份 `0000` 与前端一致地接受，`scripts/fixtures/trip-dates.json` 同时驱动前端测试和 `TestTripDatesMatchTheSharedFrontendFixtures`），并限制颜色为前端五种色值、备注按与前端一致的 UTF-16 长度限制为最多 1000。区域有效性、名称与归属由 `FootprintService` 在写入前校验。
 
-当前模型保留一用户一城市一足迹；`media_objects` 仍是预留表，不等于已实现附件上传。现有浏览器备份格式仍为 `version: 1`，本地数据迁移由前端以批量同步完成，没有服务端迁移逻辑。
+一用户一城市一条城市足迹，城市下有任意多次旅行（F5）。现有浏览器备份格式为 `version: 2`（可导入版本 1），本地数据迁移由前端以批量同步完成；服务端只有账号从版本 1 到版本 2 的原位升级，见下文。
+
+## 版本化数据库迁移
+
+`migrations/` 保存按时间戳排序的、只增不删的 PostgreSQL SQL 文件和 `atlas.sum` 校验和（Atlas 目录格式）。当前有两个文件：
+
+| 文件 | 内容 |
+| --- | --- |
+| `20261014011442_baseline.sql` | F5 之前（`main`）的完整结构，用于全新数据库；已有数据库不执行 |
+| `20261014011446_f5_multiple_trips.sql` | F5 的纯新增变更：`media_objects.trip_id`（默认空串）及索引、`snapshots.schema_version`（默认 1）与 `trip_count`（默认 0）、`users.schema_version`（默认 1）、新表 `city_trips`（外键级联、`(user_id, trip_id)` 唯一索引）。不删除、不改写任何已有列或行 |
+
+**生成。** 修改 `internal/ent/schema/` 并运行 `make ent` 后，用 `make migration NAME=<变更名> DEV_DSN='postgres://…'` 生成下一个文件（`cmd/migrate-gen`）：它在 `DEV_DSN` 指向的服务器上临时创建一个随机命名的空数据库，重放现有 `migrations/` 得到“当前结构”，与 Ent schema 比较后写出差异和新的 `atlas.sum`，然后删除该数据库；因此所用账号需要 `CREATEDB`，不会碰服务器上的其他库。生成器只写新增和修改类语句（不写 `DROP COLUMN` / `DROP INDEX`，也不生成会丢数据的回滚脚本）。迁移文件只通过生成器更新，手改会使 `atlas.sum` 校验失败。
+
+**升级顺序（已有生产数据库，由 `auto_migrate` 建表）。**
+
+1. 备份数据库（F5 对账号的升级是单向的，回退旧后端需要这份备份）。
+2. 把后端配置改为 `auto_migrate: false`。
+3. 对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/20261014011446_f5_multiple_trips.sql`。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
+4. 部署新后端；已有账号在第一次被新前端写入时才升级到结构 2（见上文），旧行保持原样。
+5. 全新数据库：按文件名顺序执行全部文件（含 baseline）。
+
+**验证。** `internal/integration/migrations_test.go`（随 `make test-integration` 和 CI 的 `go test ./...` 运行，需要 `TRIPMAP_TEST_POSTGRES_DSN`）在随机 schema 里先应用 baseline 并插入旧用户、城市足迹、快照和媒体行，再按上面的方式应用后续文件：检查旧行数据不变且新列取默认值、`city_trips` 为空，并要求迁移后的库与 `Schema.Create` 建出的库对 Ent 报告的待执行差异完全一致（Ent 对两条部分唯一索引的谓词文本有恒定的重建提示，两边同样出现，因此按“完全相同”比较）；另一个测试校验 `atlas.sum` 与文件一致。CI 与实际 PostgreSQL 一起运行这些测试。
+
+**限制。** 迁移流水线只覆盖 PostgreSQL 结构；部署时仍需人工执行并记录已执行的版本（没有内置的迁移执行器或版本表）；回滚依赖数据库备份。
 
 ## 生成、构建与验证
 
@@ -248,24 +272,40 @@ make test-integration
 
 该命令使用 Compose 示例的本地地址和开发凭据。使用其他测试环境时，设置 `TRIPMAP_TEST_POSTGRES_DSN`、`TRIPMAP_TEST_REDIS_ADDR`、`TRIPMAP_TEST_REDIS_PASSWORD`、`TRIPMAP_TEST_S3_ENDPOINT`、`TRIPMAP_TEST_S3_ACCESS_KEY`、`TRIPMAP_TEST_S3_SECRET_KEY`、`TRIPMAP_TEST_S3_BUCKET`，运行 `go test -v ./internal/integration`。
 
-PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除。
+PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除，以及版本化迁移的升级校验（见上文“版本化数据库迁移”）。
 
-`internal/application` 的测试通过 HTTP 调用真实的处理器和拦截器，使用同样的隔离方式（随机 schema 与 Redis key 前缀），未设置 `TRIPMAP_TEST_POSTGRES_DSN` 和 `TRIPMAP_TEST_REDIS_ADDR` 时跳过。覆盖：快照的保存与去重、恢复的差异/撤销/revision 条件/幂等重放/原子性、用户隔离、保留与定时任务、注销清除快照；令牌与密码只存哈希、注册/登录校验与限流、会话过期/撤销/禁用、他人会话不可见、OAuth state 单次使用与注册关闭、用户 A/B 足迹隔离、非法数据、幂等、revision 冲突、省份标记与城市足迹互不影响，以及并发写入不丢失。`.github/workflows/ci.yml` 在 PostgreSQL 与 Redis 服务容器中运行 `go vet`、`go test -race ./...` 和前端测试、地图检查、构建。
+`internal/application` 的测试通过 HTTP 调用真实的处理器和拦截器，使用同样的隔离方式（随机 schema 与 Redis key 前缀），未设置 `TRIPMAP_TEST_POSTGRES_DSN` 和 `TRIPMAP_TEST_REDIS_ADDR` 时跳过。覆盖：快照的保存与去重、恢复的差异/撤销/revision 条件/幂等重放/原子性、用户隔离、保留与定时任务、注销清除快照；令牌与密码只存哈希、注册/登录校验与限流、会话过期/撤销/禁用、他人会话不可见、OAuth state 单次使用与注册关闭、用户 A/B 足迹隔离、非法数据、幂等、revision 冲突、省份标记与城市足迹互不影响，以及并发写入不丢失；F5 的账号升级幂等与冻结列、旧客户端被拒绝（所有 RPC）、旅行增删改与级联、旅行校验、用户隔离、变更日志内容、旧批次回执重放、批次原子性与 2000 项上限、新旧客户端并发、旧快照读取与恢复（载荷不变）、恢复时旅行换城市、定时快照、媒体与旅行的关联及隔离、注销清除旅行。`.github/workflows/ci.yml` 在 PostgreSQL 与 Redis 服务容器中运行 `go vet`、`go test -race ./...` 和前端测试、地图检查、构建。
 
 [Docker 镜像与 Actions](docker-images.md) 说明前后端两个镜像的构建发布。根目录 `Dockerfile` 仅构建后端镜像，运行时挂载 `/config/config.yaml`；容器中连接 Compose 依赖时，配置地址使用服务名和容器端口，而不是宿主机的 `127.0.0.1`。
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：多次旅行（F5）、照片（F4）等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）与 F3（云端快照与恢复）已实现；F4–F12 仍待完整实现。
+从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：分享、行政区划服务等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）与 F5（同城多次旅行）已实现；F6–F12 仍待完整实现。
 
 ## F1 新接口与部署
 
 - `AuthService.DeleteAccount`：请求 `confirmation: "DELETE"` 与密码账号的 `password`。OAuth 账号要求最近 15 分钟内创建的会话。暂停账号后其他业务 RPC 拒绝，当前会话可重试清理；重新登录返回 `User.deletion_pending`，只开放 Me、Logout 和注销重试。完成后原注销令牌可在 24 小时内得到完成回执，其余接口仍未授权。
 - `FootprintService.GetChanges`：参数 `since_revision` / `limit`，返回有序 `changes`、`next_revision`、`current_revision`、`has_more` 与 `resync_required`。
-- `FootprintService.SyncChanges`：参数 `mutation_id`、`base_revision` 和 1–600 条 oneof 变更（上限由 F2 迁移需要决定：497 个城市加 34 个省份标记）。全批原子处理，冲突返回 ABORTED；同一 ID 相同内容返回原结果，复用 ID 提交不同内容返回 ALREADY_EXISTS。日志、revision、回执与记录在同一事务提交。
+- `FootprintService.SyncChanges`：参数 `mutation_id`、`base_revision` 和 1–2000 条 oneof 变更（F5 前为 600；上限容纳一次完整迁移：497 个城市、每城市多次旅行与 34 个省份标记，更大的改动由客户端拆成连续批次）。变更为旧版 `upsert_visit`（城市加 `legacy-<区域 ID>` 旅行）、`delete_visit`（连同旅行）、`upsert_mark`、`delete_mark` 以及 F5 新增的 `upsert_city`（只改城市字段）、`upsert_trip`（城市必须已存在，在账号中或在同一批次更早的位置）、`delete_trip`。旅行的所属城市不可更改。全批原子处理，冲突返回 ABORTED；同一 ID 相同内容返回原结果，复用 ID 提交不同内容返回 ALREADY_EXISTS。日志、revision、回执与记录在同一事务提交。
 
 新增 `users.deletion_requested_at`、`footprint_changes`、`sync_receipts` 和无账号外键的短期 `account_deletion_receipts`；F3 再新增 `snapshots` 表和 `sync_receipts.snapshot_id`（可空列），应在部署前审核 Ent 迁移并**先升级后端，再部署前端**。旧 RPC 保留原语义并自动记录变化。旧数据不会被清空，也不会被服务端自动迁移上云（由用户在前端主动迁移），缺失旧日志时走全量快照。
 
 CI 现在启动 PostgreSQL、Redis 和 S3 兼容测试服务，执行真实处理器/race 与对象读写检查。前端 CI 构建启用 `/api`，自动执行桌面及手机注销界面验收（模拟 RPC）。真实 OAuth、生产凭据和生产数据不进入 CI；前端发布镜像仍保持默认纯本地模式，部署云端能力需设置构建参数。
 
-F1 代码范围已覆盖注销与增量同步；F1 总项仍保留真实 OAuth 验收未完成的状态。快照和多次旅行等后续功能不随本次实现；F2 迁移不新增接口，只依赖批量上限 600 与限流预算 600。
+F1 代码范围已覆盖注销与增量同步；F1 总项仍保留真实 OAuth 验收未完成的状态。F2 迁移不新增接口；F5 把批量上限提到 2000、批量限流预算提到每分钟 6000 项。
+
+## F5 升级与部署顺序
+
+**兼容机制。** 每个足迹、快照请求携带 `X-Tripmap-Schema: 2`（新前端的拦截器统一设置；CORS 的 `Access-Control-Allow-Headers` 已加入该头，跨站部署无需额外配置）。`SystemService.GetStatus` 返回 `footprint_schema`（当前 2），`GetFootprints` / `GetChanges` / 快照响应带 `schema_version`，新前端据此在首次同步前判断后端是否已升级。
+
+- 账号为版本 1 且请求带头：在用户行锁内原位升级账号（见 [数据与地图说明](data-and-maps.md#f5-服务端数据与升级)），再按版本 2 语义处理本次写入；读取不会升级账号，版本 1 账号读取时得到合成的 `legacy-` 旅行。
+- 账号为版本 2 而请求没有头：足迹与快照 RPC 一律返回 `failed_precondition`（消息以 “client upgrade required” 开头）。媒体接口不门控。已有回执的批量同步重放先于门控检查，因此账号升级前发出、丢失响应的批次仍可得到原结果。
+- 账号为版本 1 且请求没有头：行为与升级前完全相同，旧前端在升级发生前可继续使用。
+
+**部署顺序。** 先审核并应用数据库变更（新增 `city_trips`、`users.schema_version`、`media_objects.trip_id`、`snapshots.schema_version`/`trip_count` 与索引；列均有默认值，可在旧后端仍运行时先加），再升级后端，最后部署前端。新前端自带能力检测：连到未升级的后端时拒绝同步并保留本机修改，不依赖这一顺序；旧前端连到已升级后端时，未升级账号继续可用，已升级账号被拒绝并提示刷新。
+
+**回滚。** 账号升级是单向的：一旦某账号升到版本 2，旧后端只认识 `city_visits` 里冻结的日期与备注，会看不到升级之后新增的旅行，也看不到对已有旅行的修改，因此回滚到旧后端前必须备份数据库，并接受升级后旅行相关修改丢失；不要在升级过账号的数据库上回滚后继续让旧客户端写入：旧后端对 `city_visits` 的修改不会回流到 `city_trips`，账号的 `schema_version` 仍为 2。需要重新升级时，应从升级前的数据库备份恢复，而不是依赖自动回填。
+
+**请求体与限流。** 一个满批（2000 项、每项备注 1000 个字符）按 JSON 最坏估计约 6–12 MB。Footprint 处理器读取上限为 16 MiB；前端镜像的 Nginx `/api` 转发默认 1 MB，已加 `client_max_body_size 16m`（`deploy/frontend/default.conf.template`）；自行部署的其他反向代理需调到不低于 16 MB。批量限流按项计（每用户每分钟 6000 项），单条写入仍为每分钟 600 次。
+
+**验证。** `make test` 在没有数据库连接时跳过存储相关测试；F5 的 Go 测试需要 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR`（媒体测试使用内存对象存储，不需要 S3；真实 S3 测试另需 `make test-integration` 的环境）。

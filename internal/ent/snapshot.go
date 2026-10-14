@@ -28,6 +28,10 @@ type Snapshot struct {
 	VisitCount int `json:"visit_count,omitempty"`
 	// MarkCount holds the value of the "mark_count" field.
 	MarkCount int `json:"mark_count,omitempty"`
+	// SchemaVersion holds the value of the "schema_version" field.
+	SchemaVersion int `json:"schema_version,omitempty"`
+	// TripCount holds the value of the "trip_count" field.
+	TripCount int `json:"trip_count,omitempty"`
 	// Payload holds the value of the "payload" field.
 	Payload []byte `json:"payload,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -65,7 +69,7 @@ func (*Snapshot) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case snapshot.FieldPayload:
 			values[i] = new([]byte)
-		case snapshot.FieldRevision, snapshot.FieldVisitCount, snapshot.FieldMarkCount:
+		case snapshot.FieldRevision, snapshot.FieldVisitCount, snapshot.FieldMarkCount, snapshot.FieldSchemaVersion, snapshot.FieldTripCount:
 			values[i] = new(sql.NullInt64)
 		case snapshot.FieldID, snapshot.FieldUserID, snapshot.FieldReason:
 			values[i] = new(sql.NullString)
@@ -121,6 +125,18 @@ func (_m *Snapshot) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field mark_count", values[i])
 			} else if value.Valid {
 				_m.MarkCount = int(value.Int64)
+			}
+		case snapshot.FieldSchemaVersion:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field schema_version", values[i])
+			} else if value.Valid {
+				_m.SchemaVersion = int(value.Int64)
+			}
+		case snapshot.FieldTripCount:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field trip_count", values[i])
+			} else if value.Valid {
+				_m.TripCount = int(value.Int64)
 			}
 		case snapshot.FieldPayload:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -189,6 +205,12 @@ func (_m *Snapshot) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("mark_count=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MarkCount))
+	builder.WriteString(", ")
+	builder.WriteString("schema_version=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SchemaVersion))
+	builder.WriteString(", ")
+	builder.WriteString("trip_count=")
+	builder.WriteString(fmt.Sprintf("%v", _m.TripCount))
 	builder.WriteString(", ")
 	builder.WriteString("payload=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Payload))

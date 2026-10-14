@@ -10,7 +10,7 @@ const noOverflow = (page: Page) =>
 // The signed-in account's cached footprints; it follows what the page shows.
 const cachedVisits = (page: Page) =>
   page.evaluate(() => {
-    const raw = localStorage.getItem("shanhai-cloud-v1:ci-migrate");
+    const raw = localStorage.getItem("shanhai-cloud-v2:ci-migrate");
     return raw ? JSON.parse(raw).saved.visits.length : -1;
   });
 
@@ -33,7 +33,7 @@ test("manual snapshot is listed, and saving an unchanged account does not duplic
   const rows = dialog(page).getByRole("list", { name: "快照列表" }).getByRole("listitem");
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText("手动保存");
-  await expect(rows.first()).toContainText("2 个城市足迹、1 个省份标记");
+  await expect(rows.first()).toContainText("2 个城市足迹、2 次旅行、1 个省份标记");
 
   await dialog(page).getByRole("button", { name: "立即保存快照" }).click();
   await expect(dialog(page).getByText("当前内容已有相同的快照")).toBeVisible();
@@ -62,14 +62,16 @@ test("restore previews the change, saves the current version first and can be un
   await expect(preview.locator("li").nth(0)).toContainText("0");
   await expect(preview.locator("li").nth(1)).toContainText("1");
   await expect(preview.locator("li").nth(2)).toContainText("1");
-  await expect(preview.locator("li").nth(3)).toContainText("3");
+  // 2 unchanged cities, their 2 trips and the province mark.
+  await expect(preview.locator("li").nth(3)).toContainText("5");
   expect(await noOverflow(page)).toBe(true);
   // Nothing has been changed by merely previewing.
   expect(backend.state.restoreCalls).toBe(0);
 
   await dialog(page).getByRole("button", { name: "确认恢复" }).click();
-  await expect(dialog(page).getByText(/已恢复，共调整 2 条记录/)).toBeVisible();
-  expect(backend.state.visits.get("110101")?.note).toBe("");
+  // 东城区's color and its trip's note, and the removal of 朝阳区 with its trip.
+  await expect(dialog(page).getByText(/已恢复，共调整 3 条记录/)).toBeVisible();
+  expect(backend.noteOf("110101")).toBe("");
   expect(backend.state.visits.has("110105")).toBe(false);
   expect(backend.state.visits.size).toBe(3);
   // The state being replaced was saved first.
@@ -83,8 +85,8 @@ test("restore previews the change, saves the current version first and can be un
   await dialog(page).getByRole("button", { name: "撤销本次恢复" }).click();
   await expect(dialog(page).getByLabel("恢复预览")).toBeVisible();
   await dialog(page).getByRole("button", { name: "确认恢复" }).click();
-  await expect(dialog(page).getByText(/已恢复，共调整 2 条记录/)).toBeVisible();
-  expect(backend.state.visits.get("110101")?.note).toBe("误改");
+  await expect(dialog(page).getByText(/已恢复，共调整 4 条记录/)).toBeVisible();
+  expect(backend.noteOf("110101")).toBe("误改");
   expect(backend.state.visits.has("110105")).toBe(true);
   expect(backend.state.visits.size).toBe(4);
 });

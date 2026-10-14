@@ -85,6 +85,16 @@ func MarkCount(v int) predicate.Snapshot {
 	return predicate.Snapshot(sql.FieldEQ(FieldMarkCount, v))
 }
 
+// SchemaVersion applies equality check predicate on the "schema_version" field. It's identical to SchemaVersionEQ.
+func SchemaVersion(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldEQ(FieldSchemaVersion, v))
+}
+
+// TripCount applies equality check predicate on the "trip_count" field. It's identical to TripCountEQ.
+func TripCount(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldEQ(FieldTripCount, v))
+}
+
 // Payload applies equality check predicate on the "payload" field. It's identical to PayloadEQ.
 func Payload(v []byte) predicate.Snapshot {
 	return predicate.Snapshot(sql.FieldEQ(FieldPayload, v))
@@ -298,6 +308,86 @@ func MarkCountLT(v int) predicate.Snapshot {
 // MarkCountLTE applies the LTE predicate on the "mark_count" field.
 func MarkCountLTE(v int) predicate.Snapshot {
 	return predicate.Snapshot(sql.FieldLTE(FieldMarkCount, v))
+}
+
+// SchemaVersionEQ applies the EQ predicate on the "schema_version" field.
+func SchemaVersionEQ(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldEQ(FieldSchemaVersion, v))
+}
+
+// SchemaVersionNEQ applies the NEQ predicate on the "schema_version" field.
+func SchemaVersionNEQ(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldNEQ(FieldSchemaVersion, v))
+}
+
+// SchemaVersionIn applies the In predicate on the "schema_version" field.
+func SchemaVersionIn(vs ...int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldIn(FieldSchemaVersion, vs...))
+}
+
+// SchemaVersionNotIn applies the NotIn predicate on the "schema_version" field.
+func SchemaVersionNotIn(vs ...int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldNotIn(FieldSchemaVersion, vs...))
+}
+
+// SchemaVersionGT applies the GT predicate on the "schema_version" field.
+func SchemaVersionGT(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldGT(FieldSchemaVersion, v))
+}
+
+// SchemaVersionGTE applies the GTE predicate on the "schema_version" field.
+func SchemaVersionGTE(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldGTE(FieldSchemaVersion, v))
+}
+
+// SchemaVersionLT applies the LT predicate on the "schema_version" field.
+func SchemaVersionLT(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldLT(FieldSchemaVersion, v))
+}
+
+// SchemaVersionLTE applies the LTE predicate on the "schema_version" field.
+func SchemaVersionLTE(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldLTE(FieldSchemaVersion, v))
+}
+
+// TripCountEQ applies the EQ predicate on the "trip_count" field.
+func TripCountEQ(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldEQ(FieldTripCount, v))
+}
+
+// TripCountNEQ applies the NEQ predicate on the "trip_count" field.
+func TripCountNEQ(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldNEQ(FieldTripCount, v))
+}
+
+// TripCountIn applies the In predicate on the "trip_count" field.
+func TripCountIn(vs ...int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldIn(FieldTripCount, vs...))
+}
+
+// TripCountNotIn applies the NotIn predicate on the "trip_count" field.
+func TripCountNotIn(vs ...int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldNotIn(FieldTripCount, vs...))
+}
+
+// TripCountGT applies the GT predicate on the "trip_count" field.
+func TripCountGT(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldGT(FieldTripCount, v))
+}
+
+// TripCountGTE applies the GTE predicate on the "trip_count" field.
+func TripCountGTE(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldGTE(FieldTripCount, v))
+}
+
+// TripCountLT applies the LT predicate on the "trip_count" field.
+func TripCountLT(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldLT(FieldTripCount, v))
+}
+
+// TripCountLTE applies the LTE predicate on the "trip_count" field.
+func TripCountLTE(v int) predicate.Snapshot {
+	return predicate.Snapshot(sql.FieldLTE(FieldTripCount, v))
 }
 
 // PayloadEQ applies the EQ predicate on the "payload" field.

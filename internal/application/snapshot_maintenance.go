@@ -114,11 +114,11 @@ func scheduledSnapshot(ctx context.Context, db *ent.Client, uid string, now time
 	if err != nil || recent {
 		return err
 	}
-	visits, marks, err := loadState(ctx, tx, uid)
+	state, err := loadState(ctx, tx, uid, u.SchemaVersion)
 	if err != nil {
 		return err
 	}
-	if _, _, err = captureSnapshot(ctx, tx, u, snapshot.ReasonScheduled, visits, marks); err != nil {
+	if _, _, err = captureSnapshot(ctx, tx, u, snapshot.ReasonScheduled, state); err != nil {
 		return err
 	}
 	return tx.Commit()

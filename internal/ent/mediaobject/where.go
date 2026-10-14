@@ -130,6 +130,11 @@ func Height(v int) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldHeight, v))
 }
 
+// TripID applies equality check predicate on the "trip_id" field. It's identical to TripIDEQ.
+func TripID(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldTripID, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldCreatedAt, v))
@@ -913,6 +918,71 @@ func HeightLT(v int) predicate.MediaObject {
 // HeightLTE applies the LTE predicate on the "height" field.
 func HeightLTE(v int) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldLTE(FieldHeight, v))
+}
+
+// TripIDEQ applies the EQ predicate on the "trip_id" field.
+func TripIDEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldTripID, v))
+}
+
+// TripIDNEQ applies the NEQ predicate on the "trip_id" field.
+func TripIDNEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldTripID, v))
+}
+
+// TripIDIn applies the In predicate on the "trip_id" field.
+func TripIDIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldTripID, vs...))
+}
+
+// TripIDNotIn applies the NotIn predicate on the "trip_id" field.
+func TripIDNotIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldTripID, vs...))
+}
+
+// TripIDGT applies the GT predicate on the "trip_id" field.
+func TripIDGT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldTripID, v))
+}
+
+// TripIDGTE applies the GTE predicate on the "trip_id" field.
+func TripIDGTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldTripID, v))
+}
+
+// TripIDLT applies the LT predicate on the "trip_id" field.
+func TripIDLT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldTripID, v))
+}
+
+// TripIDLTE applies the LTE predicate on the "trip_id" field.
+func TripIDLTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldTripID, v))
+}
+
+// TripIDContains applies the Contains predicate on the "trip_id" field.
+func TripIDContains(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContains(FieldTripID, v))
+}
+
+// TripIDHasPrefix applies the HasPrefix predicate on the "trip_id" field.
+func TripIDHasPrefix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasPrefix(FieldTripID, v))
+}
+
+// TripIDHasSuffix applies the HasSuffix predicate on the "trip_id" field.
+func TripIDHasSuffix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasSuffix(FieldTripID, v))
+}
+
+// TripIDEqualFold applies the EqualFold predicate on the "trip_id" field.
+func TripIDEqualFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEqualFold(FieldTripID, v))
+}
+
+// TripIDContainsFold applies the ContainsFold predicate on the "trip_id" field.
+func TripIDContainsFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContainsFold(FieldTripID, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

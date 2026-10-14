@@ -42,12 +42,22 @@ message SnapshotInfo {
   int32 province_mark_count = 5;
   // The account revision the snapshot was taken at.
   int64 revision = 6;
+  // Number of trips. A schema 1 snapshot counts one legacy trip per city.
+  int32 trip_count = 7;
+  // The format the snapshot was stored in; the stored copy is never rewritten.
+  int32 schema_version = 8;
 }
 
-// SnapshotData is the content of a snapshot.
+// SnapshotData is the content of a snapshot. Schema 1 snapshots carry date and
+// note on each visit; schema 2 snapshots carry trips. A schema 2 client always
+// receives trips: a schema 1 snapshot is converted on read (one "legacy-<code>"
+// trip per city, even when date and note are empty).
 message SnapshotData {
   repeated Visit visits = 1;
   repeated ProvinceMark province_marks = 2;
+  repeated Trip trips = 3;
+  // Format of this message: 1 as stored by an older server, 2 with trips.
+  int32 schema_version = 4;
 }
 
 message ListSnapshotsRequest {}

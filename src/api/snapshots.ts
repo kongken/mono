@@ -33,6 +33,8 @@ function info(wire: WireInfo): SnapshotInfo {
     reason: reasons[wire.reason] ?? "manual",
     createdAt: wire.createdAt ? timestampMs(wire.createdAt) : 0,
     visitCount: wire.visitCount,
+    // Snapshots from before several trips per city hold one trip per city.
+    tripCount: wire.schemaVersion >= 2 ? wire.tripCount : wire.visitCount,
     markCount: wire.provinceMarkCount,
     revision: Number(wire.revision),
   };

@@ -8,12 +8,11 @@ const visit = (code, extra = {}) => ({
   name: code,
   province: "330000",
   color: green,
-  date: "",
-  note: "",
+  trips: [],
   ...extra,
 });
 const saved = (visits = [], provinces = {}) => ({
-  version: 1,
+  version: 2,
   visits,
   provinces,
 });
@@ -25,7 +24,7 @@ test("identical states produce no operations", () => {
 
 test("diff reports adds, edits, removals for visits and marks", () => {
   const base = saved([visit("a"), visit("b")], { 1: green, 2: green });
-  const next = saved([visit("b", { note: "x" }), visit("c")], {
+  const next = saved([visit("b", { trips: [{ id: "t1", date: "", note: "x" }] }), visit("c")], {
     2: "#fff",
     3: green,
   });
@@ -35,7 +34,7 @@ test("diff reports adds, edits, removals for visits and marks", () => {
     "deleteVisit",
     "upsertMark",
     "upsertMark",
-    "upsertVisit",
+    "upsertTrip",
     "upsertVisit",
   ]);
   // Applying every operation yields the target state (order of visits aside).

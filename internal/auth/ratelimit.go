@@ -30,3 +30,19 @@ func (l *Limiter) Allow(ctx context.Context, key string, limit int64, window tim
 	}
 	return count <= limit, nil
 }
+
+var incrByWindow = redis.NewScript(`
+local count = redis.call('INCRBY', KEYS[1], ARGV[2])
+if count == tonumber(ARGV[2]) then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+return count`)
+
+// AllowN counts n events at once, so a batch is charged in a single round trip.
+// It reports whether the whole batch fits in the current window; a batch larger
+// than limit is never allowed.
+func (l *Limiter) AllowN(ctx context.Context, key string, n, limit int64, window time.Duration) (bool, error) {
+	count, err := incrByWindow.Run(ctx, l.rdb, []string{l.prefix + "rl:" + key}, window.Milliseconds(), n).Int64()
+	if err != nil {
+		return false, err
+	}
+	return count <= limit, nil
+}

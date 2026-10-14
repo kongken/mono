@@ -188,6 +188,20 @@ func (_c *MediaObjectCreate) SetNillableHeight(v *int) *MediaObjectCreate {
 	return _c
 }
 
+// SetTripID sets the "trip_id" field.
+func (_c *MediaObjectCreate) SetTripID(v string) *MediaObjectCreate {
+	_c.mutation.SetTripID(v)
+	return _c
+}
+
+// SetNillableTripID sets the "trip_id" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableTripID(v *string) *MediaObjectCreate {
+	if v != nil {
+		_c.SetTripID(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *MediaObjectCreate) SetCreatedAt(v time.Time) *MediaObjectCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -306,6 +320,10 @@ func (_c *MediaObjectCreate) defaults() {
 		v := mediaobject.DefaultHeight
 		_c.mutation.SetHeight(v)
 	}
+	if _, ok := _c.mutation.TripID(); !ok {
+		v := mediaobject.DefaultTripID
+		_c.mutation.SetTripID(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := mediaobject.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -390,6 +408,9 @@ func (_c *MediaObjectCreate) check() error {
 		if err := mediaobject.HeightValidator(v); err != nil {
 			return &ValidationError{Name: "height", err: fmt.Errorf(`ent: validator failed for field "MediaObject.height": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.TripID(); !ok {
+		return &ValidationError{Name: "trip_id", err: errors.New(`ent: missing required field "MediaObject.trip_id"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "MediaObject.created_at"`)}
@@ -487,6 +508,10 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Height(); ok {
 		_spec.SetField(mediaobject.FieldHeight, field.TypeInt, value)
 		_node.Height = value
+	}
+	if value, ok := _c.mutation.TripID(); ok {
+		_spec.SetField(mediaobject.FieldTripID, field.TypeString, value)
+		_node.TripID = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(mediaobject.FieldCreatedAt, field.TypeTime, value)
@@ -742,6 +767,18 @@ func (u *MediaObjectUpsert) UpdateHeight() *MediaObjectUpsert {
 // AddHeight adds v to the "height" field.
 func (u *MediaObjectUpsert) AddHeight(v int) *MediaObjectUpsert {
 	u.Add(mediaobject.FieldHeight, v)
+	return u
+}
+
+// SetTripID sets the "trip_id" field.
+func (u *MediaObjectUpsert) SetTripID(v string) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldTripID, v)
+	return u
+}
+
+// UpdateTripID sets the "trip_id" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateTripID() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldTripID)
 	return u
 }
 
@@ -1018,6 +1055,20 @@ func (u *MediaObjectUpsertOne) AddHeight(v int) *MediaObjectUpsertOne {
 func (u *MediaObjectUpsertOne) UpdateHeight() *MediaObjectUpsertOne {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.UpdateHeight()
+	})
+}
+
+// SetTripID sets the "trip_id" field.
+func (u *MediaObjectUpsertOne) SetTripID(v string) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetTripID(v)
+	})
+}
+
+// UpdateTripID sets the "trip_id" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateTripID() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateTripID()
 	})
 }
 
@@ -1463,6 +1514,20 @@ func (u *MediaObjectUpsertBulk) AddHeight(v int) *MediaObjectUpsertBulk {
 func (u *MediaObjectUpsertBulk) UpdateHeight() *MediaObjectUpsertBulk {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.UpdateHeight()
+	})
+}
+
+// SetTripID sets the "trip_id" field.
+func (u *MediaObjectUpsertBulk) SetTripID(v string) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetTripID(v)
+	})
+}
+
+// UpdateTripID sets the "trip_id" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateTripID() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateTripID()
 	})
 }
 

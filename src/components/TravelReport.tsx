@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import regions from "../regions.json";
 import type { Saved } from "../lib/travel";
 
-import { totalCities, percentage, visitedCityCount } from "../lib/statistics";
+import { totalCities, percentage, visitedCityCount, visitedTripCount } from "../lib/statistics";
 
 type Props = {
   open: boolean;
@@ -24,6 +24,7 @@ export default function TravelReport({ open, onOpenChange, saved, province, shap
   useEffect(() => () => { if (imageUrl) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
   const explored = new Set([...Object.keys(saved.provinces), ...saved.visits.map(v => v.province)]).size;
   const cityCount = visitedCityCount(saved);
+  const tripTotal = visitedTripCount(saved);
   const count = province ? saved.visits.filter(v => v.province === province.code).length : cityCount;
   const total = province ? province.cities.length : totalCities;
   const scope = province?.name || "中国";
@@ -74,6 +75,7 @@ export default function TravelReport({ open, onOpenChange, saved, province, shap
       <div className="report-summary">
         <div><strong>{explored} / {regions.length}</strong><span>已探索省份 · {percentage(explored, regions.length)}</span></div>
         <div><strong>{cityCount} / {totalCities}</strong><span>全国城市打卡率 · {percentage(cityCount, totalCities)}</span></div>
+        <div><strong>{tripTotal}</strong><span>旅行次数 · 同城多次不增加城市数</span></div>
       </div>
       <p className="report-hint">全国城市含自治州及县市；直辖市、香港、澳门各计一座，省内仍按区县统计。省份独立标记不增加城市数。</p>
       <div className="report-poster">

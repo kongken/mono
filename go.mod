@@ -3,6 +3,7 @@ module go.orx.me/apps/trip-map
 go 1.26.5
 
 require (
+	ariga.io/atlas v0.36.2-0.20250730182955-2c6300d0a3e1
 	butterfly.orx.me/core v0.0.0-20260430072052-a6971e20cd35
 	connectrpc.com/connect v1.21.0
 	entgo.io/ent v0.14.6
@@ -21,7 +22,6 @@ require (
 )
 
 require (
-	ariga.io/atlas v0.36.2-0.20250730182955-2c6300d0a3e1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   SESSION_KEY,
   cacheKey,
+  legacyCacheSeenKey,
   clearAccountData,
   clearOtherCaches,
   loadCloudCache,
@@ -31,7 +32,7 @@ function memory(initial = {}) {
   };
 }
 const user = { id: "u1", username: "ann", displayName: "Ann", avatarUrl: "" };
-const empty = { version: 1, visits: [], provinces: {} };
+const empty = { version: 2, visits: [], provinces: {} };
 
 test("session round trips and expires", () => {
   const s = memory();
@@ -71,6 +72,7 @@ test("cloud cache validates and preserves unreadable data", () => {
 test("logout clears every account cache but not local footprints", () => {
   const s = memory({
     "shanhai-travel-v1": "{}",
+    "shanhai-travel-v2": "{}",
     "shanhai-travel-v1-unreadable-1": "x",
   });
   saveSession(s, { token: "t", expiresAt: 9e15, user });
@@ -80,6 +82,7 @@ test("logout clears every account cache but not local footprints", () => {
   assert.deepEqual([...s.data.keys()].sort(), [
     "shanhai-travel-v1",
     "shanhai-travel-v1-unreadable-1",
+    "shanhai-travel-v2",
   ]);
 });
 
@@ -88,7 +91,7 @@ test("switching accounts keeps only the new user's cache", () => {
   saveCloudCache(s, "u1", { saved: empty, revision: 1 });
   saveCloudCache(s, "u2", { saved: empty, revision: 1 });
   clearOtherCaches(s, "u2");
-  assert.deepEqual([...s.data.keys()], [cacheKey("u2")]);
+  assert.deepEqual([...s.data.keys()].sort(), [cacheKey("u2"), legacyCacheSeenKey("u2")].sort());
 });
 
 test("OAuth callback parsing", () => {
@@ -189,7 +192,7 @@ test("new cache keeps the offline desired state and confirmed ancestor", () => {
   assert.equal(saveCloudCache(s, "u1", cache), true);
   assert.deepEqual(
     loadCloudCache(s, "u1", (d) => d),
-    cache,
+    { schema: 2, ...cache, legacyDigest: "none" },
   );
   clearOtherCaches(s, "u2");
   assert.notEqual(

@@ -16,11 +16,14 @@ test("empty cloud: auto prompt uploads everything in one batch and keeps local d
 
   await expect(dialog(page)).toBeVisible();
   const summary = dialog(page).getByLabel("迁移预览");
-  await expect(summary).toContainText("4");
+  await expect(summary).toContainText("4新增到云端");
+  await expect(summary).toContainText("3新增旅行记录");
   expect(await noOverflow(page)).toBe(true);
   await dialog(page).getByRole("button", { name: "确认迁移" }).click();
   await expect(dialog(page).getByText(/迁移完成/)).toBeVisible();
-  expect(backend.state.syncCalls).toEqual([4]);
+  // 3 cities and their 3 trips (city first, so every prefix is consistent), plus 1 province mark.
+  expect(backend.state.syncCalls).toEqual([7]);
+  expect(backend.state.batches[0].slice(0, 3)).toEqual(["upsertCity", "upsertCity", "upsertCity"]);
   expect([...backend.state.visits.keys()].sort()).toEqual(["110101", "110102", "120101"]);
   expect(backend.state.marks.get("310000")).toBe(green);
   await dialog(page).getByRole("button", { name: "完成" }).click();
@@ -44,15 +47,18 @@ test("conflicts: cloud wins by default, per-item and bulk choices apply, cloud-o
   await login(page);
 
   await expect(dialog(page)).toBeVisible();
-  await expect(dialog(page).getByText("2 条记录两边内容不同")).toBeVisible();
-  // Default keeps the cloud copy for both conflicts; choose local for one.
+  await expect(dialog(page).getByText("3 条记录两边内容不同")).toBeVisible();
+  // Default keeps the cloud copy for every conflict. 东城区 differs in its color and in its
+  // trip, which are two separate records; choose local for both and keep the cloud 西城区.
   const rows = dialog(page).locator(".migration-conflict");
-  await expect(rows).toHaveCount(2);
-  await rows.filter({ hasText: "东城区" }).getByRole("button", { name: /用本机/ }).click();
+  await expect(rows).toHaveCount(3);
+  const dongchengRows = rows.filter({ hasText: "东城区" });
+  await expect(dongchengRows).toHaveCount(2);
+  for (const row of await dongchengRows.all()) await row.getByRole("button", { name: /用本机/ }).click();
   await dialog(page).getByRole("button", { name: "确认迁移" }).click();
   await expect(dialog(page).getByText(/迁移完成/)).toBeVisible();
 
-  expect(backend.state.visits.get("110101")?.note).toBe("本机");
+  expect(backend.noteOf("110101")).toBe("本机");
   expect(backend.state.visits.get("110102")?.color).toBe(green); // kept cloud
   expect(backend.state.visits.has("120102")).toBe(true); // cloud-only survives
   expect(backend.state.visits.has("120101")).toBe(true); // local-only uploaded
@@ -103,7 +109,7 @@ test("a failed write keeps the migration on this device and retry completes it e
   await dialog(page).getByRole("button", { name: "重试" }).click();
   await expect(dialog(page).getByText(/迁移完成/)).toBeVisible();
   expect(backend.state.visits.size).toBe(2);
-  expect(backend.state.syncCalls).toEqual([2, 2]);
+  expect(backend.state.syncCalls).toEqual([4]);
 });
 
 test("identical data is not prompted and is recorded as handled", async ({ page }) => {

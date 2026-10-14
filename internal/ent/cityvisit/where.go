@@ -668,6 +668,29 @@ func HasUserWith(preds ...predicate.User) predicate.CityVisit {
 	})
 }
 
+// HasTrips applies the HasEdge predicate on the "trips" edge.
+func HasTrips() predicate.CityVisit {
+	return predicate.CityVisit(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, TripsTable, TripsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasTripsWith applies the HasEdge predicate on the "trips" edge with a given conditions (other predicates).
+func HasTripsWith(preds ...predicate.Trip) predicate.CityVisit {
+	return predicate.CityVisit(func(s *sql.Selector) {
+		step := newTripsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.CityVisit) predicate.CityVisit {
 	return predicate.CityVisit(sql.AndPredicates(predicates...))

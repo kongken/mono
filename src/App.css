@@ -1648,7 +1648,7 @@ button:disabled {
 
 .report-entry { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: -8px 0 20px; color: #72816c; font-size: 12px; }
 .report-dialog { max-height: 90dvh; overflow-y: auto; }
-.report-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.report-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .report-summary > div { display: flex; flex-direction: column; gap: 5px; padding: 14px; border-radius: 10px; background: #eef2e8; }
 .report-summary strong { color: #3f6048; font-size: 23px; }
 .report-summary span, .report-hint, .report-ranking { font-size: 12px; color: #72816c; }
@@ -2009,5 +2009,39 @@ button:disabled {
   }
   .migration-summary {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Several trips in one city */
+.trip-list { display: grid; gap: 12px; border: 0; padding: 0; margin: 0; }
+.trip-card { display: grid; gap: 10px; padding: 12px; border: 1px solid #dee5d9; border-radius: 12px; background: #fbfcf8; }
+.trip-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.trip-card-head strong { color: #3f6048; font-size: 14px; }
+.trip-card textarea { min-height: 72px; }
+.trip-card .field-label { margin: 0; }
+.trip-card .field-label > .sr-only { margin: 0; }
+.trip-card-head .delete-button { margin: 0; padding-left: 8px !important; }
+.visit-date { flex-wrap: wrap; }
+.trip-badge { white-space: nowrap; font-style: normal; margin-inline-start: 2px; padding: 1px 8px; border-radius: 999px; background: #eef2e8; color: #4f6f55; font-size: 12px; }
+.media-trip { color: #61765a; }
+
+/* Four statistics (provinces, cities, trips, exploration) no longer fit one row on the
+   narrowest phones: they wrap into a 2 x 2 grid, with every label kept in full. */
+@media (max-width: 420px) {
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 14px;
+    justify-content: stretch;
+    padding: 16px 18px;
+  }
+  .stats > i {
+    display: none;
+  }
+  .stats > div {
+    min-width: 0;
+  }
+  .stats span {
+    overflow-wrap: anywhere;
   }
 }

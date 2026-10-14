@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
+	"go.orx.me/apps/trip-map/internal/ent/trip"
 )
 
 // CityVisitUpdate is the builder for updating CityVisit entities.
@@ -118,9 +119,45 @@ func (_u *CityVisitUpdate) SetUpdatedAt(v time.Time) *CityVisitUpdate {
 	return _u
 }
 
+// AddTripIDs adds the "trips" edge to the Trip entity by IDs.
+func (_u *CityVisitUpdate) AddTripIDs(ids ...string) *CityVisitUpdate {
+	_u.mutation.AddTripIDs(ids...)
+	return _u
+}
+
+// AddTrips adds the "trips" edges to the Trip entity.
+func (_u *CityVisitUpdate) AddTrips(v ...*Trip) *CityVisitUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddTripIDs(ids...)
+}
+
 // Mutation returns the CityVisitMutation object of the builder.
 func (_u *CityVisitUpdate) Mutation() *CityVisitMutation {
 	return _u.mutation
+}
+
+// ClearTrips clears all "trips" edges to the Trip entity.
+func (_u *CityVisitUpdate) ClearTrips() *CityVisitUpdate {
+	_u.mutation.ClearTrips()
+	return _u
+}
+
+// RemoveTripIDs removes the "trips" edge to Trip entities by IDs.
+func (_u *CityVisitUpdate) RemoveTripIDs(ids ...string) *CityVisitUpdate {
+	_u.mutation.RemoveTripIDs(ids...)
+	return _u
+}
+
+// RemoveTrips removes "trips" edges to Trip entities.
+func (_u *CityVisitUpdate) RemoveTrips(v ...*Trip) *CityVisitUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveTripIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -229,6 +266,51 @@ func (_u *CityVisitUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(cityvisit.FieldUpdatedAt, field.TypeTime, value)
+	}
+	if _u.mutation.TripsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   cityvisit.TripsTable,
+			Columns: []string{cityvisit.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedTripsIDs(); len(nodes) > 0 && !_u.mutation.TripsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   cityvisit.TripsTable,
+			Columns: []string{cityvisit.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.TripsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   cityvisit.TripsTable,
+			Columns: []string{cityvisit.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -340,9 +422,45 @@ func (_u *CityVisitUpdateOne) SetUpdatedAt(v time.Time) *CityVisitUpdateOne {
 	return _u
 }
 
+// AddTripIDs adds the "trips" edge to the Trip entity by IDs.
+func (_u *CityVisitUpdateOne) AddTripIDs(ids ...string) *CityVisitUpdateOne {
+	_u.mutation.AddTripIDs(ids...)
+	return _u
+}
+
+// AddTrips adds the "trips" edges to the Trip entity.
+func (_u *CityVisitUpdateOne) AddTrips(v ...*Trip) *CityVisitUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddTripIDs(ids...)
+}
+
 // Mutation returns the CityVisitMutation object of the builder.
 func (_u *CityVisitUpdateOne) Mutation() *CityVisitMutation {
 	return _u.mutation
+}
+
+// ClearTrips clears all "trips" edges to the Trip entity.
+func (_u *CityVisitUpdateOne) ClearTrips() *CityVisitUpdateOne {
+	_u.mutation.ClearTrips()
+	return _u
+}
+
+// RemoveTripIDs removes the "trips" edge to Trip entities by IDs.
+func (_u *CityVisitUpdateOne) RemoveTripIDs(ids ...string) *CityVisitUpdateOne {
+	_u.mutation.RemoveTripIDs(ids...)
+	return _u
+}
+
+// RemoveTrips removes "trips" edges to Trip entities.
+func (_u *CityVisitUpdateOne) RemoveTrips(v ...*Trip) *CityVisitUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveTripIDs(ids...)
 }
 
 // Where appends a list predicates to the CityVisitUpdate builder.
@@ -481,6 +599,51 @@ func (_u *CityVisitUpdateOne) sqlSave(ctx context.Context) (_node *CityVisit, er
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(cityvisit.FieldUpdatedAt, field.TypeTime, value)
+	}
+	if _u.mutation.TripsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   cityvisit.TripsTable,
+			Columns: []string{cityvisit.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedTripsIDs(); len(nodes) > 0 && !_u.mutation.TripsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   cityvisit.TripsTable,
+			Columns: []string{cityvisit.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.TripsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   cityvisit.TripsTable,
+			Columns: []string{cityvisit.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	_node = &CityVisit{config: _u.config}
 	_spec.Assign = _node.assignValues

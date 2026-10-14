@@ -17,16 +17,31 @@ import {
 } from "@/components/ui/dialog";
 import { describeApiError } from "@/lib/errors";
 import regions from "@/regions.json";
+import type { Trip } from "@/lib/travel";
+import { displayTrips, tripLabel as labelOf } from "@/lib/trips";
 import "./MediaDialog.css";
 
 const cities = regions.flatMap((p) =>
   p.cities.map((c) => ({ ...c, label: `${p.name} · ${c.name}` })),
 );
-type Props = { regionCode: string; writable: boolean; onClose: () => void };
+type Props = {
+  regionCode: string;
+  /** Open scoped to one trip of the city; empty for the whole city. */
+  tripId?: string;
+  /** Trips per city, only to label media. */
+  trips: Record<string, Trip[]>;
+  /** Trips the server has confirmed; media can only link to these. */
+  syncedTripIds: Set<string>;
+  writable: boolean;
+  /** Opened over the editor: the editor returns focus itself, so the default is skipped. */
+  returnsToEditor?: boolean;
+  onClose: () => void;
+};
 type Attempt = {
   file: File;
   uploadId: string;
   regionCode: string;
+  tripId: string;
   mediaId?: string;
   uploaded?: boolean;
 };
@@ -106,8 +121,20 @@ export function CityMediaPreview({ regionCode }: { regionCode: string }) {
   ) : null;
 }
 
-export default function MediaDialog({ regionCode, writable, onClose }: Props) {
+export default function MediaDialog({
+  regionCode,
+  tripId = "",
+  trips,
+  syncedTripIds,
+  writable,
+  returnsToEditor = false,
+  onClose,
+}: Props) {
   const [city, setCity] = useState(regionCode);
+  // "" shows the city's whole attachment list; a trip ID narrows it to that trip.
+  const [scope, setScope] = useState(tripId);
+  const cityTrips = city ? displayTrips(trips[city] ?? []) : [];
+  const tripLabel = (id: string, region: string) => labelOf(trips[region] ?? [], id);
   const [items, setItems] = useState<MediaInfo[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState("");
@@ -123,11 +150,11 @@ export default function MediaDialog({ regionCode, writable, onClose }: Props) {
     },
     [],
   );
-  const load = async (code = city) => {
+  const load = async (code = city, trip = scope) => {
     const gen = ++generation.current;
     setLoaded(false);
     try {
-      const list = await mediaApi.list(code);
+      const list = await mediaApi.list(code, trip);
       if (gen === generation.current) {
         setItems(list);
         setLoaded(true);
@@ -142,8 +169,8 @@ export default function MediaDialog({ regionCode, writable, onClose }: Props) {
     setNote("");
     setRemove(null);
     setVisible(40);
-    void load(city);
-  }, [city]); // city selection is disabled during uploads
+    void load(city, scope);
+  }, [city, scope]); // both selections are disabled during uploads
   const run = async (label: string, action: () => Promise<void>) => {
     setBusy(label);
     setError("");
@@ -161,7 +188,7 @@ export default function MediaDialog({ regionCode, writable, onClose }: Props) {
       if (a.uploaded && a.mediaId) {
         await mediaApi.complete(a.mediaId);
       } else {
-        const r = await mediaApi.prepare(a.regionCode, a.file, a.uploadId);
+        const r = await mediaApi.prepare(a.regionCode, a.file, a.uploadId, a.tripId);
         if (!r.media) throw new Error("incomplete upload response");
         a.mediaId = r.media.id;
         setAttempt({ ...a });
@@ -182,7 +209,7 @@ export default function MediaDialog({ regionCode, writable, onClose }: Props) {
         }
       }
       setAttempt(null);
-      await load(a.regionCode);
+      await load(a.regionCode, a.tripId);
       setNote(
         a.file.type === "application/pdf"
           ? "附件已保存"
@@ -210,6 +237,9 @@ export default function MediaDialog({ regionCode, writable, onClose }: Props) {
     >
       <DialogContent
         className="media-dialog"
+        onCloseAutoFocus={(e) => {
+          if (returnsToEditor) e.preventDefault();
+        }}
         onEscapeKeyDown={(e) => {
           if (busy) e.preventDefault();
         }}
@@ -229,7 +259,10 @@ export default function MediaDialog({ regionCode, writable, onClose }: Props) {
             aria-label="媒体目的地"
             value={city}
             disabled={!!busy || !!attempt}
-            onChange={(e) => setCity(e.target.value)}
+            onChange={(e) => {
+              setCity(e.target.value);
+              setScope("");
+            }}
           >
             <option value="">全部目的地</option>
             {cities.map((c) => (
@@ -239,6 +272,32 @@ export default function MediaDialog({ regionCode, writable, onClose }: Props) {
             ))}
           </select>
         </label>
+        {city && (
+          <label className="field-label">
+            关联旅行
+            <select
+              aria-label="关联旅行"
+              value={scope}
+              disabled={!!busy || !!attempt}
+              onChange={(e) => setScope(e.target.value)}
+            >
+              <option value="">城市全部附件（上传时不关联旅行）</option>
+              {cityTrips.map((t) => (
+                <option
+                  key={t.id}
+                  value={t.id}
+                  disabled={!syncedTripIds.has(t.id)}
+                >
+                  {tripLabel(t.id, city)}
+                  {syncedTripIds.has(t.id) ? "" : "（尚未同步）"}
+                </option>
+              ))}
+              {scope && !cityTrips.some((t) => t.id === scope) && (
+                <option value={scope}>关联的旅行已删除</option>
+              )}
+            </select>
+          </label>
+        )}
         <p className="media-hint">
           JPEG、PNG、WebP 照片或 PDF 附件；每个文件最多 10 MB，每座城市最多 20
           个。照片转为 JPEG，最长边 8000 像素、最多 2400 万像素。PDF 仅供下载。
@@ -278,6 +337,7 @@ export default function MediaDialog({ regionCode, writable, onClose }: Props) {
                   file,
                   uploadId: crypto.randomUUID(),
                   regionCode: city,
+                  tripId: scope,
                 };
                 setAttempt(a);
                 void upload(a);
@@ -341,6 +401,13 @@ export default function MediaDialog({ regionCode, writable, onClose }: Props) {
                   m.regionCode}{" "}
                 · {(Number(m.sizeBytes) / 1024 / 1024).toFixed(1)} MB
               </small>
+              {m.tripId && (
+                <small className="media-trip">
+                  {tripLabel(m.tripId, m.regionCode)
+                    ? `关联旅行：${tripLabel(m.tripId, m.regionCode)}`
+                    : "关联的旅行已删除，仍可在城市附件中查看"}
+                </small>
+              )}
               <div className="media-card-actions">
                 {m.status === "ready" ? (
                   <Button

@@ -6,7 +6,7 @@ import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegen
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
-import type { ProvinceMark, Visit } from "./footprint_pb";
+import type { ProvinceMark, Trip, Visit } from "./footprint_pb";
 import { file_tripmap_v1_footprint } from "./footprint_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file tripmap/v1/snapshot.proto.
  */
 export const file_tripmap_v1_snapshot: GenFile = /*@__PURE__*/
-  fileDesc("Chl0cmlwbWFwL3YxL3NuYXBzaG90LnByb3RvEgp0cmlwbWFwLnYxIp4BCgxTbmFwc2hvdEluZm8SCgoCaWQYASABKAkSDgoGcmVhc29uGAIgASgJEi4KCmNyZWF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC3Zpc2l0X2NvdW50GAQgASgFEhsKE3Byb3ZpbmNlX21hcmtfY291bnQYBSABKAUSEAoIcmV2aXNpb24YBiABKAMiYwoMU25hcHNob3REYXRhEiEKBnZpc2l0cxgBIAMoCzIRLnRyaXBtYXAudjEuVmlzaXQSMAoOcHJvdmluY2VfbWFya3MYAiADKAsyGC50cmlwbWFwLnYxLlByb3ZpbmNlTWFyayIWChRMaXN0U25hcHNob3RzUmVxdWVzdCJEChVMaXN0U25hcHNob3RzUmVzcG9uc2USKwoJc25hcHNob3RzGAEgAygLMhgudHJpcG1hcC52MS5TbmFwc2hvdEluZm8iJwoVQ3JlYXRlU25hcHNob3RSZXF1ZXN0Eg4KBnJlYXNvbhgBIAEoCSJVChZDcmVhdGVTbmFwc2hvdFJlc3BvbnNlEioKCHNuYXBzaG90GAEgASgLMhgudHJpcG1hcC52MS5TbmFwc2hvdEluZm8SDwoHY3JlYXRlZBgCIAEoCCIgChJHZXRTbmFwc2hvdFJlcXVlc3QSCgoCaWQYASABKAkiaQoTR2V0U25hcHNob3RSZXNwb25zZRIqCghzbmFwc2hvdBgBIAEoCzIYLnRyaXBtYXAudjEuU25hcHNob3RJbmZvEiYKBGRhdGEYAiABKAsyGC50cmlwbWFwLnYxLlNuYXBzaG90RGF0YSJZChZSZXN0b3JlU25hcHNob3RSZXF1ZXN0EhMKC3NuYXBzaG90X2lkGAEgASgJEhUKDWJhc2VfcmV2aXNpb24YAiABKAMSEwoLbXV0YXRpb25faWQYAyABKAkihQEKF1Jlc3RvcmVTbmFwc2hvdFJlc3BvbnNlEhAKCHJldmlzaW9uGAEgASgDEhUKDWNoYW5nZWRfY291bnQYAiABKAUSLwoNdW5kb19zbmFwc2hvdBgDIAEoCzIYLnRyaXBtYXAudjEuU25hcHNob3RJbmZvEhAKCHJlcGxheWVkGAQgASgIMuwCCg9TbmFwc2hvdFNlcnZpY2USVAoNTGlzdFNuYXBzaG90cxIgLnRyaXBtYXAudjEuTGlzdFNuYXBzaG90c1JlcXVlc3QaIS50cmlwbWFwLnYxLkxpc3RTbmFwc2hvdHNSZXNwb25zZRJXCg5DcmVhdGVTbmFwc2hvdBIhLnRyaXBtYXAudjEuQ3JlYXRlU25hcHNob3RSZXF1ZXN0GiIudHJpcG1hcC52MS5DcmVhdGVTbmFwc2hvdFJlc3BvbnNlEk4KC0dldFNuYXBzaG90Eh4udHJpcG1hcC52MS5HZXRTbmFwc2hvdFJlcXVlc3QaHy50cmlwbWFwLnYxLkdldFNuYXBzaG90UmVzcG9uc2USWgoPUmVzdG9yZVNuYXBzaG90EiIudHJpcG1hcC52MS5SZXN0b3JlU25hcHNob3RSZXF1ZXN0GiMudHJpcG1hcC52MS5SZXN0b3JlU25hcHNob3RSZXNwb25zZUI4WjZnby5vcngubWUvYXBwcy90cmlwLW1hcC9wa2cvcHJvdG8vdHJpcG1hcC92MTt0cmlwbWFwdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_tripmap_v1_footprint]);
+  fileDesc("Chl0cmlwbWFwL3YxL3NuYXBzaG90LnByb3RvEgp0cmlwbWFwLnYxIsoBCgxTbmFwc2hvdEluZm8SCgoCaWQYASABKAkSDgoGcmVhc29uGAIgASgJEi4KCmNyZWF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC3Zpc2l0X2NvdW50GAQgASgFEhsKE3Byb3ZpbmNlX21hcmtfY291bnQYBSABKAUSEAoIcmV2aXNpb24YBiABKAMSEgoKdHJpcF9jb3VudBgHIAEoBRIWCg5zY2hlbWFfdmVyc2lvbhgIIAEoBSKcAQoMU25hcHNob3REYXRhEiEKBnZpc2l0cxgBIAMoCzIRLnRyaXBtYXAudjEuVmlzaXQSMAoOcHJvdmluY2VfbWFya3MYAiADKAsyGC50cmlwbWFwLnYxLlByb3ZpbmNlTWFyaxIfCgV0cmlwcxgDIAMoCzIQLnRyaXBtYXAudjEuVHJpcBIWCg5zY2hlbWFfdmVyc2lvbhgEIAEoBSIWChRMaXN0U25hcHNob3RzUmVxdWVzdCJEChVMaXN0U25hcHNob3RzUmVzcG9uc2USKwoJc25hcHNob3RzGAEgAygLMhgudHJpcG1hcC52MS5TbmFwc2hvdEluZm8iJwoVQ3JlYXRlU25hcHNob3RSZXF1ZXN0Eg4KBnJlYXNvbhgBIAEoCSJVChZDcmVhdGVTbmFwc2hvdFJlc3BvbnNlEioKCHNuYXBzaG90GAEgASgLMhgudHJpcG1hcC52MS5TbmFwc2hvdEluZm8SDwoHY3JlYXRlZBgCIAEoCCIgChJHZXRTbmFwc2hvdFJlcXVlc3QSCgoCaWQYASABKAkiaQoTR2V0U25hcHNob3RSZXNwb25zZRIqCghzbmFwc2hvdBgBIAEoCzIYLnRyaXBtYXAudjEuU25hcHNob3RJbmZvEiYKBGRhdGEYAiABKAsyGC50cmlwbWFwLnYxLlNuYXBzaG90RGF0YSJZChZSZXN0b3JlU25hcHNob3RSZXF1ZXN0EhMKC3NuYXBzaG90X2lkGAEgASgJEhUKDWJhc2VfcmV2aXNpb24YAiABKAMSEwoLbXV0YXRpb25faWQYAyABKAkihQEKF1Jlc3RvcmVTbmFwc2hvdFJlc3BvbnNlEhAKCHJldmlzaW9uGAEgASgDEhUKDWNoYW5nZWRfY291bnQYAiABKAUSLwoNdW5kb19zbmFwc2hvdBgDIAEoCzIYLnRyaXBtYXAudjEuU25hcHNob3RJbmZvEhAKCHJlcGxheWVkGAQgASgIMuwCCg9TbmFwc2hvdFNlcnZpY2USVAoNTGlzdFNuYXBzaG90cxIgLnRyaXBtYXAudjEuTGlzdFNuYXBzaG90c1JlcXVlc3QaIS50cmlwbWFwLnYxLkxpc3RTbmFwc2hvdHNSZXNwb25zZRJXCg5DcmVhdGVTbmFwc2hvdBIhLnRyaXBtYXAudjEuQ3JlYXRlU25hcHNob3RSZXF1ZXN0GiIudHJpcG1hcC52MS5DcmVhdGVTbmFwc2hvdFJlc3BvbnNlEk4KC0dldFNuYXBzaG90Eh4udHJpcG1hcC52MS5HZXRTbmFwc2hvdFJlcXVlc3QaHy50cmlwbWFwLnYxLkdldFNuYXBzaG90UmVzcG9uc2USWgoPUmVzdG9yZVNuYXBzaG90EiIudHJpcG1hcC52MS5SZXN0b3JlU25hcHNob3RSZXF1ZXN0GiMudHJpcG1hcC52MS5SZXN0b3JlU25hcHNob3RSZXNwb25zZUI4WjZnby5vcngubWUvYXBwcy90cmlwLW1hcC9wa2cvcHJvdG8vdHJpcG1hcC92MTt0cmlwbWFwdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_tripmap_v1_footprint]);
 
 /**
  * @generated from message tripmap.v1.SnapshotInfo
@@ -58,6 +58,20 @@ export type SnapshotInfo = Message<"tripmap.v1.SnapshotInfo"> & {
    * @generated from field: int64 revision = 6;
    */
   revision: bigint;
+
+  /**
+   * Number of trips. A schema 1 snapshot counts one legacy trip per city.
+   *
+   * @generated from field: int32 trip_count = 7;
+   */
+  tripCount: number;
+
+  /**
+   * The format the snapshot was stored in; the stored copy is never rewritten.
+   *
+   * @generated from field: int32 schema_version = 8;
+   */
+  schemaVersion: number;
 };
 
 /**
@@ -68,7 +82,10 @@ export const SnapshotInfoSchema: GenMessage<SnapshotInfo> = /*@__PURE__*/
   messageDesc(file_tripmap_v1_snapshot, 0);
 
 /**
- * SnapshotData is the content of a snapshot.
+ * SnapshotData is the content of a snapshot. Schema 1 snapshots carry date and
+ * note on each visit; schema 2 snapshots carry trips. A schema 2 client always
+ * receives trips: a schema 1 snapshot is converted on read (one "legacy-<code>"
+ * trip per city, even when date and note are empty).
  *
  * @generated from message tripmap.v1.SnapshotData
  */
@@ -82,6 +99,18 @@ export type SnapshotData = Message<"tripmap.v1.SnapshotData"> & {
    * @generated from field: repeated tripmap.v1.ProvinceMark province_marks = 2;
    */
   provinceMarks: ProvinceMark[];
+
+  /**
+   * @generated from field: repeated tripmap.v1.Trip trips = 3;
+   */
+  trips: Trip[];
+
+  /**
+   * Format of this message: 1 as stored by an older server, 2 with trips.
+   *
+   * @generated from field: int32 schema_version = 4;
+   */
+  schemaVersion: number;
 };
 
 /**

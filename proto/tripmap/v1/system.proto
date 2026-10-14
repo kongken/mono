@@ -14,6 +14,9 @@ message GetStatusRequest {}
 message GetStatusResponse {
   bool ready = 1;
   repeated DependencyStatus dependencies = 2;
+  // Highest footprint schema this server understands (2 = multiple trips per
+  // city). Zero means an older server; clients must not send trip data to it.
+  int32 footprint_schema = 3;
 }
 
 message DependencyStatus {

@@ -9,11 +9,12 @@ const client = () => {
 };
 export type { MediaInfo };
 export const mediaApi = {
-  list: async (regionCode = "") =>
-    (await client().listMedia({ regionCode })).media,
-  prepare: async (regionCode: string, file: File, uploadId: string) =>
+  list: async (regionCode = "", tripId = "") =>
+    (await client().listMedia({ regionCode, tripId })).media,
+  prepare: async (regionCode: string, file: File, uploadId: string, tripId = "") =>
     client().prepareUpload({
       regionCode,
+      tripId,
       filename: file.name,
       contentType: file.type,
       sizeBytes: BigInt(file.size),
