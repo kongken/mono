@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package tripmap.v1;
+
+option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
+
+// SearchService searches only the authenticated caller's private travel notes.
+service SearchService {
+  // SearchNotes performs literal case-insensitive AND matching of whitespace
+  // separated terms across the entire note (including Chinese substrings).
+  rpc SearchNotes(SearchNotesRequest) returns (SearchNotesResponse);
+}
+
+message SearchNotesRequest {
+  // At most 100 UTF-16 code units and 8 whitespace-separated terms.
+  string query = 1;
+  // Optional province scope. Region IDs remain unchanged.
+  string province_code = 2;
+  // Defaults to 20, maximum 50.
+  uint32 limit = 3;
+  uint32 offset = 4;
+  // Required for offset > 0; aborts pagination if footprints have changed.
+  optional int64 expected_revision = 5;
+}
+
+message NoteSearchMatch {
+  string region_code = 1;
+  string region_name = 2;
+  string province_code = 3;
+  string trip_id = 4;
+  string date = 5;
+  // Plain text, never HTML. Does not contain another user's record.
+  string note = 6;
+}
+
+message SearchNotesResponse {
+  repeated NoteSearchMatch matches = 1;
+  int64 revision = 2;
+  uint32 next_offset = 3;
+  bool has_more = 4;
+}

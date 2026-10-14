@@ -88,6 +88,12 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 - **时区与可追溯性：** 旅行记录日期保持 `YYYY-MM-DD` 日历字符串，不随 UTC 偏移改变年份；用户请求的 IANA 时区（默认 `Asia/Shanghai`）用于计算当前本地日历日期 `generated_on` 与当前年份 `current_year`。每项省内进度、年度报告统计和成就状态都附带指向原始省份、城市或旅行记录的 `ReportRecordRef` 引用。
 - **服务端 Redis 缓存：** 后端 `ReportService.GetReport` 将汇总结果缓存在 Redis 键 `<prefix>report:v1:<user_id>|<revision>|<timezone>|<local_date>`（TTL 24 小时）中，并由每小时维护任务预热默认时区缓存；足迹 `revision` 变化后立即命中新键。
 
+## 搜索数据（F9）
+
+- 搜索不改变区域 ID、`Saved` version 2、本地存储键、旅行记录或备份格式。私有备注检索直接读取本机当前足迹，或服务端当前用户的 `city_visits`（schema 1）/`city_trips`（schema 2）；不创建持久化备注索引、缓存结果或重复数据。云端分页绑定 revision，返回纯文本，结果不会进入分享页。
+- `src/search-index.json` 只含公开的区域 ID 到无声调拼音/首字母的映射（34 省 + 497 区域）。`scripts/prepare-search-index.mjs` 基于 `src/regions.json` 生成，使用开发依赖 `pinyin-pro` 和少量地名多音字覆盖；部署时不加载拼音词典、不发第三方请求。金门/马祖仍使用 `tw-` ID 并由福建索引归属。
+- 区域名称/索引更新后运行 `npm run prepare:search`，一并提交搜索索引；`npm test` 检查生成结果与源码一致。搜索全称/简称与拼音优先、无直接结果才做单次编辑纠错，未提供任意别名、分词或语义搜索；搜索详细行为与验收见 [功能描述](features.md#f9-验收)。
+
 ## 备份导入导出
 
 导出文件名为 `山海足迹-YYYY-MM-DD.json`。日期来自浏览器本地时间，文件内容为完整足迹数据（版本 2，含旅行）。
@@ -103,6 +109,7 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 | `public/maps/100000.json` | 全国省级边界及南海附图数据 |
 | `public/maps/<省级区域ID>.json` | 对应省内行政区域边界 |
 | `src/regions.json` | 省份 ID、全称、简称及下级区域 ID/名称，用于列表、搜索和备份校验 |
+| `src/search-index.json` | F9 离线名称搜索的拼音/首字母索引，由 `npm run prepare:search` 生成 |
 | `src/province-neighbors.json` | 全国地图共同边界邻接表，用于相邻不同色的固定配色 |
 | `scripts/prepare-province-neighbors.mjs` | 从本地全国地图的共享边界线段生成邻接表 |
 | `src/lib/cityMaps.ts` | 全国“按城市”着色时一次性加载全部省内地图；任一文件失败则整体失败，不显示不完整地图 |
@@ -150,7 +157,7 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 
 邻接表由全国 GeoJSON 的共同边界线段生成（经纬度四位小数归一化，单点接触和隔海不算相邻），无运行时第三方请求。更换全国地图后运行 `npm run prepare:map-colors`，一并提交更新的邻接表；`npm run check:maps` 检查邻接表与全国边界一致，自动配色测试逐条验证共同边界两侧不同色。地图来源或精度变化可能导致配色变化，当前邻接识别依赖两侧使用匹配的线段采样。
 
-更新省内地图时运行 `npm run download:maps`，完成后运行 `npm run check:maps` 与 `npm run build`，再检查受影响区域的可视效果及旧足迹兼容性。下载脚本依赖现有全国文件，当前不会自动刷新 `100000.json`；更新全国数据需单独替换该文件，再重建省内数据与索引。
+更新省内地图时运行 `npm run download:maps`，然后运行 `npm run prepare:search` 重建名称搜索索引，完成后运行 `npm run check:maps` 与 `npm run build`，再检查受影响区域的可视效果及旧足迹兼容性。下载脚本依赖现有全国文件，当前不会自动刷新 `100000.json`；更新全国数据需单独替换该文件，再重建省内数据与索引。
 
 下载失败可能留下部分已更新地图，需检查地图与索引一致性后再交付。地图文件、区域索引、来源说明和受影响的数量描述应在同一次变更中同步更新。
 
