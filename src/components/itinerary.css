@@ -1,0 +1,380 @@
+.itinerary-dialog-content {
+  max-width: min(760px, calc(100vw - 24px));
+  max-height: 88vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.itinerary-policy-card {
+  background: #f4f7f3;
+  border: 1px solid #d7e2d8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #465949;
+  display: grid;
+  gap: 6px;
+}
+
+.itinerary-policy-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.itinerary-policy-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e3ede5;
+  color: #254735;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.itinerary-policy-disclaimer {
+  color: #637566;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.itinerary-section {
+  display: grid;
+  gap: 10px;
+}
+
+.itinerary-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.itinerary-section-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2e23;
+  margin: 0;
+}
+
+.itinerary-list {
+  display: grid;
+  gap: 8px;
+}
+
+.itinerary-card {
+  border: 1px solid #dce4dd;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fafcfa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.itinerary-card.active {
+  border-color: #387a68;
+  background: #f0f7f4;
+}
+
+.itinerary-card-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.itinerary-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.itinerary-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.itinerary-card-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1d2b20;
+  word-break: break-word;
+}
+
+.itinerary-active-pill {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #387a68;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.itinerary-card-meta {
+  font-size: 12px;
+  color: #5d6f60;
+  line-height: 1.4;
+}
+
+.itinerary-card-stops {
+  font-size: 12px;
+  color: #3c5241;
+  word-break: break-word;
+}
+
+.itinerary-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.itinerary-editor {
+  border-top: 1px solid #e1e8e2;
+  padding-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.itinerary-form-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.itinerary-field {
+  display: grid;
+  gap: 5px;
+}
+
+.itinerary-field > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #36493a;
+}
+
+.itinerary-color-picker {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.itinerary-color-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.itinerary-color-swatch.selected {
+  border-color: #1f2e23;
+  transform: scale(1.1);
+}
+
+.itinerary-stops-list {
+  display: grid;
+  gap: 8px;
+}
+
+.itinerary-leg-connector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  margin-left: 14px;
+  border-left: 2px dashed #82a898;
+  font-size: 12px;
+  color: #3a5a4b;
+  flex-wrap: wrap;
+}
+
+.itinerary-stop-item {
+  border: 1px solid #d9e2da;
+  border-radius: 8px;
+  padding: 10px;
+  background: #ffffff;
+  display: grid;
+  gap: 8px;
+}
+
+.itinerary-stop-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.itinerary-stop-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #264636;
+}
+
+.itinerary-stop-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #387a68;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.itinerary-stop-controls {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.itinerary-stop-controls button {
+  padding: 3px 7px;
+  font-size: 12px;
+  border: 1px solid #d5dfd6;
+  border-radius: 6px;
+  background: #f7faf7;
+  color: #2e4232;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.itinerary-stop-controls button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.itinerary-stop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.itinerary-stop-grid select,
+.itinerary-stop-grid input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid #d2ddd4;
+  border-radius: 6px;
+  background: #ffffff;
+  font-size: 13px;
+  color: #1f2e23;
+}
+
+.itinerary-summary-box {
+  background: #eef5f1;
+  border: 1px solid #cbe0d4;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: #244333;
+}
+
+.itinerary-error {
+  color: #b43c2f;
+  background: #fdf2f0;
+  border: 1px solid #f1c6c0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .itinerary-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .itinerary-stop-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.report-entry-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.route-bar {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 52px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 560px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #d3e0d6;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(40, 70, 50, 0.12);
+  font-size: 12px;
+  /* The bar must not block the map underneath; only its buttons take clicks. */
+  pointer-events: none;
+}
+
+.route-bar-text {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.route-bar-text strong {
+  font-size: 13px;
+  color: #1f2e23;
+  overflow-wrap: anywhere;
+}
+
+.route-bar-text small {
+  color: #5d6f60;
+  font-size: 11px;
+}
+
+.route-bar button {
+  pointer-events: auto;
+  padding: 4px 9px;
+  border: 1px solid #cfdcd2;
+  border-radius: 6px;
+  background: #f5f9f5;
+  color: #2e4232;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .route-bar {
+    left: 8px;
+    right: 8px;
+    bottom: 48px;
+  }
+}

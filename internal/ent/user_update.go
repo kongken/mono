@@ -14,6 +14,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
 	"go.orx.me/apps/trip-map/internal/ent/friendship"
+	"go.orx.me/apps/trip-map/internal/ent/itinerary"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
@@ -493,6 +494,21 @@ func (_u *UserUpdate) AddTripMemberships(v ...*TripMember) *UserUpdate {
 	return _u.AddTripMembershipIDs(ids...)
 }
 
+// AddItineraryIDs adds the "itineraries" edge to the Itinerary entity by IDs.
+func (_u *UserUpdate) AddItineraryIDs(ids ...string) *UserUpdate {
+	_u.mutation.AddItineraryIDs(ids...)
+	return _u
+}
+
+// AddItineraries adds the "itineraries" edges to the Itinerary entity.
+func (_u *UserUpdate) AddItineraries(v ...*Itinerary) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddItineraryIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -754,6 +770,27 @@ func (_u *UserUpdate) RemoveTripMemberships(v ...*TripMember) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveTripMembershipIDs(ids...)
+}
+
+// ClearItineraries clears all "itineraries" edges to the Itinerary entity.
+func (_u *UserUpdate) ClearItineraries() *UserUpdate {
+	_u.mutation.ClearItineraries()
+	return _u
+}
+
+// RemoveItineraryIDs removes the "itineraries" edge to Itinerary entities by IDs.
+func (_u *UserUpdate) RemoveItineraryIDs(ids ...string) *UserUpdate {
+	_u.mutation.RemoveItineraryIDs(ids...)
+	return _u
+}
+
+// RemoveItineraries removes "itineraries" edges to Itinerary entities.
+func (_u *UserUpdate) RemoveItineraries(v ...*Itinerary) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveItineraryIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1454,6 +1491,51 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.ItinerariesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ItinerariesTable,
+			Columns: []string{user.ItinerariesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(itinerary.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedItinerariesIDs(); len(nodes) > 0 && !_u.mutation.ItinerariesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ItinerariesTable,
+			Columns: []string{user.ItinerariesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(itinerary.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ItinerariesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ItinerariesTable,
+			Columns: []string{user.ItinerariesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(itinerary.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -1927,6 +2009,21 @@ func (_u *UserUpdateOne) AddTripMemberships(v ...*TripMember) *UserUpdateOne {
 	return _u.AddTripMembershipIDs(ids...)
 }
 
+// AddItineraryIDs adds the "itineraries" edge to the Itinerary entity by IDs.
+func (_u *UserUpdateOne) AddItineraryIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.AddItineraryIDs(ids...)
+	return _u
+}
+
+// AddItineraries adds the "itineraries" edges to the Itinerary entity.
+func (_u *UserUpdateOne) AddItineraries(v ...*Itinerary) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddItineraryIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -2188,6 +2285,27 @@ func (_u *UserUpdateOne) RemoveTripMemberships(v ...*TripMember) *UserUpdateOne 
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveTripMembershipIDs(ids...)
+}
+
+// ClearItineraries clears all "itineraries" edges to the Itinerary entity.
+func (_u *UserUpdateOne) ClearItineraries() *UserUpdateOne {
+	_u.mutation.ClearItineraries()
+	return _u
+}
+
+// RemoveItineraryIDs removes the "itineraries" edge to Itinerary entities by IDs.
+func (_u *UserUpdateOne) RemoveItineraryIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.RemoveItineraryIDs(ids...)
+	return _u
+}
+
+// RemoveItineraries removes "itineraries" edges to Itinerary entities.
+func (_u *UserUpdateOne) RemoveItineraries(v ...*Itinerary) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveItineraryIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -2911,6 +3029,51 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(tripmember.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ItinerariesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ItinerariesTable,
+			Columns: []string{user.ItinerariesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(itinerary.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedItinerariesIDs(); len(nodes) > 0 && !_u.mutation.ItinerariesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ItinerariesTable,
+			Columns: []string{user.ItinerariesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(itinerary.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ItinerariesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ItinerariesTable,
+			Columns: []string{user.ItinerariesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(itinerary.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

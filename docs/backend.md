@@ -303,6 +303,21 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 **部署。** 先部署带相同索引/映射摘要的后端，再部署前端。区域版本更新前归档历史版本并保留映射，重新生成 search/map/share 受影响资源及 Go/TS 契约，验证通过后发布；地图仍随页面静态分发，运行时不取第三方边界数据。不做启动时全库自动迁移或自动回滚行政数据。
 
+## F11 行程服务（`tripmap.v1.ItineraryService`）
+
+所有方法须认证，只读写当前会话用户的行程。`proto/tripmap/v1/itinerary.proto`，实现在 `internal/application/itinerary_service.go`，路程估算在 `internal/itinerary`（内嵌 `coords.json`，由 `scripts/prepare-city-coords.mjs` 从 `public/maps` 生成并与 `src/city-coords.json` 逐字节一致，`npm run check:maps` 与 Go 测试都会核对）。
+
+| 方法 | 行为 |
+| --- | --- |
+| `ListItineraries` | 返回自己的全部行程（含站点、路段、总计）和估算策略 `policy` |
+| `GetItinerary` | 按 ID 读取，不存在或不属于自己返回 `not_found` |
+| `SaveItinerary` | 创建或更新；新建时 `expected_version` 为 0；更新已有行程必须提交其当前版本，为 0 或不符返回 `aborted`；同 `mutation_id` 同内容返回原结果且 `replayed: true`，内容不同返回 `already_exists`；校验名称/备注/颜色、2–100 个站点、区域 ID（历史 ID 先按 F10 映射）、日期、备注、交通方式 |
+| `DeleteItinerary` | 删除自己的行程；`expected_version` 大于 0 时须等于当前版本，否则 `aborted`；不存在（且未带版本）返回 `deleted: false` |
+
+- 估算策略固定为 `offline_great_circle`、`external_api_enabled: false`、`free_builtin`、`redis_leg_24h_and_local_deterministic`。单段结果缓存在 Redis `<prefix>:itinerary:leg:v1:<from>:<to>:<mode>`（24 小时）；缓存不可用时直接计算，不影响结果。`from_cache` 仅表示整条行程的路段都来自缓存。
+- 表 `itineraries`：所属用户（外键，级联删除）、`itinerary_id`（`user_id + itinerary_id` 唯一）、标题、备注、颜色、`version`、站点 JSON、创建/更新时间；迁移 `migrations/20261014140617_f11_itineraries.sql`。
+- 账号注销删除行程；`RegionService` 迁移同时改写行程站点中的历史城市 ID（行程里出现未映射区域时作为阻止项）。其余部署与验证同上，先部署后端再部署前端。
+
 ## 数据库模型
 
 | 表 | 关键字段与约束 |
@@ -327,7 +342,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 ## 版本化数据库迁移
 
-`migrations/` 保存按时间戳排序的、只增不删的 PostgreSQL SQL 文件和 `atlas.sum` 校验和（Atlas 目录格式）。当前有四个文件：
+`migrations/` 保存按时间戳排序的、只增不删的 PostgreSQL SQL 文件和 `atlas.sum` 校验和（Atlas 目录格式）。当前有下列文件：
 
 | 文件 | 内容 |
 | --- | --- |
@@ -335,6 +350,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 | `20261014011446_f5_multiple_trips.sql` | F5 的纯新增变更：`media_objects.trip_id`（默认空串）及索引、`snapshots.schema_version`（默认 1）与 `trip_count`（默认 0）、`users.schema_version`（默认 1）、新表 `city_trips`（外键级联、`(user_id, trip_id)` 唯一索引）。不删除、不改写任何已有列或行 |
 | `20261014022913_f6_shares.sql` | F6 的纯新增变更：新表 `shares`（`token` 唯一索引、`user_id` 唯一索引、外键级联删除） |
 | `20261014050044_f7_collaboration.sql` | F7 的纯新增变更：`users` 新增 `friend_code`（唯一索引）与 `friend_show_cities/dates/notes`（带默认值），新增 `friendships`、`shared_trips`、`trip_members` 三张表及唯一索引与外键级联删除 |
+| `20261014140617_f11_itineraries.sql` | F11 的纯新增变更：新表 `itineraries`（`(user_id, itinerary_id)` 唯一索引、`users` 外键级联删除，站点为 JSON 列）；不改动既有表 |
 
 **生成。** 修改 `internal/ent/schema/` 并运行 `make ent` 后，用 `make migration NAME=<变更名> DEV_DSN='postgres://…'` 生成下一个文件（`cmd/migrate-gen`）：它在 `DEV_DSN` 指向的服务器上临时创建一个随机命名的空数据库，重放现有 `migrations/` 得到“当前结构”，与 Ent schema 比较后写出差异和新的 `atlas.sum`，然后删除该数据库；因此所用账号需要 `CREATEDB`，不会碰服务器上的其他库。生成器只写新增和修改类语句（不写 `DROP COLUMN` / `DROP INDEX`，也不生成会丢数据的回滚脚本）。迁移文件只通过生成器更新，手改会使 `atlas.sum` 校验失败。
 
@@ -342,7 +358,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 1. 备份数据库（F5 对账号的升级是单向的，回退旧后端需要这份备份）。
 2. 把后端配置改为 `auto_migrate: false`。
-3. 对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/20261014011446_f5_multiple_trips.sql`，再执行 `20261014022913_f6_shares.sql`（已升级到 F5 的数据库只需执行 F6 这一个）。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
+3. 对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/20261014011446_f5_multiple_trips.sql`，再依次执行 `20261014022913_f6_shares.sql`、`20261014050044_f7_collaboration.sql` 和 `20261014140617_f11_itineraries.sql`（已升级到前一版的数据库只执行尚未应用的文件）。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
 4. 部署新后端；已有账号在第一次被新前端写入时才升级到结构 2（见上文），旧行保持原样。
 5. 全新数据库：按文件名顺序执行全部文件（含 baseline）。
 
@@ -378,7 +394,7 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：路线与提醒等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）、F5（同城多次旅行）、F6（公开分享页与预览图）与 F7（共同旅行与好友）已实现；F8（统计、年度报告与成就）和 F9（区域搜索增强、私有备注搜索）已实现；F10 区域版本与兼容迁移已实现，限制见对应章节；F11–F12 仍待实现。
+从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：提醒等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）、F5（同城多次旅行）、F6（公开分享页与预览图）与 F7（共同旅行与好友）已实现；F8（统计、年度报告与成就）和 F9（区域搜索增强、私有备注搜索）已实现；F10 区域版本与兼容迁移已实现，限制见对应章节；F11 行程与路线连线已实现，F12 仍待实现。
 
 ## F1 新接口与部署
 

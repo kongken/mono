@@ -22,6 +22,7 @@ import {
   Minus,
   House,
   MapTrifold,
+  Path,
   CalendarBlank,
   ArrowCounterClockwise,
   Stack,
@@ -90,7 +91,7 @@ import {
   type DraftConflict,
   type DraftValue,
 } from "./lib/draft";
-import { isMigrated, markMigrated } from "./lib/session";
+import { cloudItinerariesKey, isMigrated, markMigrated } from "./lib/session";
 import AccountDialog from "./components/AccountDialog";
 import MigrationDialog from "./components/MigrationDialog";
 import LegacyDialog from "./components/LegacyDialog";
@@ -100,8 +101,27 @@ import ShareDialog from "./components/ShareDialog";
 import CollaborationDialog, {
   type CollaborationTarget,
 } from "./components/CollaborationDialog";
+import ItineraryDialog from "./components/ItineraryDialog";
 import MediaDialog, { CityMediaPreview } from "./components/MediaDialog";
 import { collaborationApi, type CollaborationOverview } from "./api/collaboration";
+import { itineraryApi } from "./api/itinerary";
+import {
+  DEFAULT_ESTIMATION_POLICY,
+  LOCAL_ITINERARIES_KEY,
+  buildItineraryInfo,
+  formatDistanceKm,
+  formatDurationMinutes,
+  loadStoredItineraries,
+  parseBackupItineraries,
+  saveStoredItineraries,
+  toItineraryRecord,
+  validateItineraryInput,
+  type ItineraryEstimationPolicy,
+  type ItineraryInfo,
+  type ItineraryRecord,
+  type ItineraryStop,
+  type ItineraryStopInput,
+} from "./lib/itinerary";
 import {
   canEditSharedTrip,
   indexActiveSharedTripsByTripId,
@@ -121,6 +141,7 @@ import {
   isDistrictDestination,
 } from "./lib/statistics";
 import "./App.css";
+import "./components/itinerary.css";
 
 import type { ViewBounds } from "./components/OsmProvinceMap";
 const OsmProvinceMap = lazy(() => import("./components/OsmProvinceMap"));
@@ -239,6 +260,8 @@ function App() {
   const [importOpen, setImportOpen] = useState<{
     saved: Saved;
     cleared: number;
+    itineraries?: ItineraryRecord[];
+    activeItineraryId?: string;
   } | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
@@ -249,6 +272,30 @@ function App() {
   const [collabTarget, setCollabTarget] = useState<CollaborationTarget>(null);
   const [collabOverview, setCollabOverview] =
     useState<CollaborationOverview | null>(null);
+  const [initialItineraryState] = useState(() => {
+    try {
+      const key = boot.session
+        ? cloudItinerariesKey(boot.session.user.id)
+        : LOCAL_ITINERARIES_KEY;
+      return loadStoredItineraries(localStorage, key);
+    } catch {
+      return { activeId: "", itineraries: [] };
+    }
+  });
+  const [itineraries, setItineraries] = useState<ItineraryInfo[]>(() =>
+    initialItineraryState.itineraries.map((rec) => buildItineraryInfo(rec)),
+  );
+  const [activeItineraryId, setActiveItineraryId] = useState<string>(
+    initialItineraryState.activeId,
+  );
+  const [itineraryPolicy, setItineraryPolicy] =
+    useState<ItineraryEstimationPolicy>(DEFAULT_ESTIMATION_POLICY);
+  const [itineraryOpen, setItineraryOpen] = useState(false);
+  const [itineraryEditId, setItineraryEditId] = useState<string | null>(null);
+  const pendingItinMutation = useRef<{
+    digest: string;
+    mutationId: string;
+  } | null>(null);
   const [mediaTarget, setMediaTarget] = useState<{
     region: string;
     tripId: string;
@@ -824,9 +871,183 @@ function App() {
     setCollabTarget({ regionCode: draftCity, tripId });
     setCollabOpen(true);
   };
+  // F11 itineraries: local mode keeps them on this device; cloud mode stores them
+  // on the server and caches the last copy per account so a reopened page restores them.
+  const itinKey =
+    cloud.mode === "cloud" && cloud.user
+      ? cloudItinerariesKey(cloud.user.id)
+      : LOCAL_ITINERARIES_KEY;
+  const itinKeyRef = useRef(itinKey);
+  itinKeyRef.current = itinKey;
+  const itinRef = useRef(itineraries);
+  itinRef.current = itineraries;
+  const prevItinKey = useRef(itinKey);
+  useEffect(() => {
+    if (prevItinKey.current === itinKey) return;
+    prevItinKey.current = itinKey;
+    const stored = loadStoredItineraries(localStorage, itinKey);
+    setItineraries(stored.itineraries.map((r) => buildItineraryInfo(r)));
+    setActiveItineraryId(stored.activeId);
+    setItineraryPolicy(DEFAULT_ESTIMATION_POLICY);
+    setItineraryOpen(false);
+    setItineraryEditId(null);
+    pendingItinMutation.current = null;
+  }, [itinKey]);
+  const applyItineraries = (list: ItineraryInfo[], active: string) => {
+    const activeId = list.some((i) => i.id === active) ? active : "";
+    itinRef.current = list;
+    setItineraries(list);
+    setActiveItineraryId(activeId);
+    const ok = saveStoredItineraries(
+      localStorage,
+      { activeId, itineraries: list.map(toItineraryRecord) },
+      itinKeyRef.current,
+    );
+    if (!ok) notify("行程无法保存到浏览器，请导出备份以保留");
+  };
+  const cloudItinReady =
+    cloud.mode === "cloud" && cloud.fresh && !cloud.deletionBlocked;
+  const cloudUserId = cloud.user?.id;
+  const activeIdRef = useRef(activeItineraryId);
+  activeIdRef.current = activeItineraryId;
+  useEffect(() => {
+    if (!cloudItinReady) return;
+    let alive = true;
+    void itineraryApi
+      .listItineraries()
+      .then((res) => {
+        if (!alive) return;
+        setItineraryPolicy(res.policy);
+        applyItineraries(res.itineraries, activeIdRef.current);
+      })
+      .catch(() => {
+        // Keep the cached copy; the dialog reports errors when the user edits.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [cloudItinReady, cloudUserId]);
+  const saveItinerary = async (
+    input: {
+      id: string;
+      title: string;
+      note: string;
+      color: string;
+      stops: ItineraryStopInput[];
+      expectedVersion: number;
+    },
+    activate: boolean,
+  ): Promise<ItineraryInfo> => {
+    const prior = itinRef.current.find((i) => i.id === input.id);
+    let info: ItineraryInfo;
+    if (cloud.mode === "cloud") {
+      if (cloud.deletionBlocked) throw new Error("账号正在删除，暂不能修改行程");
+      // A retry of the same payload reuses its mutation id, so a lost reply is not applied twice.
+      const digest = JSON.stringify(input);
+      const pend = pendingItinMutation.current;
+      const mutationId =
+        pend && pend.digest === digest ? pend.mutationId : `itin-${newTripId()}`;
+      pendingItinMutation.current = { digest, mutationId };
+      const res = await itineraryApi.saveItinerary({ ...input, mutationId });
+      pendingItinMutation.current = null;
+      setItineraryPolicy(res.policy);
+      info = res.itinerary;
+    } else {
+      if (prior && input.expectedVersion !== prior.version)
+        throw new Error("行程已在其他页面更新，请关闭后重新打开再编辑");
+      const now = new Date().toISOString();
+      const rec = validateItineraryInput({
+        ...input,
+        version: prior ? prior.version + 1 : 1,
+      });
+      info = buildItineraryInfo({
+        ...rec,
+        createdAt: prior?.createdAt ?? now,
+        updatedAt: now,
+      });
+    }
+    const list = itinRef.current;
+    const next = prior
+      ? list.map((i) => (i.id === info.id ? info : i))
+      : [...list, info];
+    applyItineraries(next, activate ? info.id : activeIdRef.current);
+    notify(activate ? "行程已保存并在地图展示" : "行程已保存");
+    return info;
+  };
+  const removeItinerary = async (id: string, expectedVersion: number) => {
+    if (cloud.mode === "cloud") {
+      if (cloud.deletionBlocked) throw new Error("账号正在删除，暂不能修改行程");
+      await itineraryApi.deleteItinerary(id, expectedVersion);
+    }
+    applyItineraries(
+      itinRef.current.filter((i) => i.id !== id),
+      activeIdRef.current === id ? "" : activeIdRef.current,
+    );
+    notify("行程已删除");
+  };
+  const selectActiveItinerary = (id: string) =>
+    applyItineraries(itinRef.current, id);
+  // A backup with itineraries replaces this device's list; in cloud mode each one is saved to the account.
+  const importItineraries = async (
+    records: ItineraryRecord[],
+    active: string,
+  ) => {
+    if (cloud.mode !== "cloud") {
+      const now = new Date().toISOString();
+      applyItineraries(
+        records.map((r) =>
+          buildItineraryInfo({ ...r, createdAt: r.createdAt ?? now, updatedAt: now }),
+        ),
+        active,
+      );
+      return;
+    }
+    let failed = 0;
+    let list = itinRef.current;
+    for (const rec of records) {
+      const prior = list.find((i) => i.id === rec.id);
+      try {
+        const res = await itineraryApi.saveItinerary({
+          id: rec.id,
+          title: rec.title,
+          note: rec.note,
+          color: rec.color,
+          stops: rec.stops,
+          expectedVersion: prior?.version ?? 0,
+          mutationId: `itin-${newTripId()}`,
+        });
+        list = prior
+          ? list.map((i) => (i.id === rec.id ? res.itinerary : i))
+          : [...list, res.itinerary];
+      } catch {
+        failed++;
+      }
+    }
+    applyItineraries(list, active);
+    if (failed > 0) notify(`${failed} 条行程未能导入云端，请检查网络后重试`);
+  };
+  const activeRoute =
+    itineraries.find((i) => i.id === activeItineraryId) ?? null;
   const exportData = () => {
     const url = URL.createObjectURL(
-      new Blob([JSON.stringify(stampRegions(saved), null, 2)], { type: "application/json" }),
+      new Blob(
+        [
+          JSON.stringify(
+            {
+              ...stampRegions(saved),
+              ...(itineraries.length > 0
+                ? {
+                    itineraries: itineraries.map(toItineraryRecord),
+                    activeItineraryId,
+                  }
+                : {}),
+            },
+            null,
+            2,
+          ),
+        ],
+        { type: "application/json" },
+      ),
     );
     const a = document.createElement("a");
     a.href = url;
@@ -1010,14 +1231,26 @@ function App() {
       if (file.size > MAX_BACKUP_BYTES)
         throw new Error("文件过大，请选择足迹备份文件");
       const data = JSON.parse(await file.text());
+      const backupItineraries =
+        data && typeof data === "object" && "itineraries" in data
+          ? parseBackupItineraries((data as { itineraries?: unknown }).itineraries)
+          : undefined;
+      const backupActive =
+        data && typeof (data as { activeItineraryId?: unknown }).activeItineraryId === "string"
+          ? (data as { activeItineraryId: string }).activeItineraryId
+          : "";
+      const extra = backupItineraries
+        ? { itineraries: backupItineraries, activeItineraryId: backupActive }
+        : {};
       try {
-        setImportOpen({ saved: validateSaved(data), cleared: 0 });
+        setImportOpen({ saved: validateSaved(data), cleared: 0, ...extra });
       } catch (e) {
         // Dates that are not on the calendar are cleared only after the user agrees.
         if (!(e instanceof InvalidDatesError)) throw e;
         setImportOpen({
           saved: validateSavedData(data, regions, { correctDates: true }),
           cleared: e.count,
+          ...extra,
         });
       }
     } catch (e) {
@@ -1065,6 +1298,67 @@ function App() {
       </div>
     );
   }
+
+  // The active route on the SVG maps. Province maps draw only the legs whose two
+  // ends lie in that province; the national map draws every leg.
+  const routeLayer = (() => {
+    if (!activeRoute || !projection || mapError) return null;
+    const stops = activeRoute.stops.filter(
+      (s) => s.longitude !== 0 || s.latitude !== 0,
+    );
+    const inView = (s: ItineraryStop) =>
+      !province || s.provinceCode === province.code;
+    const at = (s: ItineraryStop) => projection([s.longitude, s.latitude]);
+    let d = "";
+    for (let i = 1; i < stops.length; i++) {
+      if (!inView(stops[i - 1]) || !inView(stops[i])) continue;
+      const a = at(stops[i - 1]);
+      const b = at(stops[i]);
+      if (a && b)
+        d += `M${a[0].toFixed(1)} ${a[1].toFixed(1)}L${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
+    }
+    const markers = stops
+      .filter(inView)
+      .map((s) => ({ stop: s, p: at(s) }))
+      .filter((m): m is { stop: ItineraryStop; p: [number, number] } => !!m.p);
+    if (!d && markers.length === 0) return null;
+    return (
+      <g
+        className="itinerary-route-layer"
+        data-testid="itinerary-route-layer"
+        aria-hidden="true"
+        pointerEvents="none"
+      >
+        {d && (
+          <path
+            className="route-line"
+            d={d}
+            fill="none"
+            stroke={activeRoute.color}
+            strokeWidth={3}
+            strokeDasharray="7 5"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+        {markers.map(({ stop, p }) => (
+          <g
+            key={stop.id}
+            className="route-stop-marker"
+            transform={`translate(${p[0].toFixed(1)},${p[1].toFixed(1)})`}
+          >
+            <circle r={9} fill={activeRoute.color} stroke="#ffffff" strokeWidth={2} />
+            <text textAnchor="middle" dy=".35em" fontSize="10" fill="#ffffff">
+              {stop.order}
+            </text>
+            <title>
+              {stop.order}. {stop.regionName}
+            </title>
+          </g>
+        ))}
+      </g>
+    );
+  })();
 
   return (
     <div className="app-shell">
@@ -1245,10 +1539,23 @@ function App() {
         </section>
         <div className="report-entry">
           <span>每一站都算数，看看你的山海进度。</span>
-          <Button variant="outline" onClick={() => setReportOpen(true)}>
-            <DownloadSimple size={17} />
-            足迹统计 / 生成图片
-          </Button>
+          <div className="report-entry-actions">
+            <Button
+              variant="outline"
+              data-itinerary-open
+              onClick={() => {
+                setItineraryEditId(null);
+                setItineraryOpen(true);
+              }}
+            >
+              <Path size={17} />
+              行程路线{itineraries.length > 0 ? `（${itineraries.length}）` : ""}
+            </Button>
+            <Button variant="outline" onClick={() => setReportOpen(true)}>
+              <DownloadSimple size={17} />
+              足迹统计 / 生成图片
+            </Button>
+          </div>
         </div>
         <div className="workspace">
           <section className="map-panel">
@@ -1359,6 +1666,7 @@ function App() {
                         map={map}
                         colors={visitColors}
                         convertCoords={!WGS84_PROVINCES.includes(province.code)}
+                        route={activeRoute}
                         label={`${province.name}${unit}地图（OpenStreetMap 底图）`}
                         onToggle={(code) => toggleCity(province.code, code)}
                         onHover={setHover}
@@ -1383,6 +1691,7 @@ function App() {
                         fine={cityMode}
                         viewBounds={NATIONAL_VIEW}
                         resetLabel="回到全国视图"
+                        route={activeRoute}
                         label={`中国${cityMode ? "城市" : "省份"}地图（OpenStreetMap 底图）`}
                         regionLabel={
                           cityMode
@@ -1591,6 +1900,7 @@ function App() {
                             </g>
                           );
                         })}
+                      {routeLayer}
                     </g>
                     {!province && (
                       <g className="sea-inset" transform="translate(736,458)">
@@ -1616,6 +1926,37 @@ function App() {
                       </g>
                     )}
                   </svg>
+                )}
+                {activeRoute && !mapError && (
+                  <div
+                    className="route-bar"
+                    role="status"
+                    data-testid="active-route-bar"
+                  >
+                    <Path size={16} color={activeRoute.color} />
+                    <span className="route-bar-text">
+                      <strong>{activeRoute.title}</strong>
+                      <small>
+                        {activeRoute.stops.length} 站 · 预计{" "}
+                        {formatDistanceKm(activeRoute.totalEstimatedDistanceKm)}{" "}
+                        · 约{" "}
+                        {formatDurationMinutes(
+                          activeRoute.totalEstimatedDurationMinutes,
+                        )}
+                      </small>
+                    </span>
+                    <button
+                      onClick={() => {
+                        setItineraryEditId(activeRoute.id);
+                        setItineraryOpen(true);
+                      }}
+                    >
+                      编辑行程
+                    </button>
+                    <button onClick={() => selectActiveItinerary("")}>
+                      隐藏路线
+                    </button>
+                  </div>
                 )}
                 <div className="map-caption">
                   <Compass size={17} />
@@ -2640,7 +2981,11 @@ function App() {
                 (n, v) => n + v.trips.length,
                 0,
               )}{" "}
-              次旅行。导入将替换当前记录，建议先导出当前备份。
+              次旅行
+              {importOpen?.itineraries
+                ? `，${importOpen.itineraries.length} 条行程`
+                : ""}
+              。导入将替换当前记录，建议先导出当前备份。
               {importOpen && importOpen.cleared > 0
                 ? `备份里有 ${importOpen.cleared} 个旅行日期不是真实存在的日历日期，导入时会清除这些日期，其余内容（包括备注）原样保留。`
                 : ""}
@@ -2656,8 +3001,11 @@ function App() {
                 if (!importOpen) return;
                 const target = importOpen.saved;
                 if (!commit(() => target)) return;
+                const imported = importOpen.itineraries;
+                const importedActive = importOpen.activeItineraryId ?? "";
                 setImportOpen(null);
                 notify("备份已导入");
+                if (imported) void importItineraries(imported, importedActive);
               }}
             >
               {importOpen && importOpen.cleared > 0
@@ -2744,6 +3092,22 @@ function App() {
           onClose={closeMedia}
         />
       )}
+      <ItineraryDialog
+        key={itinKey}
+        open={itineraryOpen}
+        onOpenChange={(open) => {
+          setItineraryOpen(open);
+          if (!open) setItineraryEditId(null);
+        }}
+        itineraries={itineraries}
+        activeItineraryId={activeItineraryId}
+        initialEditId={itineraryEditId}
+        policy={itineraryPolicy}
+        visits={saved.visits}
+        onSave={saveItinerary}
+        onDelete={removeItinerary}
+        onSelectActive={selectActiveItinerary}
+      />
       {cloud.enabled && cloud.user && regionsOpen && (
         <RegionDialog key={cloud.user.id} open onOpenChange={setRegionsOpen} cloud={cloud} />
       )}

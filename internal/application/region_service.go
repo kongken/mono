@@ -13,7 +13,9 @@ import (
 	"go.orx.me/apps/trip-map/internal/auth"
 	"go.orx.me/apps/trip-map/internal/ent"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
+	entitinerary "go.orx.me/apps/trip-map/internal/ent/itinerary"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
+	"go.orx.me/apps/trip-map/internal/ent/schema"
 	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
@@ -130,6 +132,31 @@ func (s *RegionService) plan(ctx context.Context, tx *ent.Tx, u *ent.User) (*reg
 				p.preview.Changes = append(p.preview.Changes, change)
 			}
 			p.codes[m.RegionCode] = code
+		}
+	}
+	itineraries, err := tx.Itinerary.Query().Where(entitinerary.UserID(u.ID)).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, it := range itineraries {
+		for _, stop := range it.Stops {
+			code, ok := s.index.ResolveCode(stop.RegionCode)
+			if !ok {
+				p.preview.Blockers = append(p.preview.Blockers, "unmapped itinerary region: "+stop.RegionCode)
+			} else if code != stop.RegionCode {
+				if _, exists := p.codes[stop.RegionCode]; !exists {
+					name, province, _ := s.index.City(code)
+					change := &tripmapv1.RegionUpgradeChange{FromCode: stop.RegionCode, ToCode: code, FromName: stop.RegionCode, ToName: name, ToProvince: province, MediaOnly: true}
+					for _, mapping := range s.index.Mappings() {
+						if mapping.FromCode == stop.RegionCode {
+							change.FromName, change.FromProvince = mapping.FromName, mapping.FromProvince
+							break
+						}
+					}
+					p.preview.Changes = append(p.preview.Changes, change)
+				}
+				p.codes[stop.RegionCode] = code
+			}
 		}
 	}
 	for _, t := range state.trips {
@@ -343,6 +370,28 @@ func (s *RegionService) ApplyRegionUpgrade(ctx context.Context, req *connect.Req
 	for old, code := range plan.codes {
 		if _, err := tx.MediaObject.Update().Where(mediaobject.UserID(u.ID), mediaobject.RegionCode(old)).SetRegionCode(code).Save(ctx); err != nil {
 			return nil, internalError(err)
+		}
+	}
+	if len(plan.codes) > 0 {
+		itineraries, err := tx.Itinerary.Query().Where(entitinerary.UserID(u.ID)).All(ctx)
+		if err != nil {
+			return nil, internalError(err)
+		}
+		for _, it := range itineraries {
+			changed := false
+			stops := make([]schema.ItineraryStopRecord, len(it.Stops))
+			for i, stop := range it.Stops {
+				stops[i] = stop
+				if mapped, ok := plan.codes[stop.RegionCode]; ok && mapped != stop.RegionCode {
+					stops[i].RegionCode = mapped
+					changed = true
+				}
+			}
+			if changed {
+				if err := tx.Itinerary.UpdateOneID(it.ID).SetStops(stops).SetVersion(it.Version + 1).Exec(ctx); err != nil {
+					return nil, internalError(err)
+				}
+			}
 		}
 	}
 	if out.Revision != u.Revision {

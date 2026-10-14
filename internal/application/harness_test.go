@@ -29,6 +29,7 @@ type env struct {
 	report    tripmapv1connect.ReportServiceClient
 	search    tripmapv1connect.SearchServiceClient
 	region    tripmapv1connect.RegionServiceClient
+	itinerary tripmapv1connect.ItineraryServiceClient
 	svc       *application.AuthService
 	reportSvc *application.ReportService
 }
@@ -63,18 +64,20 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 	mux.Handle(tripmapv1connect.NewReportServiceHandler(reportSvc, opts))
 	mux.Handle(tripmapv1connect.NewSearchServiceHandler(application.NewSearchService(src, idx), opts))
 	mux.Handle(tripmapv1connect.NewRegionServiceHandler(application.NewRegionService(src, idx), opts))
+	mux.Handle(tripmapv1connect.NewItineraryServiceHandler(application.NewItineraryService(src, idx), opts))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return &env{
 		t: t, store: src.st, cfg: cfg, svc: authSvc, reportSvc: reportSvc,
-		auth:   tripmapv1connect.NewAuthServiceClient(server.Client(), server.URL),
-		foot:   tripmapv1connect.NewFootprintServiceClient(server.Client(), server.URL),
-		snap:   tripmapv1connect.NewSnapshotServiceClient(server.Client(), server.URL),
-		media:  tripmapv1connect.NewMediaServiceClient(server.Client(), server.URL),
-		collab: tripmapv1connect.NewCollaborationServiceClient(server.Client(), server.URL),
-		report: tripmapv1connect.NewReportServiceClient(server.Client(), server.URL),
-		search: tripmapv1connect.NewSearchServiceClient(server.Client(), server.URL),
-		region: tripmapv1connect.NewRegionServiceClient(server.Client(), server.URL),
+		auth:      tripmapv1connect.NewAuthServiceClient(server.Client(), server.URL),
+		foot:      tripmapv1connect.NewFootprintServiceClient(server.Client(), server.URL),
+		snap:      tripmapv1connect.NewSnapshotServiceClient(server.Client(), server.URL),
+		media:     tripmapv1connect.NewMediaServiceClient(server.Client(), server.URL),
+		collab:    tripmapv1connect.NewCollaborationServiceClient(server.Client(), server.URL),
+		report:    tripmapv1connect.NewReportServiceClient(server.Client(), server.URL),
+		search:    tripmapv1connect.NewSearchServiceClient(server.Client(), server.URL),
+		region:    tripmapv1connect.NewRegionServiceClient(server.Client(), server.URL),
+		itinerary: tripmapv1connect.NewItineraryServiceClient(server.Client(), server.URL),
 	}
 }
 

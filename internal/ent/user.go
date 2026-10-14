@@ -86,9 +86,11 @@ type UserEdges struct {
 	OwnedSharedTrips []*SharedTrip `json:"owned_shared_trips,omitempty"`
 	// TripMemberships holds the value of the trip_memberships edge.
 	TripMemberships []*TripMember `json:"trip_memberships,omitempty"`
+	// Itineraries holds the value of the itineraries edge.
+	Itineraries []*Itinerary `json:"itineraries,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [13]bool
+	loadedTypes [14]bool
 }
 
 // VisitsOrErr returns the Visits value or an error if the edge
@@ -208,6 +210,15 @@ func (e UserEdges) TripMembershipsOrErr() ([]*TripMember, error) {
 		return e.TripMemberships, nil
 	}
 	return nil, &NotLoadedError{edge: "trip_memberships"}
+}
+
+// ItinerariesOrErr returns the Itineraries value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ItinerariesOrErr() ([]*Itinerary, error) {
+	if e.loadedTypes[13] {
+		return e.Itineraries, nil
+	}
+	return nil, &NotLoadedError{edge: "itineraries"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -426,6 +437,11 @@ func (_m *User) QueryOwnedSharedTrips() *SharedTripQuery {
 // QueryTripMemberships queries the "trip_memberships" edge of the User entity.
 func (_m *User) QueryTripMemberships() *TripMemberQuery {
 	return NewUserClient(_m.config).QueryTripMemberships(_m)
+}
+
+// QueryItineraries queries the "itineraries" edge of the User entity.
+func (_m *User) QueryItineraries() *ItineraryQuery {
+	return NewUserClient(_m.config).QueryItineraries(_m)
 }
 
 // Update returns a builder for updating this User.

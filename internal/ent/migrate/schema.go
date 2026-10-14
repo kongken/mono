@@ -145,6 +145,45 @@ var (
 			},
 		},
 	}
+	// ItinerariesColumns holds the columns for the "itineraries" table.
+	ItinerariesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "itinerary_id", Type: field.TypeString},
+		{Name: "title", Type: field.TypeString},
+		{Name: "note", Type: field.TypeString, Default: ""},
+		{Name: "color", Type: field.TypeString, Default: "#4b937d"},
+		{Name: "stops", Type: field.TypeJSON},
+		{Name: "version", Type: field.TypeInt64, Default: 1},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeString},
+	}
+	// ItinerariesTable holds the schema information for the "itineraries" table.
+	ItinerariesTable = &schema.Table{
+		Name:       "itineraries",
+		Columns:    ItinerariesColumns,
+		PrimaryKey: []*schema.Column{ItinerariesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "itineraries_users_itineraries",
+				Columns:    []*schema.Column{ItinerariesColumns[9]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "itinerary_user_id_itinerary_id",
+				Unique:  true,
+				Columns: []*schema.Column{ItinerariesColumns[9], ItinerariesColumns[1]},
+			},
+			{
+				Name:    "itinerary_user_id_updated_at",
+				Unique:  false,
+				Columns: []*schema.Column{ItinerariesColumns[9], ItinerariesColumns[8]},
+			},
+		},
+	}
 	// MediaCleanupsColumns holds the columns for the "media_cleanups" table.
 	MediaCleanupsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -567,6 +606,7 @@ var (
 		CityVisitsTable,
 		FootprintChangesTable,
 		FriendshipsTable,
+		ItinerariesTable,
 		MediaCleanupsTable,
 		MediaObjectsTable,
 		ProvinceMarksTable,
@@ -591,6 +631,10 @@ func init() {
 	FriendshipsTable.ForeignKeys[1].RefTable = UsersTable
 	FriendshipsTable.Annotation = &entsql.Annotation{
 		Table: "friendships",
+	}
+	ItinerariesTable.ForeignKeys[0].RefTable = UsersTable
+	ItinerariesTable.Annotation = &entsql.Annotation{
+		Table: "itineraries",
 	}
 	MediaObjectsTable.ForeignKeys[0].RefTable = UsersTable
 	MediaObjectsTable.Annotation = &entsql.Annotation{

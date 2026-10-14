@@ -9,6 +9,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
 	"go.orx.me/apps/trip-map/internal/ent/friendship"
+	"go.orx.me/apps/trip-map/internal/ent/itinerary"
 	"go.orx.me/apps/trip-map/internal/ent/mediacleanup"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
@@ -119,6 +120,76 @@ func init() {
 	friendshipDescID := friendshipFields[0].Descriptor()
 	// friendship.DefaultID holds the default value on creation for the id field.
 	friendship.DefaultID = friendshipDescID.Default.(func() string)
+	itineraryFields := schema.Itinerary{}.Fields()
+	_ = itineraryFields
+	// itineraryDescItineraryID is the schema descriptor for itinerary_id field.
+	itineraryDescItineraryID := itineraryFields[2].Descriptor()
+	// itinerary.ItineraryIDValidator is a validator for the "itinerary_id" field. It is called by the builders before save.
+	itinerary.ItineraryIDValidator = func() func(string) error {
+		validators := itineraryDescItineraryID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(itinerary_id string) error {
+			for _, fn := range fns {
+				if err := fn(itinerary_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// itineraryDescTitle is the schema descriptor for title field.
+	itineraryDescTitle := itineraryFields[3].Descriptor()
+	// itinerary.TitleValidator is a validator for the "title" field. It is called by the builders before save.
+	itinerary.TitleValidator = func() func(string) error {
+		validators := itineraryDescTitle.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(title string) error {
+			for _, fn := range fns {
+				if err := fn(title); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// itineraryDescNote is the schema descriptor for note field.
+	itineraryDescNote := itineraryFields[4].Descriptor()
+	// itinerary.DefaultNote holds the default value on creation for the note field.
+	itinerary.DefaultNote = itineraryDescNote.Default.(string)
+	// itinerary.NoteValidator is a validator for the "note" field. It is called by the builders before save.
+	itinerary.NoteValidator = itineraryDescNote.Validators[0].(func(string) error)
+	// itineraryDescColor is the schema descriptor for color field.
+	itineraryDescColor := itineraryFields[5].Descriptor()
+	// itinerary.DefaultColor holds the default value on creation for the color field.
+	itinerary.DefaultColor = itineraryDescColor.Default.(string)
+	// itinerary.ColorValidator is a validator for the "color" field. It is called by the builders before save.
+	itinerary.ColorValidator = itineraryDescColor.Validators[0].(func(string) error)
+	// itineraryDescVersion is the schema descriptor for version field.
+	itineraryDescVersion := itineraryFields[7].Descriptor()
+	// itinerary.DefaultVersion holds the default value on creation for the version field.
+	itinerary.DefaultVersion = itineraryDescVersion.Default.(int64)
+	// itinerary.VersionValidator is a validator for the "version" field. It is called by the builders before save.
+	itinerary.VersionValidator = itineraryDescVersion.Validators[0].(func(int64) error)
+	// itineraryDescCreatedAt is the schema descriptor for created_at field.
+	itineraryDescCreatedAt := itineraryFields[8].Descriptor()
+	// itinerary.DefaultCreatedAt holds the default value on creation for the created_at field.
+	itinerary.DefaultCreatedAt = itineraryDescCreatedAt.Default.(func() time.Time)
+	// itineraryDescUpdatedAt is the schema descriptor for updated_at field.
+	itineraryDescUpdatedAt := itineraryFields[9].Descriptor()
+	// itinerary.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	itinerary.DefaultUpdatedAt = itineraryDescUpdatedAt.Default.(func() time.Time)
+	// itinerary.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	itinerary.UpdateDefaultUpdatedAt = itineraryDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// itineraryDescID is the schema descriptor for id field.
+	itineraryDescID := itineraryFields[0].Descriptor()
+	// itinerary.DefaultID holds the default value on creation for the id field.
+	itinerary.DefaultID = itineraryDescID.Default.(func() string)
 	mediacleanupFields := schema.MediaCleanup{}.Fields()
 	_ = mediacleanupFields
 	// mediacleanupDescID is the schema descriptor for id field.

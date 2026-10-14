@@ -99,6 +99,13 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 - **时区与可追溯性：** 旅行记录日期保持 `YYYY-MM-DD` 日历字符串，不随 UTC 偏移改变年份；用户请求的 IANA 时区（默认 `Asia/Shanghai`）用于计算当前本地日历日期 `generated_on` 与当前年份 `current_year`。每项省内进度、年度报告统计和成就状态都附带指向原始省份、城市或旅行记录的 `ReportRecordRef` 引用。
 - **服务端 Redis 缓存：** 后端 `ReportService.GetReport` 将汇总结果缓存在 Redis 键 `<prefix>report:v1:<user_id>|<revision>|<timezone>|<local_date>`（TTL 24 小时）中，并由每小时维护任务预热默认时区缓存；足迹 `revision` 变化后立即命中新键。
 
+## 行程与城市坐标（F11）
+
+- `src/city-coords.json` 与 `internal/itinerary/coords.json` 保存 497 个可记录区域的中心点 `[GCJ 经度, GCJ 纬度, WGS-84 经度, WGS-84 纬度]`，由 `scripts/prepare-city-coords.mjs` 从 `public/maps/*.json` 的 `center/centroid` 生成（台湾区域已是 WGS-84，两组相同）。地图区域更新后运行 `npm run prepare:coords` 并一起提交；`npm run check:maps` 校验是否最新、是否覆盖全部区域。
+- SVG 地图用 GCJ 坐标投影，OSM 底图用 WGS-84 坐标，与现有边界一致；路线只依赖这份静态数据，不请求第三方服务。
+- 行程本地保存为 `{ version: 1, regionVersion, activeId, itineraries: [...] }`（键 `shanhai-itineraries-v1`，账号缓存键 `shanhai-cloud-itineraries-v1:<用户 ID>`）；读取时按 F10 映射升级站点区域 ID，无法识别的行程记录被忽略而不覆盖其余数据。备份文件可带 `itineraries` 和 `activeItineraryId`，不带时导入不触碰现有行程。
+- 估算：球面直线距离（地球半径 6371 km，取 0.1 km 整数）乘交通方式绕行系数（铁路 120%、自驾 130%、飞机 105%、轮渡 115%、其他 120%），用时按平均速度（220/80/700/35/100 km/h）加固定缓冲（20/15/50/25/15 分钟）；Go 与 TypeScript 使用同一整数运算，`scripts/fixtures/itinerary-routes.json` 同时驱动两侧测试。
+
 ## 搜索数据（F9）
 
 - 搜索不改变区域 ID、`Saved` version 2、本地存储键、旅行记录或备份格式。私有备注检索直接读取本机当前足迹，或服务端当前用户的 `city_visits`（schema 1）/`city_trips`（schema 2）；不创建持久化备注索引、缓存结果或重复数据。云端分页绑定 revision，返回纯文本，结果不会进入分享页。

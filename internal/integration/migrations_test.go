@@ -138,6 +138,9 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 	if n, err := client.TripMember.Query().Count(ctx); err != nil || n != 0 {
 		t.Fatalf("trip_members table should start empty: %d %v", n, err)
 	}
+	if n, err := client.Itinerary.Query().Count(ctx); err != nil || n != 0 {
+		t.Fatalf("itineraries table should start empty: %d %v", n, err)
+	}
 	// A share row keeps the user's data apart from the public token and goes away with the user.
 	exec(`INSERT INTO shares (id, visibility, token, show_cities, show_dates, show_notes, show_photos, photo_ids, version, published_revision, payload, created_at, updated_at, user_id)
 		VALUES ('sh1','link','tok',false,false,false,false,'[]',1,7,'\x7b7d',now(),now(),'u1')`)
@@ -155,6 +158,10 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 	}
 	exec(`INSERT INTO shared_trips (id, region_code, trip_id, travel_date, note, created_at, updated_at, owner_id) VALUES ('st1','330100','t1','2026-10-12','共游',now(),now(),'u1')`)
 	exec(`INSERT INTO trip_members (id, member_trip_id, role, status, invited_by, created_at, updated_at, shared_trip_id, user_id) VALUES ('tm1','t1','editor','active','u1',now(),now(),'st1','u2')`)
+	exec(`INSERT INTO itineraries (id, itinerary_id, title, note, color, stops, version, created_at, updated_at, user_id) VALUES ('it1','itin-1','江南行','','\#4b937d','[]',1,now(),now(),'u2')`)
+	if _, err := scoped.ExecContext(ctx, `INSERT INTO itineraries (id, itinerary_id, title, note, color, stops, version, created_at, updated_at, user_id) VALUES ('it2','itin-1','重复','','\#4b937d','[]',1,now(),now(),'u2')`); err == nil {
+		t.Fatal("duplicate itinerary_id per user allowed")
+	}
 	exec(`DELETE FROM users WHERE id='u2'`)
 	var left int
 	if err := scoped.QueryRowContext(ctx, `SELECT count(*) FROM shares WHERE user_id='u2'`).Scan(&left); err != nil || left != 0 {
@@ -165,6 +172,9 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 	}
 	if err := scoped.QueryRowContext(ctx, `SELECT count(*) FROM trip_members WHERE user_id='u2'`).Scan(&left); err != nil || left != 0 {
 		t.Fatalf("deleting a user left %d trip_member rows: %v", left, err)
+	}
+	if err := scoped.QueryRowContext(ctx, `SELECT count(*) FROM itineraries WHERE user_id='u2'`).Scan(&left); err != nil || left != 0 {
+		t.Fatalf("deleting a user left %d itinerary rows: %v", left, err)
 	}
 	// Ent keeps proposing to re-create its two partial unique indexes because it
 	// compares the predicate text with PostgreSQL's normalised form. That is also

@@ -74,6 +74,8 @@ const (
 	EdgeOwnedSharedTrips = "owned_shared_trips"
 	// EdgeTripMemberships holds the string denoting the trip_memberships edge name in mutations.
 	EdgeTripMemberships = "trip_memberships"
+	// EdgeItineraries holds the string denoting the itineraries edge name in mutations.
+	EdgeItineraries = "itineraries"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// VisitsTable is the table that holds the visits relation/edge.
@@ -167,6 +169,13 @@ const (
 	TripMembershipsInverseTable = "trip_members"
 	// TripMembershipsColumn is the table column denoting the trip_memberships relation/edge.
 	TripMembershipsColumn = "user_id"
+	// ItinerariesTable is the table that holds the itineraries relation/edge.
+	ItinerariesTable = "itineraries"
+	// ItinerariesInverseTable is the table name for the Itinerary entity.
+	// It exists in this package in order to avoid circular dependency with the "itinerary" package.
+	ItinerariesInverseTable = "itineraries"
+	// ItinerariesColumn is the table column denoting the itineraries relation/edge.
+	ItinerariesColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -505,6 +514,20 @@ func ByTripMemberships(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newTripMembershipsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByItinerariesCount orders the results by itineraries count.
+func ByItinerariesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newItinerariesStep(), opts...)
+	}
+}
+
+// ByItineraries orders the results by itineraries terms.
+func ByItineraries(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newItinerariesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newVisitsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -594,5 +617,12 @@ func newTripMembershipsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(TripMembershipsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, TripMembershipsTable, TripMembershipsColumn),
+	)
+}
+func newItinerariesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ItinerariesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ItinerariesTable, ItinerariesColumn),
 	)
 }
