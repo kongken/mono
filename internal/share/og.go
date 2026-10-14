@@ -75,7 +75,6 @@ type Renderer struct {
 	bold    *opentype.Font
 	// bounds of the national map and its inset in geometry units.
 	minX, minY, maxX, maxY float64
-	faces                  sync.Map
 }
 
 var (
@@ -162,20 +161,11 @@ func (r *Renderer) HasGlyphs(s string) (missing rune, ok bool) {
 }
 
 func (r *Renderer) face(bold bool, size float64) (font.Face, error) {
-	key := fmt.Sprintf("%t/%g", bold, size)
-	if f, ok := r.faces.Load(key); ok {
-		return f.(font.Face), nil
-	}
 	src := r.regular
 	if bold {
 		src = r.bold
 	}
-	f, err := opentype.NewFace(src, &opentype.FaceOptions{Size: size, DPI: 72, Hinting: font.HintingNone})
-	if err != nil {
-		return nil, err
-	}
-	r.faces.Store(key, f)
-	return f, nil
+	return opentype.NewFace(src, &opentype.FaceOptions{Size: size, DPI: 72, Hinting: font.HintingNone})
 }
 
 var (
@@ -274,6 +264,7 @@ func (r *Renderer) text(dst *image.RGBA, s string, x, baseline float64, size flo
 	if err != nil {
 		return err
 	}
+	defer func() { _ = face.Close() }()
 	d := font.Drawer{Dst: dst, Src: image.NewUniform(c), Face: face}
 	d.Dot = fixed.Point26_6{X: fixed.Int26_6(x * 64), Y: fixed.Int26_6(baseline * 64)}
 	if spacing == 0 {
