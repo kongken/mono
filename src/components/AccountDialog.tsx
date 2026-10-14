@@ -31,6 +31,7 @@ type Props = {
   local: { status: string; count: number };
   onMigrate: () => void;
   onOpenSnapshots: () => void;
+  onOpenRegions: () => void;
   onOpenMedia: () => void;
   onOpenShare: () => void;
   onOpenCollaboration: () => void;
@@ -52,6 +53,7 @@ export default function AccountDialog({
   local,
   onMigrate,
   onOpenSnapshots,
+  onOpenRegions,
   onOpenMedia,
   onOpenShare,
   onOpenCollaboration,
@@ -205,6 +207,7 @@ export default function AccountDialog({
             </div>
             <div className="unreadable-note account-migrate">
               <span>私有保存旅途照片和附件，取消打卡后仍可在这里查看。</span>
+              <Button variant="outline" size="sm" disabled={cloud.deletionBlocked} onClick={onOpenRegions}>区域数据与兼容</Button>
               <Button variant="outline" size="sm" disabled={cloud.deletionBlocked} onClick={onOpenMedia}>照片与附件</Button>
             </div>
             <div className="unreadable-note account-migrate">

@@ -4,6 +4,7 @@ import (
 	"connectrpc.com/connect"
 	"context"
 	"go.orx.me/apps/trip-map/internal/health"
+	"go.orx.me/apps/trip-map/internal/regions"
 	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
 )
 
@@ -22,7 +23,7 @@ func NewSystemService(source StatusSource, shareEnabled func() bool) *SystemServ
 }
 func (s *SystemService) GetStatus(ctx context.Context, _ *connect.Request[tripmapv1.GetStatusRequest]) (*connect.Response[tripmapv1.GetStatusResponse], error) {
 	statuses := s.source.Check(ctx)
-	response := &tripmapv1.GetStatusResponse{Ready: health.Ready(statuses), FootprintSchema: schemaTrips, ShareEnabled: s.share != nil && s.share()}
+	response := &tripmapv1.GetStatusResponse{Ready: health.Ready(statuses), FootprintSchema: schemaTrips, ShareEnabled: s.share != nil && s.share(), RegionVersion: regions.CurrentVersion()}
 	for _, status := range statuses {
 		response.Dependencies = append(response.Dependencies, &tripmapv1.DependencyStatus{Name: status.Name, Ready: status.Ready})
 	}

@@ -99,6 +99,7 @@ message GetFootprintsResponse {
   repeated Trip trips = 4;
   // 2 when this server understands trips. Zero means an older server.
   int32 schema_version = 5;
+  string region_version = 6;
 }
 
 message UpsertVisitRequest {
@@ -184,6 +185,7 @@ message GetChangesResponse {
   bool resync_required = 5;
   // 2 when this server understands trips. Zero means an older server.
   int32 schema_version = 6;
+  string region_version = 7;
 }
 message SyncChangesRequest {
   // Stable unique ID reused verbatim after a lost response, never for another batch.

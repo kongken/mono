@@ -11,6 +11,10 @@ import * as auth from "../src/gen/tripmap/v1/auth_pb";
 import * as collaborationPb from "../src/gen/tripmap/v1/collaboration_pb";
 import * as footprint from "../src/gen/tripmap/v1/footprint_pb";
 import * as reportPb from "../src/gen/tripmap/v1/report_pb";
+import * as regionsPb from "../src/gen/tripmap/v1/regions_pb";
+import catalog from "../src/region-catalog.json" with { type: "json" };
+import areas from "../src/regions.json" with { type: "json" };
+import { regionCatalog, REGION_VERSION } from "../src/lib/region-catalog";
 import * as searchPb from "../src/gen/tripmap/v1/search_pb";
 import * as snapshotPb from "../src/gen/tripmap/v1/snapshot_pb";
 import * as system from "../src/gen/tripmap/v1/system_pb";
@@ -61,7 +65,7 @@ const failure = (code: string, message: string, status: number) => ({
 export function fakeBackend(
   page: Page,
   initial: { visits: V[]; marks?: Record<string, string>; trips?: StoredTrip[] },
-  options: { footprintSchema?: number; shareEnabled?: boolean } = {},
+  options: { footprintSchema?: number; shareEnabled?: boolean; regionVersion?: string } = {},
 ) {
   const seededTrips: StoredTrip[] = [
     ...initial.visits.map((v) => ({ id: legacyId(v.code), code: v.code, date: v.date, note: v.note })),
@@ -95,6 +99,13 @@ export function fakeBackend(
     /** Lose the reply of the next accepted batch after committing it. */
     dropNextSyncReply: 0,
     footprintSchema: options.footprintSchema ?? 2,
+    regionVersion: options.regionVersion ?? REGION_VERSION,
+    regionHeaders: new Set<string>(),
+    regionCalls: [] as string[],
+    regionApplyIds: [] as string[],
+    regionBlockers: [] as string[],
+    dropNextRegionReply: 0,
+    regionReceipts: new Map<string, { request: string; revision: number; changed: number; snapshotId: string }>(),
   };
   state.seedRevision = state.revision;
   const ts = () => ({ seconds: BigInt(Math.floor(Date.now() / 1000)) });
@@ -219,6 +230,7 @@ export function fakeBackend(
             body: binary ? Buffer.from(toBinary(schema, message)) : toJsonString(schema, message),
           });
         };
+        state.regionHeaders.add(req.headers()["x-tripmap-regions"] ?? "");
         const gated = ["GetFootprints", "GetChanges", "SyncChanges", "CreateSnapshot", "ListSnapshots", "GetSnapshot", "RestoreSnapshot"];
         if (gated.includes(method)) {
           const header = req.headers()["x-tripmap-schema"] ?? "";
@@ -232,7 +244,7 @@ export function fakeBackend(
         }
         switch (method) {
           case "GetStatus":
-            return send(system.GetStatusResponseSchema, { footprintSchema: state.footprintSchema, shareEnabled: options.shareEnabled ?? false });
+            return send(system.GetStatusResponseSchema, { footprintSchema: state.footprintSchema, shareEnabled: options.shareEnabled ?? false, regionVersion: state.regionVersion });
           case "Login":
             return send(auth.LoginResponseSchema, {
               token: "ci-token",
@@ -245,6 +257,47 @@ export function fakeBackend(
             return send(auth.MeResponseSchema, { user });
           case "ListSessions":
             return send(auth.ListSessionsResponseSchema, {});
+          case "GetRegionIndex": {
+            state.regionCalls.push(method);
+            const body = read(regionsPb.GetRegionIndexRequestSchema) as regionsPb.GetRegionIndexRequest;
+            const notModified = body.knownVersion === state.regionVersion;
+            return send(regionsPb.GetRegionIndexResponseSchema, { version: state.regionVersion, notModified, indexJson: notModified ? "" : JSON.stringify(areas), supportedVersions: catalog.supportedVersions, mappings: notModified ? [] : catalog.mappings });
+          }
+          case "PreviewRegionUpgrade": {
+            state.regionCalls.push(method);
+            const changes = [...state.visits.values()].flatMap(v => {
+              const ref = regionCatalog.city(v.code, v.name, v.province);
+              return ref && (ref.code !== v.code || ref.name !== v.name || ref.province !== v.province) ? [{ fromCode: v.code, fromName: v.name, fromProvince: v.province, toCode: ref.code, toName: ref.name, toProvince: ref.province }] : [];
+            });
+            return send(regionsPb.PreviewRegionUpgradeResponseSchema, { version: state.regionVersion, revision: BigInt(state.revision), changes, blockers: state.regionBlockers });
+          }
+          case "ApplyRegionUpgrade": {
+            state.regionCalls.push(method);
+            const body = read(regionsPb.ApplyRegionUpgradeRequestSchema) as regionsPb.ApplyRegionUpgradeRequest;
+            state.regionApplyIds.push(body.mutationId);
+            const request = toJsonString(regionsPb.ApplyRegionUpgradeRequestSchema, body);
+            const receipt = state.regionReceipts.get(body.mutationId);
+            if (receipt) {
+              if (receipt.request !== request) return route.fulfill(failure("already_exists", "mutation_id was already used", 409));
+              return send(regionsPb.ApplyRegionUpgradeResponseSchema, { version: body.version, revision: BigInt(receipt.revision), changedCount: receipt.changed, snapshotId: receipt.snapshotId, replayed: true });
+            }
+            if (body.version !== state.regionVersion) return route.fulfill(failure("failed_precondition", "region index version mismatch", 412));
+            if (Number(body.baseRevision) !== state.revision) return route.fulfill(failure("aborted", "footprints changed since region preview", 409));
+            if (state.regionBlockers.length) return route.fulfill(failure("failed_precondition", "region upgrade blocked", 412));
+            const changes = [...state.visits.values()].flatMap(v => {
+              const ref = regionCatalog.city(v.code, v.name, v.province);
+              return ref && (ref.code !== v.code || ref.name !== v.name || ref.province !== v.province) ? [{ ...v, ...ref }] : [];
+            });
+            const snap = changes.length ? capture("before_migration").snap : null;
+            for (const v of changes) {
+              state.visits.set(v.code, v);
+              logChange(create(footprint.FootprintMutationSchema, { operation: { case: "upsertCity", value: v } }));
+            }
+            const saved = { request, revision: state.revision, changed: changes.length, snapshotId: snap?.id ?? "" };
+            state.regionReceipts.set(body.mutationId, saved);
+            if (state.dropNextRegionReply > 0) { state.dropNextRegionReply--; return route.fulfill(failure("unavailable", "lost reply", 503)); }
+            return send(regionsPb.ApplyRegionUpgradeResponseSchema, { version: body.version, revision: BigInt(saved.revision), changedCount: saved.changed, snapshotId: saved.snapshotId });
+          }
           case "GetFootprints":
             return send(footprint.GetFootprintsResponseSchema, {
               revision: BigInt(state.revision),
@@ -252,6 +305,7 @@ export function fakeBackend(
               trips: [...state.trips.values()].map(wireTrip),
               provinceMarks: [...state.marks].map(([province, color]) => ({ province, color, updatedAt: ts() })),
               schemaVersion: state.footprintSchema,
+              regionVersion: state.regionVersion,
             });
           case "GetChanges": {
             const since = Number(
@@ -265,6 +319,7 @@ export function fakeBackend(
               // Initial seed rows have no log entries: ask for a full snapshot.
               resyncRequired: since < state.seedRevision,
               schemaVersion: state.footprintSchema,
+              regionVersion: state.regionVersion,
             });
           }
           case "SyncChanges": {

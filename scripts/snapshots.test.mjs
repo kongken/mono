@@ -4,6 +4,8 @@ import {
   hasFootprints, planChanges, planRestore, reasonLabel, snapshotToSaved,
 } from "../src/lib/snapshots.ts";
 
+import { createRegionCatalog } from "../src/lib/region-catalog.ts";
+const syntheticCatalog = createRegionCatalog([{ code: "330000", cities: [{ code: "a", name: "a" }, { code: "b", name: "b" }] }]);
 const green = "#4b937d";
 const gold = "#e2af5c";
 const visit = (code, { date = "2026-10-01", note = "", ...extra } = {}) => ({
@@ -21,7 +23,7 @@ test("snapshot data becomes the app's saved shape without server-only fields", (
       { id: "t1", regionCode: "a", date: "2026-10-01", note: "", createdAt: {}, updatedAt: {} },
     ],
     provinceMarks: [{ province: "330000", color: gold, updatedAt: { seconds: 1n } }],
-  });
+  }, syntheticCatalog);
   assert.deepEqual(result, saved([{ ...visit("a"), trips: [
     { id: "t1", date: "2026-10-01", note: "" },
     { id: "t2", date: "", note: "later" },
@@ -35,7 +37,7 @@ test("a snapshot from before several trips per city becomes one legacy trip per 
       { code: "b", name: "b", province: "330000", color: green, date: "", note: "" },
     ],
     provinceMarks: [],
-  });
+  }, syntheticCatalog);
   assert.deepEqual(result, saved([visit("a", { note: "x" }), visit("b", { date: "" })]));
 });
 
@@ -45,7 +47,7 @@ test("a snapshot city without trips stays a city with no trips", () => {
     visits: [{ code: "a", name: "a", province: "330000", color: green }],
     trips: [],
     provinceMarks: [],
-  });
+  }, syntheticCatalog);
   assert.deepEqual(result.visits[0].trips, []);
 });
 

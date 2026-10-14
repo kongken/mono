@@ -201,16 +201,17 @@ func (s *FootprintService) validateCity(v *tripmapv1.Visit) error {
 
 // toCity is the schema 2 view of a city: no date or note.
 func toCity(v *ent.CityVisit) *tripmapv1.Visit {
-	return &tripmapv1.Visit{Code: v.RegionCode, Name: v.RegionName, Province: regions.CanonicalProvince(v.RegionCode, v.ProvinceCode), Color: v.Color, UpdatedAt: timestamppb.New(v.UpdatedAt)}
+	ref := regions.CanonicalCity(v.RegionCode, v.RegionName, v.ProvinceCode)
+	return &tripmapv1.Visit{Code: ref.Code, Name: ref.Name, Province: ref.Province, Color: v.Color, UpdatedAt: timestamppb.New(v.UpdatedAt)}
 }
 
 func toTrip(t *ent.Trip) *tripmapv1.Trip {
-	return &tripmapv1.Trip{Id: t.TripID, RegionCode: t.RegionCode, Date: t.TravelDate, Note: t.Note, CreatedAt: timestamppb.New(t.CreatedAt), UpdatedAt: timestamppb.New(t.UpdatedAt)}
+	return &tripmapv1.Trip{Id: t.TripID, RegionCode: regions.CanonicalCode(t.RegionCode), Date: t.TravelDate, Note: t.Note, CreatedAt: timestamppb.New(t.CreatedAt), UpdatedAt: timestamppb.New(t.UpdatedAt)}
 }
 
 // legacyTrip is the trip a schema 1 city is read as, without modifying it.
 func legacyTrip(v *ent.CityVisit) *tripmapv1.Trip {
-	return &tripmapv1.Trip{Id: legacyTripID(v.RegionCode), RegionCode: v.RegionCode, Date: v.TravelDate, Note: v.Note, CreatedAt: timestamppb.New(v.CreatedAt), UpdatedAt: timestamppb.New(v.UpdatedAt)}
+	return &tripmapv1.Trip{Id: legacyTripID(v.RegionCode), RegionCode: regions.CanonicalCode(v.RegionCode), Date: v.TravelDate, Note: v.Note, CreatedAt: timestamppb.New(v.CreatedAt), UpdatedAt: timestamppb.New(v.UpdatedAt)}
 }
 
 // upsertCityRow creates the city or updates its city fields. Under schema 2 the

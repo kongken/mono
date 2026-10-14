@@ -1,0 +1,7 @@
+{
+  "supportedVersions": ["legacy"],
+  "mappings": [
+    { "fromCode": "tw-09020", "fromName": "金门县", "fromProvince": "710000", "toCode": "tw-09020" },
+    { "fromCode": "tw-09007", "fromName": "连江县", "fromProvince": "710000", "toCode": "tw-09007" }
+  ]
+}

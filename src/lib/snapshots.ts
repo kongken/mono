@@ -1,6 +1,7 @@
 import { diffSaved, sameCity, sameTrip } from "./sync.ts";
 import type { Saved, Trip } from "./travel.ts";
 import { canonicalTrips, legacyTripId } from "./trips.ts";
+import { regionCatalog, RegionCompatibilityError } from "./region-catalog.ts";
 
 export type SnapshotReason =
   | "manual"
@@ -34,26 +35,31 @@ type DataLike = {
   trips?: { id: string; regionCode: string; date: string; note: string }[];
   /** 2 when the data carries trips; otherwise each city carries one date and note. */
   schemaVersion?: number;
+  regionVersion?: string;
   provinceMarks: { province: string; color: string }[];
 };
 
 /** The footprints a snapshot holds, in the app's own shape. */
-export function snapshotToSaved(data: DataLike): Saved {
+export function snapshotToSaved(data: DataLike, catalog = regionCatalog): Saved {
+  catalog.assertVersion(data.regionVersion);
+  const seen = new Set<string>();
   const tripped = (data.schemaVersion ?? 0) >= 2;
   const byCity = new Map<string, Trip[]>();
   for (const t of data.trips ?? [])
     byCity.set(t.regionCode, [...(byCity.get(t.regionCode) ?? []), { id: t.id, date: t.date, note: t.note }]);
   return {
     version: 2,
-    visits: data.visits.map((v) => ({
-      code: v.code,
-      name: v.name,
-      province: v.province,
+    visits: data.visits.map((v) => {
+      const city = catalog.city(v.code, v.name, v.province);
+      if (!city || seen.has(city.code)) throw new RegionCompatibilityError("区域迁移存在未映射记录或 ID 碰撞，原数据已保留");
+      seen.add(city.code);
+      return {
+      ...city,
       color: v.color,
       trips: tripped
         ? canonicalTrips(byCity.get(v.code) ?? [])
         : [{ id: legacyTripId(v.code), date: v.date ?? "", note: v.note ?? "" }],
-    })),
+    }; }),
     provinces: Object.fromEntries(
       data.provinceMarks.map((m) => [m.province, m.color]),
     ),

@@ -3,6 +3,7 @@ import { create, toBinary, toJsonString, fromBinary } from "@bufbuild/protobuf";
 import * as auth from "../src/gen/tripmap/v1/auth_pb";
 import * as footprint from "../src/gen/tripmap/v1/footprint_pb";
 import * as system from "../src/gen/tripmap/v1/system_pb";
+import { REGION_VERSION } from "../src/lib/region-catalog";
 
 test("confirmed account deletion retries cleanup, clears account cache and preserves local footprints", async ({
   page,
@@ -49,15 +50,15 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
         break;
       case "GetStatus":
         schema = system.GetStatusResponseSchema;
-        data = { footprintSchema: 2 };
+        data = { footprintSchema: 2, regionVersion: REGION_VERSION };
         break;
       case "GetFootprints":
         schema = footprint.GetFootprintsResponseSchema;
-        data = { schemaVersion: 2 };
+        data = { schemaVersion: 2, regionVersion: REGION_VERSION };
         break;
       case "GetChanges":
         schema = footprint.GetChangesResponseSchema;
-        data = { schemaVersion: 2 };
+        data = { schemaVersion: 2, regionVersion: REGION_VERSION };
         break;
       case "DeleteAccount": {
         const raw = route.request().postDataBuffer()!;

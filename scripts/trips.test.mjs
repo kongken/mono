@@ -240,11 +240,11 @@ test("a refused write is an error and leaves the stored text alone", () => {
 // ---- account cache ----
 
 const wireV1 = (code, extra = {}) => ({ ...hangzhou, code, date: "", note: "", ...extra });
-const validateAny = (data) => validateSaved(data, [{ code: "330000", cities: Array.from({ length: 300 }, (_, i) => ({ code: `c${i}`, name: `c${i}` })).concat([{ code: "330100", name: "杭州市" }]) }]);
+const validateAny = (data) => validateSaved(data, regions);
 
 test("a cache with more than 100 pending operations loads (regression for the old limit)", () => {
   const store = memory();
-  const ops = Array.from({ length: 150 }, (_, i) => ({ type: "upsertVisit", visit: { code: `c${i}`, name: `c${i}`, province: "330000", color: green, date: "", note: "" } }));
+  const ops = regions.flatMap(p => p.cities.map(c => ({ type: "upsertVisit", visit: { ...c, province: p.code, color: green, date: "", note: "" } }))).slice(0, 150);
   const confirmed = v1([]);
   const desired = v1(ops.map((op) => ({ ...op.visit })));
   store.setItem(legacyCacheKey("u"), JSON.stringify({ saved: desired, confirmed, revision: 3, pendingBatch: { id: "b1", revision: 3, ops } }));
@@ -310,7 +310,7 @@ test("v2 work survives an older page overwriting its own cache key while the v2 
   assert.ok(saveCloudCache(store, "u", { saved: work, confirmed, revision: 4, pendingBatch: batch }, first.legacyDigest));
   const canonical = store.getItem(cacheKey("u"));
   // The older page, still open, saves its own (stale) state to the key it knows.
-  const older = JSON.stringify({ saved: v1([wireV1("330100", { note: "旧页面" }), wireV1("c1", { name: "c1" })]), confirmed: v1([wireV1("330100")]), revision: 4 });
+  const older = JSON.stringify({ saved: v1([wireV1("330100", { note: "旧页面" }), wireV1("330200", { name: "宁波市" })]), confirmed: v1([wireV1("330100")]), revision: 4 });
   store.setItem(legacyCacheKey("u"), older);
   assert.equal(store.getItem(cacheKey("u")), canonical, "the canonical cache is out of its reach");
   const reopened = loadCloudCache(store, "u", validateAny);

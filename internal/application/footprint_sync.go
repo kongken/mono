@@ -76,7 +76,14 @@ func (s *FootprintService) normalizeMutation(input *tripmapv1.FootprintMutation)
 		if op.UpsertVisit == nil {
 			return nil, invalid("visit is required")
 		}
-		op.UpsertVisit.Province = regions.CanonicalProvince(op.UpsertVisit.Code, op.UpsertVisit.Province)
+		ref, err := s.regions.ResolveCity(op.UpsertVisit.Code, op.UpsertVisit.Name, op.UpsertVisit.Province)
+		if err != nil {
+			return nil, invalid("unmapped region record")
+		}
+		if ref.Code != op.UpsertVisit.Code {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("region upgrade blocked: legacy ID-changing batch must be exported before upgrade"))
+		}
+		op.UpsertVisit.Code, op.UpsertVisit.Name, op.UpsertVisit.Province = ref.Code, ref.Name, ref.Province
 		op.UpsertVisit.UpdatedAt = nil
 		if err := s.validateVisit(op.UpsertVisit); err != nil {
 			return nil, err
@@ -85,7 +92,11 @@ func (s *FootprintService) normalizeMutation(input *tripmapv1.FootprintMutation)
 		if op.UpsertCity == nil {
 			return nil, invalid("city is required")
 		}
-		op.UpsertCity.Province = regions.CanonicalProvince(op.UpsertCity.Code, op.UpsertCity.Province)
+		ref, err := s.regions.ResolveCity(op.UpsertCity.Code, op.UpsertCity.Name, op.UpsertCity.Province)
+		if err != nil {
+			return nil, invalid("unmapped region record")
+		}
+		op.UpsertCity.Code, op.UpsertCity.Name, op.UpsertCity.Province = ref.Code, ref.Name, ref.Province
 		op.UpsertCity.UpdatedAt = nil
 		if err := s.validateCity(op.UpsertCity); err != nil {
 			return nil, err
@@ -94,6 +105,11 @@ func (s *FootprintService) normalizeMutation(input *tripmapv1.FootprintMutation)
 		if op.UpsertTrip == nil {
 			return nil, invalid("trip is required")
 		}
+		code, ok := s.regions.ResolveCode(op.UpsertTrip.RegionCode)
+		if !ok {
+			return nil, invalid("unknown region code")
+		}
+		op.UpsertTrip.RegionCode = code
 		op.UpsertTrip.CreatedAt, op.UpsertTrip.UpdatedAt = nil, nil
 		if err := s.validateTrip(op.UpsertTrip); err != nil {
 			return nil, err
@@ -102,13 +118,17 @@ func (s *FootprintService) normalizeMutation(input *tripmapv1.FootprintMutation)
 		if op.DeleteTrip == nil || !tripIDPattern.MatchString(op.DeleteTrip.GetId()) {
 			return nil, invalid("trip id must match [A-Za-z0-9_-]{1,64}")
 		}
-		if _, _, ok := s.regions.City(op.DeleteTrip.GetRegionCode()); !ok {
+		code, ok := s.regions.ResolveCode(op.DeleteTrip.GetRegionCode())
+		if !ok {
 			return nil, invalid("unknown region code")
 		}
+		op.DeleteTrip.RegionCode = code
 	case *tripmapv1.FootprintMutation_DeleteVisit:
-		if _, _, ok := s.regions.City(op.DeleteVisit); !ok {
+		code, ok := s.regions.ResolveCode(op.DeleteVisit)
+		if !ok {
 			return nil, invalid("unknown region code")
 		}
+		op.DeleteVisit = code
 	case *tripmapv1.FootprintMutation_UpsertMark:
 		if err := s.validateMark(op.UpsertMark); err != nil {
 			return nil, err
@@ -223,6 +243,39 @@ func (s *FootprintService) applyMutation(ctx context.Context, tx *ent.Tx, uid st
 
 var mutationIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
+// preRegionSyncHash freezes the F9 receipt contract. Only server-owned
+// timestamps and the already-supported island province aliases were removed.
+func preRegionSyncHash(input *tripmapv1.SyncChangesRequest) (string, error) {
+	m := proto.Clone(input).(*tripmapv1.SyncChangesRequest)
+	for _, mutation := range m.Mutations {
+		if mutation == nil {
+			continue
+		}
+		switch op := mutation.Operation.(type) {
+		case *tripmapv1.FootprintMutation_UpsertVisit:
+			if op.UpsertVisit != nil {
+				op.UpsertVisit.Province = regions.CanonicalProvince(op.UpsertVisit.Code, op.UpsertVisit.Province)
+				op.UpsertVisit.UpdatedAt = nil
+			}
+		case *tripmapv1.FootprintMutation_UpsertCity:
+			if op.UpsertCity != nil {
+				op.UpsertCity.Province = regions.CanonicalProvince(op.UpsertCity.Code, op.UpsertCity.Province)
+				op.UpsertCity.UpdatedAt = nil
+			}
+		case *tripmapv1.FootprintMutation_UpsertTrip:
+			if op.UpsertTrip != nil {
+				op.UpsertTrip.CreatedAt, op.UpsertTrip.UpdatedAt = nil, nil
+			}
+		case *tripmapv1.FootprintMutation_UpsertMark:
+			if op.UpsertMark != nil {
+				op.UpsertMark.UpdatedAt = nil
+			}
+		}
+	}
+	raw, err := (proto.MarshalOptions{Deterministic: true}).Marshal(m)
+	return fmt.Sprintf("%x", sha256.Sum256(raw)), err
+}
+
 func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request[tripmapv1.SyncChangesRequest]) (*connect.Response[tripmapv1.SyncChangesResponse], error) {
 	p, err := principal(ctx)
 	if err != nil {
@@ -235,6 +288,20 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 	if !mutationIDPattern.MatchString(req.Msg.MutationId) || req.Msg.BaseRevision < 0 || len(req.Msg.Mutations) < 1 || len(req.Msg.Mutations) > maxSyncMutations {
 		return nil, invalid("mutation_id, non-negative revision and 1-2000 mutations are required")
 	}
+	// A retired ID may no longer pass current validation. Answer an exact
+	// pre-F10 receipt first, using its original normalization, without rewriting
+	// the pending batch or allocating a replacement mutation ID.
+	legacyHash, err := preRegionSyncHash(req.Msg)
+	if err != nil {
+		return nil, internalError(err)
+	}
+	if receipt, err := st.DB.SyncReceipt.Query().Where(syncreceipt.UserID(p.UserID), syncreceipt.MutationIDEQ(req.Msg.MutationId)).Only(ctx); err == nil && receipt.RequestHash == legacyHash {
+		return connect.NewResponse(&tripmapv1.SyncChangesResponse{Revision: receipt.Revision, ChangedCount: int32(receipt.ChangedCount), Replayed: true}), nil
+	} else if err != nil && !ent.IsNotFound(err) {
+		return nil, internalError(err)
+	} else if err == nil {
+		return nil, connect.NewError(connect.CodeAlreadyExists, errors.New("mutation_id was already used for another request"))
+	}
 	normalized := proto.Clone(req.Msg).(*tripmapv1.SyncChangesRequest)
 	for i, m := range normalized.Mutations {
 		normalized.Mutations[i], err = s.normalizeMutation(m)
@@ -242,21 +309,11 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 			return nil, err
 		}
 	}
-	raw, err := (proto.MarshalOptions{Deterministic: true}).Marshal(normalized)
-	if err != nil {
-		return nil, internalError(err)
-	}
-	hash := fmt.Sprintf("%x", sha256.Sum256(raw))
-	// A retry of a finished batch is answered from its receipt without spending
-	// write budget, so a lost response never turns into a rate-limit failure.
-	// The transaction below repeats this check under the user row lock.
-	if receipt, err := st.DB.SyncReceipt.Query().Where(syncreceipt.UserID(p.UserID), syncreceipt.MutationIDEQ(normalized.MutationId)).Only(ctx); err == nil {
-		if receipt.RequestHash != hash {
-			return nil, connect.NewError(connect.CodeAlreadyExists, errors.New("mutation_id was already used for another request"))
-		}
-		return connect.NewResponse(&tripmapv1.SyncChangesResponse{Revision: receipt.Revision, ChangedCount: int32(receipt.ChangedCount), Replayed: true}), nil
-	} else if !ent.IsNotFound(err) {
-		return nil, internalError(err)
+	// Freeze the receipt hash to the original wire contract. Hashing the current
+	// regional projection would change it again after the next catalog upgrade.
+	hash := legacyHash
+	if err := checkRegionVersion(req.Header().Get(regionVersionHeader)); err != nil {
+		return nil, err
 	}
 	// A batch is charged per operation in one step, from a budget of its own so a
 	// full migration batch never competes with single writes.
@@ -300,6 +357,9 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 	}
 	if !ent.IsNotFound(err) {
 		return nil, internalError(err)
+	}
+	if err := requireCurrentRegionIDs(ctx, tx.CityVisit.Query().Where(cityvisit.UserID(u.ID)), s.regions); err != nil {
+		return nil, err
 	}
 	schema, err := gateWrite(ctx, tx, u)
 	if err != nil {
@@ -377,7 +437,7 @@ func (s *FootprintService) GetChanges(ctx context.Context, req *connect.Request[
 	if err = gateRead(ctx, u.SchemaVersion); err != nil {
 		return nil, err
 	}
-	out := &tripmapv1.GetChangesResponse{CurrentRevision: u.Revision, NextRevision: since, SchemaVersion: schemaTrips}
+	out := &tripmapv1.GetChangesResponse{CurrentRevision: u.Revision, NextRevision: since, SchemaVersion: schemaTrips, RegionVersion: s.regions.Version()}
 	first, err := tx.FootprintChange.Query().Where(footprintchange.UserID(p.UserID)).Order(ent.Asc(footprintchange.FieldRevision)).First(ctx)
 	if err != nil && !ent.IsNotFound(err) {
 		return nil, internalError(err)

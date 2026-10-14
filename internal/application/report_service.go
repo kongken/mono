@@ -53,8 +53,8 @@ func (s *ReportService) currentTime() time.Time {
 	return s.now()
 }
 
-func reportCacheKey(st *Store, userID string, revision int64, tzName, localDate string) string {
-	return st.prefix() + "report:v1:" + userID + "|" + strconv.FormatInt(revision, 10) + "|" + tzName + "|" + localDate
+func reportCacheKey(st *Store, userID string, revision int64, tzName, localDate, regionVersion string) string {
+	return st.prefix() + "report:v2:" + userID + "|" + strconv.FormatInt(revision, 10) + "|" + tzName + "|" + localDate + "|" + regionVersion
 }
 
 func applyRequestedYear(res *tripmapv1.GetReportResponse, requestedYear int32) {
@@ -101,7 +101,7 @@ func (s *ReportService) GetReport(ctx context.Context, req *connect.Request[trip
 		return nil, errUnauthenticated
 	}
 
-	key := reportCacheKey(st, u.ID, u.Revision, tzName, localDate)
+	key := reportCacheKey(st, u.ID, u.Revision, tzName, localDate, s.regions.Version())
 	if raw, rerr := st.Redis.Get(ctx, key).Bytes(); rerr == nil && len(raw) > 0 {
 		var cached tripmapv1.GetReportResponse
 		if uerr := proto.Unmarshal(raw, &cached); uerr == nil {
@@ -113,7 +113,7 @@ func (s *ReportService) GetReport(ctx context.Context, req *connect.Request[trip
 
 	src, err := loadShareSource(ctx, tx, u, nil)
 	if err != nil {
-		return nil, internalError(err)
+		return nil, shareSourceError(err)
 	}
 	res := report.Build(s.regions, src, report.Options{
 		Timezone: tzName,
@@ -149,7 +149,7 @@ func RunReportMaintenance(ctx context.Context, st *Store, idx *regions.Index, no
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		key := reportCacheKey(st, candidate.ID, candidate.Revision, tzName, localDate)
+		key := reportCacheKey(st, candidate.ID, candidate.Revision, tzName, localDate, idx.Version())
 		if exists, err := st.Redis.Exists(ctx, key).Result(); err == nil && exists > 0 {
 			continue
 		}
@@ -172,7 +172,7 @@ func RunReportMaintenance(ctx context.Context, st *Store, idx *regions.Index, no
 			Now:      now,
 			Revision: u.Revision,
 		})
-		key = reportCacheKey(st, u.ID, u.Revision, tzName, localDate)
+		key = reportCacheKey(st, u.ID, u.Revision, tzName, localDate, idx.Version())
 		if raw, merr := proto.Marshal(res); merr == nil {
 			_ = st.Redis.Set(ctx, key, raw, reportCacheTTL).Err()
 		}

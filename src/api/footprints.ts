@@ -12,6 +12,8 @@ import { RevisionChanged, type FootprintApi, type Op } from "@/lib/sync";
 import { BackendNotUpgraded } from "@/lib/errors";
 import type { Trip } from "@/lib/travel";
 import { transport } from "./transport";
+import { REGION_VERSION, RegionCompatibilityError } from "@/lib/region-catalog";
+import { projectRegionOps } from "@/lib/region-operations";
 import { getBackendStatus } from "./system";
 
 const raw = transport ? createClient(FootprintService, transport) : null;
@@ -33,6 +35,7 @@ export function ensureBackendUpgraded(): Promise<void> {
     capability = status
       .then((s) => {
         if (s.footprintSchema < 2) throw new BackendNotUpgraded();
+        assertRegionVersion(s.regionVersion);
       })
       .catch((error) => {
         if (!(error instanceof BackendNotUpgraded)) capability = null;
@@ -42,10 +45,15 @@ export function ensureBackendUpgraded(): Promise<void> {
   return capability;
 }
 
+function assertRegionVersion(version: string) {
+  if (version !== REGION_VERSION) throw new RegionCompatibilityError("前后端区域索引版本不一致；云端同步已暂停，缓存及旧足迹已保留。请刷新页面或升级服务器。");
+}
+
 function toSnapshot(r: GetFootprintsResponse): CloudSnapshot {
   // A backend that predates trips sends no schema version, and its visits carry
   // the old single date and note: reading them as cities would drop the trips.
   if (r.schemaVersion < 2) throw new BackendNotUpgraded();
+  assertRegionVersion(r.regionVersion);
   const trips = new Map<string, Trip[]>();
   for (const t of r.trips)
     trips.set(t.regionCode, [...(trips.get(t.regionCode) ?? []), { id: t.id, date: t.date, note: t.note }]);
@@ -182,6 +190,7 @@ async function send(ops: Op[], revision: number, id: string): Promise<number> {
 // predate trips and would write the old one-date-per-city form.
 const fullApi: FootprintApi = {
   ready: ensureBackendUpgraded,
+  project: projectRegionOps,
   async get() {
     return toSnapshot(await client().getFootprints({}));
   },
@@ -193,6 +202,7 @@ export function createFootprintApi(seed?: CloudSnapshot): FootprintApi {
   const reader = createIncrementalReader(
     {
       full: fullApi.get,
+      project: projectRegionOps,
       delta: async (revision) => {
         try {
           const page = await client().getChanges({
@@ -209,6 +219,7 @@ export function createFootprintApi(seed?: CloudSnapshot): FootprintApi {
               hasMore: false,
               resyncRequired: true,
             };
+          assertRegionVersion(page.regionVersion);
           return {
             changes: page.changes.map((c) => ({
               revision: Number(c.revision),
@@ -239,6 +250,7 @@ export function createFootprintApi(seed?: CloudSnapshot): FootprintApi {
   );
   return {
     ready: ensureBackendUpgraded,
+    project: projectRegionOps,
     get: reader.get,
     apply: fullApi.apply,
     applyBatch: send,

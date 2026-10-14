@@ -1,0 +1,5 @@
+{
+  "description": "Test-only retired ID and name; production contains only the two real island ownership changes.",
+  "mapping": { "fromCode": "old-hangzhou", "fromName": "旧杭州", "fromProvince": "330000", "toCode": "330100" },
+  "current": { "code": "330100", "name": "杭州市", "province": "330000" }
+}

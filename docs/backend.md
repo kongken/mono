@@ -176,7 +176,7 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
 
 | 方法 | 行为 |
 | --- | --- |
-| `GetFootprints` | 在同一事务快照中返回全部城市足迹、旅行、省份标记、`revision` 与 `schema_version`（城市按区域 ID、省份按省份 ID、旅行按 ID 排序）。城市的 `date` / `note` 为空；版本 1 账号读取时为每个城市合成一次 `legacy-<区域 ID>` 旅行，不修改数据 |
+| `GetFootprints` | 在同一事务快照中返回全部城市足迹、旅行、省份标记、`revision`、`schema_version` 与 `region_version`（城市按区域 ID、省份按省份 ID、旅行按 ID 排序）。城市的 `date` / `note` 为空；版本 1 账号读取时为每个城市合成一次 `legacy-<区域 ID>` 旅行，不修改数据 |
 | `UpsertVisit` / `DeleteVisit` | 旧接口：保存或取消一个城市足迹；`UpsertVisit` 等于“城市加 `legacy-<区域 ID>` 旅行”，`DeleteVisit` 连同旅行一起删除 |
 | `UpsertProvinceMark` / `DeleteProvinceMark` | 保存或取消独立省份标记；与城市足迹互不影响 |
 
@@ -184,7 +184,7 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
 - 每次写入在持有用户行锁的事务中执行，同一用户的写入串行；只有实际改变数据才使 `revision` +1。内容相同的重复保存、删除不存在的记录都成功且不增加 revision，因此重试幂等，响应中的 `changed` / `deleted` 表示是否发生变化。
 - `base_revision` 保持旧客户端兼容：未设置 `require_revision` 时，0 表示不检查，非 0 表示检查。新增 `require_revision: true` 会检查任何 base_revision（包含 0）。检查版本与当前 revision 不同、且写入会改变数据时返回 `aborted`，附带 `RevisionConflict.current_revision`；已生效请求的同内容重放仍幂等成功。新前端读取完整快照后逐记录精确版本写入，版本变化时重新三方合并，同记录冲突需要用户选择。部署须先更新支持 `require_revision` 的后端，再部署新前端（旧后端忽略该字段，无法保护初始 revision=0）。增量变更日志、删除 tombstone 和批量接口见下文 F1 新接口。
 - 区域索引的后端副本是 `internal/regions/regions.json`，必须与 `src/regions.json` 一致；`npm run download:maps` 会同时写入两份，Go 测试会比对。金门 `tw-09020`、连江县（马祖）`tw-09007` 归福建 `350000`，ID 和名称保持不变。
-- 这两项旧云端记录若仍存为台湾 `710000`，快照和写入响应会返回规范化的福建归属，不修改原行、不提升 revision；旧客户端提交台湾归属时也先规范化再严格校验。与既有记录相同的规范化重放仍幂等，实际修改日期、颜色或备注后才按原有用户锁与 revision 机制写回福建归属。其他错误归属仍拒绝；没有数据库 schema 变化或批量数据迁移。独立台湾省份标记保留。
+- 这两项旧云端记录若仍存为台湾 `710000`，快照和写入响应会返回规范化的福建归属，不修改原行、不提升 revision；旧客户端提交台湾归属时也先规范化再严格校验。与既有记录相同的规范化重放仍幂等，实际修改日期、颜色或备注后才按原有用户锁与 revision 机制写回福建归属。其他错误归属仍拒绝；没有数据库 schema 变化；F10 另提供用户确认的批量区域迁移。独立台湾省份标记保留。
 - 此归属修正需先部署后端，再部署前端，以免新前端向尚未更新区域索引的旧后端提交福建记录被拒绝。
 
 ### 快照（`tripmap.v1.SnapshotService`，F3）
@@ -200,7 +200,7 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
 
 - 恢复的变更与普通编辑一样进入 `footprint_changes`，其他设备通过 `GetChanges` 增量同步；全部成功才提交，失败不留下部分结果，也不留下 `before_restore` 快照。
 - `mutation_id` 与请求内容（快照 ID 和 `base_revision`）的哈希存入 `sync_receipts`（同一张表，`snapshot_id` 记录撤销用快照）：同 ID 同内容的重试不再次执行，返回原 revision、变更数和撤销快照（`replayed: true`；该快照已被保留规则清理时为空）；同 ID 不同内容返回 `already_exists`。回执检查先于 revision 检查，因此丢失响应后的重试不会误报冲突。
-- 快照记录在恢复时用当前区域索引重新校验，名称、归属或区域 ID 已不被接受的返回 `failed_precondition`，云端不变。快照内的省份沿用既有规范化（金门、连江归福建）。
+- 快照载荷在预览/恢复时按 F10 历史元组映射临时投影，旧载荷不改写；未知 `region_version`、未映射记录或目标 ID 碰撞返回 `failed_precondition`，云端不变。schema 1 的旅行 ID 按原区域 ID 生成，再映射城市归属。
 - `reason` 取值：`manual`、`scheduled`、`before_migration`、`before_restore`。Protobuf 中用字符串而非 enum，是因为前端 `erasableSyntaxOnly` 禁止生成的 TypeScript enum。
 
 **保留与定时（默认值，常量在 `internal/application/snapshot_service.go`）。** 保留 30 天、始终保留最新 10 个、每账号最多 50 个，每次保存快照时对该账号执行，恢复期间不会清理正在恢复的快照；快照间隔 24 小时。`app.go` 的每小时维护任务在 Redis 锁 `tripmap:snapshot-maintenance`（50 分钟）保护下调用 `RunSnapshotMaintenance`：为“有足迹、自最新快照后有改动、且 24 小时内没有任何快照”的账号保存 `scheduled` 快照（在用户行锁内再次判断，多实例或重复运行不会产生重复），并对不再变化账号的过期快照执行保留规则。账号注销通过外键级联删除全部快照。
@@ -271,7 +271,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 | --- | --- |
 | `GetReport` | 接收可选 IANA `timezone`（默认 `Asia/Shanghai`，无效时回退 `Asia/Shanghai`）与可选 `year`。在 `RepeatableRead` 只读事务快照中读取当前用户的 `revision`、城市足迹、旅行记录与省份独立标记，计算统计总览（`overview`）、全部年度报告（`annual_reports`）与 8 项旅行成就（`achievements`），每项指标与成就均附带可追溯的记录引用（`ReportRecordRef`） |
 
-- **Redis 缓存与实时版本隔离：** 汇总结果以 Protobuf 编码缓存在 Redis 键 `<prefix>report:v1:<user_id>|<revision>|<timezone>|<local_date>` 中（TTL 24 小时）。由于缓存键绑定了用户当前的足迹 `revision` 与该时区下的本地日历日期 `local_date`，任何足迹或旅行的增删改推进 `revision` 后，下一次请求立即计算新版本并写入新键，不会返回过期统计。
+- **Redis 缓存与实时版本隔离：** 汇总结果以 Protobuf 编码缓存在 Redis 键 `<prefix>report:v2:<user_id>|<revision>|<timezone>|<local_date>|<region_version>` 中（TTL 24 小时）。由于缓存键绑定了用户当前的足迹 `revision`、区域版本与该时区下的本地日历日期 `local_date`，任何足迹或旅行的增删改推进 `revision` 后，下一次请求立即计算新版本并写入新键，不会返回过期统计。
 - **定时汇总维护：** `internal/app/app.go` 的每小时后台维护循环在 Redis 锁 `tripmap:report-maintenance`（50 分钟）保护下调用 `RunReportMaintenance`，为近期活跃且当前 `revision` 尚未缓存的账号预热默认时区（`Asia/Shanghai`）的汇总缓存。F8 无需新增 PostgreSQL 表。
 
 ## F9 私有备注搜索（`tripmap.v1.SearchService`）
@@ -285,6 +285,23 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 - 当前利用已有用户索引缩小范围后执行字面包含扫描，无专用全文/GIN 索引；超大账号或深分页可能超时，需要后续测量后再决定专用索引/分词方案。前端失败时明确显示本机缓存结果，不把错误当成空结果。
 
 区域拼音搜索由 `src/search-index.json` 在前端离线完成，不调用后端。部署新增 RPC 时先升级后端再部署前端；旧后端没有接口时备注搜索会提示并回退本机缓存。
+
+## F10 区域数据服务（`tripmap.v1.RegionService`）
+
+所有方法须认证，只迁移当前会话用户的数据，区域索引本身不含私有足迹。使用与足迹校验同一 `internal/regions.Index`，版本和映射由前后端共用生成流程维护，详见 [数据与地图说明](data-and-maps.md#区域索引版本与维护f10)。不新增表、列或数据库迁移。
+
+| 方法 | 行为 |
+| --- | --- |
+| `GetRegionIndex` | `known_version` 与当前一致时返回 `not_modified: true`，不重复传 `index_json`/`mappings`；否则返回完整公开 ID/名称索引、精确历史元组映射及支持版本；不包含 GeoJSON |
+| `PreviewRegionUpgrade` | 3 秒超时、RepeatableRead 只读事务；返回当前 `version`、用户 `revision`、城市或 orphan-media 变化与 `blockers`；每用户 60 次/分钟；`Cache-Control: no-store` |
+| `ApplyRegionUpgrade` | 必须提交当前 `version`、预览 `base_revision` 与唯一 `mutation_id`；每用户每分钟 6 个新尝试，既有回执不耗额度。用户行锁内重新计划、保存 `before_migration` 快照（同 revision 已有则复用），原位迁移并写日志和回执，同一事务提交 |
+
+- 城市 ID 改号保留城市数据库 ID、颜色、用户内容及稳定旅行 ID；必要时先原位升级 schema 1，再原子替换不可普通编辑的旅行 region 字段，保留行 ID 和创建/更新时间。迁移媒体关联而不动 S3 key，包括已取消打卡的 orphan-media。媒体-only 迁移不增加足迹 revision。独立省份标记与已发布分享不更新。
+- 同 ID 同请求返回原 revision/数量/快照 ID，跨 RPC 复用或不同内容返回 `already_exists`；回执先于当前版本/revision 检查。版本不一致/未映射/碰撞/共同旅行待协调返回 `failed_precondition`；预览 revision 变化返回 `aborted`；所有拒绝均不留下部分修改或迁移快照。
+- `SystemService.GetStatus.region_version` 与 `GetFootprints` / `GetChanges.region_version` 广播当前摘要。前端统一发送 `X-Tripmap-Regions`，CORS 允许该头；新前端在同步前核对能力与版本。认证后区域相关 RPC 拒绝非空的不匹配头，Auth 和 Region 诊断/迁移不受头限制。缺失头继续按 legacy 客户端兼容，F5 的 schema 保护仍有效；`SyncChanges` 仅对已提交的精确回执绕过区域版本检查，新写入仍拒绝。
+- 普通足迹写入、快照恢复和新媒体签发在退休/未映射城市 ID 尚未迁移时停止，避免在原旧行旁创建第二条当前城市。迁移表不猜测名称、不重用现存 ID，所有旧 ID 直接指向当前目标；拆分、多对一用户记录合并、省份 ID 改号与共同旅行跨账号 ID 改号未自动实现。真实 ID 改号与待发送旧批次并存时，应先导出缓存交由维护者处理；不会改写队列或悄悄丢弃未同步目标。
+
+**部署。** 先部署带相同索引/映射摘要的后端，再部署前端。区域版本更新前归档历史版本并保留映射，重新生成 search/map/share 受影响资源及 Go/TS 契约，验证通过后发布；地图仍随页面静态分发，运行时不取第三方边界数据。不做启动时全库自动迁移或自动回滚行政数据。
 
 ## 数据库模型
 
@@ -361,7 +378,7 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：行政区划服务等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）、F5（同城多次旅行）、F6（公开分享页与预览图）与 F7（共同旅行与好友）已实现；F8（统计、年度报告与成就）和 F9（区域搜索增强、私有备注搜索）已实现；F10–F12 仍待完整实现。
+从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：路线与提醒等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）、F5（同城多次旅行）、F6（公开分享页与预览图）与 F7（共同旅行与好友）已实现；F8（统计、年度报告与成就）和 F9（区域搜索增强、私有备注搜索）已实现；F10 区域版本与兼容迁移已实现，限制见对应章节；F11–F12 仍待实现。
 
 ## F1 新接口与部署
 

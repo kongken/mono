@@ -2,7 +2,9 @@ import regions from "../regions.json" with { type: "json" };
 import type { Saved } from "./travel.ts";
 import { diffSaved, applyOp, MAX_BATCH_OPS, type Op, type PendingBatch } from "./sync.ts";
 import { TRIP_ID_PATTERN, TRIP_NOTE_LIMIT, isValidTripDate } from "./trips.ts";
-import { digestText } from "./persistence.ts";
+import { digestText, preserveRegionOriginal, regionOriginalPrefix } from "./persistence.ts";
+import { regionCatalog, REGION_VERSION, stampRegions } from "./region-catalog.ts";
+import { projectRegionOps } from "./region-operations.ts";
 
 export type StoredUser = {
   id: string;
@@ -112,8 +114,7 @@ export function saveSession(storage: Writer, session: StoredSession): boolean {
 const MUTATION_TYPES = ["upsertVisit", "deleteVisit", "upsertTrip", "deleteTrip", "upsertMark", "deleteMark", "legacyUpsertVisit"];
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
-const knownCity = (code: unknown) =>
-  typeof code === "string" && regions.some((p) => p.cities.some((c) => c.code === code));
+const knownCity = (code: unknown) => typeof code === "string" && !!regionCatalog.code(code);
 
 /**
  * A batch saved by a version before several trips per city holds schema 1
@@ -167,12 +168,16 @@ type ParsedCache = Omit<CachedCloud, "schema"> & { schema: typeof CACHE_SCHEMA }
 function parseCache(raw: string, validate: (data: unknown) => Saved): ParsedCache {
   const data = JSON.parse(raw) as {
     schema?: unknown;
+    regionVersion?: unknown;
     saved?: unknown;
     revision?: unknown;
     confirmed?: unknown;
     pendingBatch?: PendingBatch;
     atomic?: unknown;
   };
+  regionCatalog.assertVersion(data.regionVersion);
+  regionCatalog.assertVersion((data.saved as { regionVersion?: unknown } | null)?.regionVersion);
+  regionCatalog.assertVersion((data.confirmed as { regionVersion?: unknown } | null)?.regionVersion);
   const legacy = data.schema === undefined;
   if (data.atomic !== undefined && (legacy || data.atomic !== true)) throw new Error("bad atomic flag");
   if (!legacy && data.schema !== CACHE_SCHEMA) throw new Error("unknown cache schema");
@@ -194,7 +199,7 @@ function parseCache(raw: string, validate: (data: unknown) => Saved): ParsedCach
     let result = validate(data.confirmed);
     for (const op of ops) {
       checkOp(op);
-      result = applyOp(result, op);
+      for (const projected of projectRegionOps([op])) result = applyOp(result, projected);
     }
     validate(result);
     pendingBatch = { id: batch.id, revision: batch.revision, ops };
@@ -299,7 +304,9 @@ export function saveCloudCache(
   try {
     if (storage.getItem && storage.getItem(legacyCacheSeenKey(userId)) === null)
       storage.setItem(legacyCacheSeenKey(userId), legacyDigest ?? "none");
-    storage.setItem(cacheKey(userId), JSON.stringify({ ...cache, schema: CACHE_SCHEMA }));
+    const old = storage.getItem?.(cacheKey(userId));
+    if (old && storage.getItem && !preserveRegionOriginal(storage as Reader & Writer, cacheKey(userId), old)) return false;
+    storage.setItem(cacheKey(userId), JSON.stringify({ ...cache, regionVersion: REGION_VERSION, schema: CACHE_SCHEMA, saved: stampRegions(cache.saved), ...(cache.confirmed ? { confirmed: stampRegions(cache.confirmed) } : {}) }));
     return true;
   } catch {
     return false;
@@ -391,6 +398,11 @@ export function clearAccountData(
       /* Keep what cannot be read. */
     }
     storage.removeItem(legacyCacheSeenKey(currentUserId));
+  }
+  if (currentUserId) {
+    const prefixes = [regionOriginalPrefix(cacheKey(currentUserId)), regionOriginalPrefix(legacyCacheKey(currentUserId))];
+    const originals = Array.from({ length: storage.length }, (_, i) => storage.key(i)).filter((key): key is string => !!key && prefixes.some(prefix => key.startsWith(prefix)));
+    for (const key of originals) storage.removeItem(key);
   }
   clearOtherCaches(storage, undefined, validate);
   storage.removeItem(SESSION_KEY);

@@ -1,3 +1,4 @@
+import { stampRegions } from "../src/lib/region-catalog";
 import { test, expect, type Page } from "@playwright/test";
 import { fakeBackend, gold, green, login, seedLocalRaw, type V } from "./fake-backend";
 
@@ -116,7 +117,7 @@ test("cancelling a city with several trips asks first, and undo restores every t
   expect((await stored(page)).visits).toEqual([]);
   await page.getByRole("button", { name: "撤销" }).click();
   await expect(stat(page, "旅行次数")).toHaveText("2");
-  expect(await stored(page)).toEqual(seed);
+  expect(await stored(page)).toEqual(stampRegions(seed));
 });
 
 test("version 1 data is shown, left untouched on load and converted into the version 2 key on the first edit", async ({ page }) => {

@@ -1,4 +1,5 @@
 import test from "node:test";
+import { stampRegions } from "../src/lib/region-catalog.ts";
 import assert from "node:assert/strict";
 import {
   SESSION_KEY,
@@ -192,7 +193,7 @@ test("new cache keeps the offline desired state and confirmed ancestor", () => {
   assert.equal(saveCloudCache(s, "u1", cache), true);
   assert.deepEqual(
     loadCloudCache(s, "u1", (d) => d),
-    { schema: 2, ...cache, legacyDigest: "none" },
+    { schema: 2, ...cache, saved: stampRegions(desired), confirmed: stampRegions(empty), legacyDigest: "none" },
   );
   clearOtherCaches(s, "u2");
   assert.notEqual(

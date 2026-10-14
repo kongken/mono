@@ -285,6 +285,8 @@ export interface FootprintApi {
    * data it would flatten or drop.
    */
   ready?(): Promise<void>;
+  /** Read-time regional projection of an acknowledged old batch; never rewrites its wire request. */
+  project?(ops: Op[]): Op[];
   get(): Promise<CloudSnapshot>;
   apply(op: Op, revision: number): Promise<number>;
   applyBatch?(ops: Op[], revision: number, id: string): Promise<number>;
@@ -442,7 +444,7 @@ export class SyncEngine {
               batch.id,
             );
             if (this.stopped) return;
-            for (const op of batch.ops) this.base = applyOp(this.base, op);
+            for (const op of this.api.project?.(batch.ops) ?? batch.ops) this.base = applyOp(this.base, op);
             this.revision = revision;
             this.pendingBatch = undefined;
             // An atomic change is built only when it fits one batch, so this was all of it.

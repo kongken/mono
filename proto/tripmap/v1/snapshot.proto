@@ -58,6 +58,8 @@ message SnapshotData {
   repeated Trip trips = 3;
   // Format of this message: 1 as stored by an older server, 2 with trips.
   int32 schema_version = 4;
+  // Empty on pre-F10 snapshots; their immutable payload remains unchanged.
+  string region_version = 5;
 }
 
 message ListSnapshotsRequest {}

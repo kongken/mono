@@ -121,6 +121,13 @@ func (s *ShareService) allow(ctx context.Context, st *Store, key string, limit i
 	return nil
 }
 
+func shareSourceError(err error) error {
+	if rpc, ok := errors.AsType[*connect.Error](err); ok {
+		return rpc
+	}
+	return internalError(err)
+}
+
 // loadShareSource reads the footprints the page would be built from. It runs in
 // the caller's transaction, so the records match the revision read with them.
 func loadShareSource(ctx context.Context, tx *ent.Tx, u *ent.User, photoIDs []string) (share.Source, error) {
@@ -144,14 +151,27 @@ func loadShareSource(ctx context.Context, tx *ent.Tx, u *ent.User, photoIDs []st
 			trips[v.RegionCode] = []share.SourceTrip{{ID: legacyTripID(v.RegionCode), Date: v.TravelDate, Note: v.Note}}
 		}
 	}
+	index, err := regions.Default()
+	if err != nil {
+		return src, err
+	}
+	seen := map[string]bool{}
 	for _, v := range visits {
-		src.Cities = append(src.Cities, share.SourceCity{Code: v.RegionCode, Name: v.RegionName, Province: v.ProvinceCode, Color: v.Color, Trips: trips[v.RegionCode]})
+		ref, err := index.ResolveCity(v.RegionCode, v.RegionName, v.ProvinceCode)
+		if err != nil || seen[ref.Code] {
+			return src, connect.NewError(connect.CodeFailedPrecondition, errors.New("region upgrade blocked: unmapped or colliding footprints"))
+		}
+		seen[ref.Code] = true
+		src.Cities = append(src.Cities, share.SourceCity{Code: ref.Code, Name: ref.Name, Province: ref.Province, Color: v.Color, Trips: trips[v.RegionCode]})
 	}
 	marks, err := tx.ProvinceMark.Query().Where(provincemark.UserID(u.ID)).All(ctx)
 	if err != nil {
 		return src, err
 	}
 	for _, m := range marks {
+		if !index.HasProvince(m.ProvinceCode) {
+			return src, connect.NewError(connect.CodeFailedPrecondition, errors.New("region upgrade blocked: unmapped province mark"))
+		}
 		src.Marks = append(src.Marks, m.ProvinceCode)
 	}
 	if len(photoIDs) > 0 {
@@ -162,7 +182,7 @@ func loadShareSource(ctx context.Context, tx *ent.Tx, u *ent.User, photoIDs []st
 		}
 		src.Photos = map[string]share.SourcePhoto{}
 		for _, m := range media {
-			src.Photos[m.ID] = share.SourcePhoto{Region: m.RegionCode, TripID: m.TripID, Width: m.Width, Height: m.Height}
+			src.Photos[m.ID] = share.SourcePhoto{Region: regions.CanonicalCode(m.RegionCode), TripID: m.TripID, Width: m.Width, Height: m.Height}
 		}
 	}
 	return src, nil
@@ -239,7 +259,7 @@ func (s *ShareService) PreviewShare(ctx context.Context, req *connect.Request[tr
 	}
 	src, err := loadShareSource(ctx, tx, u, set.PhotoIDs)
 	if err != nil {
-		return nil, internalError(err)
+		return nil, shareSourceError(err)
 	}
 	payload, err := share.Build(s.regions, src, set, time.Now().UTC(), share.NewHandle)
 	if err != nil {
@@ -411,7 +431,7 @@ func (s *ShareService) SaveShare(ctx context.Context, req *connect.Request[tripm
 		}
 		src, serr := loadShareSource(ctx, tx, u, set.PhotoIDs)
 		if serr != nil {
-			return nil, internalError(serr)
+			return nil, shareSourceError(serr)
 		}
 		built, berr := share.Build(s.regions, src, set, publishedAt, share.NewHandle)
 		if berr != nil {

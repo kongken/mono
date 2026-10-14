@@ -17,7 +17,6 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/user"
 	"go.orx.me/apps/trip-map/internal/regions"
 	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -78,7 +77,8 @@ func (s *FootprintService) validateMark(m *tripmapv1.ProvinceMark) error {
 }
 
 func toVisit(v *ent.CityVisit) *tripmapv1.Visit {
-	return &tripmapv1.Visit{Code: v.RegionCode, Name: v.RegionName, Province: regions.CanonicalProvince(v.RegionCode, v.ProvinceCode), Color: v.Color, Date: v.TravelDate, Note: v.Note, UpdatedAt: timestamppb.New(v.UpdatedAt)}
+	ref := regions.CanonicalCity(v.RegionCode, v.RegionName, v.ProvinceCode)
+	return &tripmapv1.Visit{Code: ref.Code, Name: ref.Name, Province: ref.Province, Color: v.Color, Date: v.TravelDate, Note: v.Note, UpdatedAt: timestamppb.New(v.UpdatedAt)}
 }
 
 func toMark(m *ent.ProvinceMark) *tripmapv1.ProvinceMark {
@@ -118,7 +118,7 @@ func (s *FootprintService) GetFootprints(ctx context.Context, _ *connect.Request
 	if err = gateRead(ctx, u.SchemaVersion); err != nil {
 		return nil, err
 	}
-	out := &tripmapv1.GetFootprintsResponse{Revision: u.Revision}
+	out := &tripmapv1.GetFootprintsResponse{Revision: u.Revision, RegionVersion: s.regions.Version()}
 	if clientSchema(ctx) >= schemaTrips {
 		// Schema 2 view: cities without date or note, and the trips. A schema 1
 		// account that has not been upgraded yet is read as one legacy trip per city.
@@ -190,6 +190,9 @@ func (s *FootprintService) write(ctx context.Context, base int64, requireRevisio
 	if u.Disabled {
 		return 0, false, errUnauthenticated
 	}
+	if err := requireCurrentRegionIDs(ctx, tx.CityVisit.Query().Where(cityvisit.UserID(u.ID)), s.regions); err != nil {
+		return 0, false, err
+	}
 	schema, err := gateWrite(ctx, tx, u)
 	if err != nil {
 		return 0, false, err
@@ -221,15 +224,11 @@ func (s *FootprintService) write(ctx context.Context, base int64, requireRevisio
 }
 
 func (s *FootprintService) UpsertVisit(ctx context.Context, req *connect.Request[tripmapv1.UpsertVisitRequest]) (*connect.Response[tripmapv1.UpsertVisitResponse], error) {
-	v := req.Msg.GetVisit()
-	if v != nil {
-		v = proto.Clone(v).(*tripmapv1.Visit)
-		v.Province = regions.CanonicalProvince(v.Code, v.Province)
-	}
-	if err := s.validateVisit(v); err != nil {
+	mutation, err := s.normalizeMutation(&tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_UpsertVisit{UpsertVisit: req.Msg.GetVisit()}})
+	if err != nil {
 		return nil, err
 	}
-	mutation := &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_UpsertVisit{UpsertVisit: v}}
+	v := mutation.GetUpsertVisit()
 	var stored *ent.CityVisit
 	var storedSchema int
 	rev, changed, err := s.write(ctx, req.Msg.GetBaseRevision(), req.Msg.GetRequireRevision(), mutation, func(tx *ent.Tx, uid string, schema int) (bool, error) {
