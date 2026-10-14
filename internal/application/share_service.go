@@ -467,6 +467,11 @@ func (s *ShareService) SaveShare(ctx context.Context, req *connect.Request[tripm
 		if err != nil {
 			return nil, internalError(err)
 		}
+	} else if token != nil && row.PublishedRevision != published {
+		row, err = tx.Share.UpdateOne(row).SetPublishedRevision(published).Save(ctx)
+		if err != nil {
+			return nil, internalError(err)
+		}
 	}
 	if err = tx.SyncReceipt.Create().SetUserID(p.UserID).SetMutationID(m.MutationId).SetRequestHash(hash).SetRevision(newVersion).SetChangedCount(0).Exec(ctx); err != nil {
 		return nil, internalError(err)
