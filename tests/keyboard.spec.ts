@@ -205,7 +205,7 @@ test("the close button and a click outside the cancel question only close the qu
 
   await cancel.click();
   await expect(confirm).toBeVisible();
-  await page.mouse.click(4, 4);
+  await page.locator('[data-slot="dialog-overlay"][data-state="open"]').last().click({ position: { x: 4, y: 4 } });
   await expect(confirm).toHaveCount(0);
   await expect(dialog).toBeVisible();
   await expect(note).toHaveValue("还没保存的草稿");
