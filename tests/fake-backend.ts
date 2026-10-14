@@ -10,8 +10,10 @@ import {
 import * as auth from "../src/gen/tripmap/v1/auth_pb";
 import * as collaborationPb from "../src/gen/tripmap/v1/collaboration_pb";
 import * as footprint from "../src/gen/tripmap/v1/footprint_pb";
+import * as reportPb from "../src/gen/tripmap/v1/report_pb";
 import * as snapshotPb from "../src/gen/tripmap/v1/snapshot_pb";
 import * as system from "../src/gen/tripmap/v1/system_pb";
+import { buildReport } from "../src/lib/report";
 
 export const green = "#4b937d";
 export const gold = "#e2af5c";
@@ -417,6 +419,29 @@ export function fakeBackend(
               friends: [],
               sharedTrips: [],
             });
+          case "GetReport": {
+            const body = read(reportPb.GetReportRequestSchema) as reportPb.GetReportRequest;
+            const saved = {
+              version: 2 as const,
+              provinces: Object.fromEntries(state.marks),
+              visits: [...state.visits.values()].map(v => ({
+                ...v,
+                trips: [...state.trips.values()]
+                  .filter(t => t.code === v.code)
+                  .map(t => ({ id: t.id, date: t.date, note: t.note })),
+              })),
+            };
+            const computed = buildReport(saved, {
+              timezone: body.timezone || undefined,
+              year: body.year || undefined,
+              revision: state.revision,
+            });
+            return send(reportPb.GetReportResponseSchema, {
+              ...computed,
+              revision: BigInt(computed.revision),
+              fromCache: true,
+            });
+          }
           default:
             return route.fulfill({ status: 404, contentType: "application/json", body: '{"code":"unimplemented"}' });
         }

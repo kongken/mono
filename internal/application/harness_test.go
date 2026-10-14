@@ -18,15 +18,17 @@ import (
 )
 
 type env struct {
-	t      *testing.T
-	store  *application.Store
-	cfg    *config.AppConfig
-	auth   tripmapv1connect.AuthServiceClient
-	foot   tripmapv1connect.FootprintServiceClient
-	snap   tripmapv1connect.SnapshotServiceClient
-	media  tripmapv1connect.MediaServiceClient
-	collab tripmapv1connect.CollaborationServiceClient
-	svc    *application.AuthService
+	t         *testing.T
+	store     *application.Store
+	cfg       *config.AppConfig
+	auth      tripmapv1connect.AuthServiceClient
+	foot      tripmapv1connect.FootprintServiceClient
+	snap      tripmapv1connect.SnapshotServiceClient
+	media     tripmapv1connect.MediaServiceClient
+	collab    tripmapv1connect.CollaborationServiceClient
+	report    tripmapv1connect.ReportServiceClient
+	svc       *application.AuthService
+	reportSvc *application.ReportService
 }
 
 type storeSource struct{ st *application.Store }
@@ -48,6 +50,7 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 		t.Fatal(err)
 	}
 	authSvc := application.NewAuthService(cfg, src)
+	reportSvc := application.NewReportService(src, idx)
 	opts := connect.WithInterceptors(application.NewAuthInterceptor(src))
 	mux := http.NewServeMux()
 	mux.Handle(tripmapv1connect.NewAuthServiceHandler(authSvc, opts))
@@ -55,15 +58,17 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 	mux.Handle(tripmapv1connect.NewSnapshotServiceHandler(application.NewSnapshotService(cfg, src, idx), opts))
 	mux.Handle(tripmapv1connect.NewMediaServiceHandler(application.NewMediaService(src, idx), opts))
 	mux.Handle(tripmapv1connect.NewCollaborationServiceHandler(application.NewCollaborationService(src, idx), opts))
+	mux.Handle(tripmapv1connect.NewReportServiceHandler(reportSvc, opts))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return &env{
-		t: t, store: src.st, cfg: cfg, svc: authSvc,
+		t: t, store: src.st, cfg: cfg, svc: authSvc, reportSvc: reportSvc,
 		auth:   tripmapv1connect.NewAuthServiceClient(server.Client(), server.URL),
 		foot:   tripmapv1connect.NewFootprintServiceClient(server.Client(), server.URL),
 		snap:   tripmapv1connect.NewSnapshotServiceClient(server.Client(), server.URL),
 		media:  tripmapv1connect.NewMediaServiceClient(server.Client(), server.URL),
 		collab: tripmapv1connect.NewCollaborationServiceClient(server.Client(), server.URL),
+		report: tripmapv1connect.NewReportServiceClient(server.Client(), server.URL),
 	}
 }
 

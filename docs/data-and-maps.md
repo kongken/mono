@@ -80,6 +80,14 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 - **退出、移除与解散：** 成员退出或被移除时，服务端仅删除该成员账号下对应的单条 `city_trips` 子记录（写入 `delete_trip` 变更日志），**保留该成员在该城市的 `city_visits` 打卡状态、其他旅行及个人媒体**，不影响创建者或其他成员的记录。创建者解散共同旅行或双方解除好友关系时，仅解除 `shared_trips` / `trip_members` 协作绑定，所有已加入成员的 `city_trips` 均保留为各自的独立个人记录。
 - **共同旅行媒体归属：** 成员为共同旅行上传的照片仍保存在各自的 `media_objects` 名下（关联同一 `region_code` 与 `trip_id`）；当前处于 `active` 状态的共同旅行成员可通过 `CollaborationService` 查看该次旅行下所有成员状态为 `ready` 的照片，退出、被移除或解除好友后立即失去访问他人照片的权限。
 
+## 统计、年度报告与成就（F8）
+
+年度报告与旅行成就（F8）直接基于现有的城市足迹（`visits` / `city_visits`）、旅行子记录（`trips` / `city_trips`）和省份独立标记（`provinces` / `province_marks`）计算，不改变本地 `Saved`（`version: 2`）或导出备份的 JSON 格式，也不新增 PostgreSQL 表。
+
+- **前后端一致口径与共享测试夹具：** 前端 `src/lib/report.ts` 与后端 `internal/report/report.go` 使用相同的规则处理全国 34 个省级区域、391 个全国统计城市（北京 `110000`、天津 `120000`、上海 `310000`、重庆 `500000`、香港 `810000`、澳门 `820000` 区县合并为各 1 座）和 497 个省内可记录区域，并由 `scripts/fixtures/report-stats.json` 同时驱动前端与 Go 单元测试。
+- **时区与可追溯性：** 旅行记录日期保持 `YYYY-MM-DD` 日历字符串，不随 UTC 偏移改变年份；用户请求的 IANA 时区（默认 `Asia/Shanghai`）用于计算当前本地日历日期 `generated_on` 与当前年份 `current_year`。每项省内进度、年度报告统计和成就状态都附带指向原始省份、城市或旅行记录的 `ReportRecordRef` 引用。
+- **服务端 Redis 缓存：** 后端 `ReportService.GetReport` 将汇总结果缓存在 Redis 键 `<prefix>report:v1:<user_id>|<revision>|<timezone>|<local_date>`（TTL 24 小时）中，并由每小时维护任务预热默认时区缓存；足迹 `revision` 变化后立即命中新键。
+
 ## 备份导入导出
 
 导出文件名为 `山海足迹-YYYY-MM-DD.json`。日期来自浏览器本地时间，文件内容为完整足迹数据（版本 2，含旅行）。

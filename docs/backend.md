@@ -15,9 +15,10 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `internal/app/` | Bootstrap、依赖注入、Gin 路由 |
 | `internal/config/` | 业务配置及必填存储名称校验 |
-| `internal/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）、`ShareService`、公开分享路由处理（`share_public.go`）及认证拦截器 |
+| `internal/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）、`ShareService`、`CollaborationService`、`ReportService`（含 Redis 汇总缓存与定时预热维护）、公开分享路由处理（`share_public.go`）及认证拦截器 |
 | `internal/auth/` | 会话令牌、Redis 限流与 OAuth state 存储；`provider/` 为 GitHub、Google OAuth 适配 |
 | `internal/share/` | F6：公开内容白名单与快照构建、统计、预览图渲染（纯 Go）、HTML 元数据注入、受信任 index.html 获取；`assets/` 含预览几何和 Noto Sans SC 子集 |
+| `internal/report/` | F8：统计总览、按时区计算的年度报告、8 项旅行成就及可追溯记录引用计算（与前端 `src/lib/report.ts` 共用 `scripts/fixtures/report-stats.json` 测试夹具） |
 | `internal/regions/` | 嵌入的行政区域索引，供服务端校验区域 ID、名称与归属 |
 | `internal/testutil/` | 带独立 schema 和 Redis key 前缀的集成测试辅助 |
 | `internal/health/` | 有超时的依赖就绪检查 |
@@ -261,6 +262,17 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 - **并发锁序与隔离：** 涉及多个用户的写操作（接受邀请、共同编辑、移除成员、退出、解除好友）在同一数据库事务内按 `user.ID` 字典序升序执行 `SELECT … FOR UPDATE`（`lockUsers`），避免并发死锁，并与单用户的 `SyncChanges`、快照恢复、账号注销严格串行。
 - **限流：** 协作写操作共用 Redis 固定窗口限流（每用户每分钟 60 次）。
 - **账号注销联动：** `AuthService.DeleteAccount` 第一阶段事务立即删除该用户的全部 `friendships`、`trip_members` 及创建的 `shared_trips`，其他成员各自的 `city_trips` 足迹记录不受影响。
+
+## F8 统计、年度报告与成就（`tripmap.v1.ReportService`）
+
+所有方法均要求登录，用户身份取自会话。用户可见口径、成就规则与验收场景见 [功能描述](features.md#足迹统计年度报告与成就f8)。
+
+| 方法 | 行为 |
+| --- | --- |
+| `GetReport` | 接收可选 IANA `timezone`（默认 `Asia/Shanghai`，无效时回退 `Asia/Shanghai`）与可选 `year`。在 `RepeatableRead` 只读事务快照中读取当前用户的 `revision`、城市足迹、旅行记录与省份独立标记，计算统计总览（`overview`）、全部年度报告（`annual_reports`）与 8 项旅行成就（`achievements`），每项指标与成就均附带可追溯的记录引用（`ReportRecordRef`） |
+
+- **Redis 缓存与实时版本隔离：** 汇总结果以 Protobuf 编码缓存在 Redis 键 `<prefix>report:v1:<user_id>|<revision>|<timezone>|<local_date>` 中（TTL 24 小时）。由于缓存键绑定了用户当前的足迹 `revision` 与该时区下的本地日历日期 `local_date`，任何足迹或旅行的增删改推进 `revision` 后，下一次请求立即计算新版本并写入新键，不会返回过期统计。
+- **定时汇总维护：** `internal/app/app.go` 的每小时后台维护循环在 Redis 锁 `tripmap:report-maintenance`（50 分钟）保护下调用 `RunReportMaintenance`，为近期活跃且当前 `revision` 尚未缓存的账号预热默认时区（`Asia/Shanghai`）的汇总缓存。F8 无需新增 PostgreSQL 表。
 
 ## 数据库模型
 

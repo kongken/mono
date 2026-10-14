@@ -25,8 +25,8 @@ type province struct {
 
 // Index answers membership questions about provinces and cities.
 type Index struct {
-	provinces map[string]struct{}
-	cities    map[string]cityEntry
+	provinces   map[string]string
+	cities      map[string]cityEntry
 	// perProvince counts every city or district record of a province.
 	perProvince map[string]int
 }
@@ -38,12 +38,12 @@ func Parse(data []byte) (*Index, error) {
 	if err := json.Unmarshal(data, &list); err != nil {
 		return nil, fmt.Errorf("parse region index: %w", err)
 	}
-	idx := &Index{provinces: map[string]struct{}{}, cities: map[string]cityEntry{}, perProvince: map[string]int{}}
+	idx := &Index{provinces: map[string]string{}, cities: map[string]cityEntry{}, perProvince: map[string]int{}}
 	for _, p := range list {
 		if p.Code == "" {
 			return nil, fmt.Errorf("region index: province without code")
 		}
-		idx.provinces[p.Code] = struct{}{}
+		idx.provinces[p.Code] = p.Name
 		idx.perProvince[p.Code] = len(p.Cities)
 		for _, c := range p.Cities {
 			if _, dup := idx.cities[c.Code]; dup {
@@ -69,6 +69,12 @@ func Default() (*Index, error) {
 
 // HasProvince reports whether code is a known province-level region ID.
 func (i *Index) HasProvince(code string) bool { _, ok := i.provinces[code]; return ok }
+
+// ProvinceName returns the display name of a province-level region ID.
+func (i *Index) ProvinceName(code string) (name string, ok bool) {
+	name, ok = i.provinces[code]
+	return name, ok
+}
 
 // City returns the display name and province of a city or district ID.
 func (i *Index) City(code string) (name, province string, ok bool) {
