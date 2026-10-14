@@ -1,0 +1,180 @@
+{
+  "cases": [
+    {
+      "name": "empty footprints in Asia/Shanghai",
+      "now": "2026-10-14T03:00:00Z",
+      "timezone": "Asia/Shanghai",
+      "marks": [],
+      "cities": [],
+      "expect": {
+        "timezone": "Asia/Shanghai",
+        "generatedOn": "2026-10-14",
+        "currentYear": 2026,
+        "selectedYear": 2026,
+        "availableYears": [2026],
+        "overview": {
+          "exploredProvinces": 0,
+          "totalProvinces": 34,
+          "visitedCities": 0,
+          "totalCities": 391,
+          "visitedRegions": 0,
+          "totalRegions": 497,
+          "totalTrips": 0,
+          "datedTrips": 0,
+          "undatedTrips": 0
+        },
+        "unlockedAchievements": []
+      }
+    },
+    {
+      "name": "rich footprints across years with Shanghai timezone rolling into 2027",
+      "now": "2026-12-31T22:30:00Z",
+      "timezone": "Asia/Shanghai",
+      "marks": ["530000"],
+      "cities": [
+        {
+          "code": "110101",
+          "province": "110000",
+          "trips": [
+            { "id": "t-bj-1", "date": "2025-05-01", "note": "故宫春色与景山落日全记录" }
+          ]
+        },
+        {
+          "code": "110102",
+          "province": "110000",
+          "trips": [
+            { "id": "t-bj-2", "date": "2026-04-10", "note": "什刹海散步" }
+          ]
+        },
+        {
+          "code": "330100",
+          "province": "330000",
+          "trips": [
+            { "id": "t-hz-1", "date": "2025-03-15", "note": "西湖苏堤春晓漫步一整天" },
+            { "id": "t-hz-2", "date": "2026-04-02", "note": "龙井问茶与九溪烟树徒步日记" },
+            { "id": "t-hz-3", "date": "2026-10-05", "note": "满觉陇赏桂花与宝石山看夕阳夜景" }
+          ]
+        },
+        {
+          "code": "640100",
+          "province": "640000",
+          "trips": [
+            { "id": "t-nx-1", "date": "2026-05-01", "note": "贺兰山岩画与镇北堡西部影城" }
+          ]
+        },
+        {
+          "code": "640200",
+          "province": "640000",
+          "trips": [
+            { "id": "t-nx-2", "date": "2026-05-02", "note": "沙湖芦苇荡" }
+          ]
+        },
+        {
+          "code": "640300",
+          "province": "640000",
+          "trips": [
+            { "id": "t-nx-3", "date": "2026-05-03", "note": "黄河大峡谷" }
+          ]
+        },
+        {
+          "code": "640400",
+          "province": "640000",
+          "trips": [
+            { "id": "t-nx-4", "date": "2026-05-04", "note": "六盘山红军长征景区" }
+          ]
+        },
+        {
+          "code": "640500",
+          "province": "640000",
+          "trips": [
+            { "id": "t-nx-5", "date": "2026-05-06", "note": "沙坡头黄河宿集观星露营之旅" }
+          ]
+        },
+        {
+          "code": "350200",
+          "province": "350000",
+          "trips": [
+            { "id": "t-xm-1", "date": "", "note": "无日期的鼓浪屿慢行" }
+          ]
+        }
+      ],
+      "expect": {
+        "timezone": "Asia/Shanghai",
+        "generatedOn": "2027-01-01",
+        "currentYear": 2027,
+        "selectedYear": 2026,
+        "availableYears": [2027, 2026, 2025],
+        "overview": {
+          "exploredProvinces": 5,
+          "totalProvinces": 34,
+          "visitedCities": 8,
+          "totalCities": 391,
+          "visitedRegions": 9,
+          "totalRegions": 497,
+          "totalTrips": 11,
+          "datedTrips": 10,
+          "undatedTrips": 1
+        },
+        "topProvinceCode": "640000",
+        "year2026": {
+          "tripCount": 8,
+          "cityCount": 7,
+          "regionCount": 7,
+          "newCityCount": 5,
+          "newRegionCount": 6,
+          "provinceCount": 3,
+          "newProvinceCount": 1,
+          "spanDays": 187,
+          "busiestMonth": 5,
+          "busiestMonthTrips": 5,
+          "earliestTripId": "t-hz-2",
+          "latestTripId": "t-hz-3",
+          "longestNoteTripId": "t-hz-3",
+          "mostVisitedCityCode": "330100"
+        },
+        "unlockedAchievements": [
+          { "id": "first_footprint", "current": 5, "target": 1, "unlockedAt": "2025-03-15", "firstEvidenceCode": "330000" },
+          { "id": "province_master", "current": 1, "target": 1, "unlockedAt": "2026-05-06", "firstEvidenceCode": "640000" },
+          { "id": "multi_trip_city", "current": 3, "target": 3, "unlockedAt": "2026-10-05", "firstEvidenceTripId": "t-hz-1" },
+          { "id": "chronicler", "current": 6, "target": 5, "unlockedAt": "2026-05-06", "firstEvidenceTripId": "t-hz-1" }
+        ]
+      }
+    },
+    {
+      "name": "same UTC instant in America/New_York stays in 2026",
+      "now": "2026-12-31T22:30:00Z",
+      "timezone": "America/New_York",
+      "marks": [],
+      "cities": [
+        {
+          "code": "330100",
+          "province": "330000",
+          "trips": [
+            { "id": "t-hz-1", "date": "2025-03-15", "note": "西湖苏堤春晓漫步一整天" }
+          ]
+        }
+      ],
+      "expect": {
+        "timezone": "America/New_York",
+        "generatedOn": "2026-12-31",
+        "currentYear": 2026,
+        "selectedYear": 2025,
+        "availableYears": [2026, 2025],
+        "overview": {
+          "exploredProvinces": 1,
+          "totalProvinces": 34,
+          "visitedCities": 1,
+          "totalCities": 391,
+          "visitedRegions": 1,
+          "totalRegions": 497,
+          "totalTrips": 1,
+          "datedTrips": 1,
+          "undatedTrips": 0
+        },
+        "unlockedAchievements": [
+          { "id": "first_footprint", "current": 1, "target": 1, "unlockedAt": "2025-03-15", "firstEvidenceCode": "330000" }
+        ]
+      }
+    }
+  ]
+}

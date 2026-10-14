@@ -98,6 +98,11 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 		health.Probe{Name: "redis", Check: func(ctx context.Context) error { return cache.Ping(ctx).Err() }},
 		health.Probe{Name: "s3", Check: blobs.Check},
 	)
+	index, err := regions.Default()
+	if err != nil {
+		_ = client.Close()
+		return fmt.Errorf("region index: %w", err)
+	}
 	maintenance, stop := context.WithCancel(context.Background())
 	go func() {
 		ticker := time.NewTicker(time.Hour)
@@ -111,6 +116,7 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 				_, _ = client.AccountDeletionReceipt.Delete().Where(accountdeletionreceipt.ExpiresAtLTE(time.Now().UTC())).Exec(cleanup)
 				cancel()
 				runSnapshotMaintenance(maintenance, client, cache)
+				runReportMaintenance(maintenance, &application.Store{DB: client, Redis: cache, Blobs: blobs}, index)
 				mediaCtx, mediaCancel := context.WithTimeout(maintenance, 5*time.Minute)
 				if err := application.RunMediaMaintenance(mediaCtx, &application.Store{DB: client, Redis: cache, Blobs: blobs}, time.Now().UTC()); err != nil {
 					slog.Error("media maintenance", "error", err)
@@ -125,7 +131,10 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 
 // snapshotLockKey makes one instance at a time run the snapshot job; the job is
 // also safe without it, the lock only avoids repeated work across replicas.
-const snapshotLockKey = "tripmap:snapshot-maintenance"
+const (
+	snapshotLockKey = "tripmap:snapshot-maintenance"
+	reportLockKey   = "tripmap:report-maintenance"
+)
 
 func runSnapshotMaintenance(ctx context.Context, db *ent.Client, cache *redisclient.Client) {
 	if ok, err := cache.SetNX(ctx, snapshotLockKey, "1", 50*time.Minute).Result(); err != nil || !ok {
@@ -135,6 +144,17 @@ func runSnapshotMaintenance(ctx context.Context, db *ent.Client, cache *rediscli
 	defer cancel()
 	if err := application.RunSnapshotMaintenance(run, db, time.Now().UTC()); err != nil {
 		slog.Error("snapshot maintenance", "error", err)
+	}
+}
+
+func runReportMaintenance(ctx context.Context, st *application.Store, index *regions.Index) {
+	if ok, err := st.Redis.SetNX(ctx, reportLockKey, "1", 50*time.Minute).Result(); err != nil || !ok {
+		return
+	}
+	run, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	if err := application.RunReportMaintenance(run, st, index, time.Now().UTC()); err != nil {
+		slog.Error("report maintenance", "error", err)
 	}
 }
 func (h *Handlers) Shutdown() error {
@@ -195,6 +215,8 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	path, handler = tripmapv1connect.NewShareServiceHandler(application.NewShareService(h.cfg, h, index), opts)
 	mount(path, handler)
 	path, handler = tripmapv1connect.NewCollaborationServiceHandler(application.NewCollaborationService(h, index), opts)
+	mount(path, handler)
+	path, handler = tripmapv1connect.NewReportServiceHandler(application.NewReportService(h, index), opts)
 	mount(path, handler)
 	mountShare(r, api, application.NewSharePublic(h.cfg, h))
 }

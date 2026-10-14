@@ -2080,6 +2080,8 @@ function App() {
               : null
           }
           inset={map && !province ? seaInsetPaths(map) : []}
+          cloudSynced={cloudReady}
+          onInspectRecord={(pCode, rCode) => openEditor(pCode, rCode)}
         />
       )}
       <Dialog
