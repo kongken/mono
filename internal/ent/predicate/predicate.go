@@ -18,6 +18,9 @@ type FootprintChange func(*sql.Selector)
 // Friendship is the predicate function for friendship builders.
 type Friendship func(*sql.Selector)
 
+// Itinerary is the predicate function for itinerary builders.
+type Itinerary func(*sql.Selector)
+
 // MediaCleanup is the predicate function for mediacleanup builders.
 type MediaCleanup func(*sql.Selector)
 

@@ -15,6 +15,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
 	"go.orx.me/apps/trip-map/internal/ent/friendship"
+	"go.orx.me/apps/trip-map/internal/ent/itinerary"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
@@ -486,6 +487,21 @@ func (_c *UserCreate) AddTripMemberships(v ...*TripMember) *UserCreate {
 	return _c.AddTripMembershipIDs(ids...)
 }
 
+// AddItineraryIDs adds the "itineraries" edge to the Itinerary entity by IDs.
+func (_c *UserCreate) AddItineraryIDs(ids ...string) *UserCreate {
+	_c.mutation.AddItineraryIDs(ids...)
+	return _c
+}
+
+// AddItineraries adds the "itineraries" edges to the Itinerary entity.
+func (_c *UserCreate) AddItineraries(v ...*Itinerary) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddItineraryIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_c *UserCreate) Mutation() *UserMutation {
 	return _c.mutation
@@ -935,6 +951,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(tripmember.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ItinerariesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ItinerariesTable,
+			Columns: []string{user.ItinerariesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(itinerary.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

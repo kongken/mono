@@ -20,6 +20,8 @@ type Tx struct {
 	FootprintChange *FootprintChangeClient
 	// Friendship is the client for interacting with the Friendship builders.
 	Friendship *FriendshipClient
+	// Itinerary is the client for interacting with the Itinerary builders.
+	Itinerary *ItineraryClient
 	// MediaCleanup is the client for interacting with the MediaCleanup builders.
 	MediaCleanup *MediaCleanupClient
 	// MediaObject is the client for interacting with the MediaObject builders.
@@ -177,6 +179,7 @@ func (tx *Tx) init() {
 	tx.CityVisit = NewCityVisitClient(tx.config)
 	tx.FootprintChange = NewFootprintChangeClient(tx.config)
 	tx.Friendship = NewFriendshipClient(tx.config)
+	tx.Itinerary = NewItineraryClient(tx.config)
 	tx.MediaCleanup = NewMediaCleanupClient(tx.config)
 	tx.MediaObject = NewMediaObjectClient(tx.config)
 	tx.ProvinceMark = NewProvinceMarkClient(tx.config)

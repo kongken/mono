@@ -68,6 +68,7 @@ func (User) Edges() []ent.Edge {
 		edge.To("received_friendships", Friendship.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("owned_shared_trips", SharedTrip.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("trip_memberships", TripMember.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("itineraries", Itinerary.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }
 
@@ -443,4 +444,55 @@ func (TripMember) Indexes() []ent.Index {
 		index.Fields("user_id", "member_trip_id"),
 	}
 }
+
+// ItineraryStopRecord is one ordered city stop persisted inside an Itinerary (F11).
+type ItineraryStopRecord struct {
+	ID         string `json:"id"`
+	RegionCode string `json:"region_code"`
+	Date       string `json:"date,omitempty"`
+	Note       string `json:"note,omitempty"`
+	Transport  string `json:"transport,omitempty"`
+	TripID     string `json:"trip_id,omitempty"`
+}
+
+// Itinerary is a multi-city travel route owned by user_id (F11).
+type Itinerary struct{ ent.Schema }
+
+func (Itinerary) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "itineraries"}}
+}
+func (Itinerary) Fields() []ent.Field {
+	return append([]ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(),
+		field.String("user_id").Immutable(),
+		field.String("itinerary_id").NotEmpty().Immutable().Validate(validTripID),
+		field.String("title").NotEmpty().Validate(func(v string) error {
+			if len(utf16.Encode([]rune(v))) > 80 {
+				return fmt.Errorf("title exceeds 80 characters")
+			}
+			return nil
+		}),
+		field.String("note").Default("").Validate(func(v string) error {
+			if len(utf16.Encode([]rune(v))) > 1000 {
+				return fmt.Errorf("note exceeds 1000 characters")
+			}
+			return nil
+		}),
+		field.String("color").Default("#4b937d").Validate(validColor),
+		field.JSON("stops", []ItineraryStopRecord{}),
+		field.Int64("version").Default(1).Positive(),
+	}, timestamps()...)
+}
+func (Itinerary) Edges() []ent.Edge {
+	return []ent.Edge{
+		edge.From("user", User.Type).Ref("itineraries").Field("user_id").Unique().Required().Immutable(),
+	}
+}
+func (Itinerary) Indexes() []ent.Index {
+	return []ent.Index{
+		index.Fields("user_id", "itinerary_id").Unique(),
+		index.Fields("user_id", "updated_at"),
+	}
+}
+
 

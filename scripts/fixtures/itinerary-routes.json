@@ -1,0 +1,128 @@
+{
+  "policy": {
+    "provider": "offline_great_circle",
+    "externalApiEnabled": false,
+    "costPolicy": "free_builtin",
+    "cacheStrategy": "redis_leg_24h_and_local_deterministic"
+  },
+  "cases": [
+    {
+      "name": "East China high-speed rail, coastal drive, and Taiwan ferry",
+      "id": "it-east",
+      "title": "华东至台北慢行",
+      "note": "江南与闽台连线",
+      "color": "#4b937d",
+      "version": 1,
+      "stops": [
+        { "id": "s1", "regionCode": "310101", "date": "2026-04-01", "note": "外滩出发", "transport": "train", "tripId": "" },
+        { "id": "s2", "regionCode": "330100", "date": "2026-04-02", "note": "西湖漫步", "transport": "train", "tripId": "" },
+        { "id": "s3", "regionCode": "350200", "date": "2026-04-04", "note": "鼓浪屿环岛", "transport": "car", "tripId": "" },
+        { "id": "s4", "regionCode": "tw-63000", "date": "2026-04-06", "note": "台北夜市", "transport": "ship", "tripId": "" }
+      ],
+      "expect": {
+        "totalStraightDistanceKm": 1186.8,
+        "totalEstimatedDistanceKm": 1466.3,
+        "totalEstimatedDurationMinutes": 1409,
+        "cityCount": 4,
+        "provinceCount": 4,
+        "legs": [
+          {
+            "fromOrder": 1,
+            "toOrder": 2,
+            "fromRegionCode": "310101",
+            "fromRegionName": "黄浦区",
+            "toRegionCode": "330100",
+            "toRegionName": "杭州市",
+            "transport": "train",
+            "straightDistanceKm": 241.6,
+            "estimatedDistanceKm": 289.9,
+            "estimatedDurationMinutes": 99
+          },
+          {
+            "fromOrder": 2,
+            "toOrder": 3,
+            "fromRegionCode": "330100",
+            "fromRegionName": "杭州市",
+            "toRegionCode": "350200",
+            "toRegionName": "厦门市",
+            "transport": "car",
+            "straightDistanceKm": 595.9,
+            "estimatedDistanceKm": 774.7,
+            "estimatedDurationMinutes": 596
+          },
+          {
+            "fromOrder": 3,
+            "toOrder": 4,
+            "fromRegionCode": "350200",
+            "fromRegionName": "厦门市",
+            "toRegionCode": "tw-63000",
+            "toRegionName": "台北市",
+            "transport": "ship",
+            "straightDistanceKm": 349.3,
+            "estimatedDistanceKm": 401.7,
+            "estimatedDurationMinutes": 714
+          }
+        ]
+      }
+    },
+    {
+      "name": "Long-haul flight, mountain drive, and same-city transfer",
+      "id": "it-west",
+      "title": "京蜀滇长线",
+      "note": "长途飞行与同城漫游",
+      "color": "#4b937d",
+      "version": 2,
+      "stops": [
+        { "id": "w1", "regionCode": "110101", "date": "2026-05-01", "note": "北京出发", "transport": "train", "tripId": "" },
+        { "id": "w2", "regionCode": "510100", "date": "2026-05-02", "note": "飞抵成都", "transport": "flight", "tripId": "" },
+        { "id": "w3", "regionCode": "530100", "date": "2026-05-04", "note": "自驾昆明", "transport": "car", "tripId": "" },
+        { "id": "w4", "regionCode": "530100", "date": "2026-05-05", "note": "滇池同城", "transport": "other", "tripId": "" }
+      ],
+      "expect": {
+        "totalStraightDistanceKm": 2122.3,
+        "totalEstimatedDistanceKm": 2377.1,
+        "totalEstimatedDurationMinutes": 783,
+        "cityCount": 3,
+        "provinceCount": 3,
+        "legs": [
+          {
+            "fromOrder": 1,
+            "toOrder": 2,
+            "fromRegionCode": "110101",
+            "fromRegionName": "东城区",
+            "toRegionCode": "510100",
+            "toRegionName": "成都市",
+            "transport": "flight",
+            "straightDistanceKm": 1527.8,
+            "estimatedDistanceKm": 1604.2,
+            "estimatedDurationMinutes": 188
+          },
+          {
+            "fromOrder": 2,
+            "toOrder": 3,
+            "fromRegionCode": "510100",
+            "fromRegionName": "成都市",
+            "toRegionCode": "530100",
+            "toRegionName": "昆明市",
+            "transport": "car",
+            "straightDistanceKm": 594.5,
+            "estimatedDistanceKm": 772.9,
+            "estimatedDurationMinutes": 595
+          },
+          {
+            "fromOrder": 3,
+            "toOrder": 4,
+            "fromRegionCode": "530100",
+            "fromRegionName": "昆明市",
+            "toRegionCode": "530100",
+            "toRegionName": "昆明市",
+            "transport": "other",
+            "straightDistanceKm": 0,
+            "estimatedDistanceKm": 0,
+            "estimatedDurationMinutes": 0
+          }
+        ]
+      }
+    }
+  ]
+}

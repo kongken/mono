@@ -354,7 +354,10 @@ export function clearOtherCaches(
       const taken = key.startsWith(LEGACY_CACHE_PREFIX) && accounted(storage, userId, raw);
       if (!taken && !isClean(raw, validate)) continue;
       storage.removeItem(key);
-      if (key.startsWith(CACHE_PREFIX)) storage.removeItem(legacyCacheSeenKey(userId));
+      if (key.startsWith(CACHE_PREFIX)) {
+        storage.removeItem(legacyCacheSeenKey(userId));
+        storage.removeItem(cloudItinerariesKey(userId));
+      }
     } catch {
       /* Preserve unrecognisable data for its owner's recovery. */
     }
@@ -386,10 +389,12 @@ export function clearAccountData(
       legacyCacheKey(currentUserId),
       legacyCacheSeenKey(currentUserId),
       migratedKey(currentUserId),
+      cloudItinerariesKey(currentUserId),
     ])
       storage.removeItem(key);
   } else if (currentUserId) {
     storage.removeItem(cacheKey(currentUserId));
+    storage.removeItem(cloudItinerariesKey(currentUserId));
     try {
       const raw = storage.getItem(legacyCacheKey(currentUserId));
       if (accounted(storage, currentUserId, raw) || isClean(raw, validate))
@@ -410,6 +415,8 @@ export function clearAccountData(
 
 export const MIGRATED_PREFIX = "shanhai-migrated-v1:";
 export const migratedKey = (userId: string) => MIGRATED_PREFIX + userId;
+export const CLOUD_ITINERARIES_PREFIX = "shanhai-cloud-itineraries-v1:";
+export const cloudItinerariesKey = (userId: string) => CLOUD_ITINERARIES_PREFIX + userId;
 
 /**
  * Remembers which local data was already migrated for an account, so the

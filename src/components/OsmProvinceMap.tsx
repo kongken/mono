@@ -6,6 +6,7 @@ import { geometryGcj02ToWgs84 } from "@/lib/coords";
 import { resolveTileConfig } from "@/lib/tiles";
 import type { Feature } from "geojson";
 import type { MapData } from "@/lib/maps";
+import type { ItineraryInfo } from "@/lib/itinerary";
 
 const TILES = resolveTileConfig({
   VITE_OSM_TILE_URL: import.meta.env.VITE_OSM_TILE_URL,
@@ -42,6 +43,8 @@ type Props = {
   /** Thin borders for maps with many small regions. */
   fine?: boolean;
   resetLabel?: string;
+  /** Optional active itinerary route drawn over the map. */
+  route?: ItineraryInfo | null;
 };
 
 const baseStyle = (
@@ -84,6 +87,7 @@ export default function OsmProvinceMap({
   viewBounds,
   fine = false,
   resetLabel = "回到全省视图",
+  route,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const leaflet = useRef<L.Map | null>(null);
@@ -307,6 +311,42 @@ export default function OsmProvinceMap({
       );
     }
   }, [colors, softColors, fine, map, convertCoords]);
+
+  useEffect(() => {
+    const instance = leaflet.current;
+    if (!instance || !route || route.stops.length < 2) return;
+    const group = L.layerGroup();
+    const latlngs: L.LatLngExpression[] = route.stops
+      .filter((s) => s.wgsLatitude !== 0 && s.wgsLongitude !== 0)
+      .map((s) => [s.wgsLatitude, s.wgsLongitude]);
+    if (latlngs.length >= 2) {
+      L.polyline(latlngs, {
+        color: route.color || "#4b937d",
+        weight: 3.5,
+        opacity: 0.9,
+        dashArray: "8 6",
+        interactive: false,
+      }).addTo(group);
+    }
+    for (const stop of route.stops) {
+      if (stop.wgsLatitude === 0 && stop.wgsLongitude === 0) continue;
+      const marker = L.circleMarker([stop.wgsLatitude, stop.wgsLongitude], {
+        radius: 6,
+        color: "#ffffff",
+        weight: 2,
+        fillColor: route.color || "#4b937d",
+        fillOpacity: 1,
+      });
+      marker.bindTooltip(`${stop.order}. ${stop.regionName}`, {
+        direction: "top",
+      });
+      marker.addTo(group);
+    }
+    group.addTo(instance);
+    return () => {
+      group.remove();
+    };
+  }, [route, map]);
 
   return (
     <>

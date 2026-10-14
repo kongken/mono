@@ -10,6 +10,8 @@ import {
 import * as auth from "../src/gen/tripmap/v1/auth_pb";
 import * as collaborationPb from "../src/gen/tripmap/v1/collaboration_pb";
 import * as footprint from "../src/gen/tripmap/v1/footprint_pb";
+import * as itineraryPb from "../src/gen/tripmap/v1/itinerary_pb";
+import { DEFAULT_ESTIMATION_POLICY, buildItineraryInfo, validateItineraryInput, type ItineraryRecord } from "../src/lib/itinerary";
 import * as reportPb from "../src/gen/tripmap/v1/report_pb";
 import * as regionsPb from "../src/gen/tripmap/v1/regions_pb";
 import catalog from "../src/region-catalog.json" with { type: "json" };
@@ -105,6 +107,13 @@ export function fakeBackend(
     regionApplyIds: [] as string[],
     regionBlockers: [] as string[],
     dropNextRegionReply: 0,
+    /** F11 itineraries of the signed-in account, by id. */
+    itineraries: new Map<string, ItineraryRecord>(),
+    itineraryCalls: [] as string[],
+    itineraryMutations: new Map<string, string>(),
+    failItinerarySave: 0,
+    /** Commit the next itinerary save but lose its reply. */
+    dropNextItineraryReply: 0,
     regionReceipts: new Map<string, { request: string; revision: number; changed: number; snapshotId: string }>(),
   };
   state.seedRevision = state.revision;
@@ -113,6 +122,10 @@ export function fakeBackend(
   const wireTrip = (t: StoredTrip) => ({
     id: t.id, regionCode: t.code, date: t.date, note: t.note, createdAt: ts(), updatedAt: ts(),
   });
+  const wireItinerary = (r: ItineraryRecord) => {
+    const info = buildItineraryInfo(r);
+    return { ...info, version: BigInt(info.version), createdAt: ts(), updatedAt: ts() };
+  };
   const snapInfo = (snap: Snap) => ({
     id: snap.id,
     reason: snap.reason,
@@ -490,6 +503,50 @@ export function fakeBackend(
             const matches = searchNotes({ version: 2, visits, provinces: Object.fromEntries(state.marks) }, body.query, body.provinceCode);
             const limit = body.limit || 20;
             return send(searchPb.SearchNotesResponseSchema, { matches: matches.slice(body.offset, body.offset + limit), revision: BigInt(state.revision), nextOffset: Math.min(body.offset + limit, matches.length), hasMore: matches.length > body.offset + limit });
+          }
+          case "ListItineraries":
+            state.itineraryCalls.push(method);
+            return send(itineraryPb.ListItinerariesResponseSchema, {
+              itineraries: [...state.itineraries.values()].map(wireItinerary),
+              policy: DEFAULT_ESTIMATION_POLICY,
+            });
+          case "SaveItinerary": {
+            const body = read(itineraryPb.SaveItineraryRequestSchema) as itineraryPb.SaveItineraryRequest;
+            state.itineraryCalls.push(method);
+            if (state.failItinerarySave > 0) {
+              state.failItinerarySave--;
+              return route.fulfill(failure("unavailable", "offline", 503));
+            }
+            const prior = state.itineraries.get(body.id);
+            const request = JSON.stringify([body.id, body.title, body.note, body.color, body.stops.map((x) => [x.id, x.regionCode, x.date, x.note, x.transport])]);
+            if (body.mutationId && state.itineraryMutations.has(body.mutationId)) {
+              if (state.itineraryMutations.get(body.mutationId) !== request) return route.fulfill(failure("already_exists", "mutation_id was already used", 409));
+              return send(itineraryPb.SaveItineraryResponseSchema, { itinerary: wireItinerary(prior!), policy: DEFAULT_ESTIMATION_POLICY, replayed: true });
+            }
+            if (body.expectedVersion !== 0n && BigInt(prior?.version ?? 0) !== body.expectedVersion) return route.fulfill(failure("aborted", "itinerary changed, reload", 409));
+            let record: ItineraryRecord;
+            try {
+              record = validateItineraryInput({
+                id: body.id, title: body.title, note: body.note, color: body.color,
+                version: (prior?.version ?? 0) + 1,
+                stops: body.stops.map((x) => ({ id: x.id, regionCode: x.regionCode, date: x.date, note: x.note, transport: x.transport, tripId: x.tripId })),
+              });
+            } catch (error) {
+              return route.fulfill(failure("invalid_argument", String(error), 400));
+            }
+            state.itineraries.set(record.id, record);
+            if (body.mutationId) state.itineraryMutations.set(body.mutationId, request);
+            if (state.dropNextItineraryReply > 0) {
+              state.dropNextItineraryReply--;
+              return route.fulfill(failure("unavailable", "lost reply", 503));
+            }
+            return send(itineraryPb.SaveItineraryResponseSchema, { itinerary: wireItinerary(record), policy: DEFAULT_ESTIMATION_POLICY, replayed: false });
+          }
+          case "DeleteItinerary": {
+            const body = read(itineraryPb.DeleteItineraryRequestSchema) as itineraryPb.DeleteItineraryRequest;
+            state.itineraryCalls.push(method);
+            const existed = state.itineraries.delete(body.id);
+            return send(itineraryPb.DeleteItineraryResponseSchema, { deleted: existed });
           }
           case "GetReport": {
             const body = read(reportPb.GetReportRequestSchema) as reportPb.GetReportRequest;

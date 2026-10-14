@@ -9,6 +9,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent"
 	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/friendship"
+	entitinerary "go.orx.me/apps/trip-map/internal/ent/itinerary"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	entshare "go.orx.me/apps/trip-map/internal/ent/share"
@@ -90,6 +91,9 @@ func (s *AuthService) DeleteAccount(ctx context.Context, req *connect.Request[tr
 		return nil, internalError(err)
 	}
 	if _, err = tx.SharedTrip.Delete().Where(sharedtrip.OwnerIDEQ(u.ID)).Exec(ctx); err != nil {
+		return nil, internalError(err)
+	}
+	if _, err = tx.Itinerary.Delete().Where(entitinerary.UserIDEQ(u.ID)).Exec(ctx); err != nil {
 		return nil, internalError(err)
 	}
 	if err = tx.Commit(); err != nil {

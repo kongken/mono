@@ -16,6 +16,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
 	"go.orx.me/apps/trip-map/internal/ent/friendship"
+	"go.orx.me/apps/trip-map/internal/ent/itinerary"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
@@ -49,6 +50,7 @@ type UserQuery struct {
 	withReceivedFriendships *FriendshipQuery
 	withOwnedSharedTrips    *SharedTripQuery
 	withTripMemberships     *TripMemberQuery
+	withItineraries         *ItineraryQuery
 	modifiers               []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -372,6 +374,28 @@ func (_q *UserQuery) QueryTripMemberships() *TripMemberQuery {
 	return query
 }
 
+// QueryItineraries chains the current query on the "itineraries" edge.
+func (_q *UserQuery) QueryItineraries() *ItineraryQuery {
+	query := (&ItineraryClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(itinerary.Table, itinerary.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ItinerariesTable, user.ItinerariesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first User entity from the query.
 // Returns a *NotFoundError when no User was found.
 func (_q *UserQuery) First(ctx context.Context) (*User, error) {
@@ -577,6 +601,7 @@ func (_q *UserQuery) Clone() *UserQuery {
 		withReceivedFriendships: _q.withReceivedFriendships.Clone(),
 		withOwnedSharedTrips:    _q.withOwnedSharedTrips.Clone(),
 		withTripMemberships:     _q.withTripMemberships.Clone(),
+		withItineraries:         _q.withItineraries.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -726,6 +751,17 @@ func (_q *UserQuery) WithTripMemberships(opts ...func(*TripMemberQuery)) *UserQu
 	return _q
 }
 
+// WithItineraries tells the query-builder to eager-load the nodes that are connected to
+// the "itineraries" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithItineraries(opts ...func(*ItineraryQuery)) *UserQuery {
+	query := (&ItineraryClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withItineraries = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -804,7 +840,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [13]bool{
+		loadedTypes = [14]bool{
 			_q.withVisits != nil,
 			_q.withTrips != nil,
 			_q.withProvinceMarks != nil,
@@ -818,6 +854,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			_q.withReceivedFriendships != nil,
 			_q.withOwnedSharedTrips != nil,
 			_q.withTripMemberships != nil,
+			_q.withItineraries != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -928,6 +965,13 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadTripMemberships(ctx, query, nodes,
 			func(n *User) { n.Edges.TripMemberships = []*TripMember{} },
 			func(n *User, e *TripMember) { n.Edges.TripMemberships = append(n.Edges.TripMemberships, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withItineraries; query != nil {
+		if err := _q.loadItineraries(ctx, query, nodes,
+			func(n *User) { n.Edges.Itineraries = []*Itinerary{} },
+			func(n *User, e *Itinerary) { n.Edges.Itineraries = append(n.Edges.Itineraries, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -1306,6 +1350,36 @@ func (_q *UserQuery) loadTripMemberships(ctx context.Context, query *TripMemberQ
 	}
 	query.Where(predicate.TripMember(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(user.TripMembershipsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadItineraries(ctx context.Context, query *ItineraryQuery, nodes []*User, init func(*User), assign func(*User, *Itinerary)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(itinerary.FieldUserID)
+	}
+	query.Where(predicate.Itinerary(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.ItinerariesColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

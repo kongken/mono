@@ -5,8 +5,9 @@ RUN go mod download
 COPY cmd cmd
 COPY internal internal
 COPY pkg pkg
-# The region index test checks the backend copy against the frontend one.
+# The region index and city coordinate tests check the backend copies against the frontend ones.
 COPY src/regions.json src/regions.json
+COPY src/city-coords.json src/city-coords.json
 COPY scripts/fixtures scripts/fixtures
 COPY migrations migrations
 RUN go test ./...

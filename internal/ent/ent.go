@@ -16,6 +16,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
 	"go.orx.me/apps/trip-map/internal/ent/friendship"
+	"go.orx.me/apps/trip-map/internal/ent/itinerary"
 	"go.orx.me/apps/trip-map/internal/ent/mediacleanup"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
@@ -91,6 +92,7 @@ func checkColumn(t, c string) error {
 			cityvisit.Table:              cityvisit.ValidColumn,
 			footprintchange.Table:        footprintchange.ValidColumn,
 			friendship.Table:             friendship.ValidColumn,
+			itinerary.Table:              itinerary.ValidColumn,
 			mediacleanup.Table:           mediacleanup.ValidColumn,
 			mediaobject.Table:            mediaobject.ValidColumn,
 			provincemark.Table:           provincemark.ValidColumn,

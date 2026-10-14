@@ -1,0 +1,149 @@
+syntax = "proto3";
+
+package tripmap.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
+
+// ItineraryService manages multi-city travel itineraries, stop ordering and
+// offline/cached route distance and duration estimation (F11).
+// All methods require a bearer session and enforce strict user isolation.
+service ItineraryService {
+  // ListItineraries returns the caller's itineraries and the active route
+  // estimation policy (provider, cost and cache rules).
+  rpc ListItineraries(ListItinerariesRequest) returns (ListItinerariesResponse);
+
+  // GetItinerary returns one itinerary owned by the caller with its computed
+  // route legs and summary.
+  rpc GetItinerary(GetItineraryRequest) returns (GetItineraryResponse);
+
+  // SaveItinerary creates or updates an itinerary and its ordered stops.
+  // Supports optimistic concurrency via expected_version and idempotent replay
+  // via mutation_id.
+  rpc SaveItinerary(SaveItineraryRequest) returns (SaveItineraryResponse);
+
+  // DeleteItinerary deletes an itinerary owned by the caller.
+  rpc DeleteItinerary(DeleteItineraryRequest) returns (DeleteItineraryResponse);
+}
+
+// ItineraryStopInput is one city stop submitted when creating or editing an itinerary.
+message ItineraryStopInput {
+  string id = 1;
+  string region_code = 2;
+  string date = 3;
+  string note = 4;
+  // Transport mode from the previous stop to this stop:
+  // "train", "car", "flight", "ship" or "other".
+  string transport = 5;
+  // Optional soft reference to a city trip ID in city_trips.
+  string trip_id = 6;
+}
+
+// ItineraryStop is an enriched, ordered city stop returned by ItineraryService.
+message ItineraryStop {
+  string id = 1;
+  int32 order = 2;
+  string region_code = 3;
+  string region_name = 4;
+  string province_code = 5;
+  string province_name = 6;
+  string date = 7;
+  string note = 8;
+  string transport = 9;
+  string trip_id = 10;
+  // Coordinates in the bundled GeoJSON projection frame (GCJ-02 on mainland).
+  double longitude = 11;
+  double latitude = 12;
+  // Coordinates in WGS-84 for OSM basemap and spherical distance calculation.
+  double wgs_longitude = 13;
+  double wgs_latitude = 14;
+}
+
+// ItineraryLeg describes one consecutive segment between two stops.
+message ItineraryLeg {
+  int32 from_order = 1;
+  int32 to_order = 2;
+  string from_region_code = 3;
+  string from_region_name = 4;
+  string to_region_code = 5;
+  string to_region_name = 6;
+  string transport = 7;
+  double straight_distance_km = 8;
+  double estimated_distance_km = 9;
+  int32 estimated_duration_minutes = 10;
+  bool from_cache = 11;
+}
+
+// ItineraryEstimationPolicy documents the active route estimation provider,
+// external API cost policy and caching strategy.
+message ItineraryEstimationPolicy {
+  string provider = 1;
+  string provider_label = 2;
+  bool external_api_enabled = 3;
+  string cost_policy = 4;
+  string cache_strategy = 5;
+  string disclaimer = 6;
+}
+
+// ItineraryInfo is a complete multi-city itinerary with computed route legs and totals.
+message ItineraryInfo {
+  string id = 1;
+  string title = 2;
+  string note = 3;
+  string color = 4;
+  int64 version = 5;
+  repeated ItineraryStop stops = 6;
+  repeated ItineraryLeg legs = 7;
+  double total_straight_distance_km = 8;
+  double total_estimated_distance_km = 9;
+  int32 total_estimated_duration_minutes = 10;
+  int32 city_count = 11;
+  int32 province_count = 12;
+  bool from_cache = 13;
+  google.protobuf.Timestamp created_at = 14;
+  google.protobuf.Timestamp updated_at = 15;
+}
+
+message ListItinerariesRequest {}
+
+message ListItinerariesResponse {
+  repeated ItineraryInfo itineraries = 1;
+  ItineraryEstimationPolicy policy = 2;
+}
+
+message GetItineraryRequest {
+  string id = 1;
+}
+
+message GetItineraryResponse {
+  ItineraryInfo itinerary = 1;
+  ItineraryEstimationPolicy policy = 2;
+}
+
+message SaveItineraryRequest {
+  string id = 1;
+  string title = 2;
+  string note = 3;
+  string color = 4;
+  repeated ItineraryStopInput stops = 5;
+  // 0 when creating a new itinerary; current version when updating an existing one.
+  int64 expected_version = 6;
+  // Optional idempotency token for safe network retries.
+  string mutation_id = 7;
+}
+
+message SaveItineraryResponse {
+  ItineraryInfo itinerary = 1;
+  ItineraryEstimationPolicy policy = 2;
+  bool replayed = 3;
+}
+
+message DeleteItineraryRequest {
+  string id = 1;
+  int64 expected_version = 2;
+}
+
+message DeleteItineraryResponse {
+  bool deleted = 1;
+}
