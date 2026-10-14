@@ -1,0 +1,3182 @@
+{
+  "110000": [
+    "beijingshi",
+    "bjs",
+    "beijing",
+    "bj"
+  ],
+  "110101": [
+    "dongchengqu",
+    "dcq",
+    "dongcheng",
+    "dc"
+  ],
+  "110102": [
+    "xichengqu",
+    "xcq",
+    "xicheng",
+    "xc"
+  ],
+  "110105": [
+    "chaoyangqu",
+    "cyq",
+    "chaoyang",
+    "cy"
+  ],
+  "110106": [
+    "fengtaiqu",
+    "ftq",
+    "fengtai",
+    "ft"
+  ],
+  "110107": [
+    "shijingshanqu",
+    "sjsq",
+    "shijingshan",
+    "sjs"
+  ],
+  "110108": [
+    "haidianqu",
+    "hdq",
+    "haidian",
+    "hd"
+  ],
+  "110109": [
+    "mentougouqu",
+    "mtgq",
+    "mentougou",
+    "mtg"
+  ],
+  "110111": [
+    "fangshanqu",
+    "fsq",
+    "fangshan",
+    "fs"
+  ],
+  "110112": [
+    "tongzhouqu",
+    "tzq",
+    "tongzhou",
+    "tz"
+  ],
+  "110113": [
+    "shunyiqu",
+    "syq",
+    "shunyi",
+    "sy"
+  ],
+  "110114": [
+    "changpingqu",
+    "cpq",
+    "changping",
+    "cp"
+  ],
+  "110115": [
+    "daxingqu",
+    "dxq",
+    "daxing",
+    "dx"
+  ],
+  "110116": [
+    "huairouqu",
+    "hrq",
+    "huairou",
+    "hr"
+  ],
+  "110117": [
+    "pingguqu",
+    "pgq",
+    "pinggu",
+    "pg"
+  ],
+  "110118": [
+    "miyunqu",
+    "myq",
+    "miyun",
+    "my"
+  ],
+  "110119": [
+    "yanqingqu",
+    "yqq",
+    "yanqing",
+    "yq"
+  ],
+  "120000": [
+    "tianjinshi",
+    "tjs",
+    "tianjin",
+    "tj"
+  ],
+  "120101": [
+    "hepingqu",
+    "hpq",
+    "heping",
+    "hp"
+  ],
+  "120102": [
+    "hedongqu",
+    "hdq",
+    "hedong",
+    "hd"
+  ],
+  "120103": [
+    "hexiqu",
+    "hxq",
+    "hexi",
+    "hx"
+  ],
+  "120104": [
+    "nankaiqu",
+    "nkq",
+    "nankai",
+    "nk"
+  ],
+  "120105": [
+    "hebeiqu",
+    "hbq",
+    "hebei",
+    "hb"
+  ],
+  "120106": [
+    "hongqiaoqu",
+    "hqq",
+    "hongqiao",
+    "hq"
+  ],
+  "120110": [
+    "dongliqu",
+    "dlq",
+    "dongli",
+    "dl"
+  ],
+  "120111": [
+    "xiqingqu",
+    "xqq",
+    "xiqing",
+    "xq"
+  ],
+  "120112": [
+    "jinnanqu",
+    "jnq",
+    "jinnan",
+    "jn"
+  ],
+  "120113": [
+    "beichenqu",
+    "bcq",
+    "beichen",
+    "bc"
+  ],
+  "120114": [
+    "wuqingqu",
+    "wqq",
+    "wuqing",
+    "wq"
+  ],
+  "120115": [
+    "baodiqu",
+    "bdq",
+    "baodi",
+    "bd"
+  ],
+  "120116": [
+    "binhaixinqu",
+    "bhxq",
+    "binhaixin",
+    "bhx"
+  ],
+  "120117": [
+    "ninghequ",
+    "nhq",
+    "ninghe",
+    "nh"
+  ],
+  "120118": [
+    "jinghaiqu",
+    "jhq",
+    "jinghai",
+    "jh"
+  ],
+  "120119": [
+    "jizhouqu",
+    "jzq",
+    "jizhou",
+    "jz"
+  ],
+  "130000": [
+    "hebeisheng",
+    "hbs",
+    "hebei",
+    "hb"
+  ],
+  "130100": [
+    "shijiazhuangshi",
+    "sjzs",
+    "shijiazhuang",
+    "sjz"
+  ],
+  "130200": [
+    "tangshanshi",
+    "tss",
+    "tangshan",
+    "ts"
+  ],
+  "130300": [
+    "qinhuangdaoshi",
+    "qhds",
+    "qinhuangdao",
+    "qhd"
+  ],
+  "130400": [
+    "handanshi",
+    "hds",
+    "handan",
+    "hd"
+  ],
+  "130500": [
+    "xingtaishi",
+    "xts",
+    "xingtai",
+    "xt"
+  ],
+  "130600": [
+    "baodingshi",
+    "bds",
+    "baoding",
+    "bd"
+  ],
+  "130700": [
+    "zhangjiakoushi",
+    "zjks",
+    "zhangjiakou",
+    "zjk"
+  ],
+  "130800": [
+    "chengdeshi",
+    "cds",
+    "chengde",
+    "cd"
+  ],
+  "130900": [
+    "cangzhoushi",
+    "czs",
+    "cangzhou",
+    "cz"
+  ],
+  "131000": [
+    "langfangshi",
+    "lfs",
+    "langfang",
+    "lf"
+  ],
+  "131100": [
+    "hengshuishi",
+    "hss",
+    "hengshui",
+    "hs"
+  ],
+  "140000": [
+    "shanxisheng",
+    "sxs",
+    "shanxi",
+    "sx"
+  ],
+  "140100": [
+    "taiyuanshi",
+    "tys",
+    "taiyuan",
+    "ty"
+  ],
+  "140200": [
+    "datongshi",
+    "dts",
+    "datong",
+    "dt"
+  ],
+  "140300": [
+    "yangquanshi",
+    "yqs",
+    "yangquan",
+    "yq"
+  ],
+  "140400": [
+    "changzhishi",
+    "czs",
+    "changzhi",
+    "cz"
+  ],
+  "140500": [
+    "jinchengshi",
+    "jcs",
+    "jincheng",
+    "jc"
+  ],
+  "140600": [
+    "shuozhoushi",
+    "szs",
+    "shuozhou",
+    "sz"
+  ],
+  "140700": [
+    "jinzhongshi",
+    "jzs",
+    "jinzhong",
+    "jz"
+  ],
+  "140800": [
+    "yunchengshi",
+    "ycs",
+    "yuncheng",
+    "yc"
+  ],
+  "140900": [
+    "xinzhoushi",
+    "xzs",
+    "xinzhou",
+    "xz"
+  ],
+  "141000": [
+    "linfenshi",
+    "lfs",
+    "linfen",
+    "lf"
+  ],
+  "141100": [
+    "lvliangshi",
+    "lls",
+    "lvliang",
+    "ll"
+  ],
+  "150000": [
+    "neimengguzizhiqu",
+    "nmgzzq",
+    "neimenggu",
+    "nmg"
+  ],
+  "150100": [
+    "huhehaoteshi",
+    "hhhts",
+    "huhehaote",
+    "hhht"
+  ],
+  "150200": [
+    "baotoushi",
+    "bts",
+    "baotou",
+    "bt"
+  ],
+  "150300": [
+    "wuhaishi",
+    "whs",
+    "wuhai",
+    "wh"
+  ],
+  "150400": [
+    "chifengshi",
+    "cfs",
+    "chifeng",
+    "cf"
+  ],
+  "150500": [
+    "tongliaoshi",
+    "tls",
+    "tongliao",
+    "tl"
+  ],
+  "150600": [
+    "eerduosishi",
+    "eedss",
+    "eerduosi",
+    "eeds"
+  ],
+  "150700": [
+    "hulunbeiershi",
+    "hlbes",
+    "hulunbeier",
+    "hlbe"
+  ],
+  "150800": [
+    "bayannaoershi",
+    "bynes",
+    "bayannaoer",
+    "byne"
+  ],
+  "150900": [
+    "wulanchabushi",
+    "wlcbs",
+    "wulanchabu",
+    "wlcb"
+  ],
+  "152200": [
+    "xinganmeng",
+    "xam"
+  ],
+  "152500": [
+    "xilinguolemeng",
+    "xlglm"
+  ],
+  "152900": [
+    "alashanmeng",
+    "alsm"
+  ],
+  "210000": [
+    "liaoningsheng",
+    "lns",
+    "liaoning",
+    "ln"
+  ],
+  "210100": [
+    "shenyangshi",
+    "sys",
+    "shenyang",
+    "sy"
+  ],
+  "210200": [
+    "dalianshi",
+    "dls",
+    "dalian",
+    "dl"
+  ],
+  "210300": [
+    "anshanshi",
+    "ass",
+    "anshan",
+    "as"
+  ],
+  "210400": [
+    "fushunshi",
+    "fss",
+    "fushun",
+    "fs"
+  ],
+  "210500": [
+    "benxishi",
+    "bxs",
+    "benxi",
+    "bx"
+  ],
+  "210600": [
+    "dandongshi",
+    "dds",
+    "dandong",
+    "dd"
+  ],
+  "210700": [
+    "jinzhoushi",
+    "jzs",
+    "jinzhou",
+    "jz"
+  ],
+  "210800": [
+    "yingkoushi",
+    "yks",
+    "yingkou",
+    "yk"
+  ],
+  "210900": [
+    "fuxinshi",
+    "fxs",
+    "fuxin",
+    "fx"
+  ],
+  "211000": [
+    "liaoyangshi",
+    "lys",
+    "liaoyang",
+    "ly"
+  ],
+  "211100": [
+    "panjinshi",
+    "pjs",
+    "panjin",
+    "pj"
+  ],
+  "211200": [
+    "tielingshi",
+    "tls",
+    "tieling",
+    "tl"
+  ],
+  "211300": [
+    "chaoyangshi",
+    "cys",
+    "chaoyang",
+    "cy"
+  ],
+  "211400": [
+    "huludaoshi",
+    "hlds",
+    "huludao",
+    "hld"
+  ],
+  "220000": [
+    "jilinsheng",
+    "jls",
+    "jilin",
+    "jl"
+  ],
+  "220100": [
+    "changchunshi",
+    "ccs",
+    "changchun",
+    "cc"
+  ],
+  "220200": [
+    "jilinshi",
+    "jls",
+    "jilin",
+    "jl"
+  ],
+  "220300": [
+    "sipingshi",
+    "sps",
+    "siping",
+    "sp"
+  ],
+  "220400": [
+    "liaoyuanshi",
+    "lys",
+    "liaoyuan",
+    "ly"
+  ],
+  "220500": [
+    "tonghuashi",
+    "ths",
+    "tonghua",
+    "th"
+  ],
+  "220600": [
+    "baishanshi",
+    "bss",
+    "baishan",
+    "bs"
+  ],
+  "220700": [
+    "songyuanshi",
+    "sys",
+    "songyuan",
+    "sy"
+  ],
+  "220800": [
+    "baichengshi",
+    "bcs",
+    "baicheng",
+    "bc"
+  ],
+  "222400": [
+    "yanbianchaoxianzuzizhizhou",
+    "ybcxzzzz",
+    "yanbianchaoxianzu",
+    "ybcxz"
+  ],
+  "230000": [
+    "heilongjiangsheng",
+    "hljs",
+    "heilongjiang",
+    "hlj"
+  ],
+  "230100": [
+    "haerbinshi",
+    "hebs",
+    "haerbin",
+    "heb"
+  ],
+  "230200": [
+    "qiqihaershi",
+    "qqhes",
+    "qiqihaer",
+    "qqhe"
+  ],
+  "230300": [
+    "jixishi",
+    "jxs",
+    "jixi",
+    "jx"
+  ],
+  "230400": [
+    "hegangshi",
+    "hgs",
+    "hegang",
+    "hg"
+  ],
+  "230500": [
+    "shuangyashanshi",
+    "syss",
+    "shuangyashan",
+    "sys"
+  ],
+  "230600": [
+    "daqingshi",
+    "dqs",
+    "daqing",
+    "dq"
+  ],
+  "230700": [
+    "yichunshi",
+    "ycs",
+    "yichun",
+    "yc"
+  ],
+  "230800": [
+    "jiamusishi",
+    "jmss",
+    "jiamusi",
+    "jms"
+  ],
+  "230900": [
+    "qitaiheshi",
+    "qths",
+    "qitaihe",
+    "qth"
+  ],
+  "231000": [
+    "mudanjiangshi",
+    "mdjs",
+    "mudanjiang",
+    "mdj"
+  ],
+  "231100": [
+    "heiheshi",
+    "hhs",
+    "heihe",
+    "hh"
+  ],
+  "231200": [
+    "suihuashi",
+    "shs",
+    "suihua",
+    "sh"
+  ],
+  "232700": [
+    "daxinganlingdiqu",
+    "dxaldq",
+    "daxinganlingdi",
+    "dxald"
+  ],
+  "310000": [
+    "shanghaishi",
+    "shs",
+    "shanghai",
+    "sh"
+  ],
+  "310101": [
+    "huangpuqu",
+    "hpq",
+    "huangpu",
+    "hp"
+  ],
+  "310104": [
+    "xuhuiqu",
+    "xhq",
+    "xuhui",
+    "xh"
+  ],
+  "310105": [
+    "changningqu",
+    "cnq",
+    "changning",
+    "cn"
+  ],
+  "310106": [
+    "jinganqu",
+    "jaq",
+    "jingan",
+    "ja"
+  ],
+  "310107": [
+    "putuoqu",
+    "ptq",
+    "putuo",
+    "pt"
+  ],
+  "310109": [
+    "hongkouqu",
+    "hkq",
+    "hongkou",
+    "hk"
+  ],
+  "310110": [
+    "yangpuqu",
+    "ypq",
+    "yangpu",
+    "yp"
+  ],
+  "310112": [
+    "minxingqu",
+    "mxq",
+    "minxing",
+    "mx"
+  ],
+  "310113": [
+    "baoshanqu",
+    "bsq",
+    "baoshan",
+    "bs"
+  ],
+  "310114": [
+    "jiadingqu",
+    "jdq",
+    "jiading",
+    "jd"
+  ],
+  "310115": [
+    "pudongxinqu",
+    "pdxq",
+    "pudongxin",
+    "pdx"
+  ],
+  "310116": [
+    "jinshanqu",
+    "jsq",
+    "jinshan",
+    "js"
+  ],
+  "310117": [
+    "songjiangqu",
+    "sjq",
+    "songjiang",
+    "sj"
+  ],
+  "310118": [
+    "qingpuqu",
+    "qpq",
+    "qingpu",
+    "qp"
+  ],
+  "310120": [
+    "fengxianqu",
+    "fxq",
+    "fengxian",
+    "fx"
+  ],
+  "310151": [
+    "chongmingqu",
+    "cmq",
+    "chongming",
+    "cm"
+  ],
+  "320000": [
+    "jiangsusheng",
+    "jss",
+    "jiangsu",
+    "js"
+  ],
+  "320100": [
+    "nanjingshi",
+    "njs",
+    "nanjing",
+    "nj"
+  ],
+  "320200": [
+    "wuxishi",
+    "wxs",
+    "wuxi",
+    "wx"
+  ],
+  "320300": [
+    "xuzhoushi",
+    "xzs",
+    "xuzhou",
+    "xz"
+  ],
+  "320400": [
+    "changzhoushi",
+    "czs",
+    "changzhou",
+    "cz"
+  ],
+  "320500": [
+    "suzhoushi",
+    "szs",
+    "suzhou",
+    "sz"
+  ],
+  "320600": [
+    "nantongshi",
+    "nts",
+    "nantong",
+    "nt"
+  ],
+  "320700": [
+    "lianyungangshi",
+    "lygs",
+    "lianyungang",
+    "lyg"
+  ],
+  "320800": [
+    "huaianshi",
+    "has",
+    "huaian",
+    "ha"
+  ],
+  "320900": [
+    "yanchengshi",
+    "ycs",
+    "yancheng",
+    "yc"
+  ],
+  "321000": [
+    "yangzhoushi",
+    "yzs",
+    "yangzhou",
+    "yz"
+  ],
+  "321100": [
+    "zhenjiangshi",
+    "zjs",
+    "zhenjiang",
+    "zj"
+  ],
+  "321200": [
+    "taizhoushi",
+    "tzs",
+    "taizhou",
+    "tz"
+  ],
+  "321300": [
+    "suqianshi",
+    "sqs",
+    "suqian",
+    "sq"
+  ],
+  "330000": [
+    "zhejiangsheng",
+    "zjs",
+    "zhejiang",
+    "zj"
+  ],
+  "330100": [
+    "hangzhoushi",
+    "hzs",
+    "hangzhou",
+    "hz"
+  ],
+  "330200": [
+    "ningboshi",
+    "nbs",
+    "ningbo",
+    "nb"
+  ],
+  "330300": [
+    "wenzhoushi",
+    "wzs",
+    "wenzhou",
+    "wz"
+  ],
+  "330400": [
+    "jiaxingshi",
+    "jxs",
+    "jiaxing",
+    "jx"
+  ],
+  "330500": [
+    "huzhoushi",
+    "hzs",
+    "huzhou",
+    "hz"
+  ],
+  "330600": [
+    "shaoxingshi",
+    "sxs",
+    "shaoxing",
+    "sx"
+  ],
+  "330700": [
+    "jinhuashi",
+    "jhs",
+    "jinhua",
+    "jh"
+  ],
+  "330800": [
+    "quzhoushi",
+    "qzs",
+    "quzhou",
+    "qz"
+  ],
+  "330900": [
+    "zhoushanshi",
+    "zss",
+    "zhoushan",
+    "zs"
+  ],
+  "331000": [
+    "taizhoushi",
+    "tzs",
+    "taizhou",
+    "tz"
+  ],
+  "331100": [
+    "lishuishi",
+    "lss",
+    "lishui",
+    "ls"
+  ],
+  "340000": [
+    "anhuisheng",
+    "ahs",
+    "anhui",
+    "ah"
+  ],
+  "340100": [
+    "hefeishi",
+    "hfs",
+    "hefei",
+    "hf"
+  ],
+  "340200": [
+    "wuhushi",
+    "whs",
+    "wuhu",
+    "wh"
+  ],
+  "340300": [
+    "bengbushi",
+    "bbs",
+    "bengbu",
+    "bb"
+  ],
+  "340400": [
+    "huainanshi",
+    "hns",
+    "huainan",
+    "hn"
+  ],
+  "340500": [
+    "maanshanshi",
+    "mass",
+    "maanshan",
+    "mas"
+  ],
+  "340600": [
+    "huaibeishi",
+    "hbs",
+    "huaibei",
+    "hb"
+  ],
+  "340700": [
+    "tonglingshi",
+    "tls",
+    "tongling",
+    "tl"
+  ],
+  "340800": [
+    "anqingshi",
+    "aqs",
+    "anqing",
+    "aq"
+  ],
+  "341000": [
+    "huangshanshi",
+    "hss",
+    "huangshan",
+    "hs"
+  ],
+  "341100": [
+    "chuzhoushi",
+    "czs",
+    "chuzhou",
+    "cz"
+  ],
+  "341200": [
+    "fuyangshi",
+    "fys",
+    "fuyang",
+    "fy"
+  ],
+  "341300": [
+    "suzhoushi",
+    "szs",
+    "suzhou",
+    "sz"
+  ],
+  "341500": [
+    "luanshi",
+    "las",
+    "luan",
+    "la"
+  ],
+  "341600": [
+    "bozhoushi",
+    "bzs",
+    "bozhou",
+    "bz"
+  ],
+  "341700": [
+    "chizhoushi",
+    "czs",
+    "chizhou",
+    "cz"
+  ],
+  "341800": [
+    "xuanchengshi",
+    "xcs",
+    "xuancheng",
+    "xc"
+  ],
+  "350000": [
+    "fujiansheng",
+    "fjs",
+    "fujian",
+    "fj"
+  ],
+  "350100": [
+    "fuzhoushi",
+    "fzs",
+    "fuzhou",
+    "fz"
+  ],
+  "350200": [
+    "xiamenshi",
+    "xms",
+    "xiamen",
+    "xm"
+  ],
+  "350300": [
+    "putianshi",
+    "pts",
+    "putian",
+    "pt"
+  ],
+  "350400": [
+    "sanmingshi",
+    "sms",
+    "sanming",
+    "sm"
+  ],
+  "350500": [
+    "quanzhoushi",
+    "qzs",
+    "quanzhou",
+    "qz"
+  ],
+  "350600": [
+    "zhangzhoushi",
+    "zzs",
+    "zhangzhou",
+    "zz"
+  ],
+  "350700": [
+    "nanpingshi",
+    "nps",
+    "nanping",
+    "np"
+  ],
+  "350800": [
+    "longyanshi",
+    "lys",
+    "longyan",
+    "ly"
+  ],
+  "350900": [
+    "ningdeshi",
+    "nds",
+    "ningde",
+    "nd"
+  ],
+  "360000": [
+    "jiangxisheng",
+    "jxs",
+    "jiangxi",
+    "jx"
+  ],
+  "360100": [
+    "nanchangshi",
+    "ncs",
+    "nanchang",
+    "nc"
+  ],
+  "360200": [
+    "jingdezhenshi",
+    "jdzs",
+    "jingdezhen",
+    "jdz"
+  ],
+  "360300": [
+    "pingxiangshi",
+    "pxs",
+    "pingxiang",
+    "px"
+  ],
+  "360400": [
+    "jiujiangshi",
+    "jjs",
+    "jiujiang",
+    "jj"
+  ],
+  "360500": [
+    "xinyushi",
+    "xys",
+    "xinyu",
+    "xy"
+  ],
+  "360600": [
+    "yingtanshi",
+    "yts",
+    "yingtan",
+    "yt"
+  ],
+  "360700": [
+    "ganzhoushi",
+    "gzs",
+    "ganzhou",
+    "gz"
+  ],
+  "360800": [
+    "jianshi",
+    "jas",
+    "jian",
+    "ja"
+  ],
+  "360900": [
+    "yichunshi",
+    "ycs",
+    "yichun",
+    "yc"
+  ],
+  "361000": [
+    "fuzhoushi",
+    "fzs",
+    "fuzhou",
+    "fz"
+  ],
+  "361100": [
+    "shangraoshi",
+    "srs",
+    "shangrao",
+    "sr"
+  ],
+  "370000": [
+    "shandongsheng",
+    "sds",
+    "shandong",
+    "sd"
+  ],
+  "370100": [
+    "jinanshi",
+    "jns",
+    "jinan",
+    "jn"
+  ],
+  "370200": [
+    "qingdaoshi",
+    "qds",
+    "qingdao",
+    "qd"
+  ],
+  "370300": [
+    "ziboshi",
+    "zbs",
+    "zibo",
+    "zb"
+  ],
+  "370400": [
+    "zaozhuangshi",
+    "zzs",
+    "zaozhuang",
+    "zz"
+  ],
+  "370500": [
+    "dongyingshi",
+    "dys",
+    "dongying",
+    "dy"
+  ],
+  "370600": [
+    "yantaishi",
+    "yts",
+    "yantai",
+    "yt"
+  ],
+  "370700": [
+    "weifangshi",
+    "wfs",
+    "weifang",
+    "wf"
+  ],
+  "370800": [
+    "jiningshi",
+    "jns",
+    "jining",
+    "jn"
+  ],
+  "370900": [
+    "taianshi",
+    "tas",
+    "taian",
+    "ta"
+  ],
+  "371000": [
+    "weihaishi",
+    "whs",
+    "weihai",
+    "wh"
+  ],
+  "371100": [
+    "rizhaoshi",
+    "rzs",
+    "rizhao",
+    "rz"
+  ],
+  "371300": [
+    "linyishi",
+    "lys",
+    "linyi",
+    "ly"
+  ],
+  "371400": [
+    "dezhoushi",
+    "dzs",
+    "dezhou",
+    "dz"
+  ],
+  "371500": [
+    "liaochengshi",
+    "lcs",
+    "liaocheng",
+    "lc"
+  ],
+  "371600": [
+    "binzhoushi",
+    "bzs",
+    "binzhou",
+    "bz"
+  ],
+  "371700": [
+    "hezeshi",
+    "hzs",
+    "heze",
+    "hz"
+  ],
+  "410000": [
+    "henansheng",
+    "hns",
+    "henan",
+    "hn"
+  ],
+  "410100": [
+    "zhengzhoushi",
+    "zzs",
+    "zhengzhou",
+    "zz"
+  ],
+  "410200": [
+    "kaifengshi",
+    "kfs",
+    "kaifeng",
+    "kf"
+  ],
+  "410300": [
+    "luoyangshi",
+    "lys",
+    "luoyang",
+    "ly"
+  ],
+  "410400": [
+    "pingdingshanshi",
+    "pdss",
+    "pingdingshan",
+    "pds"
+  ],
+  "410500": [
+    "anyangshi",
+    "ays",
+    "anyang",
+    "ay"
+  ],
+  "410600": [
+    "hebishi",
+    "hbs",
+    "hebi",
+    "hb"
+  ],
+  "410700": [
+    "xinxiangshi",
+    "xxs",
+    "xinxiang",
+    "xx"
+  ],
+  "410800": [
+    "jiaozuoshi",
+    "jzs",
+    "jiaozuo",
+    "jz"
+  ],
+  "410900": [
+    "puyangshi",
+    "pys",
+    "puyang",
+    "py"
+  ],
+  "411000": [
+    "xuchangshi",
+    "xcs",
+    "xuchang",
+    "xc"
+  ],
+  "411100": [
+    "luoheshi",
+    "lhs",
+    "luohe",
+    "lh"
+  ],
+  "411200": [
+    "sanmenxiashi",
+    "smxs",
+    "sanmenxia",
+    "smx"
+  ],
+  "411300": [
+    "nanyangshi",
+    "nys",
+    "nanyang",
+    "ny"
+  ],
+  "411400": [
+    "shangqiushi",
+    "sqs",
+    "shangqiu",
+    "sq"
+  ],
+  "411500": [
+    "xinyangshi",
+    "xys",
+    "xinyang",
+    "xy"
+  ],
+  "411600": [
+    "zhoukoushi",
+    "zks",
+    "zhoukou",
+    "zk"
+  ],
+  "411700": [
+    "zhumadianshi",
+    "zmds",
+    "zhumadian",
+    "zmd"
+  ],
+  "419001": [
+    "jiyuanshi",
+    "jys",
+    "jiyuan",
+    "jy"
+  ],
+  "420000": [
+    "hubeisheng",
+    "hbs",
+    "hubei",
+    "hb"
+  ],
+  "420100": [
+    "wuhanshi",
+    "whs",
+    "wuhan",
+    "wh"
+  ],
+  "420200": [
+    "huangshishi",
+    "hss",
+    "huangshi",
+    "hs"
+  ],
+  "420300": [
+    "shiyanshi",
+    "sys",
+    "shiyan",
+    "sy"
+  ],
+  "420500": [
+    "yichangshi",
+    "ycs",
+    "yichang",
+    "yc"
+  ],
+  "420600": [
+    "xiangyangshi",
+    "xys",
+    "xiangyang",
+    "xy"
+  ],
+  "420700": [
+    "ezhoushi",
+    "ezs",
+    "ezhou",
+    "ez"
+  ],
+  "420800": [
+    "jingmenshi",
+    "jms",
+    "jingmen",
+    "jm"
+  ],
+  "420900": [
+    "xiaoganshi",
+    "xgs",
+    "xiaogan",
+    "xg"
+  ],
+  "421000": [
+    "jingzhoushi",
+    "jzs",
+    "jingzhou",
+    "jz"
+  ],
+  "421100": [
+    "huanggangshi",
+    "hgs",
+    "huanggang",
+    "hg"
+  ],
+  "421200": [
+    "xianningshi",
+    "xns",
+    "xianning",
+    "xn"
+  ],
+  "421300": [
+    "suizhoushi",
+    "szs",
+    "suizhou",
+    "sz"
+  ],
+  "422800": [
+    "enshitujiazumiaozuzizhizhou",
+    "estjzmzzzz",
+    "enshitujiazumiaozu",
+    "estjzmz"
+  ],
+  "429004": [
+    "xiantaoshi",
+    "xts",
+    "xiantao",
+    "xt"
+  ],
+  "429005": [
+    "qianjiangshi",
+    "qjs",
+    "qianjiang",
+    "qj"
+  ],
+  "429006": [
+    "tianmenshi",
+    "tms",
+    "tianmen",
+    "tm"
+  ],
+  "429021": [
+    "shennongjialinqu",
+    "snjlq",
+    "shennongjialin",
+    "snjl"
+  ],
+  "430000": [
+    "hunansheng",
+    "hns",
+    "hunan",
+    "hn"
+  ],
+  "430100": [
+    "changshashi",
+    "css",
+    "changsha",
+    "cs"
+  ],
+  "430200": [
+    "zhuzhoushi",
+    "zzs",
+    "zhuzhou",
+    "zz"
+  ],
+  "430300": [
+    "xiangtanshi",
+    "xts",
+    "xiangtan",
+    "xt"
+  ],
+  "430400": [
+    "hengyangshi",
+    "hys",
+    "hengyang",
+    "hy"
+  ],
+  "430500": [
+    "shaoyangshi",
+    "sys",
+    "shaoyang",
+    "sy"
+  ],
+  "430600": [
+    "yueyangshi",
+    "yys",
+    "yueyang",
+    "yy"
+  ],
+  "430700": [
+    "changdeshi",
+    "cds",
+    "changde",
+    "cd"
+  ],
+  "430800": [
+    "zhangjiajieshi",
+    "zjjs",
+    "zhangjiajie",
+    "zjj"
+  ],
+  "430900": [
+    "yiyangshi",
+    "yys",
+    "yiyang",
+    "yy"
+  ],
+  "431000": [
+    "chenzhoushi",
+    "czs",
+    "chenzhou",
+    "cz"
+  ],
+  "431100": [
+    "yongzhoushi",
+    "yzs",
+    "yongzhou",
+    "yz"
+  ],
+  "431200": [
+    "huaihuashi",
+    "hhs",
+    "huaihua",
+    "hh"
+  ],
+  "431300": [
+    "loudishi",
+    "lds",
+    "loudi",
+    "ld"
+  ],
+  "433100": [
+    "xiangxitujiazumiaozuzizhizhou",
+    "xxtjzmzzzz",
+    "xiangxitujiazumiaozu",
+    "xxtjzmz"
+  ],
+  "440000": [
+    "guangdongsheng",
+    "gds",
+    "guangdong",
+    "gd"
+  ],
+  "440100": [
+    "guangzhoushi",
+    "gzs",
+    "guangzhou",
+    "gz"
+  ],
+  "440200": [
+    "shaoguanshi",
+    "sgs",
+    "shaoguan",
+    "sg"
+  ],
+  "440300": [
+    "shenzhenshi",
+    "szs",
+    "shenzhen",
+    "sz"
+  ],
+  "440400": [
+    "zhuhaishi",
+    "zhs",
+    "zhuhai",
+    "zh"
+  ],
+  "440500": [
+    "shantoushi",
+    "sts",
+    "shantou",
+    "st"
+  ],
+  "440600": [
+    "foshanshi",
+    "fss",
+    "foshan",
+    "fs"
+  ],
+  "440700": [
+    "jiangmenshi",
+    "jms",
+    "jiangmen",
+    "jm"
+  ],
+  "440800": [
+    "zhanjiangshi",
+    "zjs",
+    "zhanjiang",
+    "zj"
+  ],
+  "440900": [
+    "maomingshi",
+    "mms",
+    "maoming",
+    "mm"
+  ],
+  "441200": [
+    "zhaoqingshi",
+    "zqs",
+    "zhaoqing",
+    "zq"
+  ],
+  "441300": [
+    "huizhoushi",
+    "hzs",
+    "huizhou",
+    "hz"
+  ],
+  "441400": [
+    "meizhoushi",
+    "mzs",
+    "meizhou",
+    "mz"
+  ],
+  "441500": [
+    "shanweishi",
+    "sws",
+    "shanwei",
+    "sw"
+  ],
+  "441600": [
+    "heyuanshi",
+    "hys",
+    "heyuan",
+    "hy"
+  ],
+  "441700": [
+    "yangjiangshi",
+    "yjs",
+    "yangjiang",
+    "yj"
+  ],
+  "441800": [
+    "qingyuanshi",
+    "qys",
+    "qingyuan",
+    "qy"
+  ],
+  "441900": [
+    "dongguanshi",
+    "dgs",
+    "dongguan",
+    "dg"
+  ],
+  "442000": [
+    "zhongshanshi",
+    "zss",
+    "zhongshan",
+    "zs"
+  ],
+  "445100": [
+    "chaozhoushi",
+    "czs",
+    "chaozhou",
+    "cz"
+  ],
+  "445200": [
+    "jieyangshi",
+    "jys",
+    "jieyang",
+    "jy"
+  ],
+  "445300": [
+    "yunfushi",
+    "yfs",
+    "yunfu",
+    "yf"
+  ],
+  "450000": [
+    "guangxizhuangzuzizhiqu",
+    "gxzzzzq",
+    "guangxi",
+    "gx"
+  ],
+  "450100": [
+    "nanningshi",
+    "nns",
+    "nanning",
+    "nn"
+  ],
+  "450200": [
+    "liuzhoushi",
+    "lzs",
+    "liuzhou",
+    "lz"
+  ],
+  "450300": [
+    "guilinshi",
+    "gls",
+    "guilin",
+    "gl"
+  ],
+  "450400": [
+    "wuzhoushi",
+    "wzs",
+    "wuzhou",
+    "wz"
+  ],
+  "450500": [
+    "beihaishi",
+    "bhs",
+    "beihai",
+    "bh"
+  ],
+  "450600": [
+    "fangchenggangshi",
+    "fcgs",
+    "fangchenggang",
+    "fcg"
+  ],
+  "450700": [
+    "qinzhoushi",
+    "qzs",
+    "qinzhou",
+    "qz"
+  ],
+  "450800": [
+    "guigangshi",
+    "ggs",
+    "guigang",
+    "gg"
+  ],
+  "450900": [
+    "yulinshi",
+    "yls",
+    "yulin",
+    "yl"
+  ],
+  "451000": [
+    "baiseshi",
+    "bss",
+    "baise",
+    "bs"
+  ],
+  "451100": [
+    "hezhoushi",
+    "hzs",
+    "hezhou",
+    "hz"
+  ],
+  "451200": [
+    "hechishi",
+    "hcs",
+    "hechi",
+    "hc"
+  ],
+  "451300": [
+    "laibinshi",
+    "lbs",
+    "laibin",
+    "lb"
+  ],
+  "451400": [
+    "chongzuoshi",
+    "czs",
+    "chongzuo",
+    "cz"
+  ],
+  "460000": [
+    "hainansheng",
+    "hns",
+    "hainan",
+    "hn"
+  ],
+  "460100": [
+    "haikoushi",
+    "hks",
+    "haikou",
+    "hk"
+  ],
+  "460200": [
+    "sanyashi",
+    "sys",
+    "sanya",
+    "sy"
+  ],
+  "460300": [
+    "sanshashi",
+    "sss",
+    "sansha",
+    "ss"
+  ],
+  "460400": [
+    "danzhoushi",
+    "dzs",
+    "danzhou",
+    "dz"
+  ],
+  "469001": [
+    "wuzhishanshi",
+    "wzss",
+    "wuzhishan",
+    "wzs"
+  ],
+  "469002": [
+    "qionghaishi",
+    "qhs",
+    "qionghai",
+    "qh"
+  ],
+  "469005": [
+    "wenchangshi",
+    "wcs",
+    "wenchang",
+    "wc"
+  ],
+  "469006": [
+    "wanningshi",
+    "wns",
+    "wanning",
+    "wn"
+  ],
+  "469007": [
+    "dongfangshi",
+    "dfs",
+    "dongfang",
+    "df"
+  ],
+  "469021": [
+    "dinganxian",
+    "dax",
+    "dingan",
+    "da"
+  ],
+  "469022": [
+    "tunchangxian",
+    "tcx",
+    "tunchang",
+    "tc"
+  ],
+  "469023": [
+    "chengmaixian",
+    "cmx",
+    "chengmai",
+    "cm"
+  ],
+  "469024": [
+    "lingaoxian",
+    "lgx",
+    "lingao",
+    "lg"
+  ],
+  "469025": [
+    "baishalizuzizhixian",
+    "bslzzzx",
+    "baishalizu",
+    "bslz"
+  ],
+  "469026": [
+    "changjianglizuzizhixian",
+    "cjlzzzx",
+    "changjianglizu",
+    "cjlz"
+  ],
+  "469027": [
+    "ledonglizuzizhixian",
+    "ldlzzzx",
+    "ledonglizu",
+    "ldlz"
+  ],
+  "469028": [
+    "lingshuilizuzizhixian",
+    "lslzzzx",
+    "lingshuilizu",
+    "lslz"
+  ],
+  "469029": [
+    "baotinglizumiaozuzizhixian",
+    "btlzmzzzx",
+    "baotinglizumiaozu",
+    "btlzmz"
+  ],
+  "469030": [
+    "qiongzhonglizumiaozuzizhixian",
+    "qzlzmzzzx",
+    "qiongzhonglizumiaozu",
+    "qzlzmz"
+  ],
+  "500000": [
+    "chongqingshi",
+    "cqs",
+    "chongqing",
+    "cq"
+  ],
+  "500101": [
+    "wanzhouqu",
+    "wzq",
+    "wanzhou",
+    "wz"
+  ],
+  "500102": [
+    "fulingqu",
+    "flq",
+    "fuling",
+    "fl"
+  ],
+  "500103": [
+    "yuzhongqu",
+    "yzq",
+    "yuzhong",
+    "yz"
+  ],
+  "500104": [
+    "dadukouqu",
+    "ddkq",
+    "dadukou",
+    "ddk"
+  ],
+  "500105": [
+    "jiangbeiqu",
+    "jbq",
+    "jiangbei",
+    "jb"
+  ],
+  "500106": [
+    "shapingbaqu",
+    "spbq",
+    "shapingba",
+    "spb"
+  ],
+  "500107": [
+    "jiulongpoqu",
+    "jlpq",
+    "jiulongpo",
+    "jlp"
+  ],
+  "500108": [
+    "nananqu",
+    "naq",
+    "nanan",
+    "na"
+  ],
+  "500109": [
+    "beibeiqu",
+    "bbq",
+    "beibei",
+    "bb"
+  ],
+  "500110": [
+    "qijiangqu",
+    "qjq",
+    "qijiang",
+    "qj"
+  ],
+  "500111": [
+    "dazuqu",
+    "dzq",
+    "dazu",
+    "dz"
+  ],
+  "500112": [
+    "yubeiqu",
+    "ybq",
+    "yubei",
+    "yb"
+  ],
+  "500113": [
+    "bananqu",
+    "bnq",
+    "banan",
+    "bn"
+  ],
+  "500114": [
+    "qianjiangqu",
+    "qjq",
+    "qianjiang",
+    "qj"
+  ],
+  "500115": [
+    "changshouqu",
+    "csq",
+    "changshou",
+    "cs"
+  ],
+  "500116": [
+    "jiangjinqu",
+    "jjq",
+    "jiangjin",
+    "jj"
+  ],
+  "500117": [
+    "hechuanqu",
+    "hcq",
+    "hechuan",
+    "hc"
+  ],
+  "500118": [
+    "yongchuanqu",
+    "ycq",
+    "yongchuan",
+    "yc"
+  ],
+  "500119": [
+    "nanchuanqu",
+    "ncq",
+    "nanchuan",
+    "nc"
+  ],
+  "500120": [
+    "bishanqu",
+    "bsq",
+    "bishan",
+    "bs"
+  ],
+  "500151": [
+    "tongliangqu",
+    "tlq",
+    "tongliang",
+    "tl"
+  ],
+  "500152": [
+    "tongnanqu",
+    "tnq",
+    "tongnan",
+    "tn"
+  ],
+  "500153": [
+    "rongchangqu",
+    "rcq",
+    "rongchang",
+    "rc"
+  ],
+  "500154": [
+    "kaizhouqu",
+    "kzq",
+    "kaizhou",
+    "kz"
+  ],
+  "500155": [
+    "liangpingqu",
+    "lpq",
+    "liangping",
+    "lp"
+  ],
+  "500156": [
+    "wulongqu",
+    "wlq",
+    "wulong",
+    "wl"
+  ],
+  "500229": [
+    "chengkouxian",
+    "ckx",
+    "chengkou",
+    "ck"
+  ],
+  "500230": [
+    "fengdouxian",
+    "fdx",
+    "fengdou",
+    "fd"
+  ],
+  "500231": [
+    "dianjiangxian",
+    "djx",
+    "dianjiang",
+    "dj"
+  ],
+  "500233": [
+    "zhongxian",
+    "zx",
+    "zhong",
+    "z"
+  ],
+  "500235": [
+    "yunyangxian",
+    "yyx",
+    "yunyang",
+    "yy"
+  ],
+  "500236": [
+    "fengjiexian",
+    "fjx",
+    "fengjie",
+    "fj"
+  ],
+  "500237": [
+    "wushanxian",
+    "wsx",
+    "wushan",
+    "ws"
+  ],
+  "500238": [
+    "wuxixian",
+    "wxx",
+    "wuxi",
+    "wx"
+  ],
+  "500240": [
+    "shizhutujiazuzizhixian",
+    "sztjzzzx",
+    "shizhutujiazu",
+    "sztjz"
+  ],
+  "500241": [
+    "xiushantujiazumiaozuzizhixian",
+    "xstjzmzzzx",
+    "xiushantujiazumiaozu",
+    "xstjzmz"
+  ],
+  "500242": [
+    "youyangtujiazumiaozuzizhixian",
+    "yytjzmzzzx",
+    "youyangtujiazumiaozu",
+    "yytjzmz"
+  ],
+  "500243": [
+    "pengshuimiaozutujiazuzizhixian",
+    "psmztjzzzx",
+    "pengshuimiaozutujiazu",
+    "psmztjz"
+  ],
+  "510000": [
+    "sichuansheng",
+    "scs",
+    "sichuan",
+    "sc"
+  ],
+  "510100": [
+    "chengdushi",
+    "cds",
+    "chengdu",
+    "cd"
+  ],
+  "510300": [
+    "zigongshi",
+    "zgs",
+    "zigong",
+    "zg"
+  ],
+  "510400": [
+    "panzhihuashi",
+    "pzhs",
+    "panzhihua",
+    "pzh"
+  ],
+  "510500": [
+    "luzhoushi",
+    "lzs",
+    "luzhou",
+    "lz"
+  ],
+  "510600": [
+    "deyangshi",
+    "dys",
+    "deyang",
+    "dy"
+  ],
+  "510700": [
+    "mianyangshi",
+    "mys",
+    "mianyang",
+    "my"
+  ],
+  "510800": [
+    "guangyuanshi",
+    "gys",
+    "guangyuan",
+    "gy"
+  ],
+  "510900": [
+    "suiningshi",
+    "sns",
+    "suining",
+    "sn"
+  ],
+  "511000": [
+    "neijiangshi",
+    "njs",
+    "neijiang",
+    "nj"
+  ],
+  "511100": [
+    "leshanshi",
+    "lss",
+    "leshan",
+    "ls"
+  ],
+  "511300": [
+    "nanchongshi",
+    "ncs",
+    "nanchong",
+    "nc"
+  ],
+  "511400": [
+    "meishanshi",
+    "mss",
+    "meishan",
+    "ms"
+  ],
+  "511500": [
+    "yibinshi",
+    "ybs",
+    "yibin",
+    "yb"
+  ],
+  "511600": [
+    "guanganshi",
+    "gas",
+    "guangan",
+    "ga"
+  ],
+  "511700": [
+    "dazhoushi",
+    "dzs",
+    "dazhou",
+    "dz"
+  ],
+  "511800": [
+    "yaanshi",
+    "yas",
+    "yaan",
+    "ya"
+  ],
+  "511900": [
+    "bazhongshi",
+    "bzs",
+    "bazhong",
+    "bz"
+  ],
+  "512000": [
+    "ziyangshi",
+    "zys",
+    "ziyang",
+    "zy"
+  ],
+  "513200": [
+    "abazangzuqiangzuzizhizhou",
+    "abzzqzzzz",
+    "abazangzuqiangzu",
+    "abzzqz"
+  ],
+  "513300": [
+    "ganzizangzuzizhizhou",
+    "gzzzzzz",
+    "ganzizangzu",
+    "gzzz"
+  ],
+  "513400": [
+    "liangshanyizuzizhizhou",
+    "lsyzzzz",
+    "liangshanyizu",
+    "lsyz"
+  ],
+  "520000": [
+    "guizhousheng",
+    "gzs",
+    "guizhou",
+    "gz"
+  ],
+  "520100": [
+    "guiyangshi",
+    "gys",
+    "guiyang",
+    "gy"
+  ],
+  "520200": [
+    "liupanshuishi",
+    "lpss",
+    "liupanshui",
+    "lps"
+  ],
+  "520300": [
+    "zunyishi",
+    "zys",
+    "zunyi",
+    "zy"
+  ],
+  "520400": [
+    "anshunshi",
+    "ass",
+    "anshun",
+    "as"
+  ],
+  "520500": [
+    "bijieshi",
+    "bjs",
+    "bijie",
+    "bj"
+  ],
+  "520600": [
+    "tongrenshi",
+    "trs",
+    "tongren",
+    "tr"
+  ],
+  "522300": [
+    "qianxinanbuyizumiaozuzizhizhou",
+    "qxnbyzmzzzz",
+    "qianxinanbuyizumiaozu",
+    "qxnbyzmz"
+  ],
+  "522600": [
+    "qiandongnanmiaozudongzuzizhizhou",
+    "qdnmzdzzzz",
+    "qiandongnanmiaozudongzu",
+    "qdnmzdz"
+  ],
+  "522700": [
+    "qiannanbuyizumiaozuzizhizhou",
+    "qnbyzmzzzz",
+    "qiannanbuyizumiaozu",
+    "qnbyzmz"
+  ],
+  "530000": [
+    "yunnansheng",
+    "yns",
+    "yunnan",
+    "yn"
+  ],
+  "530100": [
+    "kunmingshi",
+    "kms",
+    "kunming",
+    "km"
+  ],
+  "530300": [
+    "qujingshi",
+    "qjs",
+    "qujing",
+    "qj"
+  ],
+  "530400": [
+    "yuxishi",
+    "yxs",
+    "yuxi",
+    "yx"
+  ],
+  "530500": [
+    "baoshanshi",
+    "bss",
+    "baoshan",
+    "bs"
+  ],
+  "530600": [
+    "zhaotongshi",
+    "zts",
+    "zhaotong",
+    "zt"
+  ],
+  "530700": [
+    "lijiangshi",
+    "ljs",
+    "lijiang",
+    "lj"
+  ],
+  "530800": [
+    "puershi",
+    "pes",
+    "puer",
+    "pe"
+  ],
+  "530900": [
+    "lincangshi",
+    "lcs",
+    "lincang",
+    "lc"
+  ],
+  "532300": [
+    "chuxiongyizuzizhizhou",
+    "cxyzzzz",
+    "chuxiongyizu",
+    "cxyz"
+  ],
+  "532500": [
+    "honghehanizuyizuzizhizhou",
+    "hhhnzyzzzz",
+    "honghehanizuyizu",
+    "hhhnzyz"
+  ],
+  "532600": [
+    "wenshanzhuangzumiaozuzizhizhou",
+    "wszzmzzzz",
+    "wenshanzhuangzumiaozu",
+    "wszzmz"
+  ],
+  "532800": [
+    "xishuangbannadaizuzizhizhou",
+    "xsbndzzzz",
+    "xishuangbannadaizu",
+    "xsbndz"
+  ],
+  "532900": [
+    "dalibaizuzizhizhou",
+    "dlbzzzz",
+    "dalibaizu",
+    "dlbz"
+  ],
+  "533100": [
+    "dehongdaizujingpozuzizhizhou",
+    "dhdzjpzzzz",
+    "dehongdaizujingpozu",
+    "dhdzjpz"
+  ],
+  "533300": [
+    "nujianglisuzuzizhizhou",
+    "njlszzzz",
+    "nujianglisuzu",
+    "njlsz"
+  ],
+  "533400": [
+    "diqingzangzuzizhizhou",
+    "dqzzzzz",
+    "diqingzangzu",
+    "dqzz"
+  ],
+  "540000": [
+    "xizangzizhiqu",
+    "xzzzq",
+    "xizang",
+    "xz"
+  ],
+  "540100": [
+    "lasashi",
+    "lss",
+    "lasa",
+    "ls"
+  ],
+  "540200": [
+    "rikazeshi",
+    "rkzs",
+    "rikaze",
+    "rkz"
+  ],
+  "540300": [
+    "changdushi",
+    "cds",
+    "changdou",
+    "cd"
+  ],
+  "540400": [
+    "linzhishi",
+    "lzs",
+    "linzhi",
+    "lz"
+  ],
+  "540500": [
+    "shannanshi",
+    "sns",
+    "shannan",
+    "sn"
+  ],
+  "540600": [
+    "naqushi",
+    "nqs",
+    "naqu",
+    "nq"
+  ],
+  "542500": [
+    "alidiqu",
+    "aldq",
+    "alidi",
+    "ald"
+  ],
+  "610000": [
+    "shanxisheng",
+    "sxs",
+    "shanxi",
+    "sx"
+  ],
+  "610100": [
+    "xianshi",
+    "xas",
+    "xian",
+    "xa"
+  ],
+  "610200": [
+    "tongchuanshi",
+    "tcs",
+    "tongchuan",
+    "tc"
+  ],
+  "610300": [
+    "baojishi",
+    "bjs",
+    "baoji",
+    "bj"
+  ],
+  "610400": [
+    "xianyangshi",
+    "xys",
+    "xianyang",
+    "xy"
+  ],
+  "610500": [
+    "weinanshi",
+    "wns",
+    "weinan",
+    "wn"
+  ],
+  "610600": [
+    "yananshi",
+    "yas",
+    "yanan",
+    "ya"
+  ],
+  "610700": [
+    "hanzhongshi",
+    "hzs",
+    "hanzhong",
+    "hz"
+  ],
+  "610800": [
+    "yulinshi",
+    "yls",
+    "yulin",
+    "yl"
+  ],
+  "610900": [
+    "ankangshi",
+    "aks",
+    "ankang",
+    "ak"
+  ],
+  "611000": [
+    "shangluoshi",
+    "sls",
+    "shangluo",
+    "sl"
+  ],
+  "620000": [
+    "gansusheng",
+    "gss",
+    "gansu",
+    "gs"
+  ],
+  "620100": [
+    "lanzhoushi",
+    "lzs",
+    "lanzhou",
+    "lz"
+  ],
+  "620200": [
+    "jiayuguanshi",
+    "jygs",
+    "jiayuguan",
+    "jyg"
+  ],
+  "620300": [
+    "jinchangshi",
+    "jcs",
+    "jinchang",
+    "jc"
+  ],
+  "620400": [
+    "baiyinshi",
+    "bys",
+    "baiyin",
+    "by"
+  ],
+  "620500": [
+    "tianshuishi",
+    "tss",
+    "tianshui",
+    "ts"
+  ],
+  "620600": [
+    "wuweishi",
+    "wws",
+    "wuwei",
+    "ww"
+  ],
+  "620700": [
+    "zhangyeshi",
+    "zys",
+    "zhangye",
+    "zy"
+  ],
+  "620800": [
+    "pingliangshi",
+    "pls",
+    "pingliang",
+    "pl"
+  ],
+  "620900": [
+    "jiuquanshi",
+    "jqs",
+    "jiuquan",
+    "jq"
+  ],
+  "621000": [
+    "qingyangshi",
+    "qys",
+    "qingyang",
+    "qy"
+  ],
+  "621100": [
+    "dingxishi",
+    "dxs",
+    "dingxi",
+    "dx"
+  ],
+  "621200": [
+    "longnanshi",
+    "lns",
+    "longnan",
+    "ln"
+  ],
+  "622900": [
+    "linxiahuizuzizhizhou",
+    "lxhzzzz",
+    "linxiahuizu",
+    "lxhz"
+  ],
+  "623000": [
+    "gannanzangzuzizhizhou",
+    "gnzzzzz",
+    "gannanzangzu",
+    "gnzz"
+  ],
+  "630000": [
+    "qinghaisheng",
+    "qhs",
+    "qinghai",
+    "qh"
+  ],
+  "630100": [
+    "xiningshi",
+    "xns",
+    "xining",
+    "xn"
+  ],
+  "630200": [
+    "haidongshi",
+    "hds",
+    "haidong",
+    "hd"
+  ],
+  "632200": [
+    "haibeizangzuzizhizhou",
+    "hbzzzzz",
+    "haibeizangzu",
+    "hbzz"
+  ],
+  "632300": [
+    "huangnanzangzuzizhizhou",
+    "hnzzzzz",
+    "huangnanzangzu",
+    "hnzz"
+  ],
+  "632500": [
+    "hainanzangzuzizhizhou",
+    "hnzzzzz",
+    "hainanzangzu",
+    "hnzz"
+  ],
+  "632600": [
+    "guoluozangzuzizhizhou",
+    "glzzzzz",
+    "guoluozangzu",
+    "glzz"
+  ],
+  "632700": [
+    "yushuzangzuzizhizhou",
+    "yszzzzz",
+    "yushuzangzu",
+    "yszz"
+  ],
+  "632800": [
+    "haiximengguzuzangzuzizhizhou",
+    "hxmgzzzzzz",
+    "haiximengguzuzangzu",
+    "hxmgzzz"
+  ],
+  "640000": [
+    "ningxiahuizuzizhiqu",
+    "nxhzzzq",
+    "ningxia",
+    "nx"
+  ],
+  "640100": [
+    "yinchuanshi",
+    "ycs",
+    "yinchuan",
+    "yc"
+  ],
+  "640200": [
+    "shizuishanshi",
+    "szss",
+    "shizuishan",
+    "szs"
+  ],
+  "640300": [
+    "wuzhongshi",
+    "wzs",
+    "wuzhong",
+    "wz"
+  ],
+  "640400": [
+    "guyuanshi",
+    "gys",
+    "guyuan",
+    "gy"
+  ],
+  "640500": [
+    "zhongweishi",
+    "zws",
+    "zhongwei",
+    "zw"
+  ],
+  "650000": [
+    "xinjiangweiwuerzizhiqu",
+    "xjwwezzq",
+    "xinjiang",
+    "xj"
+  ],
+  "650100": [
+    "wulumuqishi",
+    "wlmqs",
+    "wulumuqi",
+    "wlmq"
+  ],
+  "650200": [
+    "kelamayishi",
+    "klmys",
+    "kelamayi",
+    "klmy"
+  ],
+  "650400": [
+    "tulufanshi",
+    "tlfs",
+    "tulufan",
+    "tlf"
+  ],
+  "650500": [
+    "hamishi",
+    "hms",
+    "hami",
+    "hm"
+  ],
+  "652300": [
+    "changjihuizuzizhizhou",
+    "cjhzzzz",
+    "changjihuizu",
+    "cjhz"
+  ],
+  "652700": [
+    "boertalamengguzizhizhou",
+    "betlmgzzz",
+    "boertalamenggu",
+    "betlmg"
+  ],
+  "652800": [
+    "bayinguolengmengguzizhizhou",
+    "byglmgzzz",
+    "bayinguolengmenggu",
+    "byglmg"
+  ],
+  "652900": [
+    "akesudiqu",
+    "aksdq",
+    "akesudi",
+    "aksd"
+  ],
+  "653000": [
+    "kezilesukeerkezizizhizhou",
+    "kzlskekzzzz",
+    "kezilesukeerkezi",
+    "kzlskekz"
+  ],
+  "653100": [
+    "kashendiqu",
+    "ksdq",
+    "kashendi",
+    "ksd"
+  ],
+  "653200": [
+    "hetiandiqu",
+    "htdq",
+    "hetiandi",
+    "htd"
+  ],
+  "654000": [
+    "yilihasakezizhizhou",
+    "ylhskzzz",
+    "yilihasake",
+    "ylhsk"
+  ],
+  "654200": [
+    "tachengdiqu",
+    "tcdq",
+    "tachengdi",
+    "tcd"
+  ],
+  "654300": [
+    "aletaidiqu",
+    "altdq",
+    "aletaidi",
+    "altd"
+  ],
+  "659001": [
+    "shihezishi",
+    "shzs",
+    "shihezi",
+    "shz"
+  ],
+  "659002": [
+    "alaershi",
+    "ales",
+    "alaer",
+    "ale"
+  ],
+  "659003": [
+    "tumushukeshi",
+    "tmsks",
+    "tumushuke",
+    "tmsk"
+  ],
+  "659004": [
+    "wujiaqushi",
+    "wjqs",
+    "wujiaqu",
+    "wjq"
+  ],
+  "659005": [
+    "beitunshi",
+    "bts",
+    "beitun",
+    "bt"
+  ],
+  "659006": [
+    "tiemenguanshi",
+    "tmgs",
+    "tiemenguan",
+    "tmg"
+  ],
+  "659007": [
+    "shuangheshi",
+    "shs",
+    "shuanghe",
+    "sh"
+  ],
+  "659008": [
+    "kekedalashi",
+    "kkdls",
+    "kekedala",
+    "kkdl"
+  ],
+  "659009": [
+    "kunyushi",
+    "kys",
+    "kunyu",
+    "ky"
+  ],
+  "659010": [
+    "huyangheshi",
+    "hyhs",
+    "huyanghe",
+    "hyh"
+  ],
+  "710000": [
+    "taiwansheng",
+    "tws",
+    "taiwan",
+    "tw"
+  ],
+  "810000": [
+    "xianggangtebiexingzhengqu",
+    "xgtbxzq",
+    "xianggang",
+    "xg"
+  ],
+  "810001": [
+    "zhongxiqu",
+    "zxq",
+    "zhongxi",
+    "zx"
+  ],
+  "810002": [
+    "wanzaiqu",
+    "wzq",
+    "wanzai",
+    "wz"
+  ],
+  "810003": [
+    "dongqu",
+    "dq",
+    "dong",
+    "d"
+  ],
+  "810004": [
+    "nanqu",
+    "nq",
+    "nan",
+    "n"
+  ],
+  "810005": [
+    "youjianwangqu",
+    "yjwq",
+    "youjianwang",
+    "yjw"
+  ],
+  "810006": [
+    "shenshuibuqu",
+    "ssbq",
+    "shenshuibu",
+    "ssb"
+  ],
+  "810007": [
+    "jiulongchengqu",
+    "jlcq",
+    "jiulongcheng",
+    "jlc"
+  ],
+  "810008": [
+    "huangdaxianqu",
+    "hdxq",
+    "huangdaxian",
+    "hdx"
+  ],
+  "810009": [
+    "guantangqu",
+    "gtq",
+    "guantang",
+    "gt"
+  ],
+  "810010": [
+    "quanwanqu",
+    "qwq",
+    "quanwan",
+    "qw"
+  ],
+  "810011": [
+    "tunmenqu",
+    "tmq",
+    "tunmen",
+    "tm"
+  ],
+  "810012": [
+    "yuanlangqu",
+    "ylq",
+    "yuanlang",
+    "yl"
+  ],
+  "810013": [
+    "beiqu",
+    "bq",
+    "bei",
+    "b"
+  ],
+  "810014": [
+    "dapuqu",
+    "dpq",
+    "dapu",
+    "dp"
+  ],
+  "810015": [
+    "xigongqu",
+    "xgq",
+    "xigong",
+    "xg"
+  ],
+  "810016": [
+    "shatianqu",
+    "stq",
+    "shatian",
+    "st"
+  ],
+  "810017": [
+    "kuiqingqu",
+    "kqq",
+    "kuiqing",
+    "kq"
+  ],
+  "810018": [
+    "lidaoqu",
+    "ldq",
+    "lidao",
+    "ld"
+  ],
+  "820000": [
+    "aomentebiexingzhengqu",
+    "amtbxzq",
+    "aomen",
+    "am"
+  ],
+  "820001": [
+    "huadimatangqu",
+    "hdmtq",
+    "huadimatang",
+    "hdmt"
+  ],
+  "820002": [
+    "huawangtangqu",
+    "hwtq",
+    "huawangtang",
+    "hwt"
+  ],
+  "820003": [
+    "wangdetangqu",
+    "wdtq",
+    "wangdetang",
+    "wdt"
+  ],
+  "820004": [
+    "datangqu",
+    "dtq",
+    "datang",
+    "dt"
+  ],
+  "820005": [
+    "fengshuntangqu",
+    "fstq",
+    "fengshuntang",
+    "fst"
+  ],
+  "820006": [
+    "jiamotangqu",
+    "jmtq",
+    "jiamotang",
+    "jmt"
+  ],
+  "820007": [
+    "ludangtianhaiqu",
+    "ldthq",
+    "ludangtianhai",
+    "ldth"
+  ],
+  "820008": [
+    "shengfangjigetangqu",
+    "sfjgtq",
+    "shengfangjigetang",
+    "sfjgt"
+  ],
+  "tw-09020": [
+    "jinmenxian",
+    "jmx",
+    "jinmen",
+    "jm"
+  ],
+  "tw-09007": [
+    "lianjiangxian",
+    "ljx",
+    "lianjiang",
+    "lj"
+  ],
+  "tw-10014": [
+    "taidongxian",
+    "tdx",
+    "taidong",
+    "td"
+  ],
+  "tw-10015": [
+    "hualianxian",
+    "hlx",
+    "hualian",
+    "hl"
+  ],
+  "tw-10005": [
+    "miaolixian",
+    "mlx",
+    "miaoli",
+    "ml"
+  ],
+  "tw-10009": [
+    "yunlinxian",
+    "ylx",
+    "yunlin",
+    "yl"
+  ],
+  "tw-64000": [
+    "gaoxiongshi",
+    "gxs",
+    "gaoxiong",
+    "gx"
+  ],
+  "tw-10008": [
+    "nantouxian",
+    "ntx",
+    "nantou",
+    "nt"
+  ],
+  "tw-10010": [
+    "jiayixian",
+    "jyx",
+    "jiayi",
+    "jy"
+  ],
+  "tw-10002": [
+    "yilanxian",
+    "ylx",
+    "yilan",
+    "yl"
+  ],
+  "tw-10013": [
+    "pingdongxian",
+    "pdx",
+    "pingdong",
+    "pd"
+  ],
+  "tw-65000": [
+    "xinbeishi",
+    "xbs",
+    "xinbei",
+    "xb"
+  ],
+  "tw-10003": [
+    "taoyuanshi",
+    "tys",
+    "taoyuan",
+    "ty"
+  ],
+  "tw-66000": [
+    "taizhongshi",
+    "tzs",
+    "taizhong",
+    "tz"
+  ],
+  "tw-63000": [
+    "taibeishi",
+    "tbs",
+    "taibei",
+    "tb"
+  ],
+  "tw-67000": [
+    "tainanshi",
+    "tns",
+    "tainan",
+    "tn"
+  ],
+  "tw-10016": [
+    "penghuxian",
+    "phx",
+    "penghu",
+    "ph"
+  ],
+  "tw-10020": [
+    "jiayishi",
+    "jys",
+    "jiayi",
+    "jy"
+  ],
+  "tw-10017": [
+    "jilongshi",
+    "jls",
+    "jilong",
+    "jl"
+  ],
+  "tw-10007": [
+    "zhanghuaxian",
+    "zhx",
+    "zhanghua",
+    "zh"
+  ],
+  "tw-10018": [
+    "xinzhushi",
+    "xzs",
+    "xinzhu",
+    "xz"
+  ],
+  "tw-10004": [
+    "xinzhuxian",
+    "xzx",
+    "xinzhu",
+    "xz"
+  ]
+}

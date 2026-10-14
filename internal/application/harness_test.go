@@ -27,6 +27,7 @@ type env struct {
 	media     tripmapv1connect.MediaServiceClient
 	collab    tripmapv1connect.CollaborationServiceClient
 	report    tripmapv1connect.ReportServiceClient
+	search    tripmapv1connect.SearchServiceClient
 	svc       *application.AuthService
 	reportSvc *application.ReportService
 }
@@ -59,6 +60,7 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 	mux.Handle(tripmapv1connect.NewMediaServiceHandler(application.NewMediaService(src, idx), opts))
 	mux.Handle(tripmapv1connect.NewCollaborationServiceHandler(application.NewCollaborationService(src, idx), opts))
 	mux.Handle(tripmapv1connect.NewReportServiceHandler(reportSvc, opts))
+	mux.Handle(tripmapv1connect.NewSearchServiceHandler(application.NewSearchService(src, idx), opts))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return &env{
@@ -69,6 +71,7 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 		media:  tripmapv1connect.NewMediaServiceClient(server.Client(), server.URL),
 		collab: tripmapv1connect.NewCollaborationServiceClient(server.Client(), server.URL),
 		report: tripmapv1connect.NewReportServiceClient(server.Client(), server.URL),
+		search: tripmapv1connect.NewSearchServiceClient(server.Client(), server.URL),
 	}
 }
 

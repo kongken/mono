@@ -15,7 +15,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `internal/app/` | Bootstrap、依赖注入、Gin 路由 |
 | `internal/config/` | 业务配置及必填存储名称校验 |
-| `internal/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）、`ShareService`、`CollaborationService`、`ReportService`（含 Redis 汇总缓存与定时预热维护）、公开分享路由处理（`share_public.go`）及认证拦截器 |
+| `internal/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）、`ShareService`、`CollaborationService`、`ReportService`（含 Redis 汇总缓存与定时预热维护）、`SearchService`（私有备注分页检索）、公开分享路由处理（`share_public.go`）及认证拦截器 |
 | `internal/auth/` | 会话令牌、Redis 限流与 OAuth state 存储；`provider/` 为 GitHub、Google OAuth 适配 |
 | `internal/share/` | F6：公开内容白名单与快照构建、统计、预览图渲染（纯 Go）、HTML 元数据注入、受信任 index.html 获取；`assets/` 含预览几何和 Noto Sans SC 子集 |
 | `internal/report/` | F8：统计总览、按时区计算的年度报告、8 项旅行成就及可追溯记录引用计算（与前端 `src/lib/report.ts` 共用 `scripts/fixtures/report-stats.json` 测试夹具） |
@@ -274,6 +274,18 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 - **Redis 缓存与实时版本隔离：** 汇总结果以 Protobuf 编码缓存在 Redis 键 `<prefix>report:v1:<user_id>|<revision>|<timezone>|<local_date>` 中（TTL 24 小时）。由于缓存键绑定了用户当前的足迹 `revision` 与该时区下的本地日历日期 `local_date`，任何足迹或旅行的增删改推进 `revision` 后，下一次请求立即计算新版本并写入新键，不会返回过期统计。
 - **定时汇总维护：** `internal/app/app.go` 的每小时后台维护循环在 Redis 锁 `tripmap:report-maintenance`（50 分钟）保护下调用 `RunReportMaintenance`，为近期活跃且当前 `revision` 尚未缓存的账号预热默认时区（`Asia/Shanghai`）的汇总缓存。F8 无需新增 PostgreSQL 表。
 
+## F9 私有备注搜索（`tripmap.v1.SearchService`）
+
+`SearchNotes` 要求会话，身份只取当前用户，不能提交其他用户 ID；返回 `Cache-Control: no-store`。请求：`query`（≤100 UTF-16 码元、≤8 个空白分隔词）、可选 `province_code`、`limit`（默认 20，最大 50）、`offset`（最大 100000）及可选 `expected_revision`（offset > 0 时必填）。响应：城市/省份 ID、旅行 ID、日期、纯文本完整备注、`revision`、`next_offset`、`has_more`；最多多读 1 条判断下一页，不查询总数。
+
+- 在 3 秒超时的 PostgreSQL `RepeatableRead` 只读事务中读取用户 schema/revision 与结果；分页 revision 不同返回 `aborted`，前端回退本机结果并允许重试。账号停用、令牌撤销/过期由认证拦截器拒绝，事务内再次检查用户停用状态。
+- Ent 参数化、转义的 `NoteContainsFold` 在整条备注上执行所有词的 AND 匹配（中文片段、英文不区分大小写），`%`、`_`、引号按字面匹配，不接受查询表达式。这不是中文分词、相关度排序或语义搜索。
+- schema 1 查询 `city_visits.note` 并返回 `legacy-<区域 ID>`；schema 2 仅查询 `city_trips.note`，限定旅行和城市都属于当前用户，不搜索冻结旧列。省份筛选按当前区域索引的城市 ID，兼容金门/马祖旧台湾归属；返回规范化名称与省份 ID。
+- 每用户每分钟最多 60 次查询（Redis，不可用返回 `unavailable`，不放行）；处理器请求读取上限 4 KiB。结果不放 Redis、不创建备注副本或新增表/扩展，不需要数据库迁移。
+- 当前利用已有用户索引缩小范围后执行字面包含扫描，无专用全文/GIN 索引；超大账号或深分页可能超时，需要后续测量后再决定专用索引/分词方案。前端失败时明确显示本机缓存结果，不把错误当成空结果。
+
+区域拼音搜索由 `src/search-index.json` 在前端离线完成，不调用后端。部署新增 RPC 时先升级后端再部署前端；旧后端没有接口时备注搜索会提示并回退本机缓存。
+
 ## 数据库模型
 
 | 表 | 关键字段与约束 |
@@ -349,7 +361,7 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：行政区划服务等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）、F5（同城多次旅行）、F6（公开分享页与预览图）与 F7（共同旅行与好友）已实现；F8–F12 仍待完整实现。
+从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：行政区划服务等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）、F5（同城多次旅行）、F6（公开分享页与预览图）与 F7（共同旅行与好友）已实现；F8（统计、年度报告与成就）和 F9（区域搜索增强、私有备注搜索）已实现；F10–F12 仍待完整实现。
 
 ## F1 新接口与部署
 

@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "download:maps": "node scripts/download-maps.mjs",
     "check:maps": "node scripts/check-maps.mjs",
+    "prepare:search": "node scripts/prepare-search-index.mjs",
     "prepare:map-colors": "node scripts/prepare-province-neighbors.mjs",
     "prepare:share-geometry": "node scripts/prepare-share-geometry.mjs",
     "test": "node --test scripts/*.test.mjs"
@@ -41,6 +42,7 @@
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
+    "pinyin-pro": "^3.29.5",
     "typescript": "~6.0.2",
     "vite": "^8.3.0"
   }

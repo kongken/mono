@@ -11,9 +11,11 @@ import * as auth from "../src/gen/tripmap/v1/auth_pb";
 import * as collaborationPb from "../src/gen/tripmap/v1/collaboration_pb";
 import * as footprint from "../src/gen/tripmap/v1/footprint_pb";
 import * as reportPb from "../src/gen/tripmap/v1/report_pb";
+import * as searchPb from "../src/gen/tripmap/v1/search_pb";
 import * as snapshotPb from "../src/gen/tripmap/v1/snapshot_pb";
 import * as system from "../src/gen/tripmap/v1/system_pb";
 import { buildReport } from "../src/lib/report";
+import { searchNotes } from "../src/lib/search";
 
 export const green = "#4b937d";
 export const gold = "#e2af5c";
@@ -78,6 +80,8 @@ export function fakeBackend(
     failSync: 0,
     /** Number of reads (GetFootprints/GetChanges) that fail with a 503 before succeeding again. */
     failGet: 0,
+    failSearch: 0,
+    searchCalls: [] as string[],
     receipts: new Map<string, number>(),
     snapshots: [] as Snap[],
     snapshotCalls: [] as string[],
@@ -419,6 +423,19 @@ export function fakeBackend(
               friends: [],
               sharedTrips: [],
             });
+          case "SearchNotes": {
+            const body = read(searchPb.SearchNotesRequestSchema) as searchPb.SearchNotesRequest;
+            state.searchCalls.push(body.query);
+            if (state.failSearch > 0) {
+              state.failSearch--;
+              return route.fulfill(failure("unavailable", "offline", 503));
+            }
+            if (body.expectedRevision !== undefined && body.expectedRevision !== BigInt(state.revision)) return route.fulfill(failure("aborted", "restart search", 409));
+            const visits = [...state.visits.values()].map(v => ({ ...v, trips: [...state.trips.values()].filter(t => t.code === v.code).map(t => ({ id: t.id, date: t.date, note: t.note })) }));
+            const matches = searchNotes({ version: 2, visits, provinces: Object.fromEntries(state.marks) }, body.query, body.provinceCode);
+            const limit = body.limit || 20;
+            return send(searchPb.SearchNotesResponseSchema, { matches: matches.slice(body.offset, body.offset + limit), revision: BigInt(state.revision), nextOffset: Math.min(body.offset + limit, matches.length), hasMore: matches.length > body.offset + limit });
+          }
           case "GetReport": {
             const body = read(reportPb.GetReportRequestSchema) as reportPb.GetReportRequest;
             const saved = {

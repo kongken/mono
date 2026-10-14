@@ -1,0 +1,66 @@
+.search-modes {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.search-help,
+.search-status {
+  color: #687c72;
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 8px 0 12px;
+}
+.search-status button {
+  margin-top: 8px;
+  display: block;
+}
+.note-results {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+.note-result {
+  text-align: left;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e3ebe5;
+  border-radius: 12px;
+  background: #f9fbf8;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.note-result:hover {
+  background: #edf5ed;
+}
+.note-result:focus-visible {
+  outline: 2px solid #4b937d;
+  outline-offset: 2px;
+}
+.note-result strong {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  color: #294a3c;
+  font-size: 14px;
+}
+.note-result small {
+  font-size: 11px;
+  font-weight: normal;
+  color: #687c72;
+}
+.note-result > span {
+  display: block;
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 6px 0;
+}
+@media (max-width: 640px) {
+  .note-results {
+    max-height: none;
+  }
+}

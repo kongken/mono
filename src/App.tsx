@@ -107,6 +107,8 @@ import {
   roleLabel,
 } from "./lib/collaboration";
 import CityPicker from "./components/CityPicker";
+import NoteSearch from "./components/NoteSearch";
+import { searchAreas, searchProvinces } from "./lib/search";
 import { readBoot, useCloud } from "./hooks/useCloud";
 import TravelReport from "./components/TravelReport";
 import {
@@ -203,6 +205,7 @@ function App() {
   const [cityMapError, setCityMapError] = useState(false);
   const [cityRetry, setCityRetry] = useState(0);
   const [query, setQuery] = useState("");
+  const [searchMode, setSearchMode] = useState<"destinations" | "notes">("destinations");
   const [tab, setTab] = useState<"map" | "visits">("map");
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
   const [editor, setEditor] = useState(false);
@@ -481,10 +484,8 @@ function App() {
     saved.visits.filter((v) => !province || v.province === province.code),
   );
   const tripTotal = visitedTripCount(saved);
-  const filteredProvinces = regions.filter(
-    (p) =>
-      p.name.includes(query) || p.cities.some((c) => c.name.includes(query)),
-  );
+  const filteredProvinces = searchProvinces(regions, query);
+  const filteredCities = province ? searchAreas(province.cities, query) : [];
   const draftRegion = provinceByCode(draftProvince)!;
   const cityCount = visitedCityCount(saved);
   const isDistrict = province && isDistrictDestination(province.code);
@@ -624,7 +625,9 @@ function App() {
   // Radix returns focus only to a DialogTrigger, which the controlled editor does
   // not have: remember what opened it and put focus back there when it closes.
   const editorOpener = useRef<HTMLElement | null>(null);
-  const openEditor = (p: string, city = "") => {
+  const searchTripTarget = useRef("");
+  const openEditor = (p: string, city = "", tripId = "") => {
+    searchTripTarget.current = tripId;
     const active = document.activeElement;
     editorOpener.current =
       active instanceof HTMLElement && active !== document.body ? active : null;
@@ -1021,6 +1024,7 @@ function App() {
   const navigate = (p: Region | null) => {
     setProvince(p);
     setQuery("");
+    setSearchMode("destinations");
     setTab("map");
   };
 
@@ -1793,11 +1797,27 @@ function App() {
                 <MapPin size={21} weight="duotone" />
               </span>
             </div>
+            <div className="search-modes" role="group" aria-label="搜索范围">
+              <Button size="sm" variant={searchMode === "destinations" ? "default" : "outline"} aria-pressed={searchMode === "destinations"} onClick={() => setSearchMode("destinations")}>目的地</Button>
+              <Button size="sm" variant={searchMode === "notes" ? "default" : "outline"} aria-pressed={searchMode === "notes"} onClick={() => setSearchMode("notes")}>旅行记忆</Button>
+            </div>
+            {searchMode === "notes" ? <NoteSearch
+              key={`${userId ?? "local"}:${province?.code ?? "all"}`}
+              saved={saved}
+              provinceCode={province?.code ?? ""}
+              cloudReady={cloudReady}
+              revision={cloud.revision() ?? 0}
+              onOpen={match => {
+                if (saved.visits.some(v => v.code === match.regionCode && v.trips.some(t => t.id === match.tripId))) openEditor(match.provinceCode, match.regionCode, match.tripId);
+                else notify("这条记录已变化，请等待同步后重新搜索。");
+              }}
+            /> : <>
             <div className="search-wrap">
               <MagnifyingGlass size={17} />
               <Input
                 aria-label={province ? "搜索城市" : "搜索省份或城市"}
-                placeholder={province ? `搜索${unit}名称` : "搜索省份或城市…"}
+                placeholder={province ? `名称 / 拼音 / 首字母` : "名称 / 拼音 / 首字母…"}
+                maxLength={100}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -1807,6 +1827,7 @@ function App() {
                 </button>
               )}
             </div>
+            <p className="search-help">支持拼音、首字母；无直接匹配时尝试单字纠错。</p>
             {!province ? (
               <>
                 <div className="list-heading">
@@ -1879,9 +1900,7 @@ function App() {
                   <span>{province.cities.length} 个区域</span>
                 </div>
                 <div className="province-list city-list">
-                  {province.cities
-                    .filter((c) => c.name.includes(query))
-                    .map((c) => {
+                  {filteredCities.map((c) => {
                       const visit = saved.visits.find((v) => v.code === c.code);
                       return (
                         <div
@@ -1915,12 +1934,13 @@ function App() {
                         </div>
                       );
                     })}
-                  {!province.cities.some((c) => c.name.includes(query)) && (
+                  {!filteredCities.length && (
                     <p className="no-results">没有找到匹配的{unit}。</p>
                   )}
                 </div>
               </>
             )}
+            </>}
             <div className="travel-note">
               <span className="note-icon">
                 <Mountains size={28} weight="duotone" />
@@ -2110,6 +2130,17 @@ function App() {
               e.preventDefault();
             }
           }}
+          onOpenAutoFocus={(e) => {
+            const id = searchTripTarget.current;
+            searchTripTarget.current = "";
+            if (!id) return;
+            const target = [...document.querySelectorAll<HTMLTextAreaElement>("[data-trip-note]")].find(el => el.dataset.tripNote === id);
+            if (target && !target.disabled) {
+              e.preventDefault();
+              target.focus();
+              target.scrollIntoView({ block: "center" });
+            }
+          }}
           onCloseAutoFocus={(e) => {
             e.preventDefault();
             returnEditorFocus();
@@ -2271,6 +2302,7 @@ function App() {
                         <span className="sr-only"> 第 {i + 1} 次</span>{" "}
                         <span>选填</span>
                         <textarea
+                          data-trip-note={t.id}
                           placeholder="那天的天气、遇见的人，或一顿念念不忘的美食…"
                           maxLength={TRIP_NOTE_LIMIT}
                           value={t.note}

@@ -25,8 +25,8 @@ type province struct {
 
 // Index answers membership questions about provinces and cities.
 type Index struct {
-	provinces   map[string]string
-	cities      map[string]cityEntry
+	provinces map[string]string
+	cities    map[string]cityEntry
 	// perProvince counts every city or district record of a province.
 	perProvince map[string]int
 }
@@ -91,6 +91,19 @@ func (i *Index) ProvinceCodes() []string {
 	codes := make([]string, 0, len(i.provinces))
 	for code := range i.provinces {
 		codes = append(codes, code)
+	}
+	slices.Sort(codes)
+	return codes
+}
+
+// CityCodes lists canonical city IDs in a province (or all cities for an empty
+// province). Search scopes by these IDs, not legacy stored province values.
+func (i *Index) CityCodes(province string) []string {
+	codes := make([]string, 0, len(i.cities))
+	for code, c := range i.cities {
+		if province == "" || c.province == province {
+			codes = append(codes, code)
+		}
 	}
 	slices.Sort(codes)
 	return codes
