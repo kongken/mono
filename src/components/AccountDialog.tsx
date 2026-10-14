@@ -7,6 +7,7 @@ import {
   ShareNetwork,
   SignOut,
   UserCircle,
+  Users,
 } from "@phosphor-icons/react";
 import { authApi, type SessionInfo } from "@/api/auth";
 import { getBackendStatus } from "@/api/system";
@@ -32,6 +33,7 @@ type Props = {
   onOpenSnapshots: () => void;
   onOpenMedia: () => void;
   onOpenShare: () => void;
+  onOpenCollaboration: () => void;
 };
 
 const when = (date: Date | null) =>
@@ -52,6 +54,7 @@ export default function AccountDialog({
   onOpenSnapshots,
   onOpenMedia,
   onOpenShare,
+  onOpenCollaboration,
 }: Props) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
@@ -203,6 +206,13 @@ export default function AccountDialog({
             <div className="unreadable-note account-migrate">
               <span>私有保存旅途照片和附件，取消打卡后仍可在这里查看。</span>
               <Button variant="outline" size="sm" disabled={cloud.deletionBlocked} onClick={onOpenMedia}>照片与附件</Button>
+            </div>
+            <div className="unreadable-note account-migrate">
+              <span>添加好友对比双方足迹，或邀请好友加入同一次共同旅行。</span>
+              <Button variant="outline" size="sm" disabled={cloud.deletionBlocked} onClick={onOpenCollaboration}>
+                <Users size={16} />
+                好友与共同旅行
+              </Button>
             </div>
             {shareEnabled && (
               <div className="unreadable-note account-migrate">

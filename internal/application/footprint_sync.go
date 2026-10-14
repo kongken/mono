@@ -163,6 +163,10 @@ func (s *FootprintService) applyMutation(ctx context.Context, tx *ent.Tx, uid st
 			return false, invalid("this operation needs a client that supports several trips per city")
 		}
 		t := op.UpsertTrip
+		tm, err := checkSharedTripWriteAllowed(ctx, tx, uid, t.Id)
+		if err != nil {
+			return false, err
+		}
 		city, err := tx.CityVisit.Query().Where(cityvisit.UserID(uid), cityvisit.RegionCode(t.RegionCode)).Only(ctx)
 		if ent.IsNotFound(err) {
 			return false, connect.NewError(connect.CodeFailedPrecondition, errors.New("trip city does not exist"))
@@ -170,14 +174,29 @@ func (s *FootprintService) applyMutation(ctx context.Context, tx *ent.Tx, uid st
 		if err != nil {
 			return false, internalError(err)
 		}
-		return upsertTripRow(ctx, tx, uid, city, t.Id, t.Date, t.Note)
+		changed, err := upsertTripRow(ctx, tx, uid, city, t.Id, t.Date, t.Note)
+		if err != nil {
+			return false, err
+		}
+		if changed && tm != nil {
+			if err = propagateSharedTripUpsert(ctx, tx, s.regions, tm, uid, t.Date, t.Note); err != nil {
+				return false, err
+			}
+		}
+		return changed, nil
 	case *tripmapv1.FootprintMutation_DeleteTrip:
 		if schema < schemaTrips {
 			return false, invalid("this operation needs a client that supports several trips per city")
 		}
+		if err := handleSharedTripDelete(ctx, tx, uid, op.DeleteTrip.Id); err != nil {
+			return false, err
+		}
 		n, err := tx.Trip.Delete().Where(trip.UserID(uid), trip.TripID(op.DeleteTrip.Id), trip.RegionCode(op.DeleteTrip.RegionCode)).Exec(ctx)
 		return n > 0, wrapWrite(err)
 	case *tripmapv1.FootprintMutation_DeleteVisit:
+		if err := handleSharedCityDelete(ctx, tx, uid, op.DeleteVisit); err != nil {
+			return false, err
+		}
 		// The trips of a city are removed with it by the foreign key.
 		count, err := tx.CityVisit.Delete().Where(cityvisit.UserID(uid), cityvisit.RegionCode(op.DeleteVisit)).Exec(ctx)
 		return count > 0, wrapWrite(err)
@@ -248,11 +267,20 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 	if !ok {
 		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("too many writes"))
 	}
+	peerIDs, err := sharedTripPeerUserIDs(ctx, st.DB, p.UserID)
+	if err != nil {
+		return nil, internalError(err)
+	}
 	tx, err := st.DB.Tx(ctx)
 	if err != nil {
 		return nil, internalError(err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if len(peerIDs) > 1 {
+		if _, err = lockUsers(ctx, tx, peerIDs...); err != nil && connect.CodeOf(err) != connect.CodeNotFound {
+			return nil, err
+		}
+	}
 	u, err := tx.User.Query().Where(user.ID(p.UserID)).ForUpdate().Only(ctx)
 	if ent.IsNotFound(err) {
 		return nil, errUnauthenticated

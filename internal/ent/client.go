@@ -18,14 +18,17 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
+	"go.orx.me/apps/trip-map/internal/ent/friendship"
 	"go.orx.me/apps/trip-map/internal/ent/mediacleanup"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/share"
+	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
+	"go.orx.me/apps/trip-map/internal/ent/tripmember"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -40,6 +43,8 @@ type Client struct {
 	CityVisit *CityVisitClient
 	// FootprintChange is the client for interacting with the FootprintChange builders.
 	FootprintChange *FootprintChangeClient
+	// Friendship is the client for interacting with the Friendship builders.
+	Friendship *FriendshipClient
 	// MediaCleanup is the client for interacting with the MediaCleanup builders.
 	MediaCleanup *MediaCleanupClient
 	// MediaObject is the client for interacting with the MediaObject builders.
@@ -50,12 +55,16 @@ type Client struct {
 	Session *SessionClient
 	// Share is the client for interacting with the Share builders.
 	Share *ShareClient
+	// SharedTrip is the client for interacting with the SharedTrip builders.
+	SharedTrip *SharedTripClient
 	// Snapshot is the client for interacting with the Snapshot builders.
 	Snapshot *SnapshotClient
 	// SyncReceipt is the client for interacting with the SyncReceipt builders.
 	SyncReceipt *SyncReceiptClient
 	// Trip is the client for interacting with the Trip builders.
 	Trip *TripClient
+	// TripMember is the client for interacting with the TripMember builders.
+	TripMember *TripMemberClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 }
@@ -72,14 +81,17 @@ func (c *Client) init() {
 	c.AccountDeletionReceipt = NewAccountDeletionReceiptClient(c.config)
 	c.CityVisit = NewCityVisitClient(c.config)
 	c.FootprintChange = NewFootprintChangeClient(c.config)
+	c.Friendship = NewFriendshipClient(c.config)
 	c.MediaCleanup = NewMediaCleanupClient(c.config)
 	c.MediaObject = NewMediaObjectClient(c.config)
 	c.ProvinceMark = NewProvinceMarkClient(c.config)
 	c.Session = NewSessionClient(c.config)
 	c.Share = NewShareClient(c.config)
+	c.SharedTrip = NewSharedTripClient(c.config)
 	c.Snapshot = NewSnapshotClient(c.config)
 	c.SyncReceipt = NewSyncReceiptClient(c.config)
 	c.Trip = NewTripClient(c.config)
+	c.TripMember = NewTripMemberClient(c.config)
 	c.User = NewUserClient(c.config)
 }
 
@@ -176,14 +188,17 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		AccountDeletionReceipt: NewAccountDeletionReceiptClient(cfg),
 		CityVisit:              NewCityVisitClient(cfg),
 		FootprintChange:        NewFootprintChangeClient(cfg),
+		Friendship:             NewFriendshipClient(cfg),
 		MediaCleanup:           NewMediaCleanupClient(cfg),
 		MediaObject:            NewMediaObjectClient(cfg),
 		ProvinceMark:           NewProvinceMarkClient(cfg),
 		Session:                NewSessionClient(cfg),
 		Share:                  NewShareClient(cfg),
+		SharedTrip:             NewSharedTripClient(cfg),
 		Snapshot:               NewSnapshotClient(cfg),
 		SyncReceipt:            NewSyncReceiptClient(cfg),
 		Trip:                   NewTripClient(cfg),
+		TripMember:             NewTripMemberClient(cfg),
 		User:                   NewUserClient(cfg),
 	}, nil
 }
@@ -207,14 +222,17 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		AccountDeletionReceipt: NewAccountDeletionReceiptClient(cfg),
 		CityVisit:              NewCityVisitClient(cfg),
 		FootprintChange:        NewFootprintChangeClient(cfg),
+		Friendship:             NewFriendshipClient(cfg),
 		MediaCleanup:           NewMediaCleanupClient(cfg),
 		MediaObject:            NewMediaObjectClient(cfg),
 		ProvinceMark:           NewProvinceMarkClient(cfg),
 		Session:                NewSessionClient(cfg),
 		Share:                  NewShareClient(cfg),
+		SharedTrip:             NewSharedTripClient(cfg),
 		Snapshot:               NewSnapshotClient(cfg),
 		SyncReceipt:            NewSyncReceiptClient(cfg),
 		Trip:                   NewTripClient(cfg),
+		TripMember:             NewTripMemberClient(cfg),
 		User:                   NewUserClient(cfg),
 	}, nil
 }
@@ -245,9 +263,9 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.MediaCleanup,
-		c.MediaObject, c.ProvinceMark, c.Session, c.Share, c.Snapshot, c.SyncReceipt,
-		c.Trip, c.User,
+		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.Friendship,
+		c.MediaCleanup, c.MediaObject, c.ProvinceMark, c.Session, c.Share,
+		c.SharedTrip, c.Snapshot, c.SyncReceipt, c.Trip, c.TripMember, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -257,9 +275,9 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.MediaCleanup,
-		c.MediaObject, c.ProvinceMark, c.Session, c.Share, c.Snapshot, c.SyncReceipt,
-		c.Trip, c.User,
+		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.Friendship,
+		c.MediaCleanup, c.MediaObject, c.ProvinceMark, c.Session, c.Share,
+		c.SharedTrip, c.Snapshot, c.SyncReceipt, c.Trip, c.TripMember, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -274,6 +292,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.CityVisit.mutate(ctx, m)
 	case *FootprintChangeMutation:
 		return c.FootprintChange.mutate(ctx, m)
+	case *FriendshipMutation:
+		return c.Friendship.mutate(ctx, m)
 	case *MediaCleanupMutation:
 		return c.MediaCleanup.mutate(ctx, m)
 	case *MediaObjectMutation:
@@ -284,12 +304,16 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Session.mutate(ctx, m)
 	case *ShareMutation:
 		return c.Share.mutate(ctx, m)
+	case *SharedTripMutation:
+		return c.SharedTrip.mutate(ctx, m)
 	case *SnapshotMutation:
 		return c.Snapshot.mutate(ctx, m)
 	case *SyncReceiptMutation:
 		return c.SyncReceipt.mutate(ctx, m)
 	case *TripMutation:
 		return c.Trip.mutate(ctx, m)
+	case *TripMemberMutation:
+		return c.TripMember.mutate(ctx, m)
 	case *UserMutation:
 		return c.User.mutate(ctx, m)
 	default:
@@ -741,6 +765,171 @@ func (c *FootprintChangeClient) mutate(ctx context.Context, m *FootprintChangeMu
 		return (&FootprintChangeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown FootprintChange mutation op: %q", m.Op())
+	}
+}
+
+// FriendshipClient is a client for the Friendship schema.
+type FriendshipClient struct {
+	config
+}
+
+// NewFriendshipClient returns a client for the Friendship from the given config.
+func NewFriendshipClient(c config) *FriendshipClient {
+	return &FriendshipClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `friendship.Hooks(f(g(h())))`.
+func (c *FriendshipClient) Use(hooks ...Hook) {
+	c.hooks.Friendship = append(c.hooks.Friendship, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `friendship.Intercept(f(g(h())))`.
+func (c *FriendshipClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Friendship = append(c.inters.Friendship, interceptors...)
+}
+
+// Create returns a builder for creating a Friendship entity.
+func (c *FriendshipClient) Create() *FriendshipCreate {
+	mutation := newFriendshipMutation(c.config, OpCreate)
+	return &FriendshipCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Friendship entities.
+func (c *FriendshipClient) CreateBulk(builders ...*FriendshipCreate) *FriendshipCreateBulk {
+	return &FriendshipCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FriendshipClient) MapCreateBulk(slice any, setFunc func(*FriendshipCreate, int)) *FriendshipCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FriendshipCreateBulk{err: fmt.Errorf("calling to FriendshipClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FriendshipCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FriendshipCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Friendship.
+func (c *FriendshipClient) Update() *FriendshipUpdate {
+	mutation := newFriendshipMutation(c.config, OpUpdate)
+	return &FriendshipUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FriendshipClient) UpdateOne(_m *Friendship) *FriendshipUpdateOne {
+	mutation := newFriendshipMutation(c.config, OpUpdateOne, withFriendship(_m))
+	return &FriendshipUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FriendshipClient) UpdateOneID(id string) *FriendshipUpdateOne {
+	mutation := newFriendshipMutation(c.config, OpUpdateOne, withFriendshipID(id))
+	return &FriendshipUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Friendship.
+func (c *FriendshipClient) Delete() *FriendshipDelete {
+	mutation := newFriendshipMutation(c.config, OpDelete)
+	return &FriendshipDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FriendshipClient) DeleteOne(_m *Friendship) *FriendshipDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FriendshipClient) DeleteOneID(id string) *FriendshipDeleteOne {
+	builder := c.Delete().Where(friendship.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FriendshipDeleteOne{builder}
+}
+
+// Query returns a query builder for Friendship.
+func (c *FriendshipClient) Query() *FriendshipQuery {
+	return &FriendshipQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFriendship},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Friendship entity by its id.
+func (c *FriendshipClient) Get(ctx context.Context, id string) (*Friendship, error) {
+	return c.Query().Where(friendship.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FriendshipClient) GetX(ctx context.Context, id string) *Friendship {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryRequester queries the requester edge of a Friendship.
+func (c *FriendshipClient) QueryRequester(_m *Friendship) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(friendship.Table, friendship.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, friendship.RequesterTable, friendship.RequesterColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAddressee queries the addressee edge of a Friendship.
+func (c *FriendshipClient) QueryAddressee(_m *Friendship) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(friendship.Table, friendship.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, friendship.AddresseeTable, friendship.AddresseeColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *FriendshipClient) Hooks() []Hook {
+	return c.hooks.Friendship
+}
+
+// Interceptors returns the client interceptors.
+func (c *FriendshipClient) Interceptors() []Interceptor {
+	return c.inters.Friendship
+}
+
+func (c *FriendshipClient) mutate(ctx context.Context, m *FriendshipMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FriendshipCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FriendshipUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FriendshipUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FriendshipDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Friendship mutation op: %q", m.Op())
 	}
 }
 
@@ -1473,6 +1662,171 @@ func (c *ShareClient) mutate(ctx context.Context, m *ShareMutation) (Value, erro
 	}
 }
 
+// SharedTripClient is a client for the SharedTrip schema.
+type SharedTripClient struct {
+	config
+}
+
+// NewSharedTripClient returns a client for the SharedTrip from the given config.
+func NewSharedTripClient(c config) *SharedTripClient {
+	return &SharedTripClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `sharedtrip.Hooks(f(g(h())))`.
+func (c *SharedTripClient) Use(hooks ...Hook) {
+	c.hooks.SharedTrip = append(c.hooks.SharedTrip, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `sharedtrip.Intercept(f(g(h())))`.
+func (c *SharedTripClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SharedTrip = append(c.inters.SharedTrip, interceptors...)
+}
+
+// Create returns a builder for creating a SharedTrip entity.
+func (c *SharedTripClient) Create() *SharedTripCreate {
+	mutation := newSharedTripMutation(c.config, OpCreate)
+	return &SharedTripCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SharedTrip entities.
+func (c *SharedTripClient) CreateBulk(builders ...*SharedTripCreate) *SharedTripCreateBulk {
+	return &SharedTripCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SharedTripClient) MapCreateBulk(slice any, setFunc func(*SharedTripCreate, int)) *SharedTripCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SharedTripCreateBulk{err: fmt.Errorf("calling to SharedTripClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SharedTripCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SharedTripCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SharedTrip.
+func (c *SharedTripClient) Update() *SharedTripUpdate {
+	mutation := newSharedTripMutation(c.config, OpUpdate)
+	return &SharedTripUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SharedTripClient) UpdateOne(_m *SharedTrip) *SharedTripUpdateOne {
+	mutation := newSharedTripMutation(c.config, OpUpdateOne, withSharedTrip(_m))
+	return &SharedTripUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SharedTripClient) UpdateOneID(id string) *SharedTripUpdateOne {
+	mutation := newSharedTripMutation(c.config, OpUpdateOne, withSharedTripID(id))
+	return &SharedTripUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SharedTrip.
+func (c *SharedTripClient) Delete() *SharedTripDelete {
+	mutation := newSharedTripMutation(c.config, OpDelete)
+	return &SharedTripDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SharedTripClient) DeleteOne(_m *SharedTrip) *SharedTripDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SharedTripClient) DeleteOneID(id string) *SharedTripDeleteOne {
+	builder := c.Delete().Where(sharedtrip.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SharedTripDeleteOne{builder}
+}
+
+// Query returns a query builder for SharedTrip.
+func (c *SharedTripClient) Query() *SharedTripQuery {
+	return &SharedTripQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSharedTrip},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SharedTrip entity by its id.
+func (c *SharedTripClient) Get(ctx context.Context, id string) (*SharedTrip, error) {
+	return c.Query().Where(sharedtrip.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SharedTripClient) GetX(ctx context.Context, id string) *SharedTrip {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryOwner queries the owner edge of a SharedTrip.
+func (c *SharedTripClient) QueryOwner(_m *SharedTrip) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(sharedtrip.Table, sharedtrip.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, sharedtrip.OwnerTable, sharedtrip.OwnerColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryMembers queries the members edge of a SharedTrip.
+func (c *SharedTripClient) QueryMembers(_m *SharedTrip) *TripMemberQuery {
+	query := (&TripMemberClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(sharedtrip.Table, sharedtrip.FieldID, id),
+			sqlgraph.To(tripmember.Table, tripmember.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, sharedtrip.MembersTable, sharedtrip.MembersColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *SharedTripClient) Hooks() []Hook {
+	return c.hooks.SharedTrip
+}
+
+// Interceptors returns the client interceptors.
+func (c *SharedTripClient) Interceptors() []Interceptor {
+	return c.inters.SharedTrip
+}
+
+func (c *SharedTripClient) mutate(ctx context.Context, m *SharedTripMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SharedTripCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SharedTripUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SharedTripUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SharedTripDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SharedTrip mutation op: %q", m.Op())
+	}
+}
+
 // SnapshotClient is a client for the Snapshot schema.
 type SnapshotClient struct {
 	config
@@ -1936,6 +2290,171 @@ func (c *TripClient) mutate(ctx context.Context, m *TripMutation) (Value, error)
 	}
 }
 
+// TripMemberClient is a client for the TripMember schema.
+type TripMemberClient struct {
+	config
+}
+
+// NewTripMemberClient returns a client for the TripMember from the given config.
+func NewTripMemberClient(c config) *TripMemberClient {
+	return &TripMemberClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `tripmember.Hooks(f(g(h())))`.
+func (c *TripMemberClient) Use(hooks ...Hook) {
+	c.hooks.TripMember = append(c.hooks.TripMember, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `tripmember.Intercept(f(g(h())))`.
+func (c *TripMemberClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TripMember = append(c.inters.TripMember, interceptors...)
+}
+
+// Create returns a builder for creating a TripMember entity.
+func (c *TripMemberClient) Create() *TripMemberCreate {
+	mutation := newTripMemberMutation(c.config, OpCreate)
+	return &TripMemberCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TripMember entities.
+func (c *TripMemberClient) CreateBulk(builders ...*TripMemberCreate) *TripMemberCreateBulk {
+	return &TripMemberCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TripMemberClient) MapCreateBulk(slice any, setFunc func(*TripMemberCreate, int)) *TripMemberCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TripMemberCreateBulk{err: fmt.Errorf("calling to TripMemberClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TripMemberCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TripMemberCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TripMember.
+func (c *TripMemberClient) Update() *TripMemberUpdate {
+	mutation := newTripMemberMutation(c.config, OpUpdate)
+	return &TripMemberUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TripMemberClient) UpdateOne(_m *TripMember) *TripMemberUpdateOne {
+	mutation := newTripMemberMutation(c.config, OpUpdateOne, withTripMember(_m))
+	return &TripMemberUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TripMemberClient) UpdateOneID(id string) *TripMemberUpdateOne {
+	mutation := newTripMemberMutation(c.config, OpUpdateOne, withTripMemberID(id))
+	return &TripMemberUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TripMember.
+func (c *TripMemberClient) Delete() *TripMemberDelete {
+	mutation := newTripMemberMutation(c.config, OpDelete)
+	return &TripMemberDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TripMemberClient) DeleteOne(_m *TripMember) *TripMemberDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TripMemberClient) DeleteOneID(id string) *TripMemberDeleteOne {
+	builder := c.Delete().Where(tripmember.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TripMemberDeleteOne{builder}
+}
+
+// Query returns a query builder for TripMember.
+func (c *TripMemberClient) Query() *TripMemberQuery {
+	return &TripMemberQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTripMember},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TripMember entity by its id.
+func (c *TripMemberClient) Get(ctx context.Context, id string) (*TripMember, error) {
+	return c.Query().Where(tripmember.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TripMemberClient) GetX(ctx context.Context, id string) *TripMember {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QuerySharedTrip queries the shared_trip edge of a TripMember.
+func (c *TripMemberClient) QuerySharedTrip(_m *TripMember) *SharedTripQuery {
+	query := (&SharedTripClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(tripmember.Table, tripmember.FieldID, id),
+			sqlgraph.To(sharedtrip.Table, sharedtrip.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, tripmember.SharedTripTable, tripmember.SharedTripColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUser queries the user edge of a TripMember.
+func (c *TripMemberClient) QueryUser(_m *TripMember) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(tripmember.Table, tripmember.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, tripmember.UserTable, tripmember.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *TripMemberClient) Hooks() []Hook {
+	return c.hooks.TripMember
+}
+
+// Interceptors returns the client interceptors.
+func (c *TripMemberClient) Interceptors() []Interceptor {
+	return c.inters.TripMember
+}
+
+func (c *TripMemberClient) mutate(ctx context.Context, m *TripMemberMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TripMemberCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TripMemberUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TripMemberUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TripMemberDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TripMember mutation op: %q", m.Op())
+	}
+}
+
 // UserClient is a client for the User schema.
 type UserClient struct {
 	config
@@ -2188,6 +2707,70 @@ func (c *UserClient) QueryShare(_m *User) *ShareQuery {
 	return query
 }
 
+// QuerySentFriendships queries the sent_friendships edge of a User.
+func (c *UserClient) QuerySentFriendships(_m *User) *FriendshipQuery {
+	query := (&FriendshipClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(friendship.Table, friendship.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.SentFriendshipsTable, user.SentFriendshipsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryReceivedFriendships queries the received_friendships edge of a User.
+func (c *UserClient) QueryReceivedFriendships(_m *User) *FriendshipQuery {
+	query := (&FriendshipClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(friendship.Table, friendship.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ReceivedFriendshipsTable, user.ReceivedFriendshipsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryOwnedSharedTrips queries the owned_shared_trips edge of a User.
+func (c *UserClient) QueryOwnedSharedTrips(_m *User) *SharedTripQuery {
+	query := (&SharedTripClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(sharedtrip.Table, sharedtrip.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.OwnedSharedTripsTable, user.OwnedSharedTripsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryTripMemberships queries the trip_memberships edge of a User.
+func (c *UserClient) QueryTripMemberships(_m *User) *TripMemberQuery {
+	query := (&TripMemberClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(tripmember.Table, tripmember.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.TripMembershipsTable, user.TripMembershipsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	return c.hooks.User
@@ -2216,12 +2799,13 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AccountDeletionReceipt, CityVisit, FootprintChange, MediaCleanup, MediaObject,
-		ProvinceMark, Session, Share, Snapshot, SyncReceipt, Trip, User []ent.Hook
+		AccountDeletionReceipt, CityVisit, FootprintChange, Friendship, MediaCleanup,
+		MediaObject, ProvinceMark, Session, Share, SharedTrip, Snapshot, SyncReceipt,
+		Trip, TripMember, User []ent.Hook
 	}
 	inters struct {
-		AccountDeletionReceipt, CityVisit, FootprintChange, MediaCleanup, MediaObject,
-		ProvinceMark, Session, Share, Snapshot, SyncReceipt, Trip,
-		User []ent.Interceptor
+		AccountDeletionReceipt, CityVisit, FootprintChange, Friendship, MediaCleanup,
+		MediaObject, ProvinceMark, Session, Share, SharedTrip, Snapshot, SyncReceipt,
+		Trip, TripMember, User []ent.Interceptor
 	}
 )

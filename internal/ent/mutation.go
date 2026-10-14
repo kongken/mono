@@ -14,15 +14,18 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
+	"go.orx.me/apps/trip-map/internal/ent/friendship"
 	"go.orx.me/apps/trip-map/internal/ent/mediacleanup"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/share"
+	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
+	"go.orx.me/apps/trip-map/internal/ent/tripmember"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -38,14 +41,17 @@ const (
 	TypeAccountDeletionReceipt = "AccountDeletionReceipt"
 	TypeCityVisit              = "CityVisit"
 	TypeFootprintChange        = "FootprintChange"
+	TypeFriendship             = "Friendship"
 	TypeMediaCleanup           = "MediaCleanup"
 	TypeMediaObject            = "MediaObject"
 	TypeProvinceMark           = "ProvinceMark"
 	TypeSession                = "Session"
 	TypeShare                  = "Share"
+	TypeSharedTrip             = "SharedTrip"
 	TypeSnapshot               = "Snapshot"
 	TypeSyncReceipt            = "SyncReceipt"
 	TypeTrip                   = "Trip"
+	TypeTripMember             = "TripMember"
 	TypeUser                   = "User"
 )
 
@@ -1920,6 +1926,838 @@ func (m *FootprintChangeMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown FootprintChange edge %s", name)
+}
+
+// FriendshipMutation represents an operation that mutates the Friendship nodes in the graph.
+type FriendshipMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *string
+	user_low_id      *string
+	user_high_id     *string
+	status           *friendship.Status
+	accepted_at      *time.Time
+	created_at       *time.Time
+	updated_at       *time.Time
+	clearedFields    map[string]struct{}
+	requester        *string
+	clearedrequester bool
+	addressee        *string
+	clearedaddressee bool
+	done             bool
+	oldValue         func(context.Context) (*Friendship, error)
+	predicates       []predicate.Friendship
+}
+
+var _ ent.Mutation = (*FriendshipMutation)(nil)
+
+// friendshipOption allows management of the mutation configuration using functional options.
+type friendshipOption func(*FriendshipMutation)
+
+// newFriendshipMutation creates new mutation for the Friendship entity.
+func newFriendshipMutation(c config, op Op, opts ...friendshipOption) *FriendshipMutation {
+	m := &FriendshipMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeFriendship,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withFriendshipID sets the ID field of the mutation.
+func withFriendshipID(id string) friendshipOption {
+	return func(m *FriendshipMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Friendship
+		)
+		m.oldValue = func(ctx context.Context) (*Friendship, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Friendship.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withFriendship sets the old Friendship of the mutation.
+func withFriendship(node *Friendship) friendshipOption {
+	return func(m *FriendshipMutation) {
+		m.oldValue = func(context.Context) (*Friendship, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m FriendshipMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m FriendshipMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Friendship entities.
+func (m *FriendshipMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *FriendshipMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *FriendshipMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Friendship.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetRequesterID sets the "requester_id" field.
+func (m *FriendshipMutation) SetRequesterID(s string) {
+	m.requester = &s
+}
+
+// RequesterID returns the value of the "requester_id" field in the mutation.
+func (m *FriendshipMutation) RequesterID() (r string, exists bool) {
+	v := m.requester
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequesterID returns the old "requester_id" field's value of the Friendship entity.
+// If the Friendship object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FriendshipMutation) OldRequesterID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequesterID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequesterID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequesterID: %w", err)
+	}
+	return oldValue.RequesterID, nil
+}
+
+// ResetRequesterID resets all changes to the "requester_id" field.
+func (m *FriendshipMutation) ResetRequesterID() {
+	m.requester = nil
+}
+
+// SetAddresseeID sets the "addressee_id" field.
+func (m *FriendshipMutation) SetAddresseeID(s string) {
+	m.addressee = &s
+}
+
+// AddresseeID returns the value of the "addressee_id" field in the mutation.
+func (m *FriendshipMutation) AddresseeID() (r string, exists bool) {
+	v := m.addressee
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAddresseeID returns the old "addressee_id" field's value of the Friendship entity.
+// If the Friendship object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FriendshipMutation) OldAddresseeID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAddresseeID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAddresseeID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAddresseeID: %w", err)
+	}
+	return oldValue.AddresseeID, nil
+}
+
+// ResetAddresseeID resets all changes to the "addressee_id" field.
+func (m *FriendshipMutation) ResetAddresseeID() {
+	m.addressee = nil
+}
+
+// SetUserLowID sets the "user_low_id" field.
+func (m *FriendshipMutation) SetUserLowID(s string) {
+	m.user_low_id = &s
+}
+
+// UserLowID returns the value of the "user_low_id" field in the mutation.
+func (m *FriendshipMutation) UserLowID() (r string, exists bool) {
+	v := m.user_low_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserLowID returns the old "user_low_id" field's value of the Friendship entity.
+// If the Friendship object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FriendshipMutation) OldUserLowID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserLowID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserLowID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserLowID: %w", err)
+	}
+	return oldValue.UserLowID, nil
+}
+
+// ResetUserLowID resets all changes to the "user_low_id" field.
+func (m *FriendshipMutation) ResetUserLowID() {
+	m.user_low_id = nil
+}
+
+// SetUserHighID sets the "user_high_id" field.
+func (m *FriendshipMutation) SetUserHighID(s string) {
+	m.user_high_id = &s
+}
+
+// UserHighID returns the value of the "user_high_id" field in the mutation.
+func (m *FriendshipMutation) UserHighID() (r string, exists bool) {
+	v := m.user_high_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserHighID returns the old "user_high_id" field's value of the Friendship entity.
+// If the Friendship object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FriendshipMutation) OldUserHighID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserHighID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserHighID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserHighID: %w", err)
+	}
+	return oldValue.UserHighID, nil
+}
+
+// ResetUserHighID resets all changes to the "user_high_id" field.
+func (m *FriendshipMutation) ResetUserHighID() {
+	m.user_high_id = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *FriendshipMutation) SetStatus(f friendship.Status) {
+	m.status = &f
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *FriendshipMutation) Status() (r friendship.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the Friendship entity.
+// If the Friendship object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FriendshipMutation) OldStatus(ctx context.Context) (v friendship.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *FriendshipMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetAcceptedAt sets the "accepted_at" field.
+func (m *FriendshipMutation) SetAcceptedAt(t time.Time) {
+	m.accepted_at = &t
+}
+
+// AcceptedAt returns the value of the "accepted_at" field in the mutation.
+func (m *FriendshipMutation) AcceptedAt() (r time.Time, exists bool) {
+	v := m.accepted_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAcceptedAt returns the old "accepted_at" field's value of the Friendship entity.
+// If the Friendship object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FriendshipMutation) OldAcceptedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAcceptedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAcceptedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAcceptedAt: %w", err)
+	}
+	return oldValue.AcceptedAt, nil
+}
+
+// ClearAcceptedAt clears the value of the "accepted_at" field.
+func (m *FriendshipMutation) ClearAcceptedAt() {
+	m.accepted_at = nil
+	m.clearedFields[friendship.FieldAcceptedAt] = struct{}{}
+}
+
+// AcceptedAtCleared returns if the "accepted_at" field was cleared in this mutation.
+func (m *FriendshipMutation) AcceptedAtCleared() bool {
+	_, ok := m.clearedFields[friendship.FieldAcceptedAt]
+	return ok
+}
+
+// ResetAcceptedAt resets all changes to the "accepted_at" field.
+func (m *FriendshipMutation) ResetAcceptedAt() {
+	m.accepted_at = nil
+	delete(m.clearedFields, friendship.FieldAcceptedAt)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *FriendshipMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *FriendshipMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Friendship entity.
+// If the Friendship object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FriendshipMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *FriendshipMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *FriendshipMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *FriendshipMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the Friendship entity.
+// If the Friendship object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FriendshipMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *FriendshipMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearRequester clears the "requester" edge to the User entity.
+func (m *FriendshipMutation) ClearRequester() {
+	m.clearedrequester = true
+	m.clearedFields[friendship.FieldRequesterID] = struct{}{}
+}
+
+// RequesterCleared reports if the "requester" edge to the User entity was cleared.
+func (m *FriendshipMutation) RequesterCleared() bool {
+	return m.clearedrequester
+}
+
+// RequesterIDs returns the "requester" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// RequesterID instead. It exists only for internal usage by the builders.
+func (m *FriendshipMutation) RequesterIDs() (ids []string) {
+	if id := m.requester; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetRequester resets all changes to the "requester" edge.
+func (m *FriendshipMutation) ResetRequester() {
+	m.requester = nil
+	m.clearedrequester = false
+}
+
+// ClearAddressee clears the "addressee" edge to the User entity.
+func (m *FriendshipMutation) ClearAddressee() {
+	m.clearedaddressee = true
+	m.clearedFields[friendship.FieldAddresseeID] = struct{}{}
+}
+
+// AddresseeCleared reports if the "addressee" edge to the User entity was cleared.
+func (m *FriendshipMutation) AddresseeCleared() bool {
+	return m.clearedaddressee
+}
+
+// AddresseeIDs returns the "addressee" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// AddresseeID instead. It exists only for internal usage by the builders.
+func (m *FriendshipMutation) AddresseeIDs() (ids []string) {
+	if id := m.addressee; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetAddressee resets all changes to the "addressee" edge.
+func (m *FriendshipMutation) ResetAddressee() {
+	m.addressee = nil
+	m.clearedaddressee = false
+}
+
+// Where appends a list predicates to the FriendshipMutation builder.
+func (m *FriendshipMutation) Where(ps ...predicate.Friendship) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the FriendshipMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *FriendshipMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Friendship, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *FriendshipMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *FriendshipMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Friendship).
+func (m *FriendshipMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *FriendshipMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.requester != nil {
+		fields = append(fields, friendship.FieldRequesterID)
+	}
+	if m.addressee != nil {
+		fields = append(fields, friendship.FieldAddresseeID)
+	}
+	if m.user_low_id != nil {
+		fields = append(fields, friendship.FieldUserLowID)
+	}
+	if m.user_high_id != nil {
+		fields = append(fields, friendship.FieldUserHighID)
+	}
+	if m.status != nil {
+		fields = append(fields, friendship.FieldStatus)
+	}
+	if m.accepted_at != nil {
+		fields = append(fields, friendship.FieldAcceptedAt)
+	}
+	if m.created_at != nil {
+		fields = append(fields, friendship.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, friendship.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *FriendshipMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case friendship.FieldRequesterID:
+		return m.RequesterID()
+	case friendship.FieldAddresseeID:
+		return m.AddresseeID()
+	case friendship.FieldUserLowID:
+		return m.UserLowID()
+	case friendship.FieldUserHighID:
+		return m.UserHighID()
+	case friendship.FieldStatus:
+		return m.Status()
+	case friendship.FieldAcceptedAt:
+		return m.AcceptedAt()
+	case friendship.FieldCreatedAt:
+		return m.CreatedAt()
+	case friendship.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *FriendshipMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case friendship.FieldRequesterID:
+		return m.OldRequesterID(ctx)
+	case friendship.FieldAddresseeID:
+		return m.OldAddresseeID(ctx)
+	case friendship.FieldUserLowID:
+		return m.OldUserLowID(ctx)
+	case friendship.FieldUserHighID:
+		return m.OldUserHighID(ctx)
+	case friendship.FieldStatus:
+		return m.OldStatus(ctx)
+	case friendship.FieldAcceptedAt:
+		return m.OldAcceptedAt(ctx)
+	case friendship.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case friendship.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Friendship field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FriendshipMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case friendship.FieldRequesterID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequesterID(v)
+		return nil
+	case friendship.FieldAddresseeID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAddresseeID(v)
+		return nil
+	case friendship.FieldUserLowID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserLowID(v)
+		return nil
+	case friendship.FieldUserHighID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserHighID(v)
+		return nil
+	case friendship.FieldStatus:
+		v, ok := value.(friendship.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case friendship.FieldAcceptedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAcceptedAt(v)
+		return nil
+	case friendship.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case friendship.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Friendship field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *FriendshipMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *FriendshipMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FriendshipMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Friendship numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *FriendshipMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(friendship.FieldAcceptedAt) {
+		fields = append(fields, friendship.FieldAcceptedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *FriendshipMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *FriendshipMutation) ClearField(name string) error {
+	switch name {
+	case friendship.FieldAcceptedAt:
+		m.ClearAcceptedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Friendship nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *FriendshipMutation) ResetField(name string) error {
+	switch name {
+	case friendship.FieldRequesterID:
+		m.ResetRequesterID()
+		return nil
+	case friendship.FieldAddresseeID:
+		m.ResetAddresseeID()
+		return nil
+	case friendship.FieldUserLowID:
+		m.ResetUserLowID()
+		return nil
+	case friendship.FieldUserHighID:
+		m.ResetUserHighID()
+		return nil
+	case friendship.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case friendship.FieldAcceptedAt:
+		m.ResetAcceptedAt()
+		return nil
+	case friendship.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case friendship.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Friendship field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *FriendshipMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.requester != nil {
+		edges = append(edges, friendship.EdgeRequester)
+	}
+	if m.addressee != nil {
+		edges = append(edges, friendship.EdgeAddressee)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *FriendshipMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case friendship.EdgeRequester:
+		if id := m.requester; id != nil {
+			return []ent.Value{*id}
+		}
+	case friendship.EdgeAddressee:
+		if id := m.addressee; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *FriendshipMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *FriendshipMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *FriendshipMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedrequester {
+		edges = append(edges, friendship.EdgeRequester)
+	}
+	if m.clearedaddressee {
+		edges = append(edges, friendship.EdgeAddressee)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *FriendshipMutation) EdgeCleared(name string) bool {
+	switch name {
+	case friendship.EdgeRequester:
+		return m.clearedrequester
+	case friendship.EdgeAddressee:
+		return m.clearedaddressee
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *FriendshipMutation) ClearEdge(name string) error {
+	switch name {
+	case friendship.EdgeRequester:
+		m.ClearRequester()
+		return nil
+	case friendship.EdgeAddressee:
+		m.ClearAddressee()
+		return nil
+	}
+	return fmt.Errorf("unknown Friendship unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *FriendshipMutation) ResetEdge(name string) error {
+	switch name {
+	case friendship.EdgeRequester:
+		m.ResetRequester()
+		return nil
+	case friendship.EdgeAddressee:
+		m.ResetAddressee()
+		return nil
+	}
+	return fmt.Errorf("unknown Friendship edge %s", name)
 }
 
 // MediaCleanupMutation represents an operation that mutates the MediaCleanup nodes in the graph.
@@ -6215,6 +7053,801 @@ func (m *ShareMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Share edge %s", name)
 }
 
+// SharedTripMutation represents an operation that mutates the SharedTrip nodes in the graph.
+type SharedTripMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *string
+	region_code    *string
+	trip_id        *string
+	travel_date    *string
+	note           *string
+	created_at     *time.Time
+	updated_at     *time.Time
+	clearedFields  map[string]struct{}
+	owner          *string
+	clearedowner   bool
+	members        map[string]struct{}
+	removedmembers map[string]struct{}
+	clearedmembers bool
+	done           bool
+	oldValue       func(context.Context) (*SharedTrip, error)
+	predicates     []predicate.SharedTrip
+}
+
+var _ ent.Mutation = (*SharedTripMutation)(nil)
+
+// sharedtripOption allows management of the mutation configuration using functional options.
+type sharedtripOption func(*SharedTripMutation)
+
+// newSharedTripMutation creates new mutation for the SharedTrip entity.
+func newSharedTripMutation(c config, op Op, opts ...sharedtripOption) *SharedTripMutation {
+	m := &SharedTripMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSharedTrip,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSharedTripID sets the ID field of the mutation.
+func withSharedTripID(id string) sharedtripOption {
+	return func(m *SharedTripMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *SharedTrip
+		)
+		m.oldValue = func(ctx context.Context) (*SharedTrip, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().SharedTrip.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSharedTrip sets the old SharedTrip of the mutation.
+func withSharedTrip(node *SharedTrip) sharedtripOption {
+	return func(m *SharedTripMutation) {
+		m.oldValue = func(context.Context) (*SharedTrip, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SharedTripMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SharedTripMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of SharedTrip entities.
+func (m *SharedTripMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SharedTripMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SharedTripMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().SharedTrip.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetOwnerID sets the "owner_id" field.
+func (m *SharedTripMutation) SetOwnerID(s string) {
+	m.owner = &s
+}
+
+// OwnerID returns the value of the "owner_id" field in the mutation.
+func (m *SharedTripMutation) OwnerID() (r string, exists bool) {
+	v := m.owner
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOwnerID returns the old "owner_id" field's value of the SharedTrip entity.
+// If the SharedTrip object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SharedTripMutation) OldOwnerID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOwnerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOwnerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOwnerID: %w", err)
+	}
+	return oldValue.OwnerID, nil
+}
+
+// ResetOwnerID resets all changes to the "owner_id" field.
+func (m *SharedTripMutation) ResetOwnerID() {
+	m.owner = nil
+}
+
+// SetRegionCode sets the "region_code" field.
+func (m *SharedTripMutation) SetRegionCode(s string) {
+	m.region_code = &s
+}
+
+// RegionCode returns the value of the "region_code" field in the mutation.
+func (m *SharedTripMutation) RegionCode() (r string, exists bool) {
+	v := m.region_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRegionCode returns the old "region_code" field's value of the SharedTrip entity.
+// If the SharedTrip object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SharedTripMutation) OldRegionCode(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRegionCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRegionCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRegionCode: %w", err)
+	}
+	return oldValue.RegionCode, nil
+}
+
+// ResetRegionCode resets all changes to the "region_code" field.
+func (m *SharedTripMutation) ResetRegionCode() {
+	m.region_code = nil
+}
+
+// SetTripID sets the "trip_id" field.
+func (m *SharedTripMutation) SetTripID(s string) {
+	m.trip_id = &s
+}
+
+// TripID returns the value of the "trip_id" field in the mutation.
+func (m *SharedTripMutation) TripID() (r string, exists bool) {
+	v := m.trip_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTripID returns the old "trip_id" field's value of the SharedTrip entity.
+// If the SharedTrip object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SharedTripMutation) OldTripID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTripID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTripID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTripID: %w", err)
+	}
+	return oldValue.TripID, nil
+}
+
+// ResetTripID resets all changes to the "trip_id" field.
+func (m *SharedTripMutation) ResetTripID() {
+	m.trip_id = nil
+}
+
+// SetTravelDate sets the "travel_date" field.
+func (m *SharedTripMutation) SetTravelDate(s string) {
+	m.travel_date = &s
+}
+
+// TravelDate returns the value of the "travel_date" field in the mutation.
+func (m *SharedTripMutation) TravelDate() (r string, exists bool) {
+	v := m.travel_date
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTravelDate returns the old "travel_date" field's value of the SharedTrip entity.
+// If the SharedTrip object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SharedTripMutation) OldTravelDate(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTravelDate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTravelDate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTravelDate: %w", err)
+	}
+	return oldValue.TravelDate, nil
+}
+
+// ResetTravelDate resets all changes to the "travel_date" field.
+func (m *SharedTripMutation) ResetTravelDate() {
+	m.travel_date = nil
+}
+
+// SetNote sets the "note" field.
+func (m *SharedTripMutation) SetNote(s string) {
+	m.note = &s
+}
+
+// Note returns the value of the "note" field in the mutation.
+func (m *SharedTripMutation) Note() (r string, exists bool) {
+	v := m.note
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNote returns the old "note" field's value of the SharedTrip entity.
+// If the SharedTrip object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SharedTripMutation) OldNote(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNote is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNote requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNote: %w", err)
+	}
+	return oldValue.Note, nil
+}
+
+// ResetNote resets all changes to the "note" field.
+func (m *SharedTripMutation) ResetNote() {
+	m.note = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *SharedTripMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *SharedTripMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the SharedTrip entity.
+// If the SharedTrip object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SharedTripMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *SharedTripMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *SharedTripMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *SharedTripMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the SharedTrip entity.
+// If the SharedTrip object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SharedTripMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *SharedTripMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearOwner clears the "owner" edge to the User entity.
+func (m *SharedTripMutation) ClearOwner() {
+	m.clearedowner = true
+	m.clearedFields[sharedtrip.FieldOwnerID] = struct{}{}
+}
+
+// OwnerCleared reports if the "owner" edge to the User entity was cleared.
+func (m *SharedTripMutation) OwnerCleared() bool {
+	return m.clearedowner
+}
+
+// OwnerIDs returns the "owner" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// OwnerID instead. It exists only for internal usage by the builders.
+func (m *SharedTripMutation) OwnerIDs() (ids []string) {
+	if id := m.owner; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetOwner resets all changes to the "owner" edge.
+func (m *SharedTripMutation) ResetOwner() {
+	m.owner = nil
+	m.clearedowner = false
+}
+
+// AddMemberIDs adds the "members" edge to the TripMember entity by ids.
+func (m *SharedTripMutation) AddMemberIDs(ids ...string) {
+	if m.members == nil {
+		m.members = make(map[string]struct{})
+	}
+	for i := range ids {
+		m.members[ids[i]] = struct{}{}
+	}
+}
+
+// ClearMembers clears the "members" edge to the TripMember entity.
+func (m *SharedTripMutation) ClearMembers() {
+	m.clearedmembers = true
+}
+
+// MembersCleared reports if the "members" edge to the TripMember entity was cleared.
+func (m *SharedTripMutation) MembersCleared() bool {
+	return m.clearedmembers
+}
+
+// RemoveMemberIDs removes the "members" edge to the TripMember entity by IDs.
+func (m *SharedTripMutation) RemoveMemberIDs(ids ...string) {
+	if m.removedmembers == nil {
+		m.removedmembers = make(map[string]struct{})
+	}
+	for i := range ids {
+		delete(m.members, ids[i])
+		m.removedmembers[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedMembers returns the removed IDs of the "members" edge to the TripMember entity.
+func (m *SharedTripMutation) RemovedMembersIDs() (ids []string) {
+	for id := range m.removedmembers {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// MembersIDs returns the "members" edge IDs in the mutation.
+func (m *SharedTripMutation) MembersIDs() (ids []string) {
+	for id := range m.members {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetMembers resets all changes to the "members" edge.
+func (m *SharedTripMutation) ResetMembers() {
+	m.members = nil
+	m.clearedmembers = false
+	m.removedmembers = nil
+}
+
+// Where appends a list predicates to the SharedTripMutation builder.
+func (m *SharedTripMutation) Where(ps ...predicate.SharedTrip) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SharedTripMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SharedTripMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.SharedTrip, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SharedTripMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SharedTripMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (SharedTrip).
+func (m *SharedTripMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SharedTripMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.owner != nil {
+		fields = append(fields, sharedtrip.FieldOwnerID)
+	}
+	if m.region_code != nil {
+		fields = append(fields, sharedtrip.FieldRegionCode)
+	}
+	if m.trip_id != nil {
+		fields = append(fields, sharedtrip.FieldTripID)
+	}
+	if m.travel_date != nil {
+		fields = append(fields, sharedtrip.FieldTravelDate)
+	}
+	if m.note != nil {
+		fields = append(fields, sharedtrip.FieldNote)
+	}
+	if m.created_at != nil {
+		fields = append(fields, sharedtrip.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, sharedtrip.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SharedTripMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case sharedtrip.FieldOwnerID:
+		return m.OwnerID()
+	case sharedtrip.FieldRegionCode:
+		return m.RegionCode()
+	case sharedtrip.FieldTripID:
+		return m.TripID()
+	case sharedtrip.FieldTravelDate:
+		return m.TravelDate()
+	case sharedtrip.FieldNote:
+		return m.Note()
+	case sharedtrip.FieldCreatedAt:
+		return m.CreatedAt()
+	case sharedtrip.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SharedTripMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case sharedtrip.FieldOwnerID:
+		return m.OldOwnerID(ctx)
+	case sharedtrip.FieldRegionCode:
+		return m.OldRegionCode(ctx)
+	case sharedtrip.FieldTripID:
+		return m.OldTripID(ctx)
+	case sharedtrip.FieldTravelDate:
+		return m.OldTravelDate(ctx)
+	case sharedtrip.FieldNote:
+		return m.OldNote(ctx)
+	case sharedtrip.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case sharedtrip.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown SharedTrip field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SharedTripMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case sharedtrip.FieldOwnerID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOwnerID(v)
+		return nil
+	case sharedtrip.FieldRegionCode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRegionCode(v)
+		return nil
+	case sharedtrip.FieldTripID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTripID(v)
+		return nil
+	case sharedtrip.FieldTravelDate:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTravelDate(v)
+		return nil
+	case sharedtrip.FieldNote:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNote(v)
+		return nil
+	case sharedtrip.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case sharedtrip.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SharedTrip field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SharedTripMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SharedTripMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SharedTripMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown SharedTrip numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SharedTripMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SharedTripMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SharedTripMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown SharedTrip nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SharedTripMutation) ResetField(name string) error {
+	switch name {
+	case sharedtrip.FieldOwnerID:
+		m.ResetOwnerID()
+		return nil
+	case sharedtrip.FieldRegionCode:
+		m.ResetRegionCode()
+		return nil
+	case sharedtrip.FieldTripID:
+		m.ResetTripID()
+		return nil
+	case sharedtrip.FieldTravelDate:
+		m.ResetTravelDate()
+		return nil
+	case sharedtrip.FieldNote:
+		m.ResetNote()
+		return nil
+	case sharedtrip.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case sharedtrip.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown SharedTrip field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SharedTripMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.owner != nil {
+		edges = append(edges, sharedtrip.EdgeOwner)
+	}
+	if m.members != nil {
+		edges = append(edges, sharedtrip.EdgeMembers)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SharedTripMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case sharedtrip.EdgeOwner:
+		if id := m.owner; id != nil {
+			return []ent.Value{*id}
+		}
+	case sharedtrip.EdgeMembers:
+		ids := make([]ent.Value, 0, len(m.members))
+		for id := range m.members {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SharedTripMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.removedmembers != nil {
+		edges = append(edges, sharedtrip.EdgeMembers)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SharedTripMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case sharedtrip.EdgeMembers:
+		ids := make([]ent.Value, 0, len(m.removedmembers))
+		for id := range m.removedmembers {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SharedTripMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedowner {
+		edges = append(edges, sharedtrip.EdgeOwner)
+	}
+	if m.clearedmembers {
+		edges = append(edges, sharedtrip.EdgeMembers)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SharedTripMutation) EdgeCleared(name string) bool {
+	switch name {
+	case sharedtrip.EdgeOwner:
+		return m.clearedowner
+	case sharedtrip.EdgeMembers:
+		return m.clearedmembers
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SharedTripMutation) ClearEdge(name string) error {
+	switch name {
+	case sharedtrip.EdgeOwner:
+		m.ClearOwner()
+		return nil
+	}
+	return fmt.Errorf("unknown SharedTrip unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SharedTripMutation) ResetEdge(name string) error {
+	switch name {
+	case sharedtrip.EdgeOwner:
+		m.ResetOwner()
+		return nil
+	case sharedtrip.EdgeMembers:
+		m.ResetMembers()
+		return nil
+	}
+	return fmt.Errorf("unknown SharedTrip edge %s", name)
+}
+
 // SnapshotMutation represents an operation that mutates the Snapshot nodes in the graph.
 type SnapshotMutation struct {
 	config
@@ -8812,57 +10445,959 @@ func (m *TripMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Trip edge %s", name)
 }
 
+// TripMemberMutation represents an operation that mutates the TripMember nodes in the graph.
+type TripMemberMutation struct {
+	config
+	op                 Op
+	typ                string
+	id                 *string
+	member_trip_id     *string
+	role               *tripmember.Role
+	status             *tripmember.Status
+	invited_by         *string
+	joined_at          *time.Time
+	created_at         *time.Time
+	updated_at         *time.Time
+	clearedFields      map[string]struct{}
+	shared_trip        *string
+	clearedshared_trip bool
+	user               *string
+	cleareduser        bool
+	done               bool
+	oldValue           func(context.Context) (*TripMember, error)
+	predicates         []predicate.TripMember
+}
+
+var _ ent.Mutation = (*TripMemberMutation)(nil)
+
+// tripmemberOption allows management of the mutation configuration using functional options.
+type tripmemberOption func(*TripMemberMutation)
+
+// newTripMemberMutation creates new mutation for the TripMember entity.
+func newTripMemberMutation(c config, op Op, opts ...tripmemberOption) *TripMemberMutation {
+	m := &TripMemberMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeTripMember,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withTripMemberID sets the ID field of the mutation.
+func withTripMemberID(id string) tripmemberOption {
+	return func(m *TripMemberMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *TripMember
+		)
+		m.oldValue = func(ctx context.Context) (*TripMember, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().TripMember.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withTripMember sets the old TripMember of the mutation.
+func withTripMember(node *TripMember) tripmemberOption {
+	return func(m *TripMemberMutation) {
+		m.oldValue = func(context.Context) (*TripMember, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m TripMemberMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m TripMemberMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of TripMember entities.
+func (m *TripMemberMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *TripMemberMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *TripMemberMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().TripMember.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetSharedTripID sets the "shared_trip_id" field.
+func (m *TripMemberMutation) SetSharedTripID(s string) {
+	m.shared_trip = &s
+}
+
+// SharedTripID returns the value of the "shared_trip_id" field in the mutation.
+func (m *TripMemberMutation) SharedTripID() (r string, exists bool) {
+	v := m.shared_trip
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSharedTripID returns the old "shared_trip_id" field's value of the TripMember entity.
+// If the TripMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TripMemberMutation) OldSharedTripID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSharedTripID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSharedTripID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSharedTripID: %w", err)
+	}
+	return oldValue.SharedTripID, nil
+}
+
+// ResetSharedTripID resets all changes to the "shared_trip_id" field.
+func (m *TripMemberMutation) ResetSharedTripID() {
+	m.shared_trip = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *TripMemberMutation) SetUserID(s string) {
+	m.user = &s
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *TripMemberMutation) UserID() (r string, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the TripMember entity.
+// If the TripMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TripMemberMutation) OldUserID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *TripMemberMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetMemberTripID sets the "member_trip_id" field.
+func (m *TripMemberMutation) SetMemberTripID(s string) {
+	m.member_trip_id = &s
+}
+
+// MemberTripID returns the value of the "member_trip_id" field in the mutation.
+func (m *TripMemberMutation) MemberTripID() (r string, exists bool) {
+	v := m.member_trip_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMemberTripID returns the old "member_trip_id" field's value of the TripMember entity.
+// If the TripMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TripMemberMutation) OldMemberTripID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMemberTripID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMemberTripID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMemberTripID: %w", err)
+	}
+	return oldValue.MemberTripID, nil
+}
+
+// ResetMemberTripID resets all changes to the "member_trip_id" field.
+func (m *TripMemberMutation) ResetMemberTripID() {
+	m.member_trip_id = nil
+}
+
+// SetRole sets the "role" field.
+func (m *TripMemberMutation) SetRole(t tripmember.Role) {
+	m.role = &t
+}
+
+// Role returns the value of the "role" field in the mutation.
+func (m *TripMemberMutation) Role() (r tripmember.Role, exists bool) {
+	v := m.role
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRole returns the old "role" field's value of the TripMember entity.
+// If the TripMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TripMemberMutation) OldRole(ctx context.Context) (v tripmember.Role, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRole is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRole requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRole: %w", err)
+	}
+	return oldValue.Role, nil
+}
+
+// ResetRole resets all changes to the "role" field.
+func (m *TripMemberMutation) ResetRole() {
+	m.role = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *TripMemberMutation) SetStatus(t tripmember.Status) {
+	m.status = &t
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *TripMemberMutation) Status() (r tripmember.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the TripMember entity.
+// If the TripMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TripMemberMutation) OldStatus(ctx context.Context) (v tripmember.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *TripMemberMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetInvitedBy sets the "invited_by" field.
+func (m *TripMemberMutation) SetInvitedBy(s string) {
+	m.invited_by = &s
+}
+
+// InvitedBy returns the value of the "invited_by" field in the mutation.
+func (m *TripMemberMutation) InvitedBy() (r string, exists bool) {
+	v := m.invited_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInvitedBy returns the old "invited_by" field's value of the TripMember entity.
+// If the TripMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TripMemberMutation) OldInvitedBy(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInvitedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInvitedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInvitedBy: %w", err)
+	}
+	return oldValue.InvitedBy, nil
+}
+
+// ResetInvitedBy resets all changes to the "invited_by" field.
+func (m *TripMemberMutation) ResetInvitedBy() {
+	m.invited_by = nil
+}
+
+// SetJoinedAt sets the "joined_at" field.
+func (m *TripMemberMutation) SetJoinedAt(t time.Time) {
+	m.joined_at = &t
+}
+
+// JoinedAt returns the value of the "joined_at" field in the mutation.
+func (m *TripMemberMutation) JoinedAt() (r time.Time, exists bool) {
+	v := m.joined_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldJoinedAt returns the old "joined_at" field's value of the TripMember entity.
+// If the TripMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TripMemberMutation) OldJoinedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldJoinedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldJoinedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldJoinedAt: %w", err)
+	}
+	return oldValue.JoinedAt, nil
+}
+
+// ClearJoinedAt clears the value of the "joined_at" field.
+func (m *TripMemberMutation) ClearJoinedAt() {
+	m.joined_at = nil
+	m.clearedFields[tripmember.FieldJoinedAt] = struct{}{}
+}
+
+// JoinedAtCleared returns if the "joined_at" field was cleared in this mutation.
+func (m *TripMemberMutation) JoinedAtCleared() bool {
+	_, ok := m.clearedFields[tripmember.FieldJoinedAt]
+	return ok
+}
+
+// ResetJoinedAt resets all changes to the "joined_at" field.
+func (m *TripMemberMutation) ResetJoinedAt() {
+	m.joined_at = nil
+	delete(m.clearedFields, tripmember.FieldJoinedAt)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *TripMemberMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *TripMemberMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the TripMember entity.
+// If the TripMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TripMemberMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *TripMemberMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *TripMemberMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *TripMemberMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the TripMember entity.
+// If the TripMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TripMemberMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *TripMemberMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearSharedTrip clears the "shared_trip" edge to the SharedTrip entity.
+func (m *TripMemberMutation) ClearSharedTrip() {
+	m.clearedshared_trip = true
+	m.clearedFields[tripmember.FieldSharedTripID] = struct{}{}
+}
+
+// SharedTripCleared reports if the "shared_trip" edge to the SharedTrip entity was cleared.
+func (m *TripMemberMutation) SharedTripCleared() bool {
+	return m.clearedshared_trip
+}
+
+// SharedTripIDs returns the "shared_trip" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// SharedTripID instead. It exists only for internal usage by the builders.
+func (m *TripMemberMutation) SharedTripIDs() (ids []string) {
+	if id := m.shared_trip; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetSharedTrip resets all changes to the "shared_trip" edge.
+func (m *TripMemberMutation) ResetSharedTrip() {
+	m.shared_trip = nil
+	m.clearedshared_trip = false
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *TripMemberMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[tripmember.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *TripMemberMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *TripMemberMutation) UserIDs() (ids []string) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *TripMemberMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the TripMemberMutation builder.
+func (m *TripMemberMutation) Where(ps ...predicate.TripMember) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the TripMemberMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *TripMemberMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.TripMember, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *TripMemberMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *TripMemberMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (TripMember).
+func (m *TripMemberMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *TripMemberMutation) Fields() []string {
+	fields := make([]string, 0, 9)
+	if m.shared_trip != nil {
+		fields = append(fields, tripmember.FieldSharedTripID)
+	}
+	if m.user != nil {
+		fields = append(fields, tripmember.FieldUserID)
+	}
+	if m.member_trip_id != nil {
+		fields = append(fields, tripmember.FieldMemberTripID)
+	}
+	if m.role != nil {
+		fields = append(fields, tripmember.FieldRole)
+	}
+	if m.status != nil {
+		fields = append(fields, tripmember.FieldStatus)
+	}
+	if m.invited_by != nil {
+		fields = append(fields, tripmember.FieldInvitedBy)
+	}
+	if m.joined_at != nil {
+		fields = append(fields, tripmember.FieldJoinedAt)
+	}
+	if m.created_at != nil {
+		fields = append(fields, tripmember.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, tripmember.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *TripMemberMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case tripmember.FieldSharedTripID:
+		return m.SharedTripID()
+	case tripmember.FieldUserID:
+		return m.UserID()
+	case tripmember.FieldMemberTripID:
+		return m.MemberTripID()
+	case tripmember.FieldRole:
+		return m.Role()
+	case tripmember.FieldStatus:
+		return m.Status()
+	case tripmember.FieldInvitedBy:
+		return m.InvitedBy()
+	case tripmember.FieldJoinedAt:
+		return m.JoinedAt()
+	case tripmember.FieldCreatedAt:
+		return m.CreatedAt()
+	case tripmember.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *TripMemberMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case tripmember.FieldSharedTripID:
+		return m.OldSharedTripID(ctx)
+	case tripmember.FieldUserID:
+		return m.OldUserID(ctx)
+	case tripmember.FieldMemberTripID:
+		return m.OldMemberTripID(ctx)
+	case tripmember.FieldRole:
+		return m.OldRole(ctx)
+	case tripmember.FieldStatus:
+		return m.OldStatus(ctx)
+	case tripmember.FieldInvitedBy:
+		return m.OldInvitedBy(ctx)
+	case tripmember.FieldJoinedAt:
+		return m.OldJoinedAt(ctx)
+	case tripmember.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case tripmember.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown TripMember field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *TripMemberMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case tripmember.FieldSharedTripID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSharedTripID(v)
+		return nil
+	case tripmember.FieldUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case tripmember.FieldMemberTripID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMemberTripID(v)
+		return nil
+	case tripmember.FieldRole:
+		v, ok := value.(tripmember.Role)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRole(v)
+		return nil
+	case tripmember.FieldStatus:
+		v, ok := value.(tripmember.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case tripmember.FieldInvitedBy:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInvitedBy(v)
+		return nil
+	case tripmember.FieldJoinedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetJoinedAt(v)
+		return nil
+	case tripmember.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case tripmember.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown TripMember field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *TripMemberMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *TripMemberMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *TripMemberMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown TripMember numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *TripMemberMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(tripmember.FieldJoinedAt) {
+		fields = append(fields, tripmember.FieldJoinedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *TripMemberMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *TripMemberMutation) ClearField(name string) error {
+	switch name {
+	case tripmember.FieldJoinedAt:
+		m.ClearJoinedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown TripMember nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *TripMemberMutation) ResetField(name string) error {
+	switch name {
+	case tripmember.FieldSharedTripID:
+		m.ResetSharedTripID()
+		return nil
+	case tripmember.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case tripmember.FieldMemberTripID:
+		m.ResetMemberTripID()
+		return nil
+	case tripmember.FieldRole:
+		m.ResetRole()
+		return nil
+	case tripmember.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case tripmember.FieldInvitedBy:
+		m.ResetInvitedBy()
+		return nil
+	case tripmember.FieldJoinedAt:
+		m.ResetJoinedAt()
+		return nil
+	case tripmember.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case tripmember.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown TripMember field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *TripMemberMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.shared_trip != nil {
+		edges = append(edges, tripmember.EdgeSharedTrip)
+	}
+	if m.user != nil {
+		edges = append(edges, tripmember.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *TripMemberMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case tripmember.EdgeSharedTrip:
+		if id := m.shared_trip; id != nil {
+			return []ent.Value{*id}
+		}
+	case tripmember.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *TripMemberMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *TripMemberMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *TripMemberMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedshared_trip {
+		edges = append(edges, tripmember.EdgeSharedTrip)
+	}
+	if m.cleareduser {
+		edges = append(edges, tripmember.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *TripMemberMutation) EdgeCleared(name string) bool {
+	switch name {
+	case tripmember.EdgeSharedTrip:
+		return m.clearedshared_trip
+	case tripmember.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *TripMemberMutation) ClearEdge(name string) error {
+	switch name {
+	case tripmember.EdgeSharedTrip:
+		m.ClearSharedTrip()
+		return nil
+	case tripmember.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown TripMember unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *TripMemberMutation) ResetEdge(name string) error {
+	switch name {
+	case tripmember.EdgeSharedTrip:
+		m.ResetSharedTrip()
+		return nil
+	case tripmember.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown TripMember edge %s", name)
+}
+
 // UserMutation represents an operation that mutates the User nodes in the graph.
 type UserMutation struct {
 	config
-	op                       Op
-	typ                      string
-	id                       *string
-	email                    *string
-	username                 *string
-	display_name             *string
-	avatar_url               *string
-	provider                 *string
-	external_id              *string
-	password_hash            *string
-	disabled                 *bool
-	deletion_requested_at    *time.Time
-	revision                 *int64
-	addrevision              *int64
-	schema_version           *int
-	addschema_version        *int
-	created_at               *time.Time
-	updated_at               *time.Time
-	clearedFields            map[string]struct{}
-	visits                   map[string]struct{}
-	removedvisits            map[string]struct{}
-	clearedvisits            bool
-	trips                    map[string]struct{}
-	removedtrips             map[string]struct{}
-	clearedtrips             bool
-	province_marks           map[string]struct{}
-	removedprovince_marks    map[string]struct{}
-	clearedprovince_marks    bool
-	media_objects            map[string]struct{}
-	removedmedia_objects     map[string]struct{}
-	clearedmedia_objects     bool
-	sessions                 map[string]struct{}
-	removedsessions          map[string]struct{}
-	clearedsessions          bool
-	footprint_changes        map[string]struct{}
-	removedfootprint_changes map[string]struct{}
-	clearedfootprint_changes bool
-	sync_receipts            map[string]struct{}
-	removedsync_receipts     map[string]struct{}
-	clearedsync_receipts     bool
-	snapshots                map[string]struct{}
-	removedsnapshots         map[string]struct{}
-	clearedsnapshots         bool
-	share                    *string
-	clearedshare             bool
-	done                     bool
-	oldValue                 func(context.Context) (*User, error)
-	predicates               []predicate.User
+	op                          Op
+	typ                         string
+	id                          *string
+	email                       *string
+	username                    *string
+	display_name                *string
+	avatar_url                  *string
+	provider                    *string
+	external_id                 *string
+	password_hash               *string
+	disabled                    *bool
+	deletion_requested_at       *time.Time
+	revision                    *int64
+	addrevision                 *int64
+	schema_version              *int
+	addschema_version           *int
+	friend_code                 *string
+	friend_show_cities          *bool
+	friend_show_dates           *bool
+	friend_show_notes           *bool
+	created_at                  *time.Time
+	updated_at                  *time.Time
+	clearedFields               map[string]struct{}
+	visits                      map[string]struct{}
+	removedvisits               map[string]struct{}
+	clearedvisits               bool
+	trips                       map[string]struct{}
+	removedtrips                map[string]struct{}
+	clearedtrips                bool
+	province_marks              map[string]struct{}
+	removedprovince_marks       map[string]struct{}
+	clearedprovince_marks       bool
+	media_objects               map[string]struct{}
+	removedmedia_objects        map[string]struct{}
+	clearedmedia_objects        bool
+	sessions                    map[string]struct{}
+	removedsessions             map[string]struct{}
+	clearedsessions             bool
+	footprint_changes           map[string]struct{}
+	removedfootprint_changes    map[string]struct{}
+	clearedfootprint_changes    bool
+	sync_receipts               map[string]struct{}
+	removedsync_receipts        map[string]struct{}
+	clearedsync_receipts        bool
+	snapshots                   map[string]struct{}
+	removedsnapshots            map[string]struct{}
+	clearedsnapshots            bool
+	share                       *string
+	clearedshare                bool
+	sent_friendships            map[string]struct{}
+	removedsent_friendships     map[string]struct{}
+	clearedsent_friendships     bool
+	received_friendships        map[string]struct{}
+	removedreceived_friendships map[string]struct{}
+	clearedreceived_friendships bool
+	owned_shared_trips          map[string]struct{}
+	removedowned_shared_trips   map[string]struct{}
+	clearedowned_shared_trips   bool
+	trip_memberships            map[string]struct{}
+	removedtrip_memberships     map[string]struct{}
+	clearedtrip_memberships     bool
+	done                        bool
+	oldValue                    func(context.Context) (*User, error)
+	predicates                  []predicate.User
 }
 
 var _ ent.Mutation = (*UserMutation)(nil)
@@ -9444,6 +11979,163 @@ func (m *UserMutation) ResetSchemaVersion() {
 	m.addschema_version = nil
 }
 
+// SetFriendCode sets the "friend_code" field.
+func (m *UserMutation) SetFriendCode(s string) {
+	m.friend_code = &s
+}
+
+// FriendCode returns the value of the "friend_code" field in the mutation.
+func (m *UserMutation) FriendCode() (r string, exists bool) {
+	v := m.friend_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFriendCode returns the old "friend_code" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldFriendCode(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFriendCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFriendCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFriendCode: %w", err)
+	}
+	return oldValue.FriendCode, nil
+}
+
+// ClearFriendCode clears the value of the "friend_code" field.
+func (m *UserMutation) ClearFriendCode() {
+	m.friend_code = nil
+	m.clearedFields[user.FieldFriendCode] = struct{}{}
+}
+
+// FriendCodeCleared returns if the "friend_code" field was cleared in this mutation.
+func (m *UserMutation) FriendCodeCleared() bool {
+	_, ok := m.clearedFields[user.FieldFriendCode]
+	return ok
+}
+
+// ResetFriendCode resets all changes to the "friend_code" field.
+func (m *UserMutation) ResetFriendCode() {
+	m.friend_code = nil
+	delete(m.clearedFields, user.FieldFriendCode)
+}
+
+// SetFriendShowCities sets the "friend_show_cities" field.
+func (m *UserMutation) SetFriendShowCities(b bool) {
+	m.friend_show_cities = &b
+}
+
+// FriendShowCities returns the value of the "friend_show_cities" field in the mutation.
+func (m *UserMutation) FriendShowCities() (r bool, exists bool) {
+	v := m.friend_show_cities
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFriendShowCities returns the old "friend_show_cities" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldFriendShowCities(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFriendShowCities is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFriendShowCities requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFriendShowCities: %w", err)
+	}
+	return oldValue.FriendShowCities, nil
+}
+
+// ResetFriendShowCities resets all changes to the "friend_show_cities" field.
+func (m *UserMutation) ResetFriendShowCities() {
+	m.friend_show_cities = nil
+}
+
+// SetFriendShowDates sets the "friend_show_dates" field.
+func (m *UserMutation) SetFriendShowDates(b bool) {
+	m.friend_show_dates = &b
+}
+
+// FriendShowDates returns the value of the "friend_show_dates" field in the mutation.
+func (m *UserMutation) FriendShowDates() (r bool, exists bool) {
+	v := m.friend_show_dates
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFriendShowDates returns the old "friend_show_dates" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldFriendShowDates(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFriendShowDates is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFriendShowDates requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFriendShowDates: %w", err)
+	}
+	return oldValue.FriendShowDates, nil
+}
+
+// ResetFriendShowDates resets all changes to the "friend_show_dates" field.
+func (m *UserMutation) ResetFriendShowDates() {
+	m.friend_show_dates = nil
+}
+
+// SetFriendShowNotes sets the "friend_show_notes" field.
+func (m *UserMutation) SetFriendShowNotes(b bool) {
+	m.friend_show_notes = &b
+}
+
+// FriendShowNotes returns the value of the "friend_show_notes" field in the mutation.
+func (m *UserMutation) FriendShowNotes() (r bool, exists bool) {
+	v := m.friend_show_notes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFriendShowNotes returns the old "friend_show_notes" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldFriendShowNotes(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFriendShowNotes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFriendShowNotes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFriendShowNotes: %w", err)
+	}
+	return oldValue.FriendShowNotes, nil
+}
+
+// ResetFriendShowNotes resets all changes to the "friend_show_notes" field.
+func (m *UserMutation) ResetFriendShowNotes() {
+	m.friend_show_notes = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *UserMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -9987,6 +12679,222 @@ func (m *UserMutation) ResetShare() {
 	m.clearedshare = false
 }
 
+// AddSentFriendshipIDs adds the "sent_friendships" edge to the Friendship entity by ids.
+func (m *UserMutation) AddSentFriendshipIDs(ids ...string) {
+	if m.sent_friendships == nil {
+		m.sent_friendships = make(map[string]struct{})
+	}
+	for i := range ids {
+		m.sent_friendships[ids[i]] = struct{}{}
+	}
+}
+
+// ClearSentFriendships clears the "sent_friendships" edge to the Friendship entity.
+func (m *UserMutation) ClearSentFriendships() {
+	m.clearedsent_friendships = true
+}
+
+// SentFriendshipsCleared reports if the "sent_friendships" edge to the Friendship entity was cleared.
+func (m *UserMutation) SentFriendshipsCleared() bool {
+	return m.clearedsent_friendships
+}
+
+// RemoveSentFriendshipIDs removes the "sent_friendships" edge to the Friendship entity by IDs.
+func (m *UserMutation) RemoveSentFriendshipIDs(ids ...string) {
+	if m.removedsent_friendships == nil {
+		m.removedsent_friendships = make(map[string]struct{})
+	}
+	for i := range ids {
+		delete(m.sent_friendships, ids[i])
+		m.removedsent_friendships[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedSentFriendships returns the removed IDs of the "sent_friendships" edge to the Friendship entity.
+func (m *UserMutation) RemovedSentFriendshipsIDs() (ids []string) {
+	for id := range m.removedsent_friendships {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// SentFriendshipsIDs returns the "sent_friendships" edge IDs in the mutation.
+func (m *UserMutation) SentFriendshipsIDs() (ids []string) {
+	for id := range m.sent_friendships {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetSentFriendships resets all changes to the "sent_friendships" edge.
+func (m *UserMutation) ResetSentFriendships() {
+	m.sent_friendships = nil
+	m.clearedsent_friendships = false
+	m.removedsent_friendships = nil
+}
+
+// AddReceivedFriendshipIDs adds the "received_friendships" edge to the Friendship entity by ids.
+func (m *UserMutation) AddReceivedFriendshipIDs(ids ...string) {
+	if m.received_friendships == nil {
+		m.received_friendships = make(map[string]struct{})
+	}
+	for i := range ids {
+		m.received_friendships[ids[i]] = struct{}{}
+	}
+}
+
+// ClearReceivedFriendships clears the "received_friendships" edge to the Friendship entity.
+func (m *UserMutation) ClearReceivedFriendships() {
+	m.clearedreceived_friendships = true
+}
+
+// ReceivedFriendshipsCleared reports if the "received_friendships" edge to the Friendship entity was cleared.
+func (m *UserMutation) ReceivedFriendshipsCleared() bool {
+	return m.clearedreceived_friendships
+}
+
+// RemoveReceivedFriendshipIDs removes the "received_friendships" edge to the Friendship entity by IDs.
+func (m *UserMutation) RemoveReceivedFriendshipIDs(ids ...string) {
+	if m.removedreceived_friendships == nil {
+		m.removedreceived_friendships = make(map[string]struct{})
+	}
+	for i := range ids {
+		delete(m.received_friendships, ids[i])
+		m.removedreceived_friendships[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedReceivedFriendships returns the removed IDs of the "received_friendships" edge to the Friendship entity.
+func (m *UserMutation) RemovedReceivedFriendshipsIDs() (ids []string) {
+	for id := range m.removedreceived_friendships {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ReceivedFriendshipsIDs returns the "received_friendships" edge IDs in the mutation.
+func (m *UserMutation) ReceivedFriendshipsIDs() (ids []string) {
+	for id := range m.received_friendships {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetReceivedFriendships resets all changes to the "received_friendships" edge.
+func (m *UserMutation) ResetReceivedFriendships() {
+	m.received_friendships = nil
+	m.clearedreceived_friendships = false
+	m.removedreceived_friendships = nil
+}
+
+// AddOwnedSharedTripIDs adds the "owned_shared_trips" edge to the SharedTrip entity by ids.
+func (m *UserMutation) AddOwnedSharedTripIDs(ids ...string) {
+	if m.owned_shared_trips == nil {
+		m.owned_shared_trips = make(map[string]struct{})
+	}
+	for i := range ids {
+		m.owned_shared_trips[ids[i]] = struct{}{}
+	}
+}
+
+// ClearOwnedSharedTrips clears the "owned_shared_trips" edge to the SharedTrip entity.
+func (m *UserMutation) ClearOwnedSharedTrips() {
+	m.clearedowned_shared_trips = true
+}
+
+// OwnedSharedTripsCleared reports if the "owned_shared_trips" edge to the SharedTrip entity was cleared.
+func (m *UserMutation) OwnedSharedTripsCleared() bool {
+	return m.clearedowned_shared_trips
+}
+
+// RemoveOwnedSharedTripIDs removes the "owned_shared_trips" edge to the SharedTrip entity by IDs.
+func (m *UserMutation) RemoveOwnedSharedTripIDs(ids ...string) {
+	if m.removedowned_shared_trips == nil {
+		m.removedowned_shared_trips = make(map[string]struct{})
+	}
+	for i := range ids {
+		delete(m.owned_shared_trips, ids[i])
+		m.removedowned_shared_trips[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedOwnedSharedTrips returns the removed IDs of the "owned_shared_trips" edge to the SharedTrip entity.
+func (m *UserMutation) RemovedOwnedSharedTripsIDs() (ids []string) {
+	for id := range m.removedowned_shared_trips {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// OwnedSharedTripsIDs returns the "owned_shared_trips" edge IDs in the mutation.
+func (m *UserMutation) OwnedSharedTripsIDs() (ids []string) {
+	for id := range m.owned_shared_trips {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetOwnedSharedTrips resets all changes to the "owned_shared_trips" edge.
+func (m *UserMutation) ResetOwnedSharedTrips() {
+	m.owned_shared_trips = nil
+	m.clearedowned_shared_trips = false
+	m.removedowned_shared_trips = nil
+}
+
+// AddTripMembershipIDs adds the "trip_memberships" edge to the TripMember entity by ids.
+func (m *UserMutation) AddTripMembershipIDs(ids ...string) {
+	if m.trip_memberships == nil {
+		m.trip_memberships = make(map[string]struct{})
+	}
+	for i := range ids {
+		m.trip_memberships[ids[i]] = struct{}{}
+	}
+}
+
+// ClearTripMemberships clears the "trip_memberships" edge to the TripMember entity.
+func (m *UserMutation) ClearTripMemberships() {
+	m.clearedtrip_memberships = true
+}
+
+// TripMembershipsCleared reports if the "trip_memberships" edge to the TripMember entity was cleared.
+func (m *UserMutation) TripMembershipsCleared() bool {
+	return m.clearedtrip_memberships
+}
+
+// RemoveTripMembershipIDs removes the "trip_memberships" edge to the TripMember entity by IDs.
+func (m *UserMutation) RemoveTripMembershipIDs(ids ...string) {
+	if m.removedtrip_memberships == nil {
+		m.removedtrip_memberships = make(map[string]struct{})
+	}
+	for i := range ids {
+		delete(m.trip_memberships, ids[i])
+		m.removedtrip_memberships[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedTripMemberships returns the removed IDs of the "trip_memberships" edge to the TripMember entity.
+func (m *UserMutation) RemovedTripMembershipsIDs() (ids []string) {
+	for id := range m.removedtrip_memberships {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// TripMembershipsIDs returns the "trip_memberships" edge IDs in the mutation.
+func (m *UserMutation) TripMembershipsIDs() (ids []string) {
+	for id := range m.trip_memberships {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetTripMemberships resets all changes to the "trip_memberships" edge.
+func (m *UserMutation) ResetTripMemberships() {
+	m.trip_memberships = nil
+	m.clearedtrip_memberships = false
+	m.removedtrip_memberships = nil
+}
+
 // Where appends a list predicates to the UserMutation builder.
 func (m *UserMutation) Where(ps ...predicate.User) {
 	m.predicates = append(m.predicates, ps...)
@@ -10021,7 +12929,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 13)
+	fields := make([]string, 0, 17)
 	if m.email != nil {
 		fields = append(fields, user.FieldEmail)
 	}
@@ -10054,6 +12962,18 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.schema_version != nil {
 		fields = append(fields, user.FieldSchemaVersion)
+	}
+	if m.friend_code != nil {
+		fields = append(fields, user.FieldFriendCode)
+	}
+	if m.friend_show_cities != nil {
+		fields = append(fields, user.FieldFriendShowCities)
+	}
+	if m.friend_show_dates != nil {
+		fields = append(fields, user.FieldFriendShowDates)
+	}
+	if m.friend_show_notes != nil {
+		fields = append(fields, user.FieldFriendShowNotes)
 	}
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
@@ -10091,6 +13011,14 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Revision()
 	case user.FieldSchemaVersion:
 		return m.SchemaVersion()
+	case user.FieldFriendCode:
+		return m.FriendCode()
+	case user.FieldFriendShowCities:
+		return m.FriendShowCities()
+	case user.FieldFriendShowDates:
+		return m.FriendShowDates()
+	case user.FieldFriendShowNotes:
+		return m.FriendShowNotes()
 	case user.FieldCreatedAt:
 		return m.CreatedAt()
 	case user.FieldUpdatedAt:
@@ -10126,6 +13054,14 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldRevision(ctx)
 	case user.FieldSchemaVersion:
 		return m.OldSchemaVersion(ctx)
+	case user.FieldFriendCode:
+		return m.OldFriendCode(ctx)
+	case user.FieldFriendShowCities:
+		return m.OldFriendShowCities(ctx)
+	case user.FieldFriendShowDates:
+		return m.OldFriendShowDates(ctx)
+	case user.FieldFriendShowNotes:
+		return m.OldFriendShowNotes(ctx)
 	case user.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case user.FieldUpdatedAt:
@@ -10216,6 +13152,34 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetSchemaVersion(v)
 		return nil
+	case user.FieldFriendCode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFriendCode(v)
+		return nil
+	case user.FieldFriendShowCities:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFriendShowCities(v)
+		return nil
+	case user.FieldFriendShowDates:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFriendShowDates(v)
+		return nil
+	case user.FieldFriendShowNotes:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFriendShowNotes(v)
+		return nil
 	case user.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -10296,6 +13260,9 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldDeletionRequestedAt) {
 		fields = append(fields, user.FieldDeletionRequestedAt)
 	}
+	if m.FieldCleared(user.FieldFriendCode) {
+		fields = append(fields, user.FieldFriendCode)
+	}
 	return fields
 }
 
@@ -10318,6 +13285,9 @@ func (m *UserMutation) ClearField(name string) error {
 		return nil
 	case user.FieldDeletionRequestedAt:
 		m.ClearDeletionRequestedAt()
+		return nil
+	case user.FieldFriendCode:
+		m.ClearFriendCode()
 		return nil
 	}
 	return fmt.Errorf("unknown User nullable field %s", name)
@@ -10360,6 +13330,18 @@ func (m *UserMutation) ResetField(name string) error {
 	case user.FieldSchemaVersion:
 		m.ResetSchemaVersion()
 		return nil
+	case user.FieldFriendCode:
+		m.ResetFriendCode()
+		return nil
+	case user.FieldFriendShowCities:
+		m.ResetFriendShowCities()
+		return nil
+	case user.FieldFriendShowDates:
+		m.ResetFriendShowDates()
+		return nil
+	case user.FieldFriendShowNotes:
+		m.ResetFriendShowNotes()
+		return nil
 	case user.FieldCreatedAt:
 		m.ResetCreatedAt()
 		return nil
@@ -10372,7 +13354,7 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 9)
+	edges := make([]string, 0, 13)
 	if m.visits != nil {
 		edges = append(edges, user.EdgeVisits)
 	}
@@ -10399,6 +13381,18 @@ func (m *UserMutation) AddedEdges() []string {
 	}
 	if m.share != nil {
 		edges = append(edges, user.EdgeShare)
+	}
+	if m.sent_friendships != nil {
+		edges = append(edges, user.EdgeSentFriendships)
+	}
+	if m.received_friendships != nil {
+		edges = append(edges, user.EdgeReceivedFriendships)
+	}
+	if m.owned_shared_trips != nil {
+		edges = append(edges, user.EdgeOwnedSharedTrips)
+	}
+	if m.trip_memberships != nil {
+		edges = append(edges, user.EdgeTripMemberships)
 	}
 	return edges
 }
@@ -10459,13 +13453,37 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 		if id := m.share; id != nil {
 			return []ent.Value{*id}
 		}
+	case user.EdgeSentFriendships:
+		ids := make([]ent.Value, 0, len(m.sent_friendships))
+		for id := range m.sent_friendships {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeReceivedFriendships:
+		ids := make([]ent.Value, 0, len(m.received_friendships))
+		for id := range m.received_friendships {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeOwnedSharedTrips:
+		ids := make([]ent.Value, 0, len(m.owned_shared_trips))
+		for id := range m.owned_shared_trips {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeTripMemberships:
+		ids := make([]ent.Value, 0, len(m.trip_memberships))
+		for id := range m.trip_memberships {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 9)
+	edges := make([]string, 0, 13)
 	if m.removedvisits != nil {
 		edges = append(edges, user.EdgeVisits)
 	}
@@ -10489,6 +13507,18 @@ func (m *UserMutation) RemovedEdges() []string {
 	}
 	if m.removedsnapshots != nil {
 		edges = append(edges, user.EdgeSnapshots)
+	}
+	if m.removedsent_friendships != nil {
+		edges = append(edges, user.EdgeSentFriendships)
+	}
+	if m.removedreceived_friendships != nil {
+		edges = append(edges, user.EdgeReceivedFriendships)
+	}
+	if m.removedowned_shared_trips != nil {
+		edges = append(edges, user.EdgeOwnedSharedTrips)
+	}
+	if m.removedtrip_memberships != nil {
+		edges = append(edges, user.EdgeTripMemberships)
 	}
 	return edges
 }
@@ -10545,13 +13575,37 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeSentFriendships:
+		ids := make([]ent.Value, 0, len(m.removedsent_friendships))
+		for id := range m.removedsent_friendships {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeReceivedFriendships:
+		ids := make([]ent.Value, 0, len(m.removedreceived_friendships))
+		for id := range m.removedreceived_friendships {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeOwnedSharedTrips:
+		ids := make([]ent.Value, 0, len(m.removedowned_shared_trips))
+		for id := range m.removedowned_shared_trips {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeTripMemberships:
+		ids := make([]ent.Value, 0, len(m.removedtrip_memberships))
+		for id := range m.removedtrip_memberships {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 9)
+	edges := make([]string, 0, 13)
 	if m.clearedvisits {
 		edges = append(edges, user.EdgeVisits)
 	}
@@ -10579,6 +13633,18 @@ func (m *UserMutation) ClearedEdges() []string {
 	if m.clearedshare {
 		edges = append(edges, user.EdgeShare)
 	}
+	if m.clearedsent_friendships {
+		edges = append(edges, user.EdgeSentFriendships)
+	}
+	if m.clearedreceived_friendships {
+		edges = append(edges, user.EdgeReceivedFriendships)
+	}
+	if m.clearedowned_shared_trips {
+		edges = append(edges, user.EdgeOwnedSharedTrips)
+	}
+	if m.clearedtrip_memberships {
+		edges = append(edges, user.EdgeTripMemberships)
+	}
 	return edges
 }
 
@@ -10604,6 +13670,14 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 		return m.clearedsnapshots
 	case user.EdgeShare:
 		return m.clearedshare
+	case user.EdgeSentFriendships:
+		return m.clearedsent_friendships
+	case user.EdgeReceivedFriendships:
+		return m.clearedreceived_friendships
+	case user.EdgeOwnedSharedTrips:
+		return m.clearedowned_shared_trips
+	case user.EdgeTripMemberships:
+		return m.clearedtrip_memberships
 	}
 	return false
 }
@@ -10649,6 +13723,18 @@ func (m *UserMutation) ResetEdge(name string) error {
 		return nil
 	case user.EdgeShare:
 		m.ResetShare()
+		return nil
+	case user.EdgeSentFriendships:
+		m.ResetSentFriendships()
+		return nil
+	case user.EdgeReceivedFriendships:
+		m.ResetReceivedFriendships()
+		return nil
+	case user.EdgeOwnedSharedTrips:
+		m.ResetOwnedSharedTrips()
+		return nil
+	case user.EdgeTripMemberships:
+		m.ResetTripMemberships()
 		return nil
 	}
 	return fmt.Errorf("unknown User edge %s", name)

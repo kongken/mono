@@ -36,6 +36,14 @@ const (
 	FieldRevision = "revision"
 	// FieldSchemaVersion holds the string denoting the schema_version field in the database.
 	FieldSchemaVersion = "schema_version"
+	// FieldFriendCode holds the string denoting the friend_code field in the database.
+	FieldFriendCode = "friend_code"
+	// FieldFriendShowCities holds the string denoting the friend_show_cities field in the database.
+	FieldFriendShowCities = "friend_show_cities"
+	// FieldFriendShowDates holds the string denoting the friend_show_dates field in the database.
+	FieldFriendShowDates = "friend_show_dates"
+	// FieldFriendShowNotes holds the string denoting the friend_show_notes field in the database.
+	FieldFriendShowNotes = "friend_show_notes"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -58,6 +66,14 @@ const (
 	EdgeSnapshots = "snapshots"
 	// EdgeShare holds the string denoting the share edge name in mutations.
 	EdgeShare = "share"
+	// EdgeSentFriendships holds the string denoting the sent_friendships edge name in mutations.
+	EdgeSentFriendships = "sent_friendships"
+	// EdgeReceivedFriendships holds the string denoting the received_friendships edge name in mutations.
+	EdgeReceivedFriendships = "received_friendships"
+	// EdgeOwnedSharedTrips holds the string denoting the owned_shared_trips edge name in mutations.
+	EdgeOwnedSharedTrips = "owned_shared_trips"
+	// EdgeTripMemberships holds the string denoting the trip_memberships edge name in mutations.
+	EdgeTripMemberships = "trip_memberships"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// VisitsTable is the table that holds the visits relation/edge.
@@ -123,6 +139,34 @@ const (
 	ShareInverseTable = "shares"
 	// ShareColumn is the table column denoting the share relation/edge.
 	ShareColumn = "user_id"
+	// SentFriendshipsTable is the table that holds the sent_friendships relation/edge.
+	SentFriendshipsTable = "friendships"
+	// SentFriendshipsInverseTable is the table name for the Friendship entity.
+	// It exists in this package in order to avoid circular dependency with the "friendship" package.
+	SentFriendshipsInverseTable = "friendships"
+	// SentFriendshipsColumn is the table column denoting the sent_friendships relation/edge.
+	SentFriendshipsColumn = "requester_id"
+	// ReceivedFriendshipsTable is the table that holds the received_friendships relation/edge.
+	ReceivedFriendshipsTable = "friendships"
+	// ReceivedFriendshipsInverseTable is the table name for the Friendship entity.
+	// It exists in this package in order to avoid circular dependency with the "friendship" package.
+	ReceivedFriendshipsInverseTable = "friendships"
+	// ReceivedFriendshipsColumn is the table column denoting the received_friendships relation/edge.
+	ReceivedFriendshipsColumn = "addressee_id"
+	// OwnedSharedTripsTable is the table that holds the owned_shared_trips relation/edge.
+	OwnedSharedTripsTable = "shared_trips"
+	// OwnedSharedTripsInverseTable is the table name for the SharedTrip entity.
+	// It exists in this package in order to avoid circular dependency with the "sharedtrip" package.
+	OwnedSharedTripsInverseTable = "shared_trips"
+	// OwnedSharedTripsColumn is the table column denoting the owned_shared_trips relation/edge.
+	OwnedSharedTripsColumn = "owner_id"
+	// TripMembershipsTable is the table that holds the trip_memberships relation/edge.
+	TripMembershipsTable = "trip_members"
+	// TripMembershipsInverseTable is the table name for the TripMember entity.
+	// It exists in this package in order to avoid circular dependency with the "tripmember" package.
+	TripMembershipsInverseTable = "trip_members"
+	// TripMembershipsColumn is the table column denoting the trip_memberships relation/edge.
+	TripMembershipsColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -139,6 +183,10 @@ var Columns = []string{
 	FieldDeletionRequestedAt,
 	FieldRevision,
 	FieldSchemaVersion,
+	FieldFriendCode,
+	FieldFriendShowCities,
+	FieldFriendShowDates,
+	FieldFriendShowNotes,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -174,6 +222,12 @@ var (
 	DefaultSchemaVersion int
 	// SchemaVersionValidator is a validator for the "schema_version" field. It is called by the builders before save.
 	SchemaVersionValidator func(int) error
+	// DefaultFriendShowCities holds the default value on creation for the "friend_show_cities" field.
+	DefaultFriendShowCities bool
+	// DefaultFriendShowDates holds the default value on creation for the "friend_show_dates" field.
+	DefaultFriendShowDates bool
+	// DefaultFriendShowNotes holds the default value on creation for the "friend_show_notes" field.
+	DefaultFriendShowNotes bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -245,6 +299,26 @@ func ByRevision(opts ...sql.OrderTermOption) OrderOption {
 // BySchemaVersion orders the results by the schema_version field.
 func BySchemaVersion(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSchemaVersion, opts...).ToFunc()
+}
+
+// ByFriendCode orders the results by the friend_code field.
+func ByFriendCode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFriendCode, opts...).ToFunc()
+}
+
+// ByFriendShowCities orders the results by the friend_show_cities field.
+func ByFriendShowCities(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFriendShowCities, opts...).ToFunc()
+}
+
+// ByFriendShowDates orders the results by the friend_show_dates field.
+func ByFriendShowDates(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFriendShowDates, opts...).ToFunc()
+}
+
+// ByFriendShowNotes orders the results by the friend_show_notes field.
+func ByFriendShowNotes(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFriendShowNotes, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.
@@ -375,6 +449,62 @@ func ByShareField(field string, opts ...sql.OrderTermOption) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newShareStep(), sql.OrderByField(field, opts...))
 	}
 }
+
+// BySentFriendshipsCount orders the results by sent_friendships count.
+func BySentFriendshipsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSentFriendshipsStep(), opts...)
+	}
+}
+
+// BySentFriendships orders the results by sent_friendships terms.
+func BySentFriendships(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSentFriendshipsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByReceivedFriendshipsCount orders the results by received_friendships count.
+func ByReceivedFriendshipsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newReceivedFriendshipsStep(), opts...)
+	}
+}
+
+// ByReceivedFriendships orders the results by received_friendships terms.
+func ByReceivedFriendships(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newReceivedFriendshipsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByOwnedSharedTripsCount orders the results by owned_shared_trips count.
+func ByOwnedSharedTripsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newOwnedSharedTripsStep(), opts...)
+	}
+}
+
+// ByOwnedSharedTrips orders the results by owned_shared_trips terms.
+func ByOwnedSharedTrips(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newOwnedSharedTripsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByTripMembershipsCount orders the results by trip_memberships count.
+func ByTripMembershipsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newTripMembershipsStep(), opts...)
+	}
+}
+
+// ByTripMemberships orders the results by trip_memberships terms.
+func ByTripMemberships(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newTripMembershipsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newVisitsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -436,5 +566,33 @@ func newShareStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(ShareInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2O, false, ShareTable, ShareColumn),
+	)
+}
+func newSentFriendshipsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SentFriendshipsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, SentFriendshipsTable, SentFriendshipsColumn),
+	)
+}
+func newReceivedFriendshipsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ReceivedFriendshipsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ReceivedFriendshipsTable, ReceivedFriendshipsColumn),
+	)
+}
+func newOwnedSharedTripsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(OwnedSharedTripsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, OwnedSharedTripsTable, OwnedSharedTripsColumn),
+	)
+}
+func newTripMembershipsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(TripMembershipsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, TripMembershipsTable, TripMembershipsColumn),
 	)
 }

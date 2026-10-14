@@ -26,6 +26,7 @@ import {
   ArrowCounterClockwise,
   Stack,
   UserCircle,
+  Users,
   Warning,
   WifiSlash,
 } from "@phosphor-icons/react";
@@ -95,7 +96,16 @@ import MigrationDialog from "./components/MigrationDialog";
 import LegacyDialog from "./components/LegacyDialog";
 import SnapshotDialog from "./components/SnapshotDialog";
 import ShareDialog from "./components/ShareDialog";
+import CollaborationDialog, {
+  type CollaborationTarget,
+} from "./components/CollaborationDialog";
 import MediaDialog, { CityMediaPreview } from "./components/MediaDialog";
+import { collaborationApi, type CollaborationOverview } from "./api/collaboration";
+import {
+  canEditSharedTrip,
+  indexActiveSharedTripsByTripId,
+  roleLabel,
+} from "./lib/collaboration";
 import CityPicker from "./components/CityPicker";
 import { readBoot, useCloud } from "./hooks/useCloud";
 import TravelReport from "./components/TravelReport";
@@ -229,6 +239,10 @@ function App() {
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [collabOpen, setCollabOpen] = useState(false);
+  const [collabTarget, setCollabTarget] = useState<CollaborationTarget>(null);
+  const [collabOverview, setCollabOverview] =
+    useState<CollaborationOverview | null>(null);
   const [mediaTarget, setMediaTarget] = useState<{
     region: string;
     tripId: string;
@@ -287,6 +301,9 @@ function App() {
       setMigrationOpen(false);
       setSnapshotsOpen(false);
       setShareOpen(false);
+      setCollabOpen(false);
+      setCollabTarget(null);
+      setCollabOverview(null);
       setMediaTarget(null);
       setLocalClash(null);
       setExportedOther(null);
@@ -775,6 +792,31 @@ function App() {
     if (!draft || !editBase || !draftChanged(editBase, draft))
       loadDraft(draftProvince, draftCity);
     setEditor(true);
+  };
+  useEffect(() => {
+    if (!editor || !cloud.enabled || !cloud.user) return;
+    let alive = true;
+    void collaborationApi
+      .getOverview()
+      .then((res) => {
+        if (alive) setCollabOverview(res);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [editor, cloud.enabled, cloud.user]);
+  const sharedTripsByTripId = useMemo(
+    () =>
+      collabOverview
+        ? indexActiveSharedTripsByTripId(collabOverview.sharedTrips)
+        : new Map(),
+    [collabOverview],
+  );
+  const openTripCollaboration = (tripId: string) => {
+    setEditor(false);
+    setCollabTarget({ regionCode: draftCity, tripId });
+    setCollabOpen(true);
   };
   const exportData = () => {
     const url = URL.createObjectURL(
@@ -2168,16 +2210,33 @@ function App() {
                         v.code === draftCity &&
                         v.trips.some((o) => o.id === t.id),
                     );
+                  const sharedTrip = sharedTripsByTripId.get(
+                    `${draftCity}:${t.id}`,
+                  );
+                  const readOnlyMember =
+                    !!sharedTrip &&
+                    !canEditSharedTrip(sharedTrip.myRole, sharedTrip.myStatus);
                   return (
                     <div className="trip-card" key={t.id}>
                       <div className="trip-card-head">
-                        <strong>第 {i + 1} 次旅行</strong>
+                        <strong>
+                          第 {i + 1} 次旅行
+                          {sharedTrip
+                            ? `（共同旅行 · ${roleLabel(sharedTrip.myRole)}）`
+                            : ""}
+                        </strong>
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           className="delete-button"
                           aria-label={`删除第 ${i + 1} 次旅行`}
+                          disabled={readOnlyMember}
+                          title={
+                            readOnlyMember
+                              ? "只读成员不能直接删除共同旅行，请在共同旅行窗口中退出"
+                              : undefined
+                          }
                           onClick={() =>
                             setDraftTrips((trips) =>
                               trips.filter((o) => o.id !== t.id),
@@ -2188,12 +2247,18 @@ function App() {
                           删除
                         </Button>
                       </div>
+                      {readOnlyMember && (
+                        <p className="media-hint">
+                          你在这次共同旅行中为只读成员，日期与记忆由创建者或共同编辑者维护；如需移除本页记录，可在共同旅行窗口中退出。
+                        </p>
+                      )}
                       <label className="field-label">
                         旅行日期
                         <span className="sr-only"> 第 {i + 1} 次</span>
                         <Input
                           type="date"
                           value={t.date}
+                          disabled={readOnlyMember}
                           onChange={(e) =>
                             changeDraftTrip(t.id, { date: e.target.value })
                           }
@@ -2207,28 +2272,47 @@ function App() {
                           placeholder="那天的天气、遇见的人，或一顿念念不忘的美食…"
                           maxLength={TRIP_NOTE_LIMIT}
                           value={t.note}
+                          disabled={readOnlyMember}
                           onChange={(e) =>
                             changeDraftTrip(t.id, { note: e.target.value })
                           }
                         />
                       </label>
                       {cloud.user && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          aria-label={`这次旅行的照片与附件（第 ${i + 1} 次）`}
-                          disabled={cloud.deletionBlocked || !synced}
-                          title={
-                            synced
-                              ? undefined
-                              : "保存并同步这次旅行后才能添加照片与附件"
-                          }
-                          data-media-opener={t.id}
-                          onClick={() => openMedia(t.id)}
-                        >
-                          这次旅行的照片与附件
-                        </Button>
+                        <div className="trip-card-actions">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            aria-label={`这次旅行的照片与附件（第 ${i + 1} 次）`}
+                            disabled={cloud.deletionBlocked || !synced}
+                            title={
+                              synced
+                                ? undefined
+                                : "保存并同步这次旅行后才能添加照片与附件"
+                            }
+                            data-media-opener={t.id}
+                            onClick={() => openMedia(t.id)}
+                          >
+                            这次旅行的照片与附件
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            aria-label={`这次旅行的共同旅行（第 ${i + 1} 次）`}
+                            disabled={cloud.deletionBlocked || !synced}
+                            title={
+                              synced
+                                ? undefined
+                                : "保存并同步这次旅行后才能邀请好友共同旅行"
+                            }
+                            onClick={() => openTripCollaboration(t.id)}
+                          >
+                            <Users size={15} />
+                            {sharedTrip ? "共同旅行详情" : "邀请共同旅行"}
+                          </Button>
+                        </div>
                       )}
                     </div>
                   );
@@ -2577,6 +2661,25 @@ function App() {
             setAccountOpen(false);
             setShareOpen(true);
           }}
+          onOpenCollaboration={() => {
+            setAccountOpen(false);
+            setCollabTarget(null);
+            setCollabOpen(true);
+          }}
+        />
+      )}
+      {cloud.enabled && cloud.user && collabOpen && (
+        <CollaborationDialog
+          key={`${cloud.user.id}:${collabTarget?.tripId ?? ""}`}
+          open
+          onOpenChange={(open) => {
+            setCollabOpen(open);
+            if (!open) setCollabTarget(null);
+          }}
+          cloud={cloud}
+          saved={saved}
+          initialTarget={collabTarget}
+          onOverviewChange={setCollabOverview}
         />
       )}
       {mediaOpen && cloud.user && (

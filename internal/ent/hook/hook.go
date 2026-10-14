@@ -45,6 +45,18 @@ func (f FootprintChangeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Va
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FootprintChangeMutation", m)
 }
 
+// The FriendshipFunc type is an adapter to allow the use of ordinary
+// function as Friendship mutator.
+type FriendshipFunc func(context.Context, *ent.FriendshipMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f FriendshipFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.FriendshipMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FriendshipMutation", m)
+}
+
 // The MediaCleanupFunc type is an adapter to allow the use of ordinary
 // function as MediaCleanup mutator.
 type MediaCleanupFunc func(context.Context, *ent.MediaCleanupMutation) (ent.Value, error)
@@ -105,6 +117,18 @@ func (f ShareFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ShareMutation", m)
 }
 
+// The SharedTripFunc type is an adapter to allow the use of ordinary
+// function as SharedTrip mutator.
+type SharedTripFunc func(context.Context, *ent.SharedTripMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SharedTripFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SharedTripMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SharedTripMutation", m)
+}
+
 // The SnapshotFunc type is an adapter to allow the use of ordinary
 // function as Snapshot mutator.
 type SnapshotFunc func(context.Context, *ent.SnapshotMutation) (ent.Value, error)
@@ -139,6 +163,18 @@ func (f TripFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error)
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TripMutation", m)
+}
+
+// The TripMemberFunc type is an adapter to allow the use of ordinary
+// function as TripMember mutator.
+type TripMemberFunc func(context.Context, *ent.TripMemberMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TripMemberFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TripMemberMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TripMemberMutation", m)
 }
 
 // The UserFunc type is an adapter to allow the use of ordinary

@@ -14,13 +14,16 @@ import (
 	"entgo.io/ent/schema/field"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
+	"go.orx.me/apps/trip-map/internal/ent/friendship"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/share"
+	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
+	"go.orx.me/apps/trip-map/internal/ent/tripmember"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -182,6 +185,62 @@ func (_c *UserCreate) SetSchemaVersion(v int) *UserCreate {
 func (_c *UserCreate) SetNillableSchemaVersion(v *int) *UserCreate {
 	if v != nil {
 		_c.SetSchemaVersion(*v)
+	}
+	return _c
+}
+
+// SetFriendCode sets the "friend_code" field.
+func (_c *UserCreate) SetFriendCode(v string) *UserCreate {
+	_c.mutation.SetFriendCode(v)
+	return _c
+}
+
+// SetNillableFriendCode sets the "friend_code" field if the given value is not nil.
+func (_c *UserCreate) SetNillableFriendCode(v *string) *UserCreate {
+	if v != nil {
+		_c.SetFriendCode(*v)
+	}
+	return _c
+}
+
+// SetFriendShowCities sets the "friend_show_cities" field.
+func (_c *UserCreate) SetFriendShowCities(v bool) *UserCreate {
+	_c.mutation.SetFriendShowCities(v)
+	return _c
+}
+
+// SetNillableFriendShowCities sets the "friend_show_cities" field if the given value is not nil.
+func (_c *UserCreate) SetNillableFriendShowCities(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetFriendShowCities(*v)
+	}
+	return _c
+}
+
+// SetFriendShowDates sets the "friend_show_dates" field.
+func (_c *UserCreate) SetFriendShowDates(v bool) *UserCreate {
+	_c.mutation.SetFriendShowDates(v)
+	return _c
+}
+
+// SetNillableFriendShowDates sets the "friend_show_dates" field if the given value is not nil.
+func (_c *UserCreate) SetNillableFriendShowDates(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetFriendShowDates(*v)
+	}
+	return _c
+}
+
+// SetFriendShowNotes sets the "friend_show_notes" field.
+func (_c *UserCreate) SetFriendShowNotes(v bool) *UserCreate {
+	_c.mutation.SetFriendShowNotes(v)
+	return _c
+}
+
+// SetNillableFriendShowNotes sets the "friend_show_notes" field if the given value is not nil.
+func (_c *UserCreate) SetNillableFriendShowNotes(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetFriendShowNotes(*v)
 	}
 	return _c
 }
@@ -367,6 +426,66 @@ func (_c *UserCreate) SetShare(v *Share) *UserCreate {
 	return _c.SetShareID(v.ID)
 }
 
+// AddSentFriendshipIDs adds the "sent_friendships" edge to the Friendship entity by IDs.
+func (_c *UserCreate) AddSentFriendshipIDs(ids ...string) *UserCreate {
+	_c.mutation.AddSentFriendshipIDs(ids...)
+	return _c
+}
+
+// AddSentFriendships adds the "sent_friendships" edges to the Friendship entity.
+func (_c *UserCreate) AddSentFriendships(v ...*Friendship) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddSentFriendshipIDs(ids...)
+}
+
+// AddReceivedFriendshipIDs adds the "received_friendships" edge to the Friendship entity by IDs.
+func (_c *UserCreate) AddReceivedFriendshipIDs(ids ...string) *UserCreate {
+	_c.mutation.AddReceivedFriendshipIDs(ids...)
+	return _c
+}
+
+// AddReceivedFriendships adds the "received_friendships" edges to the Friendship entity.
+func (_c *UserCreate) AddReceivedFriendships(v ...*Friendship) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddReceivedFriendshipIDs(ids...)
+}
+
+// AddOwnedSharedTripIDs adds the "owned_shared_trips" edge to the SharedTrip entity by IDs.
+func (_c *UserCreate) AddOwnedSharedTripIDs(ids ...string) *UserCreate {
+	_c.mutation.AddOwnedSharedTripIDs(ids...)
+	return _c
+}
+
+// AddOwnedSharedTrips adds the "owned_shared_trips" edges to the SharedTrip entity.
+func (_c *UserCreate) AddOwnedSharedTrips(v ...*SharedTrip) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddOwnedSharedTripIDs(ids...)
+}
+
+// AddTripMembershipIDs adds the "trip_memberships" edge to the TripMember entity by IDs.
+func (_c *UserCreate) AddTripMembershipIDs(ids ...string) *UserCreate {
+	_c.mutation.AddTripMembershipIDs(ids...)
+	return _c
+}
+
+// AddTripMemberships adds the "trip_memberships" edges to the TripMember entity.
+func (_c *UserCreate) AddTripMemberships(v ...*TripMember) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddTripMembershipIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_c *UserCreate) Mutation() *UserMutation {
 	return _c.mutation
@@ -434,6 +553,18 @@ func (_c *UserCreate) defaults() {
 		v := user.DefaultSchemaVersion
 		_c.mutation.SetSchemaVersion(v)
 	}
+	if _, ok := _c.mutation.FriendShowCities(); !ok {
+		v := user.DefaultFriendShowCities
+		_c.mutation.SetFriendShowCities(v)
+	}
+	if _, ok := _c.mutation.FriendShowDates(); !ok {
+		v := user.DefaultFriendShowDates
+		_c.mutation.SetFriendShowDates(v)
+	}
+	if _, ok := _c.mutation.FriendShowNotes(); !ok {
+		v := user.DefaultFriendShowNotes
+		_c.mutation.SetFriendShowNotes(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := user.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -483,6 +614,15 @@ func (_c *UserCreate) check() error {
 		if err := user.SchemaVersionValidator(v); err != nil {
 			return &ValidationError{Name: "schema_version", err: fmt.Errorf(`ent: validator failed for field "User.schema_version": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.FriendShowCities(); !ok {
+		return &ValidationError{Name: "friend_show_cities", err: errors.New(`ent: missing required field "User.friend_show_cities"`)}
+	}
+	if _, ok := _c.mutation.FriendShowDates(); !ok {
+		return &ValidationError{Name: "friend_show_dates", err: errors.New(`ent: missing required field "User.friend_show_dates"`)}
+	}
+	if _, ok := _c.mutation.FriendShowNotes(); !ok {
+		return &ValidationError{Name: "friend_show_notes", err: errors.New(`ent: missing required field "User.friend_show_notes"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "User.created_at"`)}
@@ -569,6 +709,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.SchemaVersion(); ok {
 		_spec.SetField(user.FieldSchemaVersion, field.TypeInt, value)
 		_node.SchemaVersion = value
+	}
+	if value, ok := _c.mutation.FriendCode(); ok {
+		_spec.SetField(user.FieldFriendCode, field.TypeString, value)
+		_node.FriendCode = &value
+	}
+	if value, ok := _c.mutation.FriendShowCities(); ok {
+		_spec.SetField(user.FieldFriendShowCities, field.TypeBool, value)
+		_node.FriendShowCities = value
+	}
+	if value, ok := _c.mutation.FriendShowDates(); ok {
+		_spec.SetField(user.FieldFriendShowDates, field.TypeBool, value)
+		_node.FriendShowDates = value
+	}
+	if value, ok := _c.mutation.FriendShowNotes(); ok {
+		_spec.SetField(user.FieldFriendShowNotes, field.TypeBool, value)
+		_node.FriendShowNotes = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
@@ -715,6 +871,70 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(share.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SentFriendshipsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SentFriendshipsTable,
+			Columns: []string{user.SentFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ReceivedFriendshipsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ReceivedFriendshipsTable,
+			Columns: []string{user.ReceivedFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.OwnedSharedTripsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedSharedTripsTable,
+			Columns: []string{user.OwnedSharedTripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(sharedtrip.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.TripMembershipsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripMembershipsTable,
+			Columns: []string{user.TripMembershipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tripmember.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -933,6 +1153,60 @@ func (u *UserUpsert) UpdateSchemaVersion() *UserUpsert {
 // AddSchemaVersion adds v to the "schema_version" field.
 func (u *UserUpsert) AddSchemaVersion(v int) *UserUpsert {
 	u.Add(user.FieldSchemaVersion, v)
+	return u
+}
+
+// SetFriendCode sets the "friend_code" field.
+func (u *UserUpsert) SetFriendCode(v string) *UserUpsert {
+	u.Set(user.FieldFriendCode, v)
+	return u
+}
+
+// UpdateFriendCode sets the "friend_code" field to the value that was provided on create.
+func (u *UserUpsert) UpdateFriendCode() *UserUpsert {
+	u.SetExcluded(user.FieldFriendCode)
+	return u
+}
+
+// ClearFriendCode clears the value of the "friend_code" field.
+func (u *UserUpsert) ClearFriendCode() *UserUpsert {
+	u.SetNull(user.FieldFriendCode)
+	return u
+}
+
+// SetFriendShowCities sets the "friend_show_cities" field.
+func (u *UserUpsert) SetFriendShowCities(v bool) *UserUpsert {
+	u.Set(user.FieldFriendShowCities, v)
+	return u
+}
+
+// UpdateFriendShowCities sets the "friend_show_cities" field to the value that was provided on create.
+func (u *UserUpsert) UpdateFriendShowCities() *UserUpsert {
+	u.SetExcluded(user.FieldFriendShowCities)
+	return u
+}
+
+// SetFriendShowDates sets the "friend_show_dates" field.
+func (u *UserUpsert) SetFriendShowDates(v bool) *UserUpsert {
+	u.Set(user.FieldFriendShowDates, v)
+	return u
+}
+
+// UpdateFriendShowDates sets the "friend_show_dates" field to the value that was provided on create.
+func (u *UserUpsert) UpdateFriendShowDates() *UserUpsert {
+	u.SetExcluded(user.FieldFriendShowDates)
+	return u
+}
+
+// SetFriendShowNotes sets the "friend_show_notes" field.
+func (u *UserUpsert) SetFriendShowNotes(v bool) *UserUpsert {
+	u.Set(user.FieldFriendShowNotes, v)
+	return u
+}
+
+// UpdateFriendShowNotes sets the "friend_show_notes" field to the value that was provided on create.
+func (u *UserUpsert) UpdateFriendShowNotes() *UserUpsert {
+	u.SetExcluded(user.FieldFriendShowNotes)
 	return u
 }
 
@@ -1185,6 +1459,69 @@ func (u *UserUpsertOne) AddSchemaVersion(v int) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateSchemaVersion() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateSchemaVersion()
+	})
+}
+
+// SetFriendCode sets the "friend_code" field.
+func (u *UserUpsertOne) SetFriendCode(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetFriendCode(v)
+	})
+}
+
+// UpdateFriendCode sets the "friend_code" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateFriendCode() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateFriendCode()
+	})
+}
+
+// ClearFriendCode clears the value of the "friend_code" field.
+func (u *UserUpsertOne) ClearFriendCode() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearFriendCode()
+	})
+}
+
+// SetFriendShowCities sets the "friend_show_cities" field.
+func (u *UserUpsertOne) SetFriendShowCities(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetFriendShowCities(v)
+	})
+}
+
+// UpdateFriendShowCities sets the "friend_show_cities" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateFriendShowCities() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateFriendShowCities()
+	})
+}
+
+// SetFriendShowDates sets the "friend_show_dates" field.
+func (u *UserUpsertOne) SetFriendShowDates(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetFriendShowDates(v)
+	})
+}
+
+// UpdateFriendShowDates sets the "friend_show_dates" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateFriendShowDates() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateFriendShowDates()
+	})
+}
+
+// SetFriendShowNotes sets the "friend_show_notes" field.
+func (u *UserUpsertOne) SetFriendShowNotes(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetFriendShowNotes(v)
+	})
+}
+
+// UpdateFriendShowNotes sets the "friend_show_notes" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateFriendShowNotes() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateFriendShowNotes()
 	})
 }
 
@@ -1606,6 +1943,69 @@ func (u *UserUpsertBulk) AddSchemaVersion(v int) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateSchemaVersion() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateSchemaVersion()
+	})
+}
+
+// SetFriendCode sets the "friend_code" field.
+func (u *UserUpsertBulk) SetFriendCode(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetFriendCode(v)
+	})
+}
+
+// UpdateFriendCode sets the "friend_code" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateFriendCode() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateFriendCode()
+	})
+}
+
+// ClearFriendCode clears the value of the "friend_code" field.
+func (u *UserUpsertBulk) ClearFriendCode() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearFriendCode()
+	})
+}
+
+// SetFriendShowCities sets the "friend_show_cities" field.
+func (u *UserUpsertBulk) SetFriendShowCities(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetFriendShowCities(v)
+	})
+}
+
+// UpdateFriendShowCities sets the "friend_show_cities" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateFriendShowCities() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateFriendShowCities()
+	})
+}
+
+// SetFriendShowDates sets the "friend_show_dates" field.
+func (u *UserUpsertBulk) SetFriendShowDates(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetFriendShowDates(v)
+	})
+}
+
+// UpdateFriendShowDates sets the "friend_show_dates" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateFriendShowDates() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateFriendShowDates()
+	})
+}
+
+// SetFriendShowNotes sets the "friend_show_notes" field.
+func (u *UserUpsertBulk) SetFriendShowNotes(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetFriendShowNotes(v)
+	})
+}
+
+// UpdateFriendShowNotes sets the "friend_show_notes" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateFriendShowNotes() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateFriendShowNotes()
 	})
 }
 

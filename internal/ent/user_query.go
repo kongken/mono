@@ -15,34 +15,41 @@ import (
 	"entgo.io/ent/schema/field"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
+	"go.orx.me/apps/trip-map/internal/ent/friendship"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/share"
+	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
+	"go.orx.me/apps/trip-map/internal/ent/tripmember"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
 // UserQuery is the builder for querying User entities.
 type UserQuery struct {
 	config
-	ctx                  *QueryContext
-	order                []user.OrderOption
-	inters               []Interceptor
-	predicates           []predicate.User
-	withVisits           *CityVisitQuery
-	withTrips            *TripQuery
-	withProvinceMarks    *ProvinceMarkQuery
-	withMediaObjects     *MediaObjectQuery
-	withSessions         *SessionQuery
-	withFootprintChanges *FootprintChangeQuery
-	withSyncReceipts     *SyncReceiptQuery
-	withSnapshots        *SnapshotQuery
-	withShare            *ShareQuery
-	modifiers            []func(*sql.Selector)
+	ctx                     *QueryContext
+	order                   []user.OrderOption
+	inters                  []Interceptor
+	predicates              []predicate.User
+	withVisits              *CityVisitQuery
+	withTrips               *TripQuery
+	withProvinceMarks       *ProvinceMarkQuery
+	withMediaObjects        *MediaObjectQuery
+	withSessions            *SessionQuery
+	withFootprintChanges    *FootprintChangeQuery
+	withSyncReceipts        *SyncReceiptQuery
+	withSnapshots           *SnapshotQuery
+	withShare               *ShareQuery
+	withSentFriendships     *FriendshipQuery
+	withReceivedFriendships *FriendshipQuery
+	withOwnedSharedTrips    *SharedTripQuery
+	withTripMemberships     *TripMemberQuery
+	modifiers               []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -277,6 +284,94 @@ func (_q *UserQuery) QueryShare() *ShareQuery {
 	return query
 }
 
+// QuerySentFriendships chains the current query on the "sent_friendships" edge.
+func (_q *UserQuery) QuerySentFriendships() *FriendshipQuery {
+	query := (&FriendshipClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(friendship.Table, friendship.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.SentFriendshipsTable, user.SentFriendshipsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryReceivedFriendships chains the current query on the "received_friendships" edge.
+func (_q *UserQuery) QueryReceivedFriendships() *FriendshipQuery {
+	query := (&FriendshipClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(friendship.Table, friendship.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ReceivedFriendshipsTable, user.ReceivedFriendshipsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryOwnedSharedTrips chains the current query on the "owned_shared_trips" edge.
+func (_q *UserQuery) QueryOwnedSharedTrips() *SharedTripQuery {
+	query := (&SharedTripClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(sharedtrip.Table, sharedtrip.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.OwnedSharedTripsTable, user.OwnedSharedTripsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryTripMemberships chains the current query on the "trip_memberships" edge.
+func (_q *UserQuery) QueryTripMemberships() *TripMemberQuery {
+	query := (&TripMemberClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(tripmember.Table, tripmember.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.TripMembershipsTable, user.TripMembershipsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first User entity from the query.
 // Returns a *NotFoundError when no User was found.
 func (_q *UserQuery) First(ctx context.Context) (*User, error) {
@@ -464,20 +559,24 @@ func (_q *UserQuery) Clone() *UserQuery {
 		return nil
 	}
 	return &UserQuery{
-		config:               _q.config,
-		ctx:                  _q.ctx.Clone(),
-		order:                append([]user.OrderOption{}, _q.order...),
-		inters:               append([]Interceptor{}, _q.inters...),
-		predicates:           append([]predicate.User{}, _q.predicates...),
-		withVisits:           _q.withVisits.Clone(),
-		withTrips:            _q.withTrips.Clone(),
-		withProvinceMarks:    _q.withProvinceMarks.Clone(),
-		withMediaObjects:     _q.withMediaObjects.Clone(),
-		withSessions:         _q.withSessions.Clone(),
-		withFootprintChanges: _q.withFootprintChanges.Clone(),
-		withSyncReceipts:     _q.withSyncReceipts.Clone(),
-		withSnapshots:        _q.withSnapshots.Clone(),
-		withShare:            _q.withShare.Clone(),
+		config:                  _q.config,
+		ctx:                     _q.ctx.Clone(),
+		order:                   append([]user.OrderOption{}, _q.order...),
+		inters:                  append([]Interceptor{}, _q.inters...),
+		predicates:              append([]predicate.User{}, _q.predicates...),
+		withVisits:              _q.withVisits.Clone(),
+		withTrips:               _q.withTrips.Clone(),
+		withProvinceMarks:       _q.withProvinceMarks.Clone(),
+		withMediaObjects:        _q.withMediaObjects.Clone(),
+		withSessions:            _q.withSessions.Clone(),
+		withFootprintChanges:    _q.withFootprintChanges.Clone(),
+		withSyncReceipts:        _q.withSyncReceipts.Clone(),
+		withSnapshots:           _q.withSnapshots.Clone(),
+		withShare:               _q.withShare.Clone(),
+		withSentFriendships:     _q.withSentFriendships.Clone(),
+		withReceivedFriendships: _q.withReceivedFriendships.Clone(),
+		withOwnedSharedTrips:    _q.withOwnedSharedTrips.Clone(),
+		withTripMemberships:     _q.withTripMemberships.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -583,6 +682,50 @@ func (_q *UserQuery) WithShare(opts ...func(*ShareQuery)) *UserQuery {
 	return _q
 }
 
+// WithSentFriendships tells the query-builder to eager-load the nodes that are connected to
+// the "sent_friendships" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithSentFriendships(opts ...func(*FriendshipQuery)) *UserQuery {
+	query := (&FriendshipClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withSentFriendships = query
+	return _q
+}
+
+// WithReceivedFriendships tells the query-builder to eager-load the nodes that are connected to
+// the "received_friendships" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithReceivedFriendships(opts ...func(*FriendshipQuery)) *UserQuery {
+	query := (&FriendshipClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withReceivedFriendships = query
+	return _q
+}
+
+// WithOwnedSharedTrips tells the query-builder to eager-load the nodes that are connected to
+// the "owned_shared_trips" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithOwnedSharedTrips(opts ...func(*SharedTripQuery)) *UserQuery {
+	query := (&SharedTripClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withOwnedSharedTrips = query
+	return _q
+}
+
+// WithTripMemberships tells the query-builder to eager-load the nodes that are connected to
+// the "trip_memberships" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithTripMemberships(opts ...func(*TripMemberQuery)) *UserQuery {
+	query := (&TripMemberClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withTripMemberships = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -661,7 +804,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [9]bool{
+		loadedTypes = [13]bool{
 			_q.withVisits != nil,
 			_q.withTrips != nil,
 			_q.withProvinceMarks != nil,
@@ -671,6 +814,10 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			_q.withSyncReceipts != nil,
 			_q.withSnapshots != nil,
 			_q.withShare != nil,
+			_q.withSentFriendships != nil,
+			_q.withReceivedFriendships != nil,
+			_q.withOwnedSharedTrips != nil,
+			_q.withTripMemberships != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -753,6 +900,34 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	if query := _q.withShare; query != nil {
 		if err := _q.loadShare(ctx, query, nodes, nil,
 			func(n *User, e *Share) { n.Edges.Share = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withSentFriendships; query != nil {
+		if err := _q.loadSentFriendships(ctx, query, nodes,
+			func(n *User) { n.Edges.SentFriendships = []*Friendship{} },
+			func(n *User, e *Friendship) { n.Edges.SentFriendships = append(n.Edges.SentFriendships, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withReceivedFriendships; query != nil {
+		if err := _q.loadReceivedFriendships(ctx, query, nodes,
+			func(n *User) { n.Edges.ReceivedFriendships = []*Friendship{} },
+			func(n *User, e *Friendship) { n.Edges.ReceivedFriendships = append(n.Edges.ReceivedFriendships, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withOwnedSharedTrips; query != nil {
+		if err := _q.loadOwnedSharedTrips(ctx, query, nodes,
+			func(n *User) { n.Edges.OwnedSharedTrips = []*SharedTrip{} },
+			func(n *User, e *SharedTrip) { n.Edges.OwnedSharedTrips = append(n.Edges.OwnedSharedTrips, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withTripMemberships; query != nil {
+		if err := _q.loadTripMemberships(ctx, query, nodes,
+			func(n *User) { n.Edges.TripMemberships = []*TripMember{} },
+			func(n *User, e *TripMember) { n.Edges.TripMemberships = append(n.Edges.TripMemberships, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -1011,6 +1186,126 @@ func (_q *UserQuery) loadShare(ctx context.Context, query *ShareQuery, nodes []*
 	}
 	query.Where(predicate.Share(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(user.ShareColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadSentFriendships(ctx context.Context, query *FriendshipQuery, nodes []*User, init func(*User), assign func(*User, *Friendship)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(friendship.FieldRequesterID)
+	}
+	query.Where(predicate.Friendship(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.SentFriendshipsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.RequesterID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "requester_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadReceivedFriendships(ctx context.Context, query *FriendshipQuery, nodes []*User, init func(*User), assign func(*User, *Friendship)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(friendship.FieldAddresseeID)
+	}
+	query.Where(predicate.Friendship(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.ReceivedFriendshipsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.AddresseeID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "addressee_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadOwnedSharedTrips(ctx context.Context, query *SharedTripQuery, nodes []*User, init func(*User), assign func(*User, *SharedTrip)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(sharedtrip.FieldOwnerID)
+	}
+	query.Where(predicate.SharedTrip(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.OwnedSharedTripsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.OwnerID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "owner_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadTripMemberships(ctx context.Context, query *TripMemberQuery, nodes []*User, init func(*User), assign func(*User, *TripMember)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(tripmember.FieldUserID)
+	}
+	query.Where(predicate.TripMember(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.TripMembershipsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

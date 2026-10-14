@@ -1,0 +1,263 @@
+syntax = "proto3";
+
+package tripmap.v1;
+
+import "google/protobuf/timestamp.proto";
+import "tripmap/v1/media.proto";
+
+option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
+
+// CollaborationService manages friendships, friend map comparison, shared trips
+// and member permissions (F7). All methods require a bearer session.
+service CollaborationService {
+  // GetCollaborationOverview returns the caller's friend invite code, friend
+  // visibility settings, friendships (confirmed and pending) and shared trips.
+  rpc GetCollaborationOverview(GetCollaborationOverviewRequest) returns (GetCollaborationOverviewResponse);
+  // UpdateFriendSettings updates which footprint fields confirmed friends can see.
+  rpc UpdateFriendSettings(UpdateFriendSettingsRequest) returns (UpdateFriendSettingsResponse);
+  // SendFriendRequest invites another user by username or friend invite code.
+  rpc SendFriendRequest(SendFriendRequestRequest) returns (SendFriendRequestResponse);
+  // RespondFriendRequest accepts or declines a pending friend request (or cancels an outgoing one).
+  rpc RespondFriendRequest(RespondFriendRequestRequest) returns (RespondFriendRequestResponse);
+  // RemoveFriend removes a confirmed friendship and revokes cross-account access immediately.
+  rpc RemoveFriend(RemoveFriendRequest) returns (RemoveFriendResponse);
+  // GetFriendFootprints returns a confirmed friend's allowed footprints and a comparison with the caller.
+  rpc GetFriendFootprints(GetFriendFootprintsRequest) returns (GetFriendFootprintsResponse);
+
+  // InviteToSharedTrip invites a confirmed friend to a trip owned by the caller.
+  rpc InviteToSharedTrip(InviteToSharedTripRequest) returns (InviteToSharedTripResponse);
+  // RespondSharedTripInvite accepts or declines a pending shared trip invitation.
+  rpc RespondSharedTripInvite(RespondSharedTripInviteRequest) returns (RespondSharedTripInviteResponse);
+  // UpdateSharedTrip edits the shared trip's date and note (requires owner or editor role).
+  rpc UpdateSharedTrip(UpdateSharedTripRequest) returns (UpdateSharedTripResponse);
+  // SetSharedTripMemberRole changes a member's role between "editor" and "viewer" (owner only).
+  rpc SetSharedTripMemberRole(SetSharedTripMemberRoleRequest) returns (SetSharedTripMemberRoleResponse);
+  // RemoveSharedTripMember removes a member from a shared trip (owner only).
+  rpc RemoveSharedTripMember(RemoveSharedTripMemberRequest) returns (RemoveSharedTripMemberResponse);
+  // LeaveSharedTrip exits a shared trip without deleting the caller's city check-in.
+  rpc LeaveSharedTrip(LeaveSharedTripRequest) returns (LeaveSharedTripResponse);
+  // DeleteSharedTrip dissolves a shared trip (owner only); members keep their existing records.
+  rpc DeleteSharedTrip(DeleteSharedTripRequest) returns (DeleteSharedTripResponse);
+  // ListSharedTripMedia lists ready media attached to the shared trip by active members.
+  rpc ListSharedTripMedia(ListSharedTripMediaRequest) returns (ListSharedTripMediaResponse);
+  // ReadSharedTripMedia reads a ready media file or thumbnail attached to the shared trip.
+  rpc ReadSharedTripMedia(ReadSharedTripMediaRequest) returns (ReadSharedTripMediaResponse);
+}
+
+message FriendUser {
+  string id = 1;
+  string username = 2;
+  string display_name = 3;
+  string avatar_url = 4;
+}
+
+// FriendShareSettings controls what confirmed friends can see in friend comparison.
+// Provinces and summary statistics are always visible to confirmed friends;
+// dates and notes require show_cities.
+message FriendShareSettings {
+  bool show_cities = 1;
+  bool show_dates = 2;
+  bool show_notes = 3;
+}
+
+message FriendshipInfo {
+  string id = 1;
+  FriendUser friend = 2;
+  // "pending" or "accepted".
+  string status = 3;
+  // "incoming", "outgoing" (while pending) or "accepted".
+  string direction = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp accepted_at = 6;
+}
+
+message SharedTripMember {
+  FriendUser user = 1;
+  // "owner", "editor" or "viewer".
+  string role = 2;
+  // "invited" or "active".
+  string status = 3;
+  google.protobuf.Timestamp joined_at = 4;
+}
+
+message SharedTripInfo {
+  string id = 1;
+  string region_code = 2;
+  string region_name = 3;
+  string province_code = 4;
+  // The caller's trip_id in city_trips once active (or the owner's trip_id while invited).
+  string trip_id = 5;
+  string date = 6;
+  string note = 7;
+  FriendUser owner = 8;
+  string my_role = 9;
+  string my_status = 10;
+  repeated SharedTripMember members = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message GetCollaborationOverviewRequest {}
+
+message GetCollaborationOverviewResponse {
+  string my_friend_code = 1;
+  FriendShareSettings friend_settings = 2;
+  repeated FriendshipInfo friends = 3;
+  repeated SharedTripInfo shared_trips = 4;
+}
+
+message UpdateFriendSettingsRequest {
+  FriendShareSettings settings = 1;
+}
+
+message UpdateFriendSettingsResponse {
+  FriendShareSettings settings = 1;
+}
+
+message SendFriendRequestRequest {
+  // Username or friend invite code.
+  string target = 1;
+}
+
+message SendFriendRequestResponse {
+  FriendshipInfo friendship = 1;
+}
+
+message RespondFriendRequestRequest {
+  string friendship_id = 1;
+  bool accept = 2;
+}
+
+message RespondFriendRequestResponse {
+  FriendshipInfo friendship = 1;
+}
+
+message RemoveFriendRequest {
+  string friendship_id = 1;
+}
+
+message RemoveFriendResponse {}
+
+message FriendSharedCity {
+  string code = 1;
+  string name = 2;
+  string province = 3;
+  string my_color = 4;
+  string friend_color = 5;
+}
+
+message FriendComparison {
+  repeated string common_provinces = 1;
+  repeated string only_me_provinces = 2;
+  repeated string only_friend_provinces = 3;
+  // Populated only when both users have show_cities enabled.
+  repeated FriendSharedCity common_cities = 4;
+  int32 my_only_city_count = 5;
+  int32 friend_only_city_count = 6;
+  bool city_comparison_available = 7;
+}
+
+message GetFriendFootprintsRequest {
+  string friend_user_id = 1;
+}
+
+message GetFriendFootprintsResponse {
+  FriendUser friend = 1;
+  FriendShareSettings friend_settings = 2;
+  // Public-style JSON content filtered by friend_settings (no photos/handles).
+  string content_json = 3;
+  FriendComparison comparison = 4;
+}
+
+message InviteToSharedTripRequest {
+  string region_code = 1;
+  string trip_id = 2;
+  string friend_user_id = 3;
+  // "editor" (default) or "viewer".
+  string role = 4;
+}
+
+message InviteToSharedTripResponse {
+  SharedTripInfo shared_trip = 1;
+}
+
+message RespondSharedTripInviteRequest {
+  string shared_trip_id = 1;
+  bool accept = 2;
+}
+
+message RespondSharedTripInviteResponse {
+  SharedTripInfo shared_trip = 1;
+  int64 footprint_revision = 2;
+}
+
+message UpdateSharedTripRequest {
+  string shared_trip_id = 1;
+  string date = 2;
+  string note = 3;
+  string mutation_id = 4;
+}
+
+message UpdateSharedTripResponse {
+  SharedTripInfo shared_trip = 1;
+  int64 footprint_revision = 2;
+}
+
+message SetSharedTripMemberRoleRequest {
+  string shared_trip_id = 1;
+  string member_user_id = 2;
+  // "editor" or "viewer".
+  string role = 3;
+}
+
+message SetSharedTripMemberRoleResponse {
+  SharedTripInfo shared_trip = 1;
+}
+
+message RemoveSharedTripMemberRequest {
+  string shared_trip_id = 1;
+  string member_user_id = 2;
+}
+
+message RemoveSharedTripMemberResponse {
+  SharedTripInfo shared_trip = 1;
+}
+
+message LeaveSharedTripRequest {
+  string shared_trip_id = 1;
+}
+
+message LeaveSharedTripResponse {
+  int64 footprint_revision = 1;
+}
+
+message DeleteSharedTripRequest {
+  string shared_trip_id = 1;
+}
+
+message DeleteSharedTripResponse {}
+
+message SharedTripMediaInfo {
+  MediaInfo media = 1;
+  FriendUser uploader = 2;
+  bool mine = 3;
+}
+
+message ListSharedTripMediaRequest {
+  string shared_trip_id = 1;
+}
+
+message ListSharedTripMediaResponse {
+  repeated SharedTripMediaInfo media = 1;
+}
+
+message ReadSharedTripMediaRequest {
+  string shared_trip_id = 1;
+  string media_id = 2;
+  bool thumbnail = 3;
+}
+
+message ReadSharedTripMediaResponse {
+  bytes data = 1;
+  string content_type = 2;
+  string filename = 3;
+}

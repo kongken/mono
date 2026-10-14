@@ -353,6 +353,9 @@ func deleteMediaKeys(ctx context.Context, st *Store, m *ent.MediaObject) error {
 // place, reachable from the city's attachments. A schema 1 account has no trip
 // rows yet; its city is read as one legacy trip, so that ID is accepted too.
 func requireTrip(ctx context.Context, tx *ent.Tx, uid, region, tripID string) error {
+	if _, err := checkSharedTripWriteAllowed(ctx, tx, uid, tripID); err != nil {
+		return err
+	}
 	ok, err := tx.Trip.Query().Where(trip.UserID(uid), trip.TripID(tripID), trip.RegionCode(region)).Exist(ctx)
 	if err != nil {
 		return internalError(err)

@@ -8,9 +8,12 @@ import (
 	"connectrpc.com/connect"
 	"go.orx.me/apps/trip-map/internal/ent"
 	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
+	"go.orx.me/apps/trip-map/internal/ent/friendship"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	entshare "go.orx.me/apps/trip-map/internal/ent/share"
+	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
+	"go.orx.me/apps/trip-map/internal/ent/tripmember"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
 	"golang.org/x/crypto/bcrypt"
@@ -78,6 +81,15 @@ func (s *AuthService) DeleteAccount(ctx context.Context, req *connect.Request[tr
 	// can fail: the share row is removed (its link and snapshot with it) and public
 	// reads also require an enabled account, so nothing stays reachable meanwhile.
 	if _, err = tx.Share.Delete().Where(entshare.UserID(u.ID)).Exec(ctx); err != nil {
+		return nil, internalError(err)
+	}
+	if _, err = tx.Friendship.Delete().Where(friendship.Or(friendship.RequesterIDEQ(u.ID), friendship.AddresseeIDEQ(u.ID))).Exec(ctx); err != nil {
+		return nil, internalError(err)
+	}
+	if _, err = tx.TripMember.Delete().Where(tripmember.UserIDEQ(u.ID)).Exec(ctx); err != nil {
+		return nil, internalError(err)
+	}
+	if _, err = tx.SharedTrip.Delete().Where(sharedtrip.OwnerIDEQ(u.ID)).Exec(ctx); err != nil {
 		return nil, internalError(err)
 	}
 	if err = tx.Commit(); err != nil {

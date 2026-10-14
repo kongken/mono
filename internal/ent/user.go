@@ -40,6 +40,14 @@ type User struct {
 	Revision int64 `json:"revision,omitempty"`
 	// SchemaVersion holds the value of the "schema_version" field.
 	SchemaVersion int `json:"schema_version,omitempty"`
+	// FriendCode holds the value of the "friend_code" field.
+	FriendCode *string `json:"friend_code,omitempty"`
+	// FriendShowCities holds the value of the "friend_show_cities" field.
+	FriendShowCities bool `json:"friend_show_cities,omitempty"`
+	// FriendShowDates holds the value of the "friend_show_dates" field.
+	FriendShowDates bool `json:"friend_show_dates,omitempty"`
+	// FriendShowNotes holds the value of the "friend_show_notes" field.
+	FriendShowNotes bool `json:"friend_show_notes,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -70,9 +78,17 @@ type UserEdges struct {
 	Snapshots []*Snapshot `json:"snapshots,omitempty"`
 	// Share holds the value of the share edge.
 	Share *Share `json:"share,omitempty"`
+	// SentFriendships holds the value of the sent_friendships edge.
+	SentFriendships []*Friendship `json:"sent_friendships,omitempty"`
+	// ReceivedFriendships holds the value of the received_friendships edge.
+	ReceivedFriendships []*Friendship `json:"received_friendships,omitempty"`
+	// OwnedSharedTrips holds the value of the owned_shared_trips edge.
+	OwnedSharedTrips []*SharedTrip `json:"owned_shared_trips,omitempty"`
+	// TripMemberships holds the value of the trip_memberships edge.
+	TripMemberships []*TripMember `json:"trip_memberships,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [9]bool
+	loadedTypes [13]bool
 }
 
 // VisitsOrErr returns the Visits value or an error if the edge
@@ -158,16 +174,52 @@ func (e UserEdges) ShareOrErr() (*Share, error) {
 	return nil, &NotLoadedError{edge: "share"}
 }
 
+// SentFriendshipsOrErr returns the SentFriendships value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) SentFriendshipsOrErr() ([]*Friendship, error) {
+	if e.loadedTypes[9] {
+		return e.SentFriendships, nil
+	}
+	return nil, &NotLoadedError{edge: "sent_friendships"}
+}
+
+// ReceivedFriendshipsOrErr returns the ReceivedFriendships value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ReceivedFriendshipsOrErr() ([]*Friendship, error) {
+	if e.loadedTypes[10] {
+		return e.ReceivedFriendships, nil
+	}
+	return nil, &NotLoadedError{edge: "received_friendships"}
+}
+
+// OwnedSharedTripsOrErr returns the OwnedSharedTrips value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) OwnedSharedTripsOrErr() ([]*SharedTrip, error) {
+	if e.loadedTypes[11] {
+		return e.OwnedSharedTrips, nil
+	}
+	return nil, &NotLoadedError{edge: "owned_shared_trips"}
+}
+
+// TripMembershipsOrErr returns the TripMemberships value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) TripMembershipsOrErr() ([]*TripMember, error) {
+	if e.loadedTypes[12] {
+		return e.TripMemberships, nil
+	}
+	return nil, &NotLoadedError{edge: "trip_memberships"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case user.FieldDisabled:
+		case user.FieldDisabled, user.FieldFriendShowCities, user.FieldFriendShowDates, user.FieldFriendShowNotes:
 			values[i] = new(sql.NullBool)
 		case user.FieldRevision, user.FieldSchemaVersion:
 			values[i] = new(sql.NullInt64)
-		case user.FieldID, user.FieldEmail, user.FieldUsername, user.FieldDisplayName, user.FieldAvatarURL, user.FieldProvider, user.FieldExternalID, user.FieldPasswordHash:
+		case user.FieldID, user.FieldEmail, user.FieldUsername, user.FieldDisplayName, user.FieldAvatarURL, user.FieldProvider, user.FieldExternalID, user.FieldPasswordHash, user.FieldFriendCode:
 			values[i] = new(sql.NullString)
 		case user.FieldDeletionRequestedAt, user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -261,6 +313,31 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.SchemaVersion = int(value.Int64)
 			}
+		case user.FieldFriendCode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field friend_code", values[i])
+			} else if value.Valid {
+				_m.FriendCode = new(string)
+				*_m.FriendCode = value.String
+			}
+		case user.FieldFriendShowCities:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field friend_show_cities", values[i])
+			} else if value.Valid {
+				_m.FriendShowCities = value.Bool
+			}
+		case user.FieldFriendShowDates:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field friend_show_dates", values[i])
+			} else if value.Valid {
+				_m.FriendShowDates = value.Bool
+			}
+		case user.FieldFriendShowNotes:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field friend_show_notes", values[i])
+			} else if value.Valid {
+				_m.FriendShowNotes = value.Bool
+			}
 		case user.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -331,6 +408,26 @@ func (_m *User) QueryShare() *ShareQuery {
 	return NewUserClient(_m.config).QueryShare(_m)
 }
 
+// QuerySentFriendships queries the "sent_friendships" edge of the User entity.
+func (_m *User) QuerySentFriendships() *FriendshipQuery {
+	return NewUserClient(_m.config).QuerySentFriendships(_m)
+}
+
+// QueryReceivedFriendships queries the "received_friendships" edge of the User entity.
+func (_m *User) QueryReceivedFriendships() *FriendshipQuery {
+	return NewUserClient(_m.config).QueryReceivedFriendships(_m)
+}
+
+// QueryOwnedSharedTrips queries the "owned_shared_trips" edge of the User entity.
+func (_m *User) QueryOwnedSharedTrips() *SharedTripQuery {
+	return NewUserClient(_m.config).QueryOwnedSharedTrips(_m)
+}
+
+// QueryTripMemberships queries the "trip_memberships" edge of the User entity.
+func (_m *User) QueryTripMemberships() *TripMemberQuery {
+	return NewUserClient(_m.config).QueryTripMemberships(_m)
+}
+
 // Update returns a builder for updating this User.
 // Note that you need to call User.Unwrap() before calling this method if this User
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -391,6 +488,20 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("schema_version=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SchemaVersion))
+	builder.WriteString(", ")
+	if v := _m.FriendCode; v != nil {
+		builder.WriteString("friend_code=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	builder.WriteString("friend_show_cities=")
+	builder.WriteString(fmt.Sprintf("%v", _m.FriendShowCities))
+	builder.WriteString(", ")
+	builder.WriteString("friend_show_dates=")
+	builder.WriteString(fmt.Sprintf("%v", _m.FriendShowDates))
+	builder.WriteString(", ")
+	builder.WriteString("friend_show_notes=")
+	builder.WriteString(fmt.Sprintf("%v", _m.FriendShowNotes))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

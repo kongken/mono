@@ -8,6 +8,7 @@ import {
   type DescMessage,
 } from "@bufbuild/protobuf";
 import * as auth from "../src/gen/tripmap/v1/auth_pb";
+import * as collaborationPb from "../src/gen/tripmap/v1/collaboration_pb";
 import * as footprint from "../src/gen/tripmap/v1/footprint_pb";
 import * as snapshotPb from "../src/gen/tripmap/v1/snapshot_pb";
 import * as system from "../src/gen/tripmap/v1/system_pb";
@@ -409,6 +410,13 @@ export function fakeBackend(
               undoSnapshot: snapInfo(undo),
             });
           }
+          case "GetCollaborationOverview":
+            return send(collaborationPb.GetCollaborationOverviewResponseSchema, {
+              myFriendCode: "fc_ci_user_1234",
+              friendSettings: { showCities: true, showDates: false, showNotes: false },
+              friends: [],
+              sharedTrips: [],
+            });
           default:
             return route.fulfill({ status: 404, contentType: "application/json", body: '{"code":"unimplemented"}' });
         }
