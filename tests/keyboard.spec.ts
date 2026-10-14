@@ -106,3 +106,107 @@ test("the cancel question and the edit conflict question hand focus back to the 
   expect(await focused(page)).toContain("保存足迹");
   await expect(dialog.locator(".trip-card").filter({ has: page.locator('input[value="2026-10-01"]') }).locator("textarea")).toHaveValue("本机改的");
 });
+
+// Escape lands in the same task in which focus enters a question that opened on top of
+// the editor, before the question has registered as the top layer. It must still only
+// close the question: the editor stays, with the draft in it.
+async function escapeAsFocusEnters(page: Page, titlePattern: string) {
+  await page.evaluate((pattern) => {
+    const re = new RegExp(pattern);
+    const onFocus = (event: FocusEvent) => {
+      const dialog = (event.target as HTMLElement | null)?.closest?.('[role="dialog"]');
+      const title = dialog?.querySelector('[data-slot="dialog-title"]')?.textContent ?? "";
+      if (!re.test(title)) return;
+      document.removeEventListener("focusin", onFocus, true);
+      (event.target as HTMLElement).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    };
+    document.addEventListener("focusin", onFocus, true);
+  }, titlePattern);
+}
+
+test("Escape pressed the moment the cancel question takes focus only closes the question and keeps the draft", async ({ page }) => {
+  const backend = fakeBackend(page, {
+    visits: [hangzhou()],
+    trips: [{ id: "t-spring", code: "330100", date: "2026-03-01", note: "春" }],
+  });
+  await backend.install();
+  await login(page);
+  await expect(page.getByRole("button", { name: "账号", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "旅行足迹" }).first().click();
+  await page.locator(".visit-card").first().click();
+  const dialog = editor(page);
+  await expect(dialog).toBeVisible();
+  const note = dialog.locator(".trip-card").filter({ has: page.locator('input[value="2026-10-01"]') }).locator("textarea");
+  await note.fill("还没保存的草稿");
+  const cancel = dialog.getByRole("button", { name: "取消城市打卡" });
+  await cancel.focus();
+  await escapeAsFocusEnters(page, "取消 杭州市 的打卡");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: /取消 杭州市 的打卡/ })).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  await expect(cancel).toBeFocused();
+  await expect(note).toHaveValue("还没保存的草稿");
+  // A second Escape is the one that closes the editor.
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+});
+
+test("Escape pressed the moment the edit conflict question takes focus only closes the question and keeps the draft", async ({ page }) => {
+  const backend = fakeBackend(page, {
+    visits: [hangzhou()],
+    trips: [{ id: "t-spring", code: "330100", date: "2026-03-01", note: "春" }],
+  });
+  await backend.install();
+  await login(page);
+  await expect(page.getByRole("button", { name: "账号", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "旅行足迹" }).first().click();
+  await page.locator(".visit-card").first().click();
+  const dialog = editor(page);
+  await expect(dialog).toBeVisible();
+  const note = dialog.locator(".trip-card").filter({ has: page.locator('input[value="2026-10-01"]') }).locator("textarea");
+  await note.fill("本机改的");
+  backend.otherDeviceTrip({ id: "legacy-330100", code: "330100", date: "2026-10-01", note: "别处改的" });
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(page.locator(".stats > div").filter({ hasText: "旅行次数" }).locator("strong")).toHaveText("2");
+  const save = dialog.getByRole("button", { name: "保存足迹" });
+  await save.focus();
+  await escapeAsFocusEnters(page, "编辑期间这条记录有了新的变化");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "编辑期间这条记录有了新的变化" })).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  expect(await focused(page)).toContain("保存足迹");
+  await expect(note).toHaveValue("本机改的");
+});
+
+test("the close button and a click outside the cancel question only close the question and keep the draft", async ({ page }) => {
+  const backend = fakeBackend(page, {
+    visits: [hangzhou()],
+    trips: [{ id: "t-spring", code: "330100", date: "2026-03-01", note: "春" }],
+  });
+  await backend.install();
+  await login(page);
+  await expect(page.getByRole("button", { name: "账号", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "旅行足迹" }).first().click();
+  await page.locator(".visit-card").first().click();
+  const dialog = editor(page);
+  await expect(dialog).toBeVisible();
+  const note = dialog.locator(".trip-card").filter({ has: page.locator('input[value="2026-10-01"]') }).locator("textarea");
+  await note.fill("还没保存的草稿");
+  const cancel = dialog.getByRole("button", { name: "取消城市打卡" });
+  const confirm = page.getByRole("dialog", { name: /取消 杭州市 的打卡/ });
+
+  await cancel.click();
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "关闭" }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  await expect(cancel).toBeFocused();
+  await expect(note).toHaveValue("还没保存的草稿");
+
+  await cancel.click();
+  await expect(confirm).toBeVisible();
+  await page.mouse.click(4, 4);
+  await expect(confirm).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  await expect(note).toHaveValue("还没保存的草稿");
+});

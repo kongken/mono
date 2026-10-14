@@ -796,6 +796,7 @@ function App() {
     );
     if (button && !button.disabled) button.focus();
   }, [editor, mediaTarget]);
+  const mediaOpen = cloud.enabled && !!cloud.user && mediaTarget !== null;
   const closeMedia = () => {
     setMediaTarget(null);
     if (!returnToEditor) return;
@@ -2098,9 +2099,32 @@ function App() {
           }
         />
       )}
-      <Dialog open={editor} onOpenChange={setEditor}>
+      <Dialog
+        open={editor}
+        onOpenChange={(open) => {
+          // A question that opened on top of the editor owns the dismiss: neither Escape,
+          // a click outside nor focus moving into it may close the editor and its draft.
+          if (!open && (cancelCity || editConflict || mediaOpen))
+            return;
+          setEditor(open);
+        }}
+      >
         <DialogContent
           className="editor-dialog"
+          onEscapeKeyDown={(e) => {
+            // Radix only hands Escape to the top layer once it has registered, which
+            // happens after focus has already moved into the new question. Within that
+            // gap the editor still receives the key: answer it for the question.
+            if (cancelCity) {
+              e.preventDefault();
+              setCancelCity(null);
+            } else if (editConflict) {
+              e.preventDefault();
+              setEditConflict(null);
+            } else if (mediaOpen) {
+              e.preventDefault();
+            }
+          }}
           onCloseAutoFocus={(e) => {
             e.preventDefault();
             returnEditorFocus();
@@ -2610,7 +2634,7 @@ function App() {
           }}
         />
       )}
-      {cloud.enabled && cloud.user && mediaTarget !== null && (
+      {mediaOpen && cloud.user && (
         <MediaDialog
           key={`${cloud.user.id}:${mediaTarget.region}:${mediaTarget.tripId}`}
           regionCode={mediaTarget.region}
