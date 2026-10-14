@@ -41,9 +41,16 @@ type Resources struct {
 type Handlers struct {
 	cfg       *config.AppConfig
 	resources atomic.Pointer[Resources]
+	notifier  *application.Notifier
 }
 
-func New(cfg *config.AppConfig) *Handlers { return &Handlers{cfg: cfg} }
+func New(cfg *config.AppConfig) *Handlers {
+	return &Handlers{cfg: cfg, notifier: application.NewNotifier(cfg.Notification)}
+}
+
+// SetNotifier replaces the notification channels; tests use it to avoid real SMTP
+// and push services.
+func (h *Handlers) SetNotifier(n *application.Notifier) { h.notifier = n }
 func (h *Handlers) Check(ctx context.Context) []health.Status {
 	if r := h.resources.Load(); r != nil {
 		return r.Health.Check(ctx)
@@ -117,6 +124,7 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 				cancel()
 				runSnapshotMaintenance(maintenance, client, cache)
 				runReportMaintenance(maintenance, &application.Store{DB: client, Redis: cache, Blobs: blobs}, index)
+				runNotificationMaintenance(maintenance, &application.Store{DB: client, Redis: cache, Blobs: blobs}, index, h.notifier)
 				mediaCtx, mediaCancel := context.WithTimeout(maintenance, 5*time.Minute)
 				if err := application.RunMediaMaintenance(mediaCtx, &application.Store{DB: client, Redis: cache, Blobs: blobs}, time.Now().UTC()); err != nil {
 					slog.Error("media maintenance", "error", err)
@@ -134,6 +142,9 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 const (
 	snapshotLockKey = "tripmap:snapshot-maintenance"
 	reportLockKey   = "tripmap:report-maintenance"
+	// Replicas share one run per tick; notification_deliveries makes a repeated
+	// run harmless even if the lock is lost.
+	notificationLockKey = "tripmap:notification-maintenance"
 )
 
 func runSnapshotMaintenance(ctx context.Context, db *ent.Client, cache *redisclient.Client) {
@@ -157,6 +168,20 @@ func runReportMaintenance(ctx context.Context, st *application.Store, index *reg
 		slog.Error("report maintenance", "error", err)
 	}
 }
+func runNotificationMaintenance(ctx context.Context, st *application.Store, index *regions.Index, n *application.Notifier) {
+	if !n.EmailAvailable() && !n.PushAvailable() {
+		return
+	}
+	if ok, err := st.Redis.SetNX(ctx, notificationLockKey, "1", 50*time.Minute).Result(); err != nil || !ok {
+		return
+	}
+	run, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+	if err := application.RunNotificationMaintenance(run, st, index, n); err != nil {
+		slog.Error("notification maintenance", "error", err)
+	}
+}
+
 func (h *Handlers) Shutdown() error {
 	r := h.resources.Swap(nil)
 	if r == nil {
@@ -224,7 +249,13 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	mount(path, handler)
 	path, handler = tripmapv1connect.NewItineraryServiceHandler(application.NewItineraryService(h, index), opts, connect.WithReadMaxBytes(256*1024))
 	mount(path, handler)
+	path, handler = tripmapv1connect.NewNotificationServiceHandler(application.NewNotificationService(h, h.notifier), opts, connect.WithReadMaxBytes(16*1024))
+	mount(path, handler)
 	mountShare(r, api, application.NewSharePublic(h.cfg, h))
+	notifications := application.NewNotificationPublic(h.cfg, h, h.notifier)
+	api.Match([]string{http.MethodGet, http.MethodHead, http.MethodPost}, "/notifications/unsubscribe", redactShareTrace("/api/notifications/unsubscribe"), func(c *gin.Context) {
+		notifications.Unsubscribe(c.Writer, c.Request)
+	})
 }
 
 // cors answers cross-origin requests from the configured origins only. Requests

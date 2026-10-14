@@ -26,8 +26,16 @@ type Tx struct {
 	MediaCleanup *MediaCleanupClient
 	// MediaObject is the client for interacting with the MediaObject builders.
 	MediaObject *MediaObjectClient
+	// NotificationDelivery is the client for interacting with the NotificationDelivery builders.
+	NotificationDelivery *NotificationDeliveryClient
+	// NotificationProfile is the client for interacting with the NotificationProfile builders.
+	NotificationProfile *NotificationProfileClient
+	// NotificationSetting is the client for interacting with the NotificationSetting builders.
+	NotificationSetting *NotificationSettingClient
 	// ProvinceMark is the client for interacting with the ProvinceMark builders.
 	ProvinceMark *ProvinceMarkClient
+	// PushSubscription is the client for interacting with the PushSubscription builders.
+	PushSubscription *PushSubscriptionClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
 	// Share is the client for interacting with the Share builders.
@@ -182,7 +190,11 @@ func (tx *Tx) init() {
 	tx.Itinerary = NewItineraryClient(tx.config)
 	tx.MediaCleanup = NewMediaCleanupClient(tx.config)
 	tx.MediaObject = NewMediaObjectClient(tx.config)
+	tx.NotificationDelivery = NewNotificationDeliveryClient(tx.config)
+	tx.NotificationProfile = NewNotificationProfileClient(tx.config)
+	tx.NotificationSetting = NewNotificationSettingClient(tx.config)
 	tx.ProvinceMark = NewProvinceMarkClient(tx.config)
+	tx.PushSubscription = NewPushSubscriptionClient(tx.config)
 	tx.Session = NewSessionClient(tx.config)
 	tx.Share = NewShareClient(tx.config)
 	tx.SharedTrip = NewSharedTripClient(tx.config)

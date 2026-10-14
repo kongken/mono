@@ -1,6 +1,7 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authApi, type ProviderInfo } from "@/api/auth";
+import { detachThisDevice } from "@/api/notification";
 import { footprintApi, createFootprintApi } from "@/api/footprints";
 import { setToken } from "@/api/token";
 import { backendEnabled } from "@/api/transport";
@@ -642,6 +643,8 @@ export function useCloud(options: Options) {
           "仍有未同步修改或无法读取的缓存，请先导出备份；联网同步完成后再退出",
         );
       let revoked = true;
+      // Stop this browser receiving the account's reminders once it is signed out.
+      await detachThisDevice();
       try {
         await authApi.logout();
       } catch (error) {

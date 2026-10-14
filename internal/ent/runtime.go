@@ -12,7 +12,11 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/itinerary"
 	"go.orx.me/apps/trip-map/internal/ent/mediacleanup"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
+	"go.orx.me/apps/trip-map/internal/ent/notificationdelivery"
+	"go.orx.me/apps/trip-map/internal/ent/notificationprofile"
+	"go.orx.me/apps/trip-map/internal/ent/notificationsetting"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
+	"go.orx.me/apps/trip-map/internal/ent/pushsubscription"
 	"go.orx.me/apps/trip-map/internal/ent/schema"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/share"
@@ -264,6 +268,114 @@ func init() {
 	mediaobjectDescID := mediaobjectFields[0].Descriptor()
 	// mediaobject.DefaultID holds the default value on creation for the id field.
 	mediaobject.DefaultID = mediaobjectDescID.Default.(func() string)
+	notificationdeliveryFields := schema.NotificationDelivery{}.Fields()
+	_ = notificationdeliveryFields
+	// notificationdeliveryDescPeriod is the schema descriptor for period field.
+	notificationdeliveryDescPeriod := notificationdeliveryFields[4].Descriptor()
+	// notificationdelivery.PeriodValidator is a validator for the "period" field. It is called by the builders before save.
+	notificationdelivery.PeriodValidator = notificationdeliveryDescPeriod.Validators[0].(func(string) error)
+	// notificationdeliveryDescAttempts is the schema descriptor for attempts field.
+	notificationdeliveryDescAttempts := notificationdeliveryFields[6].Descriptor()
+	// notificationdelivery.DefaultAttempts holds the default value on creation for the attempts field.
+	notificationdelivery.DefaultAttempts = notificationdeliveryDescAttempts.Default.(int)
+	// notificationdelivery.AttemptsValidator is a validator for the "attempts" field. It is called by the builders before save.
+	notificationdelivery.AttemptsValidator = notificationdeliveryDescAttempts.Validators[0].(func(int) error)
+	// notificationdeliveryDescCreatedAt is the schema descriptor for created_at field.
+	notificationdeliveryDescCreatedAt := notificationdeliveryFields[7].Descriptor()
+	// notificationdelivery.DefaultCreatedAt holds the default value on creation for the created_at field.
+	notificationdelivery.DefaultCreatedAt = notificationdeliveryDescCreatedAt.Default.(func() time.Time)
+	// notificationdeliveryDescUpdatedAt is the schema descriptor for updated_at field.
+	notificationdeliveryDescUpdatedAt := notificationdeliveryFields[8].Descriptor()
+	// notificationdelivery.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	notificationdelivery.DefaultUpdatedAt = notificationdeliveryDescUpdatedAt.Default.(func() time.Time)
+	// notificationdelivery.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	notificationdelivery.UpdateDefaultUpdatedAt = notificationdeliveryDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// notificationdeliveryDescID is the schema descriptor for id field.
+	notificationdeliveryDescID := notificationdeliveryFields[0].Descriptor()
+	// notificationdelivery.DefaultID holds the default value on creation for the id field.
+	notificationdelivery.DefaultID = notificationdeliveryDescID.Default.(func() string)
+	notificationprofileFields := schema.NotificationProfile{}.Fields()
+	_ = notificationprofileFields
+	// notificationprofileDescTimezone is the schema descriptor for timezone field.
+	notificationprofileDescTimezone := notificationprofileFields[2].Descriptor()
+	// notificationprofile.DefaultTimezone holds the default value on creation for the timezone field.
+	notificationprofile.DefaultTimezone = notificationprofileDescTimezone.Default.(string)
+	// notificationprofileDescSendHour is the schema descriptor for send_hour field.
+	notificationprofileDescSendHour := notificationprofileFields[3].Descriptor()
+	// notificationprofile.DefaultSendHour holds the default value on creation for the send_hour field.
+	notificationprofile.DefaultSendHour = notificationprofileDescSendHour.Default.(int)
+	// notificationprofile.SendHourValidator is a validator for the "send_hour" field. It is called by the builders before save.
+	notificationprofile.SendHourValidator = func() func(int) error {
+		validators := notificationprofileDescSendHour.Validators
+		fns := [...]func(int) error{
+			validators[0].(func(int) error),
+			validators[1].(func(int) error),
+		}
+		return func(send_hour int) error {
+			for _, fn := range fns {
+				if err := fn(send_hour); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// notificationprofileDescShowPlaces is the schema descriptor for show_places field.
+	notificationprofileDescShowPlaces := notificationprofileFields[4].Descriptor()
+	// notificationprofile.DefaultShowPlaces holds the default value on creation for the show_places field.
+	notificationprofile.DefaultShowPlaces = notificationprofileDescShowPlaces.Default.(bool)
+	// notificationprofileDescEmail is the schema descriptor for email field.
+	notificationprofileDescEmail := notificationprofileFields[5].Descriptor()
+	// notificationprofile.DefaultEmail holds the default value on creation for the email field.
+	notificationprofile.DefaultEmail = notificationprofileDescEmail.Default.(string)
+	// notificationprofileDescPendingEmail is the schema descriptor for pending_email field.
+	notificationprofileDescPendingEmail := notificationprofileFields[7].Descriptor()
+	// notificationprofile.DefaultPendingEmail holds the default value on creation for the pending_email field.
+	notificationprofile.DefaultPendingEmail = notificationprofileDescPendingEmail.Default.(string)
+	// notificationprofileDescCodeHash is the schema descriptor for code_hash field.
+	notificationprofileDescCodeHash := notificationprofileFields[8].Descriptor()
+	// notificationprofile.DefaultCodeHash holds the default value on creation for the code_hash field.
+	notificationprofile.DefaultCodeHash = notificationprofileDescCodeHash.Default.(string)
+	// notificationprofileDescCodeAttempts is the schema descriptor for code_attempts field.
+	notificationprofileDescCodeAttempts := notificationprofileFields[10].Descriptor()
+	// notificationprofile.DefaultCodeAttempts holds the default value on creation for the code_attempts field.
+	notificationprofile.DefaultCodeAttempts = notificationprofileDescCodeAttempts.Default.(int)
+	// notificationprofile.CodeAttemptsValidator is a validator for the "code_attempts" field. It is called by the builders before save.
+	notificationprofile.CodeAttemptsValidator = notificationprofileDescCodeAttempts.Validators[0].(func(int) error)
+	// notificationprofileDescCreatedAt is the schema descriptor for created_at field.
+	notificationprofileDescCreatedAt := notificationprofileFields[11].Descriptor()
+	// notificationprofile.DefaultCreatedAt holds the default value on creation for the created_at field.
+	notificationprofile.DefaultCreatedAt = notificationprofileDescCreatedAt.Default.(func() time.Time)
+	// notificationprofileDescUpdatedAt is the schema descriptor for updated_at field.
+	notificationprofileDescUpdatedAt := notificationprofileFields[12].Descriptor()
+	// notificationprofile.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	notificationprofile.DefaultUpdatedAt = notificationprofileDescUpdatedAt.Default.(func() time.Time)
+	// notificationprofile.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	notificationprofile.UpdateDefaultUpdatedAt = notificationprofileDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// notificationprofileDescID is the schema descriptor for id field.
+	notificationprofileDescID := notificationprofileFields[0].Descriptor()
+	// notificationprofile.DefaultID holds the default value on creation for the id field.
+	notificationprofile.DefaultID = notificationprofileDescID.Default.(func() string)
+	notificationsettingFields := schema.NotificationSetting{}.Fields()
+	_ = notificationsettingFields
+	// notificationsettingDescEnabled is the schema descriptor for enabled field.
+	notificationsettingDescEnabled := notificationsettingFields[4].Descriptor()
+	// notificationsetting.DefaultEnabled holds the default value on creation for the enabled field.
+	notificationsetting.DefaultEnabled = notificationsettingDescEnabled.Default.(bool)
+	// notificationsettingDescCreatedAt is the schema descriptor for created_at field.
+	notificationsettingDescCreatedAt := notificationsettingFields[5].Descriptor()
+	// notificationsetting.DefaultCreatedAt holds the default value on creation for the created_at field.
+	notificationsetting.DefaultCreatedAt = notificationsettingDescCreatedAt.Default.(func() time.Time)
+	// notificationsettingDescUpdatedAt is the schema descriptor for updated_at field.
+	notificationsettingDescUpdatedAt := notificationsettingFields[6].Descriptor()
+	// notificationsetting.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	notificationsetting.DefaultUpdatedAt = notificationsettingDescUpdatedAt.Default.(func() time.Time)
+	// notificationsetting.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	notificationsetting.UpdateDefaultUpdatedAt = notificationsettingDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// notificationsettingDescID is the schema descriptor for id field.
+	notificationsettingDescID := notificationsettingFields[0].Descriptor()
+	// notificationsetting.DefaultID holds the default value on creation for the id field.
+	notificationsetting.DefaultID = notificationsettingDescID.Default.(func() string)
 	provincemarkFields := schema.ProvinceMark{}.Fields()
 	_ = provincemarkFields
 	// provincemarkDescProvinceCode is the schema descriptor for province_code field.
@@ -288,6 +400,44 @@ func init() {
 	provincemarkDescID := provincemarkFields[0].Descriptor()
 	// provincemark.DefaultID holds the default value on creation for the id field.
 	provincemark.DefaultID = provincemarkDescID.Default.(func() string)
+	pushsubscriptionFields := schema.PushSubscription{}.Fields()
+	_ = pushsubscriptionFields
+	// pushsubscriptionDescEndpointHash is the schema descriptor for endpoint_hash field.
+	pushsubscriptionDescEndpointHash := pushsubscriptionFields[2].Descriptor()
+	// pushsubscription.EndpointHashValidator is a validator for the "endpoint_hash" field. It is called by the builders before save.
+	pushsubscription.EndpointHashValidator = pushsubscriptionDescEndpointHash.Validators[0].(func(string) error)
+	// pushsubscriptionDescEndpoint is the schema descriptor for endpoint field.
+	pushsubscriptionDescEndpoint := pushsubscriptionFields[3].Descriptor()
+	// pushsubscription.EndpointValidator is a validator for the "endpoint" field. It is called by the builders before save.
+	pushsubscription.EndpointValidator = pushsubscriptionDescEndpoint.Validators[0].(func(string) error)
+	// pushsubscriptionDescP256dh is the schema descriptor for p256dh field.
+	pushsubscriptionDescP256dh := pushsubscriptionFields[4].Descriptor()
+	// pushsubscription.P256dhValidator is a validator for the "p256dh" field. It is called by the builders before save.
+	pushsubscription.P256dhValidator = pushsubscriptionDescP256dh.Validators[0].(func(string) error)
+	// pushsubscriptionDescAuth is the schema descriptor for auth field.
+	pushsubscriptionDescAuth := pushsubscriptionFields[5].Descriptor()
+	// pushsubscription.AuthValidator is a validator for the "auth" field. It is called by the builders before save.
+	pushsubscription.AuthValidator = pushsubscriptionDescAuth.Validators[0].(func(string) error)
+	// pushsubscriptionDescFailures is the schema descriptor for failures field.
+	pushsubscriptionDescFailures := pushsubscriptionFields[6].Descriptor()
+	// pushsubscription.DefaultFailures holds the default value on creation for the failures field.
+	pushsubscription.DefaultFailures = pushsubscriptionDescFailures.Default.(int)
+	// pushsubscription.FailuresValidator is a validator for the "failures" field. It is called by the builders before save.
+	pushsubscription.FailuresValidator = pushsubscriptionDescFailures.Validators[0].(func(int) error)
+	// pushsubscriptionDescCreatedAt is the schema descriptor for created_at field.
+	pushsubscriptionDescCreatedAt := pushsubscriptionFields[7].Descriptor()
+	// pushsubscription.DefaultCreatedAt holds the default value on creation for the created_at field.
+	pushsubscription.DefaultCreatedAt = pushsubscriptionDescCreatedAt.Default.(func() time.Time)
+	// pushsubscriptionDescUpdatedAt is the schema descriptor for updated_at field.
+	pushsubscriptionDescUpdatedAt := pushsubscriptionFields[8].Descriptor()
+	// pushsubscription.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	pushsubscription.DefaultUpdatedAt = pushsubscriptionDescUpdatedAt.Default.(func() time.Time)
+	// pushsubscription.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	pushsubscription.UpdateDefaultUpdatedAt = pushsubscriptionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// pushsubscriptionDescID is the schema descriptor for id field.
+	pushsubscriptionDescID := pushsubscriptionFields[0].Descriptor()
+	// pushsubscription.DefaultID holds the default value on creation for the id field.
+	pushsubscription.DefaultID = pushsubscriptionDescID.Default.(func() string)
 	sessionFields := schema.Session{}.Fields()
 	_ = sessionFields
 	// sessionDescTokenHash is the schema descriptor for token_hash field.

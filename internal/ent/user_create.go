@@ -17,7 +17,11 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/friendship"
 	"go.orx.me/apps/trip-map/internal/ent/itinerary"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
+	"go.orx.me/apps/trip-map/internal/ent/notificationdelivery"
+	"go.orx.me/apps/trip-map/internal/ent/notificationprofile"
+	"go.orx.me/apps/trip-map/internal/ent/notificationsetting"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
+	"go.orx.me/apps/trip-map/internal/ent/pushsubscription"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
@@ -502,6 +506,70 @@ func (_c *UserCreate) AddItineraries(v ...*Itinerary) *UserCreate {
 	return _c.AddItineraryIDs(ids...)
 }
 
+// SetNotificationProfileID sets the "notification_profile" edge to the NotificationProfile entity by ID.
+func (_c *UserCreate) SetNotificationProfileID(id string) *UserCreate {
+	_c.mutation.SetNotificationProfileID(id)
+	return _c
+}
+
+// SetNillableNotificationProfileID sets the "notification_profile" edge to the NotificationProfile entity by ID if the given value is not nil.
+func (_c *UserCreate) SetNillableNotificationProfileID(id *string) *UserCreate {
+	if id != nil {
+		_c = _c.SetNotificationProfileID(*id)
+	}
+	return _c
+}
+
+// SetNotificationProfile sets the "notification_profile" edge to the NotificationProfile entity.
+func (_c *UserCreate) SetNotificationProfile(v *NotificationProfile) *UserCreate {
+	return _c.SetNotificationProfileID(v.ID)
+}
+
+// AddNotificationSettingIDs adds the "notification_settings" edge to the NotificationSetting entity by IDs.
+func (_c *UserCreate) AddNotificationSettingIDs(ids ...string) *UserCreate {
+	_c.mutation.AddNotificationSettingIDs(ids...)
+	return _c
+}
+
+// AddNotificationSettings adds the "notification_settings" edges to the NotificationSetting entity.
+func (_c *UserCreate) AddNotificationSettings(v ...*NotificationSetting) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddNotificationSettingIDs(ids...)
+}
+
+// AddPushSubscriptionIDs adds the "push_subscriptions" edge to the PushSubscription entity by IDs.
+func (_c *UserCreate) AddPushSubscriptionIDs(ids ...string) *UserCreate {
+	_c.mutation.AddPushSubscriptionIDs(ids...)
+	return _c
+}
+
+// AddPushSubscriptions adds the "push_subscriptions" edges to the PushSubscription entity.
+func (_c *UserCreate) AddPushSubscriptions(v ...*PushSubscription) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddPushSubscriptionIDs(ids...)
+}
+
+// AddNotificationDeliveryIDs adds the "notification_deliveries" edge to the NotificationDelivery entity by IDs.
+func (_c *UserCreate) AddNotificationDeliveryIDs(ids ...string) *UserCreate {
+	_c.mutation.AddNotificationDeliveryIDs(ids...)
+	return _c
+}
+
+// AddNotificationDeliveries adds the "notification_deliveries" edges to the NotificationDelivery entity.
+func (_c *UserCreate) AddNotificationDeliveries(v ...*NotificationDelivery) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddNotificationDeliveryIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_c *UserCreate) Mutation() *UserMutation {
 	return _c.mutation
@@ -967,6 +1035,70 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(itinerary.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.NotificationProfileIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   user.NotificationProfileTable,
+			Columns: []string{user.NotificationProfileColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(notificationprofile.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.NotificationSettingsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.NotificationSettingsTable,
+			Columns: []string{user.NotificationSettingsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(notificationsetting.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.PushSubscriptionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.PushSubscriptionsTable,
+			Columns: []string{user.PushSubscriptionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(pushsubscription.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.NotificationDeliveriesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.NotificationDeliveriesTable,
+			Columns: []string{user.NotificationDeliveriesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(notificationdelivery.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

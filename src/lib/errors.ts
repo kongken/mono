@@ -60,6 +60,17 @@ const KNOWN_MESSAGES: [string, string][] = [
   ["friend not found", "未找到该好友"],
   ["shared trip not found", "共同旅行不存在或已解散"],
   ["too many collaboration requests", "协作操作太频繁，请稍后再试"],
+  ["email notifications are not available", "服务器尚未配置邮件发送"],
+  ["browser push is not available", "服务器尚未配置浏览器推送"],
+  ["verify an email address first", "请先验证邮箱地址，再开启邮件提醒"],
+  ["enter a valid email address", "请输入有效的邮箱地址"],
+  ["enter the six-digit code", "请输入邮件中的 6 位数字验证码"],
+  ["the code expired or was used up", "验证码已过期或已失效，请重新获取"],
+  ["the code is not correct", "验证码不正确"],
+  ["could not send the verification email", "验证邮件发送失败，请稍后再试"],
+  ["could not send the test email", "测试邮件发送失败，请检查服务器的邮件配置"],
+  ["no browser is subscribed yet", "还没有订阅浏览器推送，请先在此设备启用"],
+  ["could not reach any subscribed browser", "无法送达已订阅的浏览器，请在此设备重新启用推送"],
   ["trip owner cannot leave", "创建者无法直接退出，请选择解散共同旅行"],
 ];
 

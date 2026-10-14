@@ -15,6 +15,8 @@ type AppConfig struct {
 	Storage     StorageConfig `yaml:"storage"`
 	Auth        AuthConfig    `yaml:"auth"`
 	Share       ShareConfig   `yaml:"share"`
+	// Notification configures F12 reminders; every channel is off until configured.
+	Notification NotificationConfig `yaml:"notification"`
 }
 
 // ShareConfig controls the public share page (F6). Sharing is off while
@@ -142,6 +144,9 @@ func (c *AppConfig) Validate() error {
 		}
 	}
 	if err := c.Share.validate(); err != nil {
+		return err
+	}
+	if err := c.Notification.validate(); err != nil {
 		return err
 	}
 	for name, p := range c.Auth.OAuthProviders {

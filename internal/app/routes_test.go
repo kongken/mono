@@ -113,3 +113,21 @@ func TestShareRoutesAreClosedWithoutConfigurationAndKeepTokensOutOfTheApp(t *tes
 		t.Fatalf("POST was served: %d", rec.Code)
 	}
 }
+
+func TestUnsubscribeRouteIsInertWithoutAnEmailSecretAndNeverIndexed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	New(&config.AppConfig{}).Routes(router)
+	for _, method := range []string{http.MethodGet, http.MethodHead, http.MethodPost} {
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest(method, "/api/notifications/unsubscribe?t=abc.def", nil))
+		if rec.Code != http.StatusNotFound || rec.Header().Get("Cache-Control") != "no-store" || !strings.Contains(rec.Header().Get("X-Robots-Tag"), "noindex") {
+			t.Fatalf("%s: %d %v", method, rec.Code, rec.Header())
+		}
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/api/notifications/unsubscribe", nil))
+	if rec.Code == http.StatusOK {
+		t.Fatalf("DELETE was served: %d", rec.Code)
+	}
+}

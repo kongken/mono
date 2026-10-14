@@ -1272,6 +1272,98 @@ func HasItinerariesWith(preds ...predicate.Itinerary) predicate.User {
 	})
 }
 
+// HasNotificationProfile applies the HasEdge predicate on the "notification_profile" edge.
+func HasNotificationProfile() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, NotificationProfileTable, NotificationProfileColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasNotificationProfileWith applies the HasEdge predicate on the "notification_profile" edge with a given conditions (other predicates).
+func HasNotificationProfileWith(preds ...predicate.NotificationProfile) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newNotificationProfileStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasNotificationSettings applies the HasEdge predicate on the "notification_settings" edge.
+func HasNotificationSettings() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, NotificationSettingsTable, NotificationSettingsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasNotificationSettingsWith applies the HasEdge predicate on the "notification_settings" edge with a given conditions (other predicates).
+func HasNotificationSettingsWith(preds ...predicate.NotificationSetting) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newNotificationSettingsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasPushSubscriptions applies the HasEdge predicate on the "push_subscriptions" edge.
+func HasPushSubscriptions() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, PushSubscriptionsTable, PushSubscriptionsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasPushSubscriptionsWith applies the HasEdge predicate on the "push_subscriptions" edge with a given conditions (other predicates).
+func HasPushSubscriptionsWith(preds ...predicate.PushSubscription) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newPushSubscriptionsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasNotificationDeliveries applies the HasEdge predicate on the "notification_deliveries" edge.
+func HasNotificationDeliveries() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, NotificationDeliveriesTable, NotificationDeliveriesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasNotificationDeliveriesWith applies the HasEdge predicate on the "notification_deliveries" edge with a given conditions (other predicates).
+func HasNotificationDeliveriesWith(preds ...predicate.NotificationDelivery) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newNotificationDeliveriesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.User) predicate.User {
 	return predicate.User(sql.AndPredicates(predicates...))

@@ -98,6 +98,7 @@ import LegacyDialog from "./components/LegacyDialog";
 import SnapshotDialog from "./components/SnapshotDialog";
 import RegionDialog from "./components/RegionDialog";
 import ShareDialog from "./components/ShareDialog";
+import NotificationDialog from "./components/NotificationDialog";
 import CollaborationDialog, {
   type CollaborationTarget,
 } from "./components/CollaborationDialog";
@@ -267,6 +268,7 @@ function App() {
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const [regionsOpen, setRegionsOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [collabOpen, setCollabOpen] = useState(false);
   const [collabTarget, setCollabTarget] = useState<CollaborationTarget>(null);
@@ -3056,6 +3058,10 @@ function App() {
             setCollabTarget(null);
             setCollabOpen(true);
           }}
+          onOpenNotifications={() => {
+            setAccountOpen(false);
+            setNotificationsOpen(true);
+          }}
         />
       )}
       {cloud.enabled && cloud.user && collabOpen && (
@@ -3108,6 +3114,9 @@ function App() {
         onDelete={removeItinerary}
         onSelectActive={selectActiveItinerary}
       />
+      {cloud.enabled && cloud.user && notificationsOpen && (
+        <NotificationDialog key={cloud.user.id} open onOpenChange={setNotificationsOpen} />
+      )}
       {cloud.enabled && cloud.user && regionsOpen && (
         <RegionDialog key={cloud.user.id} open onOpenChange={setRegionsOpen} cloud={cloud} />
       )}

@@ -4,7 +4,7 @@
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
-当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1：账号与会话（`AuthService`）、足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流），前端登录与云端读写闭环也已接入（配置 `VITE_API_BASE_URL` 后出现登录入口，见 [功能描述](features.md)）。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号注销、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；F4 照片与附件已实现；F6 公开分享页与预览图已实现（默认关闭，见 [公开分享页与预览图](sharing.md)）；真实 OAuth 授权验收与真实社交平台抓取验证待部署。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
+当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1：账号与会话（`AuthService`）、足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流），前端登录与云端读写闭环也已接入（配置 `VITE_API_BASE_URL` 后出现登录入口，见 [功能描述](features.md)）。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号注销、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；F4 照片与附件已实现；F6 公开分享页与预览图已实现（默认关闭，见 [公开分享页与预览图](sharing.md)）；F12 提醒与通知已实现（邮件与浏览器推送默认关闭，见下文 F12）；真实 OAuth 授权验收与真实社交平台抓取验证待部署。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
 
 Redis 客户端已接入，后续用于会话、缓存或限流；本次没有把城市足迹存入 Redis。对象内容使用 S3，PostgreSQL 只存业务记录和媒体元数据。
 
@@ -15,10 +15,12 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `internal/app/` | Bootstrap、依赖注入、Gin 路由 |
 | `internal/config/` | 业务配置及必填存储名称校验 |
-| `internal/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）、`ShareService`、`CollaborationService`、`ReportService`（含 Redis 汇总缓存与定时预热维护）、`SearchService`（私有备注分页检索）、公开分享路由处理（`share_public.go`）及认证拦截器 |
+| `internal/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）、`ShareService`、`CollaborationService`、`ReportService`（含 Redis 汇总缓存与定时预热维护）、`SearchService`（私有备注分页检索）、`NotificationService`（F12 提醒设置与每小时发送维护）、公开分享路由处理（`share_public.go`）及认证拦截器 |
 | `internal/auth/` | 会话令牌、Redis 限流与 OAuth state 存储；`provider/` 为 GitHub、Google OAuth 适配 |
 | `internal/share/` | F6：公开内容白名单与快照构建、统计、预览图渲染（纯 Go）、HTML 元数据注入、受信任 index.html 获取；`assets/` 含预览几何和 Noto Sans SC 子集 |
 | `internal/report/` | F8：统计总览、按时区计算的年度报告、8 项旅行成就及可追溯记录引用计算（与前端 `src/lib/report.ts` 共用 `scripts/fixtures/report-stats.json` 测试夹具） |
+| `internal/notification/` | F12：提醒内容规则（回忆匹配、年度窗口、文案）、退订令牌签名、SMTP 发送、Web Push 发送与 SSRF 防护（纯 Go，可单独测试） |
+| `cmd/vapid-keygen/` | `make vapid-keys`：生成 Web Push 的 VAPID 密钥对 |
 | `internal/regions/` | 嵌入的行政区域索引，供服务端校验区域 ID、名称与归属 |
 | `internal/testutil/` | 带独立 schema 和 Redis key 前缀的集成测试辅助 |
 | `internal/health/` | 有超时的依赖就绪检查 |
@@ -318,6 +320,43 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 - 表 `itineraries`：所属用户（外键，级联删除）、`itinerary_id`（`user_id + itinerary_id` 唯一）、标题、备注、颜色、`version`、站点 JSON、创建/更新时间；迁移 `migrations/20261014140617_f11_itineraries.sql`。
 - 账号注销删除行程；`RegionService` 迁移同时改写行程站点中的历史城市 ID（行程里出现未映射区域时作为阻止项）。其余部署与验证同上，先部署后端再部署前端。
 
+## F12 提醒与通知（`tripmap.v1.NotificationService`）
+
+规则与验收见 [功能描述](features.md#提醒与通知f12)。所有方法须认证，只读写当前会话用户的设置；`proto/tripmap/v1/notification.proto`，实现在 `internal/application/notification_service.go`（RPC）、`notification_maintenance.go`（发送）、`notification_public.go`（公开退订页），发送通道在 `internal/notification`。
+
+**配置**（`notification`，全部可选；示例见 `config.example.yaml`，真实凭据放在被忽略的 `config.yaml` 或挂载 Secret 中）：
+
+| 字段 | 说明 |
+| --- | --- |
+| `public_base_url` | 站点对外地址；邮件链接和点击推送后打开的地址由它生成，不读取请求头。`/api/` 须能到达本后端（Vite 开发代理和前端镜像的 Nginx 已转发） |
+| `secret` | 签名退订链接，至少 32 个字符；启用 SMTP 时必填。更换会使已发邮件里的退订链接失效 |
+| `smtp.host/port/username/password/from/tls` | 发信服务器；`tls` 为 `starttls`（默认）、`tls`（隐式 TLS，常用 465）或 `none`（仅本地测试服务器） |
+| `web_push.vapid_public_key/vapid_private_key/subject` | 浏览器推送；用 `make vapid-keys` 生成，`subject` 为 `mailto:` 或 `https:`；非 localhost 的站点须使用 HTTPS |
+
+邮件渠道需要 `smtp.host`、`from`、`secret` 和 `public_base_url` 同时配置，推送渠道需要两把 VAPID 密钥；不完整的配置在启动校验时报错，未配置的渠道在接口里报告为不可用，开关无法开启。
+
+| 方法 | 行为 |
+| --- | --- |
+| `GetNotificationSettings` | 返回每个类型/渠道的开关（缺失的行视为关闭）、时区、发送小时、是否显示地点、打码邮箱、待验证邮箱、已订阅设备数，以及 `email_available`、`push_available`、`vapid_public_key` |
+| `UpdateNotificationSettings` | 更新时区（IANA 名称）、发送小时（0–23）、是否显示地点和所列开关；开启邮件需要服务器已配置且已有验证邮箱，开启推送需要服务器已配置，否则 `failed_precondition` |
+| `RequestEmailVerification` | 向新地址发送 6 位验证码（SHA-256 哈希、绑定用户和地址，15 分钟有效）；每账号每小时 5 次、每地址每小时 3 次 |
+| `ConfirmEmail` | 校验验证码，最多尝试 5 次；成功后地址才生效 |
+| `RemoveEmail` | 删除地址并关闭所有邮件开关 |
+| `RegisterPushSubscription` / `RemovePushSubscription` | 保存或删除当前浏览器的订阅；同一端点登记到另一账号时转移；每账号最多 10 个；端点和密钥只用于发送，不返回客户端 |
+| `SendTestNotification` | 向一个渠道发送固定的通用测试消息（不含足迹数据）；推送全部失败时返回 `unavailable` |
+
+写接口每用户每分钟 30 次，读接口 120 次；提供商返回的邮箱不会被存储（邮箱只来自用户输入并验证）。
+
+**发送。** `internal/app` 每小时在 Redis 锁 `tripmap:notification-maintenance` 下运行一次 `RunNotificationMaintenance`：按用户时区计算本地日期，到达发送小时后，为开启的类型/渠道在 `notification_deliveries` 里以唯一键（用户、类型、渠道、周期；周期为本地日期，年度为年份）先占位再发送，所以多实例或重复检查不会重复发送；失败最多尝试 3 次，状态为 `pending/sent/failed/skipped`，占位后进程崩溃的周期不再重发（最多一次）；发送记录保留 30 天后清理。回忆匹配规则：往年同月同日的旅行，非闰年的 2 月 28 日包含 2 月 29 日的旅行；旧版本 1 账号读取 `city_visits.travel_date`，版本 2 账号读取 `city_trips`；年度回顾在用户本地 1 月 1–7 日发送上一年的数量。
+
+**邮件。** 标准库 `net/smtp`，UTF-8 quoted-printable，拒绝头注入；每封邮件带 `List-Unsubscribe` 与 `List-Unsubscribe-Post: List-Unsubscribe=One-Click`。退订链接 `GET/HEAD/POST /api/notifications/unsubscribe?t=<令牌>`：令牌为 `userID|kind` 的 HMAC-SHA256（`kind` 为 `*` 表示全部邮件类型），无状态；GET 只显示确认页，POST（含邮件客户端一键退订）才关闭对应开关；按 IP 限流，响应 `no-store`、`noindex`、严格 CSP，密钥未配置时路由不提供服务，访问日志与 Referer 不记录令牌。
+
+**推送。** 使用 `github.com/SherClockHolmes/webpush-go`；发送前校验端点：必须是 https、域名（非 IP）、端口 443，拨号时再次检查解析出的 IP 不在内网/回环/链路本地等范围，不跟随重定向、不使用代理；返回 404/410 的订阅删除，连续失败 5 次的订阅删除。前端 Service Worker 在 `public/sw.js`，只显示服务端发来的标题和正文，点击只打开本站；前端镜像的 Nginx 对 `/sw.js` 设置 `no-cache`，并对 `/api/notifications/` 关闭访问日志、清除 Referer。
+
+**数据与部署。** 新表 `notification_profiles`（每用户一行：时区、发送小时、是否显示地点、已验证邮箱、待验证邮箱及验证码哈希/过期时间/尝试次数）、`notification_settings`（`user_id + kind + channel` 唯一，缺失即关闭）、`push_subscriptions`（`endpoint_hash` 唯一）、`notification_deliveries`；均通过 `users` 外键级联删除，账号注销一并清除。迁移 `migrations/20261014165138_f12_notifications.sql` 为纯新增。**部署顺序：** 先执行该迁移，再升级后端，最后部署前端；未配置 `notification` 时不发送任何内容。
+
+**验证与限制。** `internal/notification` 的测试覆盖文案、令牌、SMTP（本地假服务器）、Web Push（本地 TLS 假推送服务和 SSRF 拒绝）；`internal/application` 的集成测试（需要 PostgreSQL 与 Redis）覆盖设置、邮箱验证、订阅转移、发送时区与幂等、重试、退订、用户隔离和注销清理；前端有单元测试与桌面/手机 Playwright 验收。没有对真实 SMTP 服务商和真实浏览器推送服务做验证；投递语义为最多一次，没有送达回执；每小时一次的检查使实际发送可能晚最多约 1 小时。
+
 ## 数据库模型
 
 | 表 | 关键字段与约束 |
@@ -332,6 +371,10 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 | `friendships` | F7：规范化排序的 `user_low_id` 与 `user_high_id`（外键级联删除，`(user_low_id, user_high_id)` 唯一）、发起方 `requester_id`、`status`（`pending` / `accepted`）、创建/更新时间 |
 | `shared_trips` | F7：创建者 `owner_id`（外键级联删除）、`trip_id`（`(owner_id, trip_id)` 唯一）、`region_code`、创建/更新时间 |
 | `trip_members` | F7：所属共同旅行 `shared_trip_id`（外键级联删除）、成员 `user_id`（外键级联删除，`(shared_trip_id, user_id)` 唯一）、`role`（`owner` / `editor` / `viewer`）、`status`（`invited` / `active`）、加入时间与创建/更新时间 |
+| `notification_profiles` | F12：所属用户（唯一，级联删除）、时区、发送小时、`show_places`、已验证邮箱与验证时间、待验证邮箱、验证码哈希/过期时间/尝试次数 |
+| `notification_settings` | F12：所属用户、`kind`（memory / annual_report）、`channel`（email / push）、`enabled`；`(user_id, kind, channel)` 唯一，缺失行视为关闭 |
+| `push_subscriptions` | F12：所属用户（可转移）、`endpoint_hash`（唯一）、端点、`p256dh`、`auth`（敏感，不入日志）、失败次数 |
+| `notification_deliveries` | F12：所属用户、`kind`、`channel`、`period`、`status`（pending / sent / failed / skipped）、尝试次数；`(user_id, kind, channel, period)` 唯一，`created_at` 索引，30 天后清理 |
 | `snapshots` | 所属用户、`reason`（manual / scheduled / before_migration / before_restore）、快照时的 `revision`、城市、旅行（`trip_count`）与省份标记数量、`schema_version`（旧行为 1）、gzip 压缩的 `SnapshotData` 载荷、创建时间；所有字段不可修改；`user_id + created_at`、`user_id + revision` 索引；用户删除时级联 |
 
 城市足迹与省份独立标记分表。删除城市不影响省份独立标记；用户归属为必填外键，删除用户时数据库级联删除这些元数据。注销服务先清理 S3 实体对象，再级联删除元数据；对象清理失败保留已暂停账号以便重试。
@@ -351,6 +394,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 | `20261014022913_f6_shares.sql` | F6 的纯新增变更：新表 `shares`（`token` 唯一索引、`user_id` 唯一索引、外键级联删除） |
 | `20261014050044_f7_collaboration.sql` | F7 的纯新增变更：`users` 新增 `friend_code`（唯一索引）与 `friend_show_cities/dates/notes`（带默认值），新增 `friendships`、`shared_trips`、`trip_members` 三张表及唯一索引与外键级联删除 |
 | `20261014140617_f11_itineraries.sql` | F11 的纯新增变更：新表 `itineraries`（`(user_id, itinerary_id)` 唯一索引、`users` 外键级联删除，站点为 JSON 列）；不改动既有表 |
+| `20261014165138_f12_notifications.sql` | F12 的纯新增变更：新表 `notification_profiles`、`notification_settings`、`push_subscriptions`、`notification_deliveries`（唯一索引与 `users` 外键级联删除）；不改动既有表 |
 
 **生成。** 修改 `internal/ent/schema/` 并运行 `make ent` 后，用 `make migration NAME=<变更名> DEV_DSN='postgres://…'` 生成下一个文件（`cmd/migrate-gen`）：它在 `DEV_DSN` 指向的服务器上临时创建一个随机命名的空数据库，重放现有 `migrations/` 得到“当前结构”，与 Ent schema 比较后写出差异和新的 `atlas.sum`，然后删除该数据库；因此所用账号需要 `CREATEDB`，不会碰服务器上的其他库。生成器只写新增和修改类语句（不写 `DROP COLUMN` / `DROP INDEX`，也不生成会丢数据的回滚脚本）。迁移文件只通过生成器更新，手改会使 `atlas.sum` 校验失败。
 
@@ -358,7 +402,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 1. 备份数据库（F5 对账号的升级是单向的，回退旧后端需要这份备份）。
 2. 把后端配置改为 `auto_migrate: false`。
-3. 对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/20261014011446_f5_multiple_trips.sql`，再依次执行 `20261014022913_f6_shares.sql`、`20261014050044_f7_collaboration.sql` 和 `20261014140617_f11_itineraries.sql`（已升级到前一版的数据库只执行尚未应用的文件）。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
+3. 对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/20261014011446_f5_multiple_trips.sql`，再依次执行 `20261014022913_f6_shares.sql`、`20261014050044_f7_collaboration.sql`、`20261014140617_f11_itineraries.sql` 和 `20261014165138_f12_notifications.sql`（已升级到前一版的数据库只执行尚未应用的文件）。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
 4. 部署新后端；已有账号在第一次被新前端写入时才升级到结构 2（见上文），旧行保持原样。
 5. 全新数据库：按文件名顺序执行全部文件（含 baseline）。
 
@@ -394,7 +438,7 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：提醒等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）、F5（同城多次旅行）、F6（公开分享页与预览图）与 F7（共同旅行与好友）已实现；F8（统计、年度报告与成就）和 F9（区域搜索增强、私有备注搜索）已实现；F10 区域版本与兼容迁移已实现，限制见对应章节；F11 行程与路线连线已实现，F12 仍待实现。
+从 [后端功能调研](backend-research.md) 中选择尚未实现的业务切片继续。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）、F5（同城多次旅行）、F6（公开分享页与预览图）与 F7（共同旅行与好友）已实现；F8（统计、年度报告与成就）和 F9（区域搜索增强、私有备注搜索）已实现；F10 区域版本与兼容迁移已实现，限制见对应章节；F11 行程与路线连线和 F12 提醒与通知已实现（F12 未经真实邮件与推送服务验证）。
 
 ## F1 新接口与部署
 

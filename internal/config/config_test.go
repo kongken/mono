@@ -106,3 +106,58 @@ func TestShareConfigValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestNotificationConfigValidation(t *testing.T) {
+	base := func() *AppConfig {
+		return &AppConfig{DBStore: "main", RedisStore: "main", Storage: StorageConfig{S3Store: "main"}}
+	}
+	cfg := base()
+	if cfg.Notification.EmailEnabled() || cfg.Notification.PushEnabled() {
+		t.Fatal("channels must be off by default")
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	secret := "0123456789abcdef0123456789abcdef"
+	cfg.Notification = NotificationConfig{
+		PublicBaseURL: "https://trip.example.com/", Secret: secret,
+		SMTP:    SMTPConfig{Host: "smtp.example.com", Port: 587, Username: "u", Password: "p", From: "山海足迹 <noreply@example.com>"},
+		WebPush: WebPushConfig{VAPIDPublicKey: "pub", VAPIDPrivateKey: "priv", Subject: "mailto:ops@example.com"},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Notification.EmailEnabled() || !cfg.Notification.PushEnabled() || cfg.Notification.BaseURL() != "https://trip.example.com" || cfg.Notification.SMTPSecurity() != "starttls" {
+		t.Fatalf("%+v", cfg.Notification)
+	}
+	for name, mutate := range map[string]func(*NotificationConfig){
+		"short secret":         func(n *NotificationConfig) { n.Secret = "short" },
+		"smtp without from":    func(n *NotificationConfig) { n.SMTP.From = "" },
+		"bad from":             func(n *NotificationConfig) { n.SMTP.From = "not an address" },
+		"bad tls":              func(n *NotificationConfig) { n.SMTP.TLS = "ssl3" },
+		"bad port":             func(n *NotificationConfig) { n.SMTP.Port = 70000 },
+		"user without pass":    func(n *NotificationConfig) { n.SMTP.Password = "" },
+		"smtp without base":    func(n *NotificationConfig) { n.PublicBaseURL = "" },
+		"base with query":      func(n *NotificationConfig) { n.PublicBaseURL = "https://trip.example.com/?x=1" },
+		"push one key":         func(n *NotificationConfig) { n.WebPush.VAPIDPrivateKey = "" },
+		"push bad subject":     func(n *NotificationConfig) { n.WebPush.Subject = "ops@example.com" },
+		"push over plain http": func(n *NotificationConfig) { n.PublicBaseURL = "http://trip.example.com" },
+	} {
+		cfg := base()
+		cfg.Notification = NotificationConfig{
+			PublicBaseURL: "https://trip.example.com", Secret: secret,
+			SMTP:    SMTPConfig{Host: "smtp.example.com", Username: "u", Password: "p", From: "noreply@example.com"},
+			WebPush: WebPushConfig{VAPIDPublicKey: "pub", VAPIDPrivateKey: "priv", Subject: "mailto:ops@example.com"},
+		}
+		mutate(&cfg.Notification)
+		if cfg.Validate() == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	// Push alone works on a local http address for development.
+	cfg = base()
+	cfg.Notification = NotificationConfig{PublicBaseURL: "http://localhost:5173", WebPush: WebPushConfig{VAPIDPublicKey: "pub", VAPIDPrivateKey: "priv", Subject: "mailto:dev@example.com"}}
+	if err := cfg.Validate(); err != nil || cfg.Notification.EmailEnabled() || !cfg.Notification.PushEnabled() {
+		t.Fatalf("local push: %v", err)
+	}
+}

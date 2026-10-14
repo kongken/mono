@@ -42,6 +42,27 @@ auth:
 #   # Vite's development server needs inline scripts; leave empty in production.
 #   # html_csp: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws:"
 
+# Reminders and notifications (F12). Every channel is off until configured.
+# notification:
+#   # The site address people use. Email links and tapped push notifications are built
+#   # from it; /api/ must reach this backend (the Vite proxy and the front image's Nginx do).
+#   public_base_url: http://localhost:5173
+#   # Signs unsubscribe links in emails, at least 32 characters. Keep it secret and stable:
+#   # changing it invalidates links already sent.
+#   secret: "change-me-to-a-random-string-of-32-chars-or-more"
+#   smtp:
+#     host: smtp.example.com
+#     port: 587
+#     username: ""
+#     password: ""
+#     from: "山海足迹 <noreply@example.com>"
+#     tls: starttls   # starttls (default), tls (implicit, usually port 465) or none (local test server only)
+#   web_push:
+#     # make vapid-keys prints a new pair. Browsers need HTTPS (localhost is allowed).
+#     vapid_public_key: ""
+#     vapid_private_key: ""
+#     subject: mailto:you@example.com
+
 store:
   db:
     main:

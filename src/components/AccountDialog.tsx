@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
+  BellRinging,
   ClockCounterClockwise,
   CloudCheck,
   GithubLogo,
@@ -35,6 +36,7 @@ type Props = {
   onOpenMedia: () => void;
   onOpenShare: () => void;
   onOpenCollaboration: () => void;
+  onOpenNotifications: () => void;
 };
 
 const when = (date: Date | null) =>
@@ -57,6 +59,7 @@ export default function AccountDialog({
   onOpenMedia,
   onOpenShare,
   onOpenCollaboration,
+  onOpenNotifications,
 }: Props) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
@@ -215,6 +218,13 @@ export default function AccountDialog({
               <Button variant="outline" size="sm" disabled={cloud.deletionBlocked} onClick={onOpenCollaboration}>
                 <Users size={16} />
                 好友与共同旅行
+              </Button>
+            </div>
+            <div className="unreadable-note account-migrate">
+              <span>开启“一年前的今天”等回忆提醒，可选邮件或浏览器推送，随时关闭。</span>
+              <Button variant="outline" size="sm" disabled={cloud.deletionBlocked} onClick={onOpenNotifications}>
+                <BellRinging size={16} />
+                提醒与通知
               </Button>
             </div>
             {shareEnabled && (

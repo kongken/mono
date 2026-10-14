@@ -1,0 +1,26 @@
+.notify-dialog { max-height: 90dvh; overflow-y: auto; }
+.notify-fieldset { border: 1px solid #dee5d9; border-radius: 10px; padding: 10px 12px 12px; margin: 0; min-width: 0; }
+.notify-fieldset legend { padding: 0 6px; font-size: 13px; font-weight: 600; color: #3f6048; }
+.notify-hint { margin: 0; font-size: 12px; color: #72816c; line-height: 1.6; }
+.notify-channels { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 6px; }
+.notify-option { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; font-size: 14px; cursor: pointer; min-height: 32px; }
+.notify-option input { margin-top: 3px; accent-color: #4b937d; flex: none; width: 16px; height: 16px; }
+.notify-option span { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.notify-option small { font-size: 12px; color: #72816c; }
+.notify-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.notify-row > label { flex: 1 1 160px; min-width: 0; }
+.notify-select { display: block; width: 100%; margin-top: 4px; min-height: 36px; border: 1px solid #cfd8c9; border-radius: 8px; background: #fff; padding: 0 8px; font: inherit; font-size: 14px; }
+.notify-select:focus-visible { outline: 3px solid #e2af5c; outline-offset: 2px; }
+.notify-preview { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: #eef2e8; font-size: 13px; overflow-wrap: anywhere; }
+.notify-preview span { color: #61765a; }
+.notify-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.notify-section { display: grid; gap: 8px; border-top: 1px solid #e6ebe1; padding-top: 12px; }
+.notify-section h3 { margin: 0; font-size: 14px; color: #3f6048; display: flex; align-items: center; gap: 6px; }
+.notify-inline { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 8px 12px; font-size: 14px; }
+.notify-inline > .field-label { flex: 1 1 200px; min-width: 0; }
+.notify-inline strong { overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .notify-actions > button, .notify-inline > button { flex: 1 1 auto; }
+}
+.notify-dialog .field-label { margin: 0; font-size: 13px; color: #3f6048; }
+.notify-dialog .field-label input { margin-top: 4px; font-size: 14px; }

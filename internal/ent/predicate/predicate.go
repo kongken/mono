@@ -27,8 +27,20 @@ type MediaCleanup func(*sql.Selector)
 // MediaObject is the predicate function for mediaobject builders.
 type MediaObject func(*sql.Selector)
 
+// NotificationDelivery is the predicate function for notificationdelivery builders.
+type NotificationDelivery func(*sql.Selector)
+
+// NotificationProfile is the predicate function for notificationprofile builders.
+type NotificationProfile func(*sql.Selector)
+
+// NotificationSetting is the predicate function for notificationsetting builders.
+type NotificationSetting func(*sql.Selector)
+
 // ProvinceMark is the predicate function for provincemark builders.
 type ProvinceMark func(*sql.Selector)
+
+// PushSubscription is the predicate function for pushsubscription builders.
+type PushSubscription func(*sql.Selector)
 
 // Session is the predicate function for session builders.
 type Session func(*sql.Selector)

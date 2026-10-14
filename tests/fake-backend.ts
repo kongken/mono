@@ -12,6 +12,7 @@ import * as collaborationPb from "../src/gen/tripmap/v1/collaboration_pb";
 import * as footprint from "../src/gen/tripmap/v1/footprint_pb";
 import * as itineraryPb from "../src/gen/tripmap/v1/itinerary_pb";
 import { DEFAULT_ESTIMATION_POLICY, buildItineraryInfo, validateItineraryInput, type ItineraryRecord } from "../src/lib/itinerary";
+import * as notificationPb from "../src/gen/tripmap/v1/notification_pb";
 import * as reportPb from "../src/gen/tripmap/v1/report_pb";
 import * as regionsPb from "../src/gen/tripmap/v1/regions_pb";
 import catalog from "../src/region-catalog.json" with { type: "json" };
@@ -67,7 +68,7 @@ const failure = (code: string, message: string, status: number) => ({
 export function fakeBackend(
   page: Page,
   initial: { visits: V[]; marks?: Record<string, string>; trips?: StoredTrip[] },
-  options: { footprintSchema?: number; shareEnabled?: boolean; regionVersion?: string } = {},
+  options: { footprintSchema?: number; shareEnabled?: boolean; regionVersion?: string; email?: boolean; push?: boolean } = {},
 ) {
   const seededTrips: StoredTrip[] = [
     ...initial.visits.map((v) => ({ id: legacyId(v.code), code: v.code, date: v.date, note: v.note })),
@@ -114,6 +115,23 @@ export function fakeBackend(
     failItinerarySave: 0,
     /** Commit the next itinerary save but lose its reply. */
     dropNextItineraryReply: 0,
+    /** F12 reminder settings of the signed-in account (all off by default). */
+    notify: {
+      prefs: new Map<string, boolean>(),
+      timezone: "Asia/Shanghai",
+      sendHour: 9,
+      showPlaces: false,
+      email: "",
+      pendingEmail: "",
+      code: "123456",
+      endpoints: [] as string[],
+      calls: [] as string[],
+      updates: [] as { timezone: string; sendHour: number; showPlaces: boolean; on: string[] }[],
+      tests: [] as string[],
+      emailAvailable: options.email ?? true,
+      pushAvailable: options.push ?? true,
+      failTest: false,
+    },
     regionReceipts: new Map<string, { request: string; revision: number; changed: number; snapshotId: string }>(),
   };
   state.seedRevision = state.revision;
@@ -126,6 +144,19 @@ export function fakeBackend(
     const info = buildItineraryInfo(r);
     return { ...info, version: BigInt(info.version), createdAt: ts(), updatedAt: ts() };
   };
+  const mask = (a: string) => (a ? `${a[0]}***${a.slice(a.lastIndexOf("@"))}` : "");
+  const wireNotify = () => ({
+    preferences: ["memory", "annual_report"].flatMap((kind) =>
+      ["email", "push"].map((channel) => ({ kind, channel, enabled: state.notify.prefs.get(`${kind}/${channel}`) ?? false })),
+    ),
+    timezone: state.notify.timezone,
+    sendHour: state.notify.sendHour,
+    showPlaces: state.notify.showPlaces,
+    emailMasked: mask(state.notify.email),
+    emailVerified: !!state.notify.email,
+    pendingEmailMasked: mask(state.notify.pendingEmail),
+    pushSubscriptionCount: state.notify.endpoints.length,
+  });
   const snapInfo = (snap: Snap) => ({
     id: snap.id,
     reason: snap.reason,
@@ -547,6 +578,68 @@ export function fakeBackend(
             state.itineraryCalls.push(method);
             const existed = state.itineraries.delete(body.id);
             return send(itineraryPb.DeleteItineraryResponseSchema, { deleted: existed });
+          }
+          case "GetNotificationSettings":
+            state.notify.calls.push(method);
+            return send(notificationPb.GetNotificationSettingsResponseSchema, {
+              settings: wireNotify(),
+              emailAvailable: state.notify.emailAvailable,
+              pushAvailable: state.notify.pushAvailable,
+              vapidPublicKey: state.notify.pushAvailable ? "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U" : "",
+            });
+          case "UpdateNotificationSettings": {
+            const body = read(notificationPb.UpdateNotificationSettingsRequestSchema) as notificationPb.UpdateNotificationSettingsRequest;
+            state.notify.calls.push(method);
+            for (const p of body.preferences) {
+              if (p.enabled && p.channel === "email" && !state.notify.email) return route.fulfill(failure("failed_precondition", "verify an email address first", 400));
+              state.notify.prefs.set(`${p.kind}/${p.channel}`, p.enabled);
+            }
+            state.notify.timezone = body.timezone;
+            state.notify.sendHour = body.sendHour;
+            state.notify.showPlaces = body.showPlaces;
+            state.notify.updates.push({ timezone: body.timezone, sendHour: body.sendHour, showPlaces: body.showPlaces, on: [...state.notify.prefs].filter(([, v]) => v).map(([k]) => k).sort() });
+            return send(notificationPb.UpdateNotificationSettingsResponseSchema, { settings: wireNotify() });
+          }
+          case "RequestEmailVerification": {
+            const body = read(notificationPb.RequestEmailVerificationRequestSchema) as notificationPb.RequestEmailVerificationRequest;
+            state.notify.calls.push(method);
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email)) return route.fulfill(failure("invalid_argument", "enter a valid email address", 400));
+            state.notify.pendingEmail = body.email.toLowerCase();
+            return send(notificationPb.RequestEmailVerificationResponseSchema, { pendingEmailMasked: mask(state.notify.pendingEmail), expiresAt: ts() });
+          }
+          case "ConfirmEmail": {
+            const body = read(notificationPb.ConfirmEmailRequestSchema) as notificationPb.ConfirmEmailRequest;
+            state.notify.calls.push(method);
+            if (!state.notify.pendingEmail) return route.fulfill(failure("failed_precondition", "the code expired or was used up", 400));
+            if (body.code !== state.notify.code) return route.fulfill(failure("invalid_argument", "the code is not correct", 400));
+            state.notify.email = state.notify.pendingEmail;
+            state.notify.pendingEmail = "";
+            return send(notificationPb.ConfirmEmailResponseSchema, { settings: wireNotify() });
+          }
+          case "RemoveEmail":
+            state.notify.calls.push(method);
+            state.notify.email = "";
+            state.notify.pendingEmail = "";
+            for (const kind of ["memory", "annual_report"]) state.notify.prefs.set(`${kind}/email`, false);
+            return send(notificationPb.RemoveEmailResponseSchema, { settings: wireNotify() });
+          case "RegisterPushSubscription": {
+            const body = read(notificationPb.RegisterPushSubscriptionRequestSchema) as notificationPb.RegisterPushSubscriptionRequest;
+            state.notify.calls.push(method);
+            if (!state.notify.endpoints.includes(body.endpoint)) state.notify.endpoints.push(body.endpoint);
+            return send(notificationPb.RegisterPushSubscriptionResponseSchema, { pushSubscriptionCount: state.notify.endpoints.length });
+          }
+          case "RemovePushSubscription": {
+            const body = read(notificationPb.RemovePushSubscriptionRequestSchema) as notificationPb.RemovePushSubscriptionRequest;
+            state.notify.calls.push(method);
+            state.notify.endpoints = state.notify.endpoints.filter((e) => e !== body.endpoint);
+            return send(notificationPb.RemovePushSubscriptionResponseSchema, { pushSubscriptionCount: state.notify.endpoints.length });
+          }
+          case "SendTestNotification": {
+            const body = read(notificationPb.SendTestNotificationRequestSchema) as notificationPb.SendTestNotificationRequest;
+            state.notify.calls.push(method);
+            if (state.notify.failTest) return route.fulfill(failure("unavailable", "could not send the test email", 503));
+            state.notify.tests.push(body.channel);
+            return send(notificationPb.SendTestNotificationResponseSchema, { delivered: 1 });
           }
           case "GetReport": {
             const body = read(reportPb.GetReportRequestSchema) as reportPb.GetReportRequest;

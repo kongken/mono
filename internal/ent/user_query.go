@@ -18,8 +18,12 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/friendship"
 	"go.orx.me/apps/trip-map/internal/ent/itinerary"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
+	"go.orx.me/apps/trip-map/internal/ent/notificationdelivery"
+	"go.orx.me/apps/trip-map/internal/ent/notificationprofile"
+	"go.orx.me/apps/trip-map/internal/ent/notificationsetting"
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
+	"go.orx.me/apps/trip-map/internal/ent/pushsubscription"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
@@ -33,25 +37,29 @@ import (
 // UserQuery is the builder for querying User entities.
 type UserQuery struct {
 	config
-	ctx                     *QueryContext
-	order                   []user.OrderOption
-	inters                  []Interceptor
-	predicates              []predicate.User
-	withVisits              *CityVisitQuery
-	withTrips               *TripQuery
-	withProvinceMarks       *ProvinceMarkQuery
-	withMediaObjects        *MediaObjectQuery
-	withSessions            *SessionQuery
-	withFootprintChanges    *FootprintChangeQuery
-	withSyncReceipts        *SyncReceiptQuery
-	withSnapshots           *SnapshotQuery
-	withShare               *ShareQuery
-	withSentFriendships     *FriendshipQuery
-	withReceivedFriendships *FriendshipQuery
-	withOwnedSharedTrips    *SharedTripQuery
-	withTripMemberships     *TripMemberQuery
-	withItineraries         *ItineraryQuery
-	modifiers               []func(*sql.Selector)
+	ctx                        *QueryContext
+	order                      []user.OrderOption
+	inters                     []Interceptor
+	predicates                 []predicate.User
+	withVisits                 *CityVisitQuery
+	withTrips                  *TripQuery
+	withProvinceMarks          *ProvinceMarkQuery
+	withMediaObjects           *MediaObjectQuery
+	withSessions               *SessionQuery
+	withFootprintChanges       *FootprintChangeQuery
+	withSyncReceipts           *SyncReceiptQuery
+	withSnapshots              *SnapshotQuery
+	withShare                  *ShareQuery
+	withSentFriendships        *FriendshipQuery
+	withReceivedFriendships    *FriendshipQuery
+	withOwnedSharedTrips       *SharedTripQuery
+	withTripMemberships        *TripMemberQuery
+	withItineraries            *ItineraryQuery
+	withNotificationProfile    *NotificationProfileQuery
+	withNotificationSettings   *NotificationSettingQuery
+	withPushSubscriptions      *PushSubscriptionQuery
+	withNotificationDeliveries *NotificationDeliveryQuery
+	modifiers                  []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -396,6 +404,94 @@ func (_q *UserQuery) QueryItineraries() *ItineraryQuery {
 	return query
 }
 
+// QueryNotificationProfile chains the current query on the "notification_profile" edge.
+func (_q *UserQuery) QueryNotificationProfile() *NotificationProfileQuery {
+	query := (&NotificationProfileClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(notificationprofile.Table, notificationprofile.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, user.NotificationProfileTable, user.NotificationProfileColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryNotificationSettings chains the current query on the "notification_settings" edge.
+func (_q *UserQuery) QueryNotificationSettings() *NotificationSettingQuery {
+	query := (&NotificationSettingClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(notificationsetting.Table, notificationsetting.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.NotificationSettingsTable, user.NotificationSettingsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryPushSubscriptions chains the current query on the "push_subscriptions" edge.
+func (_q *UserQuery) QueryPushSubscriptions() *PushSubscriptionQuery {
+	query := (&PushSubscriptionClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(pushsubscription.Table, pushsubscription.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.PushSubscriptionsTable, user.PushSubscriptionsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryNotificationDeliveries chains the current query on the "notification_deliveries" edge.
+func (_q *UserQuery) QueryNotificationDeliveries() *NotificationDeliveryQuery {
+	query := (&NotificationDeliveryClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(notificationdelivery.Table, notificationdelivery.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.NotificationDeliveriesTable, user.NotificationDeliveriesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first User entity from the query.
 // Returns a *NotFoundError when no User was found.
 func (_q *UserQuery) First(ctx context.Context) (*User, error) {
@@ -583,25 +679,29 @@ func (_q *UserQuery) Clone() *UserQuery {
 		return nil
 	}
 	return &UserQuery{
-		config:                  _q.config,
-		ctx:                     _q.ctx.Clone(),
-		order:                   append([]user.OrderOption{}, _q.order...),
-		inters:                  append([]Interceptor{}, _q.inters...),
-		predicates:              append([]predicate.User{}, _q.predicates...),
-		withVisits:              _q.withVisits.Clone(),
-		withTrips:               _q.withTrips.Clone(),
-		withProvinceMarks:       _q.withProvinceMarks.Clone(),
-		withMediaObjects:        _q.withMediaObjects.Clone(),
-		withSessions:            _q.withSessions.Clone(),
-		withFootprintChanges:    _q.withFootprintChanges.Clone(),
-		withSyncReceipts:        _q.withSyncReceipts.Clone(),
-		withSnapshots:           _q.withSnapshots.Clone(),
-		withShare:               _q.withShare.Clone(),
-		withSentFriendships:     _q.withSentFriendships.Clone(),
-		withReceivedFriendships: _q.withReceivedFriendships.Clone(),
-		withOwnedSharedTrips:    _q.withOwnedSharedTrips.Clone(),
-		withTripMemberships:     _q.withTripMemberships.Clone(),
-		withItineraries:         _q.withItineraries.Clone(),
+		config:                     _q.config,
+		ctx:                        _q.ctx.Clone(),
+		order:                      append([]user.OrderOption{}, _q.order...),
+		inters:                     append([]Interceptor{}, _q.inters...),
+		predicates:                 append([]predicate.User{}, _q.predicates...),
+		withVisits:                 _q.withVisits.Clone(),
+		withTrips:                  _q.withTrips.Clone(),
+		withProvinceMarks:          _q.withProvinceMarks.Clone(),
+		withMediaObjects:           _q.withMediaObjects.Clone(),
+		withSessions:               _q.withSessions.Clone(),
+		withFootprintChanges:       _q.withFootprintChanges.Clone(),
+		withSyncReceipts:           _q.withSyncReceipts.Clone(),
+		withSnapshots:              _q.withSnapshots.Clone(),
+		withShare:                  _q.withShare.Clone(),
+		withSentFriendships:        _q.withSentFriendships.Clone(),
+		withReceivedFriendships:    _q.withReceivedFriendships.Clone(),
+		withOwnedSharedTrips:       _q.withOwnedSharedTrips.Clone(),
+		withTripMemberships:        _q.withTripMemberships.Clone(),
+		withItineraries:            _q.withItineraries.Clone(),
+		withNotificationProfile:    _q.withNotificationProfile.Clone(),
+		withNotificationSettings:   _q.withNotificationSettings.Clone(),
+		withPushSubscriptions:      _q.withPushSubscriptions.Clone(),
+		withNotificationDeliveries: _q.withNotificationDeliveries.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -762,6 +862,50 @@ func (_q *UserQuery) WithItineraries(opts ...func(*ItineraryQuery)) *UserQuery {
 	return _q
 }
 
+// WithNotificationProfile tells the query-builder to eager-load the nodes that are connected to
+// the "notification_profile" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithNotificationProfile(opts ...func(*NotificationProfileQuery)) *UserQuery {
+	query := (&NotificationProfileClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withNotificationProfile = query
+	return _q
+}
+
+// WithNotificationSettings tells the query-builder to eager-load the nodes that are connected to
+// the "notification_settings" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithNotificationSettings(opts ...func(*NotificationSettingQuery)) *UserQuery {
+	query := (&NotificationSettingClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withNotificationSettings = query
+	return _q
+}
+
+// WithPushSubscriptions tells the query-builder to eager-load the nodes that are connected to
+// the "push_subscriptions" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithPushSubscriptions(opts ...func(*PushSubscriptionQuery)) *UserQuery {
+	query := (&PushSubscriptionClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withPushSubscriptions = query
+	return _q
+}
+
+// WithNotificationDeliveries tells the query-builder to eager-load the nodes that are connected to
+// the "notification_deliveries" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithNotificationDeliveries(opts ...func(*NotificationDeliveryQuery)) *UserQuery {
+	query := (&NotificationDeliveryClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withNotificationDeliveries = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -840,7 +984,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [14]bool{
+		loadedTypes = [18]bool{
 			_q.withVisits != nil,
 			_q.withTrips != nil,
 			_q.withProvinceMarks != nil,
@@ -855,6 +999,10 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			_q.withOwnedSharedTrips != nil,
 			_q.withTripMemberships != nil,
 			_q.withItineraries != nil,
+			_q.withNotificationProfile != nil,
+			_q.withNotificationSettings != nil,
+			_q.withPushSubscriptions != nil,
+			_q.withNotificationDeliveries != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -972,6 +1120,37 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadItineraries(ctx, query, nodes,
 			func(n *User) { n.Edges.Itineraries = []*Itinerary{} },
 			func(n *User, e *Itinerary) { n.Edges.Itineraries = append(n.Edges.Itineraries, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withNotificationProfile; query != nil {
+		if err := _q.loadNotificationProfile(ctx, query, nodes, nil,
+			func(n *User, e *NotificationProfile) { n.Edges.NotificationProfile = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withNotificationSettings; query != nil {
+		if err := _q.loadNotificationSettings(ctx, query, nodes,
+			func(n *User) { n.Edges.NotificationSettings = []*NotificationSetting{} },
+			func(n *User, e *NotificationSetting) {
+				n.Edges.NotificationSettings = append(n.Edges.NotificationSettings, e)
+			}); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withPushSubscriptions; query != nil {
+		if err := _q.loadPushSubscriptions(ctx, query, nodes,
+			func(n *User) { n.Edges.PushSubscriptions = []*PushSubscription{} },
+			func(n *User, e *PushSubscription) { n.Edges.PushSubscriptions = append(n.Edges.PushSubscriptions, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withNotificationDeliveries; query != nil {
+		if err := _q.loadNotificationDeliveries(ctx, query, nodes,
+			func(n *User) { n.Edges.NotificationDeliveries = []*NotificationDelivery{} },
+			func(n *User, e *NotificationDelivery) {
+				n.Edges.NotificationDeliveries = append(n.Edges.NotificationDeliveries, e)
+			}); err != nil {
 			return nil, err
 		}
 	}
@@ -1380,6 +1559,123 @@ func (_q *UserQuery) loadItineraries(ctx context.Context, query *ItineraryQuery,
 	}
 	query.Where(predicate.Itinerary(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(user.ItinerariesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadNotificationProfile(ctx context.Context, query *NotificationProfileQuery, nodes []*User, init func(*User), assign func(*User, *NotificationProfile)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(notificationprofile.FieldUserID)
+	}
+	query.Where(predicate.NotificationProfile(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.NotificationProfileColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadNotificationSettings(ctx context.Context, query *NotificationSettingQuery, nodes []*User, init func(*User), assign func(*User, *NotificationSetting)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(notificationsetting.FieldUserID)
+	}
+	query.Where(predicate.NotificationSetting(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.NotificationSettingsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadPushSubscriptions(ctx context.Context, query *PushSubscriptionQuery, nodes []*User, init func(*User), assign func(*User, *PushSubscription)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(pushsubscription.FieldUserID)
+	}
+	query.Where(predicate.PushSubscription(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.PushSubscriptionsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadNotificationDeliveries(ctx context.Context, query *NotificationDeliveryQuery, nodes []*User, init func(*User), assign func(*User, *NotificationDelivery)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(notificationdelivery.FieldUserID)
+	}
+	query.Where(predicate.NotificationDelivery(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.NotificationDeliveriesColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

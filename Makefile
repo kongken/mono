@@ -1,4 +1,4 @@
-.PHONY: build test ent buf dev deps-up deps-down storage-init migration
+.PHONY: build test ent buf dev deps-up deps-down storage-init migration vapid-keys
 
 build:
 	go build -o bin/tripmap ./cmd/tripmap
@@ -28,6 +28,10 @@ deps-up:
 # Named volumes remain intact.
 deps-down:
 	docker compose down
+
+# Prints a VAPID key pair for notification.web_push in config.yaml.
+vapid-keys:
+	go run ./cmd/vapid-keygen
 
 storage-init:
 	go run ./cmd/storage-init
