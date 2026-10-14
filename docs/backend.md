@@ -243,17 +243,39 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 **生成。** 修改 `proto/` 后 `make buf`，修改 `internal/ent/schema/` 后 `make ent`，迁移文件用 `make migration NAME=… DEV_DSN=…` 生成；生成文件不手改。
 
+## F7 共同旅行与好友（`tripmap.v1.CollaborationService`）
+
+所有方法均要求登录，用户身份取自会话。用户可见规则与验收场景见 [功能描述](features.md#共同旅行与好友f7)。
+
+| 方法 | 行为 |
+| --- | --- |
+| `GetCollaborationOverview` | 返回当前用户的唯一好友邀请码（`fc_` 前缀，首次调用自动生成并持久化）、好友可见范围设置、全部好友关系（`accepted` 与 `pending`，带 `incoming`/`outgoing` 方向）以及相关的共同旅行列表 |
+| `UpdateFriendSettings` | 更新对已确认好友公开的范围（`show_cities`、`show_dates`、`show_notes`；当 `show_cities=false` 时服务端强制将 `show_dates` 和 `show_notes` 置为 `false`） |
+| `SendFriendRequest` / `RespondFriendRequest` / `RemoveFriend` | 通过对方用户名或 `fc_` 邀请码发起好友申请；接受或拒绝/撤回申请；解除好友关系（同一事务内清理双方未接受的共同旅行邀请，并将双方在同一共同旅行中的成员关联解绑，各自已有旅行记录保留为独立个人足迹） |
+| `GetFriendFootprints` | 仅限双方处于 `accepted` 好友状态时调用。按好友的 `friend_show_*` 设置过滤并返回好友公开的省份、统计与可选城市/日期/备注，同时计算双方省份对比（`common_provinces`、`only_me_provinces`、`only_friend_provinces`）；仅当双方均开启 `friend_show_cities` 时返回 `common_cities` 与各自独占城市数 |
+| `InviteToSharedTrip` / `RespondSharedTripInvite` | 创建者选择自己已存在的 `(region_code, trip_id)` 邀请已确认好友加入（角色 `editor` 或 `viewer`）。受邀者接受时，在按用户 ID 升序加行锁的单个事务内：若受邀者尚在 `schema_version=1` 则先原位升级到 `2`，若未打卡该城市则自动创建 `city_visits` 行，写入相同 `trip_id` 的 `city_trips` 行与 `footprint_changes` 变更日志并递增 `revision` |
+| `UpdateSharedTrip` | `owner` 或 `active` 的 `editor` 修改共同旅行的日期或备注，在多用户行锁事务内同步更新所有 `active` 成员的 `city_trips`、变更日志与 `revision`；通过 `FootprintService.SyncChanges` 提交 `upsert_trip` 时同样自动触发跨成员同步，而 `viewer` 的修改或删除被拒绝（`permission_denied`） |
+| `SetSharedTripMemberRole` / `RemoveSharedTripMember` / `LeaveSharedTrip` / `DeleteSharedTrip` | 创建者切换成员角色（`editor` / `viewer`）、移除成员、成员主动退出或创建者解散共同旅行。成员退出或被移除时，仅删除该成员在该城市的这一次 `city_trips` 子记录（写入 `delete_trip` 变更日志并推进 `revision`），保留该成员的 `city_visits` 打卡状态、其他旅行及个人媒体，不影响创建者或其他成员；创建者解散共同旅行时删除 `shared_trips` 与 `trip_members` 协作关系，所有已加入成员的 `city_trips` 保留为各自独立个人记录 |
+| `ListSharedTripMedia` / `ReadSharedTripMedia` | 仅限该次共同旅行的 `active` 成员调用，列出或读取所有成员关联到该 `(region_code, trip_id)` 且状态为 `ready` 的照片与缩略图（标注上传者）；`MediaService.PrepareUpload` 同样允许共同旅行的 `owner` 与 `editor` 上传照片并拦截 `viewer`。成员退出、被移除或解除好友后立即失去访问他人上传照片的权限 |
+
+- **并发锁序与隔离：** 涉及多个用户的写操作（接受邀请、共同编辑、移除成员、退出、解除好友）在同一数据库事务内按 `user.ID` 字典序升序执行 `SELECT … FOR UPDATE`（`lockUsers`），避免并发死锁，并与单用户的 `SyncChanges`、快照恢复、账号注销严格串行。
+- **限流：** 协作写操作共用 Redis 固定窗口限流（每用户每分钟 60 次）。
+- **账号注销联动：** `AuthService.DeleteAccount` 第一阶段事务立即删除该用户的全部 `friendships`、`trip_members` 及创建的 `shared_trips`，其他成员各自的 `city_trips` 足迹记录不受影响。
+
 ## 数据库模型
 
 | 表 | 关键字段与约束 |
 | --- | --- |
-| `users` | UUID 字符串 ID、`schema_version`（足迹结构，默认 1，F5 升级后为 2）、可空唯一用户名（密码账号）、`provider` + `external_id`（OAuth 账号，非空时唯一）、bcrypt 密码哈希、显示名、头像、禁用标记、足迹 `revision`、创建/更新时间；`email` 字段保留但目前不写入 |
+| `users` | UUID 字符串 ID、`schema_version`（足迹结构，默认 1，F5 升级后为 2）、可空唯一用户名（密码账号）、可空唯一 `friend_code`（F7 好友邀请码）、`friend_show_cities/dates/notes`（F7 对好友公开范围，默认 `true/false/false`）、`provider` + `external_id`（OAuth 账号，非空时唯一）、bcrypt 密码哈希、显示名、头像、禁用标记、足迹 `revision`、创建/更新时间；`email` 字段保留但目前不写入 |
 | `auth_sessions` | 所属用户、唯一令牌哈希、创建/过期/最近使用时间、撤销标记；用户删除时级联 |
 | `city_visits` | 所属用户、区域 ID/名称、所属省份、颜色、日期字符串、备注；`user_id + region_code` 唯一。F5 起日期与备注列是版本 1 的冻结副本，不再更新 |
 | `city_trips` | F5：所属用户、所属城市行（外键，级联删除）、旅行 ID（`user_id + trip_id` 唯一）、区域 ID、日期字符串、备注、创建/更新时间 |
 | `province_marks` | 所属用户、省份 ID、颜色；`user_id + province_code` 唯一 |
 | `media_objects` | 所属用户、唯一 object key、内容类型、非负字节大小、pending/ready/deleting 状态、区域 ID、可空软引用 `trip_id` 等 F4 字段 |
 | `shares` | F6：所属用户（`user_id` 唯一，级联删除）、可空唯一 `token`（43 位 base64url，明文存储）、`visibility`（private / link / public，默认 private）、`show_cities/dates/notes/photos`、选中照片 ID（JSON）、`version`、`published_revision`、`published_at`、gzip 的发布快照 `payload`（公开内容 + 服务端独有的句柄映射）；撤销后令牌与载荷为空，保留设置草稿 |
+| `friendships` | F7：规范化排序的 `user_low_id` 与 `user_high_id`（外键级联删除，`(user_low_id, user_high_id)` 唯一）、发起方 `requester_id`、`status`（`pending` / `accepted`）、创建/更新时间 |
+| `shared_trips` | F7：创建者 `owner_id`（外键级联删除）、`trip_id`（`(owner_id, trip_id)` 唯一）、`region_code`、创建/更新时间 |
+| `trip_members` | F7：所属共同旅行 `shared_trip_id`（外键级联删除）、成员 `user_id`（外键级联删除，`(shared_trip_id, user_id)` 唯一）、`role`（`owner` / `editor` / `viewer`）、`status`（`invited` / `active`）、加入时间与创建/更新时间 |
 | `snapshots` | 所属用户、`reason`（manual / scheduled / before_migration / before_restore）、快照时的 `revision`、城市、旅行（`trip_count`）与省份标记数量、`schema_version`（旧行为 1）、gzip 压缩的 `SnapshotData` 载荷、创建时间；所有字段不可修改；`user_id + created_at`、`user_id + revision` 索引；用户删除时级联 |
 
 城市足迹与省份独立标记分表。删除城市不影响省份独立标记；用户归属为必填外键，删除用户时数据库级联删除这些元数据。注销服务先清理 S3 实体对象，再级联删除元数据；对象清理失败保留已暂停账号以便重试。
@@ -264,13 +286,14 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 ## 版本化数据库迁移
 
-`migrations/` 保存按时间戳排序的、只增不删的 PostgreSQL SQL 文件和 `atlas.sum` 校验和（Atlas 目录格式）。当前有三个文件：
+`migrations/` 保存按时间戳排序的、只增不删的 PostgreSQL SQL 文件和 `atlas.sum` 校验和（Atlas 目录格式）。当前有四个文件：
 
 | 文件 | 内容 |
 | --- | --- |
 | `20261014011442_baseline.sql` | F5 之前（`main`）的完整结构，用于全新数据库；已有数据库不执行 |
 | `20261014011446_f5_multiple_trips.sql` | F5 的纯新增变更：`media_objects.trip_id`（默认空串）及索引、`snapshots.schema_version`（默认 1）与 `trip_count`（默认 0）、`users.schema_version`（默认 1）、新表 `city_trips`（外键级联、`(user_id, trip_id)` 唯一索引）。不删除、不改写任何已有列或行 |
 | `20261014022913_f6_shares.sql` | F6 的纯新增变更：新表 `shares`（`token` 唯一索引、`user_id` 唯一索引、外键级联删除） |
+| `20261014050044_f7_collaboration.sql` | F7 的纯新增变更：`users` 新增 `friend_code`（唯一索引）与 `friend_show_cities/dates/notes`（带默认值），新增 `friendships`、`shared_trips`、`trip_members` 三张表及唯一索引与外键级联删除 |
 
 **生成。** 修改 `internal/ent/schema/` 并运行 `make ent` 后，用 `make migration NAME=<变更名> DEV_DSN='postgres://…'` 生成下一个文件（`cmd/migrate-gen`）：它在 `DEV_DSN` 指向的服务器上临时创建一个随机命名的空数据库，重放现有 `migrations/` 得到“当前结构”，与 Ent schema 比较后写出差异和新的 `atlas.sum`，然后删除该数据库；因此所用账号需要 `CREATEDB`，不会碰服务器上的其他库。生成器只写新增和修改类语句（不写 `DROP COLUMN` / `DROP INDEX`，也不生成会丢数据的回滚脚本）。迁移文件只通过生成器更新，手改会使 `atlas.sum` 校验失败。
 
@@ -314,7 +337,7 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：行政区划服务等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）与 F5（同城多次旅行）已实现；F6（公开分享页与预览图）已实现；F7–F12 仍待完整实现。
+从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：行政区划服务等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）、F5（同城多次旅行）、F6（公开分享页与预览图）与 F7（共同旅行与好友）已实现；F8–F12 仍待完整实现。
 
 ## F1 新接口与部署
 

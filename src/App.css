@@ -2021,6 +2021,7 @@ button:disabled {
 .trip-card .field-label { margin: 0; }
 .trip-card .field-label > .sr-only { margin: 0; }
 .trip-card-head .delete-button { margin: 0; padding-left: 8px !important; }
+.trip-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .visit-date { flex-wrap: wrap; }
 .trip-badge { white-space: nowrap; font-style: normal; margin-inline-start: 2px; padding: 1px 8px; border-radius: 999px; background: #eef2e8; color: #4f6f55; font-size: 12px; }
 .media-trip { color: #61765a; }

@@ -44,9 +44,18 @@ const KNOWN_MESSAGES: [string, string][] = [
   ["a chosen photo is no longer available", "选中的照片已不可用，请重新选择照片"],
   ["too many share requests", "分享操作太频繁，请稍后再试"],
   ["mutation_id was already used", "这次操作已经提交过，请关闭窗口重新打开后再试"],
+  ["trip not found in this city", "这次旅行还没有同步到云端，请等待同步完成后再邀请好友"],
   ["trip not found", "这次旅行还没有同步到云端，请等待同步完成后再添加附件"],
   ["trip city does not exist", "旅行所属的城市在云端不存在，请先处理同步冲突或刷新"],
   ["trip belongs to another city", "旅行记录与城市不匹配，请刷新后重试"],
+  ["user not found", "未找到该用户，请检查用户名或好友邀请码"],
+  ["cannot add yourself", "不能添加自己为好友"],
+  ["friend request not found", "好友申请不存在或已失效"],
+  ["friendship not found", "好友关系不存在或已解除"],
+  ["friend not found", "未找到该好友"],
+  ["shared trip not found", "共同旅行不存在或已解散"],
+  ["too many collaboration requests", "协作操作太频繁，请稍后再试"],
+  ["trip owner cannot leave", "创建者无法直接退出，请选择解散共同旅行"],
 ];
 
 /** User-facing Chinese text for a failed API call. */

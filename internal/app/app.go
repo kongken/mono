@@ -194,6 +194,8 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	mount(path, handler)
 	path, handler = tripmapv1connect.NewShareServiceHandler(application.NewShareService(h.cfg, h, index), opts)
 	mount(path, handler)
+	path, handler = tripmapv1connect.NewCollaborationServiceHandler(application.NewCollaborationService(h, index), opts)
+	mount(path, handler)
 	mountShare(r, api, application.NewSharePublic(h.cfg, h))
 }
 

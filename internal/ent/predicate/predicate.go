@@ -15,6 +15,9 @@ type CityVisit func(*sql.Selector)
 // FootprintChange is the predicate function for footprintchange builders.
 type FootprintChange func(*sql.Selector)
 
+// Friendship is the predicate function for friendship builders.
+type Friendship func(*sql.Selector)
+
 // MediaCleanup is the predicate function for mediacleanup builders.
 type MediaCleanup func(*sql.Selector)
 
@@ -30,6 +33,9 @@ type Session func(*sql.Selector)
 // Share is the predicate function for share builders.
 type Share func(*sql.Selector)
 
+// SharedTrip is the predicate function for sharedtrip builders.
+type SharedTrip func(*sql.Selector)
+
 // Snapshot is the predicate function for snapshot builders.
 type Snapshot func(*sql.Selector)
 
@@ -38,6 +44,9 @@ type SyncReceipt func(*sql.Selector)
 
 // Trip is the predicate function for trip builders.
 type Trip func(*sql.Selector)
+
+// TripMember is the predicate function for tripmember builders.
+type TripMember func(*sql.Selector)
 
 // User is the predicate function for user builders.
 type User func(*sql.Selector)

@@ -45,6 +45,12 @@ func (User) Fields() []ent.Field {
 		// 1 = date/note live on city_visits (frozen once upgraded); 2 = trips live in
 		// city_trips. Upgraded in place by the first write from a schema 2 client.
 		field.Int("schema_version").Default(1).Min(1),
+		// Invite code for F7 friendships (usable even by OAuth accounts without a username).
+		field.String("friend_code").Optional().Nillable().Unique(),
+		// F7 visibility towards confirmed friends: cities on by default, dates/notes opt-in.
+		field.Bool("friend_show_cities").Default(true),
+		field.Bool("friend_show_dates").Default(false),
+		field.Bool("friend_show_notes").Default(false),
 	}, timestamps()...)
 }
 func (User) Indexes() []ent.Index {
@@ -58,6 +64,10 @@ func (User) Edges() []ent.Edge {
 		edge.To("sync_receipts", SyncReceipt.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("snapshots", Snapshot.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("share", Share.Type).Unique().Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("sent_friendships", Friendship.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("received_friendships", Friendship.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("owned_shared_trips", SharedTrip.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("trip_memberships", TripMember.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }
 
@@ -330,3 +340,107 @@ func (Share) Fields() []ent.Field {
 func (Share) Edges() []ent.Edge {
 	return []ent.Edge{edge.From("user", User.Type).Ref("share").Field("user_id").Unique().Required().Immutable()}
 }
+
+// Friendship is a mutual friend link between two users (F7). user_low_id and
+// user_high_id store the ordered pair (min, max) so at most one row can exist
+// between any two accounts regardless of who invited whom.
+type Friendship struct{ ent.Schema }
+
+func (Friendship) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "friendships"}}
+}
+func (Friendship) Fields() []ent.Field {
+	return append([]ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(),
+		field.String("requester_id").Immutable(),
+		field.String("addressee_id").Immutable(),
+		field.String("user_low_id").NotEmpty().Immutable(),
+		field.String("user_high_id").NotEmpty().Immutable(),
+		field.Enum("status").Values("pending", "accepted").Default("pending"),
+		field.Time("accepted_at").Optional().Nillable(),
+	}, timestamps()...)
+}
+func (Friendship) Edges() []ent.Edge {
+	return []ent.Edge{
+		edge.From("requester", User.Type).Ref("sent_friendships").Field("requester_id").Unique().Required().Immutable(),
+		edge.From("addressee", User.Type).Ref("received_friendships").Field("addressee_id").Unique().Required().Immutable(),
+	}
+}
+func (Friendship) Indexes() []ent.Index {
+	return []ent.Index{
+		index.Fields("user_low_id", "user_high_id").Unique(),
+		index.Fields("requester_id", "status"),
+		index.Fields("addressee_id", "status"),
+	}
+}
+
+// SharedTrip is a collaborative trip created by owner_id around one city trip (F7).
+// Active members each hold a synchronized trip row in their own city_trips table
+// so their personal map, statistics, exports and offline cache work naturally,
+// while leaving or dissolving a shared trip never deletes another user's records.
+type SharedTrip struct{ ent.Schema }
+
+func (SharedTrip) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "shared_trips"}}
+}
+func (SharedTrip) Fields() []ent.Field {
+	return append([]ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(),
+		field.String("owner_id").Immutable(),
+		field.String("region_code").NotEmpty().Immutable(),
+		field.String("trip_id").NotEmpty().Immutable().Validate(validTripID),
+		field.String("travel_date").Default("").Validate(validDate),
+		field.String("note").Default("").Validate(func(v string) error {
+			if len(utf16.Encode([]rune(v))) > 1000 {
+				return fmt.Errorf("note exceeds 1000 characters")
+			}
+			return nil
+		}),
+	}, timestamps()...)
+}
+func (SharedTrip) Edges() []ent.Edge {
+	return []ent.Edge{
+		edge.From("owner", User.Type).Ref("owned_shared_trips").Field("owner_id").Unique().Required().Immutable(),
+		edge.To("members", TripMember.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+	}
+}
+func (SharedTrip) Indexes() []ent.Index {
+	return []ent.Index{
+		index.Fields("owner_id", "trip_id").Unique(),
+		index.Fields("owner_id", "region_code"),
+	}
+}
+
+// TripMember links a user to a SharedTrip with an explicit role and invitation state (F7).
+type TripMember struct{ ent.Schema }
+
+func (TripMember) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "trip_members"}}
+}
+func (TripMember) Fields() []ent.Field {
+	return append([]ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(),
+		field.String("shared_trip_id").Immutable(),
+		field.String("user_id").Immutable(),
+		// The trip_id inside user_id's city_trips table once status is active.
+		field.String("member_trip_id").Default(""),
+		field.Enum("role").Values("owner", "editor", "viewer").Default("editor"),
+		field.Enum("status").Values("invited", "active").Default("invited"),
+		field.String("invited_by").Default("").Immutable(),
+		field.Time("joined_at").Optional().Nillable(),
+	}, timestamps()...)
+}
+func (TripMember) Edges() []ent.Edge {
+	return []ent.Edge{
+		edge.From("shared_trip", SharedTrip.Type).Ref("members").Field("shared_trip_id").Unique().Required().Immutable(),
+		edge.From("user", User.Type).Ref("trip_memberships").Field("user_id").Unique().Required().Immutable(),
+	}
+}
+func (TripMember) Indexes() []ent.Index {
+	return []ent.Index{
+		index.Fields("shared_trip_id", "user_id").Unique(),
+		index.Fields("user_id", "status"),
+		index.Fields("user_id", "member_trip_id"),
+	}
+}
+

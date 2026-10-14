@@ -8,15 +8,18 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
+	"go.orx.me/apps/trip-map/internal/ent/friendship"
 	"go.orx.me/apps/trip-map/internal/ent/mediacleanup"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/schema"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/share"
+	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
+	"go.orx.me/apps/trip-map/internal/ent/tripmember"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -92,6 +95,30 @@ func init() {
 	footprintchangeDescID := footprintchangeFields[0].Descriptor()
 	// footprintchange.DefaultID holds the default value on creation for the id field.
 	footprintchange.DefaultID = footprintchangeDescID.Default.(func() string)
+	friendshipFields := schema.Friendship{}.Fields()
+	_ = friendshipFields
+	// friendshipDescUserLowID is the schema descriptor for user_low_id field.
+	friendshipDescUserLowID := friendshipFields[3].Descriptor()
+	// friendship.UserLowIDValidator is a validator for the "user_low_id" field. It is called by the builders before save.
+	friendship.UserLowIDValidator = friendshipDescUserLowID.Validators[0].(func(string) error)
+	// friendshipDescUserHighID is the schema descriptor for user_high_id field.
+	friendshipDescUserHighID := friendshipFields[4].Descriptor()
+	// friendship.UserHighIDValidator is a validator for the "user_high_id" field. It is called by the builders before save.
+	friendship.UserHighIDValidator = friendshipDescUserHighID.Validators[0].(func(string) error)
+	// friendshipDescCreatedAt is the schema descriptor for created_at field.
+	friendshipDescCreatedAt := friendshipFields[7].Descriptor()
+	// friendship.DefaultCreatedAt holds the default value on creation for the created_at field.
+	friendship.DefaultCreatedAt = friendshipDescCreatedAt.Default.(func() time.Time)
+	// friendshipDescUpdatedAt is the schema descriptor for updated_at field.
+	friendshipDescUpdatedAt := friendshipFields[8].Descriptor()
+	// friendship.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	friendship.DefaultUpdatedAt = friendshipDescUpdatedAt.Default.(func() time.Time)
+	// friendship.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	friendship.UpdateDefaultUpdatedAt = friendshipDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// friendshipDescID is the schema descriptor for id field.
+	friendshipDescID := friendshipFields[0].Descriptor()
+	// friendship.DefaultID holds the default value on creation for the id field.
+	friendship.DefaultID = friendshipDescID.Default.(func() string)
 	mediacleanupFields := schema.MediaCleanup{}.Fields()
 	_ = mediacleanupFields
 	// mediacleanupDescID is the schema descriptor for id field.
@@ -252,6 +279,56 @@ func init() {
 	shareDescID := shareFields[0].Descriptor()
 	// share.DefaultID holds the default value on creation for the id field.
 	share.DefaultID = shareDescID.Default.(func() string)
+	sharedtripFields := schema.SharedTrip{}.Fields()
+	_ = sharedtripFields
+	// sharedtripDescRegionCode is the schema descriptor for region_code field.
+	sharedtripDescRegionCode := sharedtripFields[2].Descriptor()
+	// sharedtrip.RegionCodeValidator is a validator for the "region_code" field. It is called by the builders before save.
+	sharedtrip.RegionCodeValidator = sharedtripDescRegionCode.Validators[0].(func(string) error)
+	// sharedtripDescTripID is the schema descriptor for trip_id field.
+	sharedtripDescTripID := sharedtripFields[3].Descriptor()
+	// sharedtrip.TripIDValidator is a validator for the "trip_id" field. It is called by the builders before save.
+	sharedtrip.TripIDValidator = func() func(string) error {
+		validators := sharedtripDescTripID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(trip_id string) error {
+			for _, fn := range fns {
+				if err := fn(trip_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// sharedtripDescTravelDate is the schema descriptor for travel_date field.
+	sharedtripDescTravelDate := sharedtripFields[4].Descriptor()
+	// sharedtrip.DefaultTravelDate holds the default value on creation for the travel_date field.
+	sharedtrip.DefaultTravelDate = sharedtripDescTravelDate.Default.(string)
+	// sharedtrip.TravelDateValidator is a validator for the "travel_date" field. It is called by the builders before save.
+	sharedtrip.TravelDateValidator = sharedtripDescTravelDate.Validators[0].(func(string) error)
+	// sharedtripDescNote is the schema descriptor for note field.
+	sharedtripDescNote := sharedtripFields[5].Descriptor()
+	// sharedtrip.DefaultNote holds the default value on creation for the note field.
+	sharedtrip.DefaultNote = sharedtripDescNote.Default.(string)
+	// sharedtrip.NoteValidator is a validator for the "note" field. It is called by the builders before save.
+	sharedtrip.NoteValidator = sharedtripDescNote.Validators[0].(func(string) error)
+	// sharedtripDescCreatedAt is the schema descriptor for created_at field.
+	sharedtripDescCreatedAt := sharedtripFields[6].Descriptor()
+	// sharedtrip.DefaultCreatedAt holds the default value on creation for the created_at field.
+	sharedtrip.DefaultCreatedAt = sharedtripDescCreatedAt.Default.(func() time.Time)
+	// sharedtripDescUpdatedAt is the schema descriptor for updated_at field.
+	sharedtripDescUpdatedAt := sharedtripFields[7].Descriptor()
+	// sharedtrip.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	sharedtrip.DefaultUpdatedAt = sharedtripDescUpdatedAt.Default.(func() time.Time)
+	// sharedtrip.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	sharedtrip.UpdateDefaultUpdatedAt = sharedtripDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// sharedtripDescID is the schema descriptor for id field.
+	sharedtripDescID := sharedtripFields[0].Descriptor()
+	// sharedtrip.DefaultID holds the default value on creation for the id field.
+	sharedtrip.DefaultID = sharedtripDescID.Default.(func() string)
 	snapshotFields := schema.Snapshot{}.Fields()
 	_ = snapshotFields
 	// snapshotDescRevision is the schema descriptor for revision field.
@@ -342,6 +419,30 @@ func init() {
 	tripDescID := tripFields[0].Descriptor()
 	// trip.DefaultID holds the default value on creation for the id field.
 	trip.DefaultID = tripDescID.Default.(func() string)
+	tripmemberFields := schema.TripMember{}.Fields()
+	_ = tripmemberFields
+	// tripmemberDescMemberTripID is the schema descriptor for member_trip_id field.
+	tripmemberDescMemberTripID := tripmemberFields[3].Descriptor()
+	// tripmember.DefaultMemberTripID holds the default value on creation for the member_trip_id field.
+	tripmember.DefaultMemberTripID = tripmemberDescMemberTripID.Default.(string)
+	// tripmemberDescInvitedBy is the schema descriptor for invited_by field.
+	tripmemberDescInvitedBy := tripmemberFields[6].Descriptor()
+	// tripmember.DefaultInvitedBy holds the default value on creation for the invited_by field.
+	tripmember.DefaultInvitedBy = tripmemberDescInvitedBy.Default.(string)
+	// tripmemberDescCreatedAt is the schema descriptor for created_at field.
+	tripmemberDescCreatedAt := tripmemberFields[8].Descriptor()
+	// tripmember.DefaultCreatedAt holds the default value on creation for the created_at field.
+	tripmember.DefaultCreatedAt = tripmemberDescCreatedAt.Default.(func() time.Time)
+	// tripmemberDescUpdatedAt is the schema descriptor for updated_at field.
+	tripmemberDescUpdatedAt := tripmemberFields[9].Descriptor()
+	// tripmember.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	tripmember.DefaultUpdatedAt = tripmemberDescUpdatedAt.Default.(func() time.Time)
+	// tripmember.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	tripmember.UpdateDefaultUpdatedAt = tripmemberDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// tripmemberDescID is the schema descriptor for id field.
+	tripmemberDescID := tripmemberFields[0].Descriptor()
+	// tripmember.DefaultID holds the default value on creation for the id field.
+	tripmember.DefaultID = tripmemberDescID.Default.(func() string)
 	userFields := schema.User{}.Fields()
 	_ = userFields
 	// userDescDisplayName is the schema descriptor for display_name field.
@@ -380,12 +481,24 @@ func init() {
 	user.DefaultSchemaVersion = userDescSchemaVersion.Default.(int)
 	// user.SchemaVersionValidator is a validator for the "schema_version" field. It is called by the builders before save.
 	user.SchemaVersionValidator = userDescSchemaVersion.Validators[0].(func(int) error)
+	// userDescFriendShowCities is the schema descriptor for friend_show_cities field.
+	userDescFriendShowCities := userFields[13].Descriptor()
+	// user.DefaultFriendShowCities holds the default value on creation for the friend_show_cities field.
+	user.DefaultFriendShowCities = userDescFriendShowCities.Default.(bool)
+	// userDescFriendShowDates is the schema descriptor for friend_show_dates field.
+	userDescFriendShowDates := userFields[14].Descriptor()
+	// user.DefaultFriendShowDates holds the default value on creation for the friend_show_dates field.
+	user.DefaultFriendShowDates = userDescFriendShowDates.Default.(bool)
+	// userDescFriendShowNotes is the schema descriptor for friend_show_notes field.
+	userDescFriendShowNotes := userFields[15].Descriptor()
+	// user.DefaultFriendShowNotes holds the default value on creation for the friend_show_notes field.
+	user.DefaultFriendShowNotes = userDescFriendShowNotes.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[12].Descriptor()
+	userDescCreatedAt := userFields[16].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[13].Descriptor()
+	userDescUpdatedAt := userFields[17].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

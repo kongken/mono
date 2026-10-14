@@ -15,14 +15,17 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
+	"go.orx.me/apps/trip-map/internal/ent/friendship"
 	"go.orx.me/apps/trip-map/internal/ent/mediacleanup"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/share"
+	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
+	"go.orx.me/apps/trip-map/internal/ent/tripmember"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -87,14 +90,17 @@ func checkColumn(t, c string) error {
 			accountdeletionreceipt.Table: accountdeletionreceipt.ValidColumn,
 			cityvisit.Table:              cityvisit.ValidColumn,
 			footprintchange.Table:        footprintchange.ValidColumn,
+			friendship.Table:             friendship.ValidColumn,
 			mediacleanup.Table:           mediacleanup.ValidColumn,
 			mediaobject.Table:            mediaobject.ValidColumn,
 			provincemark.Table:           provincemark.ValidColumn,
 			session.Table:                session.ValidColumn,
 			share.Table:                  share.ValidColumn,
+			sharedtrip.Table:             sharedtrip.ValidColumn,
 			snapshot.Table:               snapshot.ValidColumn,
 			syncreceipt.Table:            syncreceipt.ValidColumn,
 			trip.Table:                   trip.ValidColumn,
+			tripmember.Table:             tripmember.ValidColumn,
 			user.Table:                   user.ValidColumn,
 		})
 	})

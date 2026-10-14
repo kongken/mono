@@ -18,6 +18,8 @@ type Tx struct {
 	CityVisit *CityVisitClient
 	// FootprintChange is the client for interacting with the FootprintChange builders.
 	FootprintChange *FootprintChangeClient
+	// Friendship is the client for interacting with the Friendship builders.
+	Friendship *FriendshipClient
 	// MediaCleanup is the client for interacting with the MediaCleanup builders.
 	MediaCleanup *MediaCleanupClient
 	// MediaObject is the client for interacting with the MediaObject builders.
@@ -28,12 +30,16 @@ type Tx struct {
 	Session *SessionClient
 	// Share is the client for interacting with the Share builders.
 	Share *ShareClient
+	// SharedTrip is the client for interacting with the SharedTrip builders.
+	SharedTrip *SharedTripClient
 	// Snapshot is the client for interacting with the Snapshot builders.
 	Snapshot *SnapshotClient
 	// SyncReceipt is the client for interacting with the SyncReceipt builders.
 	SyncReceipt *SyncReceiptClient
 	// Trip is the client for interacting with the Trip builders.
 	Trip *TripClient
+	// TripMember is the client for interacting with the TripMember builders.
+	TripMember *TripMemberClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 
@@ -170,14 +176,17 @@ func (tx *Tx) init() {
 	tx.AccountDeletionReceipt = NewAccountDeletionReceiptClient(tx.config)
 	tx.CityVisit = NewCityVisitClient(tx.config)
 	tx.FootprintChange = NewFootprintChangeClient(tx.config)
+	tx.Friendship = NewFriendshipClient(tx.config)
 	tx.MediaCleanup = NewMediaCleanupClient(tx.config)
 	tx.MediaObject = NewMediaObjectClient(tx.config)
 	tx.ProvinceMark = NewProvinceMarkClient(tx.config)
 	tx.Session = NewSessionClient(tx.config)
 	tx.Share = NewShareClient(tx.config)
+	tx.SharedTrip = NewSharedTripClient(tx.config)
 	tx.Snapshot = NewSnapshotClient(tx.config)
 	tx.SyncReceipt = NewSyncReceiptClient(tx.config)
 	tx.Trip = NewTripClient(tx.config)
+	tx.TripMember = NewTripMemberClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }
 

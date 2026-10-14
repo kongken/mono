@@ -1,0 +1,284 @@
+.collab-dialog {
+  max-width: 640px;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.collab-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #dfe7e1;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.collab-tabs button {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #4f6359;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.collab-tabs button.nav-active {
+  background: #edf5f0;
+  color: #234737;
+  border-color: #c6dcd0;
+}
+
+.collab-section {
+  background: #f8fbf9;
+  border: 1px solid #e2ece6;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.collab-section h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1f3b2e;
+  margin: 0 0 6px;
+}
+
+.collab-hint {
+  font-size: 0.83rem;
+  color: #586f63;
+  margin: 0 0 8px;
+  line-height: 1.45;
+}
+
+.collab-code-row,
+.collab-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.collab-form-row input,
+.collab-form-row select {
+  flex: 1 1 180px;
+}
+
+.collab-select {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #cfdcd4;
+  background: #fff;
+  font-size: 0.88rem;
+  color: #1f3b2e;
+}
+
+.collab-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.collab-checks label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+  color: #2b473a;
+  cursor: pointer;
+}
+
+.collab-checks label.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.collab-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.collab-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e3ede7;
+}
+
+.collab-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.collab-item-info strong {
+  font-size: 0.9rem;
+  color: #1d352a;
+}
+
+.collab-item-info small {
+  font-size: 0.78rem;
+  color: #62786d;
+}
+
+.collab-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.collab-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  background: #e7f2ec;
+  color: #285943;
+}
+
+.collab-badge.is-viewer {
+  background: #eef2f6;
+  color: #425a70;
+}
+
+.collab-badge.is-pending {
+  background: #fcf4e3;
+  color: #8a6116;
+}
+
+.collab-comparison {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #d5e4dc;
+}
+
+.collab-comparison h4 {
+  margin: 0 0 6px;
+  font-size: 0.92rem;
+  color: #1f3b2e;
+}
+
+.collab-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.collab-stat-box {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f5f9f6;
+  border: 1px solid #e2ece6;
+  font-size: 0.82rem;
+}
+
+.collab-stat-box strong {
+  display: block;
+  font-size: 0.88rem;
+  margin-bottom: 3px;
+  color: #1f3b2e;
+}
+
+.collab-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.collab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: #f1f6f3;
+  color: #254436;
+  border: 1px solid #dce8e1;
+}
+
+.collab-chip i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.collab-trip-card {
+  padding: 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #dce8e1;
+  margin-bottom: 10px;
+}
+
+.collab-trip-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.collab-trip-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.collab-trip-fields textarea {
+  width: 100%;
+  min-height: 64px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #cfdcd4;
+  font-size: 0.88rem;
+  resize: vertical;
+}
+
+.collab-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.collab-media-card {
+  border: 1px solid #e1ebe5;
+  border-radius: 8px;
+  padding: 6px;
+  background: #f9fcfa;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+}
+
+.collab-media-card img {
+  width: 100%;
+  height: 76px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #eef4f0;
+}

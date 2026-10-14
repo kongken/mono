@@ -13,14 +13,17 @@ import (
 	"entgo.io/ent/schema/field"
 	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
+	"go.orx.me/apps/trip-map/internal/ent/friendship"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/share"
+	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
+	"go.orx.me/apps/trip-map/internal/ent/tripmember"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -223,6 +226,68 @@ func (_u *UserUpdate) AddSchemaVersion(v int) *UserUpdate {
 	return _u
 }
 
+// SetFriendCode sets the "friend_code" field.
+func (_u *UserUpdate) SetFriendCode(v string) *UserUpdate {
+	_u.mutation.SetFriendCode(v)
+	return _u
+}
+
+// SetNillableFriendCode sets the "friend_code" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableFriendCode(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetFriendCode(*v)
+	}
+	return _u
+}
+
+// ClearFriendCode clears the value of the "friend_code" field.
+func (_u *UserUpdate) ClearFriendCode() *UserUpdate {
+	_u.mutation.ClearFriendCode()
+	return _u
+}
+
+// SetFriendShowCities sets the "friend_show_cities" field.
+func (_u *UserUpdate) SetFriendShowCities(v bool) *UserUpdate {
+	_u.mutation.SetFriendShowCities(v)
+	return _u
+}
+
+// SetNillableFriendShowCities sets the "friend_show_cities" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableFriendShowCities(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetFriendShowCities(*v)
+	}
+	return _u
+}
+
+// SetFriendShowDates sets the "friend_show_dates" field.
+func (_u *UserUpdate) SetFriendShowDates(v bool) *UserUpdate {
+	_u.mutation.SetFriendShowDates(v)
+	return _u
+}
+
+// SetNillableFriendShowDates sets the "friend_show_dates" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableFriendShowDates(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetFriendShowDates(*v)
+	}
+	return _u
+}
+
+// SetFriendShowNotes sets the "friend_show_notes" field.
+func (_u *UserUpdate) SetFriendShowNotes(v bool) *UserUpdate {
+	_u.mutation.SetFriendShowNotes(v)
+	return _u
+}
+
+// SetNillableFriendShowNotes sets the "friend_show_notes" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableFriendShowNotes(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetFriendShowNotes(*v)
+	}
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *UserUpdate) SetUpdatedAt(v time.Time) *UserUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -366,6 +431,66 @@ func (_u *UserUpdate) SetNillableShareID(id *string) *UserUpdate {
 // SetShare sets the "share" edge to the Share entity.
 func (_u *UserUpdate) SetShare(v *Share) *UserUpdate {
 	return _u.SetShareID(v.ID)
+}
+
+// AddSentFriendshipIDs adds the "sent_friendships" edge to the Friendship entity by IDs.
+func (_u *UserUpdate) AddSentFriendshipIDs(ids ...string) *UserUpdate {
+	_u.mutation.AddSentFriendshipIDs(ids...)
+	return _u
+}
+
+// AddSentFriendships adds the "sent_friendships" edges to the Friendship entity.
+func (_u *UserUpdate) AddSentFriendships(v ...*Friendship) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSentFriendshipIDs(ids...)
+}
+
+// AddReceivedFriendshipIDs adds the "received_friendships" edge to the Friendship entity by IDs.
+func (_u *UserUpdate) AddReceivedFriendshipIDs(ids ...string) *UserUpdate {
+	_u.mutation.AddReceivedFriendshipIDs(ids...)
+	return _u
+}
+
+// AddReceivedFriendships adds the "received_friendships" edges to the Friendship entity.
+func (_u *UserUpdate) AddReceivedFriendships(v ...*Friendship) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddReceivedFriendshipIDs(ids...)
+}
+
+// AddOwnedSharedTripIDs adds the "owned_shared_trips" edge to the SharedTrip entity by IDs.
+func (_u *UserUpdate) AddOwnedSharedTripIDs(ids ...string) *UserUpdate {
+	_u.mutation.AddOwnedSharedTripIDs(ids...)
+	return _u
+}
+
+// AddOwnedSharedTrips adds the "owned_shared_trips" edges to the SharedTrip entity.
+func (_u *UserUpdate) AddOwnedSharedTrips(v ...*SharedTrip) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddOwnedSharedTripIDs(ids...)
+}
+
+// AddTripMembershipIDs adds the "trip_memberships" edge to the TripMember entity by IDs.
+func (_u *UserUpdate) AddTripMembershipIDs(ids ...string) *UserUpdate {
+	_u.mutation.AddTripMembershipIDs(ids...)
+	return _u
+}
+
+// AddTripMemberships adds the "trip_memberships" edges to the TripMember entity.
+func (_u *UserUpdate) AddTripMemberships(v ...*TripMember) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddTripMembershipIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -547,6 +672,90 @@ func (_u *UserUpdate) ClearShare() *UserUpdate {
 	return _u
 }
 
+// ClearSentFriendships clears all "sent_friendships" edges to the Friendship entity.
+func (_u *UserUpdate) ClearSentFriendships() *UserUpdate {
+	_u.mutation.ClearSentFriendships()
+	return _u
+}
+
+// RemoveSentFriendshipIDs removes the "sent_friendships" edge to Friendship entities by IDs.
+func (_u *UserUpdate) RemoveSentFriendshipIDs(ids ...string) *UserUpdate {
+	_u.mutation.RemoveSentFriendshipIDs(ids...)
+	return _u
+}
+
+// RemoveSentFriendships removes "sent_friendships" edges to Friendship entities.
+func (_u *UserUpdate) RemoveSentFriendships(v ...*Friendship) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSentFriendshipIDs(ids...)
+}
+
+// ClearReceivedFriendships clears all "received_friendships" edges to the Friendship entity.
+func (_u *UserUpdate) ClearReceivedFriendships() *UserUpdate {
+	_u.mutation.ClearReceivedFriendships()
+	return _u
+}
+
+// RemoveReceivedFriendshipIDs removes the "received_friendships" edge to Friendship entities by IDs.
+func (_u *UserUpdate) RemoveReceivedFriendshipIDs(ids ...string) *UserUpdate {
+	_u.mutation.RemoveReceivedFriendshipIDs(ids...)
+	return _u
+}
+
+// RemoveReceivedFriendships removes "received_friendships" edges to Friendship entities.
+func (_u *UserUpdate) RemoveReceivedFriendships(v ...*Friendship) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveReceivedFriendshipIDs(ids...)
+}
+
+// ClearOwnedSharedTrips clears all "owned_shared_trips" edges to the SharedTrip entity.
+func (_u *UserUpdate) ClearOwnedSharedTrips() *UserUpdate {
+	_u.mutation.ClearOwnedSharedTrips()
+	return _u
+}
+
+// RemoveOwnedSharedTripIDs removes the "owned_shared_trips" edge to SharedTrip entities by IDs.
+func (_u *UserUpdate) RemoveOwnedSharedTripIDs(ids ...string) *UserUpdate {
+	_u.mutation.RemoveOwnedSharedTripIDs(ids...)
+	return _u
+}
+
+// RemoveOwnedSharedTrips removes "owned_shared_trips" edges to SharedTrip entities.
+func (_u *UserUpdate) RemoveOwnedSharedTrips(v ...*SharedTrip) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveOwnedSharedTripIDs(ids...)
+}
+
+// ClearTripMemberships clears all "trip_memberships" edges to the TripMember entity.
+func (_u *UserUpdate) ClearTripMemberships() *UserUpdate {
+	_u.mutation.ClearTripMemberships()
+	return _u
+}
+
+// RemoveTripMembershipIDs removes the "trip_memberships" edge to TripMember entities by IDs.
+func (_u *UserUpdate) RemoveTripMembershipIDs(ids ...string) *UserUpdate {
+	_u.mutation.RemoveTripMembershipIDs(ids...)
+	return _u
+}
+
+// RemoveTripMemberships removes "trip_memberships" edges to TripMember entities.
+func (_u *UserUpdate) RemoveTripMemberships(v ...*TripMember) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveTripMembershipIDs(ids...)
+}
+
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (_u *UserUpdate) Save(ctx context.Context) (int, error) {
 	_u.defaults()
@@ -657,6 +866,21 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedSchemaVersion(); ok {
 		_spec.AddField(user.FieldSchemaVersion, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.FriendCode(); ok {
+		_spec.SetField(user.FieldFriendCode, field.TypeString, value)
+	}
+	if _u.mutation.FriendCodeCleared() {
+		_spec.ClearField(user.FieldFriendCode, field.TypeString)
+	}
+	if value, ok := _u.mutation.FriendShowCities(); ok {
+		_spec.SetField(user.FieldFriendShowCities, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.FriendShowDates(); ok {
+		_spec.SetField(user.FieldFriendShowDates, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.FriendShowNotes(); ok {
+		_spec.SetField(user.FieldFriendShowNotes, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(user.FieldUpdatedAt, field.TypeTime, value)
@@ -1043,6 +1267,186 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(share.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SentFriendshipsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SentFriendshipsTable,
+			Columns: []string{user.SentFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSentFriendshipsIDs(); len(nodes) > 0 && !_u.mutation.SentFriendshipsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SentFriendshipsTable,
+			Columns: []string{user.SentFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SentFriendshipsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SentFriendshipsTable,
+			Columns: []string{user.SentFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ReceivedFriendshipsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ReceivedFriendshipsTable,
+			Columns: []string{user.ReceivedFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedReceivedFriendshipsIDs(); len(nodes) > 0 && !_u.mutation.ReceivedFriendshipsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ReceivedFriendshipsTable,
+			Columns: []string{user.ReceivedFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ReceivedFriendshipsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ReceivedFriendshipsTable,
+			Columns: []string{user.ReceivedFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.OwnedSharedTripsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedSharedTripsTable,
+			Columns: []string{user.OwnedSharedTripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(sharedtrip.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedOwnedSharedTripsIDs(); len(nodes) > 0 && !_u.mutation.OwnedSharedTripsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedSharedTripsTable,
+			Columns: []string{user.OwnedSharedTripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(sharedtrip.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.OwnedSharedTripsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedSharedTripsTable,
+			Columns: []string{user.OwnedSharedTripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(sharedtrip.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.TripMembershipsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripMembershipsTable,
+			Columns: []string{user.TripMembershipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tripmember.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedTripMembershipsIDs(); len(nodes) > 0 && !_u.mutation.TripMembershipsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripMembershipsTable,
+			Columns: []string{user.TripMembershipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tripmember.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.TripMembershipsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripMembershipsTable,
+			Columns: []string{user.TripMembershipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tripmember.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -1256,6 +1660,68 @@ func (_u *UserUpdateOne) AddSchemaVersion(v int) *UserUpdateOne {
 	return _u
 }
 
+// SetFriendCode sets the "friend_code" field.
+func (_u *UserUpdateOne) SetFriendCode(v string) *UserUpdateOne {
+	_u.mutation.SetFriendCode(v)
+	return _u
+}
+
+// SetNillableFriendCode sets the "friend_code" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableFriendCode(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetFriendCode(*v)
+	}
+	return _u
+}
+
+// ClearFriendCode clears the value of the "friend_code" field.
+func (_u *UserUpdateOne) ClearFriendCode() *UserUpdateOne {
+	_u.mutation.ClearFriendCode()
+	return _u
+}
+
+// SetFriendShowCities sets the "friend_show_cities" field.
+func (_u *UserUpdateOne) SetFriendShowCities(v bool) *UserUpdateOne {
+	_u.mutation.SetFriendShowCities(v)
+	return _u
+}
+
+// SetNillableFriendShowCities sets the "friend_show_cities" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableFriendShowCities(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetFriendShowCities(*v)
+	}
+	return _u
+}
+
+// SetFriendShowDates sets the "friend_show_dates" field.
+func (_u *UserUpdateOne) SetFriendShowDates(v bool) *UserUpdateOne {
+	_u.mutation.SetFriendShowDates(v)
+	return _u
+}
+
+// SetNillableFriendShowDates sets the "friend_show_dates" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableFriendShowDates(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetFriendShowDates(*v)
+	}
+	return _u
+}
+
+// SetFriendShowNotes sets the "friend_show_notes" field.
+func (_u *UserUpdateOne) SetFriendShowNotes(v bool) *UserUpdateOne {
+	_u.mutation.SetFriendShowNotes(v)
+	return _u
+}
+
+// SetNillableFriendShowNotes sets the "friend_show_notes" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableFriendShowNotes(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetFriendShowNotes(*v)
+	}
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *UserUpdateOne) SetUpdatedAt(v time.Time) *UserUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -1399,6 +1865,66 @@ func (_u *UserUpdateOne) SetNillableShareID(id *string) *UserUpdateOne {
 // SetShare sets the "share" edge to the Share entity.
 func (_u *UserUpdateOne) SetShare(v *Share) *UserUpdateOne {
 	return _u.SetShareID(v.ID)
+}
+
+// AddSentFriendshipIDs adds the "sent_friendships" edge to the Friendship entity by IDs.
+func (_u *UserUpdateOne) AddSentFriendshipIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.AddSentFriendshipIDs(ids...)
+	return _u
+}
+
+// AddSentFriendships adds the "sent_friendships" edges to the Friendship entity.
+func (_u *UserUpdateOne) AddSentFriendships(v ...*Friendship) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSentFriendshipIDs(ids...)
+}
+
+// AddReceivedFriendshipIDs adds the "received_friendships" edge to the Friendship entity by IDs.
+func (_u *UserUpdateOne) AddReceivedFriendshipIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.AddReceivedFriendshipIDs(ids...)
+	return _u
+}
+
+// AddReceivedFriendships adds the "received_friendships" edges to the Friendship entity.
+func (_u *UserUpdateOne) AddReceivedFriendships(v ...*Friendship) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddReceivedFriendshipIDs(ids...)
+}
+
+// AddOwnedSharedTripIDs adds the "owned_shared_trips" edge to the SharedTrip entity by IDs.
+func (_u *UserUpdateOne) AddOwnedSharedTripIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.AddOwnedSharedTripIDs(ids...)
+	return _u
+}
+
+// AddOwnedSharedTrips adds the "owned_shared_trips" edges to the SharedTrip entity.
+func (_u *UserUpdateOne) AddOwnedSharedTrips(v ...*SharedTrip) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddOwnedSharedTripIDs(ids...)
+}
+
+// AddTripMembershipIDs adds the "trip_memberships" edge to the TripMember entity by IDs.
+func (_u *UserUpdateOne) AddTripMembershipIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.AddTripMembershipIDs(ids...)
+	return _u
+}
+
+// AddTripMemberships adds the "trip_memberships" edges to the TripMember entity.
+func (_u *UserUpdateOne) AddTripMemberships(v ...*TripMember) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddTripMembershipIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -1580,6 +2106,90 @@ func (_u *UserUpdateOne) ClearShare() *UserUpdateOne {
 	return _u
 }
 
+// ClearSentFriendships clears all "sent_friendships" edges to the Friendship entity.
+func (_u *UserUpdateOne) ClearSentFriendships() *UserUpdateOne {
+	_u.mutation.ClearSentFriendships()
+	return _u
+}
+
+// RemoveSentFriendshipIDs removes the "sent_friendships" edge to Friendship entities by IDs.
+func (_u *UserUpdateOne) RemoveSentFriendshipIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.RemoveSentFriendshipIDs(ids...)
+	return _u
+}
+
+// RemoveSentFriendships removes "sent_friendships" edges to Friendship entities.
+func (_u *UserUpdateOne) RemoveSentFriendships(v ...*Friendship) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSentFriendshipIDs(ids...)
+}
+
+// ClearReceivedFriendships clears all "received_friendships" edges to the Friendship entity.
+func (_u *UserUpdateOne) ClearReceivedFriendships() *UserUpdateOne {
+	_u.mutation.ClearReceivedFriendships()
+	return _u
+}
+
+// RemoveReceivedFriendshipIDs removes the "received_friendships" edge to Friendship entities by IDs.
+func (_u *UserUpdateOne) RemoveReceivedFriendshipIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.RemoveReceivedFriendshipIDs(ids...)
+	return _u
+}
+
+// RemoveReceivedFriendships removes "received_friendships" edges to Friendship entities.
+func (_u *UserUpdateOne) RemoveReceivedFriendships(v ...*Friendship) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveReceivedFriendshipIDs(ids...)
+}
+
+// ClearOwnedSharedTrips clears all "owned_shared_trips" edges to the SharedTrip entity.
+func (_u *UserUpdateOne) ClearOwnedSharedTrips() *UserUpdateOne {
+	_u.mutation.ClearOwnedSharedTrips()
+	return _u
+}
+
+// RemoveOwnedSharedTripIDs removes the "owned_shared_trips" edge to SharedTrip entities by IDs.
+func (_u *UserUpdateOne) RemoveOwnedSharedTripIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.RemoveOwnedSharedTripIDs(ids...)
+	return _u
+}
+
+// RemoveOwnedSharedTrips removes "owned_shared_trips" edges to SharedTrip entities.
+func (_u *UserUpdateOne) RemoveOwnedSharedTrips(v ...*SharedTrip) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveOwnedSharedTripIDs(ids...)
+}
+
+// ClearTripMemberships clears all "trip_memberships" edges to the TripMember entity.
+func (_u *UserUpdateOne) ClearTripMemberships() *UserUpdateOne {
+	_u.mutation.ClearTripMemberships()
+	return _u
+}
+
+// RemoveTripMembershipIDs removes the "trip_memberships" edge to TripMember entities by IDs.
+func (_u *UserUpdateOne) RemoveTripMembershipIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.RemoveTripMembershipIDs(ids...)
+	return _u
+}
+
+// RemoveTripMemberships removes "trip_memberships" edges to TripMember entities.
+func (_u *UserUpdateOne) RemoveTripMemberships(v ...*TripMember) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveTripMembershipIDs(ids...)
+}
+
 // Where appends a list predicates to the UserUpdate builder.
 func (_u *UserUpdateOne) Where(ps ...predicate.User) *UserUpdateOne {
 	_u.mutation.Where(ps...)
@@ -1720,6 +2330,21 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedSchemaVersion(); ok {
 		_spec.AddField(user.FieldSchemaVersion, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.FriendCode(); ok {
+		_spec.SetField(user.FieldFriendCode, field.TypeString, value)
+	}
+	if _u.mutation.FriendCodeCleared() {
+		_spec.ClearField(user.FieldFriendCode, field.TypeString)
+	}
+	if value, ok := _u.mutation.FriendShowCities(); ok {
+		_spec.SetField(user.FieldFriendShowCities, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.FriendShowDates(); ok {
+		_spec.SetField(user.FieldFriendShowDates, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.FriendShowNotes(); ok {
+		_spec.SetField(user.FieldFriendShowNotes, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(user.FieldUpdatedAt, field.TypeTime, value)
@@ -2106,6 +2731,186 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(share.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SentFriendshipsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SentFriendshipsTable,
+			Columns: []string{user.SentFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSentFriendshipsIDs(); len(nodes) > 0 && !_u.mutation.SentFriendshipsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SentFriendshipsTable,
+			Columns: []string{user.SentFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SentFriendshipsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.SentFriendshipsTable,
+			Columns: []string{user.SentFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ReceivedFriendshipsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ReceivedFriendshipsTable,
+			Columns: []string{user.ReceivedFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedReceivedFriendshipsIDs(); len(nodes) > 0 && !_u.mutation.ReceivedFriendshipsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ReceivedFriendshipsTable,
+			Columns: []string{user.ReceivedFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ReceivedFriendshipsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ReceivedFriendshipsTable,
+			Columns: []string{user.ReceivedFriendshipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(friendship.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.OwnedSharedTripsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedSharedTripsTable,
+			Columns: []string{user.OwnedSharedTripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(sharedtrip.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedOwnedSharedTripsIDs(); len(nodes) > 0 && !_u.mutation.OwnedSharedTripsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedSharedTripsTable,
+			Columns: []string{user.OwnedSharedTripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(sharedtrip.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.OwnedSharedTripsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedSharedTripsTable,
+			Columns: []string{user.OwnedSharedTripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(sharedtrip.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.TripMembershipsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripMembershipsTable,
+			Columns: []string{user.TripMembershipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tripmember.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedTripMembershipsIDs(); len(nodes) > 0 && !_u.mutation.TripMembershipsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripMembershipsTable,
+			Columns: []string{user.TripMembershipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tripmember.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.TripMembershipsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripMembershipsTable,
+			Columns: []string{user.TripMembershipsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(tripmember.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

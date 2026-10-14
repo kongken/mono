@@ -96,6 +96,55 @@ var (
 			},
 		},
 	}
+	// FriendshipsColumns holds the columns for the "friendships" table.
+	FriendshipsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "user_low_id", Type: field.TypeString},
+		{Name: "user_high_id", Type: field.TypeString},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending", "accepted"}, Default: "pending"},
+		{Name: "accepted_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "requester_id", Type: field.TypeString},
+		{Name: "addressee_id", Type: field.TypeString},
+	}
+	// FriendshipsTable holds the schema information for the "friendships" table.
+	FriendshipsTable = &schema.Table{
+		Name:       "friendships",
+		Columns:    FriendshipsColumns,
+		PrimaryKey: []*schema.Column{FriendshipsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "friendships_users_sent_friendships",
+				Columns:    []*schema.Column{FriendshipsColumns[7]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "friendships_users_received_friendships",
+				Columns:    []*schema.Column{FriendshipsColumns[8]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "friendship_user_low_id_user_high_id",
+				Unique:  true,
+				Columns: []*schema.Column{FriendshipsColumns[1], FriendshipsColumns[2]},
+			},
+			{
+				Name:    "friendship_requester_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{FriendshipsColumns[7], FriendshipsColumns[3]},
+			},
+			{
+				Name:    "friendship_addressee_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{FriendshipsColumns[8], FriendshipsColumns[3]},
+			},
+		},
+	}
 	// MediaCleanupsColumns holds the columns for the "media_cleanups" table.
 	MediaCleanupsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -268,6 +317,43 @@ var (
 			},
 		},
 	}
+	// SharedTripsColumns holds the columns for the "shared_trips" table.
+	SharedTripsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "region_code", Type: field.TypeString},
+		{Name: "trip_id", Type: field.TypeString},
+		{Name: "travel_date", Type: field.TypeString, Default: ""},
+		{Name: "note", Type: field.TypeString, Default: ""},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "owner_id", Type: field.TypeString},
+	}
+	// SharedTripsTable holds the schema information for the "shared_trips" table.
+	SharedTripsTable = &schema.Table{
+		Name:       "shared_trips",
+		Columns:    SharedTripsColumns,
+		PrimaryKey: []*schema.Column{SharedTripsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "shared_trips_users_owned_shared_trips",
+				Columns:    []*schema.Column{SharedTripsColumns[7]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "sharedtrip_owner_id_trip_id",
+				Unique:  true,
+				Columns: []*schema.Column{SharedTripsColumns[7], SharedTripsColumns[2]},
+			},
+			{
+				Name:    "sharedtrip_owner_id_region_code",
+				Unique:  false,
+				Columns: []*schema.Column{SharedTripsColumns[7], SharedTripsColumns[1]},
+			},
+		},
+	}
 	// SnapshotsColumns holds the columns for the "snapshots" table.
 	SnapshotsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -388,6 +474,56 @@ var (
 			},
 		},
 	}
+	// TripMembersColumns holds the columns for the "trip_members" table.
+	TripMembersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "member_trip_id", Type: field.TypeString, Default: ""},
+		{Name: "role", Type: field.TypeEnum, Enums: []string{"owner", "editor", "viewer"}, Default: "editor"},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"invited", "active"}, Default: "invited"},
+		{Name: "invited_by", Type: field.TypeString, Default: ""},
+		{Name: "joined_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "shared_trip_id", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeString},
+	}
+	// TripMembersTable holds the schema information for the "trip_members" table.
+	TripMembersTable = &schema.Table{
+		Name:       "trip_members",
+		Columns:    TripMembersColumns,
+		PrimaryKey: []*schema.Column{TripMembersColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "trip_members_shared_trips_members",
+				Columns:    []*schema.Column{TripMembersColumns[8]},
+				RefColumns: []*schema.Column{SharedTripsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "trip_members_users_trip_memberships",
+				Columns:    []*schema.Column{TripMembersColumns[9]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "tripmember_shared_trip_id_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{TripMembersColumns[8], TripMembersColumns[9]},
+			},
+			{
+				Name:    "tripmember_user_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{TripMembersColumns[9], TripMembersColumns[3]},
+			},
+			{
+				Name:    "tripmember_user_id_member_trip_id",
+				Unique:  false,
+				Columns: []*schema.Column{TripMembersColumns[9], TripMembersColumns[1]},
+			},
+		},
+	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -402,6 +538,10 @@ var (
 		{Name: "deletion_requested_at", Type: field.TypeTime, Nullable: true},
 		{Name: "revision", Type: field.TypeInt64, Default: 0},
 		{Name: "schema_version", Type: field.TypeInt, Default: 1},
+		{Name: "friend_code", Type: field.TypeString, Unique: true, Nullable: true},
+		{Name: "friend_show_cities", Type: field.TypeBool, Default: true},
+		{Name: "friend_show_dates", Type: field.TypeBool, Default: false},
+		{Name: "friend_show_notes", Type: field.TypeBool, Default: false},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}
@@ -426,14 +566,17 @@ var (
 		AccountDeletionReceiptsTable,
 		CityVisitsTable,
 		FootprintChangesTable,
+		FriendshipsTable,
 		MediaCleanupsTable,
 		MediaObjectsTable,
 		ProvinceMarksTable,
 		AuthSessionsTable,
 		SharesTable,
+		SharedTripsTable,
 		SnapshotsTable,
 		SyncReceiptsTable,
 		CityTripsTable,
+		TripMembersTable,
 		UsersTable,
 	}
 )
@@ -444,6 +587,11 @@ func init() {
 		Table: "city_visits",
 	}
 	FootprintChangesTable.ForeignKeys[0].RefTable = UsersTable
+	FriendshipsTable.ForeignKeys[0].RefTable = UsersTable
+	FriendshipsTable.ForeignKeys[1].RefTable = UsersTable
+	FriendshipsTable.Annotation = &entsql.Annotation{
+		Table: "friendships",
+	}
 	MediaObjectsTable.ForeignKeys[0].RefTable = UsersTable
 	MediaObjectsTable.Annotation = &entsql.Annotation{
 		Table: "media_objects",
@@ -460,12 +608,21 @@ func init() {
 	SharesTable.Annotation = &entsql.Annotation{
 		Table: "shares",
 	}
+	SharedTripsTable.ForeignKeys[0].RefTable = UsersTable
+	SharedTripsTable.Annotation = &entsql.Annotation{
+		Table: "shared_trips",
+	}
 	SnapshotsTable.ForeignKeys[0].RefTable = UsersTable
 	SyncReceiptsTable.ForeignKeys[0].RefTable = UsersTable
 	CityTripsTable.ForeignKeys[0].RefTable = CityVisitsTable
 	CityTripsTable.ForeignKeys[1].RefTable = UsersTable
 	CityTripsTable.Annotation = &entsql.Annotation{
 		Table: "city_trips",
+	}
+	TripMembersTable.ForeignKeys[0].RefTable = SharedTripsTable
+	TripMembersTable.ForeignKeys[1].RefTable = UsersTable
+	TripMembersTable.Annotation = &entsql.Annotation{
+		Table: "trip_members",
 	}
 	UsersTable.Annotation = &entsql.Annotation{
 		Table: "users",

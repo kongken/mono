@@ -120,6 +120,26 @@ func SchemaVersion(v int) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldSchemaVersion, v))
 }
 
+// FriendCode applies equality check predicate on the "friend_code" field. It's identical to FriendCodeEQ.
+func FriendCode(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldFriendCode, v))
+}
+
+// FriendShowCities applies equality check predicate on the "friend_show_cities" field. It's identical to FriendShowCitiesEQ.
+func FriendShowCities(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldFriendShowCities, v))
+}
+
+// FriendShowDates applies equality check predicate on the "friend_show_dates" field. It's identical to FriendShowDatesEQ.
+func FriendShowDates(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldFriendShowDates, v))
+}
+
+// FriendShowNotes applies equality check predicate on the "friend_show_notes" field. It's identical to FriendShowNotesEQ.
+func FriendShowNotes(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldFriendShowNotes, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -745,6 +765,111 @@ func SchemaVersionLTE(v int) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldSchemaVersion, v))
 }
 
+// FriendCodeEQ applies the EQ predicate on the "friend_code" field.
+func FriendCodeEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldFriendCode, v))
+}
+
+// FriendCodeNEQ applies the NEQ predicate on the "friend_code" field.
+func FriendCodeNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldFriendCode, v))
+}
+
+// FriendCodeIn applies the In predicate on the "friend_code" field.
+func FriendCodeIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldFriendCode, vs...))
+}
+
+// FriendCodeNotIn applies the NotIn predicate on the "friend_code" field.
+func FriendCodeNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldFriendCode, vs...))
+}
+
+// FriendCodeGT applies the GT predicate on the "friend_code" field.
+func FriendCodeGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldFriendCode, v))
+}
+
+// FriendCodeGTE applies the GTE predicate on the "friend_code" field.
+func FriendCodeGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldFriendCode, v))
+}
+
+// FriendCodeLT applies the LT predicate on the "friend_code" field.
+func FriendCodeLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldFriendCode, v))
+}
+
+// FriendCodeLTE applies the LTE predicate on the "friend_code" field.
+func FriendCodeLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldFriendCode, v))
+}
+
+// FriendCodeContains applies the Contains predicate on the "friend_code" field.
+func FriendCodeContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldFriendCode, v))
+}
+
+// FriendCodeHasPrefix applies the HasPrefix predicate on the "friend_code" field.
+func FriendCodeHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldFriendCode, v))
+}
+
+// FriendCodeHasSuffix applies the HasSuffix predicate on the "friend_code" field.
+func FriendCodeHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldFriendCode, v))
+}
+
+// FriendCodeIsNil applies the IsNil predicate on the "friend_code" field.
+func FriendCodeIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldFriendCode))
+}
+
+// FriendCodeNotNil applies the NotNil predicate on the "friend_code" field.
+func FriendCodeNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldFriendCode))
+}
+
+// FriendCodeEqualFold applies the EqualFold predicate on the "friend_code" field.
+func FriendCodeEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldFriendCode, v))
+}
+
+// FriendCodeContainsFold applies the ContainsFold predicate on the "friend_code" field.
+func FriendCodeContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldFriendCode, v))
+}
+
+// FriendShowCitiesEQ applies the EQ predicate on the "friend_show_cities" field.
+func FriendShowCitiesEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldFriendShowCities, v))
+}
+
+// FriendShowCitiesNEQ applies the NEQ predicate on the "friend_show_cities" field.
+func FriendShowCitiesNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldFriendShowCities, v))
+}
+
+// FriendShowDatesEQ applies the EQ predicate on the "friend_show_dates" field.
+func FriendShowDatesEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldFriendShowDates, v))
+}
+
+// FriendShowDatesNEQ applies the NEQ predicate on the "friend_show_dates" field.
+func FriendShowDatesNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldFriendShowDates, v))
+}
+
+// FriendShowNotesEQ applies the EQ predicate on the "friend_show_notes" field.
+func FriendShowNotesEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldFriendShowNotes, v))
+}
+
+// FriendShowNotesNEQ applies the NEQ predicate on the "friend_show_notes" field.
+func FriendShowNotesNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldFriendShowNotes, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -1024,6 +1149,98 @@ func HasShare() predicate.User {
 func HasShareWith(preds ...predicate.Share) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newShareStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasSentFriendships applies the HasEdge predicate on the "sent_friendships" edge.
+func HasSentFriendships() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, SentFriendshipsTable, SentFriendshipsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasSentFriendshipsWith applies the HasEdge predicate on the "sent_friendships" edge with a given conditions (other predicates).
+func HasSentFriendshipsWith(preds ...predicate.Friendship) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newSentFriendshipsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasReceivedFriendships applies the HasEdge predicate on the "received_friendships" edge.
+func HasReceivedFriendships() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ReceivedFriendshipsTable, ReceivedFriendshipsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasReceivedFriendshipsWith applies the HasEdge predicate on the "received_friendships" edge with a given conditions (other predicates).
+func HasReceivedFriendshipsWith(preds ...predicate.Friendship) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newReceivedFriendshipsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasOwnedSharedTrips applies the HasEdge predicate on the "owned_shared_trips" edge.
+func HasOwnedSharedTrips() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, OwnedSharedTripsTable, OwnedSharedTripsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasOwnedSharedTripsWith applies the HasEdge predicate on the "owned_shared_trips" edge with a given conditions (other predicates).
+func HasOwnedSharedTripsWith(preds ...predicate.SharedTrip) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newOwnedSharedTripsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasTripMemberships applies the HasEdge predicate on the "trip_memberships" edge.
+func HasTripMemberships() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, TripMembershipsTable, TripMembershipsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasTripMembershipsWith applies the HasEdge predicate on the "trip_memberships" edge with a given conditions (other predicates).
+func HasTripMembershipsWith(preds ...predicate.TripMember) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newTripMembershipsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

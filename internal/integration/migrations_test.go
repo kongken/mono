@@ -111,7 +111,7 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 
 	client := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, scoped)))
 	user, err := client.User.Get(ctx, "u1")
-	if err != nil || user.SchemaVersion != 1 || user.Revision != 7 || user.DisplayName != "旧用户" {
+	if err != nil || user.SchemaVersion != 1 || user.Revision != 7 || user.DisplayName != "旧用户" || !user.FriendShowCities || user.FriendShowDates || user.FriendShowNotes || user.FriendCode != nil {
 		t.Fatalf("user after migration: %+v %v", user, err)
 	}
 	visit, err := client.CityVisit.Get(ctx, "v1")
@@ -129,6 +129,15 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 	if n, err := client.Trip.Query().Count(ctx); err != nil || n != 0 {
 		t.Fatalf("new table should start empty: %d %v", n, err)
 	}
+	if n, err := client.Friendship.Query().Count(ctx); err != nil || n != 0 {
+		t.Fatalf("friendships table should start empty: %d %v", n, err)
+	}
+	if n, err := client.SharedTrip.Query().Count(ctx); err != nil || n != 0 {
+		t.Fatalf("shared_trips table should start empty: %d %v", n, err)
+	}
+	if n, err := client.TripMember.Query().Count(ctx); err != nil || n != 0 {
+		t.Fatalf("trip_members table should start empty: %d %v", n, err)
+	}
 	// A share row keeps the user's data apart from the public token and goes away with the user.
 	exec(`INSERT INTO shares (id, visibility, token, show_cities, show_dates, show_notes, show_photos, photo_ids, version, published_revision, payload, created_at, updated_at, user_id)
 		VALUES ('sh1','link','tok',false,false,false,false,'[]',1,7,'\x7b7d',now(),now(),'u1')`)
@@ -140,10 +149,22 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 		t.Fatal("two shares share one token")
 	}
 	exec(`INSERT INTO shares (id, visibility, token, photo_ids, created_at, updated_at, user_id) VALUES ('sh4','link','tok4','[]',now(),now(),'u2')`)
+	exec(`INSERT INTO friendships (id, user_low_id, user_high_id, status, created_at, updated_at, requester_id, addressee_id) VALUES ('fr1','u1','u2','accepted',now(),now(),'u1','u2')`)
+	if _, err := scoped.ExecContext(ctx, `INSERT INTO friendships (id, user_low_id, user_high_id, status, created_at, updated_at, requester_id, addressee_id) VALUES ('fr2','u1','u2','pending',now(),now(),'u2','u1')`); err == nil {
+		t.Fatal("duplicate friendship pair allowed")
+	}
+	exec(`INSERT INTO shared_trips (id, region_code, trip_id, travel_date, note, created_at, updated_at, owner_id) VALUES ('st1','330100','t1','2026-10-12','共游',now(),now(),'u1')`)
+	exec(`INSERT INTO trip_members (id, member_trip_id, role, status, invited_by, created_at, updated_at, shared_trip_id, user_id) VALUES ('tm1','t1','editor','active','u1',now(),now(),'st1','u2')`)
 	exec(`DELETE FROM users WHERE id='u2'`)
 	var left int
 	if err := scoped.QueryRowContext(ctx, `SELECT count(*) FROM shares WHERE user_id='u2'`).Scan(&left); err != nil || left != 0 {
 		t.Fatalf("deleting a user left %d share rows: %v", left, err)
+	}
+	if err := scoped.QueryRowContext(ctx, `SELECT count(*) FROM friendships WHERE requester_id='u2' OR addressee_id='u2'`).Scan(&left); err != nil || left != 0 {
+		t.Fatalf("deleting a user left %d friendship rows: %v", left, err)
+	}
+	if err := scoped.QueryRowContext(ctx, `SELECT count(*) FROM trip_members WHERE user_id='u2'`).Scan(&left); err != nil || left != 0 {
+		t.Fatalf("deleting a user left %d trip_member rows: %v", left, err)
 	}
 	// Ent keeps proposing to re-create its two partial unique indexes because it
 	// compares the predicate text with PostgreSQL's normalised form. That is also
