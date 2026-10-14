@@ -32,6 +32,8 @@ test("region catalog digest and both generated copies are current", () => {
   assert.equal(REGION_VERSION, expectedHash);
   assert.equal(readFileSync("internal/regions/catalog.json", "utf8"), readFileSync("src/region-catalog.json", "utf8"));
   assert.equal(metadata.mappings.length, 2, "do not ship fictitious retired IDs");
+  const dockerfile = readFileSync("deploy/frontend/Dockerfile", "utf8");
+  for (const file of ["internal/regions/regions.json", "internal/regions/catalog.json"]) assert.ok(dockerfile.includes(`COPY ${file} ${file}`), `Frontend image must copy ${file} before executing this check`);
 });
 
 test("an exact retired tuple migrates v1/v2 without changing legacy trip IDs or user content", () => {
