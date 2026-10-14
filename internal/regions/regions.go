@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
 )
 
@@ -26,6 +27,8 @@ type province struct {
 type Index struct {
 	provinces map[string]struct{}
 	cities    map[string]cityEntry
+	// perProvince counts every city or district record of a province.
+	perProvince map[string]int
 }
 type cityEntry struct{ name, province string }
 
@@ -35,12 +38,13 @@ func Parse(data []byte) (*Index, error) {
 	if err := json.Unmarshal(data, &list); err != nil {
 		return nil, fmt.Errorf("parse region index: %w", err)
 	}
-	idx := &Index{provinces: map[string]struct{}{}, cities: map[string]cityEntry{}}
+	idx := &Index{provinces: map[string]struct{}{}, cities: map[string]cityEntry{}, perProvince: map[string]int{}}
 	for _, p := range list {
 		if p.Code == "" {
 			return nil, fmt.Errorf("region index: province without code")
 		}
 		idx.provinces[p.Code] = struct{}{}
+		idx.perProvince[p.Code] = len(p.Cities)
 		for _, c := range p.Cities {
 			if _, dup := idx.cities[c.Code]; dup {
 				return nil, fmt.Errorf("region index: duplicate city %s", c.Code)
@@ -75,3 +79,16 @@ func (i *Index) City(code string) (name, province string, ok bool) {
 // Provinces and Cities report index sizes.
 func (i *Index) Provinces() int { return len(i.provinces) }
 func (i *Index) Cities() int    { return len(i.cities) }
+
+// ProvinceCodes lists every province-level ID in ascending order.
+func (i *Index) ProvinceCodes() []string {
+	codes := make([]string, 0, len(i.provinces))
+	for code := range i.provinces {
+		codes = append(codes, code)
+	}
+	slices.Sort(codes)
+	return codes
+}
+
+// ProvinceCities is the number of city or district records under a province.
+func (i *Index) ProvinceCities(code string) int { return i.perProvince[code] }

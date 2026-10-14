@@ -1,0 +1,48 @@
+{
+  "totalProvinces": 34,
+  "totalCities": 391,
+  "cases": [
+    {
+      "name": "no footprints",
+      "marks": [],
+      "cities": [],
+      "expect": { "exploredProvinces": 0, "cities": 0, "trips": 0, "byProvince": {} }
+    },
+    {
+      "name": "a province marked on its own is explored without cities",
+      "marks": ["330000"],
+      "cities": [],
+      "expect": { "exploredProvinces": 1, "cities": 0, "trips": 0, "byProvince": {} }
+    },
+    {
+      "name": "municipality districts and special regions count as one city nationwide",
+      "marks": [],
+      "cities": [
+        { "code": "110101", "province": "110000", "trips": 1 },
+        { "code": "110102", "province": "110000", "trips": 1 },
+        { "code": "310101", "province": "310000", "trips": 1 },
+        { "code": "810001", "province": "810000", "trips": 2 }
+      ],
+      "expect": { "exploredProvinces": 3, "cities": 3, "trips": 5, "byProvince": { "110000": 2, "310000": 1, "810000": 1 } }
+    },
+    {
+      "name": "the union of marks and visited provinces, repeat trips do not add cities",
+      "marks": ["330000", "530000"],
+      "cities": [
+        { "code": "330100", "province": "330000", "trips": 3 },
+        { "code": "330200", "province": "330000", "trips": 0 },
+        { "code": "350200", "province": "350000", "trips": 1 }
+      ],
+      "expect": { "exploredProvinces": 3, "cities": 3, "trips": 4, "byProvince": { "330000": 2, "350000": 1 } }
+    },
+    {
+      "name": "Taiwan supplement regions keep their tw- IDs under their own province",
+      "marks": [],
+      "cities": [
+        { "code": "tw-09020", "province": "350000", "trips": 1 },
+        { "code": "tw-09007", "province": "350000", "trips": 1 }
+      ],
+      "expect": { "exploredProvinces": 1, "cities": 2, "trips": 2, "byProvince": { "350000": 2 } }
+    }
+  ]
+}

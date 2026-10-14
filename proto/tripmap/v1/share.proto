@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package tripmap.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
+
+// ShareService manages the caller's single public share page (F6). Every method
+// requires a bearer session; the account is taken from the session only.
+//
+// What a visitor sees is an explicit, immutable snapshot built when the owner
+// publishes. Later footprints, notes and photos stay private until the owner
+// publishes again. Visitors never call this service: they read the public HTTP
+// routes (/s/<token>, /api/share/<token>/...), which return one uniform 404 for
+// any link that is unknown, revoked, private or whose account is gone.
+service ShareService {
+  // GetShare returns the stored settings and the public link, if any.
+  rpc GetShare(GetShareRequest) returns (GetShareResponse);
+  // PreviewShare builds, without storing anything, exactly the content that
+  // would be public for the candidate settings.
+  rpc PreviewShare(PreviewShareRequest) returns (PreviewShareResponse);
+  // SaveShare changes visibility and fields. It is conditional on the share
+  // version and idempotent on mutation_id with the exact request. Adding
+  // content (first publish, new fields or photos, or refresh_content) reads the
+  // current footprints and requires the revision the owner previewed; hiding
+  // fields only removes content from the published snapshot.
+  rpc SaveShare(SaveShareRequest) returns (SaveShareResponse);
+  // RevokeShare closes public access at once and drops the token and snapshot.
+  // It is unconditional and idempotent on mutation_id.
+  rpc RevokeShare(RevokeShareRequest) returns (RevokeShareResponse);
+}
+
+// ShareSettings is what the owner chooses. visibility is "private" (no public
+// access), "link" (anyone with the link, not indexable) or "public" (anyone with
+// the link, indexable). Dates, notes and photos require show_cities. Photos are
+// chosen one by one among the caller's ready JPEG photos, at most 12.
+message ShareSettings {
+  string visibility = 1;
+  bool show_cities = 2;
+  bool show_dates = 3;
+  bool show_notes = 4;
+  bool show_photos = 5;
+  repeated string photo_ids = 6;
+}
+
+message ShareInfo {
+  ShareSettings settings = 1;
+  // 0 until the first save. Pass it back as expected_version.
+  int64 version = 2;
+  // Full public link; empty unless the share is published.
+  string url = 3;
+  bool published = 4;
+  google.protobuf.Timestamp published_at = 5;
+  // Footprint revision the published snapshot was built from, and the current
+  // one. The difference is how many footprint changes the page does not show.
+  int64 published_revision = 6;
+  int64 current_revision = 7;
+}
+
+message GetShareRequest {}
+message GetShareResponse {
+  ShareInfo share = 1;
+  // False when the server has no share.public_base_url: sharing is off.
+  bool enabled = 2;
+}
+
+message PreviewShareRequest {
+  ShareSettings settings = 1;
+}
+message PreviewPhoto {
+  // Placeholder handle used inside content_json.
+  string handle = 1;
+  string media_id = 2;
+}
+message PreviewShareResponse {
+  // The public JSON document, byte for byte what visitors would receive.
+  string content_json = 1;
+  // Footprint revision the preview was built from; send it with SaveShare.
+  int64 footprint_revision = 2;
+  repeated PreviewPhoto photos = 3;
+}
+
+message SaveShareRequest {
+  // Retries reuse the same ID and the exact same request.
+  string mutation_id = 1;
+  int64 expected_version = 2;
+  ShareSettings settings = 3;
+  // Rebuild the snapshot from the current footprints. Required when nothing is
+  // published yet or the request adds a field or photo.
+  bool refresh_content = 4;
+  // Revision seen in PreviewShare; required together with a rebuild.
+  int64 preview_revision = 5;
+}
+message SaveShareResponse {
+  ShareInfo share = 1;
+  // True when the mutation_id had already been applied.
+  bool replayed = 2;
+}
+
+message RevokeShareRequest {
+  string mutation_id = 1;
+}
+message RevokeShareResponse {
+  ShareInfo share = 1;
+  bool replayed = 2;
+}

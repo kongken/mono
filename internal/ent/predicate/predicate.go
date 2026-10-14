@@ -27,6 +27,9 @@ type ProvinceMark func(*sql.Selector)
 // Session is the predicate function for session builders.
 type Session func(*sql.Selector)
 
+// Share is the predicate function for share builders.
+type Share func(*sql.Selector)
+
 // Snapshot is the predicate function for snapshot builders.
 type Snapshot func(*sql.Selector)
 

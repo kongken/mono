@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -45,4 +46,14 @@ func (l *Limiter) AllowN(ctx context.Context, key string, n, limit int64, window
 		return false, err
 	}
 	return count <= limit, nil
+}
+
+// Count returns how many events key has recorded in the current window without
+// counting a new one.
+func (l *Limiter) Count(ctx context.Context, key string) (int64, error) {
+	n, err := l.rdb.Get(ctx, l.prefix+"rl:"+key).Int64()
+	if errors.Is(err, redis.Nil) {
+		return 0, nil
+	}
+	return n, err
 }

@@ -30,7 +30,7 @@ make dev
 
 生产环境关闭 `auto_migrate`，用 `migrations/` 里评审过的 SQL 升级数据库；修改 Ent schema 后用 `make ent` 与 `make migration NAME=… DEV_DSN=…` 生成（顺序与验证见 [后端初始化说明](docs/backend.md#版本化数据库迁移)）。
 
-前端无需后端即可独立运行；仅当构建时设置 `VITE_API_BASE_URL`（如 `/api`）才会连接后端，详见 [后端初始化说明](docs/backend.md)。配置、端口、数据库模型和验证方式也见该文档。未登录时足迹保存在浏览器本地；配置后端后可选登录（密码、GitHub、Google），足迹保存到云端并多设备同步。
+前端无需后端即可独立运行；仅当构建时设置 `VITE_API_BASE_URL`（如 `/api`）才会连接后端，详见 [后端初始化说明](docs/backend.md)。配置、端口、数据库模型和验证方式也见该文档。未登录时足迹保存在浏览器本地；配置后端后可选登录（密码、GitHub、Google），足迹保存到云端并多设备同步。分享页默认关闭：后端配置 `share.public_base_url` 后才可用，开发时 Vite 开发服务器会把 `/s/` 代理到后端（见 `config.example.yaml`）。
 
 ## 功能
 
@@ -38,6 +38,7 @@ make dev
 - 同一城市多次旅行（日期、备注、照片），目的地搜索、足迹收藏与探索统计。
 - 浏览器本地自动保存、JSON 备份导入导出，以及手机适配。
 - 可选账号登录与云端同步（需配置后端）。
+- 可选公开分享页与社交预览图（需配置后端 `share.public_base_url`，见 [公开分享页与预览图](docs/sharing.md)）。
 
 完整交互规则和验收场景见 [功能描述](docs/features.md)。未登录时数据保存在当前浏览器，不会跨设备同步，建议定期导出备份；登录后保存在云端。
 
@@ -47,7 +48,8 @@ make dev
 
 ```bash
 npm run prepare:map-colors  # 更换全国地图后重建省份邻接表
-npm run check:maps  # 检查地图完整性、投影、多边形方向和区域 ID
+npm run check:maps  # 检查地图完整性、投影、多边形方向、区域 ID 和分享预览几何
+npm run prepare:share-geometry  # 更换全国地图后重建分享预览几何
 npm run download:maps  # 联网更新省内地图与城市索引
 ```
 

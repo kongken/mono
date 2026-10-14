@@ -1,0 +1,17 @@
+.share-dialog { max-height: 90dvh; overflow-y: auto; }
+.share-fieldset { border: 1px solid #dee5d9; border-radius: 10px; padding: 10px 12px 12px; margin: 12px 0; min-width: 0; }
+.share-fieldset legend { padding: 0 6px; font-size: 13px; font-weight: 600; color: #3f6048; }
+.share-fieldset:disabled { opacity: 0.6; }
+.share-option { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; font-size: 14px; cursor: pointer; min-height: 32px; }
+.share-option input { margin-top: 3px; accent-color: #4b937d; flex: none; width: 16px; height: 16px; }
+.share-option span { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.share-option small, .share-dialog-note, .share-link-actions span { font-size: 12px; color: #72816c; }
+.share-dialog-note { margin: 6px 0 0; }
+.share-photo-picker ul { list-style: none; margin: 0; padding: 0; max-height: 200px; overflow-y: auto; }
+.share-refresh { margin: 8px 0; }
+.share-link-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.share-preview { margin: 12px 0; padding: 12px; border-radius: 10px; background: #eef2e8; font-size: 13px; }
+.share-preview h3 { margin: 0 0 6px; font-size: 14px; color: #3f6048; }
+.share-preview ul { list-style: none; margin: 8px 0 0; padding: 0; max-height: 180px; overflow-y: auto; }
+.share-preview li { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; overflow-wrap: anywhere; }
+.share-preview li span { color: #61765a; font-size: 12px; white-space: pre-wrap; }

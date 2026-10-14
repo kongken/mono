@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"net"
 	"regexp"
 	"sort"
 	"strings"
@@ -84,16 +83,7 @@ func burnPassword(password string) {
 }
 
 func (s *AuthService) clientIP(req connect.AnyRequest) string {
-	if h := s.cfg.Auth.ClientIPHeader; h != "" {
-		if v := strings.TrimSpace(strings.Split(req.Header().Get(h), ",")[0]); v != "" {
-			return v
-		}
-	}
-	host, _, err := net.SplitHostPort(req.Peer().Addr)
-	if err != nil {
-		return req.Peer().Addr
-	}
-	return host
+	return auth.ClientAddr(s.cfg.Auth.ClientIPHeader, req.Header(), req.Peer().Addr)
 }
 
 func (s *AuthService) allow(ctx context.Context, st *Store, key string, limit int64, window time.Duration) error {

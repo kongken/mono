@@ -13,6 +13,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/schema"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
@@ -207,6 +208,50 @@ func init() {
 	sessionDescID := sessionFields[0].Descriptor()
 	// session.DefaultID holds the default value on creation for the id field.
 	session.DefaultID = sessionDescID.Default.(func() string)
+	shareFields := schema.Share{}.Fields()
+	_ = shareFields
+	// shareDescShowCities is the schema descriptor for show_cities field.
+	shareDescShowCities := shareFields[4].Descriptor()
+	// share.DefaultShowCities holds the default value on creation for the show_cities field.
+	share.DefaultShowCities = shareDescShowCities.Default.(bool)
+	// shareDescShowDates is the schema descriptor for show_dates field.
+	shareDescShowDates := shareFields[5].Descriptor()
+	// share.DefaultShowDates holds the default value on creation for the show_dates field.
+	share.DefaultShowDates = shareDescShowDates.Default.(bool)
+	// shareDescShowNotes is the schema descriptor for show_notes field.
+	shareDescShowNotes := shareFields[6].Descriptor()
+	// share.DefaultShowNotes holds the default value on creation for the show_notes field.
+	share.DefaultShowNotes = shareDescShowNotes.Default.(bool)
+	// shareDescShowPhotos is the schema descriptor for show_photos field.
+	shareDescShowPhotos := shareFields[7].Descriptor()
+	// share.DefaultShowPhotos holds the default value on creation for the show_photos field.
+	share.DefaultShowPhotos = shareDescShowPhotos.Default.(bool)
+	// shareDescVersion is the schema descriptor for version field.
+	shareDescVersion := shareFields[9].Descriptor()
+	// share.DefaultVersion holds the default value on creation for the version field.
+	share.DefaultVersion = shareDescVersion.Default.(int64)
+	// share.VersionValidator is a validator for the "version" field. It is called by the builders before save.
+	share.VersionValidator = shareDescVersion.Validators[0].(func(int64) error)
+	// shareDescPublishedRevision is the schema descriptor for published_revision field.
+	shareDescPublishedRevision := shareFields[10].Descriptor()
+	// share.DefaultPublishedRevision holds the default value on creation for the published_revision field.
+	share.DefaultPublishedRevision = shareDescPublishedRevision.Default.(int64)
+	// share.PublishedRevisionValidator is a validator for the "published_revision" field. It is called by the builders before save.
+	share.PublishedRevisionValidator = shareDescPublishedRevision.Validators[0].(func(int64) error)
+	// shareDescCreatedAt is the schema descriptor for created_at field.
+	shareDescCreatedAt := shareFields[13].Descriptor()
+	// share.DefaultCreatedAt holds the default value on creation for the created_at field.
+	share.DefaultCreatedAt = shareDescCreatedAt.Default.(func() time.Time)
+	// shareDescUpdatedAt is the schema descriptor for updated_at field.
+	shareDescUpdatedAt := shareFields[14].Descriptor()
+	// share.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	share.DefaultUpdatedAt = shareDescUpdatedAt.Default.(func() time.Time)
+	// share.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	share.UpdateDefaultUpdatedAt = shareDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// shareDescID is the schema descriptor for id field.
+	shareDescID := shareFields[0].Descriptor()
+	// share.DefaultID holds the default value on creation for the id field.
+	share.DefaultID = shareDescID.Default.(func() string)
 	snapshotFields := schema.Snapshot{}.Fields()
 	_ = snapshotFields
 	// snapshotDescRevision is the schema descriptor for revision field.

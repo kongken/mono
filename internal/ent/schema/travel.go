@@ -57,6 +57,7 @@ func (User) Edges() []ent.Edge {
 		edge.To("footprint_changes", FootprintChange.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("sync_receipts", SyncReceipt.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("snapshots", Snapshot.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("share", Share.Type).Unique().Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }
 
@@ -292,4 +293,40 @@ func (Snapshot) Edges() []ent.Edge {
 }
 func (Snapshot) Indexes() []ent.Index {
 	return []ent.Index{index.Fields("user_id", "created_at"), index.Fields("user_id", "revision")}
+}
+
+// Share is the account's single public sharing configuration (F6). The row
+// outlives revocation as a private draft: token and payload are cleared, so
+// nothing is reachable, while the chosen settings stay for the next publish. A
+// token is never reused: every new publication draws a fresh one.
+//
+// payload is a gzip JSON snapshot written only by an explicit publish. Public
+// reads never consult the live footprint tables, so later edits, notes or photos
+// stay private until the owner publishes again. The token is stored in clear
+// because the owner must be able to copy the link again; the database already
+// holds every footprint in clear, unlike session tokens.
+type Share struct{ ent.Schema }
+
+func (Share) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "shares"}}
+}
+func (Share) Fields() []ent.Field {
+	return append([]ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").Immutable().Unique(),
+		field.String("token").Optional().Nillable().Unique().Sensitive(),
+		field.Enum("visibility").Values("private", "link", "public").Default("private"),
+		field.Bool("show_cities").Default(false), field.Bool("show_dates").Default(false),
+		field.Bool("show_notes").Default(false), field.Bool("show_photos").Default(false),
+		// Chosen media IDs, in display order. Only ready JPEG photos of the owner are accepted.
+		field.JSON("photo_ids", []string{}).Optional(),
+		// Bumped by every change; SaveShare is conditional on it.
+		field.Int64("version").Default(0).NonNegative(),
+		// users.revision the payload was built from (0 until published).
+		field.Int64("published_revision").Default(0).NonNegative(),
+		field.Time("published_at").Optional().Nillable(),
+		field.Bytes("payload").Optional().Sensitive(),
+	}, timestamps()...)
+}
+func (Share) Edges() []ent.Edge {
+	return []ent.Edge{edge.From("user", User.Type).Ref("share").Field("user_id").Unique().Required().Immutable()}
 }

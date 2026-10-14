@@ -17,6 +17,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
@@ -348,6 +349,25 @@ func (_u *UserUpdate) AddSnapshots(v ...*Snapshot) *UserUpdate {
 	return _u.AddSnapshotIDs(ids...)
 }
 
+// SetShareID sets the "share" edge to the Share entity by ID.
+func (_u *UserUpdate) SetShareID(id string) *UserUpdate {
+	_u.mutation.SetShareID(id)
+	return _u
+}
+
+// SetNillableShareID sets the "share" edge to the Share entity by ID if the given value is not nil.
+func (_u *UserUpdate) SetNillableShareID(id *string) *UserUpdate {
+	if id != nil {
+		_u = _u.SetShareID(*id)
+	}
+	return _u
+}
+
+// SetShare sets the "share" edge to the Share entity.
+func (_u *UserUpdate) SetShare(v *Share) *UserUpdate {
+	return _u.SetShareID(v.ID)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -519,6 +539,12 @@ func (_u *UserUpdate) RemoveSnapshots(v ...*Snapshot) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSnapshotIDs(ids...)
+}
+
+// ClearShare clears the "share" edge to the Share entity.
+func (_u *UserUpdate) ClearShare() *UserUpdate {
+	_u.mutation.ClearShare()
+	return _u
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -995,6 +1021,35 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.ShareCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   user.ShareTable,
+			Columns: []string{user.ShareColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(share.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ShareIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   user.ShareTable,
+			Columns: []string{user.ShareColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(share.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -1327,6 +1382,25 @@ func (_u *UserUpdateOne) AddSnapshots(v ...*Snapshot) *UserUpdateOne {
 	return _u.AddSnapshotIDs(ids...)
 }
 
+// SetShareID sets the "share" edge to the Share entity by ID.
+func (_u *UserUpdateOne) SetShareID(id string) *UserUpdateOne {
+	_u.mutation.SetShareID(id)
+	return _u
+}
+
+// SetNillableShareID sets the "share" edge to the Share entity by ID if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableShareID(id *string) *UserUpdateOne {
+	if id != nil {
+		_u = _u.SetShareID(*id)
+	}
+	return _u
+}
+
+// SetShare sets the "share" edge to the Share entity.
+func (_u *UserUpdateOne) SetShare(v *Share) *UserUpdateOne {
+	return _u.SetShareID(v.ID)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -1498,6 +1572,12 @@ func (_u *UserUpdateOne) RemoveSnapshots(v ...*Snapshot) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSnapshotIDs(ids...)
+}
+
+// ClearShare clears the "share" edge to the Share entity.
+func (_u *UserUpdateOne) ClearShare() *UserUpdateOne {
+	_u.mutation.ClearShare()
+	return _u
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -1997,6 +2077,35 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ShareCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   user.ShareTable,
+			Columns: []string{user.ShareColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(share.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ShareIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   user.ShareTable,
+			Columns: []string{user.ShareColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(share.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

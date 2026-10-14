@@ -32,6 +32,16 @@ auth:
       client_secret: ""
       redirect_url: http://localhost:5173/auth/callback/google
 
+# Public share page (F6). Sharing is off while public_base_url is empty.
+# share:
+#   # The address visitors use. Links are public_base_url + /s/<token>; /s/ and
+#   # /api/share/ must reach this backend (the Vite proxy and the front image's Nginx do).
+#   public_base_url: http://localhost:5173
+#   # Trusted front-end index.html used for Open Graph tags; never user-controlled.
+#   app_index_url: http://localhost:5173/
+#   # Vite's development server needs inline scripts; leave empty in production.
+#   # html_csp: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws:"
+
 store:
   db:
     main:

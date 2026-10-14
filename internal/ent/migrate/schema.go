@@ -236,6 +236,38 @@ var (
 			},
 		},
 	}
+	// SharesColumns holds the columns for the "shares" table.
+	SharesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "token", Type: field.TypeString, Unique: true, Nullable: true},
+		{Name: "visibility", Type: field.TypeEnum, Enums: []string{"private", "link", "public"}, Default: "private"},
+		{Name: "show_cities", Type: field.TypeBool, Default: false},
+		{Name: "show_dates", Type: field.TypeBool, Default: false},
+		{Name: "show_notes", Type: field.TypeBool, Default: false},
+		{Name: "show_photos", Type: field.TypeBool, Default: false},
+		{Name: "photo_ids", Type: field.TypeJSON, Nullable: true},
+		{Name: "version", Type: field.TypeInt64, Default: 0},
+		{Name: "published_revision", Type: field.TypeInt64, Default: 0},
+		{Name: "published_at", Type: field.TypeTime, Nullable: true},
+		{Name: "payload", Type: field.TypeBytes, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeString, Unique: true},
+	}
+	// SharesTable holds the schema information for the "shares" table.
+	SharesTable = &schema.Table{
+		Name:       "shares",
+		Columns:    SharesColumns,
+		PrimaryKey: []*schema.Column{SharesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "shares_users_share",
+				Columns:    []*schema.Column{SharesColumns[14]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
 	// SnapshotsColumns holds the columns for the "snapshots" table.
 	SnapshotsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -398,6 +430,7 @@ var (
 		MediaObjectsTable,
 		ProvinceMarksTable,
 		AuthSessionsTable,
+		SharesTable,
 		SnapshotsTable,
 		SyncReceiptsTable,
 		CityTripsTable,
@@ -422,6 +455,10 @@ func init() {
 	AuthSessionsTable.ForeignKeys[0].RefTable = UsersTable
 	AuthSessionsTable.Annotation = &entsql.Annotation{
 		Table: "auth_sessions",
+	}
+	SharesTable.ForeignKeys[0].RefTable = UsersTable
+	SharesTable.Annotation = &entsql.Annotation{
+		Table: "shares",
 	}
 	SnapshotsTable.ForeignKeys[0].RefTable = UsersTable
 	SyncReceiptsTable.ForeignKeys[0].RefTable = UsersTable

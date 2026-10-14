@@ -19,6 +19,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
@@ -41,6 +42,7 @@ const (
 	TypeMediaObject            = "MediaObject"
 	TypeProvinceMark           = "ProvinceMark"
 	TypeSession                = "Session"
+	TypeShare                  = "Share"
 	TypeSnapshot               = "Snapshot"
 	TypeSyncReceipt            = "SyncReceipt"
 	TypeTrip                   = "Trip"
@@ -4960,6 +4962,1259 @@ func (m *SessionMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Session edge %s", name)
 }
 
+// ShareMutation represents an operation that mutates the Share nodes in the graph.
+type ShareMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *string
+	token                 *string
+	visibility            *share.Visibility
+	show_cities           *bool
+	show_dates            *bool
+	show_notes            *bool
+	show_photos           *bool
+	photo_ids             *[]string
+	appendphoto_ids       []string
+	version               *int64
+	addversion            *int64
+	published_revision    *int64
+	addpublished_revision *int64
+	published_at          *time.Time
+	payload               *[]byte
+	created_at            *time.Time
+	updated_at            *time.Time
+	clearedFields         map[string]struct{}
+	user                  *string
+	cleareduser           bool
+	done                  bool
+	oldValue              func(context.Context) (*Share, error)
+	predicates            []predicate.Share
+}
+
+var _ ent.Mutation = (*ShareMutation)(nil)
+
+// shareOption allows management of the mutation configuration using functional options.
+type shareOption func(*ShareMutation)
+
+// newShareMutation creates new mutation for the Share entity.
+func newShareMutation(c config, op Op, opts ...shareOption) *ShareMutation {
+	m := &ShareMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeShare,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withShareID sets the ID field of the mutation.
+func withShareID(id string) shareOption {
+	return func(m *ShareMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Share
+		)
+		m.oldValue = func(ctx context.Context) (*Share, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Share.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withShare sets the old Share of the mutation.
+func withShare(node *Share) shareOption {
+	return func(m *ShareMutation) {
+		m.oldValue = func(context.Context) (*Share, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ShareMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ShareMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Share entities.
+func (m *ShareMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ShareMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ShareMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Share.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *ShareMutation) SetUserID(s string) {
+	m.user = &s
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *ShareMutation) UserID() (r string, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldUserID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *ShareMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetToken sets the "token" field.
+func (m *ShareMutation) SetToken(s string) {
+	m.token = &s
+}
+
+// Token returns the value of the "token" field in the mutation.
+func (m *ShareMutation) Token() (r string, exists bool) {
+	v := m.token
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldToken returns the old "token" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldToken(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldToken is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldToken requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldToken: %w", err)
+	}
+	return oldValue.Token, nil
+}
+
+// ClearToken clears the value of the "token" field.
+func (m *ShareMutation) ClearToken() {
+	m.token = nil
+	m.clearedFields[share.FieldToken] = struct{}{}
+}
+
+// TokenCleared returns if the "token" field was cleared in this mutation.
+func (m *ShareMutation) TokenCleared() bool {
+	_, ok := m.clearedFields[share.FieldToken]
+	return ok
+}
+
+// ResetToken resets all changes to the "token" field.
+func (m *ShareMutation) ResetToken() {
+	m.token = nil
+	delete(m.clearedFields, share.FieldToken)
+}
+
+// SetVisibility sets the "visibility" field.
+func (m *ShareMutation) SetVisibility(s share.Visibility) {
+	m.visibility = &s
+}
+
+// Visibility returns the value of the "visibility" field in the mutation.
+func (m *ShareMutation) Visibility() (r share.Visibility, exists bool) {
+	v := m.visibility
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVisibility returns the old "visibility" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldVisibility(ctx context.Context) (v share.Visibility, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVisibility is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVisibility requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVisibility: %w", err)
+	}
+	return oldValue.Visibility, nil
+}
+
+// ResetVisibility resets all changes to the "visibility" field.
+func (m *ShareMutation) ResetVisibility() {
+	m.visibility = nil
+}
+
+// SetShowCities sets the "show_cities" field.
+func (m *ShareMutation) SetShowCities(b bool) {
+	m.show_cities = &b
+}
+
+// ShowCities returns the value of the "show_cities" field in the mutation.
+func (m *ShareMutation) ShowCities() (r bool, exists bool) {
+	v := m.show_cities
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldShowCities returns the old "show_cities" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldShowCities(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldShowCities is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldShowCities requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldShowCities: %w", err)
+	}
+	return oldValue.ShowCities, nil
+}
+
+// ResetShowCities resets all changes to the "show_cities" field.
+func (m *ShareMutation) ResetShowCities() {
+	m.show_cities = nil
+}
+
+// SetShowDates sets the "show_dates" field.
+func (m *ShareMutation) SetShowDates(b bool) {
+	m.show_dates = &b
+}
+
+// ShowDates returns the value of the "show_dates" field in the mutation.
+func (m *ShareMutation) ShowDates() (r bool, exists bool) {
+	v := m.show_dates
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldShowDates returns the old "show_dates" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldShowDates(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldShowDates is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldShowDates requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldShowDates: %w", err)
+	}
+	return oldValue.ShowDates, nil
+}
+
+// ResetShowDates resets all changes to the "show_dates" field.
+func (m *ShareMutation) ResetShowDates() {
+	m.show_dates = nil
+}
+
+// SetShowNotes sets the "show_notes" field.
+func (m *ShareMutation) SetShowNotes(b bool) {
+	m.show_notes = &b
+}
+
+// ShowNotes returns the value of the "show_notes" field in the mutation.
+func (m *ShareMutation) ShowNotes() (r bool, exists bool) {
+	v := m.show_notes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldShowNotes returns the old "show_notes" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldShowNotes(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldShowNotes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldShowNotes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldShowNotes: %w", err)
+	}
+	return oldValue.ShowNotes, nil
+}
+
+// ResetShowNotes resets all changes to the "show_notes" field.
+func (m *ShareMutation) ResetShowNotes() {
+	m.show_notes = nil
+}
+
+// SetShowPhotos sets the "show_photos" field.
+func (m *ShareMutation) SetShowPhotos(b bool) {
+	m.show_photos = &b
+}
+
+// ShowPhotos returns the value of the "show_photos" field in the mutation.
+func (m *ShareMutation) ShowPhotos() (r bool, exists bool) {
+	v := m.show_photos
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldShowPhotos returns the old "show_photos" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldShowPhotos(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldShowPhotos is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldShowPhotos requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldShowPhotos: %w", err)
+	}
+	return oldValue.ShowPhotos, nil
+}
+
+// ResetShowPhotos resets all changes to the "show_photos" field.
+func (m *ShareMutation) ResetShowPhotos() {
+	m.show_photos = nil
+}
+
+// SetPhotoIds sets the "photo_ids" field.
+func (m *ShareMutation) SetPhotoIds(s []string) {
+	m.photo_ids = &s
+	m.appendphoto_ids = nil
+}
+
+// PhotoIds returns the value of the "photo_ids" field in the mutation.
+func (m *ShareMutation) PhotoIds() (r []string, exists bool) {
+	v := m.photo_ids
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPhotoIds returns the old "photo_ids" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldPhotoIds(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPhotoIds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPhotoIds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPhotoIds: %w", err)
+	}
+	return oldValue.PhotoIds, nil
+}
+
+// AppendPhotoIds adds s to the "photo_ids" field.
+func (m *ShareMutation) AppendPhotoIds(s []string) {
+	m.appendphoto_ids = append(m.appendphoto_ids, s...)
+}
+
+// AppendedPhotoIds returns the list of values that were appended to the "photo_ids" field in this mutation.
+func (m *ShareMutation) AppendedPhotoIds() ([]string, bool) {
+	if len(m.appendphoto_ids) == 0 {
+		return nil, false
+	}
+	return m.appendphoto_ids, true
+}
+
+// ClearPhotoIds clears the value of the "photo_ids" field.
+func (m *ShareMutation) ClearPhotoIds() {
+	m.photo_ids = nil
+	m.appendphoto_ids = nil
+	m.clearedFields[share.FieldPhotoIds] = struct{}{}
+}
+
+// PhotoIdsCleared returns if the "photo_ids" field was cleared in this mutation.
+func (m *ShareMutation) PhotoIdsCleared() bool {
+	_, ok := m.clearedFields[share.FieldPhotoIds]
+	return ok
+}
+
+// ResetPhotoIds resets all changes to the "photo_ids" field.
+func (m *ShareMutation) ResetPhotoIds() {
+	m.photo_ids = nil
+	m.appendphoto_ids = nil
+	delete(m.clearedFields, share.FieldPhotoIds)
+}
+
+// SetVersion sets the "version" field.
+func (m *ShareMutation) SetVersion(i int64) {
+	m.version = &i
+	m.addversion = nil
+}
+
+// Version returns the value of the "version" field in the mutation.
+func (m *ShareMutation) Version() (r int64, exists bool) {
+	v := m.version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVersion returns the old "version" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldVersion(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVersion: %w", err)
+	}
+	return oldValue.Version, nil
+}
+
+// AddVersion adds i to the "version" field.
+func (m *ShareMutation) AddVersion(i int64) {
+	if m.addversion != nil {
+		*m.addversion += i
+	} else {
+		m.addversion = &i
+	}
+}
+
+// AddedVersion returns the value that was added to the "version" field in this mutation.
+func (m *ShareMutation) AddedVersion() (r int64, exists bool) {
+	v := m.addversion
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetVersion resets all changes to the "version" field.
+func (m *ShareMutation) ResetVersion() {
+	m.version = nil
+	m.addversion = nil
+}
+
+// SetPublishedRevision sets the "published_revision" field.
+func (m *ShareMutation) SetPublishedRevision(i int64) {
+	m.published_revision = &i
+	m.addpublished_revision = nil
+}
+
+// PublishedRevision returns the value of the "published_revision" field in the mutation.
+func (m *ShareMutation) PublishedRevision() (r int64, exists bool) {
+	v := m.published_revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPublishedRevision returns the old "published_revision" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldPublishedRevision(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPublishedRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPublishedRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPublishedRevision: %w", err)
+	}
+	return oldValue.PublishedRevision, nil
+}
+
+// AddPublishedRevision adds i to the "published_revision" field.
+func (m *ShareMutation) AddPublishedRevision(i int64) {
+	if m.addpublished_revision != nil {
+		*m.addpublished_revision += i
+	} else {
+		m.addpublished_revision = &i
+	}
+}
+
+// AddedPublishedRevision returns the value that was added to the "published_revision" field in this mutation.
+func (m *ShareMutation) AddedPublishedRevision() (r int64, exists bool) {
+	v := m.addpublished_revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPublishedRevision resets all changes to the "published_revision" field.
+func (m *ShareMutation) ResetPublishedRevision() {
+	m.published_revision = nil
+	m.addpublished_revision = nil
+}
+
+// SetPublishedAt sets the "published_at" field.
+func (m *ShareMutation) SetPublishedAt(t time.Time) {
+	m.published_at = &t
+}
+
+// PublishedAt returns the value of the "published_at" field in the mutation.
+func (m *ShareMutation) PublishedAt() (r time.Time, exists bool) {
+	v := m.published_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPublishedAt returns the old "published_at" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldPublishedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPublishedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPublishedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPublishedAt: %w", err)
+	}
+	return oldValue.PublishedAt, nil
+}
+
+// ClearPublishedAt clears the value of the "published_at" field.
+func (m *ShareMutation) ClearPublishedAt() {
+	m.published_at = nil
+	m.clearedFields[share.FieldPublishedAt] = struct{}{}
+}
+
+// PublishedAtCleared returns if the "published_at" field was cleared in this mutation.
+func (m *ShareMutation) PublishedAtCleared() bool {
+	_, ok := m.clearedFields[share.FieldPublishedAt]
+	return ok
+}
+
+// ResetPublishedAt resets all changes to the "published_at" field.
+func (m *ShareMutation) ResetPublishedAt() {
+	m.published_at = nil
+	delete(m.clearedFields, share.FieldPublishedAt)
+}
+
+// SetPayload sets the "payload" field.
+func (m *ShareMutation) SetPayload(b []byte) {
+	m.payload = &b
+}
+
+// Payload returns the value of the "payload" field in the mutation.
+func (m *ShareMutation) Payload() (r []byte, exists bool) {
+	v := m.payload
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPayload returns the old "payload" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldPayload(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPayload is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPayload requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPayload: %w", err)
+	}
+	return oldValue.Payload, nil
+}
+
+// ClearPayload clears the value of the "payload" field.
+func (m *ShareMutation) ClearPayload() {
+	m.payload = nil
+	m.clearedFields[share.FieldPayload] = struct{}{}
+}
+
+// PayloadCleared returns if the "payload" field was cleared in this mutation.
+func (m *ShareMutation) PayloadCleared() bool {
+	_, ok := m.clearedFields[share.FieldPayload]
+	return ok
+}
+
+// ResetPayload resets all changes to the "payload" field.
+func (m *ShareMutation) ResetPayload() {
+	m.payload = nil
+	delete(m.clearedFields, share.FieldPayload)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ShareMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ShareMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ShareMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *ShareMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *ShareMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the Share entity.
+// If the Share object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ShareMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *ShareMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *ShareMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[share.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *ShareMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *ShareMutation) UserIDs() (ids []string) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *ShareMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the ShareMutation builder.
+func (m *ShareMutation) Where(ps ...predicate.Share) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ShareMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ShareMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Share, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ShareMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ShareMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Share).
+func (m *ShareMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ShareMutation) Fields() []string {
+	fields := make([]string, 0, 14)
+	if m.user != nil {
+		fields = append(fields, share.FieldUserID)
+	}
+	if m.token != nil {
+		fields = append(fields, share.FieldToken)
+	}
+	if m.visibility != nil {
+		fields = append(fields, share.FieldVisibility)
+	}
+	if m.show_cities != nil {
+		fields = append(fields, share.FieldShowCities)
+	}
+	if m.show_dates != nil {
+		fields = append(fields, share.FieldShowDates)
+	}
+	if m.show_notes != nil {
+		fields = append(fields, share.FieldShowNotes)
+	}
+	if m.show_photos != nil {
+		fields = append(fields, share.FieldShowPhotos)
+	}
+	if m.photo_ids != nil {
+		fields = append(fields, share.FieldPhotoIds)
+	}
+	if m.version != nil {
+		fields = append(fields, share.FieldVersion)
+	}
+	if m.published_revision != nil {
+		fields = append(fields, share.FieldPublishedRevision)
+	}
+	if m.published_at != nil {
+		fields = append(fields, share.FieldPublishedAt)
+	}
+	if m.payload != nil {
+		fields = append(fields, share.FieldPayload)
+	}
+	if m.created_at != nil {
+		fields = append(fields, share.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, share.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ShareMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case share.FieldUserID:
+		return m.UserID()
+	case share.FieldToken:
+		return m.Token()
+	case share.FieldVisibility:
+		return m.Visibility()
+	case share.FieldShowCities:
+		return m.ShowCities()
+	case share.FieldShowDates:
+		return m.ShowDates()
+	case share.FieldShowNotes:
+		return m.ShowNotes()
+	case share.FieldShowPhotos:
+		return m.ShowPhotos()
+	case share.FieldPhotoIds:
+		return m.PhotoIds()
+	case share.FieldVersion:
+		return m.Version()
+	case share.FieldPublishedRevision:
+		return m.PublishedRevision()
+	case share.FieldPublishedAt:
+		return m.PublishedAt()
+	case share.FieldPayload:
+		return m.Payload()
+	case share.FieldCreatedAt:
+		return m.CreatedAt()
+	case share.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ShareMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case share.FieldUserID:
+		return m.OldUserID(ctx)
+	case share.FieldToken:
+		return m.OldToken(ctx)
+	case share.FieldVisibility:
+		return m.OldVisibility(ctx)
+	case share.FieldShowCities:
+		return m.OldShowCities(ctx)
+	case share.FieldShowDates:
+		return m.OldShowDates(ctx)
+	case share.FieldShowNotes:
+		return m.OldShowNotes(ctx)
+	case share.FieldShowPhotos:
+		return m.OldShowPhotos(ctx)
+	case share.FieldPhotoIds:
+		return m.OldPhotoIds(ctx)
+	case share.FieldVersion:
+		return m.OldVersion(ctx)
+	case share.FieldPublishedRevision:
+		return m.OldPublishedRevision(ctx)
+	case share.FieldPublishedAt:
+		return m.OldPublishedAt(ctx)
+	case share.FieldPayload:
+		return m.OldPayload(ctx)
+	case share.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case share.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Share field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ShareMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case share.FieldUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case share.FieldToken:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetToken(v)
+		return nil
+	case share.FieldVisibility:
+		v, ok := value.(share.Visibility)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVisibility(v)
+		return nil
+	case share.FieldShowCities:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetShowCities(v)
+		return nil
+	case share.FieldShowDates:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetShowDates(v)
+		return nil
+	case share.FieldShowNotes:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetShowNotes(v)
+		return nil
+	case share.FieldShowPhotos:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetShowPhotos(v)
+		return nil
+	case share.FieldPhotoIds:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPhotoIds(v)
+		return nil
+	case share.FieldVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVersion(v)
+		return nil
+	case share.FieldPublishedRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPublishedRevision(v)
+		return nil
+	case share.FieldPublishedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPublishedAt(v)
+		return nil
+	case share.FieldPayload:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPayload(v)
+		return nil
+	case share.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case share.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Share field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ShareMutation) AddedFields() []string {
+	var fields []string
+	if m.addversion != nil {
+		fields = append(fields, share.FieldVersion)
+	}
+	if m.addpublished_revision != nil {
+		fields = append(fields, share.FieldPublishedRevision)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ShareMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case share.FieldVersion:
+		return m.AddedVersion()
+	case share.FieldPublishedRevision:
+		return m.AddedPublishedRevision()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ShareMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case share.FieldVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddVersion(v)
+		return nil
+	case share.FieldPublishedRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPublishedRevision(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Share numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ShareMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(share.FieldToken) {
+		fields = append(fields, share.FieldToken)
+	}
+	if m.FieldCleared(share.FieldPhotoIds) {
+		fields = append(fields, share.FieldPhotoIds)
+	}
+	if m.FieldCleared(share.FieldPublishedAt) {
+		fields = append(fields, share.FieldPublishedAt)
+	}
+	if m.FieldCleared(share.FieldPayload) {
+		fields = append(fields, share.FieldPayload)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ShareMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ShareMutation) ClearField(name string) error {
+	switch name {
+	case share.FieldToken:
+		m.ClearToken()
+		return nil
+	case share.FieldPhotoIds:
+		m.ClearPhotoIds()
+		return nil
+	case share.FieldPublishedAt:
+		m.ClearPublishedAt()
+		return nil
+	case share.FieldPayload:
+		m.ClearPayload()
+		return nil
+	}
+	return fmt.Errorf("unknown Share nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ShareMutation) ResetField(name string) error {
+	switch name {
+	case share.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case share.FieldToken:
+		m.ResetToken()
+		return nil
+	case share.FieldVisibility:
+		m.ResetVisibility()
+		return nil
+	case share.FieldShowCities:
+		m.ResetShowCities()
+		return nil
+	case share.FieldShowDates:
+		m.ResetShowDates()
+		return nil
+	case share.FieldShowNotes:
+		m.ResetShowNotes()
+		return nil
+	case share.FieldShowPhotos:
+		m.ResetShowPhotos()
+		return nil
+	case share.FieldPhotoIds:
+		m.ResetPhotoIds()
+		return nil
+	case share.FieldVersion:
+		m.ResetVersion()
+		return nil
+	case share.FieldPublishedRevision:
+		m.ResetPublishedRevision()
+		return nil
+	case share.FieldPublishedAt:
+		m.ResetPublishedAt()
+		return nil
+	case share.FieldPayload:
+		m.ResetPayload()
+		return nil
+	case share.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case share.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Share field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ShareMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, share.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ShareMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case share.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ShareMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ShareMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ShareMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, share.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ShareMutation) EdgeCleared(name string) bool {
+	switch name {
+	case share.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ShareMutation) ClearEdge(name string) error {
+	switch name {
+	case share.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown Share unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ShareMutation) ResetEdge(name string) error {
+	switch name {
+	case share.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown Share edge %s", name)
+}
+
 // SnapshotMutation represents an operation that mutates the Snapshot nodes in the graph.
 type SnapshotMutation struct {
 	config
@@ -7603,6 +8858,8 @@ type UserMutation struct {
 	snapshots                map[string]struct{}
 	removedsnapshots         map[string]struct{}
 	clearedsnapshots         bool
+	share                    *string
+	clearedshare             bool
 	done                     bool
 	oldValue                 func(context.Context) (*User, error)
 	predicates               []predicate.User
@@ -8691,6 +9948,45 @@ func (m *UserMutation) ResetSnapshots() {
 	m.removedsnapshots = nil
 }
 
+// SetShareID sets the "share" edge to the Share entity by id.
+func (m *UserMutation) SetShareID(id string) {
+	m.share = &id
+}
+
+// ClearShare clears the "share" edge to the Share entity.
+func (m *UserMutation) ClearShare() {
+	m.clearedshare = true
+}
+
+// ShareCleared reports if the "share" edge to the Share entity was cleared.
+func (m *UserMutation) ShareCleared() bool {
+	return m.clearedshare
+}
+
+// ShareID returns the "share" edge ID in the mutation.
+func (m *UserMutation) ShareID() (id string, exists bool) {
+	if m.share != nil {
+		return *m.share, true
+	}
+	return
+}
+
+// ShareIDs returns the "share" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ShareID instead. It exists only for internal usage by the builders.
+func (m *UserMutation) ShareIDs() (ids []string) {
+	if id := m.share; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetShare resets all changes to the "share" edge.
+func (m *UserMutation) ResetShare() {
+	m.share = nil
+	m.clearedshare = false
+}
+
 // Where appends a list predicates to the UserMutation builder.
 func (m *UserMutation) Where(ps ...predicate.User) {
 	m.predicates = append(m.predicates, ps...)
@@ -9076,7 +10372,7 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 8)
+	edges := make([]string, 0, 9)
 	if m.visits != nil {
 		edges = append(edges, user.EdgeVisits)
 	}
@@ -9100,6 +10396,9 @@ func (m *UserMutation) AddedEdges() []string {
 	}
 	if m.snapshots != nil {
 		edges = append(edges, user.EdgeSnapshots)
+	}
+	if m.share != nil {
+		edges = append(edges, user.EdgeShare)
 	}
 	return edges
 }
@@ -9156,13 +10455,17 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeShare:
+		if id := m.share; id != nil {
+			return []ent.Value{*id}
+		}
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 8)
+	edges := make([]string, 0, 9)
 	if m.removedvisits != nil {
 		edges = append(edges, user.EdgeVisits)
 	}
@@ -9248,7 +10551,7 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 8)
+	edges := make([]string, 0, 9)
 	if m.clearedvisits {
 		edges = append(edges, user.EdgeVisits)
 	}
@@ -9273,6 +10576,9 @@ func (m *UserMutation) ClearedEdges() []string {
 	if m.clearedsnapshots {
 		edges = append(edges, user.EdgeSnapshots)
 	}
+	if m.clearedshare {
+		edges = append(edges, user.EdgeShare)
+	}
 	return edges
 }
 
@@ -9296,6 +10602,8 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 		return m.clearedsync_receipts
 	case user.EdgeSnapshots:
 		return m.clearedsnapshots
+	case user.EdgeShare:
+		return m.clearedshare
 	}
 	return false
 }
@@ -9304,6 +10612,9 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 // if that edge is not defined in the schema.
 func (m *UserMutation) ClearEdge(name string) error {
 	switch name {
+	case user.EdgeShare:
+		m.ClearShare()
+		return nil
 	}
 	return fmt.Errorf("unknown User unique edge %s", name)
 }
@@ -9335,6 +10646,9 @@ func (m *UserMutation) ResetEdge(name string) error {
 		return nil
 	case user.EdgeSnapshots:
 		m.ResetSnapshots()
+		return nil
+	case user.EdgeShare:
+		m.ResetShare()
 		return nil
 	}
 	return fmt.Errorf("unknown User edge %s", name)

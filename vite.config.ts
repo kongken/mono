@@ -6,15 +6,21 @@ import { defineConfig } from "vite";
 // Dev-server proxy target; override when the backend listens elsewhere.
 const backend = process.env.TRIPMAP_DEV_BACKEND ?? "http://127.0.0.1:18081";
 
+const proxy = {
+  "/api": backend,
+  "/ping": backend,
+  "/readyz": backend,
+};
+
 // https://vite.dev/config/
 export default defineConfig({
   server: {
-    proxy: {
-      "/api": backend,
-      "/ping": backend,
-      "/readyz": backend,
-    },
+    // The dev server sends /s/<token> to the backend, which renders it with Open Graph
+    // tags, as the front image's Nginx does. `vite preview` serves the built single page
+    // app only, so share links there open the same SharePage without those tags.
+    proxy: { ...proxy, "/s/": backend },
   },
+  preview: { proxy },
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
 });

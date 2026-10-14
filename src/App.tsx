@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { geoConicConformal, geoMercator, geoPath } from "d3-geo";
+import { geoMercator, geoPath } from "d3-geo";
 import { normalizeMap, type MapData } from "./lib/maps";
+import { mapProjection, seaInsetPaths } from "./lib/projection";
 import { loadCityMaps, type CityMaps } from "./lib/cityMaps";
 import {
   ArrowLeft,
@@ -93,6 +94,7 @@ import AccountDialog from "./components/AccountDialog";
 import MigrationDialog from "./components/MigrationDialog";
 import LegacyDialog from "./components/LegacyDialog";
 import SnapshotDialog from "./components/SnapshotDialog";
+import ShareDialog from "./components/ShareDialog";
 import MediaDialog, { CityMediaPreview } from "./components/MediaDialog";
 import CityPicker from "./components/CityPicker";
 import { readBoot, useCloud } from "./hooks/useCloud";
@@ -226,6 +228,7 @@ function App() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [mediaTarget, setMediaTarget] = useState<{
     region: string;
     tripId: string;
@@ -283,6 +286,7 @@ function App() {
       setStorageError(false);
       setMigrationOpen(false);
       setSnapshotsOpen(false);
+      setShareOpen(false);
       setMediaTarget(null);
       setLocalClash(null);
       setExportedOther(null);
@@ -468,44 +472,10 @@ function App() {
   const cityCount = visitedCityCount(saved);
   const isDistrict = province && isDistrictDestination(province.code);
   const unit = isDistrict ? "区县" : "城市";
-  const projection = useMemo(() => {
-    if (!map) return null;
-    const shapes = map.features.filter(
-      (f) =>
-        f.properties.name &&
-        (province?.code !== "460000" ||
-          String(f.properties.adcode) !== "460300"),
-    );
-    // Mainland bounds define the national camera. Maritime lines have their own inset.
-    const bounds = province
-      ? { ...map, features: shapes }
-      : {
-          type: "FeatureCollection" as const,
-          features: shapes.map((f) => {
-            if (f.geometry.type !== "MultiPolygon") return f;
-            return {
-              ...f,
-              geometry: {
-                ...f.geometry,
-                coordinates: f.geometry.coordinates.filter((p) =>
-                  p[0].some((point) => point[1] > 17.5),
-                ),
-              },
-            };
-          }),
-        };
-    return (
-      province
-        ? geoMercator()
-        : geoConicConformal().parallels([25, 47]).rotate([-105, 0])
-    ).fitExtent(
-      [
-        [60, 35],
-        [province?.code === "460000" ? 640 : 790, 565],
-      ],
-      bounds,
-    );
-  }, [map, province]);
+  const projection = useMemo(
+    () => (map ? mapProjection(map, province?.code) : null),
+    [map, province],
+  );
   const path = projection ? geoPath(projection) : null;
   const sansha =
     province?.code === "460000"
@@ -1581,27 +1551,15 @@ function App() {
                           fill="#fafbf8"
                           stroke="#d6ddd7"
                         />
-                        {map.features
-                          .filter((f) => !f.properties.name)
-                          .map((f, i) => (
-                            <path
-                              key={i}
-                              d={
-                                geoPath(
-                                  geoMercator().fitExtent(
-                                    [
-                                      [9, 7],
-                                      [74, 87],
-                                    ],
-                                    f,
-                                  ),
-                                )(f) || ""
-                              }
-                              fill="none"
-                              stroke="#b6c5ba"
-                              strokeWidth="1"
-                            />
-                          ))}
+                        {seaInsetPaths(map).map((d, i) => (
+                          <path
+                            key={i}
+                            d={d}
+                            fill="none"
+                            stroke="#b6c5ba"
+                            strokeWidth="1"
+                          />
+                        ))}
                         <text x="41" y="99" textAnchor="middle">
                           南海诸岛
                         </text>
@@ -2079,24 +2037,7 @@ function App() {
                 ]
               : null
           }
-          inset={
-            map && !province
-              ? map.features
-                  .filter((f) => !f.properties.name)
-                  .map(
-                    (f) =>
-                      geoPath(
-                        geoMercator().fitExtent(
-                          [
-                            [9, 7],
-                            [74, 87],
-                          ],
-                          f,
-                        ),
-                      )(f) || "",
-                  )
-              : []
-          }
+          inset={map && !province ? seaInsetPaths(map) : []}
         />
       )}
       <Dialog
@@ -2632,6 +2573,10 @@ function App() {
             setAccountOpen(false);
             setMediaTarget({ region: "", tripId: "" });
           }}
+          onOpenShare={() => {
+            setAccountOpen(false);
+            setShareOpen(true);
+          }}
         />
       )}
       {mediaOpen && cloud.user && (
@@ -2660,6 +2605,15 @@ function App() {
           onOpenChange={setSnapshotsOpen}
           cloud={cloud}
           current={saved}
+        />
+      )}
+      {cloud.enabled && cloud.user && shareOpen && (
+        <ShareDialog
+          key={cloud.user.id}
+          open
+          onOpenChange={setShareOpen}
+          cloud={cloud}
+          visitedCities={new Set(saved.visits.map((v) => v.code))}
         />
       )}
       {cloud.enabled && cloud.user && migrationOpen && (

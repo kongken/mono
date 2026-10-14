@@ -17,6 +17,8 @@ message GetStatusResponse {
   // Highest footprint schema this server understands (2 = multiple trips per
   // city). Zero means an older server; clients must not send trip data to it.
   int32 footprint_schema = 3;
+  // True when the server has public sharing configured (share.public_base_url).
+  bool share_enabled = 4;
 }
 
 message DependencyStatus {

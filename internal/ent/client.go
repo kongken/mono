@@ -22,6 +22,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
@@ -47,6 +48,8 @@ type Client struct {
 	ProvinceMark *ProvinceMarkClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
+	// Share is the client for interacting with the Share builders.
+	Share *ShareClient
 	// Snapshot is the client for interacting with the Snapshot builders.
 	Snapshot *SnapshotClient
 	// SyncReceipt is the client for interacting with the SyncReceipt builders.
@@ -73,6 +76,7 @@ func (c *Client) init() {
 	c.MediaObject = NewMediaObjectClient(c.config)
 	c.ProvinceMark = NewProvinceMarkClient(c.config)
 	c.Session = NewSessionClient(c.config)
+	c.Share = NewShareClient(c.config)
 	c.Snapshot = NewSnapshotClient(c.config)
 	c.SyncReceipt = NewSyncReceiptClient(c.config)
 	c.Trip = NewTripClient(c.config)
@@ -176,6 +180,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		MediaObject:            NewMediaObjectClient(cfg),
 		ProvinceMark:           NewProvinceMarkClient(cfg),
 		Session:                NewSessionClient(cfg),
+		Share:                  NewShareClient(cfg),
 		Snapshot:               NewSnapshotClient(cfg),
 		SyncReceipt:            NewSyncReceiptClient(cfg),
 		Trip:                   NewTripClient(cfg),
@@ -206,6 +211,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		MediaObject:            NewMediaObjectClient(cfg),
 		ProvinceMark:           NewProvinceMarkClient(cfg),
 		Session:                NewSessionClient(cfg),
+		Share:                  NewShareClient(cfg),
 		Snapshot:               NewSnapshotClient(cfg),
 		SyncReceipt:            NewSyncReceiptClient(cfg),
 		Trip:                   NewTripClient(cfg),
@@ -240,8 +246,8 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.MediaCleanup,
-		c.MediaObject, c.ProvinceMark, c.Session, c.Snapshot, c.SyncReceipt, c.Trip,
-		c.User,
+		c.MediaObject, c.ProvinceMark, c.Session, c.Share, c.Snapshot, c.SyncReceipt,
+		c.Trip, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -252,8 +258,8 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.MediaCleanup,
-		c.MediaObject, c.ProvinceMark, c.Session, c.Snapshot, c.SyncReceipt, c.Trip,
-		c.User,
+		c.MediaObject, c.ProvinceMark, c.Session, c.Share, c.Snapshot, c.SyncReceipt,
+		c.Trip, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -276,6 +282,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ProvinceMark.mutate(ctx, m)
 	case *SessionMutation:
 		return c.Session.mutate(ctx, m)
+	case *ShareMutation:
+		return c.Share.mutate(ctx, m)
 	case *SnapshotMutation:
 		return c.Snapshot.mutate(ctx, m)
 	case *SyncReceiptMutation:
@@ -1316,6 +1324,155 @@ func (c *SessionClient) mutate(ctx context.Context, m *SessionMutation) (Value, 
 	}
 }
 
+// ShareClient is a client for the Share schema.
+type ShareClient struct {
+	config
+}
+
+// NewShareClient returns a client for the Share from the given config.
+func NewShareClient(c config) *ShareClient {
+	return &ShareClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `share.Hooks(f(g(h())))`.
+func (c *ShareClient) Use(hooks ...Hook) {
+	c.hooks.Share = append(c.hooks.Share, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `share.Intercept(f(g(h())))`.
+func (c *ShareClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Share = append(c.inters.Share, interceptors...)
+}
+
+// Create returns a builder for creating a Share entity.
+func (c *ShareClient) Create() *ShareCreate {
+	mutation := newShareMutation(c.config, OpCreate)
+	return &ShareCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Share entities.
+func (c *ShareClient) CreateBulk(builders ...*ShareCreate) *ShareCreateBulk {
+	return &ShareCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ShareClient) MapCreateBulk(slice any, setFunc func(*ShareCreate, int)) *ShareCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ShareCreateBulk{err: fmt.Errorf("calling to ShareClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ShareCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ShareCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Share.
+func (c *ShareClient) Update() *ShareUpdate {
+	mutation := newShareMutation(c.config, OpUpdate)
+	return &ShareUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ShareClient) UpdateOne(_m *Share) *ShareUpdateOne {
+	mutation := newShareMutation(c.config, OpUpdateOne, withShare(_m))
+	return &ShareUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ShareClient) UpdateOneID(id string) *ShareUpdateOne {
+	mutation := newShareMutation(c.config, OpUpdateOne, withShareID(id))
+	return &ShareUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Share.
+func (c *ShareClient) Delete() *ShareDelete {
+	mutation := newShareMutation(c.config, OpDelete)
+	return &ShareDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ShareClient) DeleteOne(_m *Share) *ShareDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ShareClient) DeleteOneID(id string) *ShareDeleteOne {
+	builder := c.Delete().Where(share.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ShareDeleteOne{builder}
+}
+
+// Query returns a query builder for Share.
+func (c *ShareClient) Query() *ShareQuery {
+	return &ShareQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeShare},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Share entity by its id.
+func (c *ShareClient) Get(ctx context.Context, id string) (*Share, error) {
+	return c.Query().Where(share.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ShareClient) GetX(ctx context.Context, id string) *Share {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a Share.
+func (c *ShareClient) QueryUser(_m *Share) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(share.Table, share.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, true, share.UserTable, share.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ShareClient) Hooks() []Hook {
+	return c.hooks.Share
+}
+
+// Interceptors returns the client interceptors.
+func (c *ShareClient) Interceptors() []Interceptor {
+	return c.inters.Share
+}
+
+func (c *ShareClient) mutate(ctx context.Context, m *ShareMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ShareCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ShareUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ShareUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ShareDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Share mutation op: %q", m.Op())
+	}
+}
+
 // SnapshotClient is a client for the Snapshot schema.
 type SnapshotClient struct {
 	config
@@ -2015,6 +2172,22 @@ func (c *UserClient) QuerySnapshots(_m *User) *SnapshotQuery {
 	return query
 }
 
+// QueryShare queries the share edge of a User.
+func (c *UserClient) QueryShare(_m *User) *ShareQuery {
+	query := (&ShareClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(share.Table, share.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, user.ShareTable, user.ShareColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	return c.hooks.User
@@ -2044,10 +2217,11 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 type (
 	hooks struct {
 		AccountDeletionReceipt, CityVisit, FootprintChange, MediaCleanup, MediaObject,
-		ProvinceMark, Session, Snapshot, SyncReceipt, Trip, User []ent.Hook
+		ProvinceMark, Session, Share, Snapshot, SyncReceipt, Trip, User []ent.Hook
 	}
 	inters struct {
 		AccountDeletionReceipt, CityVisit, FootprintChange, MediaCleanup, MediaObject,
-		ProvinceMark, Session, Snapshot, SyncReceipt, Trip, User []ent.Interceptor
+		ProvinceMark, Session, Share, Snapshot, SyncReceipt, Trip,
+		User []ent.Interceptor
 	}
 )

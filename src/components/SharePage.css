@@ -1,0 +1,35 @@
+.share-page { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; color: #2b4234; }
+.share-page h1 { font-size: 26px; margin: 8px 0; }
+.share-page h2 { font-size: 17px; margin: 28px 0 12px; color: #3f6048; }
+.share-page h3 { font-size: 14px; margin: 16px 0 8px; color: #61765a; }
+.share-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; color: #3f6048; }
+.share-brand-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #eef3e7; color: #527951; }
+.share-intro p, .share-note { font-size: 13px; color: #72816c; margin: 4px 0 12px; overflow-wrap: anywhere; }
+.share-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+.share-stats > div { padding: 12px; border-radius: 10px; background: #eef2e8; min-width: 0; }
+.share-stats dt { font-size: 12px; color: #72816c; }
+.share-stats dd { margin: 4px 0 0; font-size: 22px; font-weight: 600; color: #3f6048; }
+.share-stats small { font-size: 12px; font-weight: 400; color: #72816c; }
+.share-map { display: block; width: 100%; height: auto; border-radius: 12px; background: #fafbf8; border: 1px solid #dee5d9; }
+.share-map-loading { aspect-ratio: 850 / 620; }
+.share-provinces, .share-cities, .share-photos { list-style: none; padding: 0; margin: 0; }
+.share-provinces li { display: grid; grid-template-columns: minmax(64px, 96px) minmax(0, 1fr) auto; align-items: center; gap: 10px; margin: 10px 0; font-size: 13px; }
+.share-provinces progress { width: 100%; height: 7px; accent-color: #4b937d; }
+.share-provinces li > span:last-child { color: #72816c; font-size: 12px; text-align: right; }
+.share-marked { grid-column: 2 / 4; text-align: left !important; }
+.share-cities > li { padding: 10px 0; border-bottom: 1px solid #eef1ea; }
+.share-city-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.share-city-head i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.share-city-head small { color: #72816c; font-size: 12px; }
+.share-trip { margin: 6px 0 0 16px; font-size: 13px; }
+.share-trip time { color: #61765a; font-size: 12px; }
+.share-trip p { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.share-photos { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 8px 16px; }
+.share-photos img { display: block; max-width: 100%; height: auto; max-height: 160px; width: auto; border-radius: 8px; border: 1px solid #dee5d9; object-fit: cover; }
+.share-footer { margin-top: 32px; font-size: 13px; }
+.share-footer a { color: #3f6048; text-decoration: underline; }
+@media (max-width: 420px) {
+  .share-stats dd { font-size: 18px; }
+  .share-provinces li { grid-template-columns: minmax(56px, 80px) minmax(0, 1fr); }
+  .share-provinces li > span:last-child { grid-column: 1 / 3; text-align: left; }
+}
