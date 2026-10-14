@@ -56,6 +56,8 @@ const (
 	EdgeSyncReceipts = "sync_receipts"
 	// EdgeSnapshots holds the string denoting the snapshots edge name in mutations.
 	EdgeSnapshots = "snapshots"
+	// EdgeShare holds the string denoting the share edge name in mutations.
+	EdgeShare = "share"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// VisitsTable is the table that holds the visits relation/edge.
@@ -114,6 +116,13 @@ const (
 	SnapshotsInverseTable = "snapshots"
 	// SnapshotsColumn is the table column denoting the snapshots relation/edge.
 	SnapshotsColumn = "user_id"
+	// ShareTable is the table that holds the share relation/edge.
+	ShareTable = "shares"
+	// ShareInverseTable is the table name for the Share entity.
+	// It exists in this package in order to avoid circular dependency with the "share" package.
+	ShareInverseTable = "shares"
+	// ShareColumn is the table column denoting the share relation/edge.
+	ShareColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -359,6 +368,13 @@ func BySnapshots(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newSnapshotsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByShareField orders the results by share field.
+func ByShareField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newShareStep(), sql.OrderByField(field, opts...))
+	}
+}
 func newVisitsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -413,5 +429,12 @@ func newSnapshotsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(SnapshotsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, SnapshotsTable, SnapshotsColumn),
+	)
+}
+func newShareStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ShareInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2O, false, ShareTable, ShareColumn),
 	)
 }

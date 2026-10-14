@@ -4,7 +4,7 @@
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
-当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1：账号与会话（`AuthService`）、足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流），前端登录与云端读写闭环也已接入（配置 `VITE_API_BASE_URL` 后出现登录入口，见 [功能描述](features.md)）。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号注销、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；F4 照片与附件已实现，分享仍待实现，真实 OAuth 授权验收待部署。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
+当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1：账号与会话（`AuthService`）、足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流），前端登录与云端读写闭环也已接入（配置 `VITE_API_BASE_URL` 后出现登录入口，见 [功能描述](features.md)）。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号注销、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；F4 照片与附件已实现；F6 公开分享页与预览图已实现（默认关闭，见 [公开分享页与预览图](sharing.md)）；真实 OAuth 授权验收与真实社交平台抓取验证待部署。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
 
 Redis 客户端已接入，后续用于会话、缓存或限流；本次没有把城市足迹存入 Redis。对象内容使用 S3，PostgreSQL 只存业务记录和媒体元数据。
 
@@ -15,8 +15,9 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `internal/app/` | Bootstrap、依赖注入、Gin 路由 |
 | `internal/config/` | 业务配置及必填存储名称校验 |
-| `internal/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）及认证拦截器 |
+| `internal/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）、`ShareService`、公开分享路由处理（`share_public.go`）及认证拦截器 |
 | `internal/auth/` | 会话令牌、Redis 限流与 OAuth state 存储；`provider/` 为 GitHub、Google OAuth 适配 |
+| `internal/share/` | F6：公开内容白名单与快照构建、统计、预览图渲染（纯 Go）、HTML 元数据注入、受信任 index.html 获取；`assets/` 含预览几何和 Noto Sans SC 子集 |
 | `internal/regions/` | 嵌入的行政区域索引，供服务端校验区域 ID、名称与归属 |
 | `internal/testutil/` | 带独立 schema 和 Redis key 前缀的集成测试辅助 |
 | `internal/health/` | 有超时的依赖就绪检查 |
@@ -120,6 +121,7 @@ Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CON
 - `auth.client_ip_header` 指向可信反向代理写入的客户端地址头（如 `CF-Connecting-IP`），用于登录限流；不设置则使用 TCP 对端地址。直接暴露在公网时不要设置，否则客户端可伪造该头绕过限流。
 - `auth.cors_allowed_origins` 允许跨站调用 API 的浏览器来源（精确匹配，如 `https://trip.example.com`，不支持通配符）。同源部署（前端镜像的 Nginx 转发 `/api`）无需配置。
 - `auth.oauth_providers.<github|google>` 配置 `client_id`、`client_secret`、`redirect_url`（OAuth 应用登记的前端回调页）、可选 `scopes` 与 `display_name`；缺少 `client_id` 或 `client_secret` 的提供方不会出现在 `ListOAuthProviders` 中。
+- `share.public_base_url` 开启公开分享（为空即关闭）；`share.app_index_url`、`share.html_csp` 与限流项见下文 F6 一节。
 - `auto_migrate: true` 在启动时通过 Ent 创建或补充表结构。本地示例开启；生产环境应设为 `false`，改由下文“版本化数据库迁移”中评审过的 SQL 文件升级，再启动新版本后端。
 
 启动时检查 PostgreSQL、Redis 与 S3 bucket，缺失或不可连接则启动失败。后端不会在启动时自动创建 bucket；`make storage-init` 是独立显式操作，bucket 已存在且可访问时直接成功，不会配置公共访问策略。
@@ -211,6 +213,36 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
   -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" -d '{}'
 ```
 
+## F6 公开分享（`tripmap.v1.ShareService`）
+
+用户可见规则见 [功能描述](features.md#公开分享页与预览图f6)，行为细节、部署与限制见 [公开分享页与预览图](sharing.md)。
+
+**所有者接口（需要登录，账号只取自会话）。**
+
+| 方法 | 行为 |
+| --- | --- |
+| `GetShare` | 返回已保存的设置、版本、完整链接（仅已发布时）、发布时的足迹 revision 与当前 revision；`enabled=false` 表示服务端未配置分享 |
+| `PreviewShare` | 为候选设置构造将公开的内容并原样返回（`content_json`），同时返回当前足迹 revision 和照片句柄映射，不写任何数据；每用户每分钟 30 次 |
+| `SaveShare` | 以 `expected_version` 条件保存。`mutation_id` 与**完整请求哈希**（期望版本、预览 revision、设置、选中照片、是否刷新）绑定，复用 `sync_receipts` 作为幂等回执：相同请求重放原结果，同 ID 不同内容返回 `already_exists`，过期请求不会因设置相同而被当作重放。新增内容（首次发布、新增字段或照片、`refresh_content`）在用户行锁内读取当前足迹，要求 `preview_revision` 等于当前 revision，否则 `aborted`（带 revision 冲突细节）；只收回字段时不读取足迹。重新发布生成新令牌，旧令牌从不复用。每用户每分钟 20 次写入 |
+| `RevokeShare` | 无条件、立即删除令牌和快照，保留设置草稿；以 `mutation_id` 幂等 |
+
+保存在单个事务内取得用户行的最小更新锁，与足迹同步、账号注销串行。快照 gzip 后上限 4 MiB，超过返回 `failed_precondition`（不截断）。`shares` 的变化不影响 OAuth、会话、快照或云同步。
+
+**公开路由（无认证，Gin 直接挂载）：** `GET|HEAD /s/<token>`、`/s/<token>/og.png`、`/api/share/<token>/data`、`/api/share/<token>/photos/<句柄>`（见 [公开接口](sharing.md#公开接口)）。路由在 `internal/app/share_routes.go`，处理在 `internal/application/share_public.go`。
+
+**配置。**
+
+| 字段 | 含义 |
+| --- | --- |
+| `share.public_base_url` | 站点地址，分享链接 = 它 + `/s/<令牌>`；为空则分享关闭，`GetStatus.share_enabled=false` |
+| `share.app_index_url` | 受信任的前端 `index.html` 地址，用于注入 OG 标签；可空（使用最小页面）；不得包含 `/s/`、`/api/`，不受用户输入控制 |
+| `share.html_csp` | 覆盖分享 HTML 的 CSP，默认严格同源；Vite 开发服务器需要放宽 |
+| `share.page_rate_per_minute` / `image_…` / `miss_…` / `photo_…` | 每客户端地址每分钟限额，默认 120 / 30 / 30 / 300 |
+
+**部署顺序与反向代理。** 先应用 `migrations/20261014022913_f6_shares.sql`，再部署后端，最后部署前端。代理必须转发 `/s/` 与 `/api/share/` 到后端，且这些路径不写访问日志（令牌）；位于代理之后设置 `auth.client_ip_header`。镜像内的 Nginx 配置已处理；Vite 开发服务器代理 `/s/`。后端镜像构建需要 `internal/` 下的预览资源和 `scripts/fixtures`；前端镜像构建需要 `internal/share/assets/geometry.json`（`check:maps` 校验）。后端 `CGO_ENABLED=0` 构建通过。
+
+**生成。** 修改 `proto/` 后 `make buf`，修改 `internal/ent/schema/` 后 `make ent`，迁移文件用 `make migration NAME=… DEV_DSN=…` 生成；生成文件不手改。
+
 ## 数据库模型
 
 | 表 | 关键字段与约束 |
@@ -221,6 +253,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 | `city_trips` | F5：所属用户、所属城市行（外键，级联删除）、旅行 ID（`user_id + trip_id` 唯一）、区域 ID、日期字符串、备注、创建/更新时间 |
 | `province_marks` | 所属用户、省份 ID、颜色；`user_id + province_code` 唯一 |
 | `media_objects` | 所属用户、唯一 object key、内容类型、非负字节大小、pending/ready/deleting 状态、区域 ID、可空软引用 `trip_id` 等 F4 字段 |
+| `shares` | F6：所属用户（`user_id` 唯一，级联删除）、可空唯一 `token`（43 位 base64url，明文存储）、`visibility`（private / link / public，默认 private）、`show_cities/dates/notes/photos`、选中照片 ID（JSON）、`version`、`published_revision`、`published_at`、gzip 的发布快照 `payload`（公开内容 + 服务端独有的句柄映射）；撤销后令牌与载荷为空，保留设置草稿 |
 | `snapshots` | 所属用户、`reason`（manual / scheduled / before_migration / before_restore）、快照时的 `revision`、城市、旅行（`trip_count`）与省份标记数量、`schema_version`（旧行为 1）、gzip 压缩的 `SnapshotData` 载荷、创建时间；所有字段不可修改；`user_id + created_at`、`user_id + revision` 索引；用户删除时级联 |
 
 城市足迹与省份独立标记分表。删除城市不影响省份独立标记；用户归属为必填外键，删除用户时数据库级联删除这些元数据。注销服务先清理 S3 实体对象，再级联删除元数据；对象清理失败保留已暂停账号以便重试。
@@ -231,12 +264,13 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 ## 版本化数据库迁移
 
-`migrations/` 保存按时间戳排序的、只增不删的 PostgreSQL SQL 文件和 `atlas.sum` 校验和（Atlas 目录格式）。当前有两个文件：
+`migrations/` 保存按时间戳排序的、只增不删的 PostgreSQL SQL 文件和 `atlas.sum` 校验和（Atlas 目录格式）。当前有三个文件：
 
 | 文件 | 内容 |
 | --- | --- |
 | `20261014011442_baseline.sql` | F5 之前（`main`）的完整结构，用于全新数据库；已有数据库不执行 |
 | `20261014011446_f5_multiple_trips.sql` | F5 的纯新增变更：`media_objects.trip_id`（默认空串）及索引、`snapshots.schema_version`（默认 1）与 `trip_count`（默认 0）、`users.schema_version`（默认 1）、新表 `city_trips`（外键级联、`(user_id, trip_id)` 唯一索引）。不删除、不改写任何已有列或行 |
+| `20261014022913_f6_shares.sql` | F6 的纯新增变更：新表 `shares`（`token` 唯一索引、`user_id` 唯一索引、外键级联删除） |
 
 **生成。** 修改 `internal/ent/schema/` 并运行 `make ent` 后，用 `make migration NAME=<变更名> DEV_DSN='postgres://…'` 生成下一个文件（`cmd/migrate-gen`）：它在 `DEV_DSN` 指向的服务器上临时创建一个随机命名的空数据库，重放现有 `migrations/` 得到“当前结构”，与 Ent schema 比较后写出差异和新的 `atlas.sum`，然后删除该数据库；因此所用账号需要 `CREATEDB`，不会碰服务器上的其他库。生成器只写新增和修改类语句（不写 `DROP COLUMN` / `DROP INDEX`，也不生成会丢数据的回滚脚本）。迁移文件只通过生成器更新，手改会使 `atlas.sum` 校验失败。
 
@@ -244,7 +278,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 1. 备份数据库（F5 对账号的升级是单向的，回退旧后端需要这份备份）。
 2. 把后端配置改为 `auto_migrate: false`。
-3. 对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/20261014011446_f5_multiple_trips.sql`。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
+3. 对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/20261014011446_f5_multiple_trips.sql`，再执行 `20261014022913_f6_shares.sql`（已升级到 F5 的数据库只需执行 F6 这一个）。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
 4. 部署新后端；已有账号在第一次被新前端写入时才升级到结构 2（见上文），旧行保持原样。
 5. 全新数据库：按文件名顺序执行全部文件（含 baseline）。
 
@@ -280,7 +314,7 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：分享、行政区划服务等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）与 F5（同城多次旅行）已实现；F6–F12 仍待完整实现。
+从 [后端功能调研](backend-research.md) 中选择业务切片继续实现：行政区划服务等。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）与 F5（同城多次旅行）已实现；F6（公开分享页与预览图）已实现；F7–F12 仍待完整实现。
 
 ## F1 新接口与部署
 

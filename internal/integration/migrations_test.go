@@ -129,6 +129,22 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 	if n, err := client.Trip.Query().Count(ctx); err != nil || n != 0 {
 		t.Fatalf("new table should start empty: %d %v", n, err)
 	}
+	// A share row keeps the user's data apart from the public token and goes away with the user.
+	exec(`INSERT INTO shares (id, visibility, token, show_cities, show_dates, show_notes, show_photos, photo_ids, version, published_revision, payload, created_at, updated_at, user_id)
+		VALUES ('sh1','link','tok',false,false,false,false,'[]',1,7,'\x7b7d',now(),now(),'u1')`)
+	if _, err := scoped.ExecContext(ctx, `INSERT INTO shares (id, visibility, token, photo_ids, created_at, updated_at, user_id) VALUES ('sh2','link','tok2','[]',now(),now(),'u1')`); err == nil {
+		t.Fatal("a user can own two share rows")
+	}
+	exec(`INSERT INTO users (id, display_name, created_at, updated_at, revision) VALUES ('u2','另一个',now(),now(),0)`)
+	if _, err := scoped.ExecContext(ctx, `INSERT INTO shares (id, visibility, token, photo_ids, created_at, updated_at, user_id) VALUES ('sh3','link','tok','[]',now(),now(),'u2')`); err == nil {
+		t.Fatal("two shares share one token")
+	}
+	exec(`INSERT INTO shares (id, visibility, token, photo_ids, created_at, updated_at, user_id) VALUES ('sh4','link','tok4','[]',now(),now(),'u2')`)
+	exec(`DELETE FROM users WHERE id='u2'`)
+	var left int
+	if err := scoped.QueryRowContext(ctx, `SELECT count(*) FROM shares WHERE user_id='u2'`).Scan(&left); err != nil || left != 0 {
+		t.Fatalf("deleting a user left %d share rows: %v", left, err)
+	}
 	// Ent keeps proposing to re-create its two partial unique indexes because it
 	// compares the predicate text with PostgreSQL's normalised form. That is also
 	// what a database created by Schema.Create reports, so the migrated database

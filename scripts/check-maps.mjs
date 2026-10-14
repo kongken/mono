@@ -3,6 +3,7 @@ import { provinceNeighbors } from "./prepare-province-neighbors.mjs";
 import { readFile } from "node:fs/promises";
 import { geoArea, geoMercator, geoPath } from "d3-geo";
 import { normalizeMap } from "../src/lib/maps.ts";
+import { buildShareGeometry, GEOMETRY_FILE } from "./prepare-share-geometry.mjs";
 const regions = JSON.parse(await readFile("src/regions.json", "utf8"));
 assert.equal(regions.length, 34);
 const national = normalizeMap(JSON.parse(await readFile('public/maps/100000.json', 'utf8')));
@@ -52,6 +53,20 @@ for (const province of regions) {
     total++;
   }
 }
+// The Go backend draws the share preview from baked geometry; it must be exactly what
+// the app would project from the shipped national map and its fixed palette.
+const shareGeometry = JSON.parse(await readFile(GEOMETRY_FILE, "utf8"));
+assert.deepEqual(
+  shareGeometry,
+  JSON.parse(JSON.stringify(buildShareGeometry(JSON.parse(await readFile("public/maps/100000.json", "utf8")), regions))),
+  `Share preview geometry is stale: run npm run prepare:share-geometry`,
+);
+assert.deepEqual(
+  shareGeometry.provinces.map((p) => p.code),
+  regions.map((r) => r.code),
+  "Share geometry province IDs differ from regions.json",
+);
+for (const p of shareGeometry.provinces) assert.ok(p.rings.length > 0 && /^#[0-9a-f]{6}$/i.test(p.color), `${p.code} has no usable share geometry`);
 console.log(
   `Map checks passed: 34 provinces, ${total} city/district regions, valid projections and unique identifiers.`,
 );

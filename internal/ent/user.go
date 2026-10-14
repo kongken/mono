@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -67,9 +68,11 @@ type UserEdges struct {
 	SyncReceipts []*SyncReceipt `json:"sync_receipts,omitempty"`
 	// Snapshots holds the value of the snapshots edge.
 	Snapshots []*Snapshot `json:"snapshots,omitempty"`
+	// Share holds the value of the share edge.
+	Share *Share `json:"share,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [8]bool
+	loadedTypes [9]bool
 }
 
 // VisitsOrErr returns the Visits value or an error if the edge
@@ -142,6 +145,17 @@ func (e UserEdges) SnapshotsOrErr() ([]*Snapshot, error) {
 		return e.Snapshots, nil
 	}
 	return nil, &NotLoadedError{edge: "snapshots"}
+}
+
+// ShareOrErr returns the Share value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e UserEdges) ShareOrErr() (*Share, error) {
+	if e.Share != nil {
+		return e.Share, nil
+	} else if e.loadedTypes[8] {
+		return nil, &NotFoundError{label: share.Label}
+	}
+	return nil, &NotLoadedError{edge: "share"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -310,6 +324,11 @@ func (_m *User) QuerySyncReceipts() *SyncReceiptQuery {
 // QuerySnapshots queries the "snapshots" edge of the User entity.
 func (_m *User) QuerySnapshots() *SnapshotQuery {
 	return NewUserClient(_m.config).QuerySnapshots(_m)
+}
+
+// QueryShare queries the "share" edge of the User entity.
+func (_m *User) QueryShare() *ShareQuery {
+	return NewUserClient(_m.config).QueryShare(_m)
 }
 
 // Update returns a builder for updating this User.

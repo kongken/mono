@@ -29,7 +29,7 @@
 
 后端 Docker 构建会运行 Go 单元测试再生成静态二进制；没有实际存储测试连接时，集成测试会跳过。实际 PostgreSQL/Redis/S3 验证仍通过 `make test-integration` 单独运行。
 
-前端 Docker 构建会运行 `npm test`、`npm run check:maps` 和生产构建。地图 GeoJSON 和静态资源随镜像发布。
+前端 Docker 构建会运行 `npm test`、`npm run check:maps` 和生产构建；这些检查会读取 `internal/share/assets/geometry.json`（F6 预览几何），Dockerfile 已单独 COPY 它。后端 Docker 构建的测试读取 `scripts/fixtures` 与 `migrations`，也已 COPY；预览资源在 `internal` 下随源码进入镜像，`CGO_ENABLED=0` 即可构建。地图 GeoJSON 和静态资源随镜像发布。
 
 本地构建：
 
@@ -42,7 +42,7 @@ docker build -f deploy/frontend/Dockerfile -t trip-map-front:local .
 
 前端默认转发到 `backend:18081`，通过运行时环境变量 `BACKEND_UPSTREAM` 指定后端的 `主机:端口`，例如 `tripmap-api:18081`。前后端容器需位于同一 Docker 网络，或该地址可从前端容器访问。
 
-`/api/`、`/ping` 和 `/readyz` 保留完整路径转发到后端；SPA 路由返回 index.html，不存在的地图或打包资源返回 404。哈希静态文件长缓存，index.html 不缓存，地图资源重新验证缓存。
+`/api/`、`/ping` 和 `/readyz` 保留完整路径转发到后端；F6 的 `/s/` 与 `/api/share/` 也转发到后端（后端对 `/s/<令牌>` 返回带 Open Graph 标签的页面），这两类路径不写访问日志、`error_log` 限为 `crit`，因为路径含分享令牌，详见 [公开分享页与预览图](sharing.md#配置与部署)；后端需配置 `share.public_base_url` 与 `share.app_index_url`（指向前端容器的根地址，且不得路由回 `/s/`）。SPA 路由返回 index.html，不存在的地图或打包资源返回 404。哈希静态文件长缓存，index.html 不缓存，地图资源重新验证缓存。
 
 前端镜像默认不配置 `VITE_API_BASE_URL`，页面是纯本地模式，不会请求后端，没有后端时也可单独运行；需要连接后端时构建时传入 `--build-arg VITE_API_BASE_URL=/api`（当前 CI 未传递）。
 

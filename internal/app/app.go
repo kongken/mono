@@ -32,9 +32,11 @@ import (
 type Resources struct {
 	DB     *ent.Client
 	Redis  *redisclient.Client
-	Blobs  *blobstore.S3
+	Blobs  blobstore.Store
 	Health *health.Checker
-	stop   context.CancelFunc
+	// KeyPrefix namespaces Redis keys; empty means the default. Only tests set it.
+	KeyPrefix string
+	stop      context.CancelFunc
 }
 type Handlers struct {
 	cfg       *config.AppConfig
@@ -146,6 +148,10 @@ func (h *Handlers) Shutdown() error {
 	return errors.Join(r.DB.Close(), r.Redis.Close())
 }
 
+// SetResources installs already connected services instead of bootstrapping them.
+// Tests use it to run the real routes over isolated databases.
+func (h *Handlers) SetResources(r *Resources) { h.resources.Store(r) }
+
 // Store exposes the connected backing services to RPC services, or nil before
 // bootstrap has finished.
 func (h *Handlers) Store() *application.Store {
@@ -153,7 +159,7 @@ func (h *Handlers) Store() *application.Store {
 	if r == nil || r.DB == nil || r.Redis == nil {
 		return nil
 	}
-	return &application.Store{DB: r.DB, Redis: r.Redis, Blobs: r.Blobs}
+	return &application.Store{DB: r.DB, Redis: r.Redis, Blobs: r.Blobs, KeyPrefix: r.KeyPrefix}
 }
 func (h *Handlers) Routes(r *gin.Engine) {
 	// A reverse proxy can be explicitly configured later; don't trust arbitrary X-Forwarded-For.
@@ -176,7 +182,7 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	mount := func(path string, handler http.Handler) {
 		api.Any(path+"*path", gin.WrapH(http.StripPrefix("/api", handler)))
 	}
-	path, handler := tripmapv1connect.NewSystemServiceHandler(application.NewSystemService(h), opts)
+	path, handler := tripmapv1connect.NewSystemServiceHandler(application.NewSystemService(h, func() bool { return h.cfg.Share.Enabled() }), opts)
 	mount(path, handler)
 	path, handler = tripmapv1connect.NewAuthServiceHandler(application.NewAuthService(h.cfg, h), opts)
 	mount(path, handler)
@@ -186,6 +192,9 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	mount(path, handler)
 	path, handler = tripmapv1connect.NewMediaServiceHandler(application.NewMediaService(h, index), opts, connect.WithReadMaxBytes(16*1024*1024))
 	mount(path, handler)
+	path, handler = tripmapv1connect.NewShareServiceHandler(application.NewShareService(h.cfg, h, index), opts)
+	mount(path, handler)
+	mountShare(r, api, application.NewSharePublic(h.cfg, h))
 }
 
 // cors answers cross-origin requests from the configured origins only. Requests

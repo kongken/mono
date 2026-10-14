@@ -17,6 +17,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
@@ -345,6 +346,25 @@ func (_c *UserCreate) AddSnapshots(v ...*Snapshot) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddSnapshotIDs(ids...)
+}
+
+// SetShareID sets the "share" edge to the Share entity by ID.
+func (_c *UserCreate) SetShareID(id string) *UserCreate {
+	_c.mutation.SetShareID(id)
+	return _c
+}
+
+// SetNillableShareID sets the "share" edge to the Share entity by ID if the given value is not nil.
+func (_c *UserCreate) SetNillableShareID(id *string) *UserCreate {
+	if id != nil {
+		_c = _c.SetShareID(*id)
+	}
+	return _c
+}
+
+// SetShare sets the "share" edge to the Share entity.
+func (_c *UserCreate) SetShare(v *Share) *UserCreate {
+	return _c.SetShareID(v.ID)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -679,6 +699,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ShareIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   user.ShareTable,
+			Columns: []string{user.ShareColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(share.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

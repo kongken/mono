@@ -11,6 +11,7 @@
     "download:maps": "node scripts/download-maps.mjs",
     "check:maps": "node scripts/check-maps.mjs",
     "prepare:map-colors": "node scripts/prepare-province-neighbors.mjs",
+    "prepare:share-geometry": "node scripts/prepare-share-geometry.mjs",
     "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {

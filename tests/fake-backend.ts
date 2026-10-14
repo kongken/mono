@@ -56,7 +56,7 @@ const failure = (code: string, message: string, status: number) => ({
 export function fakeBackend(
   page: Page,
   initial: { visits: V[]; marks?: Record<string, string>; trips?: StoredTrip[] },
-  options: { footprintSchema?: number } = {},
+  options: { footprintSchema?: number; shareEnabled?: boolean } = {},
 ) {
   const seededTrips: StoredTrip[] = [
     ...initial.visits.map((v) => ({ id: legacyId(v.code), code: v.code, date: v.date, note: v.note })),
@@ -225,7 +225,7 @@ export function fakeBackend(
         }
         switch (method) {
           case "GetStatus":
-            return send(system.GetStatusResponseSchema, { footprintSchema: state.footprintSchema });
+            return send(system.GetStatusResponseSchema, { footprintSchema: state.footprintSchema, shareEnabled: options.shareEnabled ?? false });
           case "Login":
             return send(auth.LoginResponseSchema, {
               token: "ci-token",

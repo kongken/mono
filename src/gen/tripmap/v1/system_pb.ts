@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file tripmap/v1/system.proto.
  */
 export const file_tripmap_v1_system: GenFile = /*@__PURE__*/
-  fileDesc("Chd0cmlwbWFwL3YxL3N5c3RlbS5wcm90bxIKdHJpcG1hcC52MSISChBHZXRTdGF0dXNSZXF1ZXN0InAKEUdldFN0YXR1c1Jlc3BvbnNlEg0KBXJlYWR5GAEgASgIEjIKDGRlcGVuZGVuY2llcxgCIAMoCzIcLnRyaXBtYXAudjEuRGVwZW5kZW5jeVN0YXR1cxIYChBmb290cHJpbnRfc2NoZW1hGAMgASgFIi8KEERlcGVuZGVuY3lTdGF0dXMSDAoEbmFtZRgBIAEoCRINCgVyZWFkeRgCIAEoCDJZCg1TeXN0ZW1TZXJ2aWNlEkgKCUdldFN0YXR1cxIcLnRyaXBtYXAudjEuR2V0U3RhdHVzUmVxdWVzdBodLnRyaXBtYXAudjEuR2V0U3RhdHVzUmVzcG9uc2VCOFo2Z28ub3J4Lm1lL2FwcHMvdHJpcC1tYXAvcGtnL3Byb3RvL3RyaXBtYXAvdjE7dHJpcG1hcHYxYgZwcm90bzM");
+  fileDesc("Chd0cmlwbWFwL3YxL3N5c3RlbS5wcm90bxIKdHJpcG1hcC52MSISChBHZXRTdGF0dXNSZXF1ZXN0IocBChFHZXRTdGF0dXNSZXNwb25zZRINCgVyZWFkeRgBIAEoCBIyCgxkZXBlbmRlbmNpZXMYAiADKAsyHC50cmlwbWFwLnYxLkRlcGVuZGVuY3lTdGF0dXMSGAoQZm9vdHByaW50X3NjaGVtYRgDIAEoBRIVCg1zaGFyZV9lbmFibGVkGAQgASgIIi8KEERlcGVuZGVuY3lTdGF0dXMSDAoEbmFtZRgBIAEoCRINCgVyZWFkeRgCIAEoCDJZCg1TeXN0ZW1TZXJ2aWNlEkgKCUdldFN0YXR1cxIcLnRyaXBtYXAudjEuR2V0U3RhdHVzUmVxdWVzdBodLnRyaXBtYXAudjEuR2V0U3RhdHVzUmVzcG9uc2VCOFo2Z28ub3J4Lm1lL2FwcHMvdHJpcC1tYXAvcGtnL3Byb3RvL3RyaXBtYXAvdjE7dHJpcG1hcHYxYgZwcm90bzM");
 
 /**
  * @generated from message tripmap.v1.GetStatusRequest
@@ -46,6 +46,13 @@ export type GetStatusResponse = Message<"tripmap.v1.GetStatusResponse"> & {
    * @generated from field: int32 footprint_schema = 3;
    */
   footprintSchema: number;
+
+  /**
+   * True when the server has public sharing configured (share.public_base_url).
+   *
+   * @generated from field: bool share_enabled = 4;
+   */
+  shareEnabled: boolean;
 };
 
 /**

@@ -79,3 +79,37 @@ func TestCORSAllowsOnlyConfiguredOrigins(t *testing.T) {
 		t.Fatal("same-origin request got CORS headers")
 	}
 }
+
+func TestShareRoutesAreClosedWithoutConfigurationAndKeepTokensOutOfTheApp(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	New(&config.AppConfig{}).Routes(router)
+	token := strings.Repeat("a", 43)
+	var reference *httptest.ResponseRecorder
+	for _, path := range []string{"/s", "/s/", "/s/" + token, "/s/" + token + "/og.png", "/s/not-a-token", "/s/" + token + "/x/y",
+		"/api/share/" + token + "/data", "/api/share/" + token + "/photos/p12345678", "/api/share/x"} {
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, httptest.NewRequest(method, path, nil))
+			if rec.Code != http.StatusNotFound || rec.Header().Get("Cache-Control") != "no-store" {
+				t.Fatalf("%s %s: %d %v", method, path, rec.Code, rec.Header())
+			}
+			if method == http.MethodGet && strings.HasPrefix(path, "/s") {
+				if reference == nil {
+					reference = rec
+				} else if rec.Body.String() != reference.Body.String() || rec.Header().Get("Content-Type") != reference.Header().Get("Content-Type") {
+					t.Fatalf("%s answers differently from the other 404s", path)
+				}
+			}
+			if strings.Contains(rec.Body.String(), token) {
+				t.Fatalf("%s echoed the token", path)
+			}
+		}
+	}
+	// POST is not a share method.
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/s/"+token, nil))
+	if rec.Code == http.StatusOK {
+		t.Fatalf("POST was served: %d", rec.Code)
+	}
+}

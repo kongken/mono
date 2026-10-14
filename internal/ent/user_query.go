@@ -19,6 +19,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/predicate"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	"go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/trip"
@@ -40,6 +41,7 @@ type UserQuery struct {
 	withFootprintChanges *FootprintChangeQuery
 	withSyncReceipts     *SyncReceiptQuery
 	withSnapshots        *SnapshotQuery
+	withShare            *ShareQuery
 	modifiers            []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -253,6 +255,28 @@ func (_q *UserQuery) QuerySnapshots() *SnapshotQuery {
 	return query
 }
 
+// QueryShare chains the current query on the "share" edge.
+func (_q *UserQuery) QueryShare() *ShareQuery {
+	query := (&ShareClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(share.Table, share.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, user.ShareTable, user.ShareColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first User entity from the query.
 // Returns a *NotFoundError when no User was found.
 func (_q *UserQuery) First(ctx context.Context) (*User, error) {
@@ -453,6 +477,7 @@ func (_q *UserQuery) Clone() *UserQuery {
 		withFootprintChanges: _q.withFootprintChanges.Clone(),
 		withSyncReceipts:     _q.withSyncReceipts.Clone(),
 		withSnapshots:        _q.withSnapshots.Clone(),
+		withShare:            _q.withShare.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -547,6 +572,17 @@ func (_q *UserQuery) WithSnapshots(opts ...func(*SnapshotQuery)) *UserQuery {
 	return _q
 }
 
+// WithShare tells the query-builder to eager-load the nodes that are connected to
+// the "share" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithShare(opts ...func(*ShareQuery)) *UserQuery {
+	query := (&ShareClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withShare = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -625,7 +661,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [8]bool{
+		loadedTypes = [9]bool{
 			_q.withVisits != nil,
 			_q.withTrips != nil,
 			_q.withProvinceMarks != nil,
@@ -634,6 +670,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			_q.withFootprintChanges != nil,
 			_q.withSyncReceipts != nil,
 			_q.withSnapshots != nil,
+			_q.withShare != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -710,6 +747,12 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadSnapshots(ctx, query, nodes,
 			func(n *User) { n.Edges.Snapshots = []*Snapshot{} },
 			func(n *User, e *Snapshot) { n.Edges.Snapshots = append(n.Edges.Snapshots, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withShare; query != nil {
+		if err := _q.loadShare(ctx, query, nodes, nil,
+			func(n *User, e *Share) { n.Edges.Share = e }); err != nil {
 			return nil, err
 		}
 	}
@@ -941,6 +984,33 @@ func (_q *UserQuery) loadSnapshots(ctx context.Context, query *SnapshotQuery, no
 	}
 	query.Where(predicate.Snapshot(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(user.SnapshotsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadShare(ctx context.Context, query *ShareQuery, nodes []*User, init func(*User), assign func(*User, *Share)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(share.FieldUserID)
+	}
+	query.Where(predicate.Share(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.ShareColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

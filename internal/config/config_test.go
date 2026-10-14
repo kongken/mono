@@ -70,3 +70,39 @@ func TestExampleConfigParses(t *testing.T) {
 		t.Fatalf("example OAuth providers should be listed but disabled: %+v", cfg.Auth.OAuthProviders)
 	}
 }
+
+func TestShareConfigValidation(t *testing.T) {
+	base := func() *AppConfig {
+		return &AppConfig{DBStore: "main", RedisStore: "main", Storage: StorageConfig{S3Store: "main"}}
+	}
+	cfg := base()
+	if cfg.Share.Enabled() {
+		t.Fatal("sharing must be off by default")
+	}
+	cfg.Share = ShareConfig{PublicBaseURL: "https://trip.example.com/", AppIndexURL: "https://trip.example.com/index.html"}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Share.BaseURL(); got != "https://trip.example.com" {
+		t.Fatalf("base URL = %q", got)
+	}
+	for name, share := range map[string]ShareConfig{
+		"index without base":    {AppIndexURL: "https://trip.example.com/"},
+		"relative base":         {PublicBaseURL: "/s"},
+		"ftp base":              {PublicBaseURL: "ftp://trip.example.com"},
+		"credentials":           {PublicBaseURL: "https://user:pw@trip.example.com"},
+		"query":                 {PublicBaseURL: "https://trip.example.com/?a=b"},
+		"fragment":              {PublicBaseURL: "https://trip.example.com/#x"},
+		"index into share":      {PublicBaseURL: "https://trip.example.com", AppIndexURL: "https://trip.example.com/s/abc"},
+		"index is share root":   {PublicBaseURL: "https://trip.example.com", AppIndexURL: "https://trip.example.com/s"},
+		"index into api":        {PublicBaseURL: "https://trip.example.com", AppIndexURL: "https://trip.example.com/api/x"},
+		"index with credential": {PublicBaseURL: "https://trip.example.com", AppIndexURL: "https://u:p@trip.example.com/"},
+		"negative limit":        {PublicBaseURL: "https://trip.example.com", PageRatePerMinute: -1},
+	} {
+		cfg := base()
+		cfg.Share = share
+		if cfg.Validate() == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}

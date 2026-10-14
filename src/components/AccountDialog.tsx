@@ -4,10 +4,12 @@ import {
   CloudCheck,
   GithubLogo,
   GoogleLogo,
+  ShareNetwork,
   SignOut,
   UserCircle,
 } from "@phosphor-icons/react";
 import { authApi, type SessionInfo } from "@/api/auth";
+import { getBackendStatus } from "@/api/system";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,6 +31,7 @@ type Props = {
   onMigrate: () => void;
   onOpenSnapshots: () => void;
   onOpenMedia: () => void;
+  onOpenShare: () => void;
 };
 
 const when = (date: Date | null) =>
@@ -48,6 +51,7 @@ export default function AccountDialog({
   onMigrate,
   onOpenSnapshots,
   onOpenMedia,
+  onOpenShare,
 }: Props) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
@@ -82,6 +86,22 @@ export default function AccountDialog({
   useEffect(() => {
     if (open && signedIn) void loadSessions();
     else setSessions(null);
+  }, [open, signedIn]);
+
+  // Sharing appears only when the server advertises it (share.public_base_url is set).
+  const [shareEnabled, setShareEnabled] = useState(false);
+  useEffect(() => {
+    if (!open || !signedIn) {
+      setShareEnabled(false);
+      return;
+    }
+    let alive = true;
+    void getBackendStatus()
+      ?.then((s) => alive && setShareEnabled(s.shareEnabled))
+      .catch(() => alive && setShareEnabled(false));
+    return () => {
+      alive = false;
+    };
   }, [open, signedIn]);
 
   const run = async (action: () => Promise<unknown>) => {
@@ -184,6 +204,15 @@ export default function AccountDialog({
               <span>私有保存旅途照片和附件，取消打卡后仍可在这里查看。</span>
               <Button variant="outline" size="sm" disabled={cloud.deletionBlocked} onClick={onOpenMedia}>照片与附件</Button>
             </div>
+            {shareEnabled && (
+              <div className="unreadable-note account-migrate">
+                <span>生成只读的公开页面和分享图。发布前可以预览，随时可以撤销链接。</span>
+                <Button variant="outline" size="sm" disabled={cloud.deletionBlocked} onClick={onOpenShare}>
+                  <ShareNetwork size={16} />
+                  分享页面
+                </Button>
+              </div>
+            )}
             {sessions && sessions.length > 0 && (
               <div className="account-sessions">
                 <h3>已登录的设备</h3>

@@ -10,6 +10,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/accountdeletionreceipt"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
 	"go.orx.me/apps/trip-map/internal/ent/session"
+	entshare "go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
 	"golang.org/x/crypto/bcrypt"
@@ -71,6 +72,12 @@ func (s *AuthService) DeleteAccount(ctx context.Context, req *connect.Request[tr
 		}
 	}
 	if _, err = tx.Session.Update().Where(session.UserID(u.ID), session.IDNEQ(p.SessionID)).SetRevoked(true).Save(ctx); err != nil {
+		return nil, internalError(err)
+	}
+	// Public access ends with the first transaction, before any slow object cleanup
+	// can fail: the share row is removed (its link and snapshot with it) and public
+	// reads also require an enabled account, so nothing stays reachable meanwhile.
+	if _, err = tx.Share.Delete().Where(entshare.UserID(u.ID)).Exec(ctx); err != nil {
 		return nil, internalError(err)
 	}
 	if err = tx.Commit(); err != nil {

@@ -97,7 +97,9 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 | `scripts/download-maps.mjs` | 根据现有全国地图下载省内地图并重建索引 |
 | `scripts/prepare-taiwan.mjs` | 处理补充县市边界数据的名称、ID、中心点及多边形方向 |
 | `scripts/split-fujian-regions.mjs` | 将补充边界中的金门、马祖拆入福建，并移除福州、泉州中的重复岛屿组件 |
-| `scripts/check-maps.mjs` | 校验全国覆盖、省内索引一致性、ID 唯一性、多边形方向及投影路径 |
+| `scripts/check-maps.mjs` | 校验全国覆盖、省内索引一致性、ID 唯一性、多边形方向及投影路径，以及 F6 预览几何与当前地图、区域索引和固定配色一致 |
+| `src/lib/projection.ts` | 全国与省内地图共用的投影镜头和南海附图位置（应用、分享页和预览几何生成共用） |
+| `internal/share/assets/geometry.json` | F6 预览图用的预投影省份多边形与固定配色，由 `npm run prepare:share-geometry` 生成 |
 
 当前共有 34 个省级区域和 497 个可记录下级区域（福建 11、台湾 20）。全国城市统计将直辖市和港澳的 112 个区县合并为 6 个目的地，分母为 391；这只改变统计，不合并或删除足迹记录。数量是当前数据快照；更新后以 `npm run check:maps` 的实际结果为准。
 
@@ -153,3 +155,30 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 - `media_objects.trip_id`、`snapshots.schema_version`（旧行默认 1）与 `snapshots.trip_count`。
 - 删除城市同一事务内级联删除其旅行；旅行不能改变所属城市。变更日志新增 `upsert_city`、`upsert_trip`、`delete_trip` 三类操作；旧的 `upsert_visit` 仍表示“城市加 `legacy-<区域 ID>` 旅行”，旧日志条目可继续回放。
 - 兼容性与部署顺序见 [后端初始化](backend.md#f5-升级与部署顺序)。
+
+## F6 分享快照与预览资源
+
+**当前已实现。** 分享配置保存在 `shares` 表（见 [后端初始化](backend.md#数据库模型)），与城市足迹、省份标记、旅行和媒体分表；删除或修改足迹不会改写已发布的快照，发布快照里也不引用这些行。公开内容（`internal/share.Content`，版本 1）是显式白名单：
+
+```json
+{
+  "v": 1, "published_on": "2026-10-14",
+  "fields": { "cities": false, "dates": false, "notes": false, "photos": false },
+  "stats": { "explored_provinces": 2, "total_provinces": 34, "cities": 3, "total_cities": 391, "trips": 4,
+             "by_province": [{ "code": "330000", "cities": 2, "total": 11 }] },
+  "provinces": ["330000", "350000"],
+  "cities": [{ "code": "330100", "name": "杭州市", "province": "330000", "color": "#4b937d",
+               "trips": [{ "date": "2026-05-01", "note": "…", "photos": [{ "id": "pAbCdEfGh", "w": 800, "h": 600 }] }] }]
+}
+```
+
+`cities` 只在 `fields.cities` 时出现；`date`、`note`、`photos` 只在对应字段开启时出现；省份独立标记与城市足迹的并集计入已探索省份（与 [统计口径](features.md#统计口径) 一致，直辖市区县与特别行政区在全国范围合计 1 座城市，台湾补充区域保留 `tw-` 区域 ID）。不含用户、旅行、媒体的标识。服务端另存句柄到媒体 ID 的映射，仅服务端可见。快照 gzip 后不超过 4 MiB。
+
+**预览资源。**
+
+- `internal/share/assets/geometry.json`：全国地图按前端投影（`src/lib/projection.ts`：圆锥等角投影，平行纬线 25°/47°，中心 105°E，与应用同一镜头）预先投影的省份多边形、南海诸岛附图，以及固定省份配色（`nationalProvinceColors` 的全部 34 省结果）。由 `npm run prepare:share-geometry` 生成；`npm run check:maps` 要求它与 `public/maps/100000.json`、`src/regions.json`、固定配色逐字一致，更新地图数据后需重新生成并一并提交。
+- `internal/share/assets/NotoSansSC-{Regular,Bold}.subset.otf` 与 `OFL.txt`：Noto Sans SC 子集（SIL OFL 1.1），保留许可证；子集由 `scripts/subset-share-font.sh` 生成，只含预览图的固定文字和数字。更改预览图固定文字时必须重新生成子集（`TestFontCoversEveryRenderedCharacter` 会检查）。
+- 前端分享页使用同一投影和同一配色，地图来自随项目分发的 `maps/100000.json`；运行时没有第三方地图请求。
+- 统计固定样例：`scripts/fixtures/share-stats.json` 同时驱动 Go（`TestStatsMatchTheSharedFrontendFixtures`）和前端（`scripts/share.test.mjs`），两边口径必须保持一致。
+
+**限制。** 预览图只绘制省份层级，不绘制城市名、备注、日期或照片；发布快照不会因行政区划更新而自动迁移，已发布内容保持当时的区域代码与名称。

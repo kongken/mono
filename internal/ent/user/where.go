@@ -1009,6 +1009,29 @@ func HasSnapshotsWith(preds ...predicate.Snapshot) predicate.User {
 	})
 }
 
+// HasShare applies the HasEdge predicate on the "share" edge.
+func HasShare() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, ShareTable, ShareColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasShareWith applies the HasEdge predicate on the "share" edge with a given conditions (other predicates).
+func HasShareWith(preds ...predicate.Share) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newShareStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.User) predicate.User {
 	return predicate.User(sql.AndPredicates(predicates...))
