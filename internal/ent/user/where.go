@@ -115,6 +115,11 @@ func Revision(v int64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldRevision, v))
 }
 
+// SchemaVersion applies equality check predicate on the "schema_version" field. It's identical to SchemaVersionEQ.
+func SchemaVersion(v int) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSchemaVersion, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -700,6 +705,46 @@ func RevisionLTE(v int64) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldRevision, v))
 }
 
+// SchemaVersionEQ applies the EQ predicate on the "schema_version" field.
+func SchemaVersionEQ(v int) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSchemaVersion, v))
+}
+
+// SchemaVersionNEQ applies the NEQ predicate on the "schema_version" field.
+func SchemaVersionNEQ(v int) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldSchemaVersion, v))
+}
+
+// SchemaVersionIn applies the In predicate on the "schema_version" field.
+func SchemaVersionIn(vs ...int) predicate.User {
+	return predicate.User(sql.FieldIn(FieldSchemaVersion, vs...))
+}
+
+// SchemaVersionNotIn applies the NotIn predicate on the "schema_version" field.
+func SchemaVersionNotIn(vs ...int) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldSchemaVersion, vs...))
+}
+
+// SchemaVersionGT applies the GT predicate on the "schema_version" field.
+func SchemaVersionGT(v int) predicate.User {
+	return predicate.User(sql.FieldGT(FieldSchemaVersion, v))
+}
+
+// SchemaVersionGTE applies the GTE predicate on the "schema_version" field.
+func SchemaVersionGTE(v int) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldSchemaVersion, v))
+}
+
+// SchemaVersionLT applies the LT predicate on the "schema_version" field.
+func SchemaVersionLT(v int) predicate.User {
+	return predicate.User(sql.FieldLT(FieldSchemaVersion, v))
+}
+
+// SchemaVersionLTE applies the LTE predicate on the "schema_version" field.
+func SchemaVersionLTE(v int) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldSchemaVersion, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -795,6 +840,29 @@ func HasVisits() predicate.User {
 func HasVisitsWith(preds ...predicate.CityVisit) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newVisitsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasTrips applies the HasEdge predicate on the "trips" edge.
+func HasTrips() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, TripsTable, TripsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasTripsWith applies the HasEdge predicate on the "trips" edge with a given conditions (other predicates).
+func HasTripsWith(preds ...predicate.Trip) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newTripsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

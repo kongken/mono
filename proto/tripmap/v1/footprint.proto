@@ -10,6 +10,13 @@ option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
 // province marks. All methods require a bearer session and only ever touch the
 // caller's own records.
 //
+// Schema 2 (F5) stores several trips per city. Clients that understand it send
+// "X-Tripmap-Schema: 2" on every request. An account is upgraded in place by its
+// first write from such a client; afterwards requests without the header are
+// rejected with FAILED_PRECONDITION ("client upgrade required") instead of being
+// allowed to drop trips they cannot see. Responses carry schema_version so a new
+// client can refuse a backend that predates this contract.
+//
 // Every write bumps the user's revision. `base_revision` is optional: 0 means
 // "do not check" for legacy clients; require_revision also checks zero.
 // A checked value that differs from the current revision is
@@ -31,8 +38,10 @@ service FootprintService {
   rpc DeleteProvinceMark(DeleteProvinceMarkRequest) returns (DeleteProvinceMarkResponse);
 }
 
-// Visit mirrors the frontend record. Region IDs and names must match the
-// bundled region index.
+// Visit mirrors the frontend city record. Region IDs and names must match the
+// bundled region index. For schema 2 clients only the city fields are
+// meaningful and date/note are empty; the legacy upsert_visit mutation and
+// schema 1 responses still carry the single trip's date and note here.
 message Visit {
   // City or district region ID.
   string code = 1;
@@ -41,11 +50,31 @@ message Visit {
   string province = 3;
   // One of the five footprint colors, e.g. "#4b937d".
   string color = 4;
-  // YYYY-MM-DD, or empty. Must be a real calendar date.
+  // YYYY-MM-DD, or empty. Must be a real calendar date. Legacy field.
   string date = 5;
-  // At most 1000 UTF-16 code units.
+  // At most 1000 UTF-16 code units. Legacy field.
   string note = 6;
   google.protobuf.Timestamp updated_at = 7;
+}
+
+// Trip is one visit to a city. IDs are stable, match ^[A-Za-z0-9_-]{1,64}$ and
+// are unique per user. Trips migrated from schema 1 use "legacy-<region_code>".
+// A trip belongs to the city of region_code for its whole life.
+message Trip {
+  string id = 1;
+  string region_code = 2;
+  // YYYY-MM-DD, or empty. Must be a real calendar date.
+  string date = 3;
+  // At most 1000 UTF-16 code units.
+  string note = 4;
+  google.protobuf.Timestamp created_at = 5;
+  // Changes only when this trip changes, independently of its city.
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+message DeleteTrip {
+  string region_code = 1;
+  string id = 2;
 }
 
 message ProvinceMark {
@@ -65,6 +94,11 @@ message GetFootprintsResponse {
   repeated Visit visits = 1;
   repeated ProvinceMark province_marks = 2;
   int64 revision = 3;
+  // Trips of schema 2 clients. A schema 1 account is read as one "legacy-<code>"
+  // trip per city, without being modified.
+  repeated Trip trips = 4;
+  // 2 when this server understands trips. Zero means an older server.
+  int32 schema_version = 5;
 }
 
 message UpsertVisitRequest {
@@ -119,10 +153,17 @@ message DeleteProvinceMarkResponse {
 // Mutations set the desired state; replay never toggles a record.
 message FootprintMutation {
   oneof operation {
+    // Legacy: the city plus its "legacy-<code>" trip carrying date and note.
     Visit upsert_visit = 1;
+    // Removes the city and, with it, all its trips.
     string delete_visit = 2;
     ProvinceMark upsert_mark = 3;
     string delete_mark = 4;
+    // City fields only; existing trips are untouched.
+    Visit upsert_city = 5;
+    // The city must already exist, in the account or earlier in the same batch.
+    Trip upsert_trip = 6;
+    DeleteTrip delete_trip = 7;
   }
 }
 message FootprintChange {
@@ -141,12 +182,14 @@ message GetChangesResponse {
   bool has_more = 4;
   // Fetch GetFootprints when the requested history is unavailable.
   bool resync_required = 5;
+  // 2 when this server understands trips. Zero means an older server.
+  int32 schema_version = 6;
 }
 message SyncChangesRequest {
   // Stable unique ID reused verbatim after a lost response, never for another batch.
   string mutation_id = 1;
   int64 base_revision = 2;
-  // 1-600 operations, applied atomically.
+  // 1-2000 operations, applied atomically.
   repeated FootprintMutation mutations = 3;
 }
 message SyncChangesResponse {

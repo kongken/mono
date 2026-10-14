@@ -1,14 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { SyncEngine, applyOp, RevisionChanged } from "../src/lib/sync.ts";
-const empty = () => ({ version: 1, visits: [], provinces: {} });
+const empty = () => ({ version: 2, visits: [], provinces: {} });
 const v = (n) => ({
   code: "330100",
   name: "杭州市",
   province: "330000",
   color: "#4b937d",
-  date: "",
-  note: n,
+  trips: [{ id: "legacy-330100", date: "", note: n }],
 });
 test("a lost batch reply survives reload and newer local edits without a false self-conflict", async () => {
   let server = empty(),
@@ -57,8 +56,9 @@ test("a lost batch reply survives reload and newer local edits without a false s
   b.retry();
   await b.drain();
   assert.equal(b.status, "idle");
-  assert.equal(server.visits[0].note, "second");
-  assert.equal(revision, 2);
+  assert.equal(server.visits[0].trips[0].note, "second");
+  // The replayed batch (city and trip) took revisions 1 and 2; the newer edit is one more.
+  assert.equal(revision, 3);
   assert.equal(b.pending, false);
 });
 test("pending request is persisted before sending and refusal blocks cloud writes", async () => {

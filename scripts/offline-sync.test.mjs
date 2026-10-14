@@ -13,11 +13,15 @@ const visit = (code, note = "") => ({
   name: code,
   province: "330000",
   color: green,
-  date: "",
-  note,
+  trips: [{ id: `legacy-${code}`, date: "", note }],
 });
+// What recording a city with its trip sends: the city, then the trip.
+const upsert = (v) => [
+  { type: "upsertVisit", visit: { code: v.code, name: v.name, province: v.province, color: v.color } },
+  ...v.trips.map((trip) => ({ type: "upsertTrip", code: v.code, trip })),
+];
 const saved = (visits = [], provinces = {}) => ({
-  version: 1,
+  version: 2,
   visits,
   provinces,
 });
@@ -40,6 +44,12 @@ function server(initial = saved(), revision = 0) {
     change: (op) => {
       state = applyOp(state, op);
       revision++;
+    },
+    changeAll: (ops) => {
+      for (const op of ops) {
+        state = applyOp(state, op);
+        revision++;
+      }
     },
     get: async () => {
       if (!online) throw new Error("offline");
@@ -82,7 +92,7 @@ test("offline add/edit/delete and province marks survive reload and reconnect", 
   assert.equal(cache.confirmed.visits.length, 2);
   engine.stop();
   api.online();
-  api.change({ type: "upsertVisit", visit: visit("another-device") });
+  api.changeAll(upsert(visit("another-device")));
   const restored = new SyncEngine(
     api,
     { saved: cache.confirmed, revision: cache.revision },
@@ -98,7 +108,7 @@ test("offline add/edit/delete and province marks survive reload and reconnect", 
     "edit",
   ]);
   assert.equal(
-    result.saved.visits.find((v) => v.code === "edit").note,
+    result.saved.visits.find((v) => v.code === "edit").trips[0].note,
     "new note",
   );
   assert.deepEqual(result.saved.provinces, { 110000: green });
@@ -111,7 +121,7 @@ for (const choice of ["local", "cloud"]) {
     const api = server(initial, 2);
     const engine = new SyncEngine(api, { saved: initial, revision: 2 });
     api.change({ type: "deleteVisit", code: "a" });
-    api.change({ type: "upsertVisit", visit: visit("remote") });
+    api.changeAll(upsert(visit("remote")));
     engine.push(saved([visit("a", "local"), visit("b"), visit("new")]));
     await engine.drain();
     assert.equal(engine.status, "conflict");
@@ -139,7 +149,8 @@ test("lost success response is reconciled without replaying the write", async ()
   assert.equal(engine.pending, true);
   engine.retry();
   await engine.drain();
-  assert.equal(api.writes.length, 1);
+  // The city and its trip are two writes; each went out exactly once.
+  assert.deepEqual(api.writes.map((w) => w.type), ["upsertVisit", "upsertTrip"]);
   assert.equal(engine.pending, false);
 });
 
@@ -150,7 +161,7 @@ test("revision race refetches, merges unrelated records and retries", async () =
   api.apply = async (op, expected) => {
     if (once) {
       once = false;
-      api.change({ type: "upsertVisit", visit: visit("remote") });
+      api.changeAll(upsert(visit("remote")));
     }
     return originalApply(op, expected);
   };
@@ -168,14 +179,14 @@ test("same-record race from initial revision zero is not silently overwritten", 
   const api = server();
   const originalApply = api.apply;
   api.apply = async (op, expected) => {
-    api.change({ type: "upsertVisit", visit: visit("a", "remote") });
+    api.changeAll(upsert(visit("a", "remote")));
     return originalApply(op, expected);
   };
   const engine = new SyncEngine(api, { saved: saved(), revision: 0 });
   engine.push(saved([visit("a", "local")]));
   await engine.drain();
   assert.equal(engine.status, "conflict");
-  assert.equal((await api.get()).saved.visits[0].note, "remote");
+  assert.equal((await api.get()).saved.visits[0].trips[0].note, "remote");
 });
 
 test("province conflicts and city changes remain independent", () => {
@@ -198,7 +209,7 @@ test("detached engine does not send with the next account's token", async () => 
     });
   const engine = new SyncEngine(api, { saved: saved(), revision: 0 });
   engine.push(saved([visit("a")]));
-  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 0));
   engine.stop();
   await finish();
   await engine.drain();

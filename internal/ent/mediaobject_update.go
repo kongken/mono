@@ -237,6 +237,20 @@ func (_u *MediaObjectUpdate) AddHeight(v int) *MediaObjectUpdate {
 	return _u
 }
 
+// SetTripID sets the "trip_id" field.
+func (_u *MediaObjectUpdate) SetTripID(v string) *MediaObjectUpdate {
+	_u.mutation.SetTripID(v)
+	return _u
+}
+
+// SetNillableTripID sets the "trip_id" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableTripID(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetTripID(*v)
+	}
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *MediaObjectUpdate) SetUpdatedAt(v time.Time) *MediaObjectUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -384,6 +398,9 @@ func (_u *MediaObjectUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if value, ok := _u.mutation.AddedHeight(); ok {
 		_spec.AddField(mediaobject.FieldHeight, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.TripID(); ok {
+		_spec.SetField(mediaobject.FieldTripID, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(mediaobject.FieldUpdatedAt, field.TypeTime, value)
@@ -617,6 +634,20 @@ func (_u *MediaObjectUpdateOne) AddHeight(v int) *MediaObjectUpdateOne {
 	return _u
 }
 
+// SetTripID sets the "trip_id" field.
+func (_u *MediaObjectUpdateOne) SetTripID(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetTripID(v)
+	return _u
+}
+
+// SetNillableTripID sets the "trip_id" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableTripID(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetTripID(*v)
+	}
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *MediaObjectUpdateOne) SetUpdatedAt(v time.Time) *MediaObjectUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -794,6 +825,9 @@ func (_u *MediaObjectUpdateOne) sqlSave(ctx context.Context) (_node *MediaObject
 	}
 	if value, ok := _u.mutation.AddedHeight(); ok {
 		_spec.AddField(mediaobject.FieldHeight, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.TripID(); ok {
+		_spec.SetField(mediaobject.FieldTripID, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(mediaobject.FieldUpdatedAt, field.TypeTime, value)

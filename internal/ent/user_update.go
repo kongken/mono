@@ -19,6 +19,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
+	"go.orx.me/apps/trip-map/internal/ent/trip"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -200,6 +201,27 @@ func (_u *UserUpdate) AddRevision(v int64) *UserUpdate {
 	return _u
 }
 
+// SetSchemaVersion sets the "schema_version" field.
+func (_u *UserUpdate) SetSchemaVersion(v int) *UserUpdate {
+	_u.mutation.ResetSchemaVersion()
+	_u.mutation.SetSchemaVersion(v)
+	return _u
+}
+
+// SetNillableSchemaVersion sets the "schema_version" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableSchemaVersion(v *int) *UserUpdate {
+	if v != nil {
+		_u.SetSchemaVersion(*v)
+	}
+	return _u
+}
+
+// AddSchemaVersion adds value to the "schema_version" field.
+func (_u *UserUpdate) AddSchemaVersion(v int) *UserUpdate {
+	_u.mutation.AddSchemaVersion(v)
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *UserUpdate) SetUpdatedAt(v time.Time) *UserUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -219,6 +241,21 @@ func (_u *UserUpdate) AddVisits(v ...*CityVisit) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.AddVisitIDs(ids...)
+}
+
+// AddTripIDs adds the "trips" edge to the Trip entity by IDs.
+func (_u *UserUpdate) AddTripIDs(ids ...string) *UserUpdate {
+	_u.mutation.AddTripIDs(ids...)
+	return _u
+}
+
+// AddTrips adds the "trips" edges to the Trip entity.
+func (_u *UserUpdate) AddTrips(v ...*Trip) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddTripIDs(ids...)
 }
 
 // AddProvinceMarkIDs adds the "province_marks" edge to the ProvinceMark entity by IDs.
@@ -335,6 +372,27 @@ func (_u *UserUpdate) RemoveVisits(v ...*CityVisit) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveVisitIDs(ids...)
+}
+
+// ClearTrips clears all "trips" edges to the Trip entity.
+func (_u *UserUpdate) ClearTrips() *UserUpdate {
+	_u.mutation.ClearTrips()
+	return _u
+}
+
+// RemoveTripIDs removes the "trips" edge to Trip entities by IDs.
+func (_u *UserUpdate) RemoveTripIDs(ids ...string) *UserUpdate {
+	_u.mutation.RemoveTripIDs(ids...)
+	return _u
+}
+
+// RemoveTrips removes "trips" edges to Trip entities.
+func (_u *UserUpdate) RemoveTrips(v ...*Trip) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveTripIDs(ids...)
 }
 
 // ClearProvinceMarks clears all "province_marks" edges to the ProvinceMark entity.
@@ -506,6 +564,11 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "revision", err: fmt.Errorf(`ent: validator failed for field "User.revision": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.SchemaVersion(); ok {
+		if err := user.SchemaVersionValidator(v); err != nil {
+			return &ValidationError{Name: "schema_version", err: fmt.Errorf(`ent: validator failed for field "User.schema_version": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -563,6 +626,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedRevision(); ok {
 		_spec.AddField(user.FieldRevision, field.TypeInt64, value)
 	}
+	if value, ok := _u.mutation.SchemaVersion(); ok {
+		_spec.SetField(user.FieldSchemaVersion, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSchemaVersion(); ok {
+		_spec.AddField(user.FieldSchemaVersion, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(user.FieldUpdatedAt, field.TypeTime, value)
 	}
@@ -604,6 +673,51 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(cityvisit.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.TripsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripsTable,
+			Columns: []string{user.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedTripsIDs(); len(nodes) > 0 && !_u.mutation.TripsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripsTable,
+			Columns: []string{user.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.TripsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripsTable,
+			Columns: []string{user.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -1066,6 +1180,27 @@ func (_u *UserUpdateOne) AddRevision(v int64) *UserUpdateOne {
 	return _u
 }
 
+// SetSchemaVersion sets the "schema_version" field.
+func (_u *UserUpdateOne) SetSchemaVersion(v int) *UserUpdateOne {
+	_u.mutation.ResetSchemaVersion()
+	_u.mutation.SetSchemaVersion(v)
+	return _u
+}
+
+// SetNillableSchemaVersion sets the "schema_version" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableSchemaVersion(v *int) *UserUpdateOne {
+	if v != nil {
+		_u.SetSchemaVersion(*v)
+	}
+	return _u
+}
+
+// AddSchemaVersion adds value to the "schema_version" field.
+func (_u *UserUpdateOne) AddSchemaVersion(v int) *UserUpdateOne {
+	_u.mutation.AddSchemaVersion(v)
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *UserUpdateOne) SetUpdatedAt(v time.Time) *UserUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -1085,6 +1220,21 @@ func (_u *UserUpdateOne) AddVisits(v ...*CityVisit) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.AddVisitIDs(ids...)
+}
+
+// AddTripIDs adds the "trips" edge to the Trip entity by IDs.
+func (_u *UserUpdateOne) AddTripIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.AddTripIDs(ids...)
+	return _u
+}
+
+// AddTrips adds the "trips" edges to the Trip entity.
+func (_u *UserUpdateOne) AddTrips(v ...*Trip) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddTripIDs(ids...)
 }
 
 // AddProvinceMarkIDs adds the "province_marks" edge to the ProvinceMark entity by IDs.
@@ -1201,6 +1351,27 @@ func (_u *UserUpdateOne) RemoveVisits(v ...*CityVisit) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveVisitIDs(ids...)
+}
+
+// ClearTrips clears all "trips" edges to the Trip entity.
+func (_u *UserUpdateOne) ClearTrips() *UserUpdateOne {
+	_u.mutation.ClearTrips()
+	return _u
+}
+
+// RemoveTripIDs removes the "trips" edge to Trip entities by IDs.
+func (_u *UserUpdateOne) RemoveTripIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.RemoveTripIDs(ids...)
+	return _u
+}
+
+// RemoveTrips removes "trips" edges to Trip entities.
+func (_u *UserUpdateOne) RemoveTrips(v ...*Trip) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveTripIDs(ids...)
 }
 
 // ClearProvinceMarks clears all "province_marks" edges to the ProvinceMark entity.
@@ -1385,6 +1556,11 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "revision", err: fmt.Errorf(`ent: validator failed for field "User.revision": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.SchemaVersion(); ok {
+		if err := user.SchemaVersionValidator(v); err != nil {
+			return &ValidationError{Name: "schema_version", err: fmt.Errorf(`ent: validator failed for field "User.schema_version": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -1459,6 +1635,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	if value, ok := _u.mutation.AddedRevision(); ok {
 		_spec.AddField(user.FieldRevision, field.TypeInt64, value)
 	}
+	if value, ok := _u.mutation.SchemaVersion(); ok {
+		_spec.SetField(user.FieldSchemaVersion, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSchemaVersion(); ok {
+		_spec.AddField(user.FieldSchemaVersion, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(user.FieldUpdatedAt, field.TypeTime, value)
 	}
@@ -1500,6 +1682,51 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(cityvisit.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.TripsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripsTable,
+			Columns: []string{user.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedTripsIDs(); len(nodes) > 0 && !_u.mutation.TripsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripsTable,
+			Columns: []string{user.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.TripsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.TripsTable,
+			Columns: []string{user.TripsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(trip.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

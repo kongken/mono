@@ -43,7 +43,7 @@ func TestMigrationOfEveryFootprintIsOneAtomicBatch(t *testing.T) {
 	ctx := context.Background()
 	a := e.register("migrate_a")
 	all := everyFootprint(t)
-	if len(all) <= 100 || len(all) > 600 {
+	if len(all) <= 100 || len(all) > 2000 {
 		t.Fatalf("unexpected region index size %d", len(all))
 	}
 	req := &tripmapv1.SyncChangesRequest{MutationId: "migrate-all", BaseRevision: 0, Mutations: all}
@@ -70,10 +70,10 @@ func TestOversizedBatchIsRejectedWithoutWrites(t *testing.T) {
 	ctx := context.Background()
 	a := e.register("migrate_big")
 	all := everyFootprint(t)
-	for len(all) <= 600 {
+	for len(all) <= 2000 {
 		all = append(all, all...)
 	}
-	_, err := e.foot.SyncChanges(ctx, bearer(a, &tripmapv1.SyncChangesRequest{MutationId: "too-big", Mutations: all[:601]}))
+	_, err := e.foot.SyncChanges(ctx, bearer(a, &tripmapv1.SyncChangesRequest{MutationId: "too-big", Mutations: all[:2001]}))
 	wantCode(t, err, connect.CodeInvalidArgument)
 	snap, err := e.foot.GetFootprints(ctx, bearer(a, &tripmapv1.GetFootprintsRequest{}))
 	if err != nil || len(snap.Msg.Visits) != 0 || snap.Msg.Revision != 0 {

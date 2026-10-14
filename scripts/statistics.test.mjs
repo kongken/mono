@@ -5,7 +5,7 @@ import * as statistics from "../src/lib/statistics.ts";
 import { toggleVisit } from "../src/lib/travel.ts";
 
 const regions = JSON.parse(readFileSync("src/regions.json", "utf8"));
-const empty = () => ({ version: 1, visits: [], provinces: {} });
+const empty = () => ({ version: 2, visits: [], provinces: {} });
 
 test("national city total collapses the six district-level destinations", () => {
   assert.equal(statistics.totalCities, 391);
@@ -35,7 +35,7 @@ test("ordinary destinations stay distinct and province marks alone do not count"
 });
 
 test("marking every recordable region reaches exactly 100 percent", () => {
-  const saved = { ...empty(), visits: regions.flatMap(p => p.cities.map(c => ({ ...c, province: p.code }))) };
+  const saved = { ...empty(), visits: regions.flatMap(p => p.cities.map(c => ({ ...c, province: p.code, trips: [] }))) };
   assert.equal(statistics.visitedCityCount(saved), statistics.totalCities);
   assert.equal(statistics.percentage(statistics.visitedCityCount(saved), statistics.totalCities), "100.0%");
 });

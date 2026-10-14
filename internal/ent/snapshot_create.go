@@ -54,6 +54,34 @@ func (_c *SnapshotCreate) SetMarkCount(v int) *SnapshotCreate {
 	return _c
 }
 
+// SetSchemaVersion sets the "schema_version" field.
+func (_c *SnapshotCreate) SetSchemaVersion(v int) *SnapshotCreate {
+	_c.mutation.SetSchemaVersion(v)
+	return _c
+}
+
+// SetNillableSchemaVersion sets the "schema_version" field if the given value is not nil.
+func (_c *SnapshotCreate) SetNillableSchemaVersion(v *int) *SnapshotCreate {
+	if v != nil {
+		_c.SetSchemaVersion(*v)
+	}
+	return _c
+}
+
+// SetTripCount sets the "trip_count" field.
+func (_c *SnapshotCreate) SetTripCount(v int) *SnapshotCreate {
+	_c.mutation.SetTripCount(v)
+	return _c
+}
+
+// SetNillableTripCount sets the "trip_count" field if the given value is not nil.
+func (_c *SnapshotCreate) SetNillableTripCount(v *int) *SnapshotCreate {
+	if v != nil {
+		_c.SetTripCount(*v)
+	}
+	return _c
+}
+
 // SetPayload sets the "payload" field.
 func (_c *SnapshotCreate) SetPayload(v []byte) *SnapshotCreate {
 	_c.mutation.SetPayload(v)
@@ -128,6 +156,14 @@ func (_c *SnapshotCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *SnapshotCreate) defaults() {
+	if _, ok := _c.mutation.SchemaVersion(); !ok {
+		v := snapshot.DefaultSchemaVersion
+		_c.mutation.SetSchemaVersion(v)
+	}
+	if _, ok := _c.mutation.TripCount(); !ok {
+		v := snapshot.DefaultTripCount
+		_c.mutation.SetTripCount(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := snapshot.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -173,6 +209,17 @@ func (_c *SnapshotCreate) check() error {
 	if v, ok := _c.mutation.MarkCount(); ok {
 		if err := snapshot.MarkCountValidator(v); err != nil {
 			return &ValidationError{Name: "mark_count", err: fmt.Errorf(`ent: validator failed for field "Snapshot.mark_count": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.SchemaVersion(); !ok {
+		return &ValidationError{Name: "schema_version", err: errors.New(`ent: missing required field "Snapshot.schema_version"`)}
+	}
+	if _, ok := _c.mutation.TripCount(); !ok {
+		return &ValidationError{Name: "trip_count", err: errors.New(`ent: missing required field "Snapshot.trip_count"`)}
+	}
+	if v, ok := _c.mutation.TripCount(); ok {
+		if err := snapshot.TripCountValidator(v); err != nil {
+			return &ValidationError{Name: "trip_count", err: fmt.Errorf(`ent: validator failed for field "Snapshot.trip_count": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.Payload(); !ok {
@@ -235,6 +282,14 @@ func (_c *SnapshotCreate) createSpec() (*Snapshot, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.MarkCount(); ok {
 		_spec.SetField(snapshot.FieldMarkCount, field.TypeInt, value)
 		_node.MarkCount = value
+	}
+	if value, ok := _c.mutation.SchemaVersion(); ok {
+		_spec.SetField(snapshot.FieldSchemaVersion, field.TypeInt, value)
+		_node.SchemaVersion = value
+	}
+	if value, ok := _c.mutation.TripCount(); ok {
+		_spec.SetField(snapshot.FieldTripCount, field.TypeInt, value)
+		_node.TripCount = value
 	}
 	if value, ok := _c.mutation.Payload(); ok {
 		_spec.SetField(snapshot.FieldPayload, field.TypeBytes, value)
@@ -344,6 +399,12 @@ func (u *SnapshotUpsertOne) UpdateNewValues() *SnapshotUpsertOne {
 		}
 		if _, exists := u.create.mutation.MarkCount(); exists {
 			s.SetIgnore(snapshot.FieldMarkCount)
+		}
+		if _, exists := u.create.mutation.SchemaVersion(); exists {
+			s.SetIgnore(snapshot.FieldSchemaVersion)
+		}
+		if _, exists := u.create.mutation.TripCount(); exists {
+			s.SetIgnore(snapshot.FieldTripCount)
 		}
 		if _, exists := u.create.mutation.Payload(); exists {
 			s.SetIgnore(snapshot.FieldPayload)
@@ -579,6 +640,12 @@ func (u *SnapshotUpsertBulk) UpdateNewValues() *SnapshotUpsertBulk {
 			}
 			if _, exists := b.mutation.MarkCount(); exists {
 				s.SetIgnore(snapshot.FieldMarkCount)
+			}
+			if _, exists := b.mutation.SchemaVersion(); exists {
+				s.SetIgnore(snapshot.FieldSchemaVersion)
+			}
+			if _, exists := b.mutation.TripCount(); exists {
+				s.SetIgnore(snapshot.FieldTripCount)
 			}
 			if _, exists := b.mutation.Payload(); exists {
 				s.SetIgnore(snapshot.FieldPayload)

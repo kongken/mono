@@ -15,7 +15,7 @@ type SystemService struct{ source StatusSource }
 func NewSystemService(source StatusSource) *SystemService { return &SystemService{source: source} }
 func (s *SystemService) GetStatus(ctx context.Context, _ *connect.Request[tripmapv1.GetStatusRequest]) (*connect.Response[tripmapv1.GetStatusResponse], error) {
 	statuses := s.source.Check(ctx)
-	response := &tripmapv1.GetStatusResponse{Ready: health.Ready(statuses)}
+	response := &tripmapv1.GetStatusResponse{Ready: health.Ready(statuses), FootprintSchema: schemaTrips}
 	for _, status := range statuses {
 		response.Dependencies = append(response.Dependencies, &tripmapv1.DependencyStatus{Name: status.Name, Ready: status.Ready})
 	}

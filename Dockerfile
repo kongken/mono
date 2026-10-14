@@ -7,6 +7,8 @@ COPY internal internal
 COPY pkg pkg
 # The region index test checks the backend copy against the frontend one.
 COPY src/regions.json src/regions.json
+COPY scripts/fixtures scripts/fixtures
+COPY migrations migrations
 RUN go test ./...
 RUN CGO_ENABLED=0 go build -trimpath -o /tripmap ./cmd/tripmap
 

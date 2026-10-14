@@ -15,13 +15,14 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/footprintchange"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
+	"go.orx.me/apps/trip-map/internal/ent/trip"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 	"go.orx.me/apps/trip-map/internal/regions"
 	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
 	"google.golang.org/protobuf/proto"
 )
 
-func recordChange(ctx context.Context, tx *ent.Tx, uid string, revision int64, mutation *tripmapv1.FootprintMutation) error {
+func recordChange(ctx context.Context, tx *ent.Tx, uid string, revision int64, mutation *tripmapv1.FootprintMutation, schema int) error {
 	copied := proto.Clone(mutation).(*tripmapv1.FootprintMutation)
 	m := &tripmapv1.FootprintMutation{Operation: copied.Operation}
 	switch op := m.Operation.(type) {
@@ -31,6 +32,26 @@ func recordChange(ctx context.Context, tx *ent.Tx, uid string, revision int64, m
 			return err
 		}
 		op.UpsertVisit = toVisit(row)
+		if schema >= schemaTrips {
+			// The date and note of a legacy upsert live in its legacy trip.
+			t, err := tx.Trip.Query().Where(trip.UserID(uid), trip.TripID(legacyTripID(row.RegionCode))).Only(ctx)
+			if err != nil {
+				return err
+			}
+			op.UpsertVisit.Date, op.UpsertVisit.Note = t.TravelDate, t.Note
+		}
+	case *tripmapv1.FootprintMutation_UpsertCity:
+		row, err := tx.CityVisit.Query().Where(cityvisit.UserID(uid), cityvisit.RegionCode(op.UpsertCity.Code)).Only(ctx)
+		if err != nil {
+			return err
+		}
+		op.UpsertCity = toCity(row)
+	case *tripmapv1.FootprintMutation_UpsertTrip:
+		row, err := tx.Trip.Query().Where(trip.UserID(uid), trip.TripID(op.UpsertTrip.Id)).Only(ctx)
+		if err != nil {
+			return err
+		}
+		op.UpsertTrip = toTrip(row)
 	case *tripmapv1.FootprintMutation_UpsertMark:
 		row, err := tx.ProvinceMark.Query().Where(provincemark.UserID(uid), provincemark.ProvinceCode(op.UpsertMark.Province)).Only(ctx)
 		if err != nil {
@@ -60,6 +81,30 @@ func (s *FootprintService) normalizeMutation(input *tripmapv1.FootprintMutation)
 		if err := s.validateVisit(op.UpsertVisit); err != nil {
 			return nil, err
 		}
+	case *tripmapv1.FootprintMutation_UpsertCity:
+		if op.UpsertCity == nil {
+			return nil, invalid("city is required")
+		}
+		op.UpsertCity.Province = regions.CanonicalProvince(op.UpsertCity.Code, op.UpsertCity.Province)
+		op.UpsertCity.UpdatedAt = nil
+		if err := s.validateCity(op.UpsertCity); err != nil {
+			return nil, err
+		}
+	case *tripmapv1.FootprintMutation_UpsertTrip:
+		if op.UpsertTrip == nil {
+			return nil, invalid("trip is required")
+		}
+		op.UpsertTrip.CreatedAt, op.UpsertTrip.UpdatedAt = nil, nil
+		if err := s.validateTrip(op.UpsertTrip); err != nil {
+			return nil, err
+		}
+	case *tripmapv1.FootprintMutation_DeleteTrip:
+		if op.DeleteTrip == nil || !tripIDPattern.MatchString(op.DeleteTrip.GetId()) {
+			return nil, invalid("trip id must match [A-Za-z0-9_-]{1,64}")
+		}
+		if _, _, ok := s.regions.City(op.DeleteTrip.GetRegionCode()); !ok {
+			return nil, invalid("unknown region code")
+		}
 	case *tripmapv1.FootprintMutation_DeleteVisit:
 		if _, _, ok := s.regions.City(op.DeleteVisit); !ok {
 			return nil, invalid("unknown region code")
@@ -79,10 +124,21 @@ func (s *FootprintService) normalizeMutation(input *tripmapv1.FootprintMutation)
 	return m, nil
 }
 
-func applyMutation(ctx context.Context, tx *ent.Tx, uid string, m *tripmapv1.FootprintMutation) (bool, error) {
+// applyMutation applies one validated mutation under the schema the account is
+// served with. It reports whether anything changed.
+func (s *FootprintService) applyMutation(ctx context.Context, tx *ent.Tx, uid string, m *tripmapv1.FootprintMutation, schema int) (bool, error) {
 	switch op := m.Operation.(type) {
 	case *tripmapv1.FootprintMutation_UpsertVisit:
 		v := op.UpsertVisit
+		if schema >= schemaTrips {
+			// A legacy record is a city plus the trip it always implied.
+			city, cityChanged, err := upsertCityRow(ctx, tx, uid, v)
+			if err != nil {
+				return false, err
+			}
+			tripChanged, err := upsertTripRow(ctx, tx, uid, city, legacyTripID(v.Code), v.Date, v.Note)
+			return cityChanged || tripChanged, err
+		}
 		row, err := tx.CityVisit.Query().Where(cityvisit.UserID(uid), cityvisit.RegionCode(v.Code)).Only(ctx)
 		if ent.IsNotFound(err) {
 			err = tx.CityVisit.Create().SetUserID(uid).SetRegionCode(v.Code).SetRegionName(v.Name).SetProvinceCode(v.Province).SetColor(v.Color).SetTravelDate(v.Date).SetNote(v.Note).Exec(ctx)
@@ -96,7 +152,33 @@ func applyMutation(ctx context.Context, tx *ent.Tx, uid string, m *tripmapv1.Foo
 		}
 		err = row.Update().SetRegionName(v.Name).SetProvinceCode(v.Province).SetColor(v.Color).SetTravelDate(v.Date).SetNote(v.Note).Exec(ctx)
 		return true, wrapWrite(err)
+	case *tripmapv1.FootprintMutation_UpsertCity:
+		if schema < schemaTrips {
+			return false, invalid("this operation needs a client that supports several trips per city")
+		}
+		_, changed, err := upsertCityRow(ctx, tx, uid, op.UpsertCity)
+		return changed, err
+	case *tripmapv1.FootprintMutation_UpsertTrip:
+		if schema < schemaTrips {
+			return false, invalid("this operation needs a client that supports several trips per city")
+		}
+		t := op.UpsertTrip
+		city, err := tx.CityVisit.Query().Where(cityvisit.UserID(uid), cityvisit.RegionCode(t.RegionCode)).Only(ctx)
+		if ent.IsNotFound(err) {
+			return false, connect.NewError(connect.CodeFailedPrecondition, errors.New("trip city does not exist"))
+		}
+		if err != nil {
+			return false, internalError(err)
+		}
+		return upsertTripRow(ctx, tx, uid, city, t.Id, t.Date, t.Note)
+	case *tripmapv1.FootprintMutation_DeleteTrip:
+		if schema < schemaTrips {
+			return false, invalid("this operation needs a client that supports several trips per city")
+		}
+		n, err := tx.Trip.Delete().Where(trip.UserID(uid), trip.TripID(op.DeleteTrip.Id), trip.RegionCode(op.DeleteTrip.RegionCode)).Exec(ctx)
+		return n > 0, wrapWrite(err)
 	case *tripmapv1.FootprintMutation_DeleteVisit:
+		// The trips of a city are removed with it by the foreign key.
 		count, err := tx.CityVisit.Delete().Where(cityvisit.UserID(uid), cityvisit.RegionCode(op.DeleteVisit)).Exec(ctx)
 		return count > 0, wrapWrite(err)
 	case *tripmapv1.FootprintMutation_UpsertMark:
@@ -120,10 +202,6 @@ func applyMutation(ctx context.Context, tx *ent.Tx, uid string, m *tripmapv1.Foo
 	return false, invalid("unsupported operation")
 }
 
-// maxSyncMutations covers one atomic migration of a whole local footprint set:
-// at most 497 cities plus 34 province marks fit with room to spare.
-const maxSyncMutations = 600
-
 var mutationIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request[tripmapv1.SyncChangesRequest]) (*connect.Response[tripmapv1.SyncChangesResponse], error) {
@@ -136,7 +214,7 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 		return nil, err
 	}
 	if !mutationIDPattern.MatchString(req.Msg.MutationId) || req.Msg.BaseRevision < 0 || len(req.Msg.Mutations) < 1 || len(req.Msg.Mutations) > maxSyncMutations {
-		return nil, invalid("mutation_id, non-negative revision and 1-600 mutations are required")
+		return nil, invalid("mutation_id, non-negative revision and 1-2000 mutations are required")
 	}
 	normalized := proto.Clone(req.Msg).(*tripmapv1.SyncChangesRequest)
 	for i, m := range normalized.Mutations {
@@ -161,16 +239,14 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 	} else if !ent.IsNotFound(err) {
 		return nil, internalError(err)
 	}
-	// Each batch consumes one budget unit per operation.
-	limiter := auth.NewLimiter(st.Redis, st.prefix())
-	for range normalized.Mutations {
-		ok, err := limiter.Allow(ctx, "write:"+p.UserID, writesPerWindow, writeWindow)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeUnavailable, errors.New("service temporarily unavailable"))
-		}
-		if !ok {
-			return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("too many writes"))
-		}
+	// A batch is charged per operation in one step, from a budget of its own so a
+	// full migration batch never competes with single writes.
+	ok, err := auth.NewLimiter(st.Redis, st.prefix()).AllowN(ctx, "sync:"+p.UserID, int64(len(normalized.Mutations)), syncOpsPerWindow, writeWindow)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("service temporarily unavailable"))
+	}
+	if !ok {
+		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("too many writes"))
 	}
 	tx, err := st.DB.Tx(ctx)
 	if err != nil {
@@ -197,10 +273,14 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 	if !ent.IsNotFound(err) {
 		return nil, internalError(err)
 	}
+	schema, err := gateWrite(ctx, tx, u)
+	if err != nil {
+		return nil, err
+	}
 	revision := u.Revision
 	count := int32(0)
 	for _, m := range normalized.Mutations {
-		changed, err := applyMutation(ctx, tx, p.UserID, m)
+		changed, err := s.applyMutation(ctx, tx, p.UserID, m, schema)
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +289,7 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 		}
 		revision++
 		count++
-		if err = recordChange(ctx, tx, p.UserID, revision, m); err != nil {
+		if err = recordChange(ctx, tx, p.UserID, revision, m, schema); err != nil {
 			return nil, internalError(err)
 		}
 	}
@@ -266,7 +346,10 @@ func (s *FootprintService) GetChanges(ctx context.Context, req *connect.Request[
 	if u.Disabled {
 		return nil, errUnauthenticated
 	}
-	out := &tripmapv1.GetChangesResponse{CurrentRevision: u.Revision, NextRevision: since}
+	if err = gateRead(ctx, u.SchemaVersion); err != nil {
+		return nil, err
+	}
+	out := &tripmapv1.GetChangesResponse{CurrentRevision: u.Revision, NextRevision: since, SchemaVersion: schemaTrips}
 	first, err := tx.FootprintChange.Query().Where(footprintchange.UserID(p.UserID)).Order(ent.Asc(footprintchange.FieldRevision)).First(ctx)
 	if err != nil && !ent.IsNotFound(err) {
 		return nil, internalError(err)

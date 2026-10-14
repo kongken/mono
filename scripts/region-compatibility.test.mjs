@@ -24,12 +24,15 @@ test("Kinmen and Matsu belong only to Fujian in the current region index", () =>
 test("legacy backup and local records migrate without changing ID or travel details", () => {
   const input = legacy();
   const saved = validateSaved(input, regions);
-  assert.deepEqual(saved.visits, input.visits.map(v => ({ ...v, province: "350000" })));
+  assert.deepEqual(saved.visits, input.visits.map(({ date, note, ...city }) => ({
+    ...city, province: "350000", trips: [{ id: `legacy-${city.code}`, date, note }],
+  })));
+  assert.equal(saved.version, 2);
   assert.deepEqual(saved.provinces, input.provinces);
   assert.equal(input.visits[0].province, "710000", "do not mutate caller data");
   assert.deepEqual(validateSaved(saved, regions), saved, "migration is idempotent");
   const raw = JSON.stringify(input);
-  const result = loadLocalSaved({ getItem: () => raw }, "test", regions);
+  const result = loadLocalSaved({ getItem: (key) => (key === "shanhai-travel-v1" ? raw : null) }, regions);
   assert.equal(result.status, "ok");
   assert.deepEqual(result.saved, saved);
 });
@@ -64,5 +67,8 @@ test("both cloud cache copies migrate, preserving pending edits and revision", (
   assert.equal(cache.confirmed.visits[0].province, "350000");
   const ops = diffSaved(cache.confirmed, cache.saved);
   assert.equal(ops.length, 1);
-  assert.equal(ops[0].visit.note, "离线修改");
+  assert.equal(ops[0].type, "upsertTrip");
+  assert.equal(ops[0].code, "tw-09020");
+  assert.equal(ops[0].trip.id, "legacy-tw-09020");
+  assert.equal(ops[0].trip.note, "离线修改");
 });

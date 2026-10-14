@@ -9,6 +9,9 @@ server {
     set $backend_upstream "${BACKEND_UPSTREAM}";
 
     location ~ ^/(api/|ping$|readyz$) {
+        # nginx's default is 1 MB. A full sync batch is up to 2000 operations; with
+        # 1000-character notes that is 6-12 MB, so match the backend's 16 MiB read limit.
+        client_max_body_size 16m;
         proxy_pass http://$backend_upstream$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;

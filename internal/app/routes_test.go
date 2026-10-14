@@ -39,6 +39,9 @@ func TestRoutesBeforeBootstrap(t *testing.T) {
 		t.Fatalf("RPC readiness: response=%v err=%v", response, err)
 	}
 	handlers.resources.Store(&Resources{Health: health.New(health.Probe{Name: "test", Check: func(context.Context) error { return nil }})})
+	if response.Msg.FootprintSchema < 2 {
+		t.Fatalf("status does not advertise the multi-trip schema: %v", response.Msg)
+	}
 	response, err = client.GetStatus(context.Background(), connect.NewRequest(&tripmapv1.GetStatusRequest{}))
 	if err != nil || !response.Msg.Ready {
 		t.Fatalf("RPC after resource wiring: %v", err)
@@ -62,7 +65,8 @@ func TestCORSAllowsOnlyConfiguredOrigins(t *testing.T) {
 	}
 	preflight := do(http.MethodOptions, "https://trip.example.com")
 	if preflight.Code != http.StatusNoContent || preflight.Header().Get("Access-Control-Allow-Origin") != "https://trip.example.com" ||
-		!strings.Contains(preflight.Header().Get("Access-Control-Allow-Headers"), "Authorization") {
+		!strings.Contains(preflight.Header().Get("Access-Control-Allow-Headers"), "Authorization") ||
+		!strings.Contains(preflight.Header().Get("Access-Control-Allow-Headers"), "X-Tripmap-Schema") {
 		t.Fatalf("allowed preflight: %d %v", preflight.Code, preflight.Header())
 	}
 	if got := do(http.MethodOptions, "https://evil.example.com"); got.Header().Get("Access-Control-Allow-Origin") != "" {

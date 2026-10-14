@@ -30,6 +30,8 @@ type Tx struct {
 	Snapshot *SnapshotClient
 	// SyncReceipt is the client for interacting with the SyncReceipt builders.
 	SyncReceipt *SyncReceiptClient
+	// Trip is the client for interacting with the Trip builders.
+	Trip *TripClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 
@@ -172,6 +174,7 @@ func (tx *Tx) init() {
 	tx.Session = NewSessionClient(tx.config)
 	tx.Snapshot = NewSnapshotClient(tx.config)
 	tx.SyncReceipt = NewSyncReceiptClient(tx.config)
+	tx.Trip = NewTripClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }
 

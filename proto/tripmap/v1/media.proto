@@ -21,6 +21,9 @@ message MediaInfo {
   int32 height = 7;
   string status = 8;
   google.protobuf.Timestamp created_at = 9;
+  // Optional trip this file belongs to; empty for city-level files. A soft
+  // reference: deleting the trip keeps the file, which stays listed for the city.
+  string trip_id = 10;
 }
 message PrepareUploadRequest {
   string region_code = 1;
@@ -29,6 +32,8 @@ message PrepareUploadRequest {
   int64 size_bytes = 4;
   // Stable request ID. Exact replays return the same reservation.
   string upload_id = 5;
+  // Optional. The trip must exist for this user in region_code.
+  string trip_id = 6;
 }
 message PrepareUploadResponse {
   MediaInfo media = 1;
@@ -41,6 +46,8 @@ message CompleteUploadResponse { MediaInfo media = 1; }
 message ListMediaRequest {
   // Empty returns all media, including retained media for unmarked cities.
   string region_code = 1;
+  // Optional: only files attached to this trip.
+  string trip_id = 2;
 }
 message ListMediaResponse { repeated MediaInfo media = 1; }
 message ReadMediaRequest {

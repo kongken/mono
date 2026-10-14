@@ -34,12 +34,16 @@ const (
 	FieldDeletionRequestedAt = "deletion_requested_at"
 	// FieldRevision holds the string denoting the revision field in the database.
 	FieldRevision = "revision"
+	// FieldSchemaVersion holds the string denoting the schema_version field in the database.
+	FieldSchemaVersion = "schema_version"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
 	FieldUpdatedAt = "updated_at"
 	// EdgeVisits holds the string denoting the visits edge name in mutations.
 	EdgeVisits = "visits"
+	// EdgeTrips holds the string denoting the trips edge name in mutations.
+	EdgeTrips = "trips"
 	// EdgeProvinceMarks holds the string denoting the province_marks edge name in mutations.
 	EdgeProvinceMarks = "province_marks"
 	// EdgeMediaObjects holds the string denoting the media_objects edge name in mutations.
@@ -61,6 +65,13 @@ const (
 	VisitsInverseTable = "city_visits"
 	// VisitsColumn is the table column denoting the visits relation/edge.
 	VisitsColumn = "user_id"
+	// TripsTable is the table that holds the trips relation/edge.
+	TripsTable = "city_trips"
+	// TripsInverseTable is the table name for the Trip entity.
+	// It exists in this package in order to avoid circular dependency with the "trip" package.
+	TripsInverseTable = "city_trips"
+	// TripsColumn is the table column denoting the trips relation/edge.
+	TripsColumn = "user_id"
 	// ProvinceMarksTable is the table that holds the province_marks relation/edge.
 	ProvinceMarksTable = "province_marks"
 	// ProvinceMarksInverseTable is the table name for the ProvinceMark entity.
@@ -118,6 +129,7 @@ var Columns = []string{
 	FieldDisabled,
 	FieldDeletionRequestedAt,
 	FieldRevision,
+	FieldSchemaVersion,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -149,6 +161,10 @@ var (
 	DefaultRevision int64
 	// RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
 	RevisionValidator func(int64) error
+	// DefaultSchemaVersion holds the default value on creation for the "schema_version" field.
+	DefaultSchemaVersion int
+	// SchemaVersionValidator is a validator for the "schema_version" field. It is called by the builders before save.
+	SchemaVersionValidator func(int) error
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -217,6 +233,11 @@ func ByRevision(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRevision, opts...).ToFunc()
 }
 
+// BySchemaVersion orders the results by the schema_version field.
+func BySchemaVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSchemaVersion, opts...).ToFunc()
+}
+
 // ByCreatedAt orders the results by the created_at field.
 func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
@@ -238,6 +259,20 @@ func ByVisitsCount(opts ...sql.OrderTermOption) OrderOption {
 func ByVisits(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newVisitsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByTripsCount orders the results by trips count.
+func ByTripsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newTripsStep(), opts...)
+	}
+}
+
+// ByTrips orders the results by trips terms.
+func ByTrips(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newTripsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
 
@@ -329,6 +364,13 @@ func newVisitsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(VisitsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, VisitsTable, VisitsColumn),
+	)
+}
+func newTripsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(TripsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, TripsTable, TripsColumn),
 	)
 }
 func newProvinceMarksStep() *sqlgraph.Step {

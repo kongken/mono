@@ -21,6 +21,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
+	"go.orx.me/apps/trip-map/internal/ent/trip"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -91,6 +92,7 @@ func checkColumn(t, c string) error {
 			session.Table:                session.ValidColumn,
 			snapshot.Table:               snapshot.ValidColumn,
 			syncreceipt.Table:            syncreceipt.ValidColumn,
+			trip.Table:                   trip.ValidColumn,
 			user.Table:                   user.ValidColumn,
 		})
 	})

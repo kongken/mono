@@ -13,6 +13,11 @@ export const backendEnabled = apiConfig.enabled;
 const bearer: Interceptor = (next) => (req) => {
   const token = getToken();
   if (token) req.header.set("Authorization", `Bearer ${token}`);
+  // Declares that this client understands several trips per city. A backend that
+  // knows the header refuses clients without it once an account holds trips, so an
+  // older page can never overwrite them; one that does not know it is detected by
+  // the schema fields missing from its replies.
+  req.header.set("X-Tripmap-Schema", "2");
   return next(req);
 };
 

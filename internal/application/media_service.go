@@ -16,7 +16,9 @@ import (
 	"go.orx.me/apps/trip-map/internal/auth"
 	"go.orx.me/apps/trip-map/internal/blobstore"
 	"go.orx.me/apps/trip-map/internal/ent"
+	"go.orx.me/apps/trip-map/internal/ent/cityvisit"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
+	"go.orx.me/apps/trip-map/internal/ent/trip"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 	"go.orx.me/apps/trip-map/internal/regions"
 	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
@@ -34,7 +36,7 @@ func NewMediaService(src StoreSource, idx *regions.Index) *MediaService {
 }
 
 func mediaInfo(m *ent.MediaObject) *tripmapv1.MediaInfo {
-	return &tripmapv1.MediaInfo{Id: m.ID, RegionCode: m.RegionCode, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Width: int32(m.Width), Height: int32(m.Height), Status: string(m.Status), CreatedAt: timestamppb.New(m.CreatedAt)}
+	return &tripmapv1.MediaInfo{Id: m.ID, RegionCode: m.RegionCode, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Width: int32(m.Width), Height: int32(m.Height), Status: string(m.Status), CreatedAt: timestamppb.New(m.CreatedAt), TripId: m.TripID}
 }
 
 func mediaStore(ctx context.Context, src StoreSource) (*Store, auth.Principal, error) {
@@ -86,6 +88,9 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 	if _, _, ok := s.regions.City(r.RegionCode); !ok {
 		return nil, invalid("unknown region code")
 	}
+	if r.TripId != "" && !tripIDPattern.MatchString(r.TripId) {
+		return nil, invalid("invalid trip id")
+	}
 	if !mediaType(r.ContentType) || r.SizeBytes <= 0 || r.SizeBytes > mediaMaxBytes {
 		return nil, invalid("JPEG, PNG, WebP or PDF up to 10 MB required")
 	}
@@ -136,6 +141,11 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("upload expired; start a new upload"))
 		}
 	} else {
+		if r.TripId != "" {
+			if err = requireTrip(ctx, tx, p.UserID, r.RegionCode, r.TripId); err != nil {
+				return nil, err
+			}
+		}
 		count, err := tx.MediaObject.Query().Where(mediaobject.UserID(p.UserID), mediaobject.RegionCode(r.RegionCode), mediaobject.StatusNEQ(mediaobject.StatusDeleting)).Count(ctx)
 		if err != nil {
 			return nil, internalError(err)
@@ -146,7 +156,7 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 		id := uuid.NewString()
 		raw := "media/staging/" + uuid.NewString()
 		expires := time.Now().UTC().Add(10 * time.Minute)
-		m, err = tx.MediaObject.Create().SetID(id).SetUserID(p.UserID).SetRegionCode(r.RegionCode).SetFilename(r.Filename).SetUploadID(r.UploadId).SetRequestHash(hash).SetUploadKey(raw).SetObjectKey("media/files/" + id).SetThumbnailKey("media/thumbnails/" + id).SetContentType(r.ContentType).SetSizeBytes(r.SizeBytes).SetUploadExpiresAt(expires).Save(ctx)
+		m, err = tx.MediaObject.Create().SetID(id).SetUserID(p.UserID).SetRegionCode(r.RegionCode).SetTripID(r.TripId).SetFilename(r.Filename).SetUploadID(r.UploadId).SetRequestHash(hash).SetUploadKey(raw).SetObjectKey("media/files/" + id).SetThumbnailKey("media/thumbnails/" + id).SetContentType(r.ContentType).SetSizeBytes(r.SizeBytes).SetUploadExpiresAt(expires).Save(ctx)
 		if err != nil {
 			return nil, internalError(err)
 		}
@@ -246,6 +256,12 @@ func (s *MediaService) ListMedia(ctx context.Context, req *connect.Request[tripm
 		}
 		q = q.Where(mediaobject.RegionCode(req.Msg.RegionCode))
 	}
+	if req.Msg.TripId != "" {
+		if !tripIDPattern.MatchString(req.Msg.TripId) {
+			return nil, invalid("invalid trip id")
+		}
+		q = q.Where(mediaobject.TripID(req.Msg.TripId))
+	}
 	rows, err := q.Order(ent.Desc(mediaobject.FieldCreatedAt)).All(ctx)
 	if err != nil {
 		return nil, internalError(err)
@@ -330,4 +346,34 @@ func deleteMediaKeys(ctx context.Context, st *Store, m *ent.MediaObject) error {
 		}
 	}
 	return nil
+}
+
+// requireTrip checks that the trip exists for this user in this city. The link
+// is a soft reference: deleting the trip or the city later leaves the media in
+// place, reachable from the city's attachments. A schema 1 account has no trip
+// rows yet; its city is read as one legacy trip, so that ID is accepted too.
+func requireTrip(ctx context.Context, tx *ent.Tx, uid, region, tripID string) error {
+	ok, err := tx.Trip.Query().Where(trip.UserID(uid), trip.TripID(tripID), trip.RegionCode(region)).Exist(ctx)
+	if err != nil {
+		return internalError(err)
+	}
+	if ok {
+		return nil
+	}
+	if tripID == legacyTripID(region) {
+		u, err := tx.User.Get(ctx, uid)
+		if err != nil {
+			return internalError(err)
+		}
+		if u.SchemaVersion < schemaTrips {
+			ok, err = tx.CityVisit.Query().Where(cityvisit.UserID(uid), cityvisit.RegionCode(region)).Exist(ctx)
+			if err != nil {
+				return internalError(err)
+			}
+			if ok {
+				return nil
+			}
+		}
+	}
+	return connect.NewError(connect.CodeFailedPrecondition, errors.New("trip not found: sync the trip before attaching files"))
 }

@@ -37,6 +37,8 @@ type User struct {
 	DeletionRequestedAt *time.Time `json:"deletion_requested_at,omitempty"`
 	// Revision holds the value of the "revision" field.
 	Revision int64 `json:"revision,omitempty"`
+	// SchemaVersion holds the value of the "schema_version" field.
+	SchemaVersion int `json:"schema_version,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -51,6 +53,8 @@ type User struct {
 type UserEdges struct {
 	// Visits holds the value of the visits edge.
 	Visits []*CityVisit `json:"visits,omitempty"`
+	// Trips holds the value of the trips edge.
+	Trips []*Trip `json:"trips,omitempty"`
 	// ProvinceMarks holds the value of the province_marks edge.
 	ProvinceMarks []*ProvinceMark `json:"province_marks,omitempty"`
 	// MediaObjects holds the value of the media_objects edge.
@@ -65,7 +69,7 @@ type UserEdges struct {
 	Snapshots []*Snapshot `json:"snapshots,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [7]bool
+	loadedTypes [8]bool
 }
 
 // VisitsOrErr returns the Visits value or an error if the edge
@@ -77,10 +81,19 @@ func (e UserEdges) VisitsOrErr() ([]*CityVisit, error) {
 	return nil, &NotLoadedError{edge: "visits"}
 }
 
+// TripsOrErr returns the Trips value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) TripsOrErr() ([]*Trip, error) {
+	if e.loadedTypes[1] {
+		return e.Trips, nil
+	}
+	return nil, &NotLoadedError{edge: "trips"}
+}
+
 // ProvinceMarksOrErr returns the ProvinceMarks value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) ProvinceMarksOrErr() ([]*ProvinceMark, error) {
-	if e.loadedTypes[1] {
+	if e.loadedTypes[2] {
 		return e.ProvinceMarks, nil
 	}
 	return nil, &NotLoadedError{edge: "province_marks"}
@@ -89,7 +102,7 @@ func (e UserEdges) ProvinceMarksOrErr() ([]*ProvinceMark, error) {
 // MediaObjectsOrErr returns the MediaObjects value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) MediaObjectsOrErr() ([]*MediaObject, error) {
-	if e.loadedTypes[2] {
+	if e.loadedTypes[3] {
 		return e.MediaObjects, nil
 	}
 	return nil, &NotLoadedError{edge: "media_objects"}
@@ -98,7 +111,7 @@ func (e UserEdges) MediaObjectsOrErr() ([]*MediaObject, error) {
 // SessionsOrErr returns the Sessions value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) SessionsOrErr() ([]*Session, error) {
-	if e.loadedTypes[3] {
+	if e.loadedTypes[4] {
 		return e.Sessions, nil
 	}
 	return nil, &NotLoadedError{edge: "sessions"}
@@ -107,7 +120,7 @@ func (e UserEdges) SessionsOrErr() ([]*Session, error) {
 // FootprintChangesOrErr returns the FootprintChanges value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) FootprintChangesOrErr() ([]*FootprintChange, error) {
-	if e.loadedTypes[4] {
+	if e.loadedTypes[5] {
 		return e.FootprintChanges, nil
 	}
 	return nil, &NotLoadedError{edge: "footprint_changes"}
@@ -116,7 +129,7 @@ func (e UserEdges) FootprintChangesOrErr() ([]*FootprintChange, error) {
 // SyncReceiptsOrErr returns the SyncReceipts value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) SyncReceiptsOrErr() ([]*SyncReceipt, error) {
-	if e.loadedTypes[5] {
+	if e.loadedTypes[6] {
 		return e.SyncReceipts, nil
 	}
 	return nil, &NotLoadedError{edge: "sync_receipts"}
@@ -125,7 +138,7 @@ func (e UserEdges) SyncReceiptsOrErr() ([]*SyncReceipt, error) {
 // SnapshotsOrErr returns the Snapshots value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) SnapshotsOrErr() ([]*Snapshot, error) {
-	if e.loadedTypes[6] {
+	if e.loadedTypes[7] {
 		return e.Snapshots, nil
 	}
 	return nil, &NotLoadedError{edge: "snapshots"}
@@ -138,7 +151,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldDisabled:
 			values[i] = new(sql.NullBool)
-		case user.FieldRevision:
+		case user.FieldRevision, user.FieldSchemaVersion:
 			values[i] = new(sql.NullInt64)
 		case user.FieldID, user.FieldEmail, user.FieldUsername, user.FieldDisplayName, user.FieldAvatarURL, user.FieldProvider, user.FieldExternalID, user.FieldPasswordHash:
 			values[i] = new(sql.NullString)
@@ -228,6 +241,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Revision = value.Int64
 			}
+		case user.FieldSchemaVersion:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field schema_version", values[i])
+			} else if value.Valid {
+				_m.SchemaVersion = int(value.Int64)
+			}
 		case user.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -256,6 +275,11 @@ func (_m *User) Value(name string) (ent.Value, error) {
 // QueryVisits queries the "visits" edge of the User entity.
 func (_m *User) QueryVisits() *CityVisitQuery {
 	return NewUserClient(_m.config).QueryVisits(_m)
+}
+
+// QueryTrips queries the "trips" edge of the User entity.
+func (_m *User) QueryTrips() *TripQuery {
+	return NewUserClient(_m.config).QueryTrips(_m)
 }
 
 // QueryProvinceMarks queries the "province_marks" edge of the User entity.
@@ -345,6 +369,9 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("revision=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Revision))
+	builder.WriteString(", ")
+	builder.WriteString("schema_version=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SchemaVersion))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

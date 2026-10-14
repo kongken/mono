@@ -45,24 +45,65 @@ import {
   toggleProvince,
   toggleVisit,
   type Saved,
+  type Trip,
   type Visit,
 } from "./lib/travel";
 import {
+  InvalidDatesError,
+  LEGACY_LOCAL_KEY,
+  LOCAL_KEY,
+  MAX_BACKUP_BYTES,
+  acknowledgeLegacy,
+  digestText,
+  createLocalWriter,
   loadLocalSaved,
+  preserveConflict,
   preserveUnreadable,
+  readLegacyChange,
   validateSaved as validateSavedData,
   type LocalLoad,
 } from "./lib/persistence";
-import { fingerprint, isNoop, planMigration } from "./lib/migration";
+import {
+  TRIP_NOTE_LIMIT,
+  canonicalTrips,
+  cityLatestDate,
+  displayTrips,
+  latestTrip,
+  newTripId,
+  sortVisitsByLatest,
+} from "./lib/trips";
+import type { Op } from "./lib/sync";
+import {
+  fingerprint,
+  isNoop,
+  legacyFingerprint,
+  migratedSaved,
+  planMigration,
+} from "./lib/migration";
+import {
+  draftChanged,
+  mergeDraft,
+  type DraftBase,
+  type DraftChoices,
+  type DraftConflict,
+  type DraftValue,
+} from "./lib/draft";
 import { isMigrated, markMigrated } from "./lib/session";
 import AccountDialog from "./components/AccountDialog";
 import MigrationDialog from "./components/MigrationDialog";
+import LegacyDialog from "./components/LegacyDialog";
 import SnapshotDialog from "./components/SnapshotDialog";
 import MediaDialog, { CityMediaPreview } from "./components/MediaDialog";
 import CityPicker from "./components/CityPicker";
 import { readBoot, useCloud } from "./hooks/useCloud";
 import TravelReport from "./components/TravelReport";
-import { totalCities, percentage, visitedCityCount, isDistrictDestination } from "./lib/statistics";
+import {
+  totalCities,
+  percentage,
+  visitedCityCount,
+  visitedTripCount,
+  isDistrictDestination,
+} from "./lib/statistics";
 import "./App.css";
 
 import type { ViewBounds } from "./components/OsmProvinceMap";
@@ -84,8 +125,24 @@ function loadBasemap() {
 }
 
 type Region = (typeof regions)[number];
-const STORAGE = "shanhai-travel-v1";
-const empty: Saved = { version: 1, visits: [], provinces: {} };
+const empty: Saved = { version: 2, visits: [], provinces: {} };
+const cityName = (code: string) =>
+  regions.flatMap((r) => r.cities).find((c) => c.code === code)?.name ?? code;
+const conflictLabel = (op: Op) => {
+  switch (op.type) {
+    case "upsertVisit":
+    case "legacyUpsertVisit":
+      return `${op.visit.name}（城市足迹）`;
+    case "deleteVisit":
+      return `${cityName(op.code)}（取消打卡及其全部旅行）`;
+    case "upsertTrip":
+      return `${cityName(op.code)} · ${op.trip.date || "日期未记录"} 的旅行`;
+    case "deleteTrip":
+      return `${cityName(op.code)} · 删除一次旅行`;
+    default:
+      return `${provinceByCode(op.province)?.name ?? op.province}（省份标记）`;
+  }
+};
 const today = () => new Date().toLocaleDateString("en-CA");
 const provinceByCode = (code: string) => regions.find((p) => p.code === code);
 // City/district code -> province code, and the codes already in WGS-84.
@@ -99,7 +156,13 @@ const wgs84Codes = new Set([
     .flatMap((r) => r.cities.map((c) => c.code)),
 ]);
 const validateSaved = (data: unknown) => validateSavedData(data, regions);
-const loadSaved = () => loadLocalSaved(localStorage, STORAGE, regions);
+const loadSaved = () => loadLocalSaved(localStorage, regions);
+const writerFor = (load: LocalLoad) =>
+  createLocalWriter(
+    localStorage,
+    "canonicalRaw" in load ? load.canonicalRaw : null,
+    "legacyDigest" in load ? load.legacyDigest : undefined,
+  );
 type Unreadable = Extract<LocalLoad, { status: "unreadable" }>;
 
 function App() {
@@ -135,19 +198,62 @@ function App() {
   const [draftProvince, setDraftProvince] = useState("330000");
   const [draftCity, setDraftCity] = useState("");
   const [draftColor, setDraftColor] = useState(colors[0].value);
-  const [draftDate, setDraftDate] = useState(today());
-  const [draftNote, setDraftNote] = useState("");
+  const [draftTrips, setDraftTrips] = useState<Trip[]>([]);
+  // The city whose cancellation awaits confirmation (by code: the live city is read when it is confirmed).
+  const [cancelCity, setCancelCity] = useState<string | null>(null);
+  // The city as the editor opened it, to tell the user's edits from changes that arrive meanwhile.
+  const [editBase, setEditBase] = useState<DraftBase | null>(null);
+  const [editConflict, setEditConflict] = useState<{
+    conflicts: DraftConflict[];
+    choices: DraftChoices;
+    /** The same record changed again while the question was open; the choice was asked for again. */
+    refreshed?: boolean;
+  } | null>(null);
+  // The editor was left for the media window and comes back with its draft.
+  const [returnToEditor, setReturnToEditor] = useState(false);
+  // Which photo button opened the media window, so focus goes back to it.
+  const mediaOpener = useRef<string | null>(null);
   const [toast, setToast] = useState("");
   const [undoVisit, setUndoVisit] = useState<Visit | null>(null);
   const [storageError, setStorageError] = useState(false);
   const [hover, setHover] = useState("");
   const [zoom, setZoom] = useState(1);
   const [basemap, setBasemap] = useState(loadBasemap);
-  const [importOpen, setImportOpen] = useState<Saved | null>(null);
+  const [importOpen, setImportOpen] = useState<{
+    saved: Saved;
+    cleared: number;
+  } | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
-  const [mediaRegion, setMediaRegion] = useState<string | null>(null);
+  const [mediaTarget, setMediaTarget] = useState<{
+    region: string;
+    tripId: string;
+  } | null>(null);
+  // Another tab changed this device's footprints; null when there is no clash.
+  const [localClash, setLocalClash] = useState<{
+    other: string | null;
+    /** The other page wrote the legacy key before this device was upgraded. */
+    legacy?: boolean;
+  } | null>(null);
+  // The exact text of the other page's data that was exported, never a plain "yes": the
+  // other page may write again, and only the version that was exported may be replaced.
+  const [exportedOther, setExportedOther] = useState<string | null>(null);
+  // Data an older page wrote to its own key after this version took over.
+  const [legacyLocal, setLegacyLocal] = useState<{
+    raw: string;
+    saved: Saved | null;
+    digest: string;
+  } | null>(() =>
+    !boot.session && initialLoad.status === "ok" && initialLoad.legacyChange
+      ? { ...initialLoad.legacyChange, digest: initialLoad.legacyDigest }
+      : null,
+  );
+  // Digest of the older page's data the user postponed; a newer change is offered again.
+  const [legacyHidden, setLegacyHidden] = useState<string | null>(null);
+  const [clashError, setClashError] = useState("");
+  const [initialWriter] = useState(() => writerFor(initialLoad));
+  const writer = useRef(initialWriter);
   // Accounts whose migration prompt was postponed in this page session.
   const migrationLater = useRef(new Set<string>());
   const fileInput = useRef<HTMLInputElement>(null);
@@ -167,6 +273,8 @@ function App() {
       setQuery("");
       setTab("map");
       setEditor(false);
+      setEditConflict(null);
+      setReturnToEditor(false);
       setCityPickerOpen(false);
       setReportOpen(false);
       setImportOpen(null);
@@ -175,15 +283,25 @@ function App() {
       setStorageError(false);
       setMigrationOpen(false);
       setSnapshotsOpen(false);
-      setMediaRegion(null);
+      setMediaTarget(null);
+      setLocalClash(null);
+      setExportedOther(null);
+      setClashError("");
       if (data) {
         setSaved(data);
         setUnreadable(null);
       } else {
         // Back to this device's own footprints.
         const local = loadSaved();
+        writer.current = writerFor(local);
         setSaved(local.saved);
         setUnreadable(local.status === "unreadable" ? local : null);
+        setLegacyLocal(
+          local.status === "ok" && local.legacyChange
+            ? { ...local.legacyChange, digest: local.legacyDigest }
+            : null,
+        );
+        setLegacyHidden(null);
         setRawExported(false);
         setConfirmEmpty(false);
         setUnreadableError("");
@@ -192,7 +310,7 @@ function App() {
   });
   // All user edits go through here so cloud mode can sync them, and refuse
   // them while the cloud copy is not loaded and confirmed.
-  const commit = (update: (s: Saved) => Saved) => {
+  const commit = (update: (s: Saved) => Saved, atomic = false) => {
     if (cloud.mode === "cloud") {
       if (!cloud.canWrite) {
         notify(
@@ -205,12 +323,24 @@ function App() {
         return false;
       }
       const next = update(savedRef.current);
-      if (!cloud.push(next)) return false;
+      if (!cloud.push(next, atomic)) return false;
       savedRef.current = next;
       setSaved(next);
       return true;
     }
-    setSaved(update);
+    if (unreadable || localClash) {
+      notify("本机数据暂时无法保存，请先处理页面上的提示");
+      return false;
+    }
+    const next = update(savedRef.current);
+    const result = writer.current.write(next);
+    if (result.status === "conflict") {
+      setLocalClash({ other: result.other });
+      return false;
+    }
+    setStorageError(result.status === "error");
+    savedRef.current = next;
+    setSaved(next);
     return true;
   };
   // Offer to move this device's footprints once the account's cloud data is
@@ -232,7 +362,12 @@ function App() {
       !local.saved.visits.length && !Object.keys(local.saved.provinces).length
     )
       return;
-    if (isMigrated(localStorage, userId, print)) return;
+    const legacyPrint = legacyFingerprint(local.saved);
+    if (
+      isMigrated(localStorage, userId, print) ||
+      (legacyPrint && isMigrated(localStorage, userId, legacyPrint))
+    )
+      return;
     if (isNoop(planMigration(local.saved, savedRef.current))) {
       markMigrated(localStorage, userId, print);
       return;
@@ -240,15 +375,32 @@ function App() {
     setMigrationOpen(true);
   }, [userId, cloudReady, migrationOpen]);
   useEffect(() => {
-    // Cloud data is not written to the local key: that key belongs to local mode.
-    if (unreadable || cloud.mode === "cloud") return;
-    try {
-      localStorage.setItem(STORAGE, JSON.stringify(saved));
-      setStorageError(false);
-    } catch {
-      setStorageError(true);
-    }
-  }, [saved, unreadable, cloud.mode]);
+    // Footprints are written when they are edited (see commit), never on load,
+    // so merely opening the page cannot replace stored data. Cloud data is not
+    // written to the local key: that key belongs to local mode.
+    if (cloud.mode === "cloud") return;
+    const onStorage = (event: StorageEvent) => {
+      if (event.storageArea && event.storageArea !== localStorage) return;
+      if (event.key === LEGACY_LOCAL_KEY) {
+        if (localStorage.getItem(LOCAL_KEY) === null) {
+          // Not upgraded yet: the legacy key is still this device's data.
+          setLocalClash({ other: localStorage.getItem(LEGACY_LOCAL_KEY), legacy: true });
+          return;
+        }
+        // Upgraded: this version's data is untouched; the older page's change is offered.
+        const change = readLegacyChange(localStorage, regions);
+        if (change) {
+          setLegacyLocal(change);
+          setLegacyHidden(null);
+        }
+        return;
+      }
+      if (event.key !== LOCAL_KEY && event.key !== null) return;
+      setLocalClash({ other: localStorage.getItem(LOCAL_KEY) });
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [cloud.mode]);
   useEffect(() => {
     try {
       localStorage.setItem(BASEMAP_STORAGE, basemap ? "osm" : "off");
@@ -304,9 +456,10 @@ function App() {
   ]);
   const provinceColors = useMemo(() => nationalProvinceColors(saved), [saved]);
   const provinceColor = (code: string) => provinceColors[code];
-  const currentVisits = saved.visits
-    .filter((v) => !province || v.province === province.code)
-    .sort((a, b) => b.date.localeCompare(a.date));
+  const currentVisits = sortVisitsByLatest(
+    saved.visits.filter((v) => !province || v.province === province.code),
+  );
+  const tripTotal = visitedTripCount(saved);
   const filteredProvinces = regions.filter(
     (p) =>
       p.name.includes(query) || p.cities.some((c) => c.name.includes(query)),
@@ -422,56 +575,236 @@ function App() {
       ),
     [saved.provinces],
   );
+  // Cancelling a city check-in also deletes its trips; two or more need a
+  // confirmation first, one can be taken back with the undo toast. The city is
+  // read when the deletion happens, so trips that arrived while the confirmation
+  // was open are removed knowingly and come back with the undo.
+  const cancelVisit = (code: string) => {
+    const box: { visit?: Visit } = {};
+    if (
+      !commit((s) => {
+        box.visit = s.visits.find((v) => v.code === code);
+        return box.visit
+          ? { ...s, visits: s.visits.filter((v) => v.code !== code) }
+          : s;
+      })
+    )
+      return false;
+    const removed = box.visit;
+    if (!removed) {
+      notify(`${cityName(code)} 的足迹已经不存在`);
+      return true;
+    }
+    notify(
+      removed.trips.length
+        ? `已取消 ${removed.name} 的足迹，${removed.trips.length} 次旅行记录一并移除`
+        : `已取消 ${removed.name} 的足迹`,
+      removed,
+    );
+    return true;
+  };
   const toggleCity = (provinceCode: string, cityCode: string) => {
     const city = provinceByCode(provinceCode)?.cities.find(
       (c) => c.code === cityCode,
     );
     if (!city) return;
-    const removed = saved.visits.find((v) => v.code === cityCode);
+    const removed = savedRef.current.visits.find((v) => v.code === cityCode);
+    if (removed) {
+      if (removed.trips.length >= 2) setCancelCity(cityCode);
+      else cancelVisit(cityCode);
+      return;
+    }
     if (!commit((s) => toggleVisit(s, provinceCode, city, today()))) return;
-    notify(
-      removed
-        ? `已取消 ${city.name} 的足迹`
-        : `已标记去过 ${city.name}，颜色已自动选择`,
-      removed || null,
-    );
+    notify(`已标记去过 ${city.name}，颜色已自动选择`);
   };
-  const openEditor = (p: string, city = "") => {
-    const existing = saved.visits.find((v) => v.code === city);
+  const defaultTrip = (): Trip => ({ id: newTripId(), date: today(), note: "" });
+  const loadDraft = (p: string, city: string) => {
+    const existing = savedRef.current.visits.find((v) => v.code === city);
+    const color = existing?.color || automaticColor(savedRef.current, p);
     setDraftProvince(p);
     setDraftCity(city);
-    setDraftColor(existing?.color || automaticColor(saved, p));
-    setDraftDate(existing?.date ?? today());
-    setDraftNote(existing?.note || "");
+    setDraftColor(color);
+    setDraftTrips(
+      existing ? displayTrips(existing.trips) : city ? [defaultTrip()] : [],
+    );
+    setEditBase(
+      city
+        ? { code: city, existed: !!existing, color, trips: existing?.trips ?? [] }
+        : null,
+    );
+    setEditConflict(null);
+  };
+  // Radix returns focus only to a DialogTrigger, which the controlled editor does
+  // not have: remember what opened it and put focus back there when it closes.
+  const editorOpener = useRef<HTMLElement | null>(null);
+  const openEditor = (p: string, city = "") => {
+    const active = document.activeElement;
+    editorOpener.current =
+      active instanceof HTMLElement && active !== document.body ? active : null;
+    loadDraft(p, city);
     setEditor(true);
   };
-  const selectDraftCity = (code: string) => {
-    setDraftCity(code);
-    const existing = saved.visits.find((v) => v.code === code);
-    setDraftColor(existing?.color || automaticColor(saved, draftProvince));
-    setDraftDate(existing?.date ?? today());
-    setDraftNote(existing?.note || "");
+  const returnEditorFocus = () => {
+    // Handed over to the photos window: that window and its close handler own focus.
+    if (mediaOpener.current !== null) return;
+    const opener = editorOpener.current;
+    editorOpener.current = null;
+    const usable = (el: HTMLElement | null): el is HTMLElement =>
+      !!el &&
+      el.isConnected &&
+      !(el as HTMLButtonElement).disabled &&
+      el.getClientRects().length > 0;
+    // The opening city card may be gone (a cancelled city): use the always-present add button.
+    const target = usable(opener)
+      ? opener
+      : [
+          ...document.querySelectorAll<HTMLElement>("[data-add-footprint]"),
+        ].find((el) => usable(el));
+    target?.focus();
   };
-  const saveVisit = () => {
+  const selectDraftCity = (code: string) => loadDraft(draftProvince, code);
+  const changeDraftTrip = (id: string, patch: Partial<Trip>) =>
+    setDraftTrips((trips) =>
+      trips.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    );
+  // What the editor holds, ready to merge. An untouched note is kept exactly as
+  // stored; only edited text is trimmed.
+  const currentDraft = (): DraftValue | null => {
     const city = draftRegion.cities.find((c) => c.code === draftCity);
-    if (!city) return;
-    const visit = {
+    if (!city || !editBase) return null;
+    return {
       code: city.code,
       name: city.name,
       province: draftProvince,
       color: draftColor,
-      date: draftDate,
-      note: draftNote.trim(),
+      trips: draftTrips.map((t) => {
+        const before = editBase.trips.find((o) => o.id === t.id);
+        return {
+          ...t,
+          note: before && before.note === t.note ? t.note : t.note.trim(),
+        };
+      }),
     };
+  };
+  // Saving applies the user's own edits (the difference to the city as the editor
+  // opened) onto the city as it is now. Changes that arrived meanwhile stay; the
+  // same record changed on both sides asks first.
+  // The conflicts as they are against the city right now. Choices are only ever
+  // applied to the exact values the user was shown: a conflicting record that changed
+  // again drops its choice, a new conflict asks, and one that no longer conflicts goes.
+  const liveConflicts = (): DraftConflict[] => {
+    const draft = currentDraft();
+    if (!draft || !editBase) return [];
+    const result = mergeDraft(
+      editBase,
+      draft,
+      savedRef.current.visits.find((v) => v.code === draft.code),
+      {},
+    );
+    return result.kind === "ask" ? result.conflicts : [];
+  };
+  const reconcileConflict = (
+    prev: NonNullable<typeof editConflict>,
+    fresh: DraftConflict[],
+  ): NonNullable<typeof editConflict> | null => {
+    if (!fresh.length) return null;
+    const shown = (c: DraftConflict) => JSON.stringify(c);
+    const known = new Map(prev.conflicts.map((c) => [shown(c), c.key]));
+    const unchanged =
+      fresh.length === prev.conflicts.length &&
+      fresh.every((c) => known.has(shown(c)));
+    if (unchanged) return prev;
+    const choices: DraftChoices = {};
+    for (const c of fresh) {
+      const choice = prev.choices[c.key];
+      if (choice && known.has(shown(c))) choices[c.key] = choice;
+    }
+    return { conflicts: fresh, choices, refreshed: true };
+  };
+  useEffect(() => {
+    if (!editConflict) return;
+    const next = reconcileConflict(editConflict, liveConflicts());
+    if (next === editConflict) return;
+    setEditConflict(next);
+    if (!next)
+      notify("另一台设备的修改已与你的编辑一致，没有需要选择的冲突，请重新保存");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved]);
+  const saveVisit = (choices: DraftChoices = {}) => {
+    const draft = currentDraft();
+    if (!draft || !editBase) return;
+    if (editConflict) {
+      // Confirming: never apply choices to values that were not on screen.
+      const next = reconcileConflict(editConflict, liveConflicts());
+      if (next !== editConflict) {
+        setEditConflict(next);
+        if (!next)
+          notify("另一台设备的修改已与你的编辑一致，没有需要选择的冲突，请重新保存");
+        return;
+      }
+    }
+    const result = mergeDraft(
+      editBase,
+      draft,
+      savedRef.current.visits.find((v) => v.code === draft.code),
+      choices,
+    );
+    if (result.kind === "ask") {
+      setEditConflict({ conflicts: result.conflicts, choices });
+      return;
+    }
+    if (result.kind === "noop") {
+      setEditConflict(null);
+      setEditor(false);
+      notify(`已保留 ${draft.name} 的取消状态，没有保存这次编辑`);
+      return;
+    }
+    const merged = result.visit;
     if (
       !commit((s) => ({
         ...s,
-        visits: [...s.visits.filter((v) => v.code !== city.code), visit],
+        visits: s.visits.some((v) => v.code === merged.code)
+          ? s.visits.map((v) => (v.code === merged.code ? merged : v))
+          : [...s.visits, merged],
       }))
     )
       return;
+    setEditConflict(null);
     setEditor(false);
-    notify(`已记录 ${city.name} 的足迹`);
+    notify(
+      `已记录 ${draft.name} 的足迹${merged.trips.length > 1 ? `（共 ${merged.trips.length} 次旅行）` : ""}`,
+    );
+  };
+  // The media window opens over a draft with unsaved edits: the draft is kept and
+  // comes back when the window closes. An untouched draft is reloaded instead,
+  // so it shows the city as it is by then.
+  const openMedia = (tripId: string) => {
+    mediaOpener.current = tripId;
+    setReturnToEditor(true);
+    setEditor(false);
+    setMediaTarget({ region: draftCity, tripId });
+  };
+  // After the media window closes over the editor, focus goes back to the button
+  // that opened it. An effect, because the editor may be mid-way through its exit
+  // animation and then never remounts (so it would not autofocus again).
+  useEffect(() => {
+    if (!editor || mediaTarget || mediaOpener.current === null) return;
+    const id = mediaOpener.current;
+    mediaOpener.current = null;
+    const button = document.querySelector<HTMLButtonElement>(
+      `.editor-dialog [data-media-opener="${CSS.escape(id)}"]`,
+    );
+    if (button && !button.disabled) button.focus();
+  }, [editor, mediaTarget]);
+  const mediaOpen = cloud.enabled && !!cloud.user && mediaTarget !== null;
+  const closeMedia = () => {
+    setMediaTarget(null);
+    if (!returnToEditor) return;
+    setReturnToEditor(false);
+    const draft = currentDraft();
+    if (!draft || !editBase || !draftChanged(editBase, draft))
+      loadDraft(draftProvince, draftCity);
+    setEditor(true);
   };
   const exportData = () => {
     const url = URL.createObjectURL(
@@ -500,13 +833,30 @@ function App() {
   const resolveUnreadable = (next: Saved, message: string) => {
     if (!unreadable) return;
     // Keep a copy in the browser; if that fails, require a file export first.
-    const kept = preserveUnreadable(localStorage, STORAGE, unreadable.raw);
+    const kept = preserveUnreadable(localStorage, unreadable.sourceKey, unreadable.raw);
     if (!kept && !rawExported) {
       setUnreadableError(
         "浏览器无法再保存一份原始数据副本，请先点击“导出原始数据”，再继续。",
       );
       return;
     }
+    // The result goes to this version's own key; an unreadable legacy key stays as it is.
+    const fresh = createLocalWriter(
+      localStorage,
+      unreadable.canonicalRaw,
+      unreadable.legacyDigest,
+    );
+    const result = fresh.write(next);
+    if (result.status !== "ok") {
+      setUnreadableError(
+        result.status === "conflict"
+          ? "本机数据刚刚又被另一个页面修改，请刷新页面后重新处理。"
+          : "浏览器无法保存数据，请先导出原始数据并释放存储空间。",
+      );
+      return;
+    }
+    writer.current = fresh;
+    savedRef.current = next;
     setSaved(next);
     setUnreadable(null);
     setConfirmEmpty(false);
@@ -517,12 +867,140 @@ function App() {
         : `${message}，原始数据已导出为文件`,
     );
   };
+  // Another tab changed the local footprints: the user decides whose data wins.
+  const loadOtherTab = () => {
+    const other = loadSaved();
+    writer.current = writerFor(other);
+    savedRef.current = other.saved;
+    setSaved(other.saved);
+    setUnreadable(other.status === "unreadable" ? other : null);
+    setLegacyLocal(
+      other.status === "ok" && other.legacyChange
+        ? { ...other.legacyChange, digest: other.legacyDigest }
+        : null,
+    );
+    setLegacyHidden(null);
+    setRawExported(false);
+    setConfirmEmpty(false);
+    setUnreadableError("");
+    setLocalClash(null);
+    setExportedOther(null);
+    setClashError("");
+    notify("已载入另一个页面的最新数据");
+  };
+  // An older page's data, taken in only where it adds something: records this
+  // version has stay as they are (a record both sides have keeps this version's
+  // content), nothing is deleted, and nothing happens until the user presses merge.
+  const legacyDownload = (raw: string, name: string) => {
+    const url = URL.createObjectURL(new Blob([raw], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const legacyNotice = cloud.mode === "cloud" ? cloud.legacyNotice : legacyLocal;
+  const mergeLegacy = () => {
+    if (!legacyNotice?.saved) return false;
+    const incoming = legacyNotice.saved;
+    if (
+      !commit((s) => migratedSaved(s, planMigration(incoming, s), {}))
+    )
+      return false;
+    const ok =
+      cloud.mode === "cloud"
+        ? cloud.acknowledgeLegacy()
+        : acknowledgeLegacy(localStorage, legacyNotice.digest);
+    if (!ok) return false;
+    setLegacyLocal(null);
+    notify("已把旧版页面的新增内容合并进来，相同记录保留了当前内容");
+    return true;
+  };
+  const keepLegacyAside = () => {
+    if (!legacyNotice) return;
+    const ok =
+      cloud.mode === "cloud"
+        ? cloud.acknowledgeLegacy()
+        : acknowledgeLegacy(localStorage, legacyNotice.digest);
+    if (!ok) {
+      notify("无法记录处理结果，浏览器存储不可用");
+      return;
+    }
+    setLegacyLocal(null);
+    notify("旧版页面的数据仍保留在浏览器中，没有合并");
+  };
+  const exportOtherTab = () => {
+    if (localClash?.other == null) return;
+    const url = URL.createObjectURL(
+      new Blob([localClash.other], { type: "application/json" }),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `山海足迹-另一个页面的数据-${today()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setExportedOther(localClash.other);
+    setClashError("");
+  };
+  const overwriteOtherTab = () => {
+    if (!localClash) return;
+    const other = localClash.other;
+    let kept = false;
+    if (other !== null) {
+      // The data about to be replaced is the other page's: keep that text, not this page's.
+      kept = preserveConflict(localStorage, other);
+      if (!kept && exportedOther !== other) {
+        setClashError(
+          "浏览器无法保存另一个页面数据的副本，请先点击“导出另一个页面的数据”，再继续覆盖；也可以改为载入另一个页面的数据。",
+        );
+        return;
+      }
+    }
+    // An older page's write before the upgrade is accounted for by its digest.
+    if (localClash.legacy)
+      writer.current = createLocalWriter(
+        localStorage,
+        null,
+        digestText(other),
+      );
+    else writer.current.adopt(other);
+    const result = writer.current.write(savedRef.current);
+    if (result.status !== "ok") {
+      setClashError(
+        result.status === "conflict"
+          ? "数据又被修改，请再试一次。"
+          : "浏览器无法保存数据，请先导出本页数据。",
+      );
+      if (result.status === "conflict") setLocalClash({ other: result.other });
+      return;
+    }
+    setLocalClash(null);
+    setExportedOther(null);
+    setClashError("");
+    notify(
+      other === null
+        ? "已保存本页数据"
+        : kept
+          ? "已用本页数据覆盖，另一个页面的数据保留为浏览器内的副本"
+          : "已用本页数据覆盖，另一个页面的数据已导出为文件",
+    );
+  };
   const importFile = async (file?: File) => {
     if (!file) return;
     try {
-      if (file.size > 2_000_000)
+      if (file.size > MAX_BACKUP_BYTES)
         throw new Error("文件过大，请选择足迹备份文件");
-      setImportOpen(validateSaved(JSON.parse(await file.text())));
+      const data = JSON.parse(await file.text());
+      try {
+        setImportOpen({ saved: validateSaved(data), cleared: 0 });
+      } catch (e) {
+        // Dates that are not on the calendar are cleared only after the user agrees.
+        if (!(e instanceof InvalidDatesError)) throw e;
+        setImportOpen({
+          saved: validateSavedData(data, regions, { correctDates: true }),
+          cleared: e.count,
+        });
+      }
     } catch (e) {
       notify(e instanceof Error ? e.message : "无法读取文件");
     }
@@ -674,19 +1152,13 @@ function App() {
             <DialogTitle>多台设备修改了相同足迹</DialogTitle>
             <DialogDescription>
               有 {cloud.conflicts}{" "}
-              条城市足迹或省份标记冲突（包括删除）。请选择这些冲突记录保留哪一份；其他记录会自动合并。处理前可导出当前本机足迹。
+              条城市足迹、旅行记录或省份标记冲突（包括删除）。请选择这些冲突记录保留哪一份；其他记录会自动合并。处理前可导出当前本机足迹。
             </DialogDescription>
           </DialogHeader>
           <ul>
             {cloud.conflictRecords.map((op, i) => (
               <li key={i}>
-                {op.type === "upsertVisit"
-                  ? op.visit.name
-                  : op.type === "deleteVisit"
-                    ? (regions
-                        .flatMap((r) => r.cities)
-                        .find((c) => c.code === op.code)?.name ?? op.code)
-                    : (provinceByCode(op.province)?.name ?? op.province)}
+                {conflictLabel(op)}
               </li>
             ))}
           </ul>
@@ -735,6 +1207,11 @@ function App() {
               <span>
                 已打卡城市 · {percentage(cityCount, totalCities)}
               </span>
+            </div>
+            <i />
+            <div>
+              <strong>{tripTotal}</strong>
+              <span>旅行次数</span>
             </div>
             <i />
             <div>
@@ -788,6 +1265,7 @@ function App() {
               <Button
                 size="sm"
                 className={`add-main ${province ? "province-add" : ""}`}
+                data-add-footprint
                 onClick={() => openEditor(province?.code || "330000")}
               >
                 <Plus size={16} />
@@ -1225,10 +1703,20 @@ function App() {
                         </span>
                         <small>{provinceByCode(v.province)?.short}</small>
                         <h3>{v.name}</h3>
-                        <p>{v.note || "有些风景，只属于走过的人。"}</p>
+                        <p>
+                          {latestTrip(v)?.note ||
+                            "有些风景，只属于走过的人。"}
+                        </p>
                         <span className="visit-date">
                           <CalendarBlank size={14} />
-                          {v.date || "日期未记录"}
+                          {v.trips.length === 0
+                            ? "暂无旅行记录"
+                            : cityLatestDate(v) || "日期未记录"}
+                          {v.trips.length > 1 && (
+                            <em className="trip-badge">
+                              共 {v.trips.length} 次旅行
+                            </em>
+                          )}
                           <ArrowUpRight size={16} />
                         </span>
                       </button>
@@ -1465,8 +1953,7 @@ function App() {
           </div>
           {saved.visits.length ? (
             <div className="recent-grid">
-              {[...saved.visits]
-                .sort((a, b) => b.date.localeCompare(a.date))
+              {sortVisitsByLatest(saved.visits)
                 .slice(0, 4)
                 .map((v) => (
                   <button
@@ -1484,7 +1971,12 @@ function App() {
                         {v.name}
                         <small>{provinceByCode(v.province)?.short}</small>
                       </h3>
-                      <p>{v.date || "日期未记录"}</p>
+                      <p>
+                        {v.trips.length === 0
+                          ? "暂无旅行记录"
+                          : cityLatestDate(v) || "日期未记录"}
+                        {v.trips.length > 1 && ` · 共 ${v.trips.length} 次旅行`}
+                      </p>
                     </div>
                     <ArrowUpRight size={17} />
                   </button>
@@ -1607,8 +2099,37 @@ function App() {
           }
         />
       )}
-      <Dialog open={editor} onOpenChange={setEditor}>
-        <DialogContent className="editor-dialog">
+      <Dialog
+        open={editor}
+        onOpenChange={(open) => {
+          // A question that opened on top of the editor owns the dismiss: neither Escape,
+          // a click outside nor focus moving into it may close the editor and its draft.
+          if (!open && (cancelCity || editConflict || mediaOpen))
+            return;
+          setEditor(open);
+        }}
+      >
+        <DialogContent
+          className="editor-dialog"
+          onEscapeKeyDown={(e) => {
+            // Radix only hands Escape to the top layer once it has registered, which
+            // happens after focus has already moved into the new question. Within that
+            // gap the editor still receives the key: answer it for the question.
+            if (cancelCity) {
+              e.preventDefault();
+              setCancelCity(null);
+            } else if (editConflict) {
+              e.preventDefault();
+              setEditConflict(null);
+            } else if (mediaOpen) {
+              e.preventDefault();
+            }
+          }}
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+            returnEditorFocus();
+          }}
+        >
           <DialogHeader>
             <span className="dialog-icon">
               <MapPin size={25} weight="duotone" />
@@ -1619,7 +2140,7 @@ function App() {
                 : "记录一段新的旅程"}
             </DialogTitle>
             <DialogDescription>
-              颜色默认自动分配，直接保存即可；也可以调整日期和备注。
+              颜色默认自动分配，直接保存即可；每次旅行可以单独记录日期和备注。
             </DialogDescription>
           </DialogHeader>
           <form
@@ -1633,13 +2154,7 @@ function App() {
                 省份
                 <select
                   value={draftProvince}
-                  onChange={(e) => {
-                    setDraftProvince(e.target.value);
-                    setDraftCity("");
-                    setDraftColor(automaticColor(saved, e.target.value));
-                    setDraftDate(today());
-                    setDraftNote("");
-                  }}
+                  onChange={(e) => loadDraft(e.target.value, "")}
                 >
                   {regions.map((p) => (
                     <option key={p.code} value={p.code}>
@@ -1691,30 +2206,122 @@ function App() {
                 ))}
               </div>
             </fieldset>
-            <label className="field-label">
-              旅行日期
-              <Input
-                type="date"
-                value={draftDate}
-                onChange={(e) => setDraftDate(e.target.value)}
-              />
-            </label>
-            <label className="field-label">
-              旅行记忆 <span>选填</span>
-              <textarea
-                placeholder="那天的天气、遇见的人，或一顿念念不忘的美食…"
-                maxLength={1000}
-                value={draftNote}
-                onChange={(e) => setDraftNote(e.target.value)}
-              />
-            </label>
+            {draftCity && (
+              <fieldset className="trip-list">
+                <legend>
+                  旅行记录{" "}
+                  <span className="auto-color-note">
+                    同一城市可以记录多次，城市数和颜色不受影响
+                  </span>
+                </legend>
+                {draftTrips.length === 0 && (
+                  <p className="media-hint">
+                    还没有旅行记录。城市仍会保持打卡，也可以添加一次旅行。
+                  </p>
+                )}
+                {draftTrips.map((t, i) => {
+                  const synced = cloud
+                    .confirmedSaved()
+                    ?.visits.some(
+                      (v) =>
+                        v.code === draftCity &&
+                        v.trips.some((o) => o.id === t.id),
+                    );
+                  return (
+                    <div className="trip-card" key={t.id}>
+                      <div className="trip-card-head">
+                        <strong>第 {i + 1} 次旅行</strong>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="delete-button"
+                          aria-label={`删除第 ${i + 1} 次旅行`}
+                          onClick={() =>
+                            setDraftTrips((trips) =>
+                              trips.filter((o) => o.id !== t.id),
+                            )
+                          }
+                        >
+                          <Trash size={15} />
+                          删除
+                        </Button>
+                      </div>
+                      <label className="field-label">
+                        旅行日期
+                        <span className="sr-only"> 第 {i + 1} 次</span>
+                        <Input
+                          type="date"
+                          value={t.date}
+                          onChange={(e) =>
+                            changeDraftTrip(t.id, { date: e.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="field-label">
+                        旅行记忆
+                        <span className="sr-only"> 第 {i + 1} 次</span>{" "}
+                        <span>选填</span>
+                        <textarea
+                          placeholder="那天的天气、遇见的人，或一顿念念不忘的美食…"
+                          maxLength={TRIP_NOTE_LIMIT}
+                          value={t.note}
+                          onChange={(e) =>
+                            changeDraftTrip(t.id, { note: e.target.value })
+                          }
+                        />
+                      </label>
+                      {cloud.user && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          aria-label={`这次旅行的照片与附件（第 ${i + 1} 次）`}
+                          disabled={cloud.deletionBlocked || !synced}
+                          title={
+                            synced
+                              ? undefined
+                              : "保存并同步这次旅行后才能添加照片与附件"
+                          }
+                          data-media-opener={t.id}
+                          onClick={() => openMedia(t.id)}
+                        >
+                          这次旅行的照片与附件
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setDraftTrips((trips) => [...trips, defaultTrip()])
+                  }
+                >
+                  <Plus size={16} />
+                  {draftTrips.length ? "添加另一次旅行" : "添加旅行记录"}
+                </Button>
+              </fieldset>
+            )}
             {cloud.user && draftCity && (
               <div>
-              <CityMediaPreview key={`${cloud.user.id}:${draftCity}`} regionCode={draftCity} />
-              <Button type="button" variant="outline" disabled={cloud.deletionBlocked} onClick={() => {setEditor(false);setMediaRegion(draftCity)}}>
-                照片与附件
-              </Button>
-              <p className="media-hint">移除城市足迹会保留照片与附件，文件需在媒体窗口单独删除。</p>
+                <CityMediaPreview
+                  key={`${cloud.user.id}:${draftCity}`}
+                  regionCode={draftCity}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={cloud.deletionBlocked}
+                  data-media-opener=""
+                  onClick={() => openMedia("")}
+                >
+                  照片与附件
+                </Button>
+                <p className="media-hint">
+                  取消城市打卡会同时删除这座城市的旅行记录，但会保留照片与附件，文件需在媒体窗口单独删除。
+                </p>
               </div>
             )}
             <div className="dialog-actions">
@@ -1724,19 +2331,20 @@ function App() {
                   variant="ghost"
                   className="delete-button"
                   onClick={() => {
-                    if (
-                      !commit((s) => ({
-                        ...s,
-                        visits: s.visits.filter((v) => v.code !== draftCity),
-                      }))
-                    )
+                    const removed = saved.visits.find(
+                      (v) => v.code === draftCity,
+                    );
+                    if (!removed) return;
+                    // The editor stays open behind the confirmation, so its draft survives "keep".
+                    if (removed.trips.length >= 2) {
+                      setCancelCity(draftCity);
                       return;
-                    setEditor(false);
-                    notify("已移除这座城市的足迹");
+                    }
+                    if (cancelVisit(draftCity)) setEditor(false);
                   }}
                 >
                   <Trash size={16} />
-                  移除足迹
+                  取消城市打卡
                 </Button>
               )}
               <Button
@@ -1754,6 +2362,119 @@ function App() {
           </form>
         </DialogContent>
       </Dialog>
+      <Dialog
+        open={!!editConflict}
+        onOpenChange={(open) => {
+          if (!open) setEditConflict(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <span className="dialog-icon">
+              <Warning size={25} weight="duotone" />
+            </span>
+            <DialogTitle>编辑期间这条记录有了新的变化</DialogTitle>
+            <DialogDescription>
+              你编辑时，{cityName(draftCity)} 的同一条记录在别处也被修改了。逐条选择保留哪一份；没有冲突的修改已按你的编辑和最新数据合并，不受影响。
+            </DialogDescription>
+          </DialogHeader>
+          {editConflict?.refreshed && (
+            <p className="unreadable-note" role="status">
+              你选择期间，这条记录在别处又有了新的变化：下面已按最新内容重新显示，变化过的记录需要重新选择；其余已选的不受影响。
+            </p>
+          )}
+          <ul className="migration-conflicts">
+            {editConflict?.conflicts.map((c) => {
+              const choice = editConflict.choices[c.key];
+              const pick = (value: "mine" | "latest") =>
+                setEditConflict((prev) =>
+                  prev
+                    ? { ...prev, choices: { ...prev.choices, [c.key]: value } }
+                    : prev,
+                );
+              const trip = (t: Trip | null) =>
+                t
+                  ? `${t.date || "日期未记录"}${t.note ? ` · ${t.note.length > 24 ? `${t.note.slice(0, 24)}…` : t.note}` : ""}`
+                  : "已删除";
+              const title =
+                c.kind === "city-removed"
+                  ? `${cityName(draftCity)} 的足迹已被取消`
+                  : c.kind === "color"
+                    ? "足迹颜色"
+                    : "一次旅行";
+              const mine =
+                c.kind === "city-removed"
+                  ? "恢复这座城市，并保存我的修改"
+                  : c.kind === "color"
+                    ? "用我选的颜色"
+                    : `用我的：${trip(c.mine)}`;
+              const latest =
+                c.kind === "city-removed"
+                  ? "保持取消，放弃我的修改"
+                  : c.kind === "color"
+                    ? "保留最新的颜色"
+                    : `保留最新：${trip(c.latest)}`;
+              return (
+                <li className="migration-conflict" key={c.key}>
+                  <span className="migration-conflict-name">{title}</span>
+                  <div>
+                    <button
+                      type="button"
+                      aria-pressed={choice === "latest"}
+                      className={`migration-choice${choice === "latest" ? " selected" : ""}`}
+                      onClick={() => pick("latest")}
+                    >
+                      <strong>{latest}</strong>
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={choice === "mine"}
+                      className={`migration-choice${choice === "mine" ? " selected" : ""}`}
+                      onClick={() => pick("mine")}
+                    >
+                      <strong>{mine}</strong>
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="dialog-actions">
+            <Button variant="outline" onClick={() => setEditConflict(null)}>
+              返回编辑
+            </Button>
+            <Button
+              disabled={
+                !editConflict ||
+                editConflict.conflicts.some((c) => !editConflict.choices[c.key])
+              }
+              onClick={() => editConflict && saveVisit(editConflict.choices)}
+            >
+              确认并保存
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {legacyNotice && legacyNotice.digest !== legacyHidden && !unreadable && !localClash && (
+        <LegacyDialog
+          open
+          kind={cloud.mode === "cloud" ? "cloud" : "local"}
+          raw={legacyNotice.raw}
+          saved={legacyNotice.saved}
+          current={saved}
+          onExport={() =>
+            legacyDownload(
+              legacyNotice.raw,
+              cloud.mode === "cloud"
+                ? "山海足迹-旧版页面账号缓存.json"
+                : "山海足迹-旧版页面数据.json",
+            )
+          }
+          onMerge={mergeLegacy}
+          onKeep={keepLegacyAside}
+          onClose={() => setLegacyHidden(legacyNotice.digest)}
+        />
+      )}
       <Dialog open={!!unreadable} onOpenChange={() => {}}>
         <DialogContent
           showCloseButton={false}
@@ -1775,8 +2496,19 @@ function App() {
               可识别 {unreadable.recovery.saved.visits.length} 条城市足迹、
               {Object.keys(unreadable.recovery.saved.provinces).length}{" "}
               个省份标记； 恢复时将丢弃 {unreadable.recovery.discardedVisits}{" "}
-              条足迹、
+              条足迹、{unreadable.recovery.discardedTrips} 条旅行记录、
               {unreadable.recovery.discardedProvinces} 个省份标记。
+            </p>
+          )}
+          {unreadable?.recoveryCorrected && (
+            <p className="unreadable-note">
+              其中 {unreadable.recoveryCorrected.correctedDates}{" "}
+              个旅行日期不是真实存在的日历日期。可以只清除这些日期，其余日期和全部备注原样保留
+              {unreadable.recoveryCorrected.discardedVisits +
+                unreadable.recoveryCorrected.discardedTrips >
+                0 &&
+                `（另有 ${unreadable.recoveryCorrected.discardedVisits} 条足迹、${unreadable.recoveryCorrected.discardedTrips} 条旅行记录无法识别，将被丢弃）`}
+              。原始数据会先另存一份。
             </p>
           )}
           {unreadableError && (
@@ -1803,6 +2535,20 @@ function App() {
                 恢复可识别的记录
               </Button>
             )}
+            {unreadable?.recoveryCorrected && (
+              <Button
+                onClick={() =>
+                  unreadable.recoveryCorrected &&
+                  resolveUnreadable(
+                    unreadable.recoveryCorrected.saved,
+                    `已清除 ${unreadable.recoveryCorrected.correctedDates} 个不存在的日期并恢复记录`,
+                  )
+                }
+              >
+                清除 {unreadable.recoveryCorrected.correctedDates}{" "}
+                个不存在的日期并恢复
+              </Button>
+            )}
             <Button
               variant={confirmEmpty ? "destructive" : "outline"}
               onClick={() =>
@@ -1826,8 +2572,15 @@ function App() {
           <DialogHeader>
             <DialogTitle>导入旅行足迹</DialogTitle>
             <DialogDescription>
-              备份包含 {importOpen?.visits.length}{" "}
-              条城市足迹。导入将替换当前记录，建议先导出当前备份。
+              备份包含 {importOpen?.saved.visits.length} 条城市足迹、
+              {importOpen?.saved.visits.reduce(
+                (n, v) => n + v.trips.length,
+                0,
+              )}{" "}
+              次旅行。导入将替换当前记录，建议先导出当前备份。
+              {importOpen && importOpen.cleared > 0
+                ? `备份里有 ${importOpen.cleared} 个旅行日期不是真实存在的日历日期，导入时会清除这些日期，其余内容（包括备注）原样保留。`
+                : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="dialog-actions">
@@ -1837,12 +2590,16 @@ function App() {
             </Button>
             <Button
               onClick={() => {
-                if (importOpen) setSaved(importOpen);
+                if (!importOpen) return;
+                const target = importOpen.saved;
+                if (!commit(() => target)) return;
                 setImportOpen(null);
                 notify("备份已导入");
               }}
             >
-              确认替换并导入
+              {importOpen && importOpen.cleared > 0
+                ? "清除不存在的日期并导入"
+                : "确认替换并导入"}
             </Button>
           </div>
         </DialogContent>
@@ -1871,11 +2628,31 @@ function App() {
             setAccountOpen(false);
             setSnapshotsOpen(true);
           }}
-          onOpenMedia={() => {setAccountOpen(false);setMediaRegion("")}}
+          onOpenMedia={() => {
+            setAccountOpen(false);
+            setMediaTarget({ region: "", tripId: "" });
+          }}
         />
       )}
-      {cloud.enabled && cloud.user && mediaRegion !== null && (
-        <MediaDialog key={cloud.user.id} regionCode={mediaRegion} writable={cloud.canWrite && cloud.fresh && !cloud.deletionBlocked} onClose={() => setMediaRegion(null)} />
+      {mediaOpen && cloud.user && (
+        <MediaDialog
+          key={`${cloud.user.id}:${mediaTarget.region}:${mediaTarget.tripId}`}
+          regionCode={mediaTarget.region}
+          tripId={mediaTarget.tripId}
+          trips={Object.fromEntries(
+            saved.visits.map((v) => [v.code, v.trips] as const),
+          )}
+          syncedTripIds={
+            new Set(
+              (cloud.confirmedSaved()?.visits ?? []).flatMap((v) =>
+                v.trips.map((t) => t.id),
+              ),
+            )
+          }
+          writable={cloud.canWrite && cloud.fresh && !cloud.deletionBlocked}
+          returnsToEditor={returnToEditor}
+          onClose={closeMedia}
+        />
       )}
       {cloud.enabled && cloud.user && snapshotsOpen && (
         <SnapshotDialog
@@ -1893,7 +2670,7 @@ function App() {
           cloudSaved={saved}
           cloud={cloud}
           provinceName={(code) => provinceByCode(code)?.name ?? code}
-          apply={(target) => commit(() => target)}
+          apply={(target) => commit(() => target, true)}
           onExportCloud={exportData}
           onLater={() => {
             if (userId) migrationLater.current.add(userId);
@@ -1908,6 +2685,84 @@ function App() {
           }}
         />
       )}
+      <Dialog
+        open={!!cancelCity}
+        onOpenChange={(open) => {
+          if (!open) setCancelCity(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <span className="dialog-icon">
+              <Warning size={25} weight="duotone" />
+            </span>
+            <DialogTitle>取消 {cancelCity ? cityName(cancelCity) : ""} 的打卡？</DialogTitle>
+            <DialogDescription>
+              这座城市的{" "}
+              {saved.visits.find((v) => v.code === cancelCity)?.trips.length ?? 0}{" "}
+              次旅行记录（日期和备注）会一并删除。照片与附件会保留，需要在媒体窗口单独删除。取消后可在提示条里撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="dialog-actions">
+            <Button variant="outline" onClick={() => setCancelCity(null)}>
+              保留足迹
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const target = cancelCity;
+                if (!target) return;
+                if (cancelVisit(target)) {
+                  setCancelCity(null);
+                  setEditor(false);
+                }
+              }}
+            >
+              确认取消打卡
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!localClash} onOpenChange={() => {}}>
+        <DialogContent
+          showCloseButton={false}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <span className="dialog-icon">
+              <Warning size={25} weight="duotone" />
+            </span>
+            <DialogTitle>另一个页面修改了本机足迹</DialogTitle>
+            <DialogDescription>
+              为避免互相覆盖，本页已暂停保存。请选择保留哪一份数据；覆盖前会把另一个页面的数据另存一份，浏览器无法保存时需要先导出它。
+            </DialogDescription>
+          </DialogHeader>
+          {clashError && (
+            <p className="unreadable-note unreadable-error" role="alert">
+              {clashError}
+            </p>
+          )}
+          <div className="dialog-actions unreadable-actions">
+            <Button variant="outline" onClick={exportData}>
+              <DownloadSimple size={16} />
+              导出本页数据
+            </Button>
+            {localClash?.other != null && (
+              <Button variant="outline" onClick={exportOtherTab}>
+                <DownloadSimple size={16} />
+                导出另一个页面的数据
+              </Button>
+            )}
+            <Button variant="outline" onClick={loadOtherTab}>
+              载入另一个页面的数据
+            </Button>
+            <Button onClick={overwriteOtherTab}>
+              用本页数据覆盖（保留对方副本）
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       {toast && (
         <div className="toast" role="status">
           <Check size={18} />
@@ -1917,13 +2772,26 @@ function App() {
               className="undo-button"
               onClick={() => {
                 if (
-                  !commit((s) => ({
-                    ...s,
-                    visits: [
-                      ...s.visits.filter((v) => v.code !== undoVisit.code),
-                      undoVisit,
-                    ],
-                  }))
+                  !commit((s) => {
+                    const live = s.visits.find((v) => v.code === undoVisit.code);
+                    if (!live) return { ...s, visits: [...s.visits, undoVisit] };
+                    // Added again meanwhile: bring back the removed trips next to the new ones.
+                    const have = new Set(live.trips.map((t) => t.id));
+                    return {
+                      ...s,
+                      visits: s.visits.map((v) =>
+                        v.code === live.code
+                          ? {
+                              ...v,
+                              trips: canonicalTrips([
+                                ...v.trips,
+                                ...undoVisit.trips.filter((t) => !have.has(t.id)),
+                              ]),
+                            }
+                          : v,
+                      ),
+                    };
+                  })
                 )
                   return;
                 notify(`已恢复 ${undoVisit.name} 的足迹`);

@@ -1,4 +1,12 @@
 import { Code, ConnectError } from "@connectrpc/connect";
+import { AtomicBatchTooLarge, AtomicBatchUnavailable } from "./sync.ts";
+
+/** The backend predates several trips per city; writing to it would flatten or drop trips. */
+export class BackendNotUpgraded extends Error {
+  constructor() {
+    super("backend does not support several trips per city");
+  }
+}
 
 export function isUnauthenticated(error: unknown) {
   return ConnectError.from(error).code === Code.Unauthenticated;
@@ -30,10 +38,20 @@ const KNOWN_MESSAGES: [string, string][] = [
   ["oauth sign-in failed", "第三方登录失败，请重试"],
   ["snapshot not found", "该快照已过期或不存在"],
   ["snapshot contains", "该快照包含当前行政区划不再支持的区域，无法恢复"],
+  ["client upgrade required", "账号已使用“同城多次旅行”，当前页面版本过旧。请刷新页面（必要时清除缓存）后再试"],
+  ["trip not found", "这次旅行还没有同步到云端，请等待同步完成后再添加附件"],
+  ["trip city does not exist", "旅行所属的城市在云端不存在，请先处理同步冲突或刷新"],
+  ["trip belongs to another city", "旅行记录与城市不匹配，请刷新后重试"],
 ];
 
 /** User-facing Chinese text for a failed API call. */
 export function describeApiError(error: unknown): string {
+  if (error instanceof BackendNotUpgraded)
+    return "云端服务尚未升级到支持“同城多次旅行”的版本。为避免旅行记录丢失，已暂停同步；修改保留在本机，请待服务升级后重试";
+  if (error instanceof AtomicBatchTooLarge)
+    return `这次迁移需要 ${error.count} 项变更，超过一次原子迁移的上限 2000 项。为避免只迁移一半，已暂停同步，没有发送任何内容；未同步的内容仍完整保留在本机。请先导出备份，再减少旅行记录使总数不超过上限后重试`;
+  if (error instanceof AtomicBatchUnavailable)
+    return "这次迁移必须作为一个整体提交，但当前连接不支持批量提交。已暂停同步，没有发送任何内容；未同步的内容仍完整保留在本机。请先导出备份，刷新页面或升级后重试";
   const err = ConnectError.from(error);
   const known = KNOWN_MESSAGES.find(([prefix]) => err.rawMessage.startsWith(prefix));
   if (known) return known[1];

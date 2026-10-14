@@ -15,12 +15,17 @@ import { hasFootprints } from "@/lib/snapshots";
 import {
   isNoop,
   migratedSaved,
+  migrationFits,
+  migrationOps,
   planMigration,
+  sameSaved,
   summarize,
   type MigrationChoices,
   type MigrationConflict,
 } from "@/lib/migration";
-import type { Saved, Visit } from "@/lib/travel";
+import type { Saved, Trip, Visit } from "@/lib/travel";
+import { tripCount } from "@/lib/trips";
+import { MAX_BATCH_OPS } from "@/lib/sync";
 
 type Props = {
   open: boolean;
@@ -40,8 +45,12 @@ type Props = {
   onLater: () => void;
 };
 
-const describe = (v: Visit) =>
-  `${v.date || "无日期"}${v.note ? ` · ${v.note.length > 24 ? `${v.note.slice(0, 24)}…` : v.note}` : ""}`;
+const clip = (note: string) =>
+  note.length > 24 ? `${note.slice(0, 24)}…` : note;
+const describeTrip = (t: Trip) =>
+  `${t.date || "无日期"}${t.note ? ` · ${clip(t.note)}` : ""}`;
+const describeCity = (v: Visit) =>
+  `${v.trips.length} 次旅行${v.trips[0] ? ` · 如 ${describeTrip(v.trips[0])}` : ""}`;
 
 function ConflictRow({
   conflict,
@@ -57,10 +66,16 @@ function ConflictRow({
   const title =
     conflict.kind === "visit"
       ? conflict.local.name
-      : `${provinceName(conflict.province)}（省份标记）`;
+      : conflict.kind === "trip"
+        ? `${conflict.city} · 一次旅行`
+        : `${provinceName(conflict.province)}（省份标记）`;
   const side = (which: "local" | "cloud", label: string) => {
     const dot =
-      conflict.kind === "visit" ? conflict[which].color : conflict[which];
+      conflict.kind === "visit"
+        ? conflict[which].color
+        : conflict.kind === "mark"
+          ? conflict[which]
+          : undefined;
     return (
       <button
         type="button"
@@ -69,10 +84,17 @@ function ConflictRow({
         onClick={() => onChoose(which)}
       >
         <strong>
-          <span className="migration-dot" style={{ background: dot }} />
+          {dot && (
+            <span className="migration-dot" style={{ background: dot }} />
+          )}
           {label}
         </strong>
-        {conflict.kind === "visit" && <small>{describe(conflict[which])}</small>}
+        {conflict.kind === "visit" && (
+          <small>{describeCity(conflict[which])}</small>
+        )}
+        {conflict.kind === "trip" && (
+          <small>{describeTrip(conflict[which])}</small>
+        )}
       </button>
     );
   };
@@ -122,6 +144,12 @@ export default function MigrationDialog({
     [frozen],
   );
   const summary = summarize(plan, choices);
+  // One migration is one atomic batch: it is only started when it fits in one.
+  const opCount = useMemo(
+    () => migrationOps(frozen.cloud, plan, choices),
+    [frozen, plan, choices],
+  );
+  const tooLarge = !migrationFits(opCount);
   const choiceOf = (key: string) => choices[key] ?? "cloud";
   const ready =
     cloud.fresh && cloud.canWrite && !cloud.pending && cloud.sync === "idle";
@@ -141,8 +169,26 @@ export default function MigrationDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, cloud.pending, cloud.sync, cloud.loadFailed]);
 
+  // The cloud changed since the preview was made (another device): the plan is
+  // rebuilt from the data now confirmed and has to be looked at again.
+  const staleCloud = () => {
+    const now = cloud.confirmedSaved();
+    if (!now || sameSaved(frozen.cloud, now)) return false;
+    setFrozen({ local: frozen.local, cloud: now });
+    setChoices({});
+    setError("云端数据刚刚发生了变化，已按最新数据重新生成预览，请重新核对后再确认迁移。");
+    return true;
+  };
+
   const confirm = async () => {
     setError("");
+    if (tooLarge) {
+      setError(
+        `这次迁移需要 ${opCount} 项变更，超过一次原子迁移的上限 ${MAX_BATCH_OPS} 项。为避免只迁移一半，没有开始，本机和云端的数据都没有改动。`,
+      );
+      return;
+    }
+    if (staleCloud()) return;
     // Keep a restorable copy of the cloud data before anything is changed.
     if (hasFootprints(frozen.cloud)) {
       setSaving(true);
@@ -155,6 +201,7 @@ export default function MigrationDialog({
         setSaving(false);
       }
     }
+    if (staleCloud()) return;
     const target = migratedSaved(frozen.cloud, plan, choices);
     if (!apply(target)) {
       setError("无法开始迁移，请先处理页面上的提示后重试");
@@ -183,7 +230,8 @@ export default function MigrationDialog({
           </span>
           <DialogTitle>把本机足迹迁移到云端</DialogTitle>
           <DialogDescription>
-            本机有 {frozen.local.visits.length} 条城市足迹、
+            本机有 {frozen.local.visits.length} 条城市足迹、{tripCount(frozen.local)}{" "}
+            次旅行、
             {Object.keys(frozen.local.provinces).length}{" "}
             个省份标记。迁移只会新增或覆盖云端记录，不会删除云端已有内容；本机副本始终保留。云端已有足迹时，迁移前会先自动保存快照，可在“账号 → 历史版本”中恢复。
           </DialogDescription>
@@ -193,8 +241,8 @@ export default function MigrationDialog({
           <>
             <p className="account-sync" role="status">
               <Check size={16} />
-              迁移完成：新增 {summary.added} 条，覆盖 {summary.overwritten}{" "}
-              条，保留云端 {summary.keptCloud} 条。本机足迹仍保留，退出登录后可继续使用。
+              迁移完成：新增 {summary.added} 条（含 {summary.addedTrips} 次旅行），覆盖{" "}
+              {summary.overwritten} 条，保留云端 {summary.keptCloud} 条。本机足迹仍保留，退出登录后可继续使用。
             </p>
             <div className="dialog-actions">
               <Button onClick={() => onOpenChange(false)}>完成</Button>
@@ -225,6 +273,10 @@ export default function MigrationDialog({
                 <span>新增到云端</span>
               </li>
               <li>
+                <strong>{summary.addedTrips}</strong>
+                <span>新增旅行记录</span>
+              </li>
+              <li>
                 <strong>{summary.overwritten}</strong>
                 <span>用本机覆盖</span>
               </li>
@@ -237,6 +289,17 @@ export default function MigrationDialog({
                 <span>无需变动</span>
               </li>
             </ul>
+            {plan.remapped.length > 0 && (
+              <p className="unreadable-note" role="status">
+                有 {plan.remapped.length}{" "}
+                次旅行的编号已被云端另一座城市的旅行占用，上传时会改用新的编号（内容不变，全部保留）：
+                {plan.remapped
+                  .slice(0, 3)
+                  .map((r) => `${r.city}`)
+                  .join("、")}
+                {plan.remapped.length > 3 ? " 等" : ""}。
+              </p>
+            )}
             {plan.conflicts.length > 0 && (
               <>
                 <div className="migration-bulk">
@@ -288,10 +351,17 @@ export default function MigrationDialog({
                 正在迁移，请不要关闭页面…
               </p>
             )}
+            {tooLarge && stage === "review" && (
+              <p className="unreadable-note unreadable-error" role="alert">
+                这次迁移需要 {opCount} 项变更，超过一次原子迁移的上限 {MAX_BATCH_OPS} 项，无法开始。为避免只迁移一半，不会拆分发送；本机和云端的数据都不会改动。请先导出本机备份。
+              </p>
+            )}
             {(error || (stage === "applying" && cloud.loadFailed)) && (
               <p className="unreadable-note unreadable-error" role="alert">
                 {error ||
-                  "同步未完成，迁移内容已保存在本机，联网后会继续；也可以点击重试。"}
+                  (cloud.loadError.includes("仍完整保留在本机")
+                    ? cloud.loadError
+                    : "同步未完成，迁移内容已保存在本机，联网后会继续；也可以点击重试。")}
               </p>
             )}
             <div className="dialog-actions unreadable-actions">
@@ -315,7 +385,7 @@ export default function MigrationDialog({
                     稍后再说
                   </Button>
                   <Button
-                    disabled={!ready || stage === "applying" || saving}
+                    disabled={!ready || stage === "applying" || saving || tooLarge}
                     onClick={() => void confirm()}
                   >
                     {saving ? "正在保存快照…" : "确认迁移"}

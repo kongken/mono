@@ -1,4 +1,4 @@
-.PHONY: build test ent buf dev deps-up deps-down storage-init
+.PHONY: build test ent buf dev deps-up deps-down storage-init migration
 
 build:
 	go build -o bin/tripmap ./cmd/tripmap
@@ -11,6 +11,12 @@ ent:
 
 buf:
 	buf generate
+
+# Writes the next versioned migration into migrations/ after an Ent schema change.
+# DEV_DSN only needs CREATEDB; a scratch database is created and dropped.
+# Usage: make migration NAME=add_something DEV_DSN='postgres://...'
+migration:
+	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations
 
 # Config is ignored locally, so make dev can safely use it for credentials.
 dev:

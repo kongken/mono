@@ -24,6 +24,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
+	"go.orx.me/apps/trip-map/internal/ent/trip"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -50,6 +51,8 @@ type Client struct {
 	Snapshot *SnapshotClient
 	// SyncReceipt is the client for interacting with the SyncReceipt builders.
 	SyncReceipt *SyncReceiptClient
+	// Trip is the client for interacting with the Trip builders.
+	Trip *TripClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 }
@@ -72,6 +75,7 @@ func (c *Client) init() {
 	c.Session = NewSessionClient(c.config)
 	c.Snapshot = NewSnapshotClient(c.config)
 	c.SyncReceipt = NewSyncReceiptClient(c.config)
+	c.Trip = NewTripClient(c.config)
 	c.User = NewUserClient(c.config)
 }
 
@@ -174,6 +178,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Session:                NewSessionClient(cfg),
 		Snapshot:               NewSnapshotClient(cfg),
 		SyncReceipt:            NewSyncReceiptClient(cfg),
+		Trip:                   NewTripClient(cfg),
 		User:                   NewUserClient(cfg),
 	}, nil
 }
@@ -203,6 +208,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Session:                NewSessionClient(cfg),
 		Snapshot:               NewSnapshotClient(cfg),
 		SyncReceipt:            NewSyncReceiptClient(cfg),
+		Trip:                   NewTripClient(cfg),
 		User:                   NewUserClient(cfg),
 	}, nil
 }
@@ -234,7 +240,8 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.MediaCleanup,
-		c.MediaObject, c.ProvinceMark, c.Session, c.Snapshot, c.SyncReceipt, c.User,
+		c.MediaObject, c.ProvinceMark, c.Session, c.Snapshot, c.SyncReceipt, c.Trip,
+		c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -245,7 +252,8 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.MediaCleanup,
-		c.MediaObject, c.ProvinceMark, c.Session, c.Snapshot, c.SyncReceipt, c.User,
+		c.MediaObject, c.ProvinceMark, c.Session, c.Snapshot, c.SyncReceipt, c.Trip,
+		c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -272,6 +280,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Snapshot.mutate(ctx, m)
 	case *SyncReceiptMutation:
 		return c.SyncReceipt.mutate(ctx, m)
+	case *TripMutation:
+		return c.Trip.mutate(ctx, m)
 	case *UserMutation:
 		return c.User.mutate(ctx, m)
 	default:
@@ -529,6 +539,22 @@ func (c *CityVisitClient) QueryUser(_m *CityVisit) *UserQuery {
 			sqlgraph.From(cityvisit.Table, cityvisit.FieldID, id),
 			sqlgraph.To(user.Table, user.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, cityvisit.UserTable, cityvisit.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryTrips queries the trips edge of a CityVisit.
+func (c *CityVisitClient) QueryTrips(_m *CityVisit) *TripQuery {
+	query := (&TripClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(cityvisit.Table, cityvisit.FieldID, id),
+			sqlgraph.To(trip.Table, trip.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, cityvisit.TripsTable, cityvisit.TripsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -1588,6 +1614,171 @@ func (c *SyncReceiptClient) mutate(ctx context.Context, m *SyncReceiptMutation) 
 	}
 }
 
+// TripClient is a client for the Trip schema.
+type TripClient struct {
+	config
+}
+
+// NewTripClient returns a client for the Trip from the given config.
+func NewTripClient(c config) *TripClient {
+	return &TripClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `trip.Hooks(f(g(h())))`.
+func (c *TripClient) Use(hooks ...Hook) {
+	c.hooks.Trip = append(c.hooks.Trip, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `trip.Intercept(f(g(h())))`.
+func (c *TripClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Trip = append(c.inters.Trip, interceptors...)
+}
+
+// Create returns a builder for creating a Trip entity.
+func (c *TripClient) Create() *TripCreate {
+	mutation := newTripMutation(c.config, OpCreate)
+	return &TripCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Trip entities.
+func (c *TripClient) CreateBulk(builders ...*TripCreate) *TripCreateBulk {
+	return &TripCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TripClient) MapCreateBulk(slice any, setFunc func(*TripCreate, int)) *TripCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TripCreateBulk{err: fmt.Errorf("calling to TripClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TripCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TripCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Trip.
+func (c *TripClient) Update() *TripUpdate {
+	mutation := newTripMutation(c.config, OpUpdate)
+	return &TripUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TripClient) UpdateOne(_m *Trip) *TripUpdateOne {
+	mutation := newTripMutation(c.config, OpUpdateOne, withTrip(_m))
+	return &TripUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TripClient) UpdateOneID(id string) *TripUpdateOne {
+	mutation := newTripMutation(c.config, OpUpdateOne, withTripID(id))
+	return &TripUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Trip.
+func (c *TripClient) Delete() *TripDelete {
+	mutation := newTripMutation(c.config, OpDelete)
+	return &TripDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TripClient) DeleteOne(_m *Trip) *TripDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TripClient) DeleteOneID(id string) *TripDeleteOne {
+	builder := c.Delete().Where(trip.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TripDeleteOne{builder}
+}
+
+// Query returns a query builder for Trip.
+func (c *TripClient) Query() *TripQuery {
+	return &TripQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTrip},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Trip entity by its id.
+func (c *TripClient) Get(ctx context.Context, id string) (*Trip, error) {
+	return c.Query().Where(trip.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TripClient) GetX(ctx context.Context, id string) *Trip {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a Trip.
+func (c *TripClient) QueryUser(_m *Trip) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(trip.Table, trip.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, trip.UserTable, trip.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryVisit queries the visit edge of a Trip.
+func (c *TripClient) QueryVisit(_m *Trip) *CityVisitQuery {
+	query := (&CityVisitClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(trip.Table, trip.FieldID, id),
+			sqlgraph.To(cityvisit.Table, cityvisit.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, trip.VisitTable, trip.VisitColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *TripClient) Hooks() []Hook {
+	return c.hooks.Trip
+}
+
+// Interceptors returns the client interceptors.
+func (c *TripClient) Interceptors() []Interceptor {
+	return c.inters.Trip
+}
+
+func (c *TripClient) mutate(ctx context.Context, m *TripMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TripCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TripUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TripUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TripDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Trip mutation op: %q", m.Op())
+	}
+}
+
 // UserClient is a client for the User schema.
 type UserClient struct {
 	config
@@ -1705,6 +1896,22 @@ func (c *UserClient) QueryVisits(_m *User) *CityVisitQuery {
 			sqlgraph.From(user.Table, user.FieldID, id),
 			sqlgraph.To(cityvisit.Table, cityvisit.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.VisitsTable, user.VisitsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryTrips queries the trips edge of a User.
+func (c *UserClient) QueryTrips(_m *User) *TripQuery {
+	query := (&TripClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(trip.Table, trip.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.TripsTable, user.TripsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -1837,10 +2044,10 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 type (
 	hooks struct {
 		AccountDeletionReceipt, CityVisit, FootprintChange, MediaCleanup, MediaObject,
-		ProvinceMark, Session, Snapshot, SyncReceipt, User []ent.Hook
+		ProvinceMark, Session, Snapshot, SyncReceipt, Trip, User []ent.Hook
 	}
 	inters struct {
 		AccountDeletionReceipt, CityVisit, FootprintChange, MediaCleanup, MediaObject,
-		ProvinceMark, Session, Snapshot, SyncReceipt, User []ent.Interceptor
+		ProvinceMark, Session, Snapshot, SyncReceipt, Trip, User []ent.Interceptor
 	}
 )

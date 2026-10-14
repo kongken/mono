@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file tripmap/v1/system.proto.
  */
 export const file_tripmap_v1_system: GenFile = /*@__PURE__*/
-  fileDesc("Chd0cmlwbWFwL3YxL3N5c3RlbS5wcm90bxIKdHJpcG1hcC52MSISChBHZXRTdGF0dXNSZXF1ZXN0IlYKEUdldFN0YXR1c1Jlc3BvbnNlEg0KBXJlYWR5GAEgASgIEjIKDGRlcGVuZGVuY2llcxgCIAMoCzIcLnRyaXBtYXAudjEuRGVwZW5kZW5jeVN0YXR1cyIvChBEZXBlbmRlbmN5U3RhdHVzEgwKBG5hbWUYASABKAkSDQoFcmVhZHkYAiABKAgyWQoNU3lzdGVtU2VydmljZRJICglHZXRTdGF0dXMSHC50cmlwbWFwLnYxLkdldFN0YXR1c1JlcXVlc3QaHS50cmlwbWFwLnYxLkdldFN0YXR1c1Jlc3BvbnNlQjhaNmdvLm9yeC5tZS9hcHBzL3RyaXAtbWFwL3BrZy9wcm90by90cmlwbWFwL3YxO3RyaXBtYXB2MWIGcHJvdG8z");
+  fileDesc("Chd0cmlwbWFwL3YxL3N5c3RlbS5wcm90bxIKdHJpcG1hcC52MSISChBHZXRTdGF0dXNSZXF1ZXN0InAKEUdldFN0YXR1c1Jlc3BvbnNlEg0KBXJlYWR5GAEgASgIEjIKDGRlcGVuZGVuY2llcxgCIAMoCzIcLnRyaXBtYXAudjEuRGVwZW5kZW5jeVN0YXR1cxIYChBmb290cHJpbnRfc2NoZW1hGAMgASgFIi8KEERlcGVuZGVuY3lTdGF0dXMSDAoEbmFtZRgBIAEoCRINCgVyZWFkeRgCIAEoCDJZCg1TeXN0ZW1TZXJ2aWNlEkgKCUdldFN0YXR1cxIcLnRyaXBtYXAudjEuR2V0U3RhdHVzUmVxdWVzdBodLnRyaXBtYXAudjEuR2V0U3RhdHVzUmVzcG9uc2VCOFo2Z28ub3J4Lm1lL2FwcHMvdHJpcC1tYXAvcGtnL3Byb3RvL3RyaXBtYXAvdjE7dHJpcG1hcHYxYgZwcm90bzM");
 
 /**
  * @generated from message tripmap.v1.GetStatusRequest
@@ -38,6 +38,14 @@ export type GetStatusResponse = Message<"tripmap.v1.GetStatusResponse"> & {
    * @generated from field: repeated tripmap.v1.DependencyStatus dependencies = 2;
    */
   dependencies: DependencyStatus[];
+
+  /**
+   * Highest footprint schema this server understands (2 = multiple trips per
+   * city). Zero means an older server; clients must not send trip data to it.
+   *
+   * @generated from field: int32 footprint_schema = 3;
+   */
+  footprintSchema: number;
 };
 
 /**

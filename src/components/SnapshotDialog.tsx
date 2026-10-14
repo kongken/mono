@@ -47,7 +47,7 @@ const when = (ms: number) =>
   new Date(ms).toLocaleString("zh-CN", { hour12: false });
 
 const counts = (s: SnapshotInfo) =>
-  `${s.visitCount} 个城市足迹、${s.markCount} 个省份标记`;
+  `${s.visitCount} 个城市足迹、${s.tripCount} 次旅行、${s.markCount} 个省份标记`;
 
 export default function SnapshotDialog({
   open,
@@ -225,6 +225,16 @@ export default function SnapshotDialog({
                   <span>无需变动</span>
                 </li>
               </ul>
+            )}
+            {preview.plan.addedTrips +
+              preview.plan.changedTrips +
+              preview.plan.removedTrips >
+              0 && (
+              <p className="migration-trips" role="status">
+                其中旅行记录：找回 {preview.plan.addedTrips} 次、改回{" "}
+                {preview.plan.changedTrips} 次、移除 {preview.plan.removedTrips}{" "}
+                次（含被找回或移除的城市里的旅行）。
+              </p>
             )}
             {!ready && (
               <p className="unreadable-note">

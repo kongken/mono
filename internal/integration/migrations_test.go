@@ -1,0 +1,167 @@
+package integration
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	"ariga.io/atlas/sql/migrate"
+	"entgo.io/ent/dialect"
+	entsql "entgo.io/ent/dialect/sql"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
+	"go.orx.me/apps/trip-map/internal/ent"
+)
+
+const migrationsDir = "../../migrations"
+
+func TestMigrationDirectoryChecksum(t *testing.T) {
+	dir, err := migrate.NewLocalDir(migrationsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = migrate.Validate(dir); err != nil {
+		t.Fatalf("atlas.sum does not match the files; regenerate with make migration: %v", err)
+	}
+}
+
+func migrationFiles(t *testing.T) []string {
+	t.Helper()
+	files, err := filepath.Glob(filepath.Join(migrationsDir, "*.sql"))
+	if err != nil || len(files) < 2 {
+		t.Fatalf("migrations missing: %v %v", files, err)
+	}
+	sort.Strings(files)
+	return files
+}
+
+// Existing deployments were created by auto_migrate from the pre-F5 schema,
+// which the baseline file reproduces. The test starts from that state with
+// real rows, applies the remaining files the way the deployment notes say
+// (one transaction per file) and checks that old rows keep their data, that the
+// result is exactly what Ent expects, and that no further change is pending.
+func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
+	dsn := os.Getenv("TRIPMAP_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("set TRIPMAP_TEST_POSTGRES_DSN for live PostgreSQL checks")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	admin, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	schema := "tripmap_migr_" + uuid.NewString()[:8]
+	if _, err = admin.ExecContext(ctx, `CREATE SCHEMA "`+schema+`"`); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = admin.ExecContext(context.Background(), `DROP SCHEMA "`+schema+`" CASCADE`) }()
+	cfg, err := pgx.ParseConfig(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.RuntimeParams["search_path"] = schema
+	scoped := stdlib.OpenDB(*cfg)
+	defer scoped.Close()
+	apply := func(file string) {
+		t.Helper()
+		body, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tx, err := scoped.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// No arguments: pgx runs the whole file with the simple protocol.
+		if _, err = tx.ExecContext(ctx, string(body)); err != nil {
+			_ = tx.Rollback()
+			t.Fatalf("%s: %v", filepath.Base(file), err)
+		}
+		if err = tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files := migrationFiles(t)
+	apply(files[0])
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := scoped.ExecContext(ctx, q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	exec(`INSERT INTO users (id, display_name, created_at, updated_at, revision) VALUES ('u1','旧用户',now(),now(),7)`)
+	exec(`INSERT INTO city_visits (id, region_code, region_name, province_code, color, travel_date, note, created_at, updated_at, user_id)
+		VALUES ('v1','330100','杭州市','330000','#4b937d','2026-10-12','西湖',now(),now(),'u1')`)
+	exec(`INSERT INTO snapshots (id, reason, revision, visit_count, mark_count, payload, created_at, user_id)
+		VALUES ('s1','manual',7,1,0,'\x7b7d',now(),'u1')`)
+	exec(`INSERT INTO media_objects (id, object_key, content_type, size_bytes, status, region_code, created_at, updated_at, user_id)
+		VALUES ('m1','k','image/jpeg',10,'ready','330100',now(),now(),'u1')`)
+	for _, f := range files[1:] {
+		apply(f)
+	}
+
+	client := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, scoped)))
+	user, err := client.User.Get(ctx, "u1")
+	if err != nil || user.SchemaVersion != 1 || user.Revision != 7 || user.DisplayName != "旧用户" {
+		t.Fatalf("user after migration: %+v %v", user, err)
+	}
+	visit, err := client.CityVisit.Get(ctx, "v1")
+	if err != nil || visit.TravelDate != "2026-10-12" || visit.Note != "西湖" {
+		t.Fatalf("visit changed: %+v %v", visit, err)
+	}
+	snap, err := client.Snapshot.Get(ctx, "s1")
+	if err != nil || snap.SchemaVersion != 1 || snap.TripCount != 0 || string(snap.Payload) != "{}" {
+		t.Fatalf("snapshot after migration: %+v %v", snap, err)
+	}
+	media, err := client.MediaObject.Get(ctx, "m1")
+	if err != nil || media.TripID != "" || media.RegionCode != "330100" {
+		t.Fatalf("media after migration: %+v %v", media, err)
+	}
+	if n, err := client.Trip.Query().Count(ctx); err != nil || n != 0 {
+		t.Fatalf("new table should start empty: %d %v", n, err)
+	}
+	// Ent keeps proposing to re-create its two partial unique indexes because it
+	// compares the predicate text with PostgreSQL's normalised form. That is also
+	// what a database created by Schema.Create reports, so the migrated database
+	// must report exactly the same and nothing more.
+	reference := freshEntSchema(t, ctx, admin, cfg)
+	if got, want := pendingChanges(t, ctx, client), pendingChanges(t, ctx, reference); got != want {
+		t.Fatalf("migrations differ from the Ent schema.\nmigrated database wants:\n%s\nEnt-created database wants:\n%s", got, want)
+	}
+}
+
+func pendingChanges(t *testing.T, ctx context.Context, c *ent.Client) string {
+	t.Helper()
+	var b bytes.Buffer
+	if err := c.Schema.WriteTo(ctx, &b); err != nil {
+		t.Fatal(err)
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func freshEntSchema(t *testing.T, ctx context.Context, admin *sql.DB, base *pgx.ConnConfig) *ent.Client {
+	t.Helper()
+	name := "tripmap_ref_" + uuid.NewString()[:8]
+	if _, err := admin.ExecContext(ctx, `CREATE SCHEMA "`+name+`"`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = admin.ExecContext(context.Background(), `DROP SCHEMA "`+name+`" CASCADE`) })
+	cfg := base.Copy()
+	cfg.RuntimeParams["search_path"] = name
+	db := stdlib.OpenDB(*cfg)
+	t.Cleanup(func() { _ = db.Close() })
+	c := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, db)))
+	if err := c.Schema.Create(ctx); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}

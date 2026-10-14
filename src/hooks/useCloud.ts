@@ -7,15 +7,19 @@ import { backendEnabled } from "@/api/transport";
 import { describeApiError, isUnauthenticated } from "@/lib/errors";
 import { consumePending, parseOAuthCallback, savePending } from "@/lib/oauth";
 import {
+  acknowledgeLegacyCache,
   clearAccountData,
   clearOtherCaches,
   loadCloudCache,
   loadSession,
+  readLegacyCacheChange,
   saveCloudCache,
   saveSession,
   type CachedCloud,
+  type LoadedCloud,
   type StoredSession,
   cacheKey,
+  legacyCacheKey,
 } from "@/lib/session";
 import {
   SyncEngine,
@@ -28,9 +32,12 @@ import type { Saved } from "@/lib/travel";
 
 export type CloudBoot = {
   session: StoredSession | null;
-  cache: CachedCloud | null;
+  cache: LoadedCloud | null;
   error?: string;
 };
+
+/** Unsynced data an older page left in its own cache key; offered to the user, never dropped or merged silently. */
+export type LegacyCacheNotice = { raw: string; saved: Saved | null; digest: string };
 
 /** Reads the stored session and its cached copy; both are synchronous. */
 export function readBoot(validate: (data: unknown) => Saved): CloudBoot {
@@ -64,7 +71,7 @@ type Options = {
 
 const REFRESH_MIN_MS = 15_000;
 const SERVER_DATA_ERROR = "云端数据格式无法识别";
-const emptySaved: Saved = { version: 1, visits: [], provinces: {} };
+const emptySaved: Saved = { version: 2, visits: [], provinces: {} };
 
 export function useCloud(options: Options) {
   const opts = useRef(options);
@@ -85,6 +92,13 @@ export function useCloud(options: Options) {
   const protectedCache = useRef(!!options.boot.error);
   const [lockedCache, setLockedCache] = useState(!!options.boot.error);
   const [cacheFailed, setCacheFailed] = useState(false);
+  const [legacyNotice, setLegacyNotice] = useState<LegacyCacheNotice | null>(
+    options.boot.cache?.legacyChange
+      ? { ...options.boot.cache.legacyChange, digest: options.boot.cache.legacyDigest }
+      : null,
+  );
+  // The legacy cache this page took over; recorded with the first canonical write.
+  const legacyDigest = useRef<string | undefined>(options.boot.cache?.legacyDigest);
   const [conflictRecords, setConflictRecords] = useState<Op[]>([]);
   const [pending, setPending] = useState(false);
   const [sync, setSync] = useState<SyncStatus>("idle");
@@ -104,12 +118,13 @@ export function useCloud(options: Options) {
     setSessionState(next);
   };
 
-  const leaveAccount = useCallback((message: string) => {
+  const leaveAccount = useCallback((message: string, accountDeleted = false) => {
     try {
       clearAccountData(
         localStorage,
         sessionRef.current?.user.id,
         opts.current.validate,
+        accountDeleted,
       );
     } catch {
       // The in-memory state below is cleared regardless.
@@ -119,6 +134,8 @@ export function useCloud(options: Options) {
     protectedCache.current = false;
     setLockedCache(false);
     setCacheFailed(false);
+    setLegacyNotice(null);
+    legacyDigest.current = undefined;
     setConflictRecords([]);
     setPending(false);
     setDeletionBlocked(false);
@@ -140,6 +157,7 @@ export function useCloud(options: Options) {
     snapshot: CloudSnapshot,
     desired = snapshot.saved,
     pendingBatch?: CachedCloud["pendingBatch"],
+    atomic = false,
   ) => {
     engineRef.current?.stop();
     const scopedApi = createFootprintApi(snapshot);
@@ -171,7 +189,9 @@ export function useCloud(options: Options) {
         },
         onChange: (cache) => {
           if (sessionRef.current?.token !== s.token) return;
-          setCacheFailed(!saveCloudCache(localStorage, s.user.id, cache));
+          setCacheFailed(
+            !saveCloudCache(localStorage, s.user.id, cache, legacyDigest.current),
+          );
           setPending(
             !!cache.pendingBatch ||
               diffSaved(cache.confirmed, cache.saved).length > 0,
@@ -181,7 +201,7 @@ export function useCloud(options: Options) {
         onBeforeSend: (cache) => {
           if (
             sessionRef.current?.token !== s.token ||
-            !saveCloudCache(localStorage, s.user.id, cache)
+            !saveCloudCache(localStorage, s.user.id, cache, legacyDigest.current)
           ) {
             setCacheFailed(true);
             throw new Error("批量请求无法保存到本机，已暂停同步，请先导出备份");
@@ -204,6 +224,7 @@ export function useCloud(options: Options) {
       },
       desired,
       pendingBatch,
+      atomic,
     );
     opts.current.onCloudData(desired);
     setHasData(true);
@@ -274,11 +295,17 @@ export function useCloud(options: Options) {
     } catch {
       // A stale cache of another account is only an optimisation lost.
     }
-    let cache: CachedCloud | null = null;
+    let cache: LoadedCloud | null = null;
     try {
       cache = loadCloudCache(localStorage, s.user.id, opts.current.validate);
       protectedCache.current = false;
       setLockedCache(false);
+      legacyDigest.current = cache?.legacyDigest;
+      setLegacyNotice(
+        cache?.legacyChange
+          ? { ...cache.legacyChange, digest: cache.legacyDigest }
+          : null,
+      );
     } catch (error) {
       protectedCache.current = true;
       setLockedCache(true);
@@ -311,6 +338,7 @@ export function useCloud(options: Options) {
         { saved: cache.confirmed ?? cache.saved, revision: cache.revision },
         cache.saved,
         cache.pendingBatch,
+        cache.atomic === true,
       );
     }
     void refresh(true);
@@ -333,6 +361,7 @@ export function useCloud(options: Options) {
         { saved: cache.confirmed ?? cache.saved, revision: cache.revision },
         cache.saved,
         cache.pendingBatch,
+        cache.atomic === true,
       );
     }
     if (s) void refresh(true);
@@ -350,6 +379,17 @@ export function useCloud(options: Options) {
     };
     const onOnline = () => void refresh(true);
     const onStorage = (event: StorageEvent) => {
+      if (event.key === legacyCacheKey(session.user.id) || event.key === null) {
+        // An older page wrote its own key: the canonical cache is untouched, so
+        // editing continues; the change is offered to the user.
+        const change = readLegacyCacheChange(
+          localStorage,
+          session.user.id,
+          opts.current.validate,
+        );
+        if (change) setLegacyNotice(change);
+        if (event.key !== null) return;
+      }
       if (
         event.key !== cacheKey(session.user.id) &&
         event.key !== "shanhai-session-v1"
@@ -422,6 +462,12 @@ export function useCloud(options: Options) {
     [],
   );
 
+  /** The cloud-confirmed data; media may only link to trips that are in it. */
+  const confirmedSaved = useCallback(
+    () => engineRef.current?.confirmed.saved ?? null,
+    [],
+  );
+
   const loadProviders = useCallback(async () => {
     try {
       setProviders(await authApi.listProviders());
@@ -455,35 +501,73 @@ export function useCloud(options: Options) {
     pending,
     cacheFailed,
     revision,
+    confirmedSaved,
     resolveConflict: (choice: "local" | "cloud") =>
       engineRef.current?.resolve(choice),
-    exportRawCache: () => {
-      if (!session) return;
-      const raw = localStorage.getItem(cacheKey(session.user.id));
-      if (raw === null) return;
+    legacyNotice,
+    /** The older page's cache, as stored, for export. */
+    exportLegacyRaw: () => {
+      if (!legacyNotice) return;
       const url = URL.createObjectURL(
-        new Blob([raw], { type: "application/json" }),
+        new Blob([legacyNotice.raw], { type: "application/json" }),
       );
       const link = document.createElement("a");
       link.href = url;
-      link.download = "山海足迹-账号原始缓存.json";
+      link.download = "山海足迹-旧版页面账号缓存.json";
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+    /** The user dealt with the older page's data (merged or kept aside); stop offering it. */
+    acknowledgeLegacy: () => {
+      const s = sessionRef.current;
+      if (!s || !legacyNotice) return false;
+      if (!acknowledgeLegacyCache(localStorage, s.user.id, legacyNotice.digest)) {
+        opts.current.notify("无法记录处理结果，浏览器存储不可用");
+        return false;
+      }
+      setLegacyNotice(null);
+      return true;
+    },
+    exportRawCache: () => {
+      if (!session) return;
+      const download = (raw: string, name: string) => {
+        const url = URL.createObjectURL(
+          new Blob([raw], { type: "application/json" }),
+        );
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      };
+      const raw = localStorage.getItem(cacheKey(session.user.id));
+      if (raw !== null) download(raw, "山海足迹-账号原始缓存.json");
+      // The cache of earlier versions is never rewritten, so it still holds its original text.
+      const old = localStorage.getItem(legacyCacheKey(session.user.id));
+      if (old !== null) download(old, "山海足迹-旧版账号缓存.json");
     },
     busy,
     providers,
     retry: () => refresh(true),
     /** Hand a user edit to the sync engine; call only in cloud mode. */
-    push: (next: Saved) => {
+    push: (next: Saved, atomic = false) => {
       const engine = engineRef.current;
       const s = sessionRef.current;
       if (!engine || !s || protectedCache.current) return false;
+      // An atomic change (the migration) is refused rather than mixed with queued edits.
+      if (atomic && (engine.pending || engine.status === "conflict")) return false;
       // Persist first: refused writes must not leave a phantom edit on screen.
       if (
-        !saveCloudCache(localStorage, s.user.id, {
-          ...engine.cache,
-          saved: next,
-        })
+        !saveCloudCache(
+          localStorage,
+          s.user.id,
+          {
+            ...engine.cache,
+            saved: next,
+            ...(atomic ? { atomic: true as const } : {}),
+          },
+          legacyDigest.current,
+        )
       ) {
         setCacheFailed(true);
         opts.current.notify(
@@ -492,7 +576,8 @@ export function useCloud(options: Options) {
         return false;
       }
       editSeq.current++;
-      engine.push(next);
+      if (atomic) engine.pushAtomic(next);
+      else engine.push(next);
       return true;
     },
     login: (username: string, password: string) =>
@@ -517,7 +602,7 @@ export function useCloud(options: Options) {
       setDeletionBlocked(true);
       try {
         await authApi.deleteAccount(password);
-        leaveAccount("账号及全部云端数据已注销；登录前的本地足迹保留");
+        leaveAccount("账号及全部云端数据已注销；登录前的本地足迹保留", true);
       } catch (error) {
         if (
           !s.user.deletionPending &&

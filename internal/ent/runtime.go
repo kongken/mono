@@ -15,6 +15,7 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/snapshot"
 	"go.orx.me/apps/trip-map/internal/ent/syncreceipt"
+	"go.orx.me/apps/trip-map/internal/ent/trip"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
 
@@ -146,12 +147,16 @@ func init() {
 	mediaobject.DefaultHeight = mediaobjectDescHeight.Default.(int)
 	// mediaobject.HeightValidator is a validator for the "height" field. It is called by the builders before save.
 	mediaobject.HeightValidator = mediaobjectDescHeight.Validators[0].(func(int) error)
+	// mediaobjectDescTripID is the schema descriptor for trip_id field.
+	mediaobjectDescTripID := mediaobjectFields[15].Descriptor()
+	// mediaobject.DefaultTripID holds the default value on creation for the trip_id field.
+	mediaobject.DefaultTripID = mediaobjectDescTripID.Default.(string)
 	// mediaobjectDescCreatedAt is the schema descriptor for created_at field.
-	mediaobjectDescCreatedAt := mediaobjectFields[15].Descriptor()
+	mediaobjectDescCreatedAt := mediaobjectFields[16].Descriptor()
 	// mediaobject.DefaultCreatedAt holds the default value on creation for the created_at field.
 	mediaobject.DefaultCreatedAt = mediaobjectDescCreatedAt.Default.(func() time.Time)
 	// mediaobjectDescUpdatedAt is the schema descriptor for updated_at field.
-	mediaobjectDescUpdatedAt := mediaobjectFields[16].Descriptor()
+	mediaobjectDescUpdatedAt := mediaobjectFields[17].Descriptor()
 	// mediaobject.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	mediaobject.DefaultUpdatedAt = mediaobjectDescUpdatedAt.Default.(func() time.Time)
 	// mediaobject.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -216,8 +221,18 @@ func init() {
 	snapshotDescMarkCount := snapshotFields[5].Descriptor()
 	// snapshot.MarkCountValidator is a validator for the "mark_count" field. It is called by the builders before save.
 	snapshot.MarkCountValidator = snapshotDescMarkCount.Validators[0].(func(int) error)
+	// snapshotDescSchemaVersion is the schema descriptor for schema_version field.
+	snapshotDescSchemaVersion := snapshotFields[6].Descriptor()
+	// snapshot.DefaultSchemaVersion holds the default value on creation for the schema_version field.
+	snapshot.DefaultSchemaVersion = snapshotDescSchemaVersion.Default.(int)
+	// snapshotDescTripCount is the schema descriptor for trip_count field.
+	snapshotDescTripCount := snapshotFields[7].Descriptor()
+	// snapshot.DefaultTripCount holds the default value on creation for the trip_count field.
+	snapshot.DefaultTripCount = snapshotDescTripCount.Default.(int)
+	// snapshot.TripCountValidator is a validator for the "trip_count" field. It is called by the builders before save.
+	snapshot.TripCountValidator = snapshotDescTripCount.Validators[0].(func(int) error)
 	// snapshotDescCreatedAt is the schema descriptor for created_at field.
-	snapshotDescCreatedAt := snapshotFields[7].Descriptor()
+	snapshotDescCreatedAt := snapshotFields[9].Descriptor()
 	// snapshot.DefaultCreatedAt holds the default value on creation for the created_at field.
 	snapshot.DefaultCreatedAt = snapshotDescCreatedAt.Default.(func() time.Time)
 	// snapshotDescID is the schema descriptor for id field.
@@ -246,6 +261,42 @@ func init() {
 	syncreceiptDescID := syncreceiptFields[0].Descriptor()
 	// syncreceipt.DefaultID holds the default value on creation for the id field.
 	syncreceipt.DefaultID = syncreceiptDescID.Default.(func() string)
+	tripFields := schema.Trip{}.Fields()
+	_ = tripFields
+	// tripDescTripID is the schema descriptor for trip_id field.
+	tripDescTripID := tripFields[3].Descriptor()
+	// trip.TripIDValidator is a validator for the "trip_id" field. It is called by the builders before save.
+	trip.TripIDValidator = tripDescTripID.Validators[0].(func(string) error)
+	// tripDescRegionCode is the schema descriptor for region_code field.
+	tripDescRegionCode := tripFields[4].Descriptor()
+	// trip.RegionCodeValidator is a validator for the "region_code" field. It is called by the builders before save.
+	trip.RegionCodeValidator = tripDescRegionCode.Validators[0].(func(string) error)
+	// tripDescTravelDate is the schema descriptor for travel_date field.
+	tripDescTravelDate := tripFields[5].Descriptor()
+	// trip.DefaultTravelDate holds the default value on creation for the travel_date field.
+	trip.DefaultTravelDate = tripDescTravelDate.Default.(string)
+	// trip.TravelDateValidator is a validator for the "travel_date" field. It is called by the builders before save.
+	trip.TravelDateValidator = tripDescTravelDate.Validators[0].(func(string) error)
+	// tripDescNote is the schema descriptor for note field.
+	tripDescNote := tripFields[6].Descriptor()
+	// trip.DefaultNote holds the default value on creation for the note field.
+	trip.DefaultNote = tripDescNote.Default.(string)
+	// trip.NoteValidator is a validator for the "note" field. It is called by the builders before save.
+	trip.NoteValidator = tripDescNote.Validators[0].(func(string) error)
+	// tripDescCreatedAt is the schema descriptor for created_at field.
+	tripDescCreatedAt := tripFields[7].Descriptor()
+	// trip.DefaultCreatedAt holds the default value on creation for the created_at field.
+	trip.DefaultCreatedAt = tripDescCreatedAt.Default.(func() time.Time)
+	// tripDescUpdatedAt is the schema descriptor for updated_at field.
+	tripDescUpdatedAt := tripFields[8].Descriptor()
+	// trip.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	trip.DefaultUpdatedAt = tripDescUpdatedAt.Default.(func() time.Time)
+	// trip.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	trip.UpdateDefaultUpdatedAt = tripDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// tripDescID is the schema descriptor for id field.
+	tripDescID := tripFields[0].Descriptor()
+	// trip.DefaultID holds the default value on creation for the id field.
+	trip.DefaultID = tripDescID.Default.(func() string)
 	userFields := schema.User{}.Fields()
 	_ = userFields
 	// userDescDisplayName is the schema descriptor for display_name field.
@@ -278,12 +329,18 @@ func init() {
 	user.DefaultRevision = userDescRevision.Default.(int64)
 	// user.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
 	user.RevisionValidator = userDescRevision.Validators[0].(func(int64) error)
+	// userDescSchemaVersion is the schema descriptor for schema_version field.
+	userDescSchemaVersion := userFields[11].Descriptor()
+	// user.DefaultSchemaVersion holds the default value on creation for the schema_version field.
+	user.DefaultSchemaVersion = userDescSchemaVersion.Default.(int)
+	// user.SchemaVersionValidator is a validator for the "schema_version" field. It is called by the builders before save.
+	user.SchemaVersionValidator = userDescSchemaVersion.Validators[0].(func(int) error)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[11].Descriptor()
+	userDescCreatedAt := userFields[12].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[12].Descriptor()
+	userDescUpdatedAt := userFields[13].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
