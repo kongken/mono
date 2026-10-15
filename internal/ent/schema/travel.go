@@ -69,6 +69,10 @@ func (User) Edges() []ent.Edge {
 		edge.To("owned_shared_trips", SharedTrip.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("trip_memberships", TripMember.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("itineraries", Itinerary.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("notification_profile", NotificationProfile.Type).Unique().Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("notification_settings", NotificationSetting.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("push_subscriptions", PushSubscription.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("notification_deliveries", NotificationDelivery.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }
 

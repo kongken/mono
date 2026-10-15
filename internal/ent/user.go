@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"go.orx.me/apps/trip-map/internal/ent/notificationprofile"
 	"go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/user"
 )
@@ -88,9 +89,17 @@ type UserEdges struct {
 	TripMemberships []*TripMember `json:"trip_memberships,omitempty"`
 	// Itineraries holds the value of the itineraries edge.
 	Itineraries []*Itinerary `json:"itineraries,omitempty"`
+	// NotificationProfile holds the value of the notification_profile edge.
+	NotificationProfile *NotificationProfile `json:"notification_profile,omitempty"`
+	// NotificationSettings holds the value of the notification_settings edge.
+	NotificationSettings []*NotificationSetting `json:"notification_settings,omitempty"`
+	// PushSubscriptions holds the value of the push_subscriptions edge.
+	PushSubscriptions []*PushSubscription `json:"push_subscriptions,omitempty"`
+	// NotificationDeliveries holds the value of the notification_deliveries edge.
+	NotificationDeliveries []*NotificationDelivery `json:"notification_deliveries,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [14]bool
+	loadedTypes [18]bool
 }
 
 // VisitsOrErr returns the Visits value or an error if the edge
@@ -219,6 +228,44 @@ func (e UserEdges) ItinerariesOrErr() ([]*Itinerary, error) {
 		return e.Itineraries, nil
 	}
 	return nil, &NotLoadedError{edge: "itineraries"}
+}
+
+// NotificationProfileOrErr returns the NotificationProfile value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e UserEdges) NotificationProfileOrErr() (*NotificationProfile, error) {
+	if e.NotificationProfile != nil {
+		return e.NotificationProfile, nil
+	} else if e.loadedTypes[14] {
+		return nil, &NotFoundError{label: notificationprofile.Label}
+	}
+	return nil, &NotLoadedError{edge: "notification_profile"}
+}
+
+// NotificationSettingsOrErr returns the NotificationSettings value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) NotificationSettingsOrErr() ([]*NotificationSetting, error) {
+	if e.loadedTypes[15] {
+		return e.NotificationSettings, nil
+	}
+	return nil, &NotLoadedError{edge: "notification_settings"}
+}
+
+// PushSubscriptionsOrErr returns the PushSubscriptions value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) PushSubscriptionsOrErr() ([]*PushSubscription, error) {
+	if e.loadedTypes[16] {
+		return e.PushSubscriptions, nil
+	}
+	return nil, &NotLoadedError{edge: "push_subscriptions"}
+}
+
+// NotificationDeliveriesOrErr returns the NotificationDeliveries value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) NotificationDeliveriesOrErr() ([]*NotificationDelivery, error) {
+	if e.loadedTypes[17] {
+		return e.NotificationDeliveries, nil
+	}
+	return nil, &NotLoadedError{edge: "notification_deliveries"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -442,6 +489,26 @@ func (_m *User) QueryTripMemberships() *TripMemberQuery {
 // QueryItineraries queries the "itineraries" edge of the User entity.
 func (_m *User) QueryItineraries() *ItineraryQuery {
 	return NewUserClient(_m.config).QueryItineraries(_m)
+}
+
+// QueryNotificationProfile queries the "notification_profile" edge of the User entity.
+func (_m *User) QueryNotificationProfile() *NotificationProfileQuery {
+	return NewUserClient(_m.config).QueryNotificationProfile(_m)
+}
+
+// QueryNotificationSettings queries the "notification_settings" edge of the User entity.
+func (_m *User) QueryNotificationSettings() *NotificationSettingQuery {
+	return NewUserClient(_m.config).QueryNotificationSettings(_m)
+}
+
+// QueryPushSubscriptions queries the "push_subscriptions" edge of the User entity.
+func (_m *User) QueryPushSubscriptions() *PushSubscriptionQuery {
+	return NewUserClient(_m.config).QueryPushSubscriptions(_m)
+}
+
+// QueryNotificationDeliveries queries the "notification_deliveries" edge of the User entity.
+func (_m *User) QueryNotificationDeliveries() *NotificationDeliveryQuery {
+	return NewUserClient(_m.config).QueryNotificationDeliveries(_m)
 }
 
 // Update returns a builder for updating this User.

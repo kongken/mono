@@ -76,6 +76,14 @@ const (
 	EdgeTripMemberships = "trip_memberships"
 	// EdgeItineraries holds the string denoting the itineraries edge name in mutations.
 	EdgeItineraries = "itineraries"
+	// EdgeNotificationProfile holds the string denoting the notification_profile edge name in mutations.
+	EdgeNotificationProfile = "notification_profile"
+	// EdgeNotificationSettings holds the string denoting the notification_settings edge name in mutations.
+	EdgeNotificationSettings = "notification_settings"
+	// EdgePushSubscriptions holds the string denoting the push_subscriptions edge name in mutations.
+	EdgePushSubscriptions = "push_subscriptions"
+	// EdgeNotificationDeliveries holds the string denoting the notification_deliveries edge name in mutations.
+	EdgeNotificationDeliveries = "notification_deliveries"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// VisitsTable is the table that holds the visits relation/edge.
@@ -176,6 +184,34 @@ const (
 	ItinerariesInverseTable = "itineraries"
 	// ItinerariesColumn is the table column denoting the itineraries relation/edge.
 	ItinerariesColumn = "user_id"
+	// NotificationProfileTable is the table that holds the notification_profile relation/edge.
+	NotificationProfileTable = "notification_profiles"
+	// NotificationProfileInverseTable is the table name for the NotificationProfile entity.
+	// It exists in this package in order to avoid circular dependency with the "notificationprofile" package.
+	NotificationProfileInverseTable = "notification_profiles"
+	// NotificationProfileColumn is the table column denoting the notification_profile relation/edge.
+	NotificationProfileColumn = "user_id"
+	// NotificationSettingsTable is the table that holds the notification_settings relation/edge.
+	NotificationSettingsTable = "notification_settings"
+	// NotificationSettingsInverseTable is the table name for the NotificationSetting entity.
+	// It exists in this package in order to avoid circular dependency with the "notificationsetting" package.
+	NotificationSettingsInverseTable = "notification_settings"
+	// NotificationSettingsColumn is the table column denoting the notification_settings relation/edge.
+	NotificationSettingsColumn = "user_id"
+	// PushSubscriptionsTable is the table that holds the push_subscriptions relation/edge.
+	PushSubscriptionsTable = "push_subscriptions"
+	// PushSubscriptionsInverseTable is the table name for the PushSubscription entity.
+	// It exists in this package in order to avoid circular dependency with the "pushsubscription" package.
+	PushSubscriptionsInverseTable = "push_subscriptions"
+	// PushSubscriptionsColumn is the table column denoting the push_subscriptions relation/edge.
+	PushSubscriptionsColumn = "user_id"
+	// NotificationDeliveriesTable is the table that holds the notification_deliveries relation/edge.
+	NotificationDeliveriesTable = "notification_deliveries"
+	// NotificationDeliveriesInverseTable is the table name for the NotificationDelivery entity.
+	// It exists in this package in order to avoid circular dependency with the "notificationdelivery" package.
+	NotificationDeliveriesInverseTable = "notification_deliveries"
+	// NotificationDeliveriesColumn is the table column denoting the notification_deliveries relation/edge.
+	NotificationDeliveriesColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -528,6 +564,55 @@ func ByItineraries(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newItinerariesStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByNotificationProfileField orders the results by notification_profile field.
+func ByNotificationProfileField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newNotificationProfileStep(), sql.OrderByField(field, opts...))
+	}
+}
+
+// ByNotificationSettingsCount orders the results by notification_settings count.
+func ByNotificationSettingsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newNotificationSettingsStep(), opts...)
+	}
+}
+
+// ByNotificationSettings orders the results by notification_settings terms.
+func ByNotificationSettings(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newNotificationSettingsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByPushSubscriptionsCount orders the results by push_subscriptions count.
+func ByPushSubscriptionsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newPushSubscriptionsStep(), opts...)
+	}
+}
+
+// ByPushSubscriptions orders the results by push_subscriptions terms.
+func ByPushSubscriptions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newPushSubscriptionsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByNotificationDeliveriesCount orders the results by notification_deliveries count.
+func ByNotificationDeliveriesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newNotificationDeliveriesStep(), opts...)
+	}
+}
+
+// ByNotificationDeliveries orders the results by notification_deliveries terms.
+func ByNotificationDeliveries(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newNotificationDeliveriesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newVisitsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -624,5 +709,33 @@ func newItinerariesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(ItinerariesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, ItinerariesTable, ItinerariesColumn),
+	)
+}
+func newNotificationProfileStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(NotificationProfileInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2O, false, NotificationProfileTable, NotificationProfileColumn),
+	)
+}
+func newNotificationSettingsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(NotificationSettingsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, NotificationSettingsTable, NotificationSettingsColumn),
+	)
+}
+func newPushSubscriptionsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(PushSubscriptionsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, PushSubscriptionsTable, PushSubscriptionsColumn),
+	)
+}
+func newNotificationDeliveriesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(NotificationDeliveriesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, NotificationDeliveriesTable, NotificationDeliveriesColumn),
 	)
 }

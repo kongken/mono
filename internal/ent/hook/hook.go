@@ -93,6 +93,42 @@ func (f MediaObjectFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MediaObjectMutation", m)
 }
 
+// The NotificationDeliveryFunc type is an adapter to allow the use of ordinary
+// function as NotificationDelivery mutator.
+type NotificationDeliveryFunc func(context.Context, *ent.NotificationDeliveryMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f NotificationDeliveryFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.NotificationDeliveryMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.NotificationDeliveryMutation", m)
+}
+
+// The NotificationProfileFunc type is an adapter to allow the use of ordinary
+// function as NotificationProfile mutator.
+type NotificationProfileFunc func(context.Context, *ent.NotificationProfileMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f NotificationProfileFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.NotificationProfileMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.NotificationProfileMutation", m)
+}
+
+// The NotificationSettingFunc type is an adapter to allow the use of ordinary
+// function as NotificationSetting mutator.
+type NotificationSettingFunc func(context.Context, *ent.NotificationSettingMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f NotificationSettingFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.NotificationSettingMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.NotificationSettingMutation", m)
+}
+
 // The ProvinceMarkFunc type is an adapter to allow the use of ordinary
 // function as ProvinceMark mutator.
 type ProvinceMarkFunc func(context.Context, *ent.ProvinceMarkMutation) (ent.Value, error)
@@ -103,6 +139,18 @@ func (f ProvinceMarkFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProvinceMarkMutation", m)
+}
+
+// The PushSubscriptionFunc type is an adapter to allow the use of ordinary
+// function as PushSubscription mutator.
+type PushSubscriptionFunc func(context.Context, *ent.PushSubscriptionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PushSubscriptionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PushSubscriptionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PushSubscriptionMutation", m)
 }
 
 // The SessionFunc type is an adapter to allow the use of ordinary

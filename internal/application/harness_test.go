@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"go.orx.me/apps/trip-map/internal/application"
@@ -30,6 +31,12 @@ type env struct {
 	search    tripmapv1connect.SearchServiceClient
 	region    tripmapv1connect.RegionServiceClient
 	itinerary tripmapv1connect.ItineraryServiceClient
+	notify    tripmapv1connect.NotificationServiceClient
+	notifier  *application.Notifier
+	mailer    *fakeMailer
+	pusher    *fakePusher
+	public    *application.NotificationPublic
+	clock     *fakeClock
 	svc       *application.AuthService
 	reportSvc *application.ReportService
 }
@@ -55,7 +62,19 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 	authSvc := application.NewAuthService(cfg, src)
 	reportSvc := application.NewReportService(src, idx)
 	opts := connect.WithInterceptors(application.NewAuthInterceptor(src))
+	mailer, pusher, clock := &fakeMailer{}, &fakePusher{}, &fakeClock{}
+	clock.set(time.Date(2026, 10, 15, 2, 0, 0, 0, time.UTC))
+	notifier := &application.Notifier{
+		Config: config.NotificationConfig{
+			PublicBaseURL: "https://trip.example.com",
+			Secret:        strings.Repeat("s", 32),
+			SMTP:          config.SMTPConfig{Host: "smtp.test", From: "山海足迹 <noreply@example.com>"},
+			WebPush:       config.WebPushConfig{VAPIDPublicKey: "vapid-public", VAPIDPrivateKey: "vapid-private", Subject: "mailto:ops@example.com"},
+		},
+		Mail: mailer, Push: pusher, Now: clock.now,
+	}
 	mux := http.NewServeMux()
+	mux.Handle(tripmapv1connect.NewNotificationServiceHandler(application.NewNotificationService(src, notifier), opts))
 	mux.Handle(tripmapv1connect.NewAuthServiceHandler(authSvc, opts))
 	mux.Handle(tripmapv1connect.NewFootprintServiceHandler(application.NewFootprintService(cfg, src, idx), opts))
 	mux.Handle(tripmapv1connect.NewSnapshotServiceHandler(application.NewSnapshotService(cfg, src, idx), opts))
@@ -69,6 +88,9 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 	t.Cleanup(server.Close)
 	return &env{
 		t: t, store: src.st, cfg: cfg, svc: authSvc, reportSvc: reportSvc,
+		notify:   tripmapv1connect.NewNotificationServiceClient(server.Client(), server.URL),
+		notifier: notifier, mailer: mailer, pusher: pusher, clock: clock,
+		public: application.NewNotificationPublic(cfg, src, notifier),
 		auth:      tripmapv1connect.NewAuthServiceClient(server.Client(), server.URL),
 		foot:      tripmapv1connect.NewFootprintServiceClient(server.Client(), server.URL),
 		snap:      tripmapv1connect.NewSnapshotServiceClient(server.Client(), server.URL),

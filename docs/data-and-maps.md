@@ -106,6 +106,10 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 - 行程本地保存为 `{ version: 1, regionVersion, activeId, itineraries: [...] }`（键 `shanhai-itineraries-v1`，账号缓存键 `shanhai-cloud-itineraries-v1:<用户 ID>`）；读取时按 F10 映射升级站点区域 ID，无法识别的行程记录被忽略而不覆盖其余数据。备份文件可带 `itineraries` 和 `activeItineraryId`，不带时导入不触碰现有行程。
 - 估算：球面直线距离（地球半径 6371 km，取 0.1 km 整数）乘交通方式绕行系数（铁路 120%、自驾 130%、飞机 105%、轮渡 115%、其他 120%），用时按平均速度（220/80/700/35/100 km/h）加固定缓冲（20/15/50/25/15 分钟）；Go 与 TypeScript 使用同一整数运算，`scripts/fixtures/itinerary-routes.json` 同时驱动两侧测试。
 
+## 提醒数据（F12）
+
+提醒设置（时区、发送小时、开关、验证邮箱、推送订阅）只保存在账号的云端，不进入足迹备份文件、本地存储或快照，也不改变足迹结构、区域 ID 或地图数据；导入、恢复备份不会改动提醒设置。回忆提醒读取账号现有旅行的 `YYYY-MM-DD` 日期（版本 1 账号读取城市足迹的日期），按用户设置的时区取“今天”的月日匹配；通知文案只用旅行数量和（用户允许时）城市名称，不使用备注或照片。字段与表见 [后端初始化](backend.md#f12-提醒与通知tripmapv1notificationservice)。
+
 ## 搜索数据（F9）
 
 - 搜索不改变区域 ID、`Saved` version 2、本地存储键、旅行记录或备份格式。私有备注检索直接读取本机当前足迹，或服务端当前用户的 `city_visits`（schema 1）/`city_trips`（schema 2）；不创建持久化备注索引、缓存结果或重复数据。云端分页绑定 revision，返回纯文本，结果不会进入分享页。

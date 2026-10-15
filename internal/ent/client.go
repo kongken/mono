@@ -22,7 +22,11 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/itinerary"
 	"go.orx.me/apps/trip-map/internal/ent/mediacleanup"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
+	"go.orx.me/apps/trip-map/internal/ent/notificationdelivery"
+	"go.orx.me/apps/trip-map/internal/ent/notificationprofile"
+	"go.orx.me/apps/trip-map/internal/ent/notificationsetting"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
+	"go.orx.me/apps/trip-map/internal/ent/pushsubscription"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
@@ -52,8 +56,16 @@ type Client struct {
 	MediaCleanup *MediaCleanupClient
 	// MediaObject is the client for interacting with the MediaObject builders.
 	MediaObject *MediaObjectClient
+	// NotificationDelivery is the client for interacting with the NotificationDelivery builders.
+	NotificationDelivery *NotificationDeliveryClient
+	// NotificationProfile is the client for interacting with the NotificationProfile builders.
+	NotificationProfile *NotificationProfileClient
+	// NotificationSetting is the client for interacting with the NotificationSetting builders.
+	NotificationSetting *NotificationSettingClient
 	// ProvinceMark is the client for interacting with the ProvinceMark builders.
 	ProvinceMark *ProvinceMarkClient
+	// PushSubscription is the client for interacting with the PushSubscription builders.
+	PushSubscription *PushSubscriptionClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
 	// Share is the client for interacting with the Share builders.
@@ -88,7 +100,11 @@ func (c *Client) init() {
 	c.Itinerary = NewItineraryClient(c.config)
 	c.MediaCleanup = NewMediaCleanupClient(c.config)
 	c.MediaObject = NewMediaObjectClient(c.config)
+	c.NotificationDelivery = NewNotificationDeliveryClient(c.config)
+	c.NotificationProfile = NewNotificationProfileClient(c.config)
+	c.NotificationSetting = NewNotificationSettingClient(c.config)
 	c.ProvinceMark = NewProvinceMarkClient(c.config)
+	c.PushSubscription = NewPushSubscriptionClient(c.config)
 	c.Session = NewSessionClient(c.config)
 	c.Share = NewShareClient(c.config)
 	c.SharedTrip = NewSharedTripClient(c.config)
@@ -196,7 +212,11 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Itinerary:              NewItineraryClient(cfg),
 		MediaCleanup:           NewMediaCleanupClient(cfg),
 		MediaObject:            NewMediaObjectClient(cfg),
+		NotificationDelivery:   NewNotificationDeliveryClient(cfg),
+		NotificationProfile:    NewNotificationProfileClient(cfg),
+		NotificationSetting:    NewNotificationSettingClient(cfg),
 		ProvinceMark:           NewProvinceMarkClient(cfg),
+		PushSubscription:       NewPushSubscriptionClient(cfg),
 		Session:                NewSessionClient(cfg),
 		Share:                  NewShareClient(cfg),
 		SharedTrip:             NewSharedTripClient(cfg),
@@ -231,7 +251,11 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Itinerary:              NewItineraryClient(cfg),
 		MediaCleanup:           NewMediaCleanupClient(cfg),
 		MediaObject:            NewMediaObjectClient(cfg),
+		NotificationDelivery:   NewNotificationDeliveryClient(cfg),
+		NotificationProfile:    NewNotificationProfileClient(cfg),
+		NotificationSetting:    NewNotificationSettingClient(cfg),
 		ProvinceMark:           NewProvinceMarkClient(cfg),
+		PushSubscription:       NewPushSubscriptionClient(cfg),
 		Session:                NewSessionClient(cfg),
 		Share:                  NewShareClient(cfg),
 		SharedTrip:             NewSharedTripClient(cfg),
@@ -270,8 +294,10 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.Friendship,
-		c.Itinerary, c.MediaCleanup, c.MediaObject, c.ProvinceMark, c.Session, c.Share,
-		c.SharedTrip, c.Snapshot, c.SyncReceipt, c.Trip, c.TripMember, c.User,
+		c.Itinerary, c.MediaCleanup, c.MediaObject, c.NotificationDelivery,
+		c.NotificationProfile, c.NotificationSetting, c.ProvinceMark,
+		c.PushSubscription, c.Session, c.Share, c.SharedTrip, c.Snapshot,
+		c.SyncReceipt, c.Trip, c.TripMember, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -282,8 +308,10 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.Friendship,
-		c.Itinerary, c.MediaCleanup, c.MediaObject, c.ProvinceMark, c.Session, c.Share,
-		c.SharedTrip, c.Snapshot, c.SyncReceipt, c.Trip, c.TripMember, c.User,
+		c.Itinerary, c.MediaCleanup, c.MediaObject, c.NotificationDelivery,
+		c.NotificationProfile, c.NotificationSetting, c.ProvinceMark,
+		c.PushSubscription, c.Session, c.Share, c.SharedTrip, c.Snapshot,
+		c.SyncReceipt, c.Trip, c.TripMember, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -306,8 +334,16 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.MediaCleanup.mutate(ctx, m)
 	case *MediaObjectMutation:
 		return c.MediaObject.mutate(ctx, m)
+	case *NotificationDeliveryMutation:
+		return c.NotificationDelivery.mutate(ctx, m)
+	case *NotificationProfileMutation:
+		return c.NotificationProfile.mutate(ctx, m)
+	case *NotificationSettingMutation:
+		return c.NotificationSetting.mutate(ctx, m)
 	case *ProvinceMarkMutation:
 		return c.ProvinceMark.mutate(ctx, m)
+	case *PushSubscriptionMutation:
+		return c.PushSubscription.mutate(ctx, m)
 	case *SessionMutation:
 		return c.Session.mutate(ctx, m)
 	case *ShareMutation:
@@ -1372,6 +1408,453 @@ func (c *MediaObjectClient) mutate(ctx context.Context, m *MediaObjectMutation) 
 	}
 }
 
+// NotificationDeliveryClient is a client for the NotificationDelivery schema.
+type NotificationDeliveryClient struct {
+	config
+}
+
+// NewNotificationDeliveryClient returns a client for the NotificationDelivery from the given config.
+func NewNotificationDeliveryClient(c config) *NotificationDeliveryClient {
+	return &NotificationDeliveryClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `notificationdelivery.Hooks(f(g(h())))`.
+func (c *NotificationDeliveryClient) Use(hooks ...Hook) {
+	c.hooks.NotificationDelivery = append(c.hooks.NotificationDelivery, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `notificationdelivery.Intercept(f(g(h())))`.
+func (c *NotificationDeliveryClient) Intercept(interceptors ...Interceptor) {
+	c.inters.NotificationDelivery = append(c.inters.NotificationDelivery, interceptors...)
+}
+
+// Create returns a builder for creating a NotificationDelivery entity.
+func (c *NotificationDeliveryClient) Create() *NotificationDeliveryCreate {
+	mutation := newNotificationDeliveryMutation(c.config, OpCreate)
+	return &NotificationDeliveryCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of NotificationDelivery entities.
+func (c *NotificationDeliveryClient) CreateBulk(builders ...*NotificationDeliveryCreate) *NotificationDeliveryCreateBulk {
+	return &NotificationDeliveryCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *NotificationDeliveryClient) MapCreateBulk(slice any, setFunc func(*NotificationDeliveryCreate, int)) *NotificationDeliveryCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &NotificationDeliveryCreateBulk{err: fmt.Errorf("calling to NotificationDeliveryClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*NotificationDeliveryCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &NotificationDeliveryCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for NotificationDelivery.
+func (c *NotificationDeliveryClient) Update() *NotificationDeliveryUpdate {
+	mutation := newNotificationDeliveryMutation(c.config, OpUpdate)
+	return &NotificationDeliveryUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *NotificationDeliveryClient) UpdateOne(_m *NotificationDelivery) *NotificationDeliveryUpdateOne {
+	mutation := newNotificationDeliveryMutation(c.config, OpUpdateOne, withNotificationDelivery(_m))
+	return &NotificationDeliveryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *NotificationDeliveryClient) UpdateOneID(id string) *NotificationDeliveryUpdateOne {
+	mutation := newNotificationDeliveryMutation(c.config, OpUpdateOne, withNotificationDeliveryID(id))
+	return &NotificationDeliveryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for NotificationDelivery.
+func (c *NotificationDeliveryClient) Delete() *NotificationDeliveryDelete {
+	mutation := newNotificationDeliveryMutation(c.config, OpDelete)
+	return &NotificationDeliveryDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *NotificationDeliveryClient) DeleteOne(_m *NotificationDelivery) *NotificationDeliveryDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *NotificationDeliveryClient) DeleteOneID(id string) *NotificationDeliveryDeleteOne {
+	builder := c.Delete().Where(notificationdelivery.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &NotificationDeliveryDeleteOne{builder}
+}
+
+// Query returns a query builder for NotificationDelivery.
+func (c *NotificationDeliveryClient) Query() *NotificationDeliveryQuery {
+	return &NotificationDeliveryQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeNotificationDelivery},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a NotificationDelivery entity by its id.
+func (c *NotificationDeliveryClient) Get(ctx context.Context, id string) (*NotificationDelivery, error) {
+	return c.Query().Where(notificationdelivery.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *NotificationDeliveryClient) GetX(ctx context.Context, id string) *NotificationDelivery {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a NotificationDelivery.
+func (c *NotificationDeliveryClient) QueryUser(_m *NotificationDelivery) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(notificationdelivery.Table, notificationdelivery.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, notificationdelivery.UserTable, notificationdelivery.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *NotificationDeliveryClient) Hooks() []Hook {
+	return c.hooks.NotificationDelivery
+}
+
+// Interceptors returns the client interceptors.
+func (c *NotificationDeliveryClient) Interceptors() []Interceptor {
+	return c.inters.NotificationDelivery
+}
+
+func (c *NotificationDeliveryClient) mutate(ctx context.Context, m *NotificationDeliveryMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&NotificationDeliveryCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&NotificationDeliveryUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&NotificationDeliveryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&NotificationDeliveryDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown NotificationDelivery mutation op: %q", m.Op())
+	}
+}
+
+// NotificationProfileClient is a client for the NotificationProfile schema.
+type NotificationProfileClient struct {
+	config
+}
+
+// NewNotificationProfileClient returns a client for the NotificationProfile from the given config.
+func NewNotificationProfileClient(c config) *NotificationProfileClient {
+	return &NotificationProfileClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `notificationprofile.Hooks(f(g(h())))`.
+func (c *NotificationProfileClient) Use(hooks ...Hook) {
+	c.hooks.NotificationProfile = append(c.hooks.NotificationProfile, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `notificationprofile.Intercept(f(g(h())))`.
+func (c *NotificationProfileClient) Intercept(interceptors ...Interceptor) {
+	c.inters.NotificationProfile = append(c.inters.NotificationProfile, interceptors...)
+}
+
+// Create returns a builder for creating a NotificationProfile entity.
+func (c *NotificationProfileClient) Create() *NotificationProfileCreate {
+	mutation := newNotificationProfileMutation(c.config, OpCreate)
+	return &NotificationProfileCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of NotificationProfile entities.
+func (c *NotificationProfileClient) CreateBulk(builders ...*NotificationProfileCreate) *NotificationProfileCreateBulk {
+	return &NotificationProfileCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *NotificationProfileClient) MapCreateBulk(slice any, setFunc func(*NotificationProfileCreate, int)) *NotificationProfileCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &NotificationProfileCreateBulk{err: fmt.Errorf("calling to NotificationProfileClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*NotificationProfileCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &NotificationProfileCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for NotificationProfile.
+func (c *NotificationProfileClient) Update() *NotificationProfileUpdate {
+	mutation := newNotificationProfileMutation(c.config, OpUpdate)
+	return &NotificationProfileUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *NotificationProfileClient) UpdateOne(_m *NotificationProfile) *NotificationProfileUpdateOne {
+	mutation := newNotificationProfileMutation(c.config, OpUpdateOne, withNotificationProfile(_m))
+	return &NotificationProfileUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *NotificationProfileClient) UpdateOneID(id string) *NotificationProfileUpdateOne {
+	mutation := newNotificationProfileMutation(c.config, OpUpdateOne, withNotificationProfileID(id))
+	return &NotificationProfileUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for NotificationProfile.
+func (c *NotificationProfileClient) Delete() *NotificationProfileDelete {
+	mutation := newNotificationProfileMutation(c.config, OpDelete)
+	return &NotificationProfileDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *NotificationProfileClient) DeleteOne(_m *NotificationProfile) *NotificationProfileDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *NotificationProfileClient) DeleteOneID(id string) *NotificationProfileDeleteOne {
+	builder := c.Delete().Where(notificationprofile.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &NotificationProfileDeleteOne{builder}
+}
+
+// Query returns a query builder for NotificationProfile.
+func (c *NotificationProfileClient) Query() *NotificationProfileQuery {
+	return &NotificationProfileQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeNotificationProfile},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a NotificationProfile entity by its id.
+func (c *NotificationProfileClient) Get(ctx context.Context, id string) (*NotificationProfile, error) {
+	return c.Query().Where(notificationprofile.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *NotificationProfileClient) GetX(ctx context.Context, id string) *NotificationProfile {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a NotificationProfile.
+func (c *NotificationProfileClient) QueryUser(_m *NotificationProfile) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(notificationprofile.Table, notificationprofile.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, true, notificationprofile.UserTable, notificationprofile.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *NotificationProfileClient) Hooks() []Hook {
+	return c.hooks.NotificationProfile
+}
+
+// Interceptors returns the client interceptors.
+func (c *NotificationProfileClient) Interceptors() []Interceptor {
+	return c.inters.NotificationProfile
+}
+
+func (c *NotificationProfileClient) mutate(ctx context.Context, m *NotificationProfileMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&NotificationProfileCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&NotificationProfileUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&NotificationProfileUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&NotificationProfileDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown NotificationProfile mutation op: %q", m.Op())
+	}
+}
+
+// NotificationSettingClient is a client for the NotificationSetting schema.
+type NotificationSettingClient struct {
+	config
+}
+
+// NewNotificationSettingClient returns a client for the NotificationSetting from the given config.
+func NewNotificationSettingClient(c config) *NotificationSettingClient {
+	return &NotificationSettingClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `notificationsetting.Hooks(f(g(h())))`.
+func (c *NotificationSettingClient) Use(hooks ...Hook) {
+	c.hooks.NotificationSetting = append(c.hooks.NotificationSetting, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `notificationsetting.Intercept(f(g(h())))`.
+func (c *NotificationSettingClient) Intercept(interceptors ...Interceptor) {
+	c.inters.NotificationSetting = append(c.inters.NotificationSetting, interceptors...)
+}
+
+// Create returns a builder for creating a NotificationSetting entity.
+func (c *NotificationSettingClient) Create() *NotificationSettingCreate {
+	mutation := newNotificationSettingMutation(c.config, OpCreate)
+	return &NotificationSettingCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of NotificationSetting entities.
+func (c *NotificationSettingClient) CreateBulk(builders ...*NotificationSettingCreate) *NotificationSettingCreateBulk {
+	return &NotificationSettingCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *NotificationSettingClient) MapCreateBulk(slice any, setFunc func(*NotificationSettingCreate, int)) *NotificationSettingCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &NotificationSettingCreateBulk{err: fmt.Errorf("calling to NotificationSettingClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*NotificationSettingCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &NotificationSettingCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for NotificationSetting.
+func (c *NotificationSettingClient) Update() *NotificationSettingUpdate {
+	mutation := newNotificationSettingMutation(c.config, OpUpdate)
+	return &NotificationSettingUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *NotificationSettingClient) UpdateOne(_m *NotificationSetting) *NotificationSettingUpdateOne {
+	mutation := newNotificationSettingMutation(c.config, OpUpdateOne, withNotificationSetting(_m))
+	return &NotificationSettingUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *NotificationSettingClient) UpdateOneID(id string) *NotificationSettingUpdateOne {
+	mutation := newNotificationSettingMutation(c.config, OpUpdateOne, withNotificationSettingID(id))
+	return &NotificationSettingUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for NotificationSetting.
+func (c *NotificationSettingClient) Delete() *NotificationSettingDelete {
+	mutation := newNotificationSettingMutation(c.config, OpDelete)
+	return &NotificationSettingDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *NotificationSettingClient) DeleteOne(_m *NotificationSetting) *NotificationSettingDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *NotificationSettingClient) DeleteOneID(id string) *NotificationSettingDeleteOne {
+	builder := c.Delete().Where(notificationsetting.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &NotificationSettingDeleteOne{builder}
+}
+
+// Query returns a query builder for NotificationSetting.
+func (c *NotificationSettingClient) Query() *NotificationSettingQuery {
+	return &NotificationSettingQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeNotificationSetting},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a NotificationSetting entity by its id.
+func (c *NotificationSettingClient) Get(ctx context.Context, id string) (*NotificationSetting, error) {
+	return c.Query().Where(notificationsetting.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *NotificationSettingClient) GetX(ctx context.Context, id string) *NotificationSetting {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a NotificationSetting.
+func (c *NotificationSettingClient) QueryUser(_m *NotificationSetting) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(notificationsetting.Table, notificationsetting.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, notificationsetting.UserTable, notificationsetting.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *NotificationSettingClient) Hooks() []Hook {
+	return c.hooks.NotificationSetting
+}
+
+// Interceptors returns the client interceptors.
+func (c *NotificationSettingClient) Interceptors() []Interceptor {
+	return c.inters.NotificationSetting
+}
+
+func (c *NotificationSettingClient) mutate(ctx context.Context, m *NotificationSettingMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&NotificationSettingCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&NotificationSettingUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&NotificationSettingUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&NotificationSettingDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown NotificationSetting mutation op: %q", m.Op())
+	}
+}
+
 // ProvinceMarkClient is a client for the ProvinceMark schema.
 type ProvinceMarkClient struct {
 	config
@@ -1518,6 +2001,155 @@ func (c *ProvinceMarkClient) mutate(ctx context.Context, m *ProvinceMarkMutation
 		return (&ProvinceMarkDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown ProvinceMark mutation op: %q", m.Op())
+	}
+}
+
+// PushSubscriptionClient is a client for the PushSubscription schema.
+type PushSubscriptionClient struct {
+	config
+}
+
+// NewPushSubscriptionClient returns a client for the PushSubscription from the given config.
+func NewPushSubscriptionClient(c config) *PushSubscriptionClient {
+	return &PushSubscriptionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `pushsubscription.Hooks(f(g(h())))`.
+func (c *PushSubscriptionClient) Use(hooks ...Hook) {
+	c.hooks.PushSubscription = append(c.hooks.PushSubscription, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `pushsubscription.Intercept(f(g(h())))`.
+func (c *PushSubscriptionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PushSubscription = append(c.inters.PushSubscription, interceptors...)
+}
+
+// Create returns a builder for creating a PushSubscription entity.
+func (c *PushSubscriptionClient) Create() *PushSubscriptionCreate {
+	mutation := newPushSubscriptionMutation(c.config, OpCreate)
+	return &PushSubscriptionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PushSubscription entities.
+func (c *PushSubscriptionClient) CreateBulk(builders ...*PushSubscriptionCreate) *PushSubscriptionCreateBulk {
+	return &PushSubscriptionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PushSubscriptionClient) MapCreateBulk(slice any, setFunc func(*PushSubscriptionCreate, int)) *PushSubscriptionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PushSubscriptionCreateBulk{err: fmt.Errorf("calling to PushSubscriptionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PushSubscriptionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PushSubscriptionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PushSubscription.
+func (c *PushSubscriptionClient) Update() *PushSubscriptionUpdate {
+	mutation := newPushSubscriptionMutation(c.config, OpUpdate)
+	return &PushSubscriptionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PushSubscriptionClient) UpdateOne(_m *PushSubscription) *PushSubscriptionUpdateOne {
+	mutation := newPushSubscriptionMutation(c.config, OpUpdateOne, withPushSubscription(_m))
+	return &PushSubscriptionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PushSubscriptionClient) UpdateOneID(id string) *PushSubscriptionUpdateOne {
+	mutation := newPushSubscriptionMutation(c.config, OpUpdateOne, withPushSubscriptionID(id))
+	return &PushSubscriptionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PushSubscription.
+func (c *PushSubscriptionClient) Delete() *PushSubscriptionDelete {
+	mutation := newPushSubscriptionMutation(c.config, OpDelete)
+	return &PushSubscriptionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PushSubscriptionClient) DeleteOne(_m *PushSubscription) *PushSubscriptionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PushSubscriptionClient) DeleteOneID(id string) *PushSubscriptionDeleteOne {
+	builder := c.Delete().Where(pushsubscription.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PushSubscriptionDeleteOne{builder}
+}
+
+// Query returns a query builder for PushSubscription.
+func (c *PushSubscriptionClient) Query() *PushSubscriptionQuery {
+	return &PushSubscriptionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePushSubscription},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PushSubscription entity by its id.
+func (c *PushSubscriptionClient) Get(ctx context.Context, id string) (*PushSubscription, error) {
+	return c.Query().Where(pushsubscription.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PushSubscriptionClient) GetX(ctx context.Context, id string) *PushSubscription {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a PushSubscription.
+func (c *PushSubscriptionClient) QueryUser(_m *PushSubscription) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(pushsubscription.Table, pushsubscription.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, pushsubscription.UserTable, pushsubscription.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *PushSubscriptionClient) Hooks() []Hook {
+	return c.hooks.PushSubscription
+}
+
+// Interceptors returns the client interceptors.
+func (c *PushSubscriptionClient) Interceptors() []Interceptor {
+	return c.inters.PushSubscription
+}
+
+func (c *PushSubscriptionClient) mutate(ctx context.Context, m *PushSubscriptionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PushSubscriptionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PushSubscriptionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PushSubscriptionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PushSubscriptionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PushSubscription mutation op: %q", m.Op())
 	}
 }
 
@@ -2944,6 +3576,70 @@ func (c *UserClient) QueryItineraries(_m *User) *ItineraryQuery {
 	return query
 }
 
+// QueryNotificationProfile queries the notification_profile edge of a User.
+func (c *UserClient) QueryNotificationProfile(_m *User) *NotificationProfileQuery {
+	query := (&NotificationProfileClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(notificationprofile.Table, notificationprofile.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, user.NotificationProfileTable, user.NotificationProfileColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryNotificationSettings queries the notification_settings edge of a User.
+func (c *UserClient) QueryNotificationSettings(_m *User) *NotificationSettingQuery {
+	query := (&NotificationSettingClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(notificationsetting.Table, notificationsetting.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.NotificationSettingsTable, user.NotificationSettingsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryPushSubscriptions queries the push_subscriptions edge of a User.
+func (c *UserClient) QueryPushSubscriptions(_m *User) *PushSubscriptionQuery {
+	query := (&PushSubscriptionClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(pushsubscription.Table, pushsubscription.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.PushSubscriptionsTable, user.PushSubscriptionsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryNotificationDeliveries queries the notification_deliveries edge of a User.
+func (c *UserClient) QueryNotificationDeliveries(_m *User) *NotificationDeliveryQuery {
+	query := (&NotificationDeliveryClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(notificationdelivery.Table, notificationdelivery.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.NotificationDeliveriesTable, user.NotificationDeliveriesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	return c.hooks.User
@@ -2973,12 +3669,14 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 type (
 	hooks struct {
 		AccountDeletionReceipt, CityVisit, FootprintChange, Friendship, Itinerary,
-		MediaCleanup, MediaObject, ProvinceMark, Session, Share, SharedTrip, Snapshot,
-		SyncReceipt, Trip, TripMember, User []ent.Hook
+		MediaCleanup, MediaObject, NotificationDelivery, NotificationProfile,
+		NotificationSetting, ProvinceMark, PushSubscription, Session, Share,
+		SharedTrip, Snapshot, SyncReceipt, Trip, TripMember, User []ent.Hook
 	}
 	inters struct {
 		AccountDeletionReceipt, CityVisit, FootprintChange, Friendship, Itinerary,
-		MediaCleanup, MediaObject, ProvinceMark, Session, Share, SharedTrip, Snapshot,
-		SyncReceipt, Trip, TripMember, User []ent.Interceptor
+		MediaCleanup, MediaObject, NotificationDelivery, NotificationProfile,
+		NotificationSetting, ProvinceMark, PushSubscription, Session, Share,
+		SharedTrip, Snapshot, SyncReceipt, Trip, TripMember, User []ent.Interceptor
 	}
 )

@@ -19,7 +19,11 @@ import (
 	"go.orx.me/apps/trip-map/internal/ent/itinerary"
 	"go.orx.me/apps/trip-map/internal/ent/mediacleanup"
 	"go.orx.me/apps/trip-map/internal/ent/mediaobject"
+	"go.orx.me/apps/trip-map/internal/ent/notificationdelivery"
+	"go.orx.me/apps/trip-map/internal/ent/notificationprofile"
+	"go.orx.me/apps/trip-map/internal/ent/notificationsetting"
 	"go.orx.me/apps/trip-map/internal/ent/provincemark"
+	"go.orx.me/apps/trip-map/internal/ent/pushsubscription"
 	"go.orx.me/apps/trip-map/internal/ent/session"
 	"go.orx.me/apps/trip-map/internal/ent/share"
 	"go.orx.me/apps/trip-map/internal/ent/sharedtrip"
@@ -95,7 +99,11 @@ func checkColumn(t, c string) error {
 			itinerary.Table:              itinerary.ValidColumn,
 			mediacleanup.Table:           mediacleanup.ValidColumn,
 			mediaobject.Table:            mediaobject.ValidColumn,
+			notificationdelivery.Table:   notificationdelivery.ValidColumn,
+			notificationprofile.Table:    notificationprofile.ValidColumn,
+			notificationsetting.Table:    notificationsetting.ValidColumn,
 			provincemark.Table:           provincemark.ValidColumn,
+			pushsubscription.Table:       pushsubscription.ValidColumn,
 			session.Table:                session.ValidColumn,
 			share.Table:                  share.ValidColumn,
 			sharedtrip.Table:             sharedtrip.ValidColumn,

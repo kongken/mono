@@ -162,7 +162,29 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 	if _, err := scoped.ExecContext(ctx, `INSERT INTO itineraries (id, itinerary_id, title, note, color, stops, version, created_at, updated_at, user_id) VALUES ('it2','itin-1','重复','','\#4b937d','[]',1,now(),now(),'u2')`); err == nil {
 		t.Fatal("duplicate itinerary_id per user allowed")
 	}
+	exec(`INSERT INTO notification_profiles (id, timezone, send_hour, show_places, email, pending_email, code_hash, code_attempts, created_at, updated_at, user_id) VALUES ('np1','Asia/Shanghai',9,false,'','','',0,now(),now(),'u2')`)
+	if _, err := scoped.ExecContext(ctx, `INSERT INTO notification_profiles (id, created_at, updated_at, user_id) VALUES ('np2',now(),now(),'u2')`); err == nil {
+		t.Fatal("a user can own two notification profiles")
+	}
+	exec(`INSERT INTO notification_settings (id, kind, channel, enabled, created_at, updated_at, user_id) VALUES ('ns1','memory','email',true,now(),now(),'u2')`)
+	if _, err := scoped.ExecContext(ctx, `INSERT INTO notification_settings (id, kind, channel, enabled, created_at, updated_at, user_id) VALUES ('ns2','memory','email',false,now(),now(),'u2')`); err == nil {
+		t.Fatal("duplicate notification setting per kind and channel allowed")
+	}
+	exec(`INSERT INTO push_subscriptions (id, endpoint_hash, endpoint, p256dh, auth, failures, created_at, updated_at, user_id) VALUES ('ps1','h1','https://push.example/1','k','a',0,now(),now(),'u2')`)
+	if _, err := scoped.ExecContext(ctx, `INSERT INTO push_subscriptions (id, endpoint_hash, endpoint, p256dh, auth, failures, created_at, updated_at, user_id) VALUES ('ps2','h1','https://push.example/1','k','a',0,now(),now(),'u1')`); err == nil {
+		t.Fatal("one push endpoint can belong to two rows")
+	}
+	exec(`INSERT INTO notification_deliveries (id, kind, channel, period, status, attempts, created_at, updated_at, user_id) VALUES ('nd1','memory','email','2026-10-15','sent',1,now(),now(),'u2')`)
+	if _, err := scoped.ExecContext(ctx, `INSERT INTO notification_deliveries (id, kind, channel, period, status, attempts, created_at, updated_at, user_id) VALUES ('nd2','memory','email','2026-10-15','pending',1,now(),now(),'u2')`); err == nil {
+		t.Fatal("a notification can be claimed twice for one period")
+	}
 	exec(`DELETE FROM users WHERE id='u2'`)
+	for _, table := range []string{"notification_profiles", "notification_settings", "push_subscriptions", "notification_deliveries"} {
+		var rows int
+		if err := scoped.QueryRowContext(ctx, `SELECT count(*) FROM `+table+` WHERE user_id='u2'`).Scan(&rows); err != nil || rows != 0 {
+			t.Fatalf("deleting a user left %d %s rows: %v", rows, table, err)
+		}
+	}
 	var left int
 	if err := scoped.QueryRowContext(ctx, `SELECT count(*) FROM shares WHERE user_id='u2'`).Scan(&left); err != nil || left != 0 {
 		t.Fatalf("deleting a user left %d share rows: %v", left, err)

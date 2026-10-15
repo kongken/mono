@@ -258,6 +258,110 @@ var (
 			},
 		},
 	}
+	// NotificationDeliveriesColumns holds the columns for the "notification_deliveries" table.
+	NotificationDeliveriesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "kind", Type: field.TypeEnum, Enums: []string{"memory", "annual_report"}},
+		{Name: "channel", Type: field.TypeEnum, Enums: []string{"email", "push"}},
+		{Name: "period", Type: field.TypeString},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending", "sent", "failed", "skipped"}, Default: "pending"},
+		{Name: "attempts", Type: field.TypeInt, Default: 1},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeString},
+	}
+	// NotificationDeliveriesTable holds the schema information for the "notification_deliveries" table.
+	NotificationDeliveriesTable = &schema.Table{
+		Name:       "notification_deliveries",
+		Columns:    NotificationDeliveriesColumns,
+		PrimaryKey: []*schema.Column{NotificationDeliveriesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "notification_deliveries_users_notification_deliveries",
+				Columns:    []*schema.Column{NotificationDeliveriesColumns[8]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "notificationdelivery_user_id_kind_channel_period",
+				Unique:  true,
+				Columns: []*schema.Column{NotificationDeliveriesColumns[8], NotificationDeliveriesColumns[1], NotificationDeliveriesColumns[2], NotificationDeliveriesColumns[3]},
+			},
+			{
+				Name:    "notificationdelivery_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{NotificationDeliveriesColumns[6]},
+			},
+		},
+	}
+	// NotificationProfilesColumns holds the columns for the "notification_profiles" table.
+	NotificationProfilesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "timezone", Type: field.TypeString, Default: "Asia/Shanghai"},
+		{Name: "send_hour", Type: field.TypeInt, Default: 9},
+		{Name: "show_places", Type: field.TypeBool, Default: false},
+		{Name: "email", Type: field.TypeString, Default: ""},
+		{Name: "email_verified_at", Type: field.TypeTime, Nullable: true},
+		{Name: "pending_email", Type: field.TypeString, Default: ""},
+		{Name: "code_hash", Type: field.TypeString, Default: ""},
+		{Name: "code_expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "code_attempts", Type: field.TypeInt, Default: 0},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeString, Unique: true},
+	}
+	// NotificationProfilesTable holds the schema information for the "notification_profiles" table.
+	NotificationProfilesTable = &schema.Table{
+		Name:       "notification_profiles",
+		Columns:    NotificationProfilesColumns,
+		PrimaryKey: []*schema.Column{NotificationProfilesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "notification_profiles_users_notification_profile",
+				Columns:    []*schema.Column{NotificationProfilesColumns[12]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
+	// NotificationSettingsColumns holds the columns for the "notification_settings" table.
+	NotificationSettingsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "kind", Type: field.TypeEnum, Enums: []string{"memory", "annual_report"}},
+		{Name: "channel", Type: field.TypeEnum, Enums: []string{"email", "push"}},
+		{Name: "enabled", Type: field.TypeBool, Default: false},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeString},
+	}
+	// NotificationSettingsTable holds the schema information for the "notification_settings" table.
+	NotificationSettingsTable = &schema.Table{
+		Name:       "notification_settings",
+		Columns:    NotificationSettingsColumns,
+		PrimaryKey: []*schema.Column{NotificationSettingsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "notification_settings_users_notification_settings",
+				Columns:    []*schema.Column{NotificationSettingsColumns[6]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "notificationsetting_user_id_kind_channel",
+				Unique:  true,
+				Columns: []*schema.Column{NotificationSettingsColumns[6], NotificationSettingsColumns[1], NotificationSettingsColumns[2]},
+			},
+			{
+				Name:    "notificationsetting_enabled_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{NotificationSettingsColumns[3], NotificationSettingsColumns[6]},
+			},
+		},
+	}
 	// ProvinceMarksColumns holds the columns for the "province_marks" table.
 	ProvinceMarksColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -285,6 +389,39 @@ var (
 				Name:    "provincemark_user_id_province_code",
 				Unique:  true,
 				Columns: []*schema.Column{ProvinceMarksColumns[5], ProvinceMarksColumns[1]},
+			},
+		},
+	}
+	// PushSubscriptionsColumns holds the columns for the "push_subscriptions" table.
+	PushSubscriptionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "endpoint_hash", Type: field.TypeString, Unique: true},
+		{Name: "endpoint", Type: field.TypeString},
+		{Name: "p256dh", Type: field.TypeString},
+		{Name: "auth", Type: field.TypeString},
+		{Name: "failures", Type: field.TypeInt, Default: 0},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeString},
+	}
+	// PushSubscriptionsTable holds the schema information for the "push_subscriptions" table.
+	PushSubscriptionsTable = &schema.Table{
+		Name:       "push_subscriptions",
+		Columns:    PushSubscriptionsColumns,
+		PrimaryKey: []*schema.Column{PushSubscriptionsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "push_subscriptions_users_push_subscriptions",
+				Columns:    []*schema.Column{PushSubscriptionsColumns[8]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "pushsubscription_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{PushSubscriptionsColumns[8]},
 			},
 		},
 	}
@@ -609,7 +746,11 @@ var (
 		ItinerariesTable,
 		MediaCleanupsTable,
 		MediaObjectsTable,
+		NotificationDeliveriesTable,
+		NotificationProfilesTable,
+		NotificationSettingsTable,
 		ProvinceMarksTable,
+		PushSubscriptionsTable,
 		AuthSessionsTable,
 		SharesTable,
 		SharedTripsTable,
@@ -640,9 +781,25 @@ func init() {
 	MediaObjectsTable.Annotation = &entsql.Annotation{
 		Table: "media_objects",
 	}
+	NotificationDeliveriesTable.ForeignKeys[0].RefTable = UsersTable
+	NotificationDeliveriesTable.Annotation = &entsql.Annotation{
+		Table: "notification_deliveries",
+	}
+	NotificationProfilesTable.ForeignKeys[0].RefTable = UsersTable
+	NotificationProfilesTable.Annotation = &entsql.Annotation{
+		Table: "notification_profiles",
+	}
+	NotificationSettingsTable.ForeignKeys[0].RefTable = UsersTable
+	NotificationSettingsTable.Annotation = &entsql.Annotation{
+		Table: "notification_settings",
+	}
 	ProvinceMarksTable.ForeignKeys[0].RefTable = UsersTable
 	ProvinceMarksTable.Annotation = &entsql.Annotation{
 		Table: "province_marks",
+	}
+	PushSubscriptionsTable.ForeignKeys[0].RefTable = UsersTable
+	PushSubscriptionsTable.Annotation = &entsql.Annotation{
+		Table: "push_subscriptions",
 	}
 	AuthSessionsTable.ForeignKeys[0].RefTable = UsersTable
 	AuthSessionsTable.Annotation = &entsql.Annotation{
