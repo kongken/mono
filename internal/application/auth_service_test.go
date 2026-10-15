@@ -404,6 +404,17 @@ func TestLogtoOAuthFlowUsesPKCE(t *testing.T) {
 	if err != nil || len(sessions.Msg.Sessions) != 2 {
 		t.Fatalf("sessions: %v %v", sessions, err)
 	}
+	// Provider email is not stored, and the account takes part in friend invitations.
+	if created.Email != nil {
+		t.Fatal("provider email must not be stored")
+	}
+	overview, err := e.collab.GetCollaborationOverview(ctx, bearer(signedIn.Token, &tripmapv1.GetCollaborationOverviewRequest{}))
+	if err != nil || !strings.HasPrefix(overview.Msg.MyFriendCode, "fc_") {
+		t.Fatalf("friend code: %v %v", overview, err)
+	}
+	if _, err = e.collab.SendFriendRequest(ctx, bearer(e.register("pw_friend"), &tripmapv1.SendFriendRequestRequest{Target: overview.Msg.MyFriendCode})); err != nil {
+		t.Fatalf("friend request to a Logto account: %v", err)
+	}
 	// A recent Logto session satisfies the re-authentication check for deletion.
 	if _, err = e.auth.DeleteAccount(ctx, bearer(second.Token, &tripmapv1.DeleteAccountRequest{Confirmation: "DELETE"})); err != nil {
 		t.Fatal(err)

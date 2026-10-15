@@ -123,7 +123,7 @@ Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CON
 - `auth.registration_disabled` 为 `true` 时关闭注册（密码与 OAuth 新账号都被拒绝），默认开放注册。
 - `auth.client_ip_header` 指向可信反向代理写入的客户端地址头（如 `CF-Connecting-IP`），用于登录限流；不设置则使用 TCP 对端地址。直接暴露在公网时不要设置，否则客户端可伪造该头绕过限流。
 - `auth.cors_allowed_origins` 允许跨站调用 API 的浏览器来源（精确匹配，如 `https://trip.example.com`，不支持通配符）。同源部署（前端镜像的 Nginx 转发 `/api`）无需配置。
-- `auth.oauth_providers.<github|google|logto>` 配置 `client_id`、`client_secret`、`redirect_url`（OAuth 应用登记的前端回调页）、可选 `scopes` 与 `display_name`；缺少 `client_id` 或 `client_secret` 的提供方不会出现在 `ListOAuthProviders` 中。`logto` 另需 `issuer_url`（Logto 租户的 OIDC 地址，形如 `https://<域名>/oidc`，须为不含账号、查询和片段的 http(s) 地址；`redirect_url` 也须为不含片段的 http(s) 地址），授权、令牌和用户信息端点按 `<issuer_url>/auth`、`/token`、`/me` 推导，默认 scope 为 `openid profile email`。Logto 控制台中创建“传统网页应用”，登记的回调地址与 `redirect_url` 一致；服务启动时若 `logto` 已配置但缺少或写错 `issuer_url` 会拒绝启动。
+- `auth.oauth_providers.<github|google|logto>` 配置 `client_id`、`client_secret`、`redirect_url`（OAuth 应用登记的前端回调页）、可选 `scopes` 与 `display_name`；缺少 `client_id` 或 `client_secret` 的提供方不会出现在 `ListOAuthProviders` 中（`logto` 缺少 `issuer_url` 或 `redirect_url` 时同样不出现）。`logto` 另需 `issuer_url`（Logto 租户的 OIDC 地址，形如 `https://<域名>/oidc`，须为不含账号、查询和片段的 http(s) 地址；`redirect_url` 也须为不含片段的 http(s) 地址），授权、令牌和用户信息端点按 `<issuer_url>/auth`、`/token`、`/me` 推导，默认 scope 为 `openid profile email`。Logto 控制台中创建“传统网页应用”，登记的回调地址与 `redirect_url` 一致；服务启动时若 `logto` 已配置但缺少或写错 `issuer_url` 会拒绝启动。
 - `share.public_base_url` 开启公开分享（为空即关闭）；`share.app_index_url`、`share.html_csp` 与限流项见下文 F6 一节。
 - `auto_migrate: true` 在启动时通过 Ent 创建或补充表结构。本地示例开启；生产环境应设为 `false`，改由下文“版本化数据库迁移”中评审过的 SQL 文件升级，再启动新版本后端。
 

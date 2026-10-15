@@ -197,6 +197,20 @@ func TestLogto_ExchangePKCE(t *testing.T) {
 	}
 }
 
+func TestLogto_BasicCredentialsAreFormEncoded(t *testing.T) {
+	srv := &logtoServer{token: okToken, userinfo: func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"sub":"u"}`)) }}
+	p := srv.start(t)
+	p.cfg.ClientID, p.cfg.ClientSecret = "app id", "s:e+c/ret"
+	if _, err := p.ExchangePKCE(context.Background(), "c", "v"); err != nil {
+		t.Fatal(err)
+	}
+	// RFC 6749 2.3.1: id and secret are form-encoded before Base64, so ':' in a secret is unambiguous.
+	want := "Basic " + base64.StdEncoding.EncodeToString([]byte("app+id:s%3Ae%2Bc%2Fret"))
+	if srv.tokenAuth != want {
+		t.Fatalf("authorization = %q, want %q", srv.tokenAuth, want)
+	}
+}
+
 func TestLogto_ExchangePKCEFailures(t *testing.T) {
 	json := func(status int, body string) func(http.ResponseWriter, *http.Request) {
 		return func(w http.ResponseWriter, _ *http.Request) {
