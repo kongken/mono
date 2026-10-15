@@ -8,7 +8,7 @@ import { tripCount } from "../src/lib/trips.ts";
 
 const token = "A".repeat(43);
 const regions = JSON.parse(readFileSync("src/regions.json", "utf8"));
-const geometry = JSON.parse(readFileSync("internal/share/assets/geometry.json", "utf8"));
+const geometry = JSON.parse(readFileSync("internal/tripmap/share/assets/geometry.json", "utf8"));
 
 test("share paths never fall back to the application", () => {
   assert.deepEqual(parseSharePath(`/s/${token}`), { kind: "share", token });
@@ -57,7 +57,7 @@ test("public content is read strictly and only through the allow-list", () => {
   }
 });
 
-// scripts/fixtures/share-stats.json also drives the Go implementation (internal/share).
+// scripts/fixtures/share-stats.json also drives the Go implementation (internal/tripmap/share).
 test("national statistics follow the shared fixtures", () => {
   const fixture = JSON.parse(readFileSync("scripts/fixtures/share-stats.json", "utf8"));
   assert.equal(totalCities, fixture.totalCities);

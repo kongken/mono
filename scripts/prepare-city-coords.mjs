@@ -39,8 +39,8 @@ for (const province of regions) {
 
 const output = JSON.stringify(coords, null, 2) + "\n";
 const frontTarget = new URL("../src/city-coords.json", import.meta.url);
-const backDir = new URL("../internal/itinerary", import.meta.url);
-const backTarget = new URL("../internal/itinerary/coords.json", import.meta.url);
+const backDir = new URL("../internal/tripmap/itinerary", import.meta.url);
+const backTarget = new URL("../internal/tripmap/itinerary/coords.json", import.meta.url);
 
 if (process.argv.includes("--check")) {
   if (fs.readFileSync(frontTarget, "utf8") !== output) {

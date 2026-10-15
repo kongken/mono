@@ -7,16 +7,16 @@ test:
 	go test ./...
 
 ent:
-	go generate ./internal/ent
+	go generate ./internal/tripmap/ent
 
 buf:
 	buf generate
 
-# Writes the next versioned migration into migrations/ after an Ent schema change.
+# Writes the next versioned migration into migrations/tripmap/ after an Ent schema change.
 # DEV_DSN only needs CREATEDB; a scratch database is created and dropped.
 # Usage: make migration NAME=add_something DEV_DSN='postgres://...'
 migration:
-	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations
+	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations/tripmap
 
 # Config is ignored locally, so make dev can safely use it for credentials.
 dev:
@@ -43,4 +43,4 @@ test-integration:
 	TRIPMAP_TEST_REDIS_ADDR=127.0.0.1:16379 TRIPMAP_TEST_REDIS_PASSWORD=tripmap-local \
 	TRIPMAP_TEST_S3_ENDPOINT=http://127.0.0.1:19000 TRIPMAP_TEST_S3_ACCESS_KEY=tripmap-local \
 	TRIPMAP_TEST_S3_SECRET_KEY=tripmap-local-secret TRIPMAP_TEST_S3_BUCKET=tripmap \
-	go test -v ./internal/integration ./internal/application
+	go test -v ./internal/tripmap/integration ./internal/tripmap/application

@@ -65,6 +65,6 @@ const index = await Promise.all(
 );
 await writeFile("src/regions.json", JSON.stringify(index));
 // The Go backend validates region IDs against its own embedded copy.
-await writeFile("internal/regions/regions.json", JSON.stringify(index));
+await writeFile("internal/tripmap/regions/regions.json", JSON.stringify(index));
 
 await prepareProvinceNeighbors();

@@ -19,7 +19,7 @@ for (const m of mappings) {
   aliases.set(m.fromCode, m.toCode);
 }
 // Do not update only one of the two index copies while changing catalog version.
-if (fs.readFileSync(source, "utf8") !== fs.readFileSync(new URL("../internal/regions/regions.json", import.meta.url), "utf8")) throw new Error("Frontend/backend region indexes differ");
+if (fs.readFileSync(source, "utf8") !== fs.readFileSync(new URL("../internal/tripmap/regions/regions.json", import.meta.url), "utf8")) throw new Error("Frontend/backend region indexes differ");
 const version = "sha256:" + createHash("sha256").update(JSON.stringify({ regions, mappings })).digest("hex");
 const catalog = { version, supportedVersions: [...new Set(["legacy", ...history.supportedVersions, version])], mappings };
 const previousUrl = new URL("../src/region-catalog.json", import.meta.url);
@@ -29,7 +29,7 @@ if (fs.existsSync(previousUrl)) {
   if (previous.mappings.some(m => !keys.has(JSON.stringify([m.fromCode, m.fromName, m.fromProvince])))) throw new Error("Keep historical mapping tuples; retarget them directly to a current ID, never delete them");
 }
 const output = JSON.stringify(catalog, null, 2) + "\n";
-const targets = ["../src/region-catalog.json", "../internal/regions/catalog.json"];
+const targets = ["../src/region-catalog.json", "../internal/tripmap/regions/catalog.json"];
 for (const target of targets) {
   const url = new URL(target, import.meta.url);
   if (process.argv.includes("--check")) {

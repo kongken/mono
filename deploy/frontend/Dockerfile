@@ -10,10 +10,10 @@ COPY scripts scripts
 # The catalog regression checks the build recipe's required input list too.
 COPY deploy/frontend/Dockerfile deploy/frontend/Dockerfile
 # check:maps and the share tests compare the server-side preview geometry with the app.
-COPY internal/share/assets/geometry.json internal/share/assets/geometry.json
+COPY internal/tripmap/share/assets/geometry.json internal/tripmap/share/assets/geometry.json
 # F10 checks bind the frontend catalog to the exact backend index and manifest.
-COPY internal/regions/regions.json internal/regions/regions.json
-COPY internal/regions/catalog.json internal/regions/catalog.json
+COPY internal/tripmap/regions/regions.json internal/tripmap/regions/regions.json
+COPY internal/tripmap/regions/catalog.json internal/tripmap/regions/catalog.json
 # Optional backend address; empty keeps the static site standalone (local-only).
 ARG VITE_API_BASE_URL
 # Optional OSM raster tile source, baked in at build time (see docs/data-and-maps.md).

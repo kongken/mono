@@ -28,7 +28,7 @@ make storage-init
 make dev
 ```
 
-生产环境关闭 `auto_migrate`，用 `migrations/` 里评审过的 SQL 升级数据库；修改 Ent schema 后用 `make ent` 与 `make migration NAME=… DEV_DSN=…` 生成（顺序与验证见 [后端初始化说明](docs/backend.md#版本化数据库迁移)）。
+生产环境关闭 `auto_migrate`，用 `migrations/tripmap/` 里评审过的 SQL 升级数据库；修改 Ent schema 后用 `make ent` 与 `make migration NAME=… DEV_DSN=…` 生成（顺序与验证见 [后端初始化说明](docs/backend.md#版本化数据库迁移)）。
 
 前端无需后端即可独立运行；仅当构建时设置 `VITE_API_BASE_URL`（如 `/api`）才会连接后端，详见 [后端初始化说明](docs/backend.md)。配置、端口、数据库模型和验证方式也见该文档。未登录时足迹保存在浏览器本地；配置后端后可选登录（密码、GitHub、Google），足迹保存到云端并多设备同步。分享页默认关闭：后端配置 `share.public_base_url` 后才可用，开发时 Vite 开发服务器会把 `/s/` 代理到后端（见 `config.example.yaml`）。
 

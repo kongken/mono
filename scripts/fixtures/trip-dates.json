@@ -1,5 +1,5 @@
 {
-  "comment": "Shared by scripts/trips.test.mjs and internal/application/trips_test.go: the frontend and the backend must agree on every entry.",
+  "comment": "Shared by scripts/trips.test.mjs and internal/tripmap/application/trips_test.go: the frontend and the backend must agree on every entry.",
   "valid": [
     "",
     "0000-01-01",

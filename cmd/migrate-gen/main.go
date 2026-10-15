@@ -1,5 +1,5 @@
 // Command migrate-gen writes the next versioned PostgreSQL migration from the
-// Ent schema (internal/ent/schema), for deployments that run with
+// Ent schema (internal/tripmap/ent/schema), for deployments that run with
 // auto_migrate: false. It replays the existing files in -dir on an empty scratch
 // schema of the -dev database, diffs the result against the Ent schema and writes
 // the difference plus atlas.sum. The -dev DSN only needs CREATEDB: a scratch
@@ -25,16 +25,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
-	entmigrate "go.orx.me/apps/trip-map/internal/ent/migrate"
+	entmigrate "go.orx.me/apps/trip-map/internal/tripmap/ent/migrate"
 )
 
 func main() {
-	dir := flag.String("dir", "migrations", "directory holding the versioned migrations")
+	dir := flag.String("dir", "migrations/tripmap", "directory holding the versioned migrations")
 	name := flag.String("name", "", "short snake_case name of the change")
 	dev := flag.String("dev", os.Getenv("DEV_DSN"), "DSN of a PostgreSQL server where a scratch database may be created")
 	flag.Parse()
 	if *name == "" || *dev == "" {
-		log.Fatal("usage: migrate-gen -name <change> -dev <dsn> [-dir migrations]")
+		log.Fatal("usage: migrate-gen -name <change> -dev <dsn> [-dir migrations/tripmap]")
 	}
 	if err := run(context.Background(), *dir, *name, *dev); err != nil {
 		log.Fatal(err)

@@ -5,7 +5,7 @@ import { normalizeMap } from "../src/lib/maps.ts";
 import { mapProjection, SEA_INSET, seaInsetPaths } from "../src/lib/projection.ts";
 import { nationalProvinceColors } from "../src/lib/travel.ts";
 
-export const GEOMETRY_FILE = "internal/share/assets/geometry.json";
+export const GEOMETRY_FILE = "internal/tripmap/share/assets/geometry.json";
 
 // d3 emits "M x,y L x,y ... Z" for polygons; return one point list per ring.
 function rings(path) {

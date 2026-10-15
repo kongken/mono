@@ -19,8 +19,9 @@
 
 ## 后端约定
 
-- Go module 位于根目录，前端保留 `src/`；后端分为 `cmd/` 入口、`internal/app/` 装配、`internal/application/` RPC 服务、存储模块和 Ent schema。
-- 修改 `proto/` 后运行 `make buf`，修改 `internal/ent/schema/` 后运行 `make ent`，将生成的 Go / TypeScript / Ent 文件一起提交；生成文件只通过生成器更新。
+- Go module 位于根目录，前端保留 `src/`。一个仓库承载多个后端服务：`cmd/<服务>/` 为入口，业务代码放在 `internal/<业务>/`（tripmap 的 `app/` 装配、`application/` RPC 服务、存储模块和 Ent schema 都在 `internal/tripmap/`），跨服务共享代码放在 `internal/platform/`。
+- 业务包之间不互相 import，`internal/platform/` 不依赖任何业务包；只被一个业务使用的代码留在该业务目录，出现第二个使用方时再移入 `internal/platform/`。
+- 修改 `proto/` 后运行 `make buf`，修改 `internal/<业务>/ent/schema/` 后运行 `make ent`，将生成的 Go / TypeScript / Ent 文件一起提交；生成文件只通过生成器更新。版本化迁移按业务放在 `migrations/<业务>/`。
 - 私有业务接口先实现认证与用户隔离，当前公共接口仅提供健康状态；城市区域 ID 规则与前端一致。
 - 配置示例使用本地开发值，真实凭据放在忽略的 `config.yaml` 或挂载 Secret 中。
 

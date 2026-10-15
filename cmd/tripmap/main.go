@@ -9,8 +9,8 @@ import (
 
 	"butterfly.orx.me/core"
 	butterflyapp "butterfly.orx.me/core/app"
-	tripmapapp "go.orx.me/apps/trip-map/internal/app"
-	"go.orx.me/apps/trip-map/internal/config"
+	tripmapapp "go.orx.me/apps/trip-map/internal/tripmap/app"
+	"go.orx.me/apps/trip-map/internal/tripmap/config"
 )
 
 func main() {

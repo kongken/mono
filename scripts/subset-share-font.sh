@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Rebuilds the font subset embedded for the share preview image
-# (internal/share/assets/NotoSansSC-*.subset.otf).
+# (internal/tripmap/share/assets/NotoSansSC-*.subset.otf).
 #
 # Needs Python with fontTools (pip install fonttools) and network access to the
 # official Noto CJK repository. Keep CHARS in sync with the fixed texts in
-# internal/share/og.go; TestFontCoversEveryRenderedCharacter fails when a glyph is missing.
+# internal/tripmap/share/og.go; TestFontCoversEveryRenderedCharacter fails when a glyph is missing.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 work=$(mktemp -d)
@@ -19,6 +19,6 @@ PY
 for weight in Regular Bold; do
   curl -fsSL -o "$work/$weight.otf" "https://github.com/notofonts/noto-cjk/raw/main/Sans/SubsetOTF/SC/NotoSansSC-$weight.otf"
   python3 -m fontTools.subset "$work/$weight.otf" --text-file="$work/chars.txt" \
-    --output-file="internal/share/assets/NotoSansSC-$weight.subset.otf" \
+    --output-file="internal/tripmap/share/assets/NotoSansSC-$weight.subset.otf" \
     --layout-features='' --no-hinting --desubroutinize --name-IDs='*' --notdef-outline
 done
