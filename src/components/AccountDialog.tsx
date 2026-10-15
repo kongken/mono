@@ -6,6 +6,7 @@ import {
   GithubLogo,
   GoogleLogo,
   ShareNetwork,
+  ShieldCheck,
   SignOut,
   UserCircle,
   Users,
@@ -46,6 +47,8 @@ const providerIcon = (name: string) =>
     <GithubLogo size={17} />
   ) : name === "google" ? (
     <GoogleLogo size={17} />
+  ) : name === "logto" ? (
+    <ShieldCheck size={17} />
   ) : null;
 
 export default function AccountDialog({

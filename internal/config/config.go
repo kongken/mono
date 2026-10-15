@@ -118,6 +118,9 @@ type AuthConfig struct {
 // ClientID and ClientSecret are set. RedirectURL must be the frontend callback
 // page registered with the OAuth app.
 type OAuthProvider struct {
+	// IssuerURL is the OIDC issuer (for Logto, https://<domain>/oidc). Required
+	// by the "logto" provider, whose endpoints are derived from it.
+	IssuerURL    string   `yaml:"issuer_url"`
 	ClientID     string   `yaml:"client_id"`
 	ClientSecret string   `yaml:"client_secret"`
 	RedirectURL  string   `yaml:"redirect_url"`
@@ -152,6 +155,17 @@ func (c *AppConfig) Validate() error {
 	for name, p := range c.Auth.OAuthProviders {
 		if p.Enabled() && p.RedirectURL == "" {
 			return fmt.Errorf("auth.oauth_providers.%s.redirect_url is required", name)
+		}
+		if name == "logto" && p.Enabled() {
+			if p.IssuerURL == "" {
+				return fmt.Errorf("auth.oauth_providers.logto.issuer_url is required")
+			}
+			if err := shareURL("auth.oauth_providers.logto.issuer_url", p.IssuerURL, true); err != nil {
+				return err
+			}
+			if u, err := url.Parse(p.RedirectURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Fragment != "" || strings.Contains(p.RedirectURL, "#") {
+				return fmt.Errorf("auth.oauth_providers.logto.redirect_url: %q must be an http(s) URL without fragment", p.RedirectURL)
+			}
 		}
 	}
 	return nil
