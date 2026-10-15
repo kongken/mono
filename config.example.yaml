@@ -31,6 +31,14 @@ auth:
       client_id: ""
       client_secret: ""
       redirect_url: http://localhost:5173/auth/callback/google
+    # Logto (OIDC + PKCE). issuer_url is the tenant's OIDC endpoint, ending in /oidc;
+    # create a "Traditional web" application in the Logto console and register redirect_url.
+    logto:
+      issuer_url: ""
+      client_id: ""
+      client_secret: ""
+      redirect_url: http://localhost:5173/auth/callback/logto
+      # display_name: Logto
 
 # Public share page (F6). Sharing is off while public_base_url is empty.
 # share:

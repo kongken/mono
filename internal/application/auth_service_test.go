@@ -2,7 +2,11 @@ package application_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -253,4 +257,171 @@ func TestOAuthRespectsClosedRegistration(t *testing.T) {
 	if n, _ := e.store.DB.User.Query().Count(ctx); n != 0 {
 		t.Fatalf("closed registration created %d users", n)
 	}
+}
+
+// fakeLogto is an OIDC server that enforces PKCE the way Logto does: a code
+// is only redeemable with the verifier whose S256 challenge was presented on
+// the authorization request.
+type fakeLogto struct {
+	mu         sync.Mutex
+	challenges map[string]string // code -> challenge registered by the test
+	sub        string
+	tokenCalls int
+}
+
+func newFakeLogto(t *testing.T, sub string) (*fakeLogto, string) {
+	t.Helper()
+	f := &fakeLogto{challenges: map[string]string{}, sub: sub}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/oidc/token", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.tokenCalls++
+		_ = r.ParseForm()
+		w.Header().Set("Content-Type", "application/json")
+		challenge, ok := f.challenges[r.PostForm.Get("code")]
+		if !ok || provider.PKCEChallenge(r.PostForm.Get("code_verifier")) != challenge {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"PKCE verification failed"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"access_token":"logto-access","token_type":"Bearer"}`))
+	})
+	mux.HandleFunc("/oidc/me", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer logto-access" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"sub":"` + f.sub + `","name":"Logto 旅行者","username":"logto_user","picture":"https://cdn.example/l.png"}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return f, srv.URL + "/oidc"
+}
+
+// authorize registers the challenge from authorizeURL under code, as Logto
+// would when it issues a code for that authorization request.
+func (f *fakeLogto) authorize(t *testing.T, authorizeURL, code string) {
+	t.Helper()
+	u, err := url.Parse(authorizeURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.challenges[code] = u.Query().Get("code_challenge")
+}
+
+func TestLogtoOAuthFlowUsesPKCE(t *testing.T) {
+	logto, issuer := newFakeLogto(t, "logto-sub-1")
+	e, ctx := newEnv(t, func(c *config.AppConfig) {
+		c.Auth.OAuthProviders = map[string]config.OAuthProvider{"logto": {
+			IssuerURL: issuer, ClientID: "app", ClientSecret: "secret",
+			RedirectURL: "http://localhost:5173/auth/callback/logto", DisplayName: "统一登录",
+		}}
+	}), context.Background()
+
+	list, err := e.auth.ListOAuthProviders(ctx, connect.NewRequest(&tripmapv1.ListOAuthProvidersRequest{}))
+	if err != nil || len(list.Msg.Providers) != 1 || list.Msg.Providers[0].Name != "logto" || list.Msg.Providers[0].DisplayName != "统一登录" {
+		t.Fatalf("providers: %v %v", list, err)
+	}
+	begin := func() *tripmapv1.BeginOAuthFlowResponse {
+		res, err := e.auth.BeginOAuthFlow(ctx, connect.NewRequest(&tripmapv1.BeginOAuthFlowRequest{Provider: "logto"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg
+	}
+	complete := func(code, state string) (*tripmapv1.CompleteOAuthFlowResponse, error) {
+		res, err := e.auth.CompleteOAuthFlow(ctx, connect.NewRequest(&tripmapv1.CompleteOAuthFlowRequest{Provider: "logto", Code: code, State: state}))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg, nil
+	}
+
+	first := begin()
+	u, err := url.Parse(first.AuthorizeUrl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := u.Query()
+	if u.Path != "/oidc/auth" || q.Get("code_challenge_method") != "S256" || len(q.Get("code_challenge")) != 43 || q.Get("state") != first.State {
+		t.Fatalf("authorize URL lacks PKCE parameters: %s", first.AuthorizeUrl)
+	}
+	if strings.Contains(first.AuthorizeUrl, "verifier") || strings.Contains(first.AuthorizeUrl, "secret") {
+		t.Fatalf("authorize URL leaks a secret: %s", first.AuthorizeUrl)
+	}
+	// Every authorization attempt gets its own challenge.
+	if other, _ := url.Parse(begin().AuthorizeUrl); other.Query().Get("code_challenge") == q.Get("code_challenge") {
+		t.Fatal("PKCE challenge reused across attempts")
+	}
+
+	// A code issued for a different authorization request fails PKCE at Logto.
+	logto.authorize(t, "https://logto.example/oidc/auth?code_challenge=someone-elses-challenge", "stolen-code")
+	_, err = complete("stolen-code", first.State)
+	wantCode(t, err, connect.CodeUnauthenticated)
+	if n, _ := e.store.DB.User.Query().Count(ctx); n != 0 {
+		t.Fatalf("failed sign-in created %d users", n)
+	}
+
+	// The state is consumed even when the exchange fails, so retry from the start.
+	state := begin()
+	logto.authorize(t, state.AuthorizeUrl, "good-code")
+	signedIn, err := complete("good-code", state.State)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if signedIn.User.DisplayName != "Logto 旅行者" || signedIn.User.Username != "" {
+		t.Fatalf("unexpected user: %v", signedIn.User)
+	}
+	created, err := e.store.DB.User.Query().Where(user.Provider("logto"), user.ExternalID("logto-sub-1")).Only(ctx)
+	if err != nil || created.ID != signedIn.User.Id {
+		t.Fatalf("account for (logto, sub): %v %v", created, err)
+	}
+	// Single use: replaying the state never reaches Logto again.
+	calls := logto.tokenCalls
+	_, err = complete("good-code", state.State)
+	wantCode(t, err, connect.CodePermissionDenied)
+	if logto.tokenCalls != calls {
+		t.Fatal("replayed state reached the token endpoint")
+	}
+
+	// A second sign-in reaches the same account with a distinct session.
+	again := begin()
+	logto.authorize(t, again.AuthorizeUrl, "second-code")
+	second, err := complete("second-code", again.State)
+	if err != nil || second.User.Id != signedIn.User.Id || second.Token == signedIn.Token {
+		t.Fatalf("second sign-in: %v %v", second, err)
+	}
+
+	// The session works for synced data and account management.
+	if _, err = e.foot.GetFootprints(ctx, bearer(signedIn.Token, &tripmapv1.GetFootprintsRequest{})); err != nil {
+		t.Fatal(err)
+	}
+	sessions, err := e.auth.ListSessions(ctx, bearer(signedIn.Token, &tripmapv1.ListSessionsRequest{}))
+	if err != nil || len(sessions.Msg.Sessions) != 2 {
+		t.Fatalf("sessions: %v %v", sessions, err)
+	}
+	// A recent Logto session satisfies the re-authentication check for deletion.
+	if _, err = e.auth.DeleteAccount(ctx, bearer(second.Token, &tripmapv1.DeleteAccountRequest{Confirmation: "DELETE"})); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLogtoStateCannotBeUsedForAnotherProvider(t *testing.T) {
+	_, issuer := newFakeLogto(t, "sub")
+	e, ctx := newEnv(t, func(c *config.AppConfig) {
+		c.Auth.OAuthProviders = map[string]config.OAuthProvider{"logto": {IssuerURL: issuer, ClientID: "app", ClientSecret: "secret", RedirectURL: "http://localhost:5173/auth/callback/logto"}}
+	}), context.Background()
+	reg := provider.BuildRegistry(e.cfg.Auth)
+	reg.Register(&fakeProvider{name: "fake", claims: &provider.Claims{ExternalID: "9"}})
+	e.svc.SetProviders(reg)
+	begin, err := e.auth.BeginOAuthFlow(ctx, connect.NewRequest(&tripmapv1.BeginOAuthFlowRequest{Provider: "logto"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = e.auth.CompleteOAuthFlow(ctx, connect.NewRequest(&tripmapv1.CompleteOAuthFlowRequest{Provider: "fake", Code: "good-code", State: begin.Msg.State}))
+	wantCode(t, err, connect.CodePermissionDenied)
 }

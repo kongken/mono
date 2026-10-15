@@ -51,6 +51,54 @@ func TestAuthConfigValidation(t *testing.T) {
 	}
 }
 
+func TestLogtoConfigValidation(t *testing.T) {
+	base := func() *AppConfig {
+		return &AppConfig{DBStore: "main", RedisStore: "main", Storage: StorageConfig{S3Store: "main"}}
+	}
+	logto := func(mutate func(*OAuthProvider)) *AppConfig {
+		p := OAuthProvider{
+			IssuerURL: "https://auth.example.com/oidc", ClientID: "app", ClientSecret: "secret",
+			RedirectURL: "https://trip.example.com/auth/callback/logto",
+		}
+		if mutate != nil {
+			mutate(&p)
+		}
+		cfg := base()
+		cfg.Auth.OAuthProviders = map[string]OAuthProvider{"logto": p}
+		return cfg
+	}
+	if err := logto(nil).Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := logto(func(p *OAuthProvider) { p.IssuerURL = "http://localhost:3001/oidc" }).Validate(); err != nil {
+		t.Fatalf("local http issuer: %v", err)
+	}
+	// An unconfigured logto entry is ignored like any other provider.
+	cfg := base()
+	cfg.Auth.OAuthProviders = map[string]OAuthProvider{"logto": {}}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for name, mutate := range map[string]func(*OAuthProvider){
+		"missing issuer":      func(p *OAuthProvider) { p.IssuerURL = "" },
+		"relative issuer":     func(p *OAuthProvider) { p.IssuerURL = "/oidc" },
+		"ftp issuer":          func(p *OAuthProvider) { p.IssuerURL = "ftp://auth.example.com/oidc" },
+		"issuer no host":      func(p *OAuthProvider) { p.IssuerURL = "https:///oidc" },
+		"issuer credentials":  func(p *OAuthProvider) { p.IssuerURL = "https://u:p@auth.example.com/oidc" },
+		"issuer query":        func(p *OAuthProvider) { p.IssuerURL = "https://auth.example.com/oidc?x=1" },
+		"issuer fragment":     func(p *OAuthProvider) { p.IssuerURL = "https://auth.example.com/oidc#x" },
+		"missing redirect":    func(p *OAuthProvider) { p.RedirectURL = "" },
+		"relative redirect":   func(p *OAuthProvider) { p.RedirectURL = "/auth/callback/logto" },
+		"redirect fragment":   func(p *OAuthProvider) { p.RedirectURL = "https://trip.example.com/cb#x" },
+		"redirect no host":    func(p *OAuthProvider) { p.RedirectURL = "https:///cb" },
+		"redirect javascript": func(p *OAuthProvider) { p.RedirectURL = "javascript:alert(1)" },
+	} {
+		if logto(mutate).Validate() == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}
+
 func TestExampleConfigParses(t *testing.T) {
 	raw, err := os.ReadFile("../../config.example.yaml")
 	if err != nil {
@@ -66,7 +114,7 @@ func TestExampleConfigParses(t *testing.T) {
 	if cfg.SessionLifetime() != 168*time.Hour || cfg.Auth.RegistrationDisabled {
 		t.Fatalf("unexpected auth defaults: %+v", cfg.Auth)
 	}
-	if len(cfg.Auth.OAuthProviders) != 2 || cfg.Auth.OAuthProviders["github"].Enabled() {
+	if len(cfg.Auth.OAuthProviders) != 3 || cfg.Auth.OAuthProviders["github"].Enabled() || cfg.Auth.OAuthProviders["logto"].Enabled() {
 		t.Fatalf("example OAuth providers should be listed but disabled: %+v", cfg.Auth.OAuthProviders)
 	}
 }

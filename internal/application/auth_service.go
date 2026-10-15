@@ -336,12 +336,26 @@ func (s *AuthService) BeginOAuthFlow(ctx context.Context, req *connect.Request[t
 	if err = s.allow(ctx, st, "oauth:ip:"+s.clientIP(req), oauthPerIP, oauthWindow); err != nil {
 		return nil, err
 	}
-	state, err := auth.NewStateStore(st.Redis, st.prefix()).Create(ctx, p.Name())
+	pk, usesPKCE := p.(provider.PKCEProvider)
+	var verifier, challenge string
+	if usesPKCE {
+		if verifier, challenge, err = provider.NewPKCE(); err != nil {
+			slog.Error("create pkce verifier", "error", err)
+			return nil, internalError(err)
+		}
+	}
+	state, err := auth.NewStateStore(st.Redis, st.prefix()).Create(ctx, p.Name(), verifier)
 	if err != nil {
 		slog.Error("create oauth state", "error", err)
 		return nil, internalError(err)
 	}
-	return connect.NewResponse(&tripmapv1.BeginOAuthFlowResponse{AuthorizeUrl: p.AuthorizeURL(state), State: state}), nil
+	authorizeURL := ""
+	if usesPKCE {
+		authorizeURL = pk.AuthorizePKCEURL(state, challenge)
+	} else {
+		authorizeURL = p.AuthorizeURL(state)
+	}
+	return connect.NewResponse(&tripmapv1.BeginOAuthFlowResponse{AuthorizeUrl: authorizeURL, State: state}), nil
 }
 
 func (s *AuthService) CompleteOAuthFlow(ctx context.Context, req *connect.Request[tripmapv1.CompleteOAuthFlowRequest]) (*connect.Response[tripmapv1.CompleteOAuthFlowResponse], error) {
@@ -356,8 +370,8 @@ func (s *AuthService) CompleteOAuthFlow(ctx context.Context, req *connect.Reques
 	if err = s.allow(ctx, st, "oauth:ip:"+s.clientIP(req), oauthPerIP, oauthWindow); err != nil {
 		return nil, err
 	}
-	stateProvider, err := auth.NewStateStore(st.Redis, st.prefix()).Consume(ctx, state)
-	if errors.Is(err, auth.ErrStateNotFound) || (err == nil && stateProvider != name) {
+	attempt, err := auth.NewStateStore(st.Redis, st.prefix()).Consume(ctx, state)
+	if errors.Is(err, auth.ErrStateNotFound) || (err == nil && attempt.Provider != name) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("invalid or expired state"))
 	}
 	if err != nil {
@@ -368,7 +382,12 @@ func (s *AuthService) CompleteOAuthFlow(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("unknown oauth provider"))
 	}
-	claims, err := p.Exchange(ctx, code)
+	var claims *provider.Claims
+	if pk, ok := p.(provider.PKCEProvider); ok {
+		claims, err = pk.ExchangePKCE(ctx, code, attempt.CodeVerifier)
+	} else {
+		claims, err = p.Exchange(ctx, code)
+	}
 	if err != nil || claims == nil || claims.ExternalID == "" {
 		slog.Warn("oauth exchange failed", "provider", name, "error", err)
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("oauth sign-in failed"))
