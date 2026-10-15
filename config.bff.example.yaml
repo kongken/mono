@@ -1,0 +1,19 @@
+# Local-only sample for the BFF, the public entry in front of every business service.
+# Copy to ignored config.bff.yaml. Butterfly reads literal YAML; ${VAR} is not expanded.
+log:
+  level: info
+  format: text
+  add_source: false
+
+# Internal base URL of every service in the route table (internal/bff/gateway/services.go).
+# Services listen on the internal network only; make dev runs tripmap on 18082.
+upstreams:
+  tripmap: http://127.0.0.1:18082
+
+# Only behind a trusted reverse proxy that sets this header, for example X-Real-IP
+# from the front image's Nginx or CF-Connecting-IP. The BFF passes the address on
+# to the services as X-Real-IP, overwriting whatever the client sent.
+# client_ip_header: X-Real-IP
+
+# Exact browser origins allowed to call the API from another site.
+# cors_allowed_origins: ["http://localhost:5173"]

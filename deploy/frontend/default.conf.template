@@ -4,7 +4,8 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # Resolve the backend at request time, so the static site can start independently.
+    # BACKEND_UPSTREAM is the BFF, the entry in front of the business services. It is
+    # resolved at request time, so the static site can start independently.
     resolver 127.0.0.11 valid=10s;
     set $backend_upstream "${BACKEND_UPSTREAM}";
 

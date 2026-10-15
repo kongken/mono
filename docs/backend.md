@@ -10,10 +10,11 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 
 ## 项目结构
 
-仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前只有 tripmap 一个业务；业务包之间不互相 import，`internal/platform/` 不依赖业务包。
+仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前只有 tripmap 一个业务；业务包之间不互相 import，`internal/platform/` 不依赖业务包。公网请求经 BFF（`cmd/bff`）转发到业务服务，见 [BFF（公网入口）](bff.md)。
 
 | 路径 | 职责 |
 | --- | --- |
+| `cmd/bff/`、`internal/bff/` | BFF：公网入口，按路由表转发到业务服务，统一处理跨域、客户端地址与追踪脱敏（[说明](bff.md)） |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由 |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
@@ -34,6 +35,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `cmd/storage-init/` | 显式初始化配置中指定的 S3 bucket |
 | `internal/tripmap/integration/` | 可选的实际 PostgreSQL、Redis、S3 集成测试 |
 | `internal/platform/health/` | 跨服务共享：有超时的依赖就绪检查 |
+| `internal/platform/httpx/` | 跨服务共享：客户端地址、跨域应答、来源校验与追踪脱敏 |
 
 ## 媒体接口（F4，`tripmap.v1.MediaService`）
 
@@ -84,10 +86,13 @@ CI 增加真实 S3 签名 PUT→校验/缩略图→私有读取→删除链路�
 
 ```bash
 cp config.example.yaml config.yaml
+cp config.bff.example.yaml config.bff.yaml
 make deps-up
 make storage-init
 make dev
 ```
+
+`make dev` 同时启动 BFF 和 tripmap；也可分别运行 `make dev-bff` 与 `make dev-tripmap`。
 
 另开终端启动前端：
 
@@ -96,7 +101,7 @@ npm install
 npm run dev
 ```
 
-联调后端时在 `.env.local` 设置 `VITE_API_BASE_URL=/api` 并重启 Vite；不设置则前端保持纯本地模式。开发代理默认转发到 `http://127.0.0.1:18081`，后端在其他端口时用环境变量 `TRIPMAP_DEV_BACKEND=http://127.0.0.1:端口` 启动 Vite。OAuth 登录需要在提供方登记的回调地址与 `config.yaml` 的 `redirect_url` 一致，形如 `http://localhost:5173/auth/callback/github`，该路径由前端页面处理（Vite 开发服务器与前端镜像的 Nginx 都回退到 `index.html`）。
+联调后端时在 `.env.local` 设置 `VITE_API_BASE_URL=/api` 并重启 Vite；不设置则前端保持纯本地模式。开发代理默认转发到 BFF `http://127.0.0.1:18081`，BFF 在其他端口时用环境变量 `TRIPMAP_DEV_BACKEND=http://127.0.0.1:端口` 启动 Vite。OAuth 登录需要在提供方登记的回调地址与 `config.yaml` 的 `redirect_url` 一致，形如 `http://localhost:5173/auth/callback/github`，该路径由前端页面处理（Vite 开发服务器与前端镜像的 Nginx 都回退到 `index.html`）。
 
 Compose 只启动本项目的开发依赖，使用命名卷保存数据。S3 开发实例使用 [RustFS 官方容器](https://docs.rustfs.com/en/installation/container/docker)，提供持久化 S3 兼容接口；生产环境可配置 AWS S3 或其他兼容供应方，服务代码无需更换。
 
@@ -106,14 +111,15 @@ Compose 只启动本项目的开发依赖，使用命名卷保存数据。S3 开
 | Redis | `127.0.0.1:16379` |
 | S3 API | `http://127.0.0.1:19000` |
 | S3 开发控制台 | `http://127.0.0.1:19001` |
-| Go 后端 | `http://127.0.0.1:18081` |
+| BFF（公网入口） | `http://127.0.0.1:18081` |
+| tripmap 服务（仅供 BFF 访问） | `http://127.0.0.1:18082` |
 | Vite 前端 | 启动时输出地址，通常为 `http://localhost:5173` |
 
-端口避开了现有 `neo-box` 开发服务。Vite 代理 `/api`、`/ping` 和 `/readyz` 到 `18081`；若改变后端端口，同时更新代理配置。`make deps-down` 仅停止并移除本项目容器，保留数据卷。
+端口避开了现有 `neo-box` 开发服务。Vite 代理 `/api`、`/ping` 和 `/readyz` 到 BFF 的 `18081`；若改变 BFF 端口，同时更新代理配置。`make deps-down` 仅停止并移除本项目容器，保留数据卷。
 
 ## 配置与启动规则
 
-`config.example.yaml` 提供本地示例凭据。复制后的 `config.yaml` 和 `.env` 已被 Git 忽略，实际部署凭据只放在未跟踪配置或挂载的 Secret 中。
+`config.example.yaml`（tripmap）和 `config.bff.example.yaml`（BFF，见 [BFF 配置](bff.md#配置)）提供本地示例。复制后的 `config.yaml`、`config.bff.yaml` 和 `.env` 已被 Git 忽略，实际部署凭据只放在未跟踪配置或挂载的 Secret 中。
 
 Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CONFIG_TYPE=file` 启用文件模式。与 `neo-box` 一致，YAML 中的 `${VAR}` 不会自动展开。`.env.example` 提供文件模式与端口示例；`make dev` 直接设置这些变量，无需自动加载 `.env`。
 
@@ -123,8 +129,8 @@ Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CON
 - `storage.key_prefix` 设置对象 key 前缀，示例为 `tripmap`。
 - `auth.session_ttl` 会话有效期，默认 `168h`（7 天）。
 - `auth.registration_disabled` 为 `true` 时关闭注册（密码与 OAuth 新账号都被拒绝），默认开放注册。
-- `auth.client_ip_header` 指向可信反向代理写入的客户端地址头（如 `CF-Connecting-IP`），用于登录限流；不设置则使用 TCP 对端地址。直接暴露在公网时不要设置，否则客户端可伪造该头绕过限流。
-- `auth.cors_allowed_origins` 允许跨站调用 API 的浏览器来源（精确匹配，如 `https://trip.example.com`，不支持通配符）。同源部署（前端镜像的 Nginx 转发 `/api`）无需配置。
+- `auth.client_ip_header` 指向可信反向代理写入的客户端地址头，用于登录与分享限流；不设置则使用 TCP 对端地址。位于 BFF 之后设为 `X-Real-IP`（BFF 总是覆盖写入该头，示例配置已设置）。直接暴露在公网时不要设置，否则客户端可伪造该头绕过限流。
+- `auth.cors_allowed_origins` 允许跨站调用 API 的浏览器来源（精确匹配，如 `https://trip.example.com`，不支持通配符）。同源部署（前端镜像的 Nginx 转发 `/api`）无需配置。位于 BFF 之后改在 BFF 的 `cors_allowed_origins` 配置，BFF 会去掉 tripmap 返回的跨域头。
 - `auth.oauth_providers.<github|google|logto>` 配置 `client_id`、`client_secret`、`redirect_url`（OAuth 应用登记的前端回调页）、可选 `scopes` 与 `display_name`；缺少 `client_id` 或 `client_secret` 的提供方不会出现在 `ListOAuthProviders` 中（`logto` 缺少 `issuer_url` 或 `redirect_url` 时同样不出现）。`logto` 另需 `issuer_url`（Logto 租户的 OIDC 地址，形如 `https://<域名>/oidc`，须为不含账号、查询和片段的 http(s) 地址；`redirect_url` 也须为不含片段的 http(s) 地址），授权、令牌和用户信息端点按 `<issuer_url>/auth`、`/token`、`/me` 推导，默认 scope 为 `openid profile email`。Logto 控制台中创建“传统网页应用”，登记的回调地址与 `redirect_url` 一致；服务启动时若 `logto` 已配置但缺少或写错 `issuer_url` 会拒绝启动。
 - `share.public_base_url` 开启公开分享（为空即关闭）；`share.app_index_url`、`share.html_csp` 与限流项见下文 F6 一节。
 - `auto_migrate: true` 在启动时通过 Ent 创建或补充表结构。本地示例开启；生产环境应设为 `false`，改由下文“版本化数据库迁移”中评审过的 SQL 文件升级，再启动新版本后端。
@@ -135,6 +141,8 @@ S3 兼容服务可设置 endpoint 和 `use_path_style: true`；AWS S3 可省略 
 
 ## 已实现接口
 
+下表是 tripmap 服务自身的接口。经 BFF（`18081`）访问时，`/api/` 下的接口原样转发，`/ping` 与 `/readyz` 由 BFF 应答：`/readyz` 汇总各业务服务的就绪状态，见 [BFF 健康检查](bff.md#健康检查)。
+
 | 接口 | 行为 |
 | --- | --- |
 | `GET /ping` | 存活检查，返回 `{"message":"pong"}` |
@@ -144,8 +152,9 @@ S3 兼容服务可设置 endpoint 和 `use_path_style: true`；AWS S3 可省略 
 就绪检查对每个依赖设置 2 秒超时并发执行，只返回状态，不返回原始驱动错误、连接字符串或凭据。RPC 请求成功时 HTTP 状态表示 RPC 调用结果，依赖可用性应读取响应中的 `ready`；运维探针使用 `/readyz`。
 
 ```bash
-curl --fail http://127.0.0.1:18081/ping
-curl --fail http://127.0.0.1:18081/readyz
+curl --fail http://127.0.0.1:18082/ping
+curl --fail http://127.0.0.1:18082/readyz
+# 经 BFF 转发
 curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
   -H 'Content-Type: application/json' \
   -H 'Connect-Protocol-Version: 1' \
@@ -245,7 +254,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 | `share.html_csp` | 覆盖分享 HTML 的 CSP，默认严格同源；Vite 开发服务器需要放宽 |
 | `share.page_rate_per_minute` / `image_…` / `miss_…` / `photo_…` | 每客户端地址每分钟限额，默认 120 / 30 / 30 / 300 |
 
-**部署顺序与反向代理。** 先应用 `migrations/tripmap/20261014022913_f6_shares.sql`，再部署后端，最后部署前端。代理必须转发 `/s/` 与 `/api/share/` 到后端，且这些路径不写访问日志（令牌）；位于代理之后设置 `auth.client_ip_header`。镜像内的 Nginx 配置已处理；Vite 开发服务器代理 `/s/`。后端镜像构建需要 `internal/` 下的预览资源和 `scripts/fixtures`；前端镜像构建需要 `internal/tripmap/share/assets/geometry.json`（`check:maps` 校验）。后端 `CGO_ENABLED=0` 构建通过。
+**部署顺序与反向代理。** 先应用 `migrations/tripmap/20261014022913_f6_shares.sql`，再部署后端，最后部署前端。代理（BFF 与前端 Nginx）必须转发 `/s/` 与 `/api/share/` 到后端，且这些路径不写访问日志（令牌）；位于代理之后设置 `auth.client_ip_header`。镜像内的 Nginx 配置已处理；Vite 开发服务器代理 `/s/`。后端镜像构建需要 `internal/` 下的预览资源和 `scripts/fixtures`；前端镜像构建需要 `internal/tripmap/share/assets/geometry.json`（`check:maps` 校验）。后端 `CGO_ENABLED=0` 构建通过。
 
 **生成。** 修改 `proto/` 后 `make buf`，修改 `internal/tripmap/ent/schema/` 后 `make ent`，迁移文件用 `make migration NAME=… DEV_DSN=…` 生成；生成文件不手改。
 

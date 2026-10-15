@@ -16,9 +16,11 @@ storage:
 auth:
   session_ttl: 168h
   # registration_disabled: true
-  # Only behind a trusted reverse proxy that sets this header.
-  # client_ip_header: CF-Connecting-IP
-  # Exact browser origins allowed to call the API from another site.
+  # tripmap runs behind the BFF, which always sets X-Real-IP to the client address.
+  # Leave it empty only when clients reach tripmap directly.
+  client_ip_header: X-Real-IP
+  # Exact browser origins allowed to call the API from another site. Behind the BFF
+  # set cors_allowed_origins in config.bff.yaml instead; the BFF drops tripmap's CORS headers.
   # cors_allowed_origins: ["http://localhost:5173"]
   # OAuth sign-in; a provider is offered only when client_id and client_secret are set.
   # redirect_url must be the frontend callback page registered with the OAuth app.

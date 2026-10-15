@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"go.orx.me/apps/trip-map/internal/platform/httpx"
 )
 
 // AppConfig shares the YAML file with Butterfly's store.db/redis/s3 definitions.
@@ -140,11 +142,8 @@ func (c *AppConfig) Validate() error {
 	if c.Auth.SessionTTL < 0 {
 		return fmt.Errorf("auth.session_ttl must not be negative")
 	}
-	for _, origin := range c.Auth.CORSAllowedOrigins {
-		u, err := url.Parse(origin)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Path != "" || strings.HasSuffix(origin, "/") {
-			return fmt.Errorf("auth.cors_allowed_origins: %q must be an origin like https://example.com", origin)
-		}
+	if err := httpx.CheckOrigins("auth.cors_allowed_origins", c.Auth.CORSAllowedOrigins); err != nil {
+		return err
 	}
 	if err := c.Share.validate(); err != nil {
 		return err

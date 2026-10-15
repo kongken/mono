@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"connectrpc.com/connect"
+	"go.orx.me/apps/trip-map/internal/platform/httpx"
 	"go.orx.me/apps/trip-map/internal/tripmap/auth"
 	"go.orx.me/apps/trip-map/internal/tripmap/auth/provider"
 	"go.orx.me/apps/trip-map/internal/tripmap/config"
@@ -83,7 +84,7 @@ func burnPassword(password string) {
 }
 
 func (s *AuthService) clientIP(req connect.AnyRequest) string {
-	return auth.ClientAddr(s.cfg.Auth.ClientIPHeader, req.Header(), req.Peer().Addr)
+	return httpx.ClientAddr(s.cfg.Auth.ClientIPHeader, req.Header(), req.Peer().Addr)
 }
 
 func (s *AuthService) allow(ctx context.Context, st *Store, key string, limit int64, window time.Duration) error {

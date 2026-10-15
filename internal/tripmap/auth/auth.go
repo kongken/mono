@@ -8,9 +8,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"net"
-	"net/http"
-	"strings"
 )
 
 // Principal identifies the authenticated caller of a request.
@@ -46,20 +43,4 @@ func NewToken() (token, hash string, err error) {
 func HashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
-}
-
-// ClientAddr returns the caller's address for rate limiting: the first entry of
-// headerName when one is configured and present (a trusted reverse proxy sets
-// it), otherwise the TCP peer address.
-func ClientAddr(headerName string, h http.Header, remoteAddr string) string {
-	if headerName != "" {
-		if v := strings.TrimSpace(strings.Split(h.Get(headerName), ",")[0]); v != "" {
-			return v
-		}
-	}
-	host, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		return remoteAddr
-	}
-	return host
 }

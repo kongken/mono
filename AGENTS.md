@@ -20,7 +20,8 @@
 ## 后端约定
 
 - Go module 位于根目录，前端保留 `src/`。一个仓库承载多个后端服务：`cmd/<服务>/` 为入口，业务代码放在 `internal/<业务>/`（tripmap 的 `app/` 装配、`application/` RPC 服务、存储模块和 Ent schema 都在 `internal/tripmap/`），跨服务共享代码放在 `internal/platform/`。
-- 业务包之间不互相 import，`internal/platform/` 不依赖任何业务包；只被一个业务使用的代码留在该业务目录，出现第二个使用方时再移入 `internal/platform/`。
+- 业务包之间不互相 import，`internal/platform/` 不依赖任何业务包；只被一个业务使用的代码留在该业务目录，出现第二个使用方时再移入 `internal/platform/`。各服务镜像只复制本服务与 `internal/platform`，越界 import 会使镜像构建失败。
+- BFF（`cmd/bff`、`internal/bff/`）是唯一公网入口，统一处理跨域、客户端地址（覆盖写入 `X-Real-IP`）和追踪脱敏；业务服务只在内网监听，提供 `/ping` 与 `/readyz`。新增业务或公开路径时在 `internal/bff/gateway/services.go` 登记 proto 包、HTTP 路径和浏览器请求头，携带凭据的路径填写 `Trace`，并在 BFF 配置的 `upstreams` 中增加地址。
 - 修改 `proto/` 后运行 `make buf`，修改 `internal/<业务>/ent/schema/` 后运行 `make ent`，将生成的 Go / TypeScript / Ent 文件一起提交；生成文件只通过生成器更新。版本化迁移按业务放在 `migrations/<业务>/`。
 - 私有业务接口先实现认证与用户隔离，当前公共接口仅提供健康状态；城市区域 ID 规则与前端一致。
 - 配置示例使用本地开发值，真实凭据放在忽略的 `config.yaml` 或挂载 Secret 中。
@@ -29,7 +30,7 @@
 
 - 新增、调整或删除用户可见行为时，在同一次变更中更新 `docs/features.md` 的对应功能规则和验收场景。
 - 更改数据字段、版本、备份校验、地图来源或区域映射时，同步更新 `docs/data-and-maps.md`。
-- 后端配置、模型或接口改变时同步更新 `docs/backend.md`；业务功能实际实现后更新功能描述及调研状态。
+- 后端配置、模型或接口改变时同步更新 `docs/backend.md`，BFF 路由、配置或部署拓扑改变时同步更新 `docs/bff.md`；业务功能实际实现后更新功能描述及调研状态。
 - 新建专题文档后，在 `docs/README.md` 增加入口；启动或常用命令改变时，更新根目录 `README.md`。
 - 文档区分“当前已实现”与“当前限制”。尚未实现的想法如需记录，单独标明待实现，避免写成现有功能。
 - 详细功能规则以 `docs` 为主，根目录 `README.md` 保留项目简介、运行方式和文档入口，减少重复维护。

@@ -2,15 +2,18 @@ FROM golang:1.26 AS build
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
-COPY cmd cmd
-COPY internal internal
+# tripmap and the shared platform code only: the build fails if tripmap ever
+# imports another service.
+COPY cmd/tripmap cmd/tripmap
+COPY internal/tripmap internal/tripmap
+COPY internal/platform internal/platform
 COPY pkg pkg
 # The region index and city coordinate tests check the backend copies against the frontend ones.
 COPY src/regions.json src/regions.json
 COPY src/city-coords.json src/city-coords.json
 COPY scripts/fixtures scripts/fixtures
-COPY migrations migrations
-RUN go test ./...
+COPY migrations/tripmap migrations/tripmap
+RUN go test ./internal/... ./cmd/...
 RUN CGO_ENABLED=0 go build -trimpath -o /tripmap ./cmd/tripmap
 
 FROM gcr.io/distroless/static-debian12:nonroot

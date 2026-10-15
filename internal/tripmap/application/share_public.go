@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"go.orx.me/apps/trip-map/internal/platform/httpx"
 	"go.orx.me/apps/trip-map/internal/tripmap/auth"
 	"go.orx.me/apps/trip-map/internal/tripmap/blobstore"
 	"go.orx.me/apps/trip-map/internal/tripmap/config"
@@ -93,7 +94,7 @@ func plain(w http.ResponseWriter, code int, retryAfter bool) {
 // gate applies the per-address budget and the guessing penalty before any lookup.
 // It returns false after writing the response. A Redis failure closes the route.
 func (p *SharePublic) gate(w http.ResponseWriter, r *http.Request, st *Store, bucket string, limit int64) bool {
-	ip := auth.ClientAddr(p.cfg.Auth.ClientIPHeader, r.Header, r.RemoteAddr)
+	ip := httpx.ClientAddr(p.cfg.Auth.ClientIPHeader, r.Header, r.RemoteAddr)
 	limiter := auth.NewLimiter(st.Redis, st.prefix())
 	misses, err := limiter.Count(r.Context(), "share-miss:"+ip)
 	if err != nil {
@@ -120,7 +121,7 @@ func (p *SharePublic) gate(w http.ResponseWriter, r *http.Request, st *Store, bu
 
 // miss records a failed lookup against the client address and answers 404.
 func (p *SharePublic) miss(w http.ResponseWriter, r *http.Request, st *Store) {
-	ip := auth.ClientAddr(p.cfg.Auth.ClientIPHeader, r.Header, r.RemoteAddr)
+	ip := httpx.ClientAddr(p.cfg.Auth.ClientIPHeader, r.Header, r.RemoteAddr)
 	if _, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(r.Context(), "share-miss:"+ip, 1<<30, shareRateWindow); err != nil {
 		slog.Error("share rate limiter unavailable", "error", err)
 		plain(w, http.StatusServiceUnavailable, false)

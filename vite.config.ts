@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 
-// Dev-server proxy target; override when the backend listens elsewhere.
+// Dev-server proxy target, the BFF (make dev); override when it listens elsewhere.
 const backend = process.env.TRIPMAP_DEV_BACKEND ?? "http://127.0.0.1:18081";
 
 const proxy = {

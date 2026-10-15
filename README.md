@@ -23,12 +23,15 @@ npm run preview
 
 ```bash
 cp config.example.yaml config.yaml
+cp config.bff.example.yaml config.bff.yaml
 make deps-up
 make storage-init
 make dev
 ```
 
 生产环境关闭 `auto_migrate`，用 `migrations/tripmap/` 里评审过的 SQL 升级数据库；修改 Ent schema 后用 `make ent` 与 `make migration NAME=… DEV_DSN=…` 生成（顺序与验证见 [后端初始化说明](docs/backend.md#版本化数据库迁移)）。
+
+`make dev` 同时启动公网入口 BFF（18081）和 tripmap 服务（18082），架构见 [BFF（公网入口）](docs/bff.md)。
 
 前端无需后端即可独立运行；仅当构建时设置 `VITE_API_BASE_URL`（如 `/api`）才会连接后端，详见 [后端初始化说明](docs/backend.md)。配置、端口、数据库模型和验证方式也见该文档。未登录时足迹保存在浏览器本地；配置后端后可选登录（密码、GitHub、Google），足迹保存到云端并多设备同步。分享页默认关闭：后端配置 `share.public_base_url` 后才可用，开发时 Vite 开发服务器会把 `/s/` 代理到后端（见 `config.example.yaml`）。
 
@@ -59,7 +62,7 @@ shadcn 组件通过官方 CLI 添加，源文件在 `src/components/ui/`；地�
 
 ## Docker 镜像
 
-GitHub Actions 分别构建并发布 `ghcr.io/kongken/trip-map`（后端）和 `ghcr.io/kongken/trip-map-front`（前端）。main 分支使用 `main` 标签，版本 tag 发布对应版本；PR 仅构建。详情见 [Docker 镜像与 Actions](docs/docker-images.md)。
+GitHub Actions 分别构建并发布 `ghcr.io/kongken/trip-map`（tripmap 后端）、`ghcr.io/kongken/trip-map-bff`（BFF 公网入口）和 `ghcr.io/kongken/trip-map-front`（前端）。main 分支使用 `main` 标签，版本 tag 发布对应版本；PR 仅构建。详情见 [Docker 镜像与 Actions](docs/docker-images.md)。
 
 ## 项目文档
 
