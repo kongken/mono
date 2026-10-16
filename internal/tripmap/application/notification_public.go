@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"go.orx.me/apps/trip-map/internal/platform/httpx"
 	"go.orx.me/apps/trip-map/internal/tripmap/auth"
 	"go.orx.me/apps/trip-map/internal/tripmap/config"
 	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationsetting"
@@ -89,7 +90,7 @@ func (p *NotificationPublic) Unsubscribe(w http.ResponseWriter, r *http.Request)
 		plain(w, http.StatusServiceUnavailable, false)
 		return
 	}
-	ip := auth.ClientAddr(p.cfg.Auth.ClientIPHeader, r.Header, r.RemoteAddr)
+	ip := httpx.ClientAddr(p.cfg.Auth.ClientIPHeader, r.Header, r.RemoteAddr)
 	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(r.Context(), "unsubscribe:"+ip, unsubscribeRate, time.Minute)
 	if err != nil {
 		slog.Error("unsubscribe rate limiter unavailable", "error", err)

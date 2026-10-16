@@ -26,6 +26,7 @@ dist-ssr
 # Backend local configuration and build output
 .env
 config.yaml
+config.bff.yaml
 bin/
 coverage.out
 

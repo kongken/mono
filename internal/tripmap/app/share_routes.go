@@ -4,8 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
+	"go.orx.me/apps/trip-map/internal/platform/httpx"
 	"go.orx.me/apps/trip-map/internal/tripmap/application"
 )
 
@@ -13,22 +12,9 @@ import (
 // checkers and some crawlers probe without a body.
 var shareMethods = []string{http.MethodGet, http.MethodHead}
 
-// redactShareTrace keeps the token out of tracing: the otel Gin middleware records
-// the raw request path as a span attribute before any handler runs, so the share
-// routes replace it with the route pattern. Access logs are handled elsewhere:
+// The share tokens stay out of tracing (httpx.RedactTrace) and out of access logs:
 // Butterfly discards Gin's request log, and nginx switches access_log off for
 // /s/ and /api/share/.
-func redactShareTrace(pattern string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		span := trace.SpanFromContext(c.Request.Context())
-		span.SetAttributes(
-			attribute.String("url.path", pattern), attribute.String("http.target", pattern),
-			attribute.String("url.full", pattern), attribute.String("http.url", pattern),
-			attribute.String("url.query", ""), attribute.String("http.route", pattern),
-		)
-		c.Next()
-	}
-}
 
 // mountShare registers the public, unauthenticated share routes:
 //
@@ -41,7 +27,7 @@ func redactShareTrace(pattern string) gin.HandlerFunc {
 // /s/ can fall through to a personal map.
 func mountShare(r *gin.Engine, api *gin.RouterGroup, public *application.SharePublic) {
 	r.Match(shareMethods, "/s", func(c *gin.Context) { public.NotFound(c.Writer) })
-	r.Match(shareMethods, "/s/*rest", redactShareTrace("/s/{token}"), func(c *gin.Context) {
+	r.Match(shareMethods, "/s/*rest", httpx.RedactTrace("/s/{token}"), func(c *gin.Context) {
 		token, tail := application.SplitSharePath(c.Param("rest"))
 		switch {
 		case token == "":
@@ -54,7 +40,7 @@ func mountShare(r *gin.Engine, api *gin.RouterGroup, public *application.SharePu
 			public.NotFound(c.Writer)
 		}
 	})
-	api.Match(shareMethods, "/share/*rest", redactShareTrace("/api/share/{token}"), func(c *gin.Context) {
+	api.Match(shareMethods, "/share/*rest", httpx.RedactTrace("/api/share/{token}"), func(c *gin.Context) {
 		token, tail := application.SplitSharePath(c.Param("rest"))
 		switch {
 		case token != "" && len(tail) == 1 && tail[0] == "data":

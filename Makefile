@@ -1,6 +1,7 @@
-.PHONY: build test ent buf dev deps-up deps-down storage-init migration vapid-keys
+.PHONY: build test ent buf dev dev-bff dev-tripmap deps-up deps-down storage-init migration vapid-keys
 
 build:
+	go build -o bin/bff ./cmd/bff
 	go build -o bin/tripmap ./cmd/tripmap
 
 test:
@@ -18,9 +19,16 @@ buf:
 migration:
 	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations/tripmap
 
-# Config is ignored locally, so make dev can safely use it for credentials.
+# Configs are ignored locally, so make dev can safely use them for credentials.
+# The BFF is the entry on 18081 (the Vite proxy target); tripmap listens on 18082 behind it.
 dev:
-	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.yaml PORT=18081 go run ./cmd/tripmap
+	$(MAKE) -j2 dev-bff dev-tripmap
+
+dev-bff:
+	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.bff.yaml PORT=18081 go run ./cmd/bff
+
+dev-tripmap:
+	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.yaml PORT=18082 go run ./cmd/tripmap
 
 deps-up:
 	docker compose up -d --wait

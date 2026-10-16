@@ -55,9 +55,9 @@ share:
 ```
 
 - `app_index_url` 只来自配置，不受用户输入影响；校验为 http(s)、无凭据、无查询和片段，且不得包含 `/s/` 或 `/api/`。获取时限 2 秒、正文上限 1 MiB、不跟随重定向、要求 `text/html`，成功结果缓存 60 秒，失败时最多使用 10 分钟内的旧副本，再失败则返回自带元数据的最小页面。请求带 `X-Tripmap-Index-Fetch` 标记，带标记的请求访问 `/s/` 一律 404，防止配置错误时递归。
-- **前端 Nginx 或反向代理必须把 `/s/` 与 `/api/share/` 转发到后端**，否则链接预览看不到 OG 标签（SPA 回退只会返回不含标签的 index.html）。镜像内的 `deploy/frontend/default.conf.template` 已配置；开发时 Vite 开发服务器代理 `/s/`（`vite preview` 只提供构建出的单页应用，打开分享链接能显示分享页，但没有 OG 标签）。
+- **前端 Nginx 或反向代理必须把 `/s/` 与 `/api/share/` 转发到后端**（BFF 的路由表已登记这两个路径，并在追踪中隐去令牌），否则链接预览看不到 OG 标签（SPA 回退只会返回不含标签的 index.html）。镜像内的 `deploy/frontend/default.conf.template` 已配置；开发时 Vite 开发服务器代理 `/s/`（`vite preview` 只提供构建出的单页应用，打开分享链接能显示分享页，但没有 OG 标签）。
 - 令牌即凭据，不得出现在日志中：Butterfly 不输出 Gin 请求日志；OpenTelemetry 的 Gin 中间件会记录原始路径，分享路由把 span 的路径属性替换为路由模板；Nginx 对 `/s/` 与 `/api/share/` 设置 `access_log off`，并把这些位置的 `error_log` 限制为 `crit`（否则上游错误会记录请求行）。自行搭建的代理需要同样处理。
-- 位于代理之后时必须设置 `auth.client_ip_header`（例如 `X-Real-IP` 或 `CF-Connecting-IP`），否则所有访客共用代理的地址，限额互相影响。该请求头只能由受信任的代理写入。
+- 位于代理之后时必须设置 `auth.client_ip_header`（例如 `X-Real-IP` 或 `CF-Connecting-IP`），否则所有访客共用代理的地址，限额互相影响。该请求头只能由受信任的代理写入。位于 BFF 之后设为 `X-Real-IP`，BFF 总是覆盖写入该头。
 - 同源部署（前端镜像的 Nginx）是推荐方式。前端与 API 分属不同域名时：`/s/` 所在的来源必须能提供前端的 `/assets/`（或用绝对 `BASE_URL` 构建），`share.html_csp` 需允许 API 域名的 `connect-src`；`VITE_API_BASE_URL` 必须能被匿名页面访问。
 - 升级顺序：先执行数据库迁移（`migrations/tripmap/20261014022913_f6_shares.sql`，后端 `auto_migrate` 或手动），再部署后端，最后部署前端。后端镜像和前端镜像构建需要的文件（`internal/tripmap/share/assets`、`scripts/fixtures`、`migrations`）已在各自 Dockerfile 中 COPY。
 

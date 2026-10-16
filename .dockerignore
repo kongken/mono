@@ -4,4 +4,5 @@ dist
 bin
 .env*
 config.yaml
+config.bff.yaml
 preview.jpg

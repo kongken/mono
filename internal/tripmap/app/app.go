@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"slices"
 	"sync/atomic"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	redisclient "github.com/redis/go-redis/v9"
 	"go.orx.me/apps/trip-map/internal/platform/health"
+	"go.orx.me/apps/trip-map/internal/platform/httpx"
 	"go.orx.me/apps/trip-map/internal/tripmap/application"
 	"go.orx.me/apps/trip-map/internal/tripmap/blobstore"
 	"go.orx.me/apps/trip-map/internal/tripmap/config"
@@ -223,7 +223,7 @@ func (h *Handlers) Routes(r *gin.Engine) {
 		panic(err) // the index is embedded, so this is a build defect
 	}
 	opts := connect.WithInterceptors(application.NewAuthInterceptor(h))
-	api := r.Group("/api", h.cors())
+	api := r.Group("/api", httpx.CORS(func() []string { return h.cfg.Auth.CORSAllowedOrigins }, "X-Tripmap-Schema", "X-Tripmap-Regions"))
 	mount := func(path string, handler http.Handler) {
 		api.Any(path+"*path", gin.WrapH(http.StripPrefix("/api", handler)))
 	}
@@ -253,31 +253,7 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	mount(path, handler)
 	mountShare(r, api, application.NewSharePublic(h.cfg, h))
 	notifications := application.NewNotificationPublic(h.cfg, h, h.notifier)
-	api.Match([]string{http.MethodGet, http.MethodHead, http.MethodPost}, "/notifications/unsubscribe", redactShareTrace("/api/notifications/unsubscribe"), func(c *gin.Context) {
+	api.Match([]string{http.MethodGet, http.MethodHead, http.MethodPost}, "/notifications/unsubscribe", httpx.RedactTrace("/api/notifications/unsubscribe"), func(c *gin.Context) {
 		notifications.Unsubscribe(c.Writer, c.Request)
 	})
-}
-
-// cors answers cross-origin requests from the configured origins only. Requests
-// without an Origin header, and same-origin deployments, are unaffected.
-func (h *Handlers) cors() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		origin := c.GetHeader("Origin")
-		if origin == "" {
-			return
-		}
-		c.Writer.Header().Add("Vary", "Origin")
-		if !slices.Contains(h.cfg.Auth.CORSAllowedOrigins, origin) {
-			return
-		}
-		header := c.Writer.Header()
-		header.Set("Access-Control-Allow-Origin", origin)
-		header.Set("Access-Control-Expose-Headers", "Connect-Protocol-Version, Content-Type, Grpc-Status, Grpc-Message, Grpc-Status-Details-Bin, Connect-Content-Encoding, Connect-Accept-Encoding")
-		if c.Request.Method == http.MethodOptions {
-			header.Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-			header.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms, X-User-Agent, X-Tripmap-Schema, X-Tripmap-Regions")
-			header.Set("Access-Control-Max-Age", "7200")
-			c.AbortWithStatus(http.StatusNoContent)
-		}
-	}
 }
