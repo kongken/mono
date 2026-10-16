@@ -45,16 +45,16 @@ func TestFujianSupplementalRegions(t *testing.T) {
 	}
 }
 
-// The frontend validates against src/regions.json; both copies must match.
+// The frontend validates against packages/geo-data/data/regions.json; both copies must match.
 func TestMatchesFrontendIndex(t *testing.T) {
-	frontend, err := os.ReadFile("../../../src/regions.json")
+	frontend, err := os.ReadFile("../../../packages/geo-data/data/regions.json")
 	if os.IsNotExist(err) {
-		t.Skip("src/regions.json is not part of this build context")
+		t.Skip("packages/geo-data/data/regions.json is not part of this build context")
 	}
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(bytes.TrimSpace(frontend), bytes.TrimSpace(raw)) {
-		t.Fatal("internal/tripmap/regions/regions.json differs from src/regions.json; run npm run download:maps or copy the file")
+		t.Fatal("internal/tripmap/regions/regions.json differs from packages/geo-data/data/regions.json; run npm run download:maps or copy the file")
 	}
 }

@@ -2,6 +2,10 @@
 
 使用 React、Vite、TypeScript、Tailwind CSS 和 shadcn/ui 开发的中国旅行地图，后端使用 Go、Butterfly、Gin、ConnectRPC、Ent 与 PostgreSQL/Redis/S3。地图使用 d3-geo 渲染本地 GeoJSON，无需地图 API Key；省内地图可选开启 OpenStreetMap 底图（Leaflet，默认关闭）。
 
+## 仓库结构
+
+前后端同在一个 monorepo：前端是 npm workspaces（`apps/web` 加 `packages/{ui,api-client,geo-data,fixtures}`），后端是仓库根目录的 Go module（`cmd/`、`internal/`、`proto/`、`migrations/`）。目录约定和新增应用的步骤见 [前后端 monorepo 布局](docs/monorepo.md)。所有 npm 命令在仓库根目录执行。
+
 ## 运行
 
 推荐 Node.js 24，最低版本以 Vite 的要求为准。
@@ -48,7 +52,7 @@ make dev
 
 ## 地图来源和边界说明
 
-地图文件已包含在 `public/maps/`，构建后随静态资源部署。来源、边界年份、区域 ID 及存储格式见 [数据与地图说明](docs/data-and-maps.md)。
+地图文件已包含在 `apps/web/public/maps/`，构建后随静态资源部署。来源、边界年份、区域 ID 及存储格式见 [数据与地图说明](docs/data-and-maps.md)。
 
 ```bash
 npm run prepare:regions  # 区域索引变更后归档旧版本并重建版本/迁移表（详见数据说明）
@@ -58,7 +62,7 @@ npm run prepare:share-geometry  # 更换全国地图后重建分享预览几何
 npm run download:maps  # 联网更新省内地图与城市索引
 ```
 
-shadcn 组件通过官方 CLI 添加，源文件在 `src/components/ui/`；地图归一化逻辑在 `src/lib/maps.ts`，主要业务界面在 `src/App.tsx`。
+shadcn 组件通过官方 CLI 添加，源文件在 `packages/ui/src/`；地图归一化逻辑在 `apps/web/src/lib/maps.ts`，主要业务界面在 `apps/web/src/App.tsx`。
 
 ## Docker 镜像
 

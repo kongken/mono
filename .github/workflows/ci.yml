@@ -92,4 +92,4 @@ jobs:
       - name: Browser acceptance (mocked RPC, no real OAuth)
         run: |
           npx playwright install --with-deps chromium
-          npx playwright test
+          npm run test:e2e

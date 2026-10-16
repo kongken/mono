@@ -36,7 +36,7 @@
 | `color` | 五种足迹色彩之一，属于城市 |
 | `trips` | 该城市的旅行数组，可以为空（城市打卡保留）；每次旅行的 `id` 在整个文件内唯一 |
 | `trips[].id` | 稳定 ID，匹配 `^[A-Za-z0-9_-]{1,64}$`；新旅行为 `t` 加 9 位时间（base36）与 8 位随机字符，版本 1 迁入的为 `legacy-<区域 ID>` |
-| `trips[].date` | `YYYY-MM-DD` 格式的真实日历日期，或空字符串；年份 `0000` 与前后端的 Go `time.Parse` 一致地被接受（`0000-02-29` 有效，因为公元 0 年按闰年计），`scripts/fixtures/trip-dates.json` 的有效与无效日期同时由前端测试和后端测试校验，保证两端判断相同 |
+| `trips[].date` | `YYYY-MM-DD` 格式的真实日历日期，或空字符串；年份 `0000` 与前后端的 Go `time.Parse` 一致地被接受（`0000-02-29` 有效，因为公元 0 年按闰年计），`packages/fixtures/trip-dates.json` 的有效与无效日期同时由前端测试和后端测试校验，保证两端判断相同 |
 | `trips[].note` | 备注字符串，最多 1000 个 UTF-16 码元 |
 | `provinces` | 省份独立标记，键为省级区域 ID，值为颜色 |
 
@@ -52,9 +52,9 @@
 
 ## 本地存储与兼容性
 
-- 启动时读取并校验本地 JSON（逻辑在 `src/lib/persistence.ts`），只在用户编辑、导入或处理保护窗口后才写入完整数据，仅打开页面不改写。写入前检查 `shanhai-travel-v2` 的存储文本仍是本页上次读取或写入的版本，否则暂停并交给用户选择；覆盖前把**对方页面的原文**另存为 `shanhai-travel-v2-conflict-<时间戳>`，保存失败时必须先导出同一份原文（页面按导出的确切文本校验，对方又写入新内容则需重新导出）。首次从旧键升级写入前，先把旧键当时内容的摘要写入 `shanhai-travel-v2-legacy-seen`（写入失败则拒绝保存）；之后旧键的摘要与该记录不同，说明旧页面又写入了内容，新版提示用户合并、导出或保留在旧位置，不会自动覆盖也不会删除。原文本一直保留在旧键里，不再额外复制备份。这些副本不会自动清理。
+- 启动时读取并校验本地 JSON（逻辑在 `apps/web/src/lib/persistence.ts`），只在用户编辑、导入或处理保护窗口后才写入完整数据，仅打开页面不改写。写入前检查 `shanhai-travel-v2` 的存储文本仍是本页上次读取或写入的版本，否则暂停并交给用户选择；覆盖前把**对方页面的原文**另存为 `shanhai-travel-v2-conflict-<时间戳>`，保存失败时必须先导出同一份原文（页面按导出的确切文本校验，对方又写入新内容则需重新导出）。首次从旧键升级写入前，先把旧键当时内容的摘要写入 `shanhai-travel-v2-legacy-seen`（写入失败则拒绝保存）；之后旧键的摘要与该记录不同，说明旧页面又写入了内容，新版提示用户合并、导出或保留在旧位置，不会自动覆盖也不会删除。原文本一直保留在旧键里，不再额外复制备份。这些副本不会自动清理。
 - 存储按浏览器和网站来源隔离，协议、主机或端口不同会使用不同存储；开发预览与正式站点不会自动共享记录。
-- 后端 PostgreSQL/Redis/S3 基础设施已初始化，详见 [后端初始化](backend.md)。配置后端并登录后，足迹以服务端确认副本与本机待同步差异做三方合并：前端批量发送显式目标变更（城市足迹按区域 ID、省份标记按省份 ID，逻辑在 `src/lib/sync.ts`），不会整体覆盖云端；本地足迹迁移上云（F2）在前端把迁移结果作为一次目标变更交给同一同步引擎，不改变存储结构版本。
+- 后端 PostgreSQL/Redis/S3 基础设施已初始化，详见 [后端初始化](backend.md)。配置后端并登录后，足迹以服务端确认副本与本机待同步差异做三方合并：前端批量发送显式目标变更（城市足迹按区域 ID、省份标记按省份 ID，逻辑在 `apps/web/src/lib/sync.ts`），不会整体覆盖云端；本地足迹迁移上云（F2）在前端把迁移结果作为一次目标变更交给同一同步引擎，不改变存储结构版本。
 - 登录相关的浏览器存储：`shanhai-session-v1`（令牌、过期时间与用户信息）、`shanhai-cloud-v2:<用户 ID>`（`{schema: 2, regionVersion, saved, revision, confirmed, pendingBatch?, atomic?}`；旧版页面使用的 `shanhai-cloud-v1:<用户 ID>` 仍可能被写入，新版只读取、不改写：`shanhai-cloud-v2:` 不存在时从旧键接管，之后以 `shanhai-cloud-v2-legacy-seen:<用户 ID>` 记录接管时旧键的内容摘要，旧键的摘要变化即被识别为旧页面的写入并提示用户。`atomic: true` 表示未同步的变更是整体提交（F2 迁移），跨刷新、失败、冲突保留，只在该批次被服务器确认或没有差异时清除并立即写入，超过 2000 项或没有批量请求能力时数据与该标记都保留、同步暂停，不会自动回退。`saved` 为页面目标足迹，`confirmed` 为最后确认的祖先足迹，`revision` 对应祖先；差异表示待同步新增、编辑或删除，原有 `{saved, revision}` 缓存兼容为已确认副本；没有 `schema` 的版本 1 缓存读取时转为版本 2，其中待发送批次里的城市操作改为兼容的旧版操作（`legacyUpsertVisit`），批次 ID 与 revision 保持不变，以便丢失响应后用原请求重放。`pendingBatch` 最多 2000 项（与批量同步上限一致；此前的前端读取上限 100 小于发送上限 600，会把合法批次判为损坏，已修复）。版本 1 缓存里的待发送批次从旧键原样接管，旧键本身不被改动。无法解析或任一副本校验失败时保留原始字符串并停止覆盖，供导出恢复）、`sessionStorage` 中的 `shanhai-oauth-pending-v1`（OAuth 回调校验）。登录期间不读写本地足迹键；确认退出登录清除当前账号的 v2 缓存及会话（旧键只在新版已接管其当时内容或其中没有未发送内容时一并清除），不触碰本地足迹及其 `-unreadable-*` 副本；账号注销成功后清除该账号的全部键（`shanhai-cloud-v2:`、`shanhai-cloud-v1:`、接管记录、迁移记录，即使旧键被旧页面改过或已无法读取）；其他账号的未同步或损坏缓存不自动清理。每次编辑先保存完整目标及祖先再发送，保存失败拒绝编辑；重连先三方合并，无整体云端覆盖。同记录冲突需用户选择，旅行日期不充当修改时间。浏览器清理存储或用户确认退出会丢失未同步修改，应先导出备份。
 - 读取失败（JSON 无法解析、版本不是 1 或 2、记录未通过校验、日期不是真实日历日期）时保留原始缓存字符串，暂停自动保存，由用户选择导出原始数据、恢复可识别的记录或以空数据开始；后两者先把原始数据复制到 `<来源键>-unreadable-<时间戳>`（来源键是被读取的 `shanhai-travel-v2` 或旧键 `shanhai-travel-v1`；旧键里无法读取的内容永远不会被覆盖，只能导出）。恢复预览的“丢弃的旅行”包含整条城市记录无效时其内的旅行（版本 1 的城市计 1 次）。缓存不存在或为空属于正常首次使用。这些副本不会自动清理，也不会被应用读取。
 - 云端快照（F3）：服务端 `snapshots` 表保存某一 revision 下全部城市足迹、旅行与省份标记的不可修改副本（gzip 压缩的 `SnapshotData`，`schema_version` 为 2 时含 `trips`；升级前保存的 `schema_version` 1 载荷每城市带一个日期与备注，读取和恢复时临时转为版本 2，存储内容不被改写，也不会因此丢失日期或备注）。快照用于恢复，不是备份文件格式：快照不能导出。新 `SnapshotData` 带 `region_version`，旧载荷没有此字段视为 legacy；按 F10 迁移表投影后预览/恢复，持久化载荷从不重写。未知版本、未映射或 ID 碰撞则拒绝预览/恢复；当前账号含退休 ID 时先完成区域迁移，再恢复快照。保留期限与数量见 [后端初始化](backend.md)。
@@ -65,13 +65,13 @@
 
 ## 区域索引版本与维护（F10）
 
-- `src/regions.json` 与 `internal/tripmap/regions/regions.json` 保持逐字一致；`src/region-history.json` 保存已审核元组映射与支持的历史版本。`npm run prepare:regions` 生成 `src/region-catalog.json` 和 `internal/tripmap/regions/catalog.json`，其 `version` 是规范序列化 `{regions, mappings}` 的 SHA-256，包含名称、归属与迁移语义，而不是手动递增号。Go 启动时校验摘要绑定；`npm test` 和 `npm run check:maps` 检查生成文件与两端副本。
-- 当前生产迁移表只有金门、马祖两条真实归属变化；`scripts/fixtures/region-upgrades.json` 是前后端共用的退休 ID 测试夹具，不进入生产表。保持 34 省、497 区域、391 全国目的地；不修改 GeoJSON、旧存储键或 F5 的结构版本。
+- `packages/geo-data/data/regions.json` 与 `internal/tripmap/regions/regions.json` 保持逐字一致；`packages/geo-data/data/region-history.json` 保存已审核元组映射与支持的历史版本。`npm run prepare:regions` 生成 `packages/geo-data/data/region-catalog.json` 和 `internal/tripmap/regions/catalog.json`，其 `version` 是规范序列化 `{regions, mappings}` 的 SHA-256，包含名称、归属与迁移语义，而不是手动递增号。Go 启动时校验摘要绑定；`npm test` 和 `npm run check:maps` 检查生成文件与两端副本。
+- 当前生产迁移表只有金门、马祖两条真实归属变化；`packages/fixtures/region-upgrades.json` 是前后端共用的退休 ID 测试夹具，不进入生产表。保持 34 省、497 区域、391 全国目的地；不修改 GeoJSON、旧存储键或 F5 的结构版本。
 - 有效的本地原文在第一次覆盖为版本化数据前另存到 `shanhai-regions-original:<来源键>:<内容摘要>`；账号缓存的 `saved` / `confirmed` 与外层同时写当前版本，但 `pendingBatch` 的原请求、ID、revision 不改。区域副本写入失败拒绝覆盖。v1 独立旧键本身保留；F0 已保存或导出原文的显式恢复不重复强制复制。区域副本不被应用自动读取；本地副本不自动清理，账号退出/注销删除该账号的副本，其他账号副本保留。
 - 云端 `ApplyRegionUpgrade` 更新当前用户的区域元数据，ID 改号时原位保留城市行 ID、旅行稳定 ID/行 ID/时间与所有用户内容，迁移媒体的区域引用（含取消打卡后保留的文件），不改对象 key。schema 1 在城市 ID 改号前先将旧日期、备注转成 schema 2 的 `legacy-<原 ID>` 旅行。媒体不进入足迹快照，媒体-only 迁移不增加足迹 revision。已发布分享保持当时内容不变。
 - 同步回执继续按冻结的 F9 线格式（只去除服务器时间、既有岛屿省份别名）计算，不能根据当前区域投影重新计算原请求摘要。旧已提交批次先查回执，区域版本不匹配也可安全答复既有回执；新写入才检查版本。前端只投影已确认祖先和增量日志，绝不重写待发送原请求；一条旧日志可投影为城市加旅行，但仍只消耗一个原 revision。
 
-**更新顺序。** 先归档当前摘要到 `src/region-history.json.supportedVersions`，保留全部既有历史元组，为每个真实变更添加精确旧元组到当前目标的映射（链必须展平）；更新两份区域索引及涉及的静态地图资源，再运行 `npm run prepare:regions`、`npm run prepare:search`、其他受影响的地图/分享生成命令。生成器拒绝遗忘历史版本或删除旧映射元组。检查 maps、测试、前后端构建后先部署后端，再部署前端；用户确认云端迁移，不在启动时自动改写数据。未知未来版本、拆分、记录碰撞、省份 ID 变更与共同旅行跨账号 ID 改号不自动迁移；保留数据并由维护者处理。历史媒体重归属不会裁剪已接受的文件，目标桶已达上限时拒绝新增上传。
+**更新顺序。** 先归档当前摘要到 `packages/geo-data/data/region-history.json.supportedVersions`，保留全部既有历史元组，为每个真实变更添加精确旧元组到当前目标的映射（链必须展平）；更新两份区域索引及涉及的静态地图资源，再运行 `npm run prepare:regions`、`npm run prepare:search`、其他受影响的地图/分享生成命令。生成器拒绝遗忘历史版本或删除旧映射元组。检查 maps、测试、前后端构建后先部署后端，再部署前端；用户确认云端迁移，不在启动时自动改写数据。未知未来版本、拆分、记录碰撞、省份 ID 变更与共同旅行跨账号 ID 改号不自动迁移；保留数据并由维护者处理。历史媒体重归属不会裁剪已接受的文件，目标桶已达上限时拒绝新增上传。
 
 ## 媒体数据（F4）
 
@@ -95,16 +95,16 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 
 年度报告与旅行成就（F8）直接基于现有的城市足迹（`visits` / `city_visits`）、旅行子记录（`trips` / `city_trips`）和省份独立标记（`provinces` / `province_marks`）计算，不改变本地 `Saved`（`version: 2`）或导出备份的 JSON 格式，也不新增 PostgreSQL 表。
 
-- **前后端一致口径与共享测试夹具：** 前端 `src/lib/report.ts` 与后端 `internal/tripmap/report/report.go` 使用相同的规则处理全国 34 个省级区域、391 个全国统计城市（北京 `110000`、天津 `120000`、上海 `310000`、重庆 `500000`、香港 `810000`、澳门 `820000` 区县合并为各 1 座）和 497 个省内可记录区域，并由 `scripts/fixtures/report-stats.json` 同时驱动前端与 Go 单元测试。
+- **前后端一致口径与共享测试夹具：** 前端 `apps/web/src/lib/report.ts` 与后端 `internal/tripmap/report/report.go` 使用相同的规则处理全国 34 个省级区域、391 个全国统计城市（北京 `110000`、天津 `120000`、上海 `310000`、重庆 `500000`、香港 `810000`、澳门 `820000` 区县合并为各 1 座）和 497 个省内可记录区域，并由 `packages/fixtures/report-stats.json` 同时驱动前端与 Go 单元测试。
 - **时区与可追溯性：** 旅行记录日期保持 `YYYY-MM-DD` 日历字符串，不随 UTC 偏移改变年份；用户请求的 IANA 时区（默认 `Asia/Shanghai`）用于计算当前本地日历日期 `generated_on` 与当前年份 `current_year`。每项省内进度、年度报告统计和成就状态都附带指向原始省份、城市或旅行记录的 `ReportRecordRef` 引用。
 - **服务端 Redis 缓存：** 后端 `ReportService.GetReport` 将汇总结果缓存在 Redis 键 `<prefix>report:v1:<user_id>|<revision>|<timezone>|<local_date>`（TTL 24 小时）中，并由每小时维护任务预热默认时区缓存；足迹 `revision` 变化后立即命中新键。
 
 ## 行程与城市坐标（F11）
 
-- `src/city-coords.json` 与 `internal/tripmap/itinerary/coords.json` 保存 497 个可记录区域的中心点 `[GCJ 经度, GCJ 纬度, WGS-84 经度, WGS-84 纬度]`，由 `scripts/prepare-city-coords.mjs` 从 `public/maps/*.json` 的 `center/centroid` 生成（台湾区域已是 WGS-84，两组相同）。地图区域更新后运行 `npm run prepare:coords` 并一起提交；`npm run check:maps` 校验是否最新、是否覆盖全部区域。
+- `packages/geo-data/data/city-coords.json` 与 `internal/tripmap/itinerary/coords.json` 保存 497 个可记录区域的中心点 `[GCJ 经度, GCJ 纬度, WGS-84 经度, WGS-84 纬度]`，由 `apps/web/scripts/prepare-city-coords.mjs` 从 `apps/web/public/maps/*.json` 的 `center/centroid` 生成（台湾区域已是 WGS-84，两组相同）。地图区域更新后运行 `npm run prepare:coords` 并一起提交；`npm run check:maps` 校验是否最新、是否覆盖全部区域。
 - SVG 地图用 GCJ 坐标投影，OSM 底图用 WGS-84 坐标，与现有边界一致；路线只依赖这份静态数据，不请求第三方服务。
 - 行程本地保存为 `{ version: 1, regionVersion, activeId, itineraries: [...] }`（键 `shanhai-itineraries-v1`，账号缓存键 `shanhai-cloud-itineraries-v1:<用户 ID>`）；读取时按 F10 映射升级站点区域 ID，无法识别的行程记录被忽略而不覆盖其余数据。备份文件可带 `itineraries` 和 `activeItineraryId`，不带时导入不触碰现有行程。
-- 估算：球面直线距离（地球半径 6371 km，取 0.1 km 整数）乘交通方式绕行系数（铁路 120%、自驾 130%、飞机 105%、轮渡 115%、其他 120%），用时按平均速度（220/80/700/35/100 km/h）加固定缓冲（20/15/50/25/15 分钟）；Go 与 TypeScript 使用同一整数运算，`scripts/fixtures/itinerary-routes.json` 同时驱动两侧测试。
+- 估算：球面直线距离（地球半径 6371 km，取 0.1 km 整数）乘交通方式绕行系数（铁路 120%、自驾 130%、飞机 105%、轮渡 115%、其他 120%），用时按平均速度（220/80/700/35/100 km/h）加固定缓冲（20/15/50/25/15 分钟）；Go 与 TypeScript 使用同一整数运算，`packages/fixtures/itinerary-routes.json` 同时驱动两侧测试。
 
 ## 提醒数据（F12）
 
@@ -113,7 +113,7 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 ## 搜索数据（F9）
 
 - 搜索不改变区域 ID、`Saved` version 2、本地存储键、旅行记录或备份格式。私有备注检索直接读取本机当前足迹，或服务端当前用户的 `city_visits`（schema 1）/`city_trips`（schema 2）；不创建持久化备注索引、缓存结果或重复数据。云端分页绑定 revision，返回纯文本，结果不会进入分享页。
-- `src/search-index.json` 只含公开的区域 ID 到无声调拼音/首字母的映射（34 省 + 497 区域）。`scripts/prepare-search-index.mjs` 基于 `src/regions.json` 生成，使用开发依赖 `pinyin-pro` 和少量地名多音字覆盖；部署时不加载拼音词典、不发第三方请求。金门/马祖仍使用 `tw-` ID 并由福建索引归属。
+- `packages/geo-data/data/search-index.json` 只含公开的区域 ID 到无声调拼音/首字母的映射（34 省 + 497 区域）。`apps/web/scripts/prepare-search-index.mjs` 基于 `packages/geo-data/data/regions.json` 生成，使用开发依赖 `pinyin-pro` 和少量地名多音字覆盖；部署时不加载拼音词典、不发第三方请求。金门/马祖仍使用 `tw-` ID 并由福建索引归属。
 - 区域名称/索引更新后运行 `npm run prepare:search`，一并提交搜索索引；`npm test` 检查生成结果与源码一致。搜索全称/简称与拼音优先、无直接结果才做单次编辑纠错，未提供任意别名、分词或语义搜索；搜索详细行为与验收见 [功能描述](features.md#f9-验收)。
 
 ## 备份导入导出
@@ -122,28 +122,28 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 
 导入最多接受 32,000,000 字节的文件，先解析和校验，再显示城市与旅行数量的替换确认弹窗。确认后整体替换数据，不做合并；确认前提供导出当前备份入口。版本 1 与版本 2 备份都可导入；含不存在日期的备份要在弹窗里明确点击“清除不存在的日期并导入”才会清除这些日期。
 
-当前校验包括结构版本（1 或 2）、足迹数组、省份标记对象、城市与所属省份及名称的一致性、重复城市 ID、允许的颜色、旅行 ID 格式与整个文件内唯一、日期是否为真实日历日期和备注长度。校验依赖当前 `src/regions.json`，区域索引更新可能影响旧备份兼容性。
+当前校验包括结构版本（1 或 2）、足迹数组、省份标记对象、城市与所属省份及名称的一致性、重复城市 ID、允许的颜色、旅行 ID 格式与整个文件内唯一、日期是否为真实日历日期和备注长度。校验依赖当前 `packages/geo-data/data/regions.json`，区域索引更新可能影响旧备份兼容性。
 
 ## 地图文件与区域索引
 
 | 文件 | 职责 |
 | --- | --- |
-| `public/maps/100000.json` | 全国省级边界及南海附图数据 |
-| `public/maps/<省级区域ID>.json` | 对应省内行政区域边界 |
-| `src/regions.json` | 省份 ID、全称、简称及下级区域 ID/名称，用于列表、搜索和备份校验 |
-| `src/search-index.json` | F9 离线名称搜索的拼音/首字母索引，由 `npm run prepare:search` 生成 |
-| `src/province-neighbors.json` | 全国地图共同边界邻接表，用于相邻不同色的固定配色 |
-| `scripts/prepare-province-neighbors.mjs` | 从本地全国地图的共享边界线段生成邻接表 |
-| `src/lib/cityMaps.ts` | 全国“按城市”着色时一次性加载全部省内地图；任一文件失败则整体失败，不显示不完整地图 |
-| `src/lib/maps.ts` | GeoJSON 多边形方向归一化，适配 d3 的球面绘制 |
-| `src/lib/tiles.ts` | 解析瓦片源环境变量并提供默认值 |
-| `src/lib/coords.ts` | GCJ-02 与 WGS-84 坐标转换，用于把边界叠加到 OSM 底图 |
-| `src/components/OsmProvinceMap.tsx` | 省内与全国可选 OSM 底图（Leaflet），按需加载 |
-| `scripts/download-maps.mjs` | 根据现有全国地图下载省内地图并重建索引 |
-| `scripts/prepare-taiwan.mjs` | 处理补充县市边界数据的名称、ID、中心点及多边形方向 |
-| `scripts/split-fujian-regions.mjs` | 将补充边界中的金门、马祖拆入福建，并移除福州、泉州中的重复岛屿组件 |
-| `scripts/check-maps.mjs` | 校验全国覆盖、省内索引一致性、ID 唯一性、多边形方向及投影路径，以及 F6 预览几何与当前地图、区域索引和固定配色一致 |
-| `src/lib/projection.ts` | 全国与省内地图共用的投影镜头和南海附图位置（应用、分享页和预览几何生成共用） |
+| `apps/web/public/maps/100000.json` | 全国省级边界及南海附图数据 |
+| `apps/web/public/maps/<省级区域ID>.json` | 对应省内行政区域边界 |
+| `packages/geo-data/data/regions.json` | 省份 ID、全称、简称及下级区域 ID/名称，用于列表、搜索和备份校验 |
+| `packages/geo-data/data/search-index.json` | F9 离线名称搜索的拼音/首字母索引，由 `npm run prepare:search` 生成 |
+| `packages/geo-data/data/province-neighbors.json` | 全国地图共同边界邻接表，用于相邻不同色的固定配色 |
+| `apps/web/scripts/prepare-province-neighbors.mjs` | 从本地全国地图的共享边界线段生成邻接表 |
+| `apps/web/src/lib/cityMaps.ts` | 全国“按城市”着色时一次性加载全部省内地图；任一文件失败则整体失败，不显示不完整地图 |
+| `apps/web/src/lib/maps.ts` | GeoJSON 多边形方向归一化，适配 d3 的球面绘制 |
+| `apps/web/src/lib/tiles.ts` | 解析瓦片源环境变量并提供默认值 |
+| `apps/web/src/lib/coords.ts` | GCJ-02 与 WGS-84 坐标转换，用于把边界叠加到 OSM 底图 |
+| `apps/web/src/components/OsmProvinceMap.tsx` | 省内与全国可选 OSM 底图（Leaflet），按需加载 |
+| `apps/web/scripts/download-maps.mjs` | 根据现有全国地图下载省内地图并重建索引 |
+| `apps/web/scripts/prepare-taiwan.mjs` | 处理补充县市边界数据的名称、ID、中心点及多边形方向 |
+| `apps/web/scripts/split-fujian-regions.mjs` | 将补充边界中的金门、马祖拆入福建，并移除福州、泉州中的重复岛屿组件 |
+| `apps/web/scripts/check-maps.mjs` | 校验全国覆盖、省内索引一致性、ID 唯一性、多边形方向及投影路径，以及 F6 预览几何与当前地图、区域索引和固定配色一致 |
+| `apps/web/src/lib/projection.ts` | 全国与省内地图共用的投影镜头和南海附图位置（应用、分享页和预览几何生成共用） |
 | `internal/tripmap/share/assets/geometry.json` | F6 预览图用的预投影省份多边形与固定配色，由 `npm run prepare:share-geometry` 生成 |
 
 当前共有 34 个省级区域和 497 个可记录下级区域（福建 11、台湾 20）。全国城市统计将直辖市和港澳的 112 个区县合并为 6 个目的地，分母为 391；这只改变统计，不合并或删除足迹记录。数量是当前数据快照；更新后以 `npm run check:maps` 的实际结果为准。
@@ -163,10 +163,10 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 省内地图可通过开关改用 [OpenStreetMap](https://www.openstreetmap.org/copyright) 瓦片（`https://tile.openstreetmap.org/{z}/{x}/{y}.png`）作为底图，使用 Leaflet 绘制，并在首次开启时按需加载。偏好保存在独立存储键 `shanhai-basemap-v1`（`osm` 或 `off`），不属于足迹数据，也不进入导出备份。
 
 - 默认关闭，关闭时不发起任何第三方地图请求，仍满足“运行时无需第三方地图请求或 API Key”；开启后才会请求瓦片，无需 API Key。
-- DataV 边界为 GCJ-02 坐标，而 OSM 使用 WGS-84。开启底图时对除 `tw-` 补充数据（含福建金门、马祖）、香港、澳门以外的区域做 GCJ-02 到 WGS-84 的近似转换；转换仅用于底图视图，`public/maps` 数据与区域 ID 不变，SVG 视图仍使用原坐标。
+- DataV 边界为 GCJ-02 坐标，而 OSM 使用 WGS-84。开启底图时对除 `tw-` 补充数据（含福建金门、马祖）、香港、澳门以外的区域做 GCJ-02 到 WGS-84 的近似转换；转换仅用于底图视图，`apps/web/public/maps` 数据与区域 ID 不变，SVG 视图仍使用原坐标。
 - 瓦片通过 CSS 滤镜降低饱和度与对比度，使叠加的区域颜色和标签更清晰。评估过 Carto Positron 公共瓦片，目前需要 API Key，不可直接使用；更浅的底图建议改用自托管瓦片。
-- 瓦片源可在构建时通过环境变量配置，未设置或格式无效时回落到上述 OSM 公共瓦片：`VITE_OSM_TILE_URL`（必须包含 `{z}`、`{x}`、`{y}`）、`VITE_OSM_TILE_MAX_ZOOM`（1–22 的整数；自定义地址默认 18，默认地址为 19）、`VITE_OSM_TILE_ATTRIBUTION`（附加署名，作为 HTML 显示，仅用于受信任的构建配置；OpenStreetMap 署名始终保留）。变量在构建时写入，修改后需重新构建；Docker 镜像通过 `--build-arg` 传入，当前 CI 工作流尚未传递这些参数。源码见 `src/lib/tiles.ts`。
-- 全国地图的 SVG 视图使用圆锥投影并包含南海附图；开启 OSM 时改用 Leaflet 的 Web 墨卡托，不绘制南海附图，南海诸岛按原始坐标出现在底图上（三沙岛屿可拖动查看），海南主体视图范围固定为 `src/App.tsx` 中的 `NATIONAL_VIEW`。全国 OSM 的省份边界取自 `100000.json`，按城市着色复用各省内文件（首次开启时才加载，约 4 MB），并叠加省份边界线。对 GCJ-02 的转换与省内一致，台湾、香港、澳门及其下级区域不转换。
+- 瓦片源可在构建时通过环境变量配置，未设置或格式无效时回落到上述 OSM 公共瓦片：`VITE_OSM_TILE_URL`（必须包含 `{z}`、`{x}`、`{y}`）、`VITE_OSM_TILE_MAX_ZOOM`（1–22 的整数；自定义地址默认 18，默认地址为 19）、`VITE_OSM_TILE_ATTRIBUTION`（附加署名，作为 HTML 显示，仅用于受信任的构建配置；OpenStreetMap 署名始终保留）。变量在构建时写入，修改后需重新构建；Docker 镜像通过 `--build-arg` 传入，当前 CI 工作流尚未传递这些参数。源码见 `apps/web/src/lib/tiles.ts`。
+- 全国地图的 SVG 视图使用圆锥投影并包含南海附图；开启 OSM 时改用 Leaflet 的 Web 墨卡托，不绘制南海附图，南海诸岛按原始坐标出现在底图上（三沙岛屿可拖动查看），海南主体视图范围固定为 `apps/web/src/App.tsx` 中的 `NATIONAL_VIEW`。全国 OSM 的省份边界取自 `100000.json`，按城市着色复用各省内文件（首次开启时才加载，约 4 MB），并叠加省份边界线。对 GCJ-02 的转换与省内一致，台湾、香港、澳门及其下级区域不转换。
 - 当前限制：开发阶段直接使用 OSM 公共瓦片，其[使用政策](https://operations.osmfoundation.org/policies/tiles/)不适合大流量生产场景，正式上线前需改为自托管瓦片或商业服务；香港、澳门边界未做坐标转换，台湾边界精度以数据源为准；边界与底图的行政区域线可能存在差异和偏移。
 
 ## 绘制与维护
@@ -221,9 +221,9 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 
 **预览资源。**
 
-- `internal/tripmap/share/assets/geometry.json`：全国地图按前端投影（`src/lib/projection.ts`：圆锥等角投影，平行纬线 25°/47°，中心 105°E，与应用同一镜头）预先投影的省份多边形、南海诸岛附图，以及固定省份配色（`nationalProvinceColors` 的全部 34 省结果）。由 `npm run prepare:share-geometry` 生成；`npm run check:maps` 要求它与 `public/maps/100000.json`、`src/regions.json`、固定配色逐字一致，更新地图数据后需重新生成并一并提交。
-- `internal/tripmap/share/assets/NotoSansSC-{Regular,Bold}.subset.otf` 与 `OFL.txt`：Noto Sans SC 子集（SIL OFL 1.1），保留许可证；子集由 `scripts/subset-share-font.sh` 生成，只含预览图的固定文字和数字。更改预览图固定文字时必须重新生成子集（`TestFontCoversEveryRenderedCharacter` 会检查）。
+- `internal/tripmap/share/assets/geometry.json`：全国地图按前端投影（`apps/web/src/lib/projection.ts`：圆锥等角投影，平行纬线 25°/47°，中心 105°E，与应用同一镜头）预先投影的省份多边形、南海诸岛附图，以及固定省份配色（`nationalProvinceColors` 的全部 34 省结果）。由 `npm run prepare:share-geometry` 生成；`npm run check:maps` 要求它与 `apps/web/public/maps/100000.json`、`packages/geo-data/data/regions.json`、固定配色逐字一致，更新地图数据后需重新生成并一并提交。
+- `internal/tripmap/share/assets/NotoSansSC-{Regular,Bold}.subset.otf` 与 `OFL.txt`：Noto Sans SC 子集（SIL OFL 1.1），保留许可证；子集由 `apps/web/scripts/subset-share-font.sh` 生成，只含预览图的固定文字和数字。更改预览图固定文字时必须重新生成子集（`TestFontCoversEveryRenderedCharacter` 会检查）。
 - 前端分享页使用同一投影和同一配色，地图来自随项目分发的 `maps/100000.json`；运行时没有第三方地图请求。
-- 统计固定样例：`scripts/fixtures/share-stats.json` 同时驱动 Go（`TestStatsMatchTheSharedFrontendFixtures`）和前端（`scripts/share.test.mjs`），两边口径必须保持一致。
+- 统计固定样例：`packages/fixtures/share-stats.json` 同时驱动 Go（`TestStatsMatchTheSharedFrontendFixtures`）和前端（`apps/web/scripts/share.test.mjs`），两边口径必须保持一致。
 
 **限制。** 预览图只绘制省份层级，不绘制城市名、备注、日期或照片；发布快照不会因行政区划更新而自动迁移，已发布内容保持当时的区域代码与名称。

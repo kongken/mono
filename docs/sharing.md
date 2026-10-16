@@ -33,15 +33,15 @@
 - Redis 故障时公开路由返回 503（关闭，而不是放行）。每个客户端地址每分钟有页面 / 图片 / 照片限额，另有失败查找（猜测令牌）的更低限额，超限返回 429。默认值：页面与数据 120、图片 30、照片 300、失败 30，可在 `share.*_rate_per_minute` 调整。
 - 页面 HTML 带严格同源 CSP（可用 `share.html_csp` 覆盖）、`Referrer-Policy: no-referrer`、`X-Frame-Options: DENY`；`X-Robots-Tag` 与 `<meta robots>` 随可见性（`link` 为 noindex，`public` 为 index）。
 - 公开响应是显式白名单（`internal/tripmap/share.Content`）：只含省份代码、统计、城市代码、名称、颜色、旅行的日期与备注（按开关）和照片句柄与尺寸。不包含用户 ID、用户名、昵称、旅行 ID、媒体 ID、对象键、文件名或隐藏字段；不会直接序列化 Ent 或 proto 的私有模型。
-- 前端匿名分享页（`SharePage`）在挂载任何内容之前由路径决定（`src/main.tsx`）：`App` 模块虽随入口打包，但模块顶层不访问存储，分享路径下从不渲染，因此不挂载 `App`、不读写 localStorage、不读取会话，也不发送 `Authorization`；`/s/` 下的非法路径显示同一份“链接不存在或已撤销”，不会进入个人地图。
+- 前端匿名分享页（`SharePage`）在挂载任何内容之前由路径决定（`apps/web/src/main.tsx`）：`App` 模块虽随入口打包，但模块顶层不访问存储，分享路径下从不渲染，因此不挂载 `App`、不读写 localStorage、不读取会话，也不发送 `Authorization`；`/s/` 下的非法路径显示同一份“链接不存在或已撤销”，不会进入个人地图。
 
 ## 预览图与地图资源
 
 预览图由 Go 后端纯 Go 渲染（`CGO_ENABLED=0` 可构建），不依赖第三方请求：
 
-- 几何：`internal/tripmap/share/assets/geometry.json`，由 `npm run prepare:share-geometry`（`scripts/prepare-share-geometry.mjs`）按前端同一投影（`src/lib/projection.ts`）和固定省份配色生成，随项目分发。`npm run check:maps` 校验它与随项目分发的 GeoJSON、`regions.json`、固定配色一致。
-- 字体：SIL OFL 的 Noto Sans SC Regular / Bold 子集（各约 18 KB，`scripts/subset-share-font.sh` 生成，许可证 `OFL.txt` 随文件保留）。子集只含图中用到的固定文字和数字，渲染时不绘制任何用户文字，因此预览图只显示省份层级的统计，不显示城市名、备注或日期。
-- 统计：与应用统计页同口径（直辖市区县与特别行政区在全国范围各算 1 座城市，合计 391 座城市、34 个省级区域）。`scripts/fixtures/share-stats.json` 同时驱动 Go 测试和前端 `npm test`。
+- 几何：`internal/tripmap/share/assets/geometry.json`，由 `npm run prepare:share-geometry`（`apps/web/scripts/prepare-share-geometry.mjs`）按前端同一投影（`apps/web/src/lib/projection.ts`）和固定省份配色生成，随项目分发。`npm run check:maps` 校验它与随项目分发的 GeoJSON、`regions.json`、固定配色一致。
+- 字体：SIL OFL 的 Noto Sans SC Regular / Bold 子集（各约 18 KB，`apps/web/scripts/subset-share-font.sh` 生成，许可证 `OFL.txt` 随文件保留）。子集只含图中用到的固定文字和数字，渲染时不绘制任何用户文字，因此预览图只显示省份层级的统计，不显示城市名、备注或日期。
+- 统计：与应用统计页同口径（直辖市区县与特别行政区在全国范围各算 1 座城市，合计 391 座城市、34 个省级区域）。`packages/fixtures/share-stats.json` 同时驱动 Go 测试和前端 `npm test`。
 
 ## 配置与部署
 
@@ -59,7 +59,7 @@ share:
 - 令牌即凭据，不得出现在日志中：Butterfly 不输出 Gin 请求日志；OpenTelemetry 的 Gin 中间件会记录原始路径，分享路由把 span 的路径属性替换为路由模板；Nginx 对 `/s/` 与 `/api/share/` 设置 `access_log off`，并把这些位置的 `error_log` 限制为 `crit`（否则上游错误会记录请求行）。自行搭建的代理需要同样处理。
 - 位于代理之后时必须设置 `auth.client_ip_header`（例如 `X-Real-IP` 或 `CF-Connecting-IP`），否则所有访客共用代理的地址，限额互相影响。该请求头只能由受信任的代理写入。位于 BFF 之后设为 `X-Real-IP`，BFF 总是覆盖写入该头。
 - 同源部署（前端镜像的 Nginx）是推荐方式。前端与 API 分属不同域名时：`/s/` 所在的来源必须能提供前端的 `/assets/`（或用绝对 `BASE_URL` 构建），`share.html_csp` 需允许 API 域名的 `connect-src`；`VITE_API_BASE_URL` 必须能被匿名页面访问。
-- 升级顺序：先执行数据库迁移（`migrations/tripmap/20261014022913_f6_shares.sql`，后端 `auto_migrate` 或手动），再部署后端，最后部署前端。后端镜像和前端镜像构建需要的文件（`internal/tripmap/share/assets`、`scripts/fixtures`、`migrations`）已在各自 Dockerfile 中 COPY。
+- 升级顺序：先执行数据库迁移（`migrations/tripmap/20261014022913_f6_shares.sql`，后端 `auto_migrate` 或手动），再部署后端，最后部署前端。后端镜像和前端镜像构建需要的文件（`internal/tripmap/share/assets`、`packages/fixtures`、`migrations`）已在各自 Dockerfile 中 COPY。
 
 ## 当前限制
 
@@ -76,4 +76,4 @@ share:
 
 - Go（`internal/tripmap/application/share_test.go`，真实 Gin 路由 + PostgreSQL + Redis + 内存对象存储）：默认隐私、字段依赖、用户隔离、快照语义、收回即时生效与新增需确认、OG HTML 与 PNG、索引获取的递归与缓存、撤销后统一 404、照片逐张选择与删除后失效、幂等回放与精确请求哈希、并发保存与撤销、账号注销先关闭访问、停用账号与配置关闭、限流与 Redis 故障关闭、超大快照被拒绝、schema 1 账号。
 - Go 单元：统计与固定样例、预览图尺寸与字体字形、HTML 转义与标签替换、索引源限制、配置校验、路由在未配置时的统一 404、迁移约束与用户级联。
-- 前端（`scripts/share.test.mjs`、`tests/share.spec.ts`）：路径解析与非法 `/s/` 路径、严格内容解析、统计固定样例、配色一致；所有者的预览 / 发布 / 收回 / 更新 / 撤销、预览后足迹变化、响应丢失后复用 mutation ID、匿名页只读、未挂载应用、无存储读写、无认证头、320px 无溢出、键盘操作。
+- 前端（`apps/web/scripts/share.test.mjs`、`apps/web/tests/share.spec.ts`）：路径解析与非法 `/s/` 路径、严格内容解析、统计固定样例、配色一致；所有者的预览 / 发布 / 收回 / 更新 / 撤销、预览后足迹变化、响应丢失后复用 mutation ID、匿名页只读、未挂载应用、无存储读写、无认证头、320px 无溢出、键盘操作。

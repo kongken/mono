@@ -1,5 +1,5 @@
 // Package regions exposes the administrative region index shared with the
-// frontend (src/regions.json). IDs identify regions; names are display text.
+// frontend (packages/geo-data/data/regions.json). IDs identify regions; names are display text.
 package regions
 
 import (

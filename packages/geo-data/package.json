@@ -1,0 +1,10 @@
+{
+  "name": "@trip-map/geo-data",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "行政区域索引、城市坐标、区域目录等前后端共用的数据。",
+  "exports": {
+    "./*.json": "./data/*.json"
+  }
+}

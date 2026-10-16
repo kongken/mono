@@ -1,12 +1,20 @@
 # syntax=docker/dockerfile:1
 FROM node:24-alpine AS build
 WORKDIR /app
+# Workspace manifests first so the dependency layer is cached until one changes.
 COPY package.json package-lock.json ./
+COPY apps/web/package.json apps/web/package.json
+COPY packages/ui/package.json packages/ui/package.json
+COPY packages/api-client/package.json packages/api-client/package.json
+COPY packages/geo-data/package.json packages/geo-data/package.json
+COPY packages/fixtures/package.json packages/fixtures/package.json
 RUN npm ci
-COPY index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json ./
-COPY src src
-COPY public public
-COPY scripts scripts
+COPY packages packages
+# The browser tests (apps/web/tests) are not needed to build the image.
+COPY apps/web/index.html apps/web/vite.config.ts apps/web/tsconfig.json apps/web/tsconfig.app.json apps/web/tsconfig.node.json apps/web/
+COPY apps/web/src apps/web/src
+COPY apps/web/public apps/web/public
+COPY apps/web/scripts apps/web/scripts
 # The catalog regression checks the build recipe's required input list too.
 COPY deploy/frontend/Dockerfile deploy/frontend/Dockerfile
 # check:maps and the share tests compare the server-side preview geometry with the app.
@@ -25,5 +33,5 @@ RUN npm test && npm run check:maps && npm run build
 FROM nginx:stable-alpine
 ENV BACKEND_UPSTREAM=backend:18081 NGINX_ENVSUBST_FILTER=BACKEND_UPSTREAM
 COPY deploy/frontend/default.conf.template /etc/nginx/templates/default.conf.template
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80

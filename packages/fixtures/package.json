@@ -1,0 +1,10 @@
+{
+  "name": "@trip-map/fixtures",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "前端与 Go 后端共同验证的契约夹具。",
+  "exports": {
+    "./*.json": "./*.json"
+  }
+}

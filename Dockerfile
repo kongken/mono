@@ -9,9 +9,9 @@ COPY internal/tripmap internal/tripmap
 COPY internal/platform internal/platform
 COPY pkg pkg
 # The region index and city coordinate tests check the backend copies against the frontend ones.
-COPY src/regions.json src/regions.json
-COPY src/city-coords.json src/city-coords.json
-COPY scripts/fixtures scripts/fixtures
+COPY packages/geo-data/data/regions.json packages/geo-data/data/regions.json
+COPY packages/geo-data/data/city-coords.json packages/geo-data/data/city-coords.json
+COPY packages/fixtures packages/fixtures
 COPY migrations/tripmap migrations/tripmap
 RUN go test ./internal/... ./cmd/...
 RUN CGO_ENABLED=0 go build -trimpath -o /tripmap ./cmd/tripmap
