@@ -63,7 +63,7 @@ func retiredIndex(t *testing.T) *regions.Index {
 	var fixture struct {
 		Mapping regions.Mapping `json:"mapping"`
 	}
-	raw, err := os.ReadFile("../../../scripts/fixtures/region-upgrades.json")
+	raw, err := os.ReadFile("../../../packages/fixtures/region-upgrades.json")
 	if err != nil {
 		t.Fatal(err)
 	}

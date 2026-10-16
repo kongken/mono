@@ -30,7 +30,7 @@
 
 tripmap 与 BFF 镜像只复制本服务和 `internal/platform` 的代码，只运行这些包的 Go 单元测试再生成静态二进制，因此业务之间的越界 import 会使镜像构建失败；没有实际存储测试连接时，集成测试会跳过。实际 PostgreSQL/Redis/S3 验证仍通过 `make test-integration` 单独运行。
 
-前端 Docker 构建会运行 `npm test`、`npm run check:maps` 和生产构建；这些检查会读取 `internal/tripmap/share/assets/geometry.json`（F6 预览几何）和 `internal/tripmap/regions/{regions,catalog}.json`（F10 两端索引/摘要校验），Dockerfile 已单独 COPY 它们；同时复制前端构建配方用于输入清单回归检查。它们只在构建阶段使用，不随前端运行镜像发布。tripmap 镜像构建的测试读取 `scripts/fixtures` 与 `migrations/tripmap`，也已 COPY；BFF 镜像构建的测试读取 `config.bff.example.yaml`；预览资源在 `internal` 下随源码进入镜像，`CGO_ENABLED=0` 即可构建。地图 GeoJSON 和静态资源随镜像发布。
+前端 Docker 构建会运行 `npm test`、`npm run check:maps` 和生产构建；这些检查会读取 `internal/tripmap/share/assets/geometry.json`（F6 预览几何）和 `internal/tripmap/regions/{regions,catalog}.json`（F10 两端索引/摘要校验），Dockerfile 已单独 COPY 它们；前端镜像按 workspace 复制各 `package.json` 后 `npm ci`，再复制 `packages/` 与 `apps/web`（不含浏览器测试），产物取自 `apps/web/dist`；同时复制前端构建配方用于输入清单回归检查。它们只在构建阶段使用，不随前端运行镜像发布。tripmap 镜像构建的测试读取 `packages/fixtures` 与 `migrations/tripmap`，也已 COPY；BFF 镜像构建的测试读取 `config.bff.example.yaml`；预览资源在 `internal` 下随源码进入镜像，`CGO_ENABLED=0` 即可构建。地图 GeoJSON 和静态资源随镜像发布。
 
 本地构建：
 

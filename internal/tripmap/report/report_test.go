@@ -73,7 +73,7 @@ type reportFixture struct {
 }
 
 func TestBuildMatchesSharedFrontendFixtures(t *testing.T) {
-	raw, err := os.ReadFile("../../../scripts/fixtures/report-stats.json")
+	raw, err := os.ReadFile("../../../packages/fixtures/report-stats.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestVisitingEveryRegionUnlocksAllAchievements(t *testing.T) {
 			Code string `json:"code"`
 		} `json:"cities"`
 	}
-	raw, err := os.ReadFile("../../../src/regions.json")
+	raw, err := os.ReadFile("../../../packages/geo-data/data/regions.json")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -40,9 +40,9 @@ type statsFixture struct {
 	} `json:"cases"`
 }
 
-// The same fixture drives scripts/share.test.mjs against src/lib/statistics.ts.
+// The same fixture drives apps/web/scripts/share.test.mjs against src/lib/statistics.ts.
 func TestStatsMatchTheSharedFrontendFixtures(t *testing.T) {
-	raw, err := os.ReadFile("../../../scripts/fixtures/share-stats.json")
+	raw, err := os.ReadFile("../../../packages/fixtures/share-stats.json")
 	if err != nil {
 		t.Fatal(err)
 	}

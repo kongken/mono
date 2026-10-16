@@ -1,5 +1,5 @@
 // Package report computes travel statistics, annual reports and achievements
-// (F8) with the exact same definitions as src/lib/report.ts.
+// (F8) with the exact same definitions as apps/web/src/lib/report.ts.
 package report
 
 import (

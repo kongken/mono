@@ -76,7 +76,7 @@ func TestCatalogSupportsReviewedRetiredIDs(t *testing.T) {
 		Mapping regions.Mapping                       `json:"mapping"`
 		Current struct{ Code, Name, Province string } `json:"current"`
 	}
-	raw, err := os.ReadFile("../../../scripts/fixtures/region-upgrades.json")
+	raw, err := os.ReadFile("../../../packages/fixtures/region-upgrades.json")
 	if err != nil {
 		t.Fatal(err)
 	}

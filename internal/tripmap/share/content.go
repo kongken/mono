@@ -184,10 +184,10 @@ type Source struct {
 // districtDestinations count one city in nationwide statistics.
 var districtDestinations = map[string]bool{"110000": true, "120000": true, "310000": true, "500000": true, "810000": true, "820000": true}
 
-// IsDistrict mirrors isDistrictDestination in src/lib/statistics.ts.
+// IsDistrict mirrors isDistrictDestination in apps/web/src/lib/statistics.ts.
 func IsDistrict(province string) bool { return districtDestinations[province] }
 
-// ComputeStats follows src/lib/statistics.ts; scripts/fixtures/share-stats.json
+// ComputeStats follows src/lib/statistics.ts; packages/fixtures/share-stats.json
 // drives both implementations.
 func ComputeStats(idx *regions.Index, src Source) (Stats, []string) {
 	explored := map[string]bool{}

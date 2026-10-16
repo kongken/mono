@@ -57,12 +57,12 @@ type routeFixture struct {
 }
 
 func TestCoordsMatchFrontendAndCoverAllCities(t *testing.T) {
-	frontRaw, err := os.ReadFile(filepath.Join("..", "..", "..", "src", "city-coords.json"))
+	frontRaw, err := os.ReadFile(filepath.Join("..", "..", "..", "packages", "geo-data", "data", "city-coords.json"))
 	if err != nil {
-		t.Fatalf("read src/city-coords.json: %v", err)
+		t.Fatalf("read packages/geo-data/data/city-coords.json: %v", err)
 	}
 	if !bytes.Equal(bytes.TrimSpace(frontRaw), bytes.TrimSpace(rawCoords)) {
-		t.Fatalf("internal/tripmap/itinerary/coords.json is out of sync with src/city-coords.json; run node scripts/prepare-city-coords.mjs")
+		t.Fatalf("internal/tripmap/itinerary/coords.json is out of sync with packages/geo-data/data/city-coords.json; run npm run prepare:coords")
 	}
 
 	idx, err := regions.Default()
@@ -82,7 +82,7 @@ func TestCoordsMatchFrontendAndCoverAllCities(t *testing.T) {
 }
 
 func TestRouteFixturesMatchFrontend(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "scripts", "fixtures", "itinerary-routes.json"))
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "packages", "fixtures", "itinerary-routes.json"))
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
 	}
