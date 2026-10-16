@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/itinerary"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/schema"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/internal/tripmap/ent/itinerary"
+	"github.com/kongken/mono/internal/tripmap/ent/schema"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 func TestItineraryServiceCRUDReorderingCacheAndIsolation(t *testing.T) {

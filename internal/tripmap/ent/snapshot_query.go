@@ -12,9 +12,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/predicate"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/snapshot"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/predicate"
+	"github.com/kongken/mono/internal/tripmap/ent/snapshot"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // SnapshotQuery is the builder for querying Snapshot entities.

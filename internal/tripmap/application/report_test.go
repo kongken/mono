@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"go.orx.me/apps/trip-map/internal/tripmap/application"
-	"go.orx.me/apps/trip-map/internal/tripmap/regions"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/internal/tripmap/application"
+	"github.com/kongken/mono/internal/tripmap/regions"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 func TestReportServiceRequiresAuthenticationAndIsolatesUsers(t *testing.T) {

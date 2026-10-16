@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationdelivery"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/notificationdelivery"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // NotificationDelivery is the model entity for the NotificationDelivery schema.

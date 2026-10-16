@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"time"
 
-	"go.orx.me/apps/trip-map/internal/tripmap/config"
-	"go.orx.me/apps/trip-map/internal/tripmap/notification"
+	"github.com/kongken/mono/internal/tripmap/config"
+	"github.com/kongken/mono/internal/tripmap/notification"
 )
 
 // Notifier bundles the outgoing channels and configuration shared by the

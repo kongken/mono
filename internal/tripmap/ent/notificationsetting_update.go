@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationsetting"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/predicate"
+	"github.com/kongken/mono/internal/tripmap/ent/notificationsetting"
+	"github.com/kongken/mono/internal/tripmap/ent/predicate"
 )
 
 // NotificationSettingUpdate is the builder for updating NotificationSetting entities.

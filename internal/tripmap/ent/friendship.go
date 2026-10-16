@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/friendship"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/friendship"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // Friendship is the model entity for the Friendship schema.

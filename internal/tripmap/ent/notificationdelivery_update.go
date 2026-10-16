@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationdelivery"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/predicate"
+	"github.com/kongken/mono/internal/tripmap/ent/notificationdelivery"
+	"github.com/kongken/mono/internal/tripmap/ent/predicate"
 )
 
 // NotificationDeliveryUpdate is the builder for updating NotificationDelivery entities.

@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/syncreceipt"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/syncreceipt"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // SyncReceipt is the model entity for the SyncReceipt schema.

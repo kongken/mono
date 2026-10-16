@@ -21,7 +21,7 @@ import (
 	"sort"
 	"time"
 
-	"go.orx.me/apps/trip-map/internal/tripmap/regions"
+	"github.com/kongken/mono/internal/tripmap/regions"
 )
 
 const (

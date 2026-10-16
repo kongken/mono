@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/pushsubscription"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/pushsubscription"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // PushSubscription is the model entity for the PushSubscription schema.

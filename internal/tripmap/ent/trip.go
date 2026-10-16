@@ -9,9 +9,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/cityvisit"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/trip"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
+	"github.com/kongken/mono/internal/tripmap/ent/trip"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // Trip is the model entity for the Trip schema.

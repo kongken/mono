@@ -14,12 +14,12 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"go.orx.me/apps/trip-map/internal/tripmap/application"
-	entcity "go.orx.me/apps/trip-map/internal/tripmap/ent/cityvisit"
-	entsnap "go.orx.me/apps/trip-map/internal/tripmap/ent/snapshot"
-	enttrip "go.orx.me/apps/trip-map/internal/tripmap/ent/trip"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/internal/tripmap/application"
+	entcity "github.com/kongken/mono/internal/tripmap/ent/cityvisit"
+	entsnap "github.com/kongken/mono/internal/tripmap/ent/snapshot"
+	enttrip "github.com/kongken/mono/internal/tripmap/ent/trip"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 // v2 marks a request as coming from a client that understands several trips per city.

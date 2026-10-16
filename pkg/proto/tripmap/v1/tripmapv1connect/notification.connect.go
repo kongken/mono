@@ -8,7 +8,7 @@ import (
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	v1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	v1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	http "net/http"
 	strings "strings"
 )

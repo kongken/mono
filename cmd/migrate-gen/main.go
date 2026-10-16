@@ -25,7 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
-	entmigrate "go.orx.me/apps/trip-map/internal/tripmap/ent/migrate"
+	entmigrate "github.com/kongken/mono/internal/tripmap/ent/migrate"
 )
 
 func main() {

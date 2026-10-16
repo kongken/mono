@@ -17,15 +17,15 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"go.orx.me/apps/trip-map/internal/tripmap/application"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationdelivery"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationprofile"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationsetting"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/pushsubscription"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
-	"go.orx.me/apps/trip-map/internal/tripmap/notification"
-	"go.orx.me/apps/trip-map/internal/tripmap/regions"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/internal/tripmap/application"
+	"github.com/kongken/mono/internal/tripmap/ent/notificationdelivery"
+	"github.com/kongken/mono/internal/tripmap/ent/notificationprofile"
+	"github.com/kongken/mono/internal/tripmap/ent/notificationsetting"
+	"github.com/kongken/mono/internal/tripmap/ent/pushsubscription"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/notification"
+	"github.com/kongken/mono/internal/tripmap/regions"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 type fakeClock struct {

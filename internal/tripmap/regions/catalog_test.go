@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.orx.me/apps/trip-map/internal/tripmap/regions"
+	"github.com/kongken/mono/internal/tripmap/regions"
 )
 
 func boundCatalog(t *testing.T, idx *regions.Index, mappings []regions.Mapping) []byte {

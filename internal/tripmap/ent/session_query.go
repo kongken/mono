@@ -12,9 +12,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/predicate"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/session"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/predicate"
+	"github.com/kongken/mono/internal/tripmap/ent/session"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // SessionQuery is the builder for querying Session entities.

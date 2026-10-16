@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/footprintchange"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/footprintchange"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // FootprintChangeCreate is the builder for creating a FootprintChange entity.

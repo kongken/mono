@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package tripmap.v1;
 
-option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
+option go_package = "github.com/kongken/mono/pkg/proto/tripmap/v1;tripmapv1";
 
 // SystemService exposes read-only infrastructure readiness, not user data.
 service SystemService {

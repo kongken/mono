@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"go.orx.me/apps/trip-map/internal/tripmap/auth"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/accountdeletionreceipt"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/session"
-	"go.orx.me/apps/trip-map/pkg/proto/tripmap/v1/tripmapv1connect"
+	"github.com/kongken/mono/internal/tripmap/auth"
+	"github.com/kongken/mono/internal/tripmap/ent"
+	"github.com/kongken/mono/internal/tripmap/ent/accountdeletionreceipt"
+	"github.com/kongken/mono/internal/tripmap/ent/session"
+	"github.com/kongken/mono/pkg/proto/tripmap/v1/tripmapv1connect"
 )
 
 // PublicProcedures can be called without a session.

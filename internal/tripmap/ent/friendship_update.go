@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/friendship"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/predicate"
+	"github.com/kongken/mono/internal/tripmap/ent/friendship"
+	"github.com/kongken/mono/internal/tripmap/ent/predicate"
 )
 
 // FriendshipUpdate is the builder for updating Friendship entities.

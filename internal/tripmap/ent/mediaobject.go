@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/mediaobject"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // MediaObject is the model entity for the MediaObject schema.

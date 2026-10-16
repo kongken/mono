@@ -5,7 +5,7 @@ package tripmap.v1;
 import "google/protobuf/timestamp.proto";
 import "tripmap/v1/media.proto";
 
-option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
+option go_package = "github.com/kongken/mono/pkg/proto/tripmap/v1;tripmapv1";
 
 // CollaborationService manages friendships, friend map comparison, shared trips
 // and member permissions (F7). All methods require a bearer session.

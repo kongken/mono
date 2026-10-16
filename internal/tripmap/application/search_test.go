@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	"go.orx.me/apps/trip-map/internal/tripmap/auth"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/session"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/internal/tripmap/auth"
+	"github.com/kongken/mono/internal/tripmap/ent/session"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 func TestNoteSearchIsolationTermsPaginationAndChanges(t *testing.T) {

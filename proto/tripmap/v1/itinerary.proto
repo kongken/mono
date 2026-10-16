@@ -4,7 +4,7 @@ package tripmap.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
+option go_package = "github.com/kongken/mono/pkg/proto/tripmap/v1;tripmapv1";
 
 // ItineraryService manages multi-city travel itineraries, stop ordering and
 // offline/cached route distance and duration estimation (F11).
