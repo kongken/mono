@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"go.orx.me/apps/trip-map/internal/platform/httpx"
+	"github.com/kongken/mono/internal/platform/httpx"
 )
 
 // AppConfig shares the YAML file with Butterfly's store.db/redis/s3 definitions.

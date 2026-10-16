@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/predicate"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/pushsubscription"
+	"github.com/kongken/mono/internal/tripmap/ent/predicate"
+	"github.com/kongken/mono/internal/tripmap/ent/pushsubscription"
 )
 
 // PushSubscriptionDelete is the builder for deleting a PushSubscription entity.

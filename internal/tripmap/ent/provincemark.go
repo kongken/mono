@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/provincemark"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/provincemark"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // ProvinceMark is the model entity for the ProvinceMark schema.

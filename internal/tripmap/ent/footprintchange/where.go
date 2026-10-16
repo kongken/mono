@@ -7,7 +7,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/predicate"
+	"github.com/kongken/mono/internal/tripmap/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.

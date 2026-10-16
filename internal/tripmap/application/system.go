@@ -3,9 +3,9 @@ package application
 import (
 	"connectrpc.com/connect"
 	"context"
-	"go.orx.me/apps/trip-map/internal/platform/health"
-	"go.orx.me/apps/trip-map/internal/tripmap/regions"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/internal/platform/health"
+	"github.com/kongken/mono/internal/tripmap/regions"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 type StatusSource interface {

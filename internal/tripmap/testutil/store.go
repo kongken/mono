@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/redis/go-redis/v9"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent"
+	"github.com/kongken/mono/internal/tripmap/ent"
 )
 
 // Backing returns an Ent client bound to a throwaway schema and a Redis client

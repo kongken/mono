@@ -6,8 +6,8 @@ import (
 
 	"butterfly.orx.me/core"
 	butterflyapp "butterfly.orx.me/core/app"
-	bffapp "go.orx.me/apps/trip-map/internal/bff/app"
-	"go.orx.me/apps/trip-map/internal/bff/config"
+	bffapp "github.com/kongken/mono/internal/bff/app"
+	"github.com/kongken/mono/internal/bff/config"
 )
 
 func main() {

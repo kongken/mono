@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 const (

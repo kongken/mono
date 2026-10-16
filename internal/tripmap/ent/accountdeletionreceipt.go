@@ -9,7 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/accountdeletionreceipt"
+	"github.com/kongken/mono/internal/tripmap/ent/accountdeletionreceipt"
 )
 
 // AccountDeletionReceipt is the model entity for the AccountDeletionReceipt schema.

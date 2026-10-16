@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationsetting"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/notificationsetting"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // NotificationSetting is the model entity for the NotificationSetting schema.

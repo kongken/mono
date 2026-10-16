@@ -10,13 +10,13 @@ import (
 	"unicode/utf8"
 
 	"connectrpc.com/connect"
-	"go.orx.me/apps/trip-map/internal/tripmap/auth"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/cityvisit"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/trip"
-	"go.orx.me/apps/trip-map/internal/tripmap/regions"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
-	"go.orx.me/apps/trip-map/pkg/proto/tripmap/v1/tripmapv1connect"
+	"github.com/kongken/mono/internal/tripmap/auth"
+	"github.com/kongken/mono/internal/tripmap/ent"
+	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
+	"github.com/kongken/mono/internal/tripmap/ent/trip"
+	"github.com/kongken/mono/internal/tripmap/regions"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/pkg/proto/tripmap/v1/tripmapv1connect"
 )
 
 type SearchService struct {

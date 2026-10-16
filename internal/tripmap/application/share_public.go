@@ -10,15 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"go.orx.me/apps/trip-map/internal/platform/httpx"
-	"go.orx.me/apps/trip-map/internal/tripmap/auth"
-	"go.orx.me/apps/trip-map/internal/tripmap/blobstore"
-	"go.orx.me/apps/trip-map/internal/tripmap/config"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/mediaobject"
-	entshare "go.orx.me/apps/trip-map/internal/tripmap/ent/share"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
-	"go.orx.me/apps/trip-map/internal/tripmap/share"
+	"github.com/kongken/mono/internal/platform/httpx"
+	"github.com/kongken/mono/internal/tripmap/auth"
+	"github.com/kongken/mono/internal/tripmap/blobstore"
+	"github.com/kongken/mono/internal/tripmap/config"
+	"github.com/kongken/mono/internal/tripmap/ent"
+	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
+	entshare "github.com/kongken/mono/internal/tripmap/ent/share"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/share"
 )
 
 // Default per-client-address limits per minute. A burst of misses is the

@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"go.orx.me/apps/trip-map/internal/tripmap/ent"
+	"github.com/kongken/mono/internal/tripmap/ent"
 )
 
 // The AccountDeletionReceiptFunc type is an adapter to allow the use of ordinary

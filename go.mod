@@ -1,4 +1,4 @@
-module go.orx.me/apps/trip-map
+module github.com/kongken/mono
 
 go 1.26.5
 

@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"go.orx.me/apps/trip-map/internal/platform/httpx"
+	"github.com/kongken/mono/internal/platform/httpx"
 )
 
 type Config struct {

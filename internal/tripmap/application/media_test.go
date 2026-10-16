@@ -18,11 +18,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
-	"go.orx.me/apps/trip-map/internal/tripmap/application"
-	"go.orx.me/apps/trip-map/internal/tripmap/blobstore"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/mediaobject"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/internal/tripmap/application"
+	"github.com/kongken/mono/internal/tripmap/blobstore"
+	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 type mediaMemory struct {

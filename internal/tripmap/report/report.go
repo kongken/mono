@@ -10,9 +10,9 @@ import (
 	"time"
 	"unicode/utf16"
 
-	"go.orx.me/apps/trip-map/internal/tripmap/regions"
-	"go.orx.me/apps/trip-map/internal/tripmap/share"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/internal/tripmap/regions"
+	"github.com/kongken/mono/internal/tripmap/share"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 const DefaultTimezone = "Asia/Shanghai"

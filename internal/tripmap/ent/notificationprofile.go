@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationprofile"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/notificationprofile"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // NotificationProfile is the model entity for the NotificationProfile schema.

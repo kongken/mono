@@ -5,12 +5,12 @@ package enttest
 import (
 	"context"
 
-	"go.orx.me/apps/trip-map/internal/tripmap/ent"
+	"github.com/kongken/mono/internal/tripmap/ent"
 	// required by schema hooks.
-	_ "go.orx.me/apps/trip-map/internal/tripmap/ent/runtime"
+	_ "github.com/kongken/mono/internal/tripmap/ent/runtime"
 
 	"entgo.io/ent/dialect/sql/schema"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/migrate"
+	"github.com/kongken/mono/internal/tripmap/ent/migrate"
 )
 
 type (

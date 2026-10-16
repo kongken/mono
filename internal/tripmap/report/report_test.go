@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"go.orx.me/apps/trip-map/internal/tripmap/regions"
-	"go.orx.me/apps/trip-map/internal/tripmap/share"
+	"github.com/kongken/mono/internal/tripmap/regions"
+	"github.com/kongken/mono/internal/tripmap/share"
 )
 
 type reportFixture struct {

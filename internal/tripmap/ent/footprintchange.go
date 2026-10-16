@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/footprintchange"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/footprintchange"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // FootprintChange is the model entity for the FootprintChange schema.

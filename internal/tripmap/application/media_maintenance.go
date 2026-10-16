@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"go.orx.me/apps/trip-map/internal/tripmap/ent"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/mediacleanup"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/mediaobject"
+	"github.com/kongken/mono/internal/tripmap/ent"
+	"github.com/kongken/mono/internal/tripmap/ent/mediacleanup"
+	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 )
 
 // RunMediaMaintenance is idempotent across replicas. Keep failed work in the

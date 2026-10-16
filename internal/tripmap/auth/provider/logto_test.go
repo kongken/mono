@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.orx.me/apps/trip-map/internal/tripmap/config"
+	"github.com/kongken/mono/internal/tripmap/config"
 )
 
 func testLogtoConfig() LogtoConfig {

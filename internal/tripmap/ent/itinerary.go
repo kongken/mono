@@ -10,9 +10,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/itinerary"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/schema"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/itinerary"
+	"github.com/kongken/mono/internal/tripmap/ent/schema"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // Itinerary is the model entity for the Itinerary schema.

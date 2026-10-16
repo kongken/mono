@@ -15,9 +15,9 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.orx.me/apps/trip-map/internal/bff/app"
-	"go.orx.me/apps/trip-map/internal/bff/config"
-	"go.orx.me/apps/trip-map/internal/bff/gateway"
+	"github.com/kongken/mono/internal/bff/app"
+	"github.com/kongken/mono/internal/bff/config"
+	"github.com/kongken/mono/internal/bff/gateway"
 	"gopkg.in/yaml.v3"
 )
 

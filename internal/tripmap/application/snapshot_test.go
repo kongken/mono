@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"go.orx.me/apps/trip-map/internal/tripmap/application"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent"
-	entsnap "go.orx.me/apps/trip-map/internal/tripmap/ent/snapshot"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/internal/tripmap/application"
+	"github.com/kongken/mono/internal/tripmap/ent"
+	entsnap "github.com/kongken/mono/internal/tripmap/ent/snapshot"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	"google.golang.org/protobuf/proto"
 )
 

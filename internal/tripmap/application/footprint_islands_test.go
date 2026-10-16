@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 func TestLegacyIslandCloudCompatibility(t *testing.T) {

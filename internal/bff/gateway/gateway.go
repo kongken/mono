@@ -20,9 +20,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.orx.me/apps/trip-map/internal/bff/config"
-	"go.orx.me/apps/trip-map/internal/platform/health"
-	"go.orx.me/apps/trip-map/internal/platform/httpx"
+	"github.com/kongken/mono/internal/bff/config"
+	"github.com/kongken/mono/internal/platform/health"
+	"github.com/kongken/mono/internal/platform/httpx"
 )
 
 // ClientIPHeader carries the caller's address to the services, which set it as

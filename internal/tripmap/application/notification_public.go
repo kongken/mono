@@ -8,11 +8,11 @@ import (
 	"net/url"
 	"time"
 
-	"go.orx.me/apps/trip-map/internal/platform/httpx"
-	"go.orx.me/apps/trip-map/internal/tripmap/auth"
-	"go.orx.me/apps/trip-map/internal/tripmap/config"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationsetting"
-	"go.orx.me/apps/trip-map/internal/tripmap/notification"
+	"github.com/kongken/mono/internal/platform/httpx"
+	"github.com/kongken/mono/internal/tripmap/auth"
+	"github.com/kongken/mono/internal/tripmap/config"
+	"github.com/kongken/mono/internal/tripmap/ent/notificationsetting"
+	"github.com/kongken/mono/internal/tripmap/notification"
 )
 
 const unsubscribeRate = 30

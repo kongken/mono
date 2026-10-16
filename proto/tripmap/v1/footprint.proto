@@ -4,7 +4,7 @@ package tripmap.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
+option go_package = "github.com/kongken/mono/pkg/proto/tripmap/v1;tripmapv1";
 
 // FootprintService stores the signed-in user's city visits and independent
 // province marks. All methods require a bearer session and only ever touch the

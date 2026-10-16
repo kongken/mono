@@ -12,7 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/accountdeletionreceipt"
+	"github.com/kongken/mono/internal/tripmap/ent/accountdeletionreceipt"
 )
 
 // AccountDeletionReceiptCreate is the builder for creating a AccountDeletionReceipt entity.

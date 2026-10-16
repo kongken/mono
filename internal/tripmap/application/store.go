@@ -5,8 +5,8 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/redis/go-redis/v9"
-	"go.orx.me/apps/trip-map/internal/tripmap/blobstore"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent"
+	"github.com/kongken/mono/internal/tripmap/blobstore"
+	"github.com/kongken/mono/internal/tripmap/ent"
 )
 
 // Store is the set of backing services business RPCs need.

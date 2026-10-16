@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationprofile"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/predicate"
+	"github.com/kongken/mono/internal/tripmap/ent/notificationprofile"
+	"github.com/kongken/mono/internal/tripmap/ent/predicate"
 )
 
 // NotificationProfileUpdate is the builder for updating NotificationProfile entities.

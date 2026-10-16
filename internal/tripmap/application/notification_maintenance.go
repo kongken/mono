@@ -9,14 +9,14 @@ import (
 	"strconv"
 	"time"
 
-	"go.orx.me/apps/trip-map/internal/tripmap/ent"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/cityvisit"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationdelivery"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/notificationsetting"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/trip"
-	"go.orx.me/apps/trip-map/internal/tripmap/notification"
-	"go.orx.me/apps/trip-map/internal/tripmap/regions"
-	"go.orx.me/apps/trip-map/internal/tripmap/report"
+	"github.com/kongken/mono/internal/tripmap/ent"
+	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
+	"github.com/kongken/mono/internal/tripmap/ent/notificationdelivery"
+	"github.com/kongken/mono/internal/tripmap/ent/notificationsetting"
+	"github.com/kongken/mono/internal/tripmap/ent/trip"
+	"github.com/kongken/mono/internal/tripmap/notification"
+	"github.com/kongken/mono/internal/tripmap/regions"
+	"github.com/kongken/mono/internal/tripmap/report"
 )
 
 const (

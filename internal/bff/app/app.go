@@ -8,9 +8,9 @@ import (
 	"sync/atomic"
 
 	"github.com/gin-gonic/gin"
-	"go.orx.me/apps/trip-map/internal/bff/config"
-	"go.orx.me/apps/trip-map/internal/bff/gateway"
-	"go.orx.me/apps/trip-map/internal/platform/health"
+	"github.com/kongken/mono/internal/bff/config"
+	"github.com/kongken/mono/internal/bff/gateway"
+	"github.com/kongken/mono/internal/platform/health"
 )
 
 type Handlers struct {

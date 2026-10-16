@@ -5,7 +5,7 @@ package tripmap.v1;
 import "google/protobuf/timestamp.proto";
 import "tripmap/v1/footprint.proto";
 
-option go_package = "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1;tripmapv1";
+option go_package = "github.com/kongken/mono/pkg/proto/tripmap/v1;tripmapv1";
 
 // SnapshotService keeps immutable copies of the caller's footprints so a bad
 // import, deletion or overwrite can be undone. Every method requires a bearer

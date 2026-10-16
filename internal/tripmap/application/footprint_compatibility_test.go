@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"go.orx.me/apps/trip-map/internal/tripmap/ent"
+	"github.com/kongken/mono/internal/tripmap/ent"
 )
 
 func TestLegacyIslandSnapshot(t *testing.T) {

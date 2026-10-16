@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/sharedtrip"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 )
 
 // SharedTrip is the model entity for the SharedTrip schema.

@@ -11,9 +11,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/predicate"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/sharedtrip"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/tripmember"
+	"github.com/kongken/mono/internal/tripmap/ent/predicate"
+	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
+	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 )
 
 // SharedTripUpdate is the builder for updating SharedTrip entities.

@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"go.orx.me/apps/trip-map/internal/tripmap/application"
-	"go.orx.me/apps/trip-map/internal/tripmap/auth/provider"
-	"go.orx.me/apps/trip-map/internal/tripmap/config"
-	"go.orx.me/apps/trip-map/internal/tripmap/regions"
-	"go.orx.me/apps/trip-map/internal/tripmap/testutil"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
-	"go.orx.me/apps/trip-map/pkg/proto/tripmap/v1/tripmapv1connect"
+	"github.com/kongken/mono/internal/tripmap/application"
+	"github.com/kongken/mono/internal/tripmap/auth/provider"
+	"github.com/kongken/mono/internal/tripmap/config"
+	"github.com/kongken/mono/internal/tripmap/regions"
+	"github.com/kongken/mono/internal/tripmap/testutil"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/pkg/proto/tripmap/v1/tripmapv1connect"
 )
 
 type env struct {

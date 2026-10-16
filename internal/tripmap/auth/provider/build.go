@@ -1,6 +1,6 @@
 package provider
 
-import "go.orx.me/apps/trip-map/internal/tripmap/config"
+import "github.com/kongken/mono/internal/tripmap/config"
 
 // BuildRegistry constructs a Registry from the configured providers. Providers
 // with missing credentials are skipped. It returns an empty registry when

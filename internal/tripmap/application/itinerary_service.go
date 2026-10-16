@@ -12,15 +12,15 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"go.orx.me/apps/trip-map/internal/tripmap/auth"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent"
-	entitinerary "go.orx.me/apps/trip-map/internal/tripmap/ent/itinerary"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/schema"
-	"go.orx.me/apps/trip-map/internal/tripmap/ent/syncreceipt"
-	"go.orx.me/apps/trip-map/internal/tripmap/itinerary"
-	"go.orx.me/apps/trip-map/internal/tripmap/regions"
-	tripmapv1 "go.orx.me/apps/trip-map/pkg/proto/tripmap/v1"
-	"go.orx.me/apps/trip-map/pkg/proto/tripmap/v1/tripmapv1connect"
+	"github.com/kongken/mono/internal/tripmap/auth"
+	"github.com/kongken/mono/internal/tripmap/ent"
+	entitinerary "github.com/kongken/mono/internal/tripmap/ent/itinerary"
+	"github.com/kongken/mono/internal/tripmap/ent/schema"
+	"github.com/kongken/mono/internal/tripmap/ent/syncreceipt"
+	"github.com/kongken/mono/internal/tripmap/itinerary"
+	"github.com/kongken/mono/internal/tripmap/regions"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
+	"github.com/kongken/mono/pkg/proto/tripmap/v1/tripmapv1connect"
 )
 
 const (

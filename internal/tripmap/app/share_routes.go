@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"go.orx.me/apps/trip-map/internal/platform/httpx"
-	"go.orx.me/apps/trip-map/internal/tripmap/application"
+	"github.com/kongken/mono/internal/platform/httpx"
+	"github.com/kongken/mono/internal/tripmap/application"
 )
 
 // shareMethods are the verbs the public share routes answer. HEAD lets link
