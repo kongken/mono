@@ -227,7 +227,7 @@ F4 已采用默认值：JPEG/PNG/WebP/PDF、10 MiB、20 个/城市；当前关�
 ### 存储结构版本
 
 - 本地与导出备份当前为 `version: 2`（F5），含旅行层；版本 1 仍可读取、导入，读取时转为每城市一次旅行，不把旧数据当作空数据覆盖。
-- 云端 schema 变更使用 `migrations/` 里按时间戳排序、只增的 SQL 文件和 `atlas.sum`（F5 的纯新增迁移与 baseline 已提供，生成命令、升级顺序和验证见 [后端初始化](backend.md)），与前端存储版本分别管理；浏览器端的键按代际隔离（`shanhai-travel-v2`、`shanhai-cloud-v2:`），旧页面仍写的旧键只读保留。
+- 云端 schema 变更使用 `migrations/tripmap/` 里按时间戳排序、只增的 SQL 文件和 `atlas.sum`（F5 的纯新增迁移与 baseline 已提供，生成命令、升级顺序和验证见 [后端初始化](backend.md)），与前端存储版本分别管理；浏览器端的键按代际隔离（`shanhai-travel-v2`、`shanhai-cloud-v2:`），旧页面仍写的旧键只读保留。
 
 ## 接口草案
 

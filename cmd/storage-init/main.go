@@ -17,7 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
-	"go.orx.me/apps/trip-map/internal/config"
+	"go.orx.me/apps/trip-map/internal/tripmap/config"
 	"gopkg.in/yaml.v3"
 )
 

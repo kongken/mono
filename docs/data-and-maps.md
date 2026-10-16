@@ -65,7 +65,7 @@
 
 ## 区域索引版本与维护（F10）
 
-- `src/regions.json` 与 `internal/regions/regions.json` 保持逐字一致；`src/region-history.json` 保存已审核元组映射与支持的历史版本。`npm run prepare:regions` 生成 `src/region-catalog.json` 和 `internal/regions/catalog.json`，其 `version` 是规范序列化 `{regions, mappings}` 的 SHA-256，包含名称、归属与迁移语义，而不是手动递增号。Go 启动时校验摘要绑定；`npm test` 和 `npm run check:maps` 检查生成文件与两端副本。
+- `src/regions.json` 与 `internal/tripmap/regions/regions.json` 保持逐字一致；`src/region-history.json` 保存已审核元组映射与支持的历史版本。`npm run prepare:regions` 生成 `src/region-catalog.json` 和 `internal/tripmap/regions/catalog.json`，其 `version` 是规范序列化 `{regions, mappings}` 的 SHA-256，包含名称、归属与迁移语义，而不是手动递增号。Go 启动时校验摘要绑定；`npm test` 和 `npm run check:maps` 检查生成文件与两端副本。
 - 当前生产迁移表只有金门、马祖两条真实归属变化；`scripts/fixtures/region-upgrades.json` 是前后端共用的退休 ID 测试夹具，不进入生产表。保持 34 省、497 区域、391 全国目的地；不修改 GeoJSON、旧存储键或 F5 的结构版本。
 - 有效的本地原文在第一次覆盖为版本化数据前另存到 `shanhai-regions-original:<来源键>:<内容摘要>`；账号缓存的 `saved` / `confirmed` 与外层同时写当前版本，但 `pendingBatch` 的原请求、ID、revision 不改。区域副本写入失败拒绝覆盖。v1 独立旧键本身保留；F0 已保存或导出原文的显式恢复不重复强制复制。区域副本不被应用自动读取；本地副本不自动清理，账号退出/注销删除该账号的副本，其他账号副本保留。
 - 云端 `ApplyRegionUpgrade` 更新当前用户的区域元数据，ID 改号时原位保留城市行 ID、旅行稳定 ID/行 ID/时间与所有用户内容，迁移媒体的区域引用（含取消打卡后保留的文件），不改对象 key。schema 1 在城市 ID 改号前先将旧日期、备注转成 schema 2 的 `legacy-<原 ID>` 旅行。媒体不进入足迹快照，媒体-only 迁移不增加足迹 revision。已发布分享保持当时内容不变。
@@ -95,13 +95,13 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 
 年度报告与旅行成就（F8）直接基于现有的城市足迹（`visits` / `city_visits`）、旅行子记录（`trips` / `city_trips`）和省份独立标记（`provinces` / `province_marks`）计算，不改变本地 `Saved`（`version: 2`）或导出备份的 JSON 格式，也不新增 PostgreSQL 表。
 
-- **前后端一致口径与共享测试夹具：** 前端 `src/lib/report.ts` 与后端 `internal/report/report.go` 使用相同的规则处理全国 34 个省级区域、391 个全国统计城市（北京 `110000`、天津 `120000`、上海 `310000`、重庆 `500000`、香港 `810000`、澳门 `820000` 区县合并为各 1 座）和 497 个省内可记录区域，并由 `scripts/fixtures/report-stats.json` 同时驱动前端与 Go 单元测试。
+- **前后端一致口径与共享测试夹具：** 前端 `src/lib/report.ts` 与后端 `internal/tripmap/report/report.go` 使用相同的规则处理全国 34 个省级区域、391 个全国统计城市（北京 `110000`、天津 `120000`、上海 `310000`、重庆 `500000`、香港 `810000`、澳门 `820000` 区县合并为各 1 座）和 497 个省内可记录区域，并由 `scripts/fixtures/report-stats.json` 同时驱动前端与 Go 单元测试。
 - **时区与可追溯性：** 旅行记录日期保持 `YYYY-MM-DD` 日历字符串，不随 UTC 偏移改变年份；用户请求的 IANA 时区（默认 `Asia/Shanghai`）用于计算当前本地日历日期 `generated_on` 与当前年份 `current_year`。每项省内进度、年度报告统计和成就状态都附带指向原始省份、城市或旅行记录的 `ReportRecordRef` 引用。
 - **服务端 Redis 缓存：** 后端 `ReportService.GetReport` 将汇总结果缓存在 Redis 键 `<prefix>report:v1:<user_id>|<revision>|<timezone>|<local_date>`（TTL 24 小时）中，并由每小时维护任务预热默认时区缓存；足迹 `revision` 变化后立即命中新键。
 
 ## 行程与城市坐标（F11）
 
-- `src/city-coords.json` 与 `internal/itinerary/coords.json` 保存 497 个可记录区域的中心点 `[GCJ 经度, GCJ 纬度, WGS-84 经度, WGS-84 纬度]`，由 `scripts/prepare-city-coords.mjs` 从 `public/maps/*.json` 的 `center/centroid` 生成（台湾区域已是 WGS-84，两组相同）。地图区域更新后运行 `npm run prepare:coords` 并一起提交；`npm run check:maps` 校验是否最新、是否覆盖全部区域。
+- `src/city-coords.json` 与 `internal/tripmap/itinerary/coords.json` 保存 497 个可记录区域的中心点 `[GCJ 经度, GCJ 纬度, WGS-84 经度, WGS-84 纬度]`，由 `scripts/prepare-city-coords.mjs` 从 `public/maps/*.json` 的 `center/centroid` 生成（台湾区域已是 WGS-84，两组相同）。地图区域更新后运行 `npm run prepare:coords` 并一起提交；`npm run check:maps` 校验是否最新、是否覆盖全部区域。
 - SVG 地图用 GCJ 坐标投影，OSM 底图用 WGS-84 坐标，与现有边界一致；路线只依赖这份静态数据，不请求第三方服务。
 - 行程本地保存为 `{ version: 1, regionVersion, activeId, itineraries: [...] }`（键 `shanhai-itineraries-v1`，账号缓存键 `shanhai-cloud-itineraries-v1:<用户 ID>`）；读取时按 F10 映射升级站点区域 ID，无法识别的行程记录被忽略而不覆盖其余数据。备份文件可带 `itineraries` 和 `activeItineraryId`，不带时导入不触碰现有行程。
 - 估算：球面直线距离（地球半径 6371 km，取 0.1 km 整数）乘交通方式绕行系数（铁路 120%、自驾 130%、飞机 105%、轮渡 115%、其他 120%），用时按平均速度（220/80/700/35/100 km/h）加固定缓冲（20/15/50/25/15 分钟）；Go 与 TypeScript 使用同一整数运算，`scripts/fixtures/itinerary-routes.json` 同时驱动两侧测试。
@@ -144,7 +144,7 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 | `scripts/split-fujian-regions.mjs` | 将补充边界中的金门、马祖拆入福建，并移除福州、泉州中的重复岛屿组件 |
 | `scripts/check-maps.mjs` | 校验全国覆盖、省内索引一致性、ID 唯一性、多边形方向及投影路径，以及 F6 预览几何与当前地图、区域索引和固定配色一致 |
 | `src/lib/projection.ts` | 全国与省内地图共用的投影镜头和南海附图位置（应用、分享页和预览几何生成共用） |
-| `internal/share/assets/geometry.json` | F6 预览图用的预投影省份多边形与固定配色，由 `npm run prepare:share-geometry` 生成 |
+| `internal/tripmap/share/assets/geometry.json` | F6 预览图用的预投影省份多边形与固定配色，由 `npm run prepare:share-geometry` 生成 |
 
 当前共有 34 个省级区域和 497 个可记录下级区域（福建 11、台湾 20）。全国城市统计将直辖市和港澳的 112 个区县合并为 6 个目的地，分母为 391；这只改变统计，不合并或删除足迹记录。数量是当前数据快照；更新后以 `npm run check:maps` 的实际结果为准。
 
@@ -203,7 +203,7 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 
 ## F6 分享快照与预览资源
 
-**当前已实现。** 分享配置保存在 `shares` 表（见 [后端初始化](backend.md#数据库模型)），与城市足迹、省份标记、旅行和媒体分表；删除或修改足迹不会改写已发布的快照，发布快照里也不引用这些行。公开内容（`internal/share.Content`，版本 1）是显式白名单：
+**当前已实现。** 分享配置保存在 `shares` 表（见 [后端初始化](backend.md#数据库模型)），与城市足迹、省份标记、旅行和媒体分表；删除或修改足迹不会改写已发布的快照，发布快照里也不引用这些行。公开内容（`internal/tripmap/share.Content`，版本 1）是显式白名单：
 
 ```json
 {
@@ -221,8 +221,8 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 
 **预览资源。**
 
-- `internal/share/assets/geometry.json`：全国地图按前端投影（`src/lib/projection.ts`：圆锥等角投影，平行纬线 25°/47°，中心 105°E，与应用同一镜头）预先投影的省份多边形、南海诸岛附图，以及固定省份配色（`nationalProvinceColors` 的全部 34 省结果）。由 `npm run prepare:share-geometry` 生成；`npm run check:maps` 要求它与 `public/maps/100000.json`、`src/regions.json`、固定配色逐字一致，更新地图数据后需重新生成并一并提交。
-- `internal/share/assets/NotoSansSC-{Regular,Bold}.subset.otf` 与 `OFL.txt`：Noto Sans SC 子集（SIL OFL 1.1），保留许可证；子集由 `scripts/subset-share-font.sh` 生成，只含预览图的固定文字和数字。更改预览图固定文字时必须重新生成子集（`TestFontCoversEveryRenderedCharacter` 会检查）。
+- `internal/tripmap/share/assets/geometry.json`：全国地图按前端投影（`src/lib/projection.ts`：圆锥等角投影，平行纬线 25°/47°，中心 105°E，与应用同一镜头）预先投影的省份多边形、南海诸岛附图，以及固定省份配色（`nationalProvinceColors` 的全部 34 省结果）。由 `npm run prepare:share-geometry` 生成；`npm run check:maps` 要求它与 `public/maps/100000.json`、`src/regions.json`、固定配色逐字一致，更新地图数据后需重新生成并一并提交。
+- `internal/tripmap/share/assets/NotoSansSC-{Regular,Bold}.subset.otf` 与 `OFL.txt`：Noto Sans SC 子集（SIL OFL 1.1），保留许可证；子集由 `scripts/subset-share-font.sh` 生成，只含预览图的固定文字和数字。更改预览图固定文字时必须重新生成子集（`TestFontCoversEveryRenderedCharacter` 会检查）。
 - 前端分享页使用同一投影和同一配色，地图来自随项目分发的 `maps/100000.json`；运行时没有第三方地图请求。
 - 统计固定样例：`scripts/fixtures/share-stats.json` 同时驱动 Go（`TestStatsMatchTheSharedFrontendFixtures`）和前端（`scripts/share.test.mjs`），两边口径必须保持一致。
 

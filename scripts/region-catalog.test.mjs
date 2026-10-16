@@ -30,10 +30,10 @@ test("region catalog digest and both generated copies are current", () => {
   execFileSync(process.execPath, ["scripts/prepare-region-catalog.mjs", "--check"]);
   const expectedHash = "sha256:" + createHash("sha256").update(JSON.stringify({ regions, mappings: metadata.mappings })).digest("hex");
   assert.equal(REGION_VERSION, expectedHash);
-  assert.equal(readFileSync("internal/regions/catalog.json", "utf8"), readFileSync("src/region-catalog.json", "utf8"));
+  assert.equal(readFileSync("internal/tripmap/regions/catalog.json", "utf8"), readFileSync("src/region-catalog.json", "utf8"));
   assert.equal(metadata.mappings.length, 2, "do not ship fictitious retired IDs");
   const dockerfile = readFileSync("deploy/frontend/Dockerfile", "utf8");
-  for (const file of ["internal/regions/regions.json", "internal/regions/catalog.json"]) assert.ok(dockerfile.includes(`COPY ${file} ${file}`), `Frontend image must copy ${file} before executing this check`);
+  for (const file of ["internal/tripmap/regions/regions.json", "internal/tripmap/regions/catalog.json"]) assert.ok(dockerfile.includes(`COPY ${file} ${file}`), `Frontend image must copy ${file} before executing this check`);
 });
 
 test("an exact retired tuple migrates v1/v2 without changing legacy trip IDs or user content", () => {

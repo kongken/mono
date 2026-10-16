@@ -10,28 +10,30 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 
 ## 项目结构
 
+仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前只有 tripmap 一个业务；业务包之间不互相 import，`internal/platform/` 不依赖业务包。
+
 | 路径 | 职责 |
 | --- | --- |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
-| `internal/app/` | Bootstrap、依赖注入、Gin 路由 |
-| `internal/config/` | 业务配置及必填存储名称校验 |
-| `internal/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）、`ShareService`、`CollaborationService`、`ReportService`（含 Redis 汇总缓存与定时预热维护）、`SearchService`（私有备注分页检索）、`NotificationService`（F12 提醒设置与每小时发送维护）、公开分享路由处理（`share_public.go`）及认证拦截器 |
-| `internal/auth/` | 会话令牌、Redis 限流与 OAuth state 存储；`provider/` 为 GitHub、Google、Logto OAuth/OIDC 适配（Logto 带 PKCE） |
-| `internal/share/` | F6：公开内容白名单与快照构建、统计、预览图渲染（纯 Go）、HTML 元数据注入、受信任 index.html 获取；`assets/` 含预览几何和 Noto Sans SC 子集 |
-| `internal/report/` | F8：统计总览、按时区计算的年度报告、8 项旅行成就及可追溯记录引用计算（与前端 `src/lib/report.ts` 共用 `scripts/fixtures/report-stats.json` 测试夹具） |
-| `internal/notification/` | F12：提醒内容规则（回忆匹配、年度窗口、文案）、退订令牌签名、SMTP 发送、Web Push 发送与 SSRF 防护（纯 Go，可单独测试） |
+| `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由 |
+| `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
+| `internal/tripmap/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）、`ShareService`、`CollaborationService`、`ReportService`（含 Redis 汇总缓存与定时预热维护）、`SearchService`（私有备注分页检索）、`NotificationService`（F12 提醒设置与每小时发送维护）、公开分享路由处理（`share_public.go`）及认证拦截器 |
+| `internal/tripmap/auth/` | 会话令牌、Redis 限流与 OAuth state 存储；`provider/` 为 GitHub、Google、Logto OAuth/OIDC 适配（Logto 带 PKCE） |
+| `internal/tripmap/share/` | F6：公开内容白名单与快照构建、统计、预览图渲染（纯 Go）、HTML 元数据注入、受信任 index.html 获取；`assets/` 含预览几何和 Noto Sans SC 子集 |
+| `internal/tripmap/report/` | F8：统计总览、按时区计算的年度报告、8 项旅行成就及可追溯记录引用计算（与前端 `src/lib/report.ts` 共用 `scripts/fixtures/report-stats.json` 测试夹具） |
+| `internal/tripmap/notification/` | F12：提醒内容规则（回忆匹配、年度窗口、文案）、退订令牌签名、SMTP 发送、Web Push 发送与 SSRF 防护（纯 Go，可单独测试） |
 | `cmd/vapid-keygen/` | `make vapid-keys`：生成 Web Push 的 VAPID 密钥对 |
-| `internal/regions/` | 嵌入的行政区域索引，供服务端校验区域 ID、名称与归属 |
-| `internal/testutil/` | 带独立 schema 和 Redis key 前缀的集成测试辅助 |
-| `internal/health/` | 有超时的依赖就绪检查 |
-| `internal/blobstore/` | S3 Put/Get/Delete 与 bucket 检查，不依赖具体供应方 |
-| `internal/ent/schema/` | 数据库 schema 源文件 |
-| `internal/ent/` | 生成的 Ent 客户端与迁移结构 |
+| `internal/tripmap/regions/` | 嵌入的行政区域索引，供服务端校验区域 ID、名称与归属 |
+| `internal/tripmap/testutil/` | 带独立 schema 和 Redis key 前缀的集成测试辅助 |
+| `internal/tripmap/blobstore/` | S3 Put/Get/Delete 与 bucket 检查，不依赖具体供应方 |
+| `internal/tripmap/ent/schema/` | 数据库 schema 源文件 |
+| `internal/tripmap/ent/` | 生成的 Ent 客户端与迁移结构 |
 | `proto/tripmap/v1/` | Protobuf 接口定义 |
 | `pkg/proto/`、`src/gen/` | 生成的 Go / TypeScript 契约 |
 | `src/api/system.ts` | 前端 Connect-Web 健康状态客户端 |
 | `cmd/storage-init/` | 显式初始化配置中指定的 S3 bucket |
-| `internal/integration/` | 可选的实际 PostgreSQL、Redis、S3 集成测试 |
+| `internal/tripmap/integration/` | 可选的实际 PostgreSQL、Redis、S3 集成测试 |
+| `internal/platform/health/` | 跨服务共享：有超时的依赖就绪检查 |
 
 ## 媒体接口（F4，`tripmap.v1.MediaService`）
 
@@ -186,7 +188,7 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
 - 服务端用嵌入的区域索引校验：区域 ID 存在，名称、所属省份与索引一致，颜色是五种之一，旅行日期为空或真实日历日期，备注不超过 1000 个 UTF-16 码元，旅行 ID 匹配 `^[A-Za-z0-9_-]{1,64}$`。校验失败返回 `invalid_argument`。
 - 每次写入在持有用户行锁的事务中执行，同一用户的写入串行；只有实际改变数据才使 `revision` +1。内容相同的重复保存、删除不存在的记录都成功且不增加 revision，因此重试幂等，响应中的 `changed` / `deleted` 表示是否发生变化。
 - `base_revision` 保持旧客户端兼容：未设置 `require_revision` 时，0 表示不检查，非 0 表示检查。新增 `require_revision: true` 会检查任何 base_revision（包含 0）。检查版本与当前 revision 不同、且写入会改变数据时返回 `aborted`，附带 `RevisionConflict.current_revision`；已生效请求的同内容重放仍幂等成功。新前端读取完整快照后逐记录精确版本写入，版本变化时重新三方合并，同记录冲突需要用户选择。部署须先更新支持 `require_revision` 的后端，再部署新前端（旧后端忽略该字段，无法保护初始 revision=0）。增量变更日志、删除 tombstone 和批量接口见下文 F1 新接口。
-- 区域索引的后端副本是 `internal/regions/regions.json`，必须与 `src/regions.json` 一致；`npm run download:maps` 会同时写入两份，Go 测试会比对。金门 `tw-09020`、连江县（马祖）`tw-09007` 归福建 `350000`，ID 和名称保持不变。
+- 区域索引的后端副本是 `internal/tripmap/regions/regions.json`，必须与 `src/regions.json` 一致；`npm run download:maps` 会同时写入两份，Go 测试会比对。金门 `tw-09020`、连江县（马祖）`tw-09007` 归福建 `350000`，ID 和名称保持不变。
 - 这两项旧云端记录若仍存为台湾 `710000`，快照和写入响应会返回规范化的福建归属，不修改原行、不提升 revision；旧客户端提交台湾归属时也先规范化再严格校验。与既有记录相同的规范化重放仍幂等，实际修改日期、颜色或备注后才按原有用户锁与 revision 机制写回福建归属。其他错误归属仍拒绝；没有数据库 schema 变化；F10 另提供用户确认的批量区域迁移。独立台湾省份标记保留。
 - 此归属修正需先部署后端，再部署前端，以免新前端向尚未更新区域索引的旧后端提交福建记录被拒绝。
 
@@ -206,7 +208,7 @@ curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
 - 快照载荷在预览/恢复时按 F10 历史元组映射临时投影，旧载荷不改写；未知 `region_version`、未映射记录或目标 ID 碰撞返回 `failed_precondition`，云端不变。schema 1 的旅行 ID 按原区域 ID 生成，再映射城市归属。
 - `reason` 取值：`manual`、`scheduled`、`before_migration`、`before_restore`。Protobuf 中用字符串而非 enum，是因为前端 `erasableSyntaxOnly` 禁止生成的 TypeScript enum。
 
-**保留与定时（默认值，常量在 `internal/application/snapshot_service.go`）。** 保留 30 天、始终保留最新 10 个、每账号最多 50 个，每次保存快照时对该账号执行，恢复期间不会清理正在恢复的快照；快照间隔 24 小时。`app.go` 的每小时维护任务在 Redis 锁 `tripmap:snapshot-maintenance`（50 分钟）保护下调用 `RunSnapshotMaintenance`：为“有足迹、自最新快照后有改动、且 24 小时内没有任何快照”的账号保存 `scheduled` 快照（在用户行锁内再次判断，多实例或重复运行不会产生重复），并对不再变化账号的过期快照执行保留规则。账号注销通过外键级联删除全部快照。
+**保留与定时（默认值，常量在 `internal/tripmap/application/snapshot_service.go`）。** 保留 30 天、始终保留最新 10 个、每账号最多 50 个，每次保存快照时对该账号执行，恢复期间不会清理正在恢复的快照；快照间隔 24 小时。`app.go` 的每小时维护任务在 Redis 锁 `tripmap:snapshot-maintenance`（50 分钟）保护下调用 `RunSnapshotMaintenance`：为“有足迹、自最新快照后有改动、且 24 小时内没有任何快照”的账号保存 `scheduled` 快照（在用户行锁内再次判断，多实例或重复运行不会产生重复），并对不再变化账号的过期快照执行保留规则。账号注销通过外键级联删除全部快照。
 
 ```bash
 # 用 curl 体验（令牌来自 Register 或 Login 的响应）
@@ -232,7 +234,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 保存在单个事务内取得用户行的最小更新锁，与足迹同步、账号注销串行。快照 gzip 后上限 4 MiB，超过返回 `failed_precondition`（不截断）。`shares` 的变化不影响 OAuth、会话、快照或云同步。
 
-**公开路由（无认证，Gin 直接挂载）：** `GET|HEAD /s/<token>`、`/s/<token>/og.png`、`/api/share/<token>/data`、`/api/share/<token>/photos/<句柄>`（见 [公开接口](sharing.md#公开接口)）。路由在 `internal/app/share_routes.go`，处理在 `internal/application/share_public.go`。
+**公开路由（无认证，Gin 直接挂载）：** `GET|HEAD /s/<token>`、`/s/<token>/og.png`、`/api/share/<token>/data`、`/api/share/<token>/photos/<句柄>`（见 [公开接口](sharing.md#公开接口)）。路由在 `internal/tripmap/app/share_routes.go`，处理在 `internal/tripmap/application/share_public.go`。
 
 **配置。**
 
@@ -243,9 +245,9 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 | `share.html_csp` | 覆盖分享 HTML 的 CSP，默认严格同源；Vite 开发服务器需要放宽 |
 | `share.page_rate_per_minute` / `image_…` / `miss_…` / `photo_…` | 每客户端地址每分钟限额，默认 120 / 30 / 30 / 300 |
 
-**部署顺序与反向代理。** 先应用 `migrations/20261014022913_f6_shares.sql`，再部署后端，最后部署前端。代理必须转发 `/s/` 与 `/api/share/` 到后端，且这些路径不写访问日志（令牌）；位于代理之后设置 `auth.client_ip_header`。镜像内的 Nginx 配置已处理；Vite 开发服务器代理 `/s/`。后端镜像构建需要 `internal/` 下的预览资源和 `scripts/fixtures`；前端镜像构建需要 `internal/share/assets/geometry.json`（`check:maps` 校验）。后端 `CGO_ENABLED=0` 构建通过。
+**部署顺序与反向代理。** 先应用 `migrations/tripmap/20261014022913_f6_shares.sql`，再部署后端，最后部署前端。代理必须转发 `/s/` 与 `/api/share/` 到后端，且这些路径不写访问日志（令牌）；位于代理之后设置 `auth.client_ip_header`。镜像内的 Nginx 配置已处理；Vite 开发服务器代理 `/s/`。后端镜像构建需要 `internal/` 下的预览资源和 `scripts/fixtures`；前端镜像构建需要 `internal/tripmap/share/assets/geometry.json`（`check:maps` 校验）。后端 `CGO_ENABLED=0` 构建通过。
 
-**生成。** 修改 `proto/` 后 `make buf`，修改 `internal/ent/schema/` 后 `make ent`，迁移文件用 `make migration NAME=… DEV_DSN=…` 生成；生成文件不手改。
+**生成。** 修改 `proto/` 后 `make buf`，修改 `internal/tripmap/ent/schema/` 后 `make ent`，迁移文件用 `make migration NAME=… DEV_DSN=…` 生成；生成文件不手改。
 
 ## F7 共同旅行与好友（`tripmap.v1.CollaborationService`）
 
@@ -275,7 +277,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 | `GetReport` | 接收可选 IANA `timezone`（默认 `Asia/Shanghai`，无效时回退 `Asia/Shanghai`）与可选 `year`。在 `RepeatableRead` 只读事务快照中读取当前用户的 `revision`、城市足迹、旅行记录与省份独立标记，计算统计总览（`overview`）、全部年度报告（`annual_reports`）与 8 项旅行成就（`achievements`），每项指标与成就均附带可追溯的记录引用（`ReportRecordRef`） |
 
 - **Redis 缓存与实时版本隔离：** 汇总结果以 Protobuf 编码缓存在 Redis 键 `<prefix>report:v2:<user_id>|<revision>|<timezone>|<local_date>|<region_version>` 中（TTL 24 小时）。由于缓存键绑定了用户当前的足迹 `revision`、区域版本与该时区下的本地日历日期 `local_date`，任何足迹或旅行的增删改推进 `revision` 后，下一次请求立即计算新版本并写入新键，不会返回过期统计。
-- **定时汇总维护：** `internal/app/app.go` 的每小时后台维护循环在 Redis 锁 `tripmap:report-maintenance`（50 分钟）保护下调用 `RunReportMaintenance`，为近期活跃且当前 `revision` 尚未缓存的账号预热默认时区（`Asia/Shanghai`）的汇总缓存。F8 无需新增 PostgreSQL 表。
+- **定时汇总维护：** `internal/tripmap/app/app.go` 的每小时后台维护循环在 Redis 锁 `tripmap:report-maintenance`（50 分钟）保护下调用 `RunReportMaintenance`，为近期活跃且当前 `revision` 尚未缓存的账号预热默认时区（`Asia/Shanghai`）的汇总缓存。F8 无需新增 PostgreSQL 表。
 
 ## F9 私有备注搜索（`tripmap.v1.SearchService`）
 
@@ -291,7 +293,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 ## F10 区域数据服务（`tripmap.v1.RegionService`）
 
-所有方法须认证，只迁移当前会话用户的数据，区域索引本身不含私有足迹。使用与足迹校验同一 `internal/regions.Index`，版本和映射由前后端共用生成流程维护，详见 [数据与地图说明](data-and-maps.md#区域索引版本与维护f10)。不新增表、列或数据库迁移。
+所有方法须认证，只迁移当前会话用户的数据，区域索引本身不含私有足迹。使用与足迹校验同一 `internal/tripmap/regions.Index`，版本和映射由前后端共用生成流程维护，详见 [数据与地图说明](data-and-maps.md#区域索引版本与维护f10)。不新增表、列或数据库迁移。
 
 | 方法 | 行为 |
 | --- | --- |
@@ -308,7 +310,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 ## F11 行程服务（`tripmap.v1.ItineraryService`）
 
-所有方法须认证，只读写当前会话用户的行程。`proto/tripmap/v1/itinerary.proto`，实现在 `internal/application/itinerary_service.go`，路程估算在 `internal/itinerary`（内嵌 `coords.json`，由 `scripts/prepare-city-coords.mjs` 从 `public/maps` 生成并与 `src/city-coords.json` 逐字节一致，`npm run check:maps` 与 Go 测试都会核对）。
+所有方法须认证，只读写当前会话用户的行程。`proto/tripmap/v1/itinerary.proto`，实现在 `internal/tripmap/application/itinerary_service.go`，路程估算在 `internal/tripmap/itinerary`（内嵌 `coords.json`，由 `scripts/prepare-city-coords.mjs` 从 `public/maps` 生成并与 `src/city-coords.json` 逐字节一致，`npm run check:maps` 与 Go 测试都会核对）。
 
 | 方法 | 行为 |
 | --- | --- |
@@ -318,12 +320,12 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 | `DeleteItinerary` | 删除自己的行程；`expected_version` 大于 0 时须等于当前版本，否则 `aborted`；不存在（且未带版本）返回 `deleted: false` |
 
 - 估算策略固定为 `offline_great_circle`、`external_api_enabled: false`、`free_builtin`、`redis_leg_24h_and_local_deterministic`。单段结果缓存在 Redis `<prefix>:itinerary:leg:v1:<from>:<to>:<mode>`（24 小时）；缓存不可用时直接计算，不影响结果。`from_cache` 仅表示整条行程的路段都来自缓存。
-- 表 `itineraries`：所属用户（外键，级联删除）、`itinerary_id`（`user_id + itinerary_id` 唯一）、标题、备注、颜色、`version`、站点 JSON、创建/更新时间；迁移 `migrations/20261014140617_f11_itineraries.sql`。
+- 表 `itineraries`：所属用户（外键，级联删除）、`itinerary_id`（`user_id + itinerary_id` 唯一）、标题、备注、颜色、`version`、站点 JSON、创建/更新时间；迁移 `migrations/tripmap/20261014140617_f11_itineraries.sql`。
 - 账号注销删除行程；`RegionService` 迁移同时改写行程站点中的历史城市 ID（行程里出现未映射区域时作为阻止项）。其余部署与验证同上，先部署后端再部署前端。
 
 ## F12 提醒与通知（`tripmap.v1.NotificationService`）
 
-规则与验收见 [功能描述](features.md#提醒与通知f12)。所有方法须认证，只读写当前会话用户的设置；`proto/tripmap/v1/notification.proto`，实现在 `internal/application/notification_service.go`（RPC）、`notification_maintenance.go`（发送）、`notification_public.go`（公开退订页），发送通道在 `internal/notification`。
+规则与验收见 [功能描述](features.md#提醒与通知f12)。所有方法须认证，只读写当前会话用户的设置；`proto/tripmap/v1/notification.proto`，实现在 `internal/tripmap/application/notification_service.go`（RPC）、`notification_maintenance.go`（发送）、`notification_public.go`（公开退订页），发送通道在 `internal/tripmap/notification`。
 
 **配置**（`notification`，全部可选；示例见 `config.example.yaml`，真实凭据放在被忽略的 `config.yaml` 或挂载 Secret 中）：
 
@@ -348,15 +350,15 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 写接口每用户每分钟 30 次，读接口 120 次；提供商返回的邮箱不会被存储（邮箱只来自用户输入并验证）。
 
-**发送。** `internal/app` 每小时在 Redis 锁 `tripmap:notification-maintenance` 下运行一次 `RunNotificationMaintenance`：按用户时区计算本地日期，到达发送小时后，为开启的类型/渠道在 `notification_deliveries` 里以唯一键（用户、类型、渠道、周期；周期为本地日期，年度为年份）先占位再发送，所以多实例或重复检查不会重复发送；失败最多尝试 3 次，状态为 `pending/sent/failed/skipped`，占位后进程崩溃的周期不再重发（最多一次）；发送记录保留 30 天后清理。回忆匹配规则：往年同月同日的旅行，非闰年的 2 月 28 日包含 2 月 29 日的旅行；旧版本 1 账号读取 `city_visits.travel_date`，版本 2 账号读取 `city_trips`；年度回顾在用户本地 1 月 1–7 日发送上一年的数量。
+**发送。** `internal/tripmap/app` 每小时在 Redis 锁 `tripmap:notification-maintenance` 下运行一次 `RunNotificationMaintenance`：按用户时区计算本地日期，到达发送小时后，为开启的类型/渠道在 `notification_deliveries` 里以唯一键（用户、类型、渠道、周期；周期为本地日期，年度为年份）先占位再发送，所以多实例或重复检查不会重复发送；失败最多尝试 3 次，状态为 `pending/sent/failed/skipped`，占位后进程崩溃的周期不再重发（最多一次）；发送记录保留 30 天后清理。回忆匹配规则：往年同月同日的旅行，非闰年的 2 月 28 日包含 2 月 29 日的旅行；旧版本 1 账号读取 `city_visits.travel_date`，版本 2 账号读取 `city_trips`；年度回顾在用户本地 1 月 1–7 日发送上一年的数量。
 
 **邮件。** 标准库 `net/smtp`，UTF-8 quoted-printable，拒绝头注入；每封邮件带 `List-Unsubscribe` 与 `List-Unsubscribe-Post: List-Unsubscribe=One-Click`。退订链接 `GET/HEAD/POST /api/notifications/unsubscribe?t=<令牌>`：令牌为 `userID|kind` 的 HMAC-SHA256（`kind` 为 `*` 表示全部邮件类型），无状态；GET 只显示确认页，POST（含邮件客户端一键退订）才关闭对应开关；按 IP 限流，响应 `no-store`、`noindex`、严格 CSP，密钥未配置时路由不提供服务，访问日志与 Referer 不记录令牌。
 
 **推送。** 使用 `github.com/SherClockHolmes/webpush-go`；发送前校验端点：必须是 https、域名（非 IP）、端口 443，拨号时再次检查解析出的 IP 不在内网/回环/链路本地等范围，不跟随重定向、不使用代理；返回 404/410 的订阅删除，连续失败 5 次的订阅删除。前端 Service Worker 在 `public/sw.js`，只显示服务端发来的标题和正文，点击只打开本站；前端镜像的 Nginx 对 `/sw.js` 设置 `no-cache`，并对 `/api/notifications/` 关闭访问日志、清除 Referer。
 
-**数据与部署。** 新表 `notification_profiles`（每用户一行：时区、发送小时、是否显示地点、已验证邮箱、待验证邮箱及验证码哈希/过期时间/尝试次数）、`notification_settings`（`user_id + kind + channel` 唯一，缺失即关闭）、`push_subscriptions`（`endpoint_hash` 唯一）、`notification_deliveries`；均通过 `users` 外键级联删除，账号注销一并清除。迁移 `migrations/20261014165138_f12_notifications.sql` 为纯新增。**部署顺序：** 先执行该迁移，再升级后端，最后部署前端；未配置 `notification` 时不发送任何内容。
+**数据与部署。** 新表 `notification_profiles`（每用户一行：时区、发送小时、是否显示地点、已验证邮箱、待验证邮箱及验证码哈希/过期时间/尝试次数）、`notification_settings`（`user_id + kind + channel` 唯一，缺失即关闭）、`push_subscriptions`（`endpoint_hash` 唯一）、`notification_deliveries`；均通过 `users` 外键级联删除，账号注销一并清除。迁移 `migrations/tripmap/20261014165138_f12_notifications.sql` 为纯新增。**部署顺序：** 先执行该迁移，再升级后端，最后部署前端；未配置 `notification` 时不发送任何内容。
 
-**验证与限制。** `internal/notification` 的测试覆盖文案、令牌、SMTP（本地假服务器）、Web Push（本地 TLS 假推送服务和 SSRF 拒绝）；`internal/application` 的集成测试（需要 PostgreSQL 与 Redis）覆盖设置、邮箱验证、订阅转移、发送时区与幂等、重试、退订、用户隔离和注销清理；前端有单元测试与桌面/手机 Playwright 验收。没有对真实 SMTP 服务商和真实浏览器推送服务做验证；投递语义为最多一次，没有送达回执；每小时一次的检查使实际发送可能晚最多约 1 小时。
+**验证与限制。** `internal/tripmap/notification` 的测试覆盖文案、令牌、SMTP（本地假服务器）、Web Push（本地 TLS 假推送服务和 SSRF 拒绝）；`internal/tripmap/application` 的集成测试（需要 PostgreSQL 与 Redis）覆盖设置、邮箱验证、订阅转移、发送时区与幂等、重试、退订、用户隔离和注销清理；前端有单元测试与桌面/手机 Playwright 验收。没有对真实 SMTP 服务商和真实浏览器推送服务做验证；投递语义为最多一次，没有送达回执；每小时一次的检查使实际发送可能晚最多约 1 小时。
 
 ## 数据库模型
 
@@ -386,7 +388,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 ## 版本化数据库迁移
 
-`migrations/` 保存按时间戳排序的、只增不删的 PostgreSQL SQL 文件和 `atlas.sum` 校验和（Atlas 目录格式）。当前有下列文件：
+`migrations/tripmap/` 保存按时间戳排序的、只增不删的 PostgreSQL SQL 文件和 `atlas.sum` 校验和（Atlas 目录格式）。当前有下列文件：
 
 | 文件 | 内容 |
 | --- | --- |
@@ -397,17 +399,17 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 | `20261014140617_f11_itineraries.sql` | F11 的纯新增变更：新表 `itineraries`（`(user_id, itinerary_id)` 唯一索引、`users` 外键级联删除，站点为 JSON 列）；不改动既有表 |
 | `20261014165138_f12_notifications.sql` | F12 的纯新增变更：新表 `notification_profiles`、`notification_settings`、`push_subscriptions`、`notification_deliveries`（唯一索引与 `users` 外键级联删除）；不改动既有表 |
 
-**生成。** 修改 `internal/ent/schema/` 并运行 `make ent` 后，用 `make migration NAME=<变更名> DEV_DSN='postgres://…'` 生成下一个文件（`cmd/migrate-gen`）：它在 `DEV_DSN` 指向的服务器上临时创建一个随机命名的空数据库，重放现有 `migrations/` 得到“当前结构”，与 Ent schema 比较后写出差异和新的 `atlas.sum`，然后删除该数据库；因此所用账号需要 `CREATEDB`，不会碰服务器上的其他库。生成器只写新增和修改类语句（不写 `DROP COLUMN` / `DROP INDEX`，也不生成会丢数据的回滚脚本）。迁移文件只通过生成器更新，手改会使 `atlas.sum` 校验失败。
+**生成。** 修改 `internal/tripmap/ent/schema/` 并运行 `make ent` 后，用 `make migration NAME=<变更名> DEV_DSN='postgres://…'` 生成下一个文件（`cmd/migrate-gen`）：它在 `DEV_DSN` 指向的服务器上临时创建一个随机命名的空数据库，重放现有 `migrations/tripmap/` 得到“当前结构”，与 Ent schema 比较后写出差异和新的 `atlas.sum`，然后删除该数据库；因此所用账号需要 `CREATEDB`，不会碰服务器上的其他库。生成器只写新增和修改类语句（不写 `DROP COLUMN` / `DROP INDEX`，也不生成会丢数据的回滚脚本）。迁移文件只通过生成器更新，手改会使 `atlas.sum` 校验失败。
 
 **升级顺序（已有生产数据库，由 `auto_migrate` 建表）。**
 
 1. 备份数据库（F5 对账号的升级是单向的，回退旧后端需要这份备份）。
 2. 把后端配置改为 `auto_migrate: false`。
-3. 对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/20261014011446_f5_multiple_trips.sql`，再依次执行 `20261014022913_f6_shares.sql`、`20261014050044_f7_collaboration.sql`、`20261014140617_f11_itineraries.sql` 和 `20261014165138_f12_notifications.sql`（已升级到前一版的数据库只执行尚未应用的文件）。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
+3. 对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/tripmap/20261014011446_f5_multiple_trips.sql`，再依次执行 `20261014022913_f6_shares.sql`、`20261014050044_f7_collaboration.sql`、`20261014140617_f11_itineraries.sql` 和 `20261014165138_f12_notifications.sql`（已升级到前一版的数据库只执行尚未应用的文件）。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
 4. 部署新后端；已有账号在第一次被新前端写入时才升级到结构 2（见上文），旧行保持原样。
 5. 全新数据库：按文件名顺序执行全部文件（含 baseline）。
 
-**验证。** `internal/integration/migrations_test.go`（随 `make test-integration` 和 CI 的 `go test ./...` 运行，需要 `TRIPMAP_TEST_POSTGRES_DSN`）在随机 schema 里先应用 baseline 并插入旧用户、城市足迹、快照和媒体行，再按上面的方式应用后续文件：检查旧行数据不变且新列取默认值、`city_trips` 为空，并要求迁移后的库与 `Schema.Create` 建出的库对 Ent 报告的待执行差异完全一致（Ent 对两条部分唯一索引的谓词文本有恒定的重建提示，两边同样出现，因此按“完全相同”比较）；另一个测试校验 `atlas.sum` 与文件一致。CI 与实际 PostgreSQL 一起运行这些测试。
+**验证。** `internal/tripmap/integration/migrations_test.go`（随 `make test-integration` 和 CI 的 `go test ./...` 运行，需要 `TRIPMAP_TEST_POSTGRES_DSN`）在随机 schema 里先应用 baseline 并插入旧用户、城市足迹、快照和媒体行，再按上面的方式应用后续文件：检查旧行数据不变且新列取默认值、`city_trips` 为空，并要求迁移后的库与 `Schema.Create` 建出的库对 Ent 报告的待执行差异完全一致（Ent 对两条部分唯一索引的谓词文本有恒定的重建提示，两边同样出现，因此按“完全相同”比较）；另一个测试校验 `atlas.sum` 与文件一致。CI 与实际 PostgreSQL 一起运行这些测试。
 
 **限制。** 迁移流水线只覆盖 PostgreSQL 结构；部署时仍需人工执行并记录已执行的版本（没有内置的迁移执行器或版本表）；回滚依赖数据库备份。
 
@@ -429,11 +431,11 @@ npm run build
 make test-integration
 ```
 
-该命令使用 Compose 示例的本地地址和开发凭据。使用其他测试环境时，设置 `TRIPMAP_TEST_POSTGRES_DSN`、`TRIPMAP_TEST_REDIS_ADDR`、`TRIPMAP_TEST_REDIS_PASSWORD`、`TRIPMAP_TEST_S3_ENDPOINT`、`TRIPMAP_TEST_S3_ACCESS_KEY`、`TRIPMAP_TEST_S3_SECRET_KEY`、`TRIPMAP_TEST_S3_BUCKET`，运行 `go test -v ./internal/integration`。
+该命令使用 Compose 示例的本地地址和开发凭据。使用其他测试环境时，设置 `TRIPMAP_TEST_POSTGRES_DSN`、`TRIPMAP_TEST_REDIS_ADDR`、`TRIPMAP_TEST_REDIS_PASSWORD`、`TRIPMAP_TEST_S3_ENDPOINT`、`TRIPMAP_TEST_S3_ACCESS_KEY`、`TRIPMAP_TEST_S3_SECRET_KEY`、`TRIPMAP_TEST_S3_BUCKET`，运行 `go test -v ./internal/tripmap/integration`。
 
 PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除，以及版本化迁移的升级校验（见上文“版本化数据库迁移”）。
 
-`internal/application` 的测试通过 HTTP 调用真实的处理器和拦截器，使用同样的隔离方式（随机 schema 与 Redis key 前缀），未设置 `TRIPMAP_TEST_POSTGRES_DSN` 和 `TRIPMAP_TEST_REDIS_ADDR` 时跳过。覆盖：快照的保存与去重、恢复的差异/撤销/revision 条件/幂等重放/原子性、用户隔离、保留与定时任务、注销清除快照；令牌与密码只存哈希、注册/登录校验与限流、会话过期/撤销/禁用、他人会话不可见、OAuth state 单次使用与注册关闭、用户 A/B 足迹隔离、非法数据、幂等、revision 冲突、省份标记与城市足迹互不影响，以及并发写入不丢失；F5 的账号升级幂等与冻结列、旧客户端被拒绝（所有 RPC）、旅行增删改与级联、旅行校验、用户隔离、变更日志内容、旧批次回执重放、批次原子性与 2000 项上限、新旧客户端并发、旧快照读取与恢复（载荷不变）、恢复时旅行换城市、定时快照、媒体与旅行的关联及隔离、注销清除旅行。`.github/workflows/ci.yml` 在 PostgreSQL 与 Redis 服务容器中运行 `go vet`、`go test -race ./...` 和前端测试、地图检查、构建。
+`internal/tripmap/application` 的测试通过 HTTP 调用真实的处理器和拦截器，使用同样的隔离方式（随机 schema 与 Redis key 前缀），未设置 `TRIPMAP_TEST_POSTGRES_DSN` 和 `TRIPMAP_TEST_REDIS_ADDR` 时跳过。覆盖：快照的保存与去重、恢复的差异/撤销/revision 条件/幂等重放/原子性、用户隔离、保留与定时任务、注销清除快照；令牌与密码只存哈希、注册/登录校验与限流、会话过期/撤销/禁用、他人会话不可见、OAuth state 单次使用与注册关闭、用户 A/B 足迹隔离、非法数据、幂等、revision 冲突、省份标记与城市足迹互不影响，以及并发写入不丢失；F5 的账号升级幂等与冻结列、旧客户端被拒绝（所有 RPC）、旅行增删改与级联、旅行校验、用户隔离、变更日志内容、旧批次回执重放、批次原子性与 2000 项上限、新旧客户端并发、旧快照读取与恢复（载荷不变）、恢复时旅行换城市、定时快照、媒体与旅行的关联及隔离、注销清除旅行。`.github/workflows/ci.yml` 在 PostgreSQL 与 Redis 服务容器中运行 `go vet`、`go test -race ./...` 和前端测试、地图检查、构建。
 
 [Docker 镜像与 Actions](docker-images.md) 说明前后端两个镜像的构建发布。根目录 `Dockerfile` 仅构建后端镜像，运行时挂载 `/config/config.yaml`；容器中连接 Compose 依赖时，配置地址使用服务名和容器端口，而不是宿主机的 `127.0.0.1`。
 
