@@ -23,6 +23,7 @@ import (
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/ent"
 	"github.com/kongken/mono/internal/bff/footprint"
+	bffitinerary "github.com/kongken/mono/internal/bff/itinerary"
 	"github.com/kongken/mono/internal/bff/gateway"
 	"github.com/kongken/mono/internal/bff/ingress"
 	"github.com/kongken/mono/internal/bff/ratelimit"
@@ -161,6 +162,9 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 			route, handler = bffv1connect.NewAuthServiceHandler(auth, opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
 			route, handler = bffv1connect.NewFootprintServiceHandler(footprint.New(tripmapv1.NewFootprintServiceClient(conn)), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			itin := bffitinerary.New(tripmapv1.NewItineraryServiceClient(conn), h.cfg.CORSAllowedOrigins)
+			route, handler = bffv1connect.NewItineraryServiceHandler(itin, opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
 		}
 	}

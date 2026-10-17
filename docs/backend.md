@@ -328,9 +328,9 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 **部署。** 先部署带相同索引/映射摘要的后端，再部署前端。区域版本更新前归档历史版本并保留映射，重新生成 search/map/share 受影响资源及 Go/TS 契约，验证通过后发布；地图仍随页面静态分发，运行时不取第三方边界数据。不做启动时全库自动迁移或自动回滚行政数据。
 
-## F11 行程服务（`tripmap.v1.ItineraryService`）
+## F11 行程服务（`bff.v1.ItineraryService` → `tripmap.v1.ItineraryService`）
 
-所有方法须认证，只读写当前会话用户的行程。`proto/tripmap/v1/itinerary.proto`，实现在 `internal/tripmap/application/itinerary_service.go`，路程估算在 `internal/tripmap/itinerary`（内嵌 `coords.json`，由 `apps/web/scripts/prepare-city-coords.mjs` 从 `apps/web/public/maps` 生成并与 `packages/geo-data/data/city-coords.json` 逐字节一致，`npm run check:maps` 与 Go 测试都会核对）。
+浏览器经 BFF 调用 `proto/bff/v1/itinerary.proto`；BFF 适配 tripmap 内部 gRPC（`internal/bff/itinerary/` → `internal/tripmap/application/itinerary_grpc.go`）。业务契约仍为 `proto/tripmap/v1/itinerary.proto`，实现在 `internal/tripmap/application/itinerary_service.go`，路程估算在 `internal/tripmap/itinerary`（内嵌 `coords.json`，由 `apps/web/scripts/prepare-city-coords.mjs` 从 `apps/web/public/maps` 生成并与 `packages/geo-data/data/city-coords.json` 逐字节一致，`npm run check:maps` 与 Go 测试都会核对）。所有方法须认证（BFF Cookie + 内部凭证），只读写当前用户的行程；不可见行程统一 `not_found`。
 
 | 方法 | 行为 |
 | --- | --- |
