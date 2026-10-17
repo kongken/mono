@@ -26,12 +26,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: backend
-            suffix: ''
-            dockerfile: Dockerfile
-          - image: frontend
-            suffix: '-front'
-            dockerfile: deploy/frontend/Dockerfile
+          - image: tripmap
+            suffix: '-tripmap'
+            dockerfile: deploy/tripmap/Dockerfile
+          - image: trip-map-web
+            suffix: '-trip-map-web'
+            dockerfile: deploy/trip-map-web/Dockerfile
           - image: bff
             suffix: '-bff'
             dockerfile: deploy/bff/Dockerfile

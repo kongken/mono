@@ -28,7 +28,7 @@ type Route struct {
 	Anonymous bool
 }
 
-// Services is the route table. Business RPCs are served as bff.v1 Connect on the
+// Services is the route table. Business RPCs are served as bff.* Connect on the
 // BFF; upstream entries serve health probes, internal gRPC and the plain HTTP
 // Routes listed here.
 var Services = []Service{{

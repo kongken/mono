@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package bff.tripmap.v1;
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/tripmap/v1;bfftripmapv1";
+
+// RegionService exposes the bundled catalog and migrates only the signed-in user's data.
+service RegionService {
+  rpc GetRegionIndex(GetRegionIndexRequest) returns (GetRegionIndexResponse);
+  rpc PreviewRegionUpgrade(PreviewRegionUpgradeRequest) returns (PreviewRegionUpgradeResponse);
+  rpc ApplyRegionUpgrade(ApplyRegionUpgradeRequest) returns (ApplyRegionUpgradeResponse);
+}
+
+message RegionMapping {
+  string from_code = 1;
+  string from_name = 2;
+  string from_province = 3;
+  string to_code = 4;
+}
+
+message GetRegionIndexRequest { string known_version = 1; }
+
+message GetRegionIndexResponse {
+  string version = 1;
+  bool not_modified = 2;
+  string index_json = 3;
+  repeated RegionMapping mappings = 4;
+  repeated string supported_versions = 5;
+}
+
+message PreviewRegionUpgradeRequest {}
+
+message RegionUpgradeChange {
+  string from_code = 1;
+  string to_code = 2;
+  string from_name = 3;
+  string to_name = 4;
+  string from_province = 5;
+  string to_province = 6;
+  bool media_only = 7;
+}
+
+message PreviewRegionUpgradeResponse {
+  string version = 1;
+  int64 revision = 2;
+  repeated RegionUpgradeChange changes = 3;
+  repeated string blockers = 4;
+}
+
+message ApplyRegionUpgradeRequest {
+  string version = 1;
+  int64 base_revision = 2;
+  string mutation_id = 3;
+}
+
+message ApplyRegionUpgradeResponse {
+  string version = 1;
+  int64 revision = 2;
+  int32 changed_count = 3;
+  bool replayed = 4;
+  string snapshot_id = 5;
+}

@@ -7,7 +7,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
 )
 
 func TestChainSharedTripViewerWriteDeniedAndSharedMedia(t *testing.T) {
@@ -35,14 +35,14 @@ func TestChainSharedTripViewerWriteDeniedAndSharedMedia(t *testing.T) {
 	becomeFriends(t, ctx, owner, viewer, "st_viewer")
 
 	csrf := owner.refreshCSRF(ctx)
-	syncReq := connect.NewRequest(&bffv1.SyncChangesRequest{
+	syncReq := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{
 		MutationId: "owner-init", BaseRevision: 0,
-		Mutations: []*bffv1.FootprintMutation{
-			{Operation: &bffv1.FootprintMutation_UpsertCity{
-				UpsertCity: &bffv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
+		Mutations: []*bfftripmapv1.FootprintMutation{
+			{Operation: &bfftripmapv1.FootprintMutation_UpsertCity{
+				UpsertCity: &bfftripmapv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
 			}},
-			{Operation: &bffv1.FootprintMutation_UpsertTrip{
-				UpsertTrip: &bffv1.Trip{City: "330100", Id: "t-shared", Date: "2026-08-01", Note: "共游"},
+			{Operation: &bfftripmapv1.FootprintMutation_UpsertTrip{
+				UpsertTrip: &bfftripmapv1.Trip{City: "330100", Id: "t-shared", Date: "2026-08-01", Note: "共游"},
 			}},
 		},
 	})
@@ -76,11 +76,11 @@ func TestChainSharedTripViewerWriteDeniedAndSharedMedia(t *testing.T) {
 		t.Fatal(err)
 	}
 	csrfE := editor.refreshCSRF(ctx)
-	syncEditor := connect.NewRequest(&bffv1.SyncChangesRequest{
+	syncEditor := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{
 		MutationId: "editor-trip-write", BaseRevision: fpEditor.GetRevision(),
-		Mutations: []*bffv1.FootprintMutation{{
-			Operation: &bffv1.FootprintMutation_UpsertTrip{
-				UpsertTrip: &bffv1.Trip{City: "330100", Id: "t-shared", Date: "2026-08-02", Note: "editor via sync"},
+		Mutations: []*bfftripmapv1.FootprintMutation{{
+			Operation: &bfftripmapv1.FootprintMutation_UpsertTrip{
+				UpsertTrip: &bfftripmapv1.Trip{City: "330100", Id: "t-shared", Date: "2026-08-02", Note: "editor via sync"},
 			},
 		}},
 	})
@@ -94,11 +94,11 @@ func TestChainSharedTripViewerWriteDeniedAndSharedMedia(t *testing.T) {
 		t.Fatal(err)
 	}
 	csrfV := viewer.refreshCSRF(ctx)
-	syncViewer := connect.NewRequest(&bffv1.SyncChangesRequest{
+	syncViewer := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{
 		MutationId: "viewer-trip-write", BaseRevision: fpViewer.GetRevision(),
-		Mutations: []*bffv1.FootprintMutation{{
-			Operation: &bffv1.FootprintMutation_UpsertTrip{
-				UpsertTrip: &bffv1.Trip{City: "330100", Id: "t-shared", Date: "2026-08-03", Note: "blocked"},
+		Mutations: []*bfftripmapv1.FootprintMutation{{
+			Operation: &bfftripmapv1.FootprintMutation_UpsertTrip{
+				UpsertTrip: &bfftripmapv1.Trip{City: "330100", Id: "t-shared", Date: "2026-08-03", Note: "blocked"},
 			},
 		}},
 	})
@@ -117,7 +117,7 @@ func TestChainSharedTripViewerWriteDeniedAndSharedMedia(t *testing.T) {
 	}
 
 	csrfO := owner.refreshCSRF(ctx)
-	rmFriend := connect.NewRequest(&bffv1.RemoveFriendRequest{FriendshipId: findFriendship(t, ctx, owner, editorID)})
+	rmFriend := connect.NewRequest(&bfftripmapv1.RemoveFriendRequest{FriendshipId: findFriendship(t, ctx, owner, editorID)})
 	owner.writeHeaders(rmFriend, csrfO, owner.Origin)
 	if _, err = owner.Friends.RemoveFriend(ctx, rmFriend); err != nil {
 		t.Fatal(err)
@@ -132,14 +132,14 @@ func TestChainSharedTripViewerWriteDeniedAndSharedMedia(t *testing.T) {
 func becomeFriends(t *testing.T, ctx context.Context, a, b *Browser, bUsername string) {
 	t.Helper()
 	csrf := a.refreshCSRF(ctx)
-	send := connect.NewRequest(&bffv1.SendFriendRequestRequest{Target: bUsername})
+	send := connect.NewRequest(&bfftripmapv1.SendFriendRequestRequest{Target: bUsername})
 	a.writeHeaders(send, csrf, a.Origin)
 	sendRes, err := a.Friends.SendFriendRequest(ctx, send)
 	if err != nil {
 		t.Fatal(err)
 	}
 	csrfB := b.refreshCSRF(ctx)
-	acc := connect.NewRequest(&bffv1.RespondFriendRequestRequest{
+	acc := connect.NewRequest(&bfftripmapv1.RespondFriendRequestRequest{
 		FriendshipId: sendRes.Msg.GetFriendship().GetId(), Accept: true,
 	})
 	b.writeHeaders(acc, csrfB, b.Origin)
@@ -167,7 +167,7 @@ func uploadChainTripPhoto(t *testing.T, ctx context.Context, h *ChainHarness, bl
 	t.Helper()
 	data := photoPNG(t)
 	uploadID := uuid.NewString()
-	prep, err := b.PrepareUpload(ctx, &bffv1.PrepareUploadRequest{
+	prep, err := b.PrepareUpload(ctx, &bfftripmapv1.PrepareUploadRequest{
 		RegionCode: region, TripId: tripID, Filename: "shot.png", ContentType: "image/png",
 		SizeBytes: int64(len(data)), UploadId: uploadID,
 	})
@@ -185,9 +185,9 @@ func uploadChainTripPhoto(t *testing.T, ctx context.Context, h *ChainHarness, bl
 	return id
 }
 
-func (b *Browser) InviteSharedTrip(ctx context.Context, region, tripID, friendUserID, role string) (*bffv1.SharedTripInfo, error) {
+func (b *Browser) InviteSharedTrip(ctx context.Context, region, tripID, friendUserID, role string) (*bfftripmapv1.SharedTripInfo, error) {
 	csrf := b.refreshCSRF(ctx)
-	req := connect.NewRequest(&bffv1.InviteToSharedTripRequest{
+	req := connect.NewRequest(&bfftripmapv1.InviteToSharedTripRequest{
 		RegionCode: region, TripId: tripID, FriendUserId: friendUserID, Role: role,
 	})
 	b.writeHeaders(req, csrf, b.Origin)
@@ -198,9 +198,9 @@ func (b *Browser) InviteSharedTrip(ctx context.Context, region, tripID, friendUs
 	return res.Msg.GetSharedTrip(), nil
 }
 
-func (b *Browser) RespondSharedTripInvite(ctx context.Context, sharedTripID string, accept bool) (*bffv1.RespondSharedTripInviteResponse, error) {
+func (b *Browser) RespondSharedTripInvite(ctx context.Context, sharedTripID string, accept bool) (*bfftripmapv1.RespondSharedTripInviteResponse, error) {
 	csrf := b.refreshCSRF(ctx)
-	req := connect.NewRequest(&bffv1.RespondSharedTripInviteRequest{SharedTripId: sharedTripID, Accept: accept})
+	req := connect.NewRequest(&bfftripmapv1.RespondSharedTripInviteRequest{SharedTripId: sharedTripID, Accept: accept})
 	b.writeHeaders(req, csrf, b.Origin)
 	res, err := b.SharedTrip.RespondSharedTripInvite(ctx, req)
 	if err != nil {
@@ -209,9 +209,9 @@ func (b *Browser) RespondSharedTripInvite(ctx context.Context, sharedTripID stri
 	return res.Msg, nil
 }
 
-func (b *Browser) UpdateSharedTrip(ctx context.Context, sharedTripID, date, note, mutationID string) (*bffv1.UpdateSharedTripResponse, error) {
+func (b *Browser) UpdateSharedTrip(ctx context.Context, sharedTripID, date, note, mutationID string) (*bfftripmapv1.UpdateSharedTripResponse, error) {
 	csrf := b.refreshCSRF(ctx)
-	req := connect.NewRequest(&bffv1.UpdateSharedTripRequest{
+	req := connect.NewRequest(&bfftripmapv1.UpdateSharedTripRequest{
 		SharedTripId: sharedTripID, Date: date, Note: note, MutationId: mutationID,
 	})
 	b.writeHeaders(req, csrf, b.Origin)
@@ -222,8 +222,8 @@ func (b *Browser) UpdateSharedTrip(ctx context.Context, sharedTripID, date, note
 	return res.Msg, nil
 }
 
-func (b *Browser) ListSharedTripMedia(ctx context.Context, sharedTripID string) (*bffv1.ListSharedTripMediaResponse, error) {
-	req := connect.NewRequest(&bffv1.ListSharedTripMediaRequest{SharedTripId: sharedTripID})
+func (b *Browser) ListSharedTripMedia(ctx context.Context, sharedTripID string) (*bfftripmapv1.ListSharedTripMediaResponse, error) {
+	req := connect.NewRequest(&bfftripmapv1.ListSharedTripMediaRequest{SharedTripId: sharedTripID})
 	b.withTripmapHeaders(req)
 	res, err := b.SharedTrip.ListSharedTripMedia(ctx, req)
 	if err != nil {
@@ -232,8 +232,8 @@ func (b *Browser) ListSharedTripMedia(ctx context.Context, sharedTripID string) 
 	return res.Msg, nil
 }
 
-func (b *Browser) ReadSharedTripMedia(ctx context.Context, sharedTripID, mediaID string, thumb bool) (*bffv1.ReadSharedTripMediaResponse, error) {
-	req := connect.NewRequest(&bffv1.ReadSharedTripMediaRequest{
+func (b *Browser) ReadSharedTripMedia(ctx context.Context, sharedTripID, mediaID string, thumb bool) (*bfftripmapv1.ReadSharedTripMediaResponse, error) {
+	req := connect.NewRequest(&bfftripmapv1.ReadSharedTripMediaRequest{
 		SharedTripId: sharedTripID, MediaId: mediaID, Thumbnail: thumb,
 	})
 	b.withTripmapHeaders(req)

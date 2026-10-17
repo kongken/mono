@@ -20,8 +20,8 @@ import (
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/platform/servicetoken"
 	"github.com/kongken/mono/internal/platform/testkit"
-	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
-	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
+	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -76,7 +76,7 @@ type stack struct {
 	bff    *httptest.Server
 	tripm  *fakeTripmap
 	trip   *fake // the HTTP side of tripmap, which must not see bff.v1 traffic
-	client bffv1connect.StatusServiceClient
+	client bfftripmapv1connect.StatusServiceClient
 }
 
 var readyReply = func(context.Context) (*tripmapv1.GetStatusResponse, error) {
@@ -119,12 +119,12 @@ func newStack(t *testing.T, mutate ...func(*config.Config)) *stack {
 	h.Routes(r)
 	bff := httptest.NewServer(r)
 	t.Cleanup(bff.Close)
-	return &stack{bff: bff, tripm: f, trip: trip, client: bffv1connect.NewStatusServiceClient(bff.Client(), bff.URL+"/api")}
+	return &stack{bff: bff, tripm: f, trip: trip, client: bfftripmapv1connect.NewStatusServiceClient(bff.Client(), bff.URL+"/api")}
 }
 
 func TestAnonymousStatusReachesTripmapOverVerifiedGRPC(t *testing.T) {
 	s := newStack(t, func(c *config.Config) { c.ClientIPHeader = "X-Real-IP" })
-	req := connect.NewRequest(&bffv1.GetStatusRequest{})
+	req := connect.NewRequest(&bfftripmapv1.GetStatusRequest{})
 	req.Header().Set("X-Request-Id", "browser-req-1")
 	req.Header().Set("X-Real-IP", "203.0.113.7")
 	req.Header().Set(rpcauth.MetadataClientIP, "198.51.100.9") // not a thing the BFF reads
@@ -152,7 +152,7 @@ func TestAnonymousStatusReachesTripmapOverVerifiedGRPC(t *testing.T) {
 
 func TestStatusCallLifetime(t *testing.T) {
 	s := newStack(t)
-	if _, err := s.client.GetStatus(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{})); err != nil {
+	if _, err := s.client.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{})); err != nil {
 		t.Fatal(err)
 	}
 	if d := s.tripm.last().deadline; d < 8*time.Second || d > 10*time.Second {
@@ -160,7 +160,7 @@ func TestStatusCallLifetime(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if _, err := s.client.GetStatus(ctx, connect.NewRequest(&bffv1.GetStatusRequest{})); err != nil {
+	if _, err := s.client.GetStatus(ctx, connect.NewRequest(&bfftripmapv1.GetStatusRequest{})); err != nil {
 		t.Fatal(err)
 	}
 	if d := s.tripm.last().deadline; d < time.Second || d > 3*time.Second {
@@ -179,7 +179,7 @@ func TestClientCancellationStopsTheServiceWork(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, err := s.client.GetStatus(ctx, connect.NewRequest(&bffv1.GetStatusRequest{}))
+		_, err := s.client.GetStatus(ctx, connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 		done <- err
 	}()
 	<-started
@@ -207,7 +207,7 @@ func TestFailuresAreNotRetriedAndDoNotLeakInternals(t *testing.T) {
 	} {
 		s.tripm.reply = func(context.Context) (*tripmapv1.GetStatusResponse, error) { return nil, tc.err }
 		before := s.tripm.count.Load()
-		_, err := s.client.GetStatus(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{}))
+		_, err := s.client.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 		if connect.CodeOf(err) != tc.want {
 			t.Errorf("%s: code %v, want %v (%v)", name, connect.CodeOf(err), tc.want, err)
 		}
@@ -223,7 +223,7 @@ func TestFailuresAreNotRetriedAndDoNotLeakInternals(t *testing.T) {
 
 	// With the service gone the browser still gets a clean error.
 	s.tripm.srv.Shutdown(time.Second)
-	_, err := s.client.GetStatus(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{}))
+	_, err := s.client.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 	if connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Errorf("service down: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestPublicEntryIsConnectOnlyAndUnknownPathsAreNotForwarded(t *testing.T) {
 		_ = res.Body.Close()
 		return res
 	}
-	const status = "/api/bff.v1.StatusService/GetStatus"
+	const status = "/api/bff.tripmap.v1.StatusService/GetStatus"
 	if got := call(http.MethodPost, status, "application/json", "Connect-Protocol-Version", "1"); got.StatusCode != 200 {
 		t.Fatalf("valid Connect call: %d", got.StatusCode)
 	}
@@ -262,12 +262,12 @@ func TestPublicEntryIsConnectOnlyAndUnknownPathsAreNotForwarded(t *testing.T) {
 		"missing version":       {status, "application/json", nil, 400},
 		"grpc":                  {status, "application/grpc", []string{"Connect-Protocol-Version", "1"}, 415},
 		"grpc-web":              {status, "application/grpc-web+proto", nil, 415},
-		"unknown method":        {"/api/bff.v1.StatusService/Other", "application/json", []string{"Connect-Protocol-Version", "1"}, 404},
+		"unknown method":        {"/api/bff.tripmap.v1.StatusService/Other", "application/json", []string{"Connect-Protocol-Version", "1"}, 404},
 		"extra segment":         {status + "/x", "application/json", []string{"Connect-Protocol-Version", "1"}, 404},
 		"unknown service":       {"/api/bff.v1.Other/GetStatus", "application/json", []string{"Connect-Protocol-Version", "1"}, 404},
-		"dot segments":          {"/api/bff.v1.StatusService/../tripmap.v1.AuthService/Login", "application/json", []string{"Connect-Protocol-Version", "1"}, 404},
-		"double slash":          {"/api//bff.v1.StatusService/GetStatus", "application/json", []string{"Connect-Protocol-Version", "1"}, 404},
-		"trailing double slash": {"/api/bff.v1.StatusService//GetStatus", "application/json", []string{"Connect-Protocol-Version", "1"}, 404},
+		"dot segments":          {"/api/bff.tripmap.v1.StatusService/../tripmap.v1.AuthService/Login", "application/json", []string{"Connect-Protocol-Version", "1"}, 404},
+		"double slash":          {"/api//bff.tripmap.v1.StatusService/GetStatus", "application/json", []string{"Connect-Protocol-Version", "1"}, 404},
+		"trailing double slash": {"/api/bff.tripmap.v1.StatusService//GetStatus", "application/json", []string{"Connect-Protocol-Version", "1"}, 404},
 	} {
 		if got := call(http.MethodPost, tc.path, tc.contentType, tc.headers...); got.StatusCode != tc.want {
 			t.Errorf("%s: status %d, want %d", name, got.StatusCode, tc.want)
@@ -289,7 +289,7 @@ func TestPublicEntryIsConnectOnlyAndUnknownPathsAreNotForwarded(t *testing.T) {
 func TestUnreachableTripmapIsAnErrorNotAFakeStatus(t *testing.T) {
 	s := newStack(t)
 	s.tripm.srv.Shutdown(time.Second)
-	_, err := s.client.GetStatus(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{}))
+	_, err := s.client.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 	var ce *connect.Error
 	if !errors.As(err, &ce) || ce.Code() != connect.CodeUnavailable {
 		t.Fatalf("got %v", err)

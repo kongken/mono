@@ -48,7 +48,7 @@ dev-bff:
 	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.bff.yaml PORT=18081 go run ./cmd/bff
 
 dev-tripmap:
-	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.yaml PORT=18082 go run ./cmd/tripmap
+	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.tripmap.yaml PORT=18082 go run ./cmd/tripmap
 
 deps-up:
 	docker compose up -d --wait
@@ -57,7 +57,7 @@ deps-up:
 deps-down:
 	docker compose down
 
-# Prints a VAPID key pair for notification.web_push in config.yaml.
+# Prints a VAPID key pair for notification.web_push in config.tripmap.yaml.
 vapid-keys:
 	go run ./cmd/vapid-keygen
 

@@ -12,21 +12,21 @@ import (
 	"github.com/kongken/mono/internal/bff/ingress"
 	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/platform/rpcauth"
-	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
-	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
+	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 	_ "github.com/kongken/mono/pkg/proto/tripmap/v1" // registers the protected methods used below
 )
 
 type okStatus struct{}
 
-func (okStatus) GetStatus(context.Context, *connect.Request[bffv1.GetStatusRequest]) (*connect.Response[bffv1.GetStatusResponse], error) {
-	return connect.NewResponse(&bffv1.GetStatusResponse{Ready: true}), nil
+func (okStatus) GetStatus(context.Context, *connect.Request[bfftripmapv1.GetStatusRequest]) (*connect.Response[bfftripmapv1.GetStatusResponse], error) {
+	return connect.NewResponse(&bfftripmapv1.GetStatusResponse{Ready: true}), nil
 }
 
 // publicServer serves the real generated handler behind the public protocol gate.
 func publicServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	path, handler := bffv1connect.NewStatusServiceHandler(okStatus{}, connect.WithRequireConnectProtocolHeader())
+	path, handler := bfftripmapv1connect.NewStatusServiceHandler(okStatus{}, connect.WithRequireConnectProtocolHeader())
 	mux := http.NewServeMux()
 	mux.Handle(path, ingress.ConnectOnly(handler))
 	server := httptest.NewServer(mux)
@@ -57,7 +57,7 @@ func post(t *testing.T, url, contentType string, headers ...string) *http.Respon
 }
 
 func TestOnlyConnectUnaryIsAccepted(t *testing.T) {
-	url := publicServer(t).URL + bffv1connect.StatusServiceGetStatusProcedure
+	url := publicServer(t).URL + bfftripmapv1connect.StatusServiceGetStatusProcedure
 	for name, tc := range map[string]struct {
 		contentType string
 		headers     []string
@@ -93,10 +93,10 @@ func TestOnlyConnectUnaryIsAccepted(t *testing.T) {
 }
 
 const (
-	anonymousProcedure = bffv1connect.StatusServiceGetStatusProcedure
+	anonymousProcedure = bfftripmapv1connect.StatusServiceGetStatusProcedure
 	// A real protected method: it has no anonymous option, so it needs a user.
 	protectedProcedure = "/tripmap.v1.FootprintService/GetFootprints"
-	heavyProcedure     = bffv1connect.MediaServiceCompleteUploadProcedure
+	heavyProcedure     = bfftripmapv1connect.MediaServiceCompleteUploadProcedure
 )
 
 // probe is what a handler behind the interceptor observes.
@@ -106,8 +106,8 @@ type probe struct {
 	deadline time.Duration
 }
 
-func writeSafeReq() *connect.Request[bffv1.GetStatusRequest] {
-	req := connect.NewRequest(&bffv1.GetStatusRequest{})
+func writeSafeReq() *connect.Request[bfftripmapv1.GetStatusRequest] {
+	req := connect.NewRequest(&bfftripmapv1.GetStatusRequest{})
 	tok := "test-csrf"
 	req.Header().Set(session.CSRFHeader, tok)
 	req.Header().Set("Cookie", session.CSRFCookieName+"="+tok)
@@ -115,27 +115,27 @@ func writeSafeReq() *connect.Request[bffv1.GetStatusRequest] {
 	return req
 }
 
-func intercepted(t *testing.T, policy ingress.Policy, procedure string) (*probe, *connect.Client[bffv1.GetStatusRequest, bffv1.GetStatusResponse]) {
+func intercepted(t *testing.T, policy ingress.Policy, procedure string) (*probe, *connect.Client[bfftripmapv1.GetStatusRequest, bfftripmapv1.GetStatusResponse]) {
 	t.Helper()
 	seen := &probe{}
-	handler := connect.NewUnaryHandler(procedure, func(ctx context.Context, _ *connect.Request[bffv1.GetStatusRequest]) (*connect.Response[bffv1.GetStatusResponse], error) {
+	handler := connect.NewUnaryHandler(procedure, func(ctx context.Context, _ *connect.Request[bfftripmapv1.GetStatusRequest]) (*connect.Response[bfftripmapv1.GetStatusResponse], error) {
 		seen.called = true
 		seen.call = rpcauth.CallFrom(ctx)
 		if d, ok := ctx.Deadline(); ok {
 			seen.deadline = time.Until(d)
 		}
-		return connect.NewResponse(&bffv1.GetStatusResponse{}), nil
+		return connect.NewResponse(&bfftripmapv1.GetStatusResponse{}), nil
 	}, connect.WithInterceptors(ingress.Interceptor(policy)), connect.WithRequireConnectProtocolHeader())
 	mux := http.NewServeMux()
 	mux.Handle(procedure, handler)
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	return seen, connect.NewClient[bffv1.GetStatusRequest, bffv1.GetStatusResponse](server.Client(), server.URL+procedure)
+	return seen, connect.NewClient[bfftripmapv1.GetStatusRequest, bfftripmapv1.GetStatusResponse](server.Client(), server.URL+procedure)
 }
 
 func TestProceduresAreProtectedUnlessDeclaredAnonymous(t *testing.T) {
 	seen, client := intercepted(t, ingress.Policy{}, protectedProcedure)
-	_, err := client.CallUnary(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{}))
+	_, err := client.CallUnary(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 	if connect.CodeOf(err) != connect.CodeUnauthenticated || seen.called {
 		t.Fatalf("protected procedure without a session: err=%v called=%v", err, seen.called)
 	}
@@ -148,7 +148,7 @@ func TestProceduresAreProtectedUnlessDeclaredAnonymous(t *testing.T) {
 
 	// An anonymous procedure runs without one, and carries no user.
 	seen, client = intercepted(t, ingress.Policy{}, anonymousProcedure)
-	if _, err = client.CallUnary(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{})); err != nil || !seen.called || seen.call.UserID != "" {
+	if _, err = client.CallUnary(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{})); err != nil || !seen.called || seen.call.UserID != "" {
 		t.Fatalf("anonymous procedure: err=%v called=%v user=%q", err, seen.called, seen.call.UserID)
 	}
 
@@ -162,7 +162,7 @@ func TestProceduresAreProtectedUnlessDeclaredAnonymous(t *testing.T) {
 		t.Fatalf("signed-in call: err=%v user=%q", err, seen.call.UserID)
 	}
 	seen, client = intercepted(t, policy, anonymousProcedure)
-	if _, err = client.CallUnary(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{})); err != nil || seen.call.UserID != "" {
+	if _, err = client.CallUnary(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{})); err != nil || seen.call.UserID != "" {
 		t.Fatalf("anonymous procedure with a session: err=%v user=%q", err, seen.call.UserID)
 	}
 }
@@ -206,7 +206,7 @@ func TestCallLifetimeIsBoundedAndKeepsTheShorterDeadline(t *testing.T) {
 func TestRequestIDAndClientAddress(t *testing.T) {
 	do := func(policy ingress.Policy, headers ...string) (rpcauth.Call, http.Header) {
 		seen, client := intercepted(t, policy, anonymousProcedure)
-		req := connect.NewRequest(&bffv1.GetStatusRequest{})
+		req := connect.NewRequest(&bfftripmapv1.GetStatusRequest{})
 		for i := 0; i+1 < len(headers); i += 2 {
 			req.Header().Set(headers[i], headers[i+1])
 		}

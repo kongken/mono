@@ -15,7 +15,7 @@ import (
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/platform/servicetoken"
 	"github.com/kongken/mono/internal/platform/testkit"
-	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -228,7 +228,7 @@ func TestPublicKeyRotation(t *testing.T) {
 	}
 	// 2. The BFF switches its signing key; the real chain keeps working.
 	switched := newStack(t, trust(oldKey, newKey), func(o *options, _ *stack) { o.signing, o.signingKID = &newKeys, "2026-11" })
-	if _, err := switched.status.GetStatus(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{})); err != nil {
+	if _, err := switched.status.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{})); err != nil {
 		t.Fatalf("BFF signing with the new key: %v", err)
 	}
 	// 3. The old public key is withdrawn: its tokens stop working, the new ones do not.
@@ -239,7 +239,7 @@ func TestPublicKeyRotation(t *testing.T) {
 	}
 	// A BFF still signing with a retired key is refused, and the browser sees a server fault.
 	stale := newStack(t, trust(newKey), func(o *options, _ *stack) { o.signing, o.signingKID = &oldKeys, "2026-10" })
-	_, err := stale.status.GetStatus(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{}))
+	_, err := stale.status.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 	if connect.CodeOf(err) != connect.CodeInternal {
 		t.Fatalf("BFF with a retired key: %v", err)
 	}

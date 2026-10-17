@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
 )
 
 func TestChainFootprintSyncAndIsolation(t *testing.T) {
@@ -17,11 +17,11 @@ func TestChainFootprintSyncAndIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	csrf := a.refreshCSRF(ctx)
-	syncReq := connect.NewRequest(&bffv1.SyncChangesRequest{
+	syncReq := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{
 		MutationId: "batch-1", BaseRevision: 0,
-		Mutations: []*bffv1.FootprintMutation{{
-			Operation: &bffv1.FootprintMutation_UpsertCity{
-				UpsertCity: &bffv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
+		Mutations: []*bfftripmapv1.FootprintMutation{{
+			Operation: &bfftripmapv1.FootprintMutation_UpsertCity{
+				UpsertCity: &bfftripmapv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
 			},
 		}},
 	})
@@ -53,7 +53,7 @@ func TestChainFootprintSyncAndIsolation(t *testing.T) {
 		}
 	}
 
-	deltaReq := connect.NewRequest(&bffv1.GetChangesRequest{SinceRevision: 0, Limit: 50})
+	deltaReq := connect.NewRequest(&bfftripmapv1.GetChangesRequest{SinceRevision: 0, Limit: 50})
 	a.withTripmapHeaders(deltaReq)
 	page, err := a.Foot.GetChanges(ctx, deltaReq)
 	if err != nil || len(page.Msg.GetChanges()) == 0 || page.Msg.GetCurrentRevision() != res.Msg.GetRevision() {
@@ -69,11 +69,11 @@ func TestChainFootprintRevisionConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	csrf := u.refreshCSRF(ctx)
-	first := connect.NewRequest(&bffv1.SyncChangesRequest{
+	first := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{
 		MutationId: "c-1", BaseRevision: 0,
-		Mutations: []*bffv1.FootprintMutation{{
-			Operation: &bffv1.FootprintMutation_UpsertCity{
-				UpsertCity: &bffv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
+		Mutations: []*bfftripmapv1.FootprintMutation{{
+			Operation: &bfftripmapv1.FootprintMutation_UpsertCity{
+				UpsertCity: &bfftripmapv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
 			},
 		}},
 	})
@@ -82,11 +82,11 @@ func TestChainFootprintRevisionConflict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stale := connect.NewRequest(&bffv1.SyncChangesRequest{
+	stale := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{
 		MutationId: "c-2", BaseRevision: 0,
-		Mutations: []*bffv1.FootprintMutation{{
-			Operation: &bffv1.FootprintMutation_UpsertCity{
-				UpsertCity: &bffv1.Visit{Code: "330200", Name: "宁波市", Province: "330000", Color: "#4b937d"},
+		Mutations: []*bfftripmapv1.FootprintMutation{{
+			Operation: &bfftripmapv1.FootprintMutation_UpsertCity{
+				UpsertCity: &bfftripmapv1.Visit{Code: "330200", Name: "宁波市", Province: "330000", Color: "#4b937d"},
 			},
 		}},
 	})

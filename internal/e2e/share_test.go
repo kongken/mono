@@ -9,8 +9,8 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/tripmap/config"
-	"github.com/kongken/mono/pkg/proto/bff/v1"
-	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
+	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 )
 
 func TestSharePublishAndPublicPageViaBFFChain(t *testing.T) {
@@ -25,14 +25,14 @@ func TestSharePublishAndPublicPageViaBFFChain(t *testing.T) {
 	if _, err := b.Register(ctx, "share_owner", "password1", "Owner"); err != nil {
 		t.Fatal(err)
 	}
-	share := bffv1connect.NewShareServiceClient(b.HTTP, b.APIURL)
-	getReq := connect.NewRequest(&bffv1.GetShareRequest{})
+	share := bfftripmapv1connect.NewShareServiceClient(b.HTTP, b.APIURL)
+	getReq := connect.NewRequest(&bfftripmapv1.GetShareRequest{})
 	b.withTripmapHeaders(getReq)
 	got, err := share.GetShare(ctx, getReq)
 	if err != nil || !got.Msg.GetEnabled() {
 		t.Fatalf("get share: err=%v enabled=%v", err, got.Msg.GetEnabled())
 	}
-	prevReq := connect.NewRequest(&bffv1.PreviewShareRequest{Settings: &bffv1.ShareSettings{
+	prevReq := connect.NewRequest(&bfftripmapv1.PreviewShareRequest{Settings: &bfftripmapv1.ShareSettings{
 		Visibility: "link",
 	}})
 	b.withTripmapHeaders(prevReq)
@@ -40,8 +40,8 @@ func TestSharePublishAndPublicPageViaBFFChain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	saveReq := connect.NewRequest(&bffv1.SaveShareRequest{
-		MutationId: "pub-1", Settings: &bffv1.ShareSettings{Visibility: "link"},
+	saveReq := connect.NewRequest(&bfftripmapv1.SaveShareRequest{
+		MutationId: "pub-1", Settings: &bfftripmapv1.ShareSettings{Visibility: "link"},
 		RefreshContent: true, PreviewRevision: prev.Msg.GetFootprintRevision(),
 	})
 	csrf := b.refreshCSRF(ctx)
@@ -70,7 +70,7 @@ func TestSharePublishAndPublicPageViaBFFChain(t *testing.T) {
 	if data.StatusCode != http.StatusOK || !strings.Contains(string(dataBody), `"v"`) {
 		t.Fatalf("public data: %d %s", data.StatusCode, dataBody)
 	}
-	revReq := connect.NewRequest(&bffv1.RevokeShareRequest{MutationId: "rev-1"})
+	revReq := connect.NewRequest(&bfftripmapv1.RevokeShareRequest{MutationId: "rev-1"})
 	csrf = b.refreshCSRF(ctx)
 	b.writeHeaders(revReq, csrf, b.Origin)
 	if _, err := share.RevokeShare(ctx, revReq); err != nil {

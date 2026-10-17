@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
-	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
+	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 )
 
 func TestChainReportAndSearchIsolation(t *testing.T) {
@@ -23,14 +23,14 @@ func TestChainReportAndSearchIsolation(t *testing.T) {
 	}
 
 	csrf := alice.refreshCSRF(ctx)
-	syncReq := connect.NewRequest(&bffv1.SyncChangesRequest{
+	syncReq := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{
 		MutationId: "report-seed", BaseRevision: 0,
-		Mutations: []*bffv1.FootprintMutation{
-			{Operation: &bffv1.FootprintMutation_UpsertCity{
-				UpsertCity: &bffv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
+		Mutations: []*bfftripmapv1.FootprintMutation{
+			{Operation: &bfftripmapv1.FootprintMutation_UpsertCity{
+				UpsertCity: &bfftripmapv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
 			}},
-			{Operation: &bffv1.FootprintMutation_UpsertTrip{
-				UpsertTrip: &bffv1.Trip{Id: "trip-hz", City: "330100", Date: "2026-04-12", Note: "春游西湖苏堤与龙井茶园漫步"},
+			{Operation: &bfftripmapv1.FootprintMutation_UpsertTrip{
+				UpsertTrip: &bfftripmapv1.Trip{Id: "trip-hz", City: "330100", Date: "2026-04-12", Note: "春游西湖苏堤与龙井茶园漫步"},
 			}},
 		},
 	})
@@ -39,19 +39,19 @@ func TestChainReportAndSearchIsolation(t *testing.T) {
 		t.Fatalf("alice sync: %v", err)
 	}
 
-	getReport := func(b *Browser) (*bffv1.GetReportResponse, error) {
-		req := connect.NewRequest(&bffv1.GetReportRequest{Timezone: "Asia/Shanghai"})
+	getReport := func(b *Browser) (*bfftripmapv1.GetReportResponse, error) {
+		req := connect.NewRequest(&bfftripmapv1.GetReportRequest{Timezone: "Asia/Shanghai"})
 		b.withTripmapHeaders(req)
-		res, err := bffv1connect.NewReportServiceClient(b.HTTP, b.APIURL).GetReport(ctx, req)
+		res, err := bfftripmapv1connect.NewReportServiceClient(b.HTTP, b.APIURL).GetReport(ctx, req)
 		if err != nil {
 			return nil, err
 		}
 		return res.Msg, nil
 	}
-	searchNotes := func(b *Browser, q string) (*bffv1.SearchNotesResponse, error) {
-		req := connect.NewRequest(&bffv1.SearchNotesRequest{Query: q, Limit: 20})
+	searchNotes := func(b *Browser, q string) (*bfftripmapv1.SearchNotesResponse, error) {
+		req := connect.NewRequest(&bfftripmapv1.SearchNotesRequest{Query: q, Limit: 20})
 		b.withTripmapHeaders(req)
-		res, err := bffv1connect.NewSearchServiceClient(b.HTTP, b.APIURL).SearchNotes(ctx, req)
+		res, err := bfftripmapv1connect.NewSearchServiceClient(b.HTTP, b.APIURL).SearchNotes(ctx, req)
 		if err != nil {
 			return nil, err
 		}

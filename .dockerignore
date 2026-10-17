@@ -3,7 +3,7 @@
 **/dist
 bin
 .env*
-config.yaml
+config.tripmap.yaml
 config.bff.yaml
 preview.jpg
 /dev-secrets

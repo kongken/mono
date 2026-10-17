@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
+	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
-	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 )
 
 func assertWriteRejected(t *testing.T, err error) {
@@ -25,40 +26,40 @@ func TestChainBusinessWritesRequireCSRFAndOrigin(t *testing.T) {
 	}
 	csrf := u.refreshCSRF(ctx)
 
-	syncReq := connect.NewRequest(&bffv1.SyncChangesRequest{MutationId: "m1", BaseRevision: 0})
+	syncReq := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{MutationId: "m1", BaseRevision: 0})
 	u.withTripmapHeaders(syncReq)
 	syncReq.Header().Set("Origin", u.Origin)
 	_, err := u.Foot.SyncChanges(ctx, syncReq)
 	assertWriteRejected(t, err)
 
-	createReq := connect.NewRequest(&bffv1.CreateSnapshotRequest{Reason: "manual"})
+	createReq := connect.NewRequest(&bfftripmapv1.CreateSnapshotRequest{Reason: "manual"})
 	u.writeHeaders(createReq, csrf, "https://evil.example")
 	_, err = u.Snap.CreateSnapshot(ctx, createReq)
 	assertWriteRejected(t, err)
 
-	share := bffv1connect.NewShareServiceClient(u.HTTP, u.APIURL)
-	saveReq := connect.NewRequest(&bffv1.SaveShareRequest{})
+	share := bfftripmapv1connect.NewShareServiceClient(u.HTTP, u.APIURL)
+	saveReq := connect.NewRequest(&bfftripmapv1.SaveShareRequest{})
 	u.writeHeaders(saveReq, csrf, "https://evil.example")
 	_, err = share.SaveShare(ctx, saveReq)
 	assertWriteRejected(t, err)
 
-	notify := bffv1connect.NewNotificationServiceClient(u.HTTP, u.APIURL)
-	upd := connect.NewRequest(&bffv1.UpdateNotificationSettingsRequest{})
+	notify := bfftripmapv1connect.NewNotificationServiceClient(u.HTTP, u.APIURL)
+	upd := connect.NewRequest(&bfftripmapv1.UpdateNotificationSettingsRequest{})
 	u.writeHeaders(upd, "", u.Origin)
 	_, err = notify.UpdateNotificationSettings(ctx, upd)
 	assertWriteRejected(t, err)
 
-	delMedia := connect.NewRequest(&bffv1.DeleteMediaRequest{Id: "missing"})
+	delMedia := connect.NewRequest(&bfftripmapv1.DeleteMediaRequest{Id: "missing"})
 	u.writeHeaders(delMedia, csrf, "https://evil.example")
 	_, err = u.Media().DeleteMedia(ctx, delMedia)
 	assertWriteRejected(t, err)
 
-	stWrite := connect.NewRequest(&bffv1.UpdateSharedTripRequest{SharedTripId: "x", MutationId: "m"})
+	stWrite := connect.NewRequest(&bfftripmapv1.UpdateSharedTripRequest{SharedTripId: "x", MutationId: "m"})
 	u.writeHeaders(stWrite, "", u.Origin)
 	_, err = u.SharedTrip.UpdateSharedTrip(ctx, stWrite)
 	assertWriteRejected(t, err)
 
-	regReq := connect.NewRequest(&bffv1.ApplyRegionUpgradeRequest{Version: u.Region, MutationId: "m"})
+	regReq := connect.NewRequest(&bfftripmapv1.ApplyRegionUpgradeRequest{Version: u.Region, MutationId: "m"})
 	u.writeHeaders(regReq, csrf, "https://evil.example")
 	_, err = u.RegionSvc.ApplyRegionUpgrade(ctx, regReq)
 	assertWriteRejected(t, err)

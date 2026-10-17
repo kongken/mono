@@ -29,21 +29,23 @@ import (
 	"github.com/gin-gonic/gin"
 	bffapp "github.com/kongken/mono/internal/bff/app"
 	bffconfig "github.com/kongken/mono/internal/bff/config"
-	"github.com/kongken/mono/internal/bff/oauth/provider"
 	bffent "github.com/kongken/mono/internal/bff/ent"
-	bfftestutil "github.com/kongken/mono/internal/bff/testutil"
+	"github.com/kongken/mono/internal/bff/oauth/provider"
 	"github.com/kongken/mono/internal/bff/session"
+	bfftestutil "github.com/kongken/mono/internal/bff/testutil"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
 	"github.com/kongken/mono/internal/platform/servicetoken"
 	"github.com/kongken/mono/internal/platform/testkit"
 	tripmapapp "github.com/kongken/mono/internal/tripmap/app"
+	"github.com/kongken/mono/internal/tripmap/blobstore"
 	tripmapconfig "github.com/kongken/mono/internal/tripmap/config"
 	tripmapent "github.com/kongken/mono/internal/tripmap/ent"
-	"github.com/kongken/mono/internal/tripmap/blobstore"
 	"github.com/kongken/mono/internal/tripmap/regions"
 	"github.com/kongken/mono/internal/tripmap/testutil"
-	"github.com/kongken/mono/pkg/proto/bff/v1"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
+	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
+	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -53,8 +55,8 @@ import (
 type ChainHarness struct {
 	T *testing.T
 
-	BFFURL string
-	BFF    *bffapp.Handlers
+	BFFURL  string
+	BFF     *bffapp.Handlers
 	Tripmap *tripmapapp.Handlers
 
 	BFFDB     *bffent.Client
@@ -68,18 +70,18 @@ type ChainHarness struct {
 
 // Browser is a cookie-aware Connect client for bff.v1 (CSRF + schema headers).
 type Browser struct {
-	t      *testing.T
-	HTTP   *http.Client
-	Auth   bffv1connect.AuthServiceClient
-	Foot    bffv1connect.FootprintServiceClient
-	Snap       bffv1connect.SnapshotServiceClient
-	Friends    bffv1connect.FriendServiceClient
-	SharedTrip bffv1connect.SharedTripServiceClient
-	Itin       bffv1connect.ItineraryServiceClient
-	media      bffv1connect.MediaServiceClient
-	Report     bffv1connect.ReportServiceClient
-	Search     bffv1connect.SearchServiceClient
-	RegionSvc  bffv1connect.RegionServiceClient
+	t          *testing.T
+	HTTP       *http.Client
+	Auth       bffv1connect.AuthServiceClient
+	Foot       bfftripmapv1connect.FootprintServiceClient
+	Snap       bfftripmapv1connect.SnapshotServiceClient
+	Friends    bfftripmapv1connect.FriendServiceClient
+	SharedTrip bfftripmapv1connect.SharedTripServiceClient
+	Itin       bfftripmapv1connect.ItineraryServiceClient
+	media      bfftripmapv1connect.MediaServiceClient
+	Report     bfftripmapv1connect.ReportServiceClient
+	Search     bfftripmapv1connect.SearchServiceClient
+	RegionSvc  bfftripmapv1connect.RegionServiceClient
 	APIURL     string
 	Origin     string
 	Region     string
@@ -158,7 +160,7 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	t.Cleanup(tripSrv.Close)
 
 	bffCfg := &bffconfig.Config{
-		Upstreams: map[string]string{"tripmap": tripSrv.URL},
+		Upstreams:    map[string]string{"tripmap": tripSrv.URL},
 		InternalAuth: bffconfig.InternalAuth{Issuer: issuer, KID: "k1", PrivateKeyFile: keys.PrivateFile},
 		GRPC: bffconfig.GRPCConfig{CAFile: ca.CAFile, Services: map[string]bffconfig.GRPCService{
 			"tripmap": {Address: h.Tripmap.GRPCAddr(), ServerName: "tripmap.internal"},
@@ -212,23 +214,23 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 	api := h.BFFURL + "/api"
 	return &Browser{
 		t: h.T, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
-		Auth: bffv1connect.NewAuthServiceClient(hc, api),
-		Foot:    bffv1connect.NewFootprintServiceClient(hc, api),
-		Snap:       bffv1connect.NewSnapshotServiceClient(hc, api),
-		Friends:    bffv1connect.NewFriendServiceClient(hc, api),
-		SharedTrip: bffv1connect.NewSharedTripServiceClient(hc, api),
-		Itin:       bffv1connect.NewItineraryServiceClient(hc, api),
-		media:      bffv1connect.NewMediaServiceClient(hc, api),
-		Report:     bffv1connect.NewReportServiceClient(hc, api),
-		Search:     bffv1connect.NewSearchServiceClient(hc, api),
-		RegionSvc:  bffv1connect.NewRegionServiceClient(hc, api),
+		Auth:       bffv1connect.NewAuthServiceClient(hc, api),
+		Foot:       bfftripmapv1connect.NewFootprintServiceClient(hc, api),
+		Snap:       bfftripmapv1connect.NewSnapshotServiceClient(hc, api),
+		Friends:    bfftripmapv1connect.NewFriendServiceClient(hc, api),
+		SharedTrip: bfftripmapv1connect.NewSharedTripServiceClient(hc, api),
+		Itin:       bfftripmapv1connect.NewItineraryServiceClient(hc, api),
+		media:      bfftripmapv1connect.NewMediaServiceClient(hc, api),
+		Report:     bfftripmapv1connect.NewReportServiceClient(hc, api),
+		Search:     bfftripmapv1connect.NewSearchServiceClient(hc, api),
+		RegionSvc:  bfftripmapv1connect.NewRegionServiceClient(hc, api),
 	}
 }
 
-func (b *Browser) Media() bffv1connect.MediaServiceClient { return b.media }
+func (b *Browser) Media() bfftripmapv1connect.MediaServiceClient { return b.media }
 
-func (b *Browser) GetRegionIndex(ctx context.Context) (*bffv1.GetRegionIndexResponse, error) {
-	req := connect.NewRequest(&bffv1.GetRegionIndexRequest{})
+func (b *Browser) GetRegionIndex(ctx context.Context) (*bfftripmapv1.GetRegionIndexResponse, error) {
+	req := connect.NewRequest(&bfftripmapv1.GetRegionIndexRequest{})
 	b.withTripmapHeaders(req)
 	res, err := b.RegionSvc.GetRegionIndex(ctx, req)
 	if err != nil {
@@ -237,8 +239,8 @@ func (b *Browser) GetRegionIndex(ctx context.Context) (*bffv1.GetRegionIndexResp
 	return res.Msg, nil
 }
 
-func (b *Browser) PreviewRegionUpgrade(ctx context.Context) (*bffv1.PreviewRegionUpgradeResponse, error) {
-	req := connect.NewRequest(&bffv1.PreviewRegionUpgradeRequest{})
+func (b *Browser) PreviewRegionUpgrade(ctx context.Context) (*bfftripmapv1.PreviewRegionUpgradeResponse, error) {
+	req := connect.NewRequest(&bfftripmapv1.PreviewRegionUpgradeRequest{})
 	b.withTripmapHeaders(req)
 	res, err := b.RegionSvc.PreviewRegionUpgrade(ctx, req)
 	if err != nil {
@@ -247,9 +249,9 @@ func (b *Browser) PreviewRegionUpgrade(ctx context.Context) (*bffv1.PreviewRegio
 	return res.Msg, nil
 }
 
-func (b *Browser) ApplyRegionUpgrade(ctx context.Context, version string, baseRevision int64, mutationID string) (*bffv1.ApplyRegionUpgradeResponse, error) {
+func (b *Browser) ApplyRegionUpgrade(ctx context.Context, version string, baseRevision int64, mutationID string) (*bfftripmapv1.ApplyRegionUpgradeResponse, error) {
 	csrf := b.refreshCSRF(ctx)
-	req := connect.NewRequest(&bffv1.ApplyRegionUpgradeRequest{
+	req := connect.NewRequest(&bfftripmapv1.ApplyRegionUpgradeRequest{
 		Version: version, BaseRevision: baseRevision, MutationId: mutationID,
 	})
 	b.writeHeaders(req, csrf, b.Origin)
@@ -260,10 +262,10 @@ func (b *Browser) ApplyRegionUpgrade(ctx context.Context, version string, baseRe
 	return res.Msg, nil
 }
 
-func (b *Browser) Itinerary() bffv1connect.ItineraryServiceClient { return b.Itin }
+func (b *Browser) Itinerary() bfftripmapv1connect.ItineraryServiceClient { return b.Itin }
 
-func (b *Browser) GetCollaborationOverview(ctx context.Context) (*bffv1.GetCollaborationOverviewResponse, error) {
-	req := connect.NewRequest(&bffv1.GetCollaborationOverviewRequest{})
+func (b *Browser) GetCollaborationOverview(ctx context.Context) (*bfftripmapv1.GetCollaborationOverviewResponse, error) {
+	req := connect.NewRequest(&bfftripmapv1.GetCollaborationOverviewRequest{})
 	b.withTripmapHeaders(req)
 	res, err := b.Friends.GetCollaborationOverview(ctx, req)
 	if err != nil {
@@ -272,8 +274,8 @@ func (b *Browser) GetCollaborationOverview(ctx context.Context) (*bffv1.GetColla
 	return res.Msg, nil
 }
 
-func (b *Browser) GetFriendFootprints(ctx context.Context, friendUserID string) (*bffv1.GetFriendFootprintsResponse, error) {
-	req := connect.NewRequest(&bffv1.GetFriendFootprintsRequest{FriendUserId: friendUserID})
+func (b *Browser) GetFriendFootprints(ctx context.Context, friendUserID string) (*bfftripmapv1.GetFriendFootprintsResponse, error) {
+	req := connect.NewRequest(&bfftripmapv1.GetFriendFootprintsRequest{FriendUserId: friendUserID})
 	b.withTripmapHeaders(req)
 	res, err := b.Friends.GetFriendFootprints(ctx, req)
 	if err != nil {
@@ -282,8 +284,8 @@ func (b *Browser) GetFriendFootprints(ctx context.Context, friendUserID string) 
 	return res.Msg, nil
 }
 
-func (b *Browser) ListItineraries(ctx context.Context) (*bffv1.ListItinerariesResponse, error) {
-	req := connect.NewRequest(&bffv1.ListItinerariesRequest{})
+func (b *Browser) ListItineraries(ctx context.Context) (*bfftripmapv1.ListItinerariesResponse, error) {
+	req := connect.NewRequest(&bfftripmapv1.ListItinerariesRequest{})
 	b.withTripmapHeaders(req)
 	res, err := b.Itin.ListItineraries(ctx, req)
 	if err != nil {
@@ -292,8 +294,8 @@ func (b *Browser) ListItineraries(ctx context.Context) (*bffv1.ListItinerariesRe
 	return res.Msg, nil
 }
 
-func (b *Browser) GetItinerary(ctx context.Context, id string) (*bffv1.GetItineraryResponse, error) {
-	req := connect.NewRequest(&bffv1.GetItineraryRequest{Id: id})
+func (b *Browser) GetItinerary(ctx context.Context, id string) (*bfftripmapv1.GetItineraryResponse, error) {
+	req := connect.NewRequest(&bfftripmapv1.GetItineraryRequest{Id: id})
 	b.withTripmapHeaders(req)
 	res, err := b.Itin.GetItinerary(ctx, req)
 	if err != nil {
@@ -302,7 +304,7 @@ func (b *Browser) GetItinerary(ctx context.Context, id string) (*bffv1.GetItiner
 	return res.Msg, nil
 }
 
-func (b *Browser) SaveItinerary(ctx context.Context, msg *bffv1.SaveItineraryRequest) (*bffv1.SaveItineraryResponse, error) {
+func (b *Browser) SaveItinerary(ctx context.Context, msg *bfftripmapv1.SaveItineraryRequest) (*bfftripmapv1.SaveItineraryResponse, error) {
 	csrf := b.refreshCSRF(ctx)
 	req := connect.NewRequest(msg)
 	b.writeHeaders(req, csrf, b.Origin)
@@ -313,7 +315,7 @@ func (b *Browser) SaveItinerary(ctx context.Context, msg *bffv1.SaveItineraryReq
 	return res.Msg, nil
 }
 
-func (b *Browser) DeleteItinerary(ctx context.Context, msg *bffv1.DeleteItineraryRequest) (*bffv1.DeleteItineraryResponse, error) {
+func (b *Browser) DeleteItinerary(ctx context.Context, msg *bfftripmapv1.DeleteItineraryRequest) (*bfftripmapv1.DeleteItineraryResponse, error) {
 	csrf := b.refreshCSRF(ctx)
 	req := connect.NewRequest(msg)
 	b.writeHeaders(req, csrf, b.Origin)
@@ -385,8 +387,8 @@ func (b *Browser) Me(ctx context.Context) (*bffv1.User, error) {
 	return res.Msg.GetUser(), nil
 }
 
-func (b *Browser) GetFootprints(ctx context.Context) (*bffv1.GetFootprintsResponse, error) {
-	req := connect.NewRequest(&bffv1.GetFootprintsRequest{})
+func (b *Browser) GetFootprints(ctx context.Context) (*bfftripmapv1.GetFootprintsResponse, error) {
+	req := connect.NewRequest(&bfftripmapv1.GetFootprintsRequest{})
 	b.withTripmapHeaders(req)
 	res, err := b.Foot.GetFootprints(ctx, req)
 	if err != nil {

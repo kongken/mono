@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package bff.tripmap.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/tripmap/v1;bfftripmapv1";
+
+// ItineraryService exposes signed-in itinerary planning via the BFF.
+service ItineraryService {
+  rpc ListItineraries(ListItinerariesRequest) returns (ListItinerariesResponse);
+  rpc GetItinerary(GetItineraryRequest) returns (GetItineraryResponse);
+  rpc SaveItinerary(SaveItineraryRequest) returns (SaveItineraryResponse);
+  rpc DeleteItinerary(DeleteItineraryRequest) returns (DeleteItineraryResponse);
+}
+
+message ItineraryStopInput {
+  string id = 1;
+  string region_code = 2;
+  string date = 3;
+  string note = 4;
+  string transport = 5;
+  string trip_id = 6;
+}
+
+message ItineraryStop {
+  string id = 1;
+  int32 order = 2;
+  string region_code = 3;
+  string region_name = 4;
+  string province_code = 5;
+  string province_name = 6;
+  string date = 7;
+  string note = 8;
+  string transport = 9;
+  string trip_id = 10;
+  double longitude = 11;
+  double latitude = 12;
+  double wgs_longitude = 13;
+  double wgs_latitude = 14;
+}
+
+message ItineraryLeg {
+  int32 from_order = 1;
+  int32 to_order = 2;
+  string from_region_code = 3;
+  string from_region_name = 4;
+  string to_region_code = 5;
+  string to_region_name = 6;
+  string transport = 7;
+  double straight_distance_km = 8;
+  double estimated_distance_km = 9;
+  int32 estimated_duration_minutes = 10;
+  bool from_cache = 11;
+}
+
+message ItineraryEstimationPolicy {
+  string provider = 1;
+  string provider_label = 2;
+  bool external_api_enabled = 3;
+  string cost_policy = 4;
+  string cache_strategy = 5;
+  string disclaimer = 6;
+}
+
+message ItineraryInfo {
+  string id = 1;
+  string title = 2;
+  string note = 3;
+  string color = 4;
+  int64 version = 5;
+  repeated ItineraryStop stops = 6;
+  repeated ItineraryLeg legs = 7;
+  double total_straight_distance_km = 8;
+  double total_estimated_distance_km = 9;
+  int32 total_estimated_duration_minutes = 10;
+  int32 city_count = 11;
+  int32 province_count = 12;
+  bool from_cache = 13;
+  google.protobuf.Timestamp created_at = 14;
+  google.protobuf.Timestamp updated_at = 15;
+}
+
+message ListItinerariesRequest {}
+
+message ListItinerariesResponse {
+  repeated ItineraryInfo itineraries = 1;
+  ItineraryEstimationPolicy policy = 2;
+}
+
+message GetItineraryRequest {
+  string id = 1;
+}
+
+message GetItineraryResponse {
+  ItineraryInfo itinerary = 1;
+  ItineraryEstimationPolicy policy = 2;
+}
+
+message SaveItineraryRequest {
+  string id = 1;
+  string title = 2;
+  string note = 3;
+  string color = 4;
+  repeated ItineraryStopInput stops = 5;
+  int64 expected_version = 6;
+  string mutation_id = 7;
+}
+
+message SaveItineraryResponse {
+  ItineraryInfo itinerary = 1;
+  ItineraryEstimationPolicy policy = 2;
+  bool replayed = 3;
+}
+
+message DeleteItineraryRequest {
+  string id = 1;
+  int64 expected_version = 2;
+}
+
+message DeleteItineraryResponse {
+  bool deleted = 1;
+}

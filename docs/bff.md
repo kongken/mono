@@ -8,21 +8,21 @@
 
 **当前已实现**
 
-- `bff.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
-- `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`ListSessions`、`RevokeSession`、`IssueCSRFToken`，以及 OAuth `ListOAuthProviders`、`BeginOAuthFlow`、`CompleteOAuthFlow`（#31–#32）；账号、OAuth 绑定与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`），OAuth state 在 BFF Redis（10 分钟、单次使用、绑定 provider/PKCE）。会话 Cookie：`shanhai_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `shanhai_csrf` + 请求头 `X-CSRF-Token`；写操作（含 `RevokeSession`）校验 Origin。响应不返回会话令牌；会话列表与撤销只读写 BFF 存储，不向 tripmap 下传浏览器会话 ID。
+- `bff.tripmap.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
+- `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`ListSessions`、`RevokeSession`、`IssueCSRFToken`，以及 OAuth `ListOAuthProviders`、`BeginOAuthFlow`、`CompleteOAuthFlow`（#31–#32）；账号、OAuth 绑定与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`），OAuth state 在 BFF Redis（10 分钟、单次使用、绑定 provider/PKCE）。会话 Cookie：`kongken_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `kongken_csrf` + 请求头 `X-CSRF-Token`；写操作（含 `RevokeSession`）校验 Origin。响应不返回会话令牌；会话列表与撤销只读写 BFF 存储，不向 tripmap 下传浏览器会话 ID。
 - OAuth 提供方在 `config.bff.yaml` 的 `auth.oauth_providers`（GitHub、Google、Logto；Logto 带 PKCE），与旧 tripmap `auth.oauth_providers` 字段含义相同，配置迁到 BFF。
-- `bff.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
-- `bff.v1.NotificationService`（全部提醒设置 RPC）→ tripmap gRPC `NotificationService`；浏览器经 Cookie 会话，业务仍只认 BFF 签发的内部凭证与用户 ID。
+- `bff.tripmap.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
+- `bff.tripmap.v1.NotificationService`（全部提醒设置 RPC）→ tripmap gRPC `NotificationService`；浏览器经 Cookie 会话，业务仍只认 BFF 签发的内部凭证与用户 ID。
 - 公开 HTTP：`GET/HEAD/POST /api/notifications/unsubscribe` 在 BFF 显式注册（`internal/bff/publichttp`），边缘限流与追踪路径模板 `/api/notifications/unsubscribe`（不含查询令牌），再调用 tripmap gRPC `NotificationPublicService/ProcessEmailUnsubscribe`（匿名内部凭证 + 退订签名令牌）；不使用 Cookie CSRF。
-- `bff.v1.ShareService`（#36：`GetShare`、`PreviewShare`、`SaveShare`、`RevokeShare`）→ tripmap gRPC `ShareService` 同名方法；浏览器经 Cookie 会话。
+- `bff.tripmap.v1.ShareService`（#36：`GetShare`、`PreviewShare`、`SaveShare`、`RevokeShare`）→ tripmap gRPC `ShareService` 同名方法；浏览器经 Cookie 会话。
 - 分享公开页：`GET|HEAD /s/<token>`、`/s/<token>/og.png`、`/api/share/<token>/data`、`/api/share/<token>/photos/<句柄>` 在 BFF `publichttp` 登记（边缘限流、追踪模板 `/s/{token}` / `/api/share/{token}`），再调用 tripmap gRPC `SharePublicService`（匿名内部凭证 + 分享令牌）；tripmap HTTP 不再挂载这些路径。
-- `bff.v1.FriendService`（#37）：好友概览、隐私设置、请求/解除与好友足迹对比 → tripmap gRPC `CollaborationService` 同名方法；好友码与展示字段在 tripmap 业务档案，不查 BFF 认证库。写操作校验 CSRF。
-- `bff.v1.SharedTripService`（#38）：共同旅行邀请/响应、更新、角色与成员管理、解散/退出及共享媒体列表/读取 → tripmap gRPC `CollaborationService` 对应方法；写操作校验 CSRF；`ReadSharedTripMedia` 登记 25 秒重任务。tripmap 公网 Connect 上的 `CollaborationService` 已移除。
-- `bff.v1.ItineraryService`（#41：`ListItineraries`、`GetItinerary`、`SaveItinerary`、`DeleteItinerary`）→ tripmap gRPC `ItineraryService` 同名方法；写操作校验 Origin/CSRF。tripmap 公网 Connect 上的 `ItineraryService` 已移除。
-- `bff.v1.SnapshotService`（#34：`ListSnapshots`、`CreateSnapshot`、`GetSnapshot`、`RestoreSnapshot`）→ tripmap gRPC `SnapshotService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`CreateSnapshot` / `RestoreSnapshot` 写操作校验 Origin/CSRF；`RestoreSnapshot` 登记为 25 秒重任务。tripmap 公网 Connect 上的 `SnapshotService` 已移除。
-- `bff.v1.MediaService`（#35：`PrepareUpload`、`CompleteUpload`、`ListMedia`、`ReadMedia`、`DeleteMedia`）→ tripmap gRPC `MediaService`；写操作校验 CSRF；`PrepareUpload`/`CompleteUpload` 登记 25 秒重任务；Connect 读上限 16 MiB。tripmap 公网 Connect 上的 `MediaService` 已移除。
-- `bff.v1.ReportService/GetReport`（#39）→ tripmap gRPC `ReportService/GetReport`；`bff.v1.SearchService/SearchNotes` → tripmap gRPC `SearchService/SearchNotes`（Connect 读上限 4 KiB）。tripmap 公网 Connect 上的 `ReportService` / `SearchService` 已移除。
-- `bff.v1.RegionService`（#40：`GetRegionIndex`、`PreviewRegionUpgrade`、`ApplyRegionUpgrade`）→ tripmap gRPC `RegionService` 同名方法；`ApplyRegionUpgrade` 校验 Origin/CSRF；`X-Tripmap-Regions` 白名单下传。tripmap 公网 Connect 上的 `RegionService` 已移除。
+- `bff.tripmap.v1.FriendService`（#37）：好友概览、隐私设置、请求/解除与好友足迹对比 → tripmap gRPC `CollaborationService` 同名方法；好友码与展示字段在 tripmap 业务档案，不查 BFF 认证库。写操作校验 CSRF。
+- `bff.tripmap.v1.SharedTripService`（#38）：共同旅行邀请/响应、更新、角色与成员管理、解散/退出及共享媒体列表/读取 → tripmap gRPC `CollaborationService` 对应方法；写操作校验 CSRF；`ReadSharedTripMedia` 登记 25 秒重任务。tripmap 公网 Connect 上的 `CollaborationService` 已移除。
+- `bff.tripmap.v1.ItineraryService`（#41：`ListItineraries`、`GetItinerary`、`SaveItinerary`、`DeleteItinerary`）→ tripmap gRPC `ItineraryService` 同名方法；写操作校验 Origin/CSRF。tripmap 公网 Connect 上的 `ItineraryService` 已移除。
+- `bff.tripmap.v1.SnapshotService`（#34：`ListSnapshots`、`CreateSnapshot`、`GetSnapshot`、`RestoreSnapshot`）→ tripmap gRPC `SnapshotService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`CreateSnapshot` / `RestoreSnapshot` 写操作校验 Origin/CSRF；`RestoreSnapshot` 登记为 25 秒重任务。tripmap 公网 Connect 上的 `SnapshotService` 已移除。
+- `bff.tripmap.v1.MediaService`（#35：`PrepareUpload`、`CompleteUpload`、`ListMedia`、`ReadMedia`、`DeleteMedia`）→ tripmap gRPC `MediaService`；写操作校验 CSRF；`PrepareUpload`/`CompleteUpload` 登记 25 秒重任务；Connect 读上限 16 MiB。tripmap 公网 Connect 上的 `MediaService` 已移除。
+- `bff.tripmap.v1.ReportService/GetReport`（#39）→ tripmap gRPC `ReportService/GetReport`；`bff.tripmap.v1.SearchService/SearchNotes` → tripmap gRPC `SearchService/SearchNotes`（Connect 读上限 4 KiB）。tripmap 公网 Connect 上的 `ReportService` / `SearchService` 已移除。
+- `bff.tripmap.v1.RegionService`（#40：`GetRegionIndex`、`PreviewRegionUpgrade`、`ApplyRegionUpgrade`）→ tripmap gRPC `RegionService` 同名方法；`ApplyRegionUpgrade` 校验 Origin/CSRF；`X-Tripmap-Regions` 白名单下传。tripmap 公网 Connect 上的 `RegionService` 已移除。
 - 可选 Mapbox 底图瓦片：`GET /api/tiles/{z}/{x}/{y}.png`（匿名）在 `gateway.Services` 登记为 tripmap 的 HTTP 路由，BFF 透明转发到 `upstreams.tripmap`（需要 tripmap 的 `mapbox_tiles.enabled`，见 [后端初始化](backend.md#mapbox-瓦片代理可选)）。BFF 不持有 Mapbox token、样式或限流配置；转发时只保留 `Accept`、`User-Agent` 与缓存验证头 `If-None-Match`、`If-Modified-Since`（查询串原样转发，由 tripmap 校验），丢弃 Cookie、Authorization、CSRF、Origin 等其余浏览器头，并覆盖写入 `X-Real-IP`；保留 tripmap 的图片、缓存与验证响应头及 304 状态，去掉 `Access-Control-*` 并按 `cors_allowed_origins` 应答；tripmap 不可达时返回不缓存的 502。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
@@ -32,8 +32,8 @@
 
 **当前限制**
 
-- 浏览器业务 RPC 仅 `/api/bff.v1.*`；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/unsubscribe 由 BFF `publichttp` 提供）。
-- 前端（含分享 API）与 OAuth/会话管理均使用 `bff.v1`；账号凭据在 BFF 独立库；tripmap `users` 仍可能含 legacy 凭据列直至 post-import 清理（Ent 不写入这些列）。
+- 浏览器 RPC 仅 `/api/bff.*`（共用的 `bff.v1`、各产品的 `bff.<产品>.v1`）；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/unsubscribe 由 BFF `publichttp` 提供）。
+- 前端的业务 RPC（含分享 API）使用 `bff.tripmap.v1`，OAuth/会话管理使用 `bff.v1`；账号凭据在 BFF 独立库；tripmap `users` 仍可能含 legacy 凭据列直至 post-import 清理（Ent 不写入这些列）。
 - 真实 GitHub/Google/Logto 端到端授权验收仍依赖部署凭据，CI 使用受控 fake 提供方与 `internal/e2e/oauth_chain_test.go`。
 
 ```
@@ -48,7 +48,8 @@
 | 入口 | 登记位置 | 说明 |
 | --- | --- | --- |
 | `/ping`、`/readyz` | `internal/bff/app/app.go` | BFF 自身与依赖就绪 |
-| `/api/bff.v1.<Service>/<Method>` | `app.go` `publicAPI` + `bffv1connect.New*Handler` | 浏览器 Connect RPC；`NoRoute` 下前缀 `/api/bff.v1.` 进入此 mux |
+| `/api/bff.v1.<Service>/<Method>` | `app.go` `publicAPI` + `bffv1connect.New*Handler` | 共用的账号与会话 Connect RPC；`NoRoute` 下前缀 `/api/bff.` 进入此 mux |
+| `/api/bff.tripmap.v1.<Service>/<Method>` | `internal/bff/tripmap/tripmap.go` `MountStatus`、`MountRPC` | 山海足迹业务 Connect RPC，同一个 mux |
 | `/s/…`、`/api/share/…`、`/api/notifications/unsubscribe` | `app.go` `mountPublicHTTP` + `internal/bff/publichttp` | 分享页/数据/预览图、邮件退订；凭分享或退订令牌，不用 Cookie CSRF |
 | `/api/tiles/{z}/{x}/{y}.png` | `gateway/services.go` `Routes`（`Anonymous: true`）+ `gateway.Forward` | 登记路径透明转发到 tripmap，规则与限流在 tripmap；不规范路径（`..`、`//`）404 |
 | 其他路径 | `NoRoute` | **404**（含旧 `/api/tripmap.v1.*`） |
@@ -56,14 +57,14 @@
 - 不规范路径（含 `..`、`//`）在 BFF 层拒绝或 404。
 - BFF Connect 读上限 16 MiB；边缘 Nginx 20 MiB；内部 gRPC 默认 20 MiB（见 [部署与发布](deployment.md#请求体大小)）。
 
-## 公网 Connect 入口（`bff.v1`）
+## 公网 Connect 入口（`bff.v1`、`bff.tripmap.v1`）
 
-`/api/bff.v1.<服务>/<方法>` 由 BFF 自己应答，不转发；路由在 `internal/bff/app/app.go`，处理链在 `internal/bff/ingress/`。
+`/api/bff.<包>.<服务>/<方法>` 由 BFF 自己应答，不转发；路由在 `internal/bff/app/app.go` 与各产品的 `internal/bff/<产品>/`，处理链在 `internal/bff/ingress/`。
 
 - **只接受 Connect**：仅 `POST`，`Content-Type` 必须是 `application/json` 或 `application/proto`（可带 charset），否则返回 405 / 415（`Accept-Post` 列出可用类型）。gRPC、gRPC-Web 与 Connect 流式帧都在到达处理器前被拒绝。处理器还要求 `Connect-Protocol-Version: 1`，缺失或不是 `1` 返回 400。
 - **路径**：未知方法或服务、多余路径段、含 `..` 或 `//` 的路径一律 404，不会落入通用转发。
 - **匿名策略**：由 proto 方法选项 `platform.v1.anonymous` 声明（`proto/platform/v1/options.proto`）；**默认受保护**，未知过程也受保护。BFF 的拦截器和 tripmap 的拦截器各自独立执行同一规则。匿名方法不使用浏览器会话，调用内部服务时不带用户 ID。
-- **写操作防护**：除 `internal/bff/ingress/write_policy.go` 列出的只读 RPC 外，所有 `bff.v1` 过程在 ingress 统一校验 CSRF 双提交与同源（`Origin`、配置的 `cors_allowed_origins`、或与 `Host` 匹配的 Origin，或在缺少 `Origin` 时浏览器的 `Sec-Fetch-Site: same-origin`）。`IssueCSRFToken` 与各类 GET 式读 RPC 豁免；公开 HTTP 路由使用领域令牌而非 CSRF。
+- **写操作防护**：除 `internal/bff/ingress/write_policy.go` 列出的只读 RPC 外，所有 `bff.*` 过程在 ingress 统一校验 CSRF 双提交与同源（`Origin`、配置的 `cors_allowed_origins`、或与 `Host` 匹配的 Origin，或在缺少 `Origin` 时浏览器的 `Sec-Fetch-Site: same-origin`）。`IssueCSRFToken` 与各类 GET 式读 RPC 豁免；公开 HTTP 路由使用领域令牌而非 CSRF。
 - **期限与取消**：普通过程上限 10 秒；上传等重任务上限 25 秒，需在 `ingress.Policy.Heavy` 中显式登记（已登记 `FootprintService/SyncChanges`）。实际期限取客户端剩余期限（`Connect-Timeout-Ms`）与上限的较小值，在 BFF 设置一次并通过 gRPC 期限传给业务服务；客户端取消会传播到服务，服务端处理随之停止。不做任何自动重试。
 - **请求 ID**：读取 `X-Request-Id`，仅当匹配 `^[A-Za-z0-9._-]{1,64}$` 时沿用，否则替换为随机 32 位十六进制；响应（含错误）回写该头，并作为内部 metadata 下传。
 - **客户端地址**：按 `client_ip_header`（受信反向代理写入的头）解析，未设置时用 TCP 对端；客户端自带的 `X-Bff-Client-Ip` 之类的头不会被读取。
@@ -72,7 +73,7 @@
 
 ## 内部 gRPC 与凭证
 
-BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法调用业务服务，两层契约独立演进：`bff.v1` 给浏览器，`tripmap.v1` 只给 BFF。
+BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法调用业务服务，两层契约独立演进：`bff.v1`（账号）与 `bff.tripmap.v1`（山海足迹业务）给浏览器，`tripmap.v1` 只给 BFF。
 
 **传输**：业务服务用 `internal/platform/grpcx` 自管 TLS 监听（TLS 1.3，默认单消息上限 20 MiB，覆盖现有 16 MiB 合法请求并留出序列化开销；两端都显式设置，不依赖 grpc-go 的 4 MiB 默认值）、拦截器和优雅关闭（先排空进行中的调用，10 秒后强制停止）。BFF 以 `grpc.ca_file` 校验服务证书，没有明文或跳过校验的回退。业务服务的 HTTP 端口只保留 `/ping`、`/readyz` 以及尚未迁移的路由。
 
@@ -129,14 +130,25 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 ## 新增业务
 
-（同前，略）
+BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`internal/bff/auth`、`session`、`ingress`），单点登录的账号库在 BFF；各产品只增加自己的适配层：
+
+1. `proto/bff/<产品>/v1/` 定义浏览器契约（包名 `bff.<产品>.v1`，Go 包别名 `bff<产品>v1`），运行 `make buf`。
+2. `internal/bff/<产品>/` 放各服务的适配处理器，并提供与 `internal/bff/tripmap/tripmap.go` 同形状的 `Service`、`HeavyProcedures`、`MountStatus`/`MountRPC`、`MountPublicHTTP`。产品包之间不互相 import。
+3. 在 `internal/bff/app/app.go` 的 `publicAPI`、`heavyProcedures`、`mountPublicHTTP` 里调用新产品的 `Mount*`；只读过程登记到 `internal/bff/ingress/write_policy.go`，其余过程自动要求 Origin/CSRF。
+4. 在 `internal/bff/gateway/services.go` 登记上游名与 HTTP 路由，在 BFF 配置的 `upstreams`、`grpc.services` 增加地址。
+5. 前端应用只使用 `@kongken/api-client/bff/v1/auth_pb` 与自己的 `bff/<产品>/v1/*_pb`。
+
+## 当前限制（多产品）
+
+- 会话与 CSRF Cookie（`kongken_sid`、`kongken_csrf`）是主机本地 Cookie，没有配置 `Domain`。约定：各产品的前端放在同一个域名下，经同一个入口反代到 BFF，共用这两个 Cookie 即单点登录。放在不同子域名或不同域名时，Cookie 不会共享，需要先增加 Cookie `Domain` 配置或另行设计跨域登录（待实现）。
+- `bff.tripmap.v1.StatusService` 的响应带有山海足迹专有字段（`footprint_schema`、`share_enabled`、`region_version`），是产品级状态，不是通用健康检查。
 
 ## 验证
 
 - `internal/bff/auth`：注册/登录/会话/CSRF（需 `TRIPMAP_TEST_*`）。
 - `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与 TLS gRPC 信任。
-- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、`ListSessions`/`RevokeSession`（跨设备撤销与 CSRF）、A/B 足迹隔离、`SyncChanges` 幂等与 revision 冲突、行程增删改读、提醒设置、公开退订 HTTP、**#43** 注销重试/S3 故障/完成回执/跨用户隔离、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。浏览器注销 UI 仍用 Playwright 模拟 RPC（`apps/web/tests/account-deletion.spec.ts`），真实 Cookie 链路以 e2e 为准。
-- **Playwright 真实栈**（默认跳过）：`apps/web/tests/bff-cookie-real.spec.ts`；先 `make dev`（或等价 BFF+tripmap），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @trip-map/web -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
+- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、`ListSessions`/`RevokeSession`（跨设备撤销与 CSRF）、A/B 足迹隔离、`SyncChanges` 幂等与 revision 冲突、行程增删改读、提醒设置、公开退订 HTTP、**#43** 注销重试/S3 故障/完成回执/跨用户隔离、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。浏览器注销 UI 仍用 Playwright 模拟 RPC（`apps/trip-map/tests/account-deletion.spec.ts`），真实 Cookie 链路以 e2e 为准。
+- **Playwright 真实栈**（默认跳过）：`apps/trip-map/tests/bff-cookie-real.spec.ts`；先 `make dev`（或等价 BFF+tripmap），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @kongken/trip-map -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
 - 其余 UI：Playwright 模拟后端覆盖登录骨架与业务场景。
 
 ## 当前限制

@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package bff.tripmap.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/tripmap/v1;bfftripmapv1";
+
+// MediaService exposes signed-in city and trip media via the BFF.
+service MediaService {
+  rpc PrepareUpload(PrepareUploadRequest) returns (PrepareUploadResponse);
+  rpc CompleteUpload(CompleteUploadRequest) returns (CompleteUploadResponse);
+  rpc ListMedia(ListMediaRequest) returns (ListMediaResponse);
+  rpc ReadMedia(ReadMediaRequest) returns (ReadMediaResponse);
+  rpc DeleteMedia(DeleteMediaRequest) returns (DeleteMediaResponse);
+}
+
+message MediaInfo {
+  string id = 1;
+  string region_code = 2;
+  string filename = 3;
+  string content_type = 4;
+  int64 size_bytes = 5;
+  int32 width = 6;
+  int32 height = 7;
+  string status = 8;
+  google.protobuf.Timestamp created_at = 9;
+  string trip_id = 10;
+}
+
+message PrepareUploadRequest {
+  string region_code = 1;
+  string filename = 2;
+  string content_type = 3;
+  int64 size_bytes = 4;
+  string upload_id = 5;
+  string trip_id = 6;
+}
+
+message PrepareUploadResponse {
+  MediaInfo media = 1;
+  string upload_url = 2;
+  map<string, string> headers = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+message CompleteUploadRequest { string id = 1; }
+message CompleteUploadResponse { MediaInfo media = 1; }
+
+message ListMediaRequest {
+  string region_code = 1;
+  string trip_id = 2;
+}
+
+message ListMediaResponse { repeated MediaInfo media = 1; }
+
+message ReadMediaRequest {
+  string id = 1;
+  bool thumbnail = 2;
+}
+
+message ReadMediaResponse {
+  bytes data = 1;
+  string content_type = 2;
+  string filename = 3;
+}
+
+message DeleteMediaRequest { string id = 1; }
+message DeleteMediaResponse {}

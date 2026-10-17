@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
 )
 
 func TestChainItineraryCRUDAndIsolation(t *testing.T) {
@@ -21,9 +21,9 @@ func TestChainItineraryCRUDAndIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	saved, err := alice.SaveItinerary(ctx, &bffv1.SaveItineraryRequest{
+	saved, err := alice.SaveItinerary(ctx, &bfftripmapv1.SaveItineraryRequest{
 		Id: "it-jiangnan", Title: "江南行", Note: "", Color: "#4b937d", ExpectedVersion: 0,
-		Stops: []*bffv1.ItineraryStopInput{
+		Stops: []*bfftripmapv1.ItineraryStopInput{
 			{Id: "s1", RegionCode: "310115", Date: "2026-05-01", Transport: "train"},
 			{Id: "s2", RegionCode: "330100", Date: "2026-05-03", Transport: "train"},
 		},
@@ -48,14 +48,14 @@ func TestChainItineraryCRUDAndIsolation(t *testing.T) {
 	if _, err = bob.GetItinerary(ctx, "it-jiangnan"); err == nil || connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("bob get must be not_found: %v", err)
 	}
-	delBob, err := bob.DeleteItinerary(ctx, &bffv1.DeleteItineraryRequest{Id: "it-jiangnan"})
+	delBob, err := bob.DeleteItinerary(ctx, &bfftripmapv1.DeleteItineraryRequest{Id: "it-jiangnan"})
 	if err != nil || delBob.GetDeleted() {
 		t.Fatalf("bob delete other's itinerary: err=%v deleted=%v", err, delBob.GetDeleted())
 	}
 
-	req := connect.NewRequest(&bffv1.SaveItineraryRequest{
+	req := connect.NewRequest(&bfftripmapv1.SaveItineraryRequest{
 		Id: "it-evil", Title: "x", Color: "#000", ExpectedVersion: 0,
-		Stops: []*bffv1.ItineraryStopInput{
+		Stops: []*bfftripmapv1.ItineraryStopInput{
 			{Id: "a", RegionCode: "310115", Transport: "train"},
 			{Id: "b", RegionCode: "330100", Transport: "train"},
 		},
@@ -65,7 +65,7 @@ func TestChainItineraryCRUDAndIsolation(t *testing.T) {
 		t.Fatalf("save without csrf: %v", err)
 	}
 
-	del, err := alice.DeleteItinerary(ctx, &bffv1.DeleteItineraryRequest{Id: "it-jiangnan", ExpectedVersion: 1})
+	del, err := alice.DeleteItinerary(ctx, &bfftripmapv1.DeleteItineraryRequest{Id: "it-jiangnan", ExpectedVersion: 1})
 	if err != nil || !del.GetDeleted() {
 		t.Fatalf("alice delete: %v %+v", err, del)
 	}

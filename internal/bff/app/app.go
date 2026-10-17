@@ -18,37 +18,25 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/stdlib"
-	redisclient "github.com/redis/go-redis/v9"
 	bffauth "github.com/kongken/mono/internal/bff/auth"
-	"github.com/kongken/mono/internal/bff/oauth"
-	"github.com/kongken/mono/internal/bff/oauth/provider"
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/ent"
-	"github.com/kongken/mono/internal/bff/footprint"
-	"github.com/kongken/mono/internal/bff/snapshot"
-	"github.com/kongken/mono/internal/bff/friends"
-	"github.com/kongken/mono/internal/bff/sharedtrip"
-	bffitinerary "github.com/kongken/mono/internal/bff/itinerary"
-	bffmedia "github.com/kongken/mono/internal/bff/media"
-	bffregion "github.com/kongken/mono/internal/bff/region"
-	bffreport "github.com/kongken/mono/internal/bff/report"
-	bffsearch "github.com/kongken/mono/internal/bff/search"
 	"github.com/kongken/mono/internal/bff/gateway"
 	"github.com/kongken/mono/internal/bff/ingress"
-	bffnotification "github.com/kongken/mono/internal/bff/notification"
-	"github.com/kongken/mono/internal/bff/publichttp"
+	"github.com/kongken/mono/internal/bff/oauth"
+	"github.com/kongken/mono/internal/bff/oauth/provider"
 	"github.com/kongken/mono/internal/bff/ratelimit"
-	bffshare "github.com/kongken/mono/internal/bff/share"
 	"github.com/kongken/mono/internal/bff/session"
-	"github.com/kongken/mono/internal/bff/status"
+	bfftripmap "github.com/kongken/mono/internal/bff/tripmap"
 	"github.com/kongken/mono/internal/bff/upstream"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
-	bffv1connect "github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
+	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
+	redisclient "github.com/redis/go-redis/v9"
 )
 
-const publicPrefix = "/api/bff.v1."
+const publicPrefix = "/api/bff."
 
 type Resources struct {
 	DB        *ent.Client
@@ -73,7 +61,7 @@ func New(cfg *config.Config) *Handlers {
 }
 
 func (h *Handlers) SetServices(services []gateway.Service) { h.services = services }
-func (h *Handlers) SetResources(r *Resources)                { h.resources.Store(r) }
+func (h *Handlers) SetResources(r *Resources)              { h.resources.Store(r) }
 
 // SetOAuthRegistry overrides configured OAuth providers (tests).
 func (h *Handlers) SetOAuthRegistry(reg *provider.Registry) { h.oauthReg.Store(reg) }
@@ -164,19 +152,22 @@ func (h *Handlers) bootstrapStores(ctx context.Context) error {
 	return nil
 }
 
+// heavyProcedures are the procedures that get the long request deadline: account
+// deletion plus each product's own.
+func heavyProcedures() map[string]bool {
+	heavy := map[string]bool{bffv1connect.AuthServiceDeleteAccountProcedure: true}
+	for procedure := range bfftripmap.HeavyProcedures() {
+		heavy[procedure] = true
+	}
+	return heavy
+}
+
 func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
-	conn := clients.Conn("tripmap")
+	conn := clients.Conn(bfftripmap.Service)
 	policy := ingress.Policy{
 		ClientIPHeader: h.cfg.ClientIPHeader,
 		AllowedOrigins: h.cfg.CORSAllowedOrigins,
-		Heavy: map[string]bool{
-			bffv1connect.FootprintServiceSyncChangesProcedure:             true,
-			bffv1connect.SnapshotServiceRestoreSnapshotProcedure:         true,
-			bffv1connect.AuthServiceDeleteAccountProcedure:               true,
-			bffv1connect.MediaServicePrepareUploadProcedure:              true,
-			bffv1connect.MediaServiceCompleteUploadProcedure:             true,
-			bffv1connect.SharedTripServiceReadSharedTripMediaProcedure:   true,
-		},
+		Heavy:          heavyProcedures(),
 	}
 	if r := h.resources.Load(); r != nil && conn != nil {
 		cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode, Secure: h.cfg.Auth.CookieSecure}
@@ -200,37 +191,11 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 	}
 	mux := http.NewServeMux()
 	if conn != nil {
-		route, handler := bffv1connect.NewStatusServiceHandler(status.New(tripmapv1.NewSystemServiceClient(conn)), opts...)
-		mux.Handle(route, ingress.ConnectOnly(handler))
+		bfftripmap.MountStatus(mux, conn, opts)
 		if auth := h.auth.Load(); auth != nil {
-			route, handler = bffv1connect.NewAuthServiceHandler(auth, opts...)
+			route, handler := bffv1connect.NewAuthServiceHandler(auth, opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
-			route, handler = bffv1connect.NewFootprintServiceHandler(footprint.New(tripmapv1.NewFootprintServiceClient(conn)), opts...)
-			mux.Handle(route, ingress.ConnectOnly(handler))
-			route, handler = bffv1connect.NewSnapshotServiceHandler(snapshot.New(tripmapv1.NewSnapshotServiceClient(conn)), opts...)
-			mux.Handle(route, ingress.ConnectOnly(handler))
-			route, handler = bffv1connect.NewNotificationServiceHandler(bffnotification.New(tripmapv1.NewNotificationServiceClient(conn)), opts...)
-			mux.Handle(route, ingress.ConnectOnly(handler))
-			collab := tripmapv1.NewCollaborationServiceClient(conn)
-			route, handler = bffv1connect.NewFriendServiceHandler(friends.New(collab), opts...)
-			mux.Handle(route, ingress.ConnectOnly(handler))
-			route, handler = bffv1connect.NewSharedTripServiceHandler(sharedtrip.New(collab), opts...)
-			mux.Handle(route, ingress.ConnectOnly(handler))
-			itin := bffitinerary.New(tripmapv1.NewItineraryServiceClient(conn))
-			route, handler = bffv1connect.NewItineraryServiceHandler(itin, opts...)
-			mux.Handle(route, ingress.ConnectOnly(handler))
-			media := bffmedia.New(tripmapv1.NewMediaServiceClient(conn))
-			route, handler = bffv1connect.NewMediaServiceHandler(media, opts...)
-			mux.Handle(route, ingress.ConnectOnly(handler))
-			route, handler = bffv1connect.NewShareServiceHandler(bffshare.New(tripmapv1.NewShareServiceClient(conn)), opts...)
-			mux.Handle(route, ingress.ConnectOnly(handler))
-			route, handler = bffv1connect.NewReportServiceHandler(bffreport.New(tripmapv1.NewReportServiceClient(conn)), opts...)
-			mux.Handle(route, ingress.ConnectOnly(handler))
-			route, handler = bffv1connect.NewSearchServiceHandler(bffsearch.New(tripmapv1.NewSearchServiceClient(conn)), append(opts, connect.WithReadMaxBytes(4096))...)
-			mux.Handle(route, ingress.ConnectOnly(handler))
-			regions := bffregion.New(tripmapv1.NewRegionServiceClient(conn))
-			route, handler = bffv1connect.NewRegionServiceHandler(regions, opts...)
-			mux.Handle(route, ingress.ConnectOnly(handler))
+			bfftripmap.MountRPC(mux, conn, opts)
 		}
 	}
 	return http.StripPrefix("/api", mux)
@@ -241,7 +206,7 @@ func (h *Handlers) mountPublicHTTP(r *gin.Engine) {
 	if clients == nil {
 		return
 	}
-	conn := clients.Conn("tripmap")
+	conn := clients.Conn(bfftripmap.Service)
 	if conn == nil {
 		return
 	}
@@ -249,29 +214,7 @@ func (h *Handlers) mountPublicHTTP(r *gin.Engine) {
 	if res := h.resources.Load(); res != nil {
 		limiter = ratelimit.New(res.Redis, res.KeyPrefix)
 	}
-	reg := publichttp.New(limiter, h.cfg.ClientIPHeader)
-	unsub := bffnotification.NewUnsubscribeHTTP(tripmapv1.NewNotificationPublicServiceClient(conn), h.cfg.ClientIPHeader)
-	reg.Mount(r, publichttp.Route{
-		Methods:      []string{http.MethodGet, http.MethodHead, http.MethodPost},
-		Path:         "/api/notifications/unsubscribe",
-		TracePattern: "/api/notifications/unsubscribe",
-		Limit:        &publichttp.Limit{KeyPrefix: "unsubscribe:", Max: 30, Window: time.Minute},
-		Handler:      unsub,
-	})
-	sharePub := bffshare.NewPublicHTTP(tripmapv1.NewSharePublicServiceClient(conn), h.cfg.ClientIPHeader)
-	shareLimit := func(prefix string, max int64) *publichttp.Limit {
-		return &publichttp.Limit{KeyPrefix: prefix, Max: max, Window: time.Minute}
-	}
-	reg.Mount(r, publichttp.Route{
-		Methods: sharePub.Methods(), Path: "/s", TracePattern: "/s", Limit: shareLimit("share-page:", 120),
-		Handler: http.HandlerFunc(sharePub.ServeRoot),
-	})
-	reg.MountParam(r, publichttp.Route{
-		Methods: sharePub.Methods(), TracePattern: "/s/{token}", Limit: shareLimit("share-page:", 120),
-	}, "/s/*rest", "rest", sharePub.ServeSharePath)
-	reg.MountParam(r, publichttp.Route{
-		Methods: sharePub.Methods(), TracePattern: "/api/share/{token}", Limit: shareLimit("share-page:", 120),
-	}, "/api/share/*rest", "rest", sharePub.ServeAPIPath)
+	bfftripmap.MountPublicHTTP(r, conn, limiter, h.cfg.ClientIPHeader)
 }
 
 func (h *Handlers) Shutdown() error {
@@ -347,7 +290,7 @@ func (h *Handlers) AuthHandler() *bffauth.Handler {
 	return nil
 }
 
-// CORSHeaders returns extra allowed headers for bff.v1 browser clients.
+// CORSHeaders returns extra allowed headers for bff browser clients.
 func CORSHeaders() []string {
 	return []string{"X-CSRF-Token", "X-Tripmap-Schema", "X-Tripmap-Regions"}
 }

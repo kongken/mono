@@ -4,7 +4,7 @@
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
-当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端。浏览器账号与会话在 BFF（`bff.v1.AuthService`，Cookie/CSRF）；tripmap 仅保留业务 profile 与内部 gRPC，不再挂载浏览器 Connect；会话表见 `migrations/tripmap/20261017180000_retire_tripmap_sessions.sql`，凭据列保留至 `bff-import-legacy-accounts` 与可选 `deploy/sql/tripmap/post_import_drop_legacy_auth_columns.sql`。足迹读写经 `bff.v1.FootprintService` → tripmap gRPC（服务端校验、用户隔离、revision 与限流），见 [功能描述](features.md) 与 [BFF](bff.md)。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号注销、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；F4 照片与附件已实现；F6 公开分享页与预览图已实现（默认关闭，见 [公开分享页与预览图](sharing.md)）；F12 提醒与通知已实现（邮件与浏览器推送默认关闭，见下文 F12）；真实 OAuth 授权验收与真实社交平台抓取验证待部署。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
+当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端。浏览器账号与会话在 BFF（`bff.v1.AuthService`，Cookie/CSRF）；tripmap 仅保留业务 profile 与内部 gRPC，不再挂载浏览器 Connect；会话表见 `migrations/tripmap/20261017180000_retire_tripmap_sessions.sql`，凭据列保留至 `bff-import-legacy-accounts` 与可选 `deploy/sql/tripmap/post_import_drop_legacy_auth_columns.sql`。足迹读写经 `bff.tripmap.v1.FootprintService` → tripmap gRPC（服务端校验、用户隔离、revision 与限流），见 [功能描述](trip-map/features.md) 与 [BFF](bff.md)。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号注销、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；F4 照片与附件已实现；F6 公开分享页与预览图已实现（默认关闭，见 [公开分享页与预览图](trip-map/sharing.md)）；F12 提醒与通知已实现（邮件与浏览器推送默认关闭，见下文 F12）；真实 OAuth 授权验收与真实社交平台抓取验证待部署。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
 
 Redis 客户端已接入，后续用于会话、缓存或限流；本次没有把城市足迹存入 Redis。对象内容使用 S3，PostgreSQL 只存业务记录和媒体元数据。
 
@@ -14,7 +14,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 
 | 路径 | 职责 |
 | --- | --- |
-| `cmd/bff/`、`internal/bff/`（含 `footprint/`、`report/`、`search/` 等领域适配） | BFF：公网唯一浏览器 RPC（`bff.v1` Connect、Cookie/CSRF），经 TLS gRPC 调 tripmap（[说明](bff.md)） |
+| `cmd/bff/`、`internal/bff/`（共用的账号与会话；各产品的领域适配在 `internal/bff/<产品>/`，tripmap 的在 `internal/bff/tripmap/`） | BFF：公网唯一浏览器 RPC（`bff.v1` 账号、`bff.<产品>.v1` 业务，Connect、Cookie/CSRF），经 TLS gRPC 调 tripmap（[说明](bff.md)） |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
@@ -22,7 +22,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `internal/tripmap/application/` | 内部 gRPC 与测试用 Connect harness：`FootprintService`、`SnapshotService`、`MediaService`、`CollaborationService`、`ReportService`、`SearchService`、`NotificationService`、`AccountCleanupService` 等；HTTP 仅 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/退订公开页在 BFF） |
 | `internal/bff/auth/`、`internal/bff/oauth/` | BFF 会话、凭据与 OAuth state（Redis）及 `provider/`（GitHub、Google、Logto/PKCE） |
 | `internal/tripmap/share/` | F6：公开内容白名单与快照构建、统计、预览图渲染（纯 Go）、HTML 元数据注入、受信任 index.html 获取；`assets/` 含预览几何和 Noto Sans SC 子集 |
-| `internal/tripmap/report/` | F8：统计总览、按时区计算的年度报告、8 项旅行成就及可追溯记录引用计算（与前端 `apps/web/src/lib/report.ts` 共用 `packages/fixtures/report-stats.json` 测试夹具） |
+| `internal/tripmap/report/` | F8：统计总览、按时区计算的年度报告、8 项旅行成就及可追溯记录引用计算（与前端 `apps/trip-map/src/lib/report.ts` 共用 `packages/fixtures/report-stats.json` 测试夹具） |
 | `internal/tripmap/notification/` | F12：提醒内容规则（回忆匹配、年度窗口、文案）、退订令牌签名、SMTP 发送、Web Push 发送与 SSRF 防护（纯 Go，可单独测试） |
 | `cmd/vapid-keygen/` | `make vapid-keys`：生成 Web Push 的 VAPID 密钥对 |
 | `internal/tripmap/regions/` | 嵌入的行政区域索引，供服务端校验区域 ID、名称与归属 |
@@ -32,8 +32,8 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `internal/tripmap/ent/` | 生成的 Ent 客户端与迁移结构 |
 | `proto/tripmap/v1/` | Protobuf 接口定义 |
 | `pkg/proto/`、`packages/api-client/src/` | 生成的 Go / TypeScript 契约 |
-| `apps/web/src/api/system.ts` | 前端 Connect-Web 匿名状态客户端（`bff.v1.StatusService`，无 Authorization、无 Cookie） |
-| `apps/web/src/components/StatusPage.tsx` | 公开的 `/status` 服务状态页 |
+| `apps/trip-map/src/api/system.ts` | 前端 Connect-Web 匿名状态客户端（`bff.tripmap.v1.StatusService`，无 Authorization、无 Cookie） |
+| `apps/trip-map/src/components/StatusPage.tsx` | 公开的 `/status` 服务状态页 |
 | `cmd/storage-init/` | 显式初始化配置中指定的 S3 bucket |
 | `internal/tripmap/integration/` | 可选的实际 PostgreSQL、Redis、S3 集成测试 |
 | `internal/platform/health/` | 跨服务共享：有超时的依赖就绪检查 |
@@ -45,9 +45,9 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `internal/e2e/` | 仅测试：真实 BFF → TLS gRPC → 真实 tripmap 的端到端测试（[说明](bff.md#验证)） |
 | `cmd/dev-secrets/` | `make dev-secrets`：生成本地开发用 CA、证书与签名密钥 |
 
-## 媒体接口（F4，`bff.v1.MediaService` → `tripmap.v1.MediaService`）
+## 媒体接口（F4，`bff.tripmap.v1.MediaService` → `tripmap.v1.MediaService`）
 
-浏览器经 BFF `bff.v1.MediaService`（Cookie 会话，写操作 CSRF）；BFF 适配 tripmap gRPC `MediaService`（内部 Ed25519 凭证 + 用户 ID）。全部方法只取当前用户 ID；旅行附件写权限入口为 `AuthorizeTripMediaWrite`（共同旅行 active 的 owner/editor 可上传，viewer 拒绝；共享列表/读取走 `SharedTripService`）。媒体使用 `region_code` 关联目的地，和足迹 revision、快照独立。tripmap HTTP 不再挂载 `MediaService` Connect。
+浏览器经 BFF `bff.tripmap.v1.MediaService`（Cookie 会话，写操作 CSRF）；BFF 适配 tripmap gRPC `MediaService`（内部 Ed25519 凭证 + 用户 ID）。全部方法只取当前用户 ID；旅行附件写权限入口为 `AuthorizeTripMediaWrite`（共同旅行 active 的 owner/editor 可上传，viewer 拒绝；共享列表/读取走 `SharedTripService`）。媒体使用 `region_code` 关联目的地，和足迹 revision、快照独立。tripmap HTTP 不再挂载 `MediaService` Connect。
 
 | 方法 | 行为 |
 | --- | --- |
@@ -68,7 +68,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 浏览器直传需要 S3 CORS（和 API 的 `auth.cors_allowed_origins` 分开配置）。`storage-init` 提供显式选项，保留其他规则，仅替换 ID 为 `tripmap-media-upload` / `tripmap-media-staging` 的规则；不会在服务启动时更改 bucket：
 
 ```bash
-go run ./cmd/storage-init -config config.yaml \
+go run ./cmd/storage-init -config config.tripmap.yaml \
   -media-cors-origins 'http://localhost:5173,http://127.0.0.1:5173' \
   -media-staging-lifecycle
 ```
@@ -81,19 +81,19 @@ CI 增加真实 S3 签名 PUT→校验/缩略图→私有读取→删除链路�
 
 后端是可选的。前端通过构建时环境变量 `VITE_API_BASE_URL` 决定是否连接后端：
 
-- 未设置、为空或格式无效：纯本地模式，不创建 API 客户端，不向 `/api`、`/ping`、`/readyz` 发请求；全部功能使用浏览器本地存储。当前所有用户可见功能都属于这种情况，`npm run dev`、`npm run build` 以及任意静态托管（含前端镜像默认构建）都无需后端。
+- 未设置、为空或格式无效：纯本地模式，不创建 API 客户端，不向 `/api`、`/ping`、`/readyz` 发请求；全部功能使用浏览器本地存储。当前所有用户可见功能都属于这种情况，`npm run dev:trip-map`、`npm run build` 以及任意静态托管（含前端镜像默认构建）都无需后端。
 - `/api` 这类同源路径，或 `https://api.example.com` 这类绝对 http(s) 地址：启用后端能力。`/api` 配合 Vite 开发代理或前端镜像的 Nginx 转发使用。
 
-变量在构建时写入，修改后需重新构建；前端镜像通过 `--build-arg VITE_API_BASE_URL=/api` 传入，镜像发布工作流未传递，因此发布的前端镜像默认纯本地模式；CI 界面测试构建单独传入 /api。解析逻辑见 `apps/web/src/lib/backend.ts`，传输层见 `apps/web/src/api/transport.ts`（未启用时不创建，登录入口也不渲染），业务客户端见 `apps/web/src/api/`。登录与云同步必须通过该开关判断；后端不可用时，未登录用户不受影响，有有效账号缓存的已登录用户可保留离线修改并重试同步；注销待完成或缓存异常时暂停编辑，也可退出登录回到本地模式，不会阻塞本地足迹的读写。前端同步与会话逻辑在 `apps/web/src/lib/sync.ts`、`session.ts`、`oauth.ts` 和 `apps/web/src/hooks/useCloud.ts`。
+变量在构建时写入，修改后需重新构建；前端镜像通过 `--build-arg VITE_API_BASE_URL=/api` 传入，镜像发布工作流未传递，因此发布的前端镜像默认纯本地模式；CI 界面测试构建单独传入 /api。解析逻辑见 `apps/trip-map/src/lib/backend.ts`，传输层见 `apps/trip-map/src/api/transport.ts`（未启用时不创建，登录入口也不渲染），业务客户端见 `apps/trip-map/src/api/`。登录与云同步必须通过该开关判断；后端不可用时，未登录用户不受影响，有有效账号缓存的已登录用户可保留离线修改并重试同步；注销待完成或缓存异常时暂停编辑，也可退出登录回到本地模式，不会阻塞本地足迹的读写。前端同步与会话逻辑在 `apps/trip-map/src/lib/sync.ts`、`session.ts`、`oauth.ts` 和 `apps/trip-map/src/hooks/useCloud.ts`。
 
-前端是 npm workspaces（`apps/web` 加 `packages/*`，见 [前后端 monorepo 布局](monorepo.md)），后端 Go module 位于仓库根目录；前后端分别构建，共用 `proto/` 契约、区域索引和测试夹具。
+前端是 npm workspaces（`apps/trip-map` 加 `packages/*`，见 [前后端 monorepo 布局](monorepo.md)），后端 Go module 位于仓库根目录；前后端分别构建，共用 `proto/` 契约、区域索引和测试夹具。
 
 ## 本地开发
 
 需要 Go 1.26.5+、Docker Compose、Node.js/npm。重新生成 RPC 代码另需 Buf，生成插件由 `buf.gen.yaml` 指定。
 
 ```bash
-cp config.example.yaml config.yaml
+cp config.tripmap.example.yaml config.tripmap.yaml
 cp config.bff.example.yaml config.bff.yaml
 make deps-up
 make storage-init
@@ -106,10 +106,10 @@ make dev
 
 ```bash
 npm install
-npm run dev
+npm run dev:trip-map
 ```
 
-联调后端时在 `.env.local` 设置 `VITE_API_BASE_URL=/api` 并重启 Vite；不设置则前端保持纯本地模式。开发代理默认转发到 BFF `http://127.0.0.1:18081`，BFF 在其他端口时用环境变量 `TRIPMAP_DEV_BACKEND=http://127.0.0.1:端口` 启动 Vite。OAuth 登录需要在提供方登记的回调地址与 `config.yaml` 的 `redirect_url` 一致，形如 `http://localhost:5173/auth/callback/github`，该路径由前端页面处理（Vite 开发服务器与前端镜像的 Nginx 都回退到 `index.html`）。
+联调后端时在 `.env.local` 设置 `VITE_API_BASE_URL=/api` 并重启 Vite；不设置则前端保持纯本地模式。开发代理默认转发到 BFF `http://127.0.0.1:18081`，BFF 在其他端口时用环境变量 `TRIPMAP_DEV_BACKEND=http://127.0.0.1:端口` 启动 Vite。OAuth 登录需要在提供方登记的回调地址与 `config.tripmap.yaml` 的 `redirect_url` 一致，形如 `http://localhost:5173/auth/callback/github`，该路径由前端页面处理（Vite 开发服务器与前端镜像的 Nginx 都回退到 `index.html`）。
 
 Compose 只启动本项目的开发依赖，使用命名卷保存数据。S3 开发实例使用 [RustFS 官方容器](https://docs.rustfs.com/en/installation/container/docker)，提供持久化 S3 兼容接口；生产环境可配置 AWS S3 或其他兼容供应方，服务代码无需更换。
 
@@ -128,7 +128,7 @@ Compose 只启动本项目的开发依赖，使用命名卷保存数据。S3 开
 
 ## 配置与启动规则
 
-`config.example.yaml`（tripmap）和 `config.bff.example.yaml`（BFF，见 [BFF 配置](bff.md#配置)）提供本地示例。复制后的 `config.yaml`、`config.bff.yaml` 和 `.env` 已被 Git 忽略，实际部署凭据只放在未跟踪配置或挂载的 Secret 中。
+`config.tripmap.example.yaml`（tripmap）和 `config.bff.example.yaml`（BFF，见 [BFF 配置](bff.md#配置)）提供本地示例。复制后的 `config.tripmap.yaml`、`config.bff.yaml` 和 `.env` 已被 Git 忽略，实际部署凭据只放在未跟踪配置或挂载的 Secret 中。
 
 Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CONFIG_TYPE=file` 启用文件模式。与 `neo-box` 一致，YAML 中的 `${VAR}` 不会自动展开。`.env.example` 提供文件模式与端口示例；`make dev` 直接设置这些变量，无需自动加载 `.env`。
 
@@ -137,7 +137,7 @@ Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CON
 - `storage.s3_store` 指向 `store.s3` 的命名客户端，必须配置 bucket。
 - `storage.key_prefix` 设置对象 key 前缀，示例为 `tripmap`。
 - `auth.client_ip_header` 用于分享/退订限流；生产在 BFF 之后设为 `X-Real-IP`。账号会话/OAuth/CSRF 在 `config.bff.yaml`（[BFF 配置](bff.md#配置)）。
-- **OAuth（#32 已迁至 BFF）**：在 `config.bff.yaml` 的 `auth.oauth_providers.<github|google|logto>` 配置（字段含义与旧 tripmap 相同：`client_id`、`client_secret`、`redirect_url`、可选 `scopes` 与 `display_name`；Logto 另需 `issuer_url`）。tripmap `config.yaml` 中的 `auth.oauth_providers` 不再用于浏览器登录。
+- **OAuth（#32 已迁至 BFF）**：在 `config.bff.yaml` 的 `auth.oauth_providers.<github|google|logto>` 配置（字段含义与旧 tripmap 相同：`client_id`、`client_secret`、`redirect_url`、可选 `scopes` 与 `display_name`；Logto 另需 `issuer_url`）。tripmap `config.tripmap.yaml` 中的 `auth.oauth_providers` 不再用于浏览器登录。
 - `grpc.listen`、`grpc.cert_file`、`grpc.key_file` 必填：tripmap 自管的 gRPC over TLS 监听（业务 RPC 只在这里提供，BFF 调用）；`grpc.max_message_bytes` 默认 20 MiB。
 - `internal_auth.issuer`、`audience`、`trusted_keys[]`（`kid` + `public_key_file`）必填，可选 `clock_skew`（默认 10 秒）：只接受这些 BFF 公钥签名的内部凭证，规则见 [内部 gRPC 与凭证](bff.md#内部-grpc-与凭证)。缺失时启动失败；本地用 `make dev-secrets` 生成文件。
 - `mapbox_tiles.enabled` 开启 Mapbox 瓦片代理（默认关闭），`token`、`username`、`style_id` 等见下文“Mapbox 瓦片代理（可选）”。
@@ -157,7 +157,7 @@ S3 兼容服务可设置 endpoint 和 `use_path_style: true`；AWS S3 可省略 
 | `GET /ping` | 存活检查，返回 `{"message":"pong"}` |
 | `GET /readyz` | 检查 PostgreSQL、Redis 和 S3 bucket；全部可用返回 200，否则 503 |
 | gRPC `tripmap.v1.SystemService/GetStatus` | 仅在内部 TLS gRPC 端口，匿名方法但仍需 BFF 凭证；返回 `ready`、各依赖的 `name` / `ready`、`footprint_schema`、`share_enabled`、`region_version` |
-| `POST /api/bff.v1.StatusService/GetStatus`（BFF） | 浏览器的匿名状态查询，内容与上一行相同，由 BFF 经内部 gRPC 获取 |
+| `POST /api/bff.tripmap.v1.StatusService/GetStatus`（BFF） | 浏览器的匿名状态查询，内容与上一行相同，由 BFF 经内部 gRPC 获取 |
 
 就绪检查对每个依赖设置 2 秒超时并发执行，只返回状态，不返回原始驱动错误、连接字符串或凭据。RPC 请求成功时 HTTP 状态表示 RPC 调用结果，依赖可用性应读取响应中的 `ready`；运维探针使用 `/readyz`。tripmap 原来的 Connect 版 `tripmap.v1.SystemService` 已移除，不保留旧过程名。
 
@@ -165,7 +165,7 @@ S3 兼容服务可设置 endpoint 和 `use_path_style: true`；AWS S3 可省略 
 curl --fail http://127.0.0.1:18082/ping
 curl --fail http://127.0.0.1:18082/readyz
 # 经 BFF（先 make dev-secrets，BFF 与 tripmap 都已启动）
-curl --fail http://127.0.0.1:18081/api/bff.v1.StatusService/GetStatus \
+curl --fail http://127.0.0.1:18081/api/bff.tripmap.v1.StatusService/GetStatus \
   -H 'Content-Type: application/json' \
   -H 'Connect-Protocol-Version: 1' \
   -d '{}'
@@ -175,7 +175,7 @@ curl --fail http://127.0.0.1:18081/api/bff.v1.StatusService/GetStatus \
 
 ### 账号与会话（浏览器：`bff.v1.AuthService`）
 
-浏览器经 BFF 使用 `bff.v1.AuthService`（Cookie `shanhai_sid`、CSRF，见 [BFF](bff.md)）。认证/会话/注销均在 BFF；tripmap 无浏览器 Connect 认证。Legacy 导入见 [部署与发布](deployment.md#legacy-账号导入-44)。
+浏览器经 BFF 使用 `bff.v1.AuthService`（Cookie `kongken_sid`、CSRF，见 [BFF](bff.md)）。认证/会话/注销均在 BFF；tripmap 无浏览器 Connect 认证。Legacy 导入见 [部署与发布](deployment.md#legacy-账号导入-44)。
 
 - BFF 会话令牌 `bf_` 前缀；库内 SHA-256，密码 bcrypt。
 - OAuth 登录成功后 BFF 签发 Cookie 会话；业务档案经 `ProfileService/EnsureProfile` 同步（与密码账号相同 `user_id`）。
@@ -201,9 +201,9 @@ curl --fail http://127.0.0.1:18081/api/bff.v1.StatusService/GetStatus \
 - 这两项旧云端记录若仍存为台湾 `710000`，快照和写入响应会返回规范化的福建归属，不修改原行、不提升 revision；旧客户端提交台湾归属时也先规范化再严格校验。与既有记录相同的规范化重放仍幂等，实际修改日期、颜色或备注后才按原有用户锁与 revision 机制写回福建归属。其他错误归属仍拒绝；没有数据库 schema 变化；F10 另提供用户确认的批量区域迁移。独立台湾省份标记保留。
 - 此归属修正需先部署后端，再部署前端，以免新前端向尚未更新区域索引的旧后端提交福建记录被拒绝。
 
-### 快照（`bff.v1.SnapshotService` → `tripmap.v1.SnapshotService`，F3）
+### 快照（`bff.tripmap.v1.SnapshotService` → `tripmap.v1.SnapshotService`，F3）
 
-浏览器经 BFF Connect（Cookie + CSRF；读/list 带 schema/区域头）调用 `bff.v1.SnapshotService`（`internal/bff/snapshot/` → tripmap gRPC）。所有方法都要求登录，只访问当前用户自己的快照；快照内容是 `SnapshotData`（城市足迹和省份标记），保存为 gzip 压缩的 Protobuf，不可修改。tripmap HTTP 不再挂载 `SnapshotService` Connect。
+浏览器经 BFF Connect（Cookie + CSRF；读/list 带 schema/区域头）调用 `bff.tripmap.v1.SnapshotService`（`internal/bff/tripmap/snapshot/` → tripmap gRPC）。所有方法都要求登录，只访问当前用户自己的快照；快照内容是 `SnapshotData`（城市足迹和省份标记），保存为 gzip 压缩的 Protobuf，不可修改。tripmap HTTP 不再挂载 `SnapshotService` Connect。
 
 | 方法 | 行为 |
 | --- | --- |
@@ -225,19 +225,19 @@ JAR=$(mktemp)
 ORIGIN=http://127.0.0.1:18081
 curl -s -c "$JAR" -b "$JAR" "$ORIGIN/api/bff.v1.AuthService/IssueCSRFToken" \
   -H 'Content-Type: application/json' -H 'Connect-Protocol-Version: 1' -d '{}'
-CSRF=$(grep shanhai_csrf "$JAR" | awk '{print $7}')
+CSRF=$(grep kongken_csrf "$JAR" | awk '{print $7}')
 curl -s -c "$JAR" -b "$JAR" "$ORIGIN/api/bff.v1.AuthService/Register" \
   -H 'Content-Type: application/json' -H 'Connect-Protocol-Version: 1' \
   -H "Origin: $ORIGIN" -H "X-CSRF-Token: $CSRF" \
   -d '{"username":"demo","password":"correcthorse","displayName":"Demo"}'
-curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
+curl -s -b "$JAR" "$ORIGIN/api/bff.tripmap.v1.FootprintService/GetFootprints" \
   -H 'Content-Type: application/json' -H 'Connect-Protocol-Version: 1' \
   -H 'X-Tripmap-Schema: 2' -d '{}'
 ```
 
-## F6 公开分享（`bff.v1.ShareService` / `tripmap.v1.ShareService` gRPC）
+## F6 公开分享（`bff.tripmap.v1.ShareService` / `tripmap.v1.ShareService` gRPC）
 
-用户可见规则见 [功能描述](features.md#公开分享页与预览图f6)，行为细节、部署与限制见 [公开分享页与预览图](sharing.md)。
+用户可见规则见 [功能描述](trip-map/features.md#公开分享页与预览图f6)，行为细节、部署与限制见 [公开分享页与预览图](trip-map/sharing.md)。
 
 **所有者接口（需要登录，账号只取自会话）。**
 
@@ -250,7 +250,7 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 
 保存在单个事务内取得用户行的最小更新锁，与足迹同步、账号注销串行。快照 gzip 后上限 4 MiB，超过返回 `failed_precondition`（不截断）。`shares` 的变化不影响 OAuth、会话、快照或云同步。
 
-**公开路由（无浏览器会话，分享令牌为凭证）：** `GET|HEAD /s/<token>`、`/s/<token>/og.png`、`/api/share/<token>/data`、`/api/share/<token>/photos/<句柄>`（见 [公开接口](sharing.md#公开接口)）由 **BFF** 终止 HTTP 并调用 `tripmap.v1.SharePublicService`；领域逻辑在 `internal/tripmap/application/share_public.go`。tripmap HTTP 不再挂载 `/s/` 与 `/api/share/`（#36）。
+**公开路由（无浏览器会话，分享令牌为凭证）：** `GET|HEAD /s/<token>`、`/s/<token>/og.png`、`/api/share/<token>/data`、`/api/share/<token>/photos/<句柄>`（见 [公开接口](trip-map/sharing.md#公开接口)）由 **BFF** 终止 HTTP 并调用 `tripmap.v1.SharePublicService`；领域逻辑在 `internal/tripmap/application/share_public.go`。tripmap HTTP 不再挂载 `/s/` 与 `/api/share/`（#36）。
 
 **配置。**
 
@@ -267,9 +267,9 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 
 ## F7 共同旅行与好友
 
-**公网（#37–#38）：** 浏览器经 BFF `bff.v1.FriendService` 调用好友 RPC、`bff.v1.SharedTripService` 调用共同旅行与共享媒体 RPC（`internal/bff/friends/`、`internal/bff/sharedtrip/` → tripmap gRPC `CollaborationService`）。**内网：** 完整 `CollaborationService` 仅在 tripmap gRPC 注册（`CollaborationGRPC`）；tripmap HTTP 不再挂载 `CollaborationService` Connect。
+**公网（#37–#38）：** 浏览器经 BFF `bff.tripmap.v1.FriendService` 调用好友 RPC、`bff.tripmap.v1.SharedTripService` 调用共同旅行与共享媒体 RPC（`internal/bff/tripmap/friends/`、`internal/bff/tripmap/sharedtrip/` → tripmap gRPC `CollaborationService`）。**内网：** 完整 `CollaborationService` 仅在 tripmap gRPC 注册（`CollaborationGRPC`）；tripmap HTTP 不再挂载 `CollaborationService` Connect。
 
-所有方法均要求登录；tripmap 仅从 BFF 签发的内部凭证取得用户 ID（`rpcauth.UserIDFrom`）。浏览器经 BFF Cookie 会话调用 `bff.v1.FriendService` / `bff.v1.SharedTripService`。用户可见规则与验收场景见 [功能描述](features.md#共同旅行与好友f7)。
+所有方法均要求登录；tripmap 仅从 BFF 签发的内部凭证取得用户 ID（`rpcauth.UserIDFrom`）。浏览器经 BFF Cookie 会话调用 `bff.tripmap.v1.FriendService` / `bff.tripmap.v1.SharedTripService`。用户可见规则与验收场景见 [功能描述](trip-map/features.md#共同旅行与好友f7)。
 
 | 方法 | 行为 |
 | --- | --- |
@@ -286,9 +286,9 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 - **限流：** 协作写操作共用 Redis 固定窗口限流（每用户每分钟 60 次）。
 - **账号注销联动：** `AuthService.DeleteAccount` 第一阶段事务立即删除该用户的全部 `friendships`、`trip_members` 及创建的 `shared_trips`，其他成员各自的 `city_trips` 足迹记录不受影响。
 
-## F8 统计、年度报告与成就（`bff.v1.ReportService` → `tripmap.v1.ReportService`）
+## F8 统计、年度报告与成就（`bff.tripmap.v1.ReportService` → `tripmap.v1.ReportService`）
 
-所有方法均要求登录，用户身份取自会话。用户可见口径、成就规则与验收场景见 [功能描述](features.md#足迹统计年度报告与成就f8)。
+所有方法均要求登录，用户身份取自会话。用户可见口径、成就规则与验收场景见 [功能描述](trip-map/features.md#足迹统计年度报告与成就f8)。
 
 | 方法 | 行为 |
 | --- | --- |
@@ -297,7 +297,7 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 - **Redis 缓存与实时版本隔离：** 汇总结果以 Protobuf 编码缓存在 Redis 键 `<prefix>report:v2:<user_id>|<revision>|<timezone>|<local_date>|<region_version>` 中（TTL 24 小时）。由于缓存键绑定了用户当前的足迹 `revision`、区域版本与该时区下的本地日历日期 `local_date`，任何足迹或旅行的增删改推进 `revision` 后，下一次请求立即计算新版本并写入新键，不会返回过期统计。
 - **定时汇总维护：** `internal/tripmap/app/app.go` 的每小时后台维护循环在 Redis 锁 `tripmap:report-maintenance`（50 分钟）保护下调用 `RunReportMaintenance`，为近期活跃且当前 `revision` 尚未缓存的账号预热默认时区（`Asia/Shanghai`）的汇总缓存。F8 无需新增 PostgreSQL 表。
 
-## F9 私有备注搜索（`bff.v1.SearchService` → `tripmap.v1.SearchService`）
+## F9 私有备注搜索（`bff.tripmap.v1.SearchService` → `tripmap.v1.SearchService`）
 
 `SearchNotes` 要求会话，身份只取当前用户，不能提交其他用户 ID；返回 `Cache-Control: no-store`。请求：`query`（≤100 UTF-16 码元、≤8 个空白分隔词）、可选 `province_code`、`limit`（默认 20，最大 50）、`offset`（最大 100000）及可选 `expected_revision`（offset > 0 时必填）。响应：城市/省份 ID、旅行 ID、日期、纯文本完整备注、`revision`、`next_offset`、`has_more`；最多多读 1 条判断下一页，不查询总数。
 
@@ -309,9 +309,9 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 
 区域拼音搜索由 `packages/geo-data/data/search-index.json` 在前端离线完成，不调用后端。部署新增 RPC 时先升级后端再部署前端；旧后端没有接口时备注搜索会提示并回退本机缓存。
 
-## F10 区域数据服务（`bff.v1.RegionService` → `tripmap.v1.RegionService`）
+## F10 区域数据服务（`bff.tripmap.v1.RegionService` → `tripmap.v1.RegionService`）
 
-浏览器经 BFF 调用 `proto/bff/v1/region.proto`；BFF 适配 tripmap 内部 gRPC（`internal/bff/region/` → `internal/tripmap/application/region_grpc.go`）。业务契约仍为 `proto/tripmap/v1/regions.proto`，实现在 `internal/tripmap/application/region_service.go`。所有方法须认证（BFF Cookie + 内部凭证），只迁移当前会话用户的数据，区域索引本身不含私有足迹。使用与足迹校验同一 `internal/tripmap/regions.Index`，版本和映射由前后端共用生成流程维护，详见 [数据与地图说明](data-and-maps.md#区域索引版本与维护f10)。不新增表、列或数据库迁移。
+浏览器经 BFF 调用 `proto/bff/tripmap/v1/region.proto`；BFF 适配 tripmap 内部 gRPC（`internal/bff/tripmap/region/` → `internal/tripmap/application/region_grpc.go`）。业务契约仍为 `proto/tripmap/v1/regions.proto`，实现在 `internal/tripmap/application/region_service.go`。所有方法须认证（BFF Cookie + 内部凭证），只迁移当前会话用户的数据，区域索引本身不含私有足迹。使用与足迹校验同一 `internal/tripmap/regions.Index`，版本和映射由前后端共用生成流程维护，详见 [数据与地图说明](trip-map/data-and-maps.md#区域索引版本与维护f10)。不新增表、列或数据库迁移。
 
 | 方法 | 行为 |
 | --- | --- |
@@ -326,9 +326,9 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 
 **部署。** 先部署带相同索引/映射摘要的后端，再部署前端。区域版本更新前归档历史版本并保留映射，重新生成 search/map/share 受影响资源及 Go/TS 契约，验证通过后发布；地图仍随页面静态分发，运行时不取第三方边界数据。不做启动时全库自动迁移或自动回滚行政数据。
 
-## F11 行程服务（`bff.v1.ItineraryService` → `tripmap.v1.ItineraryService`）
+## F11 行程服务（`bff.tripmap.v1.ItineraryService` → `tripmap.v1.ItineraryService`）
 
-浏览器经 BFF 调用 `proto/bff/v1/itinerary.proto`；BFF 适配 tripmap 内部 gRPC（`internal/bff/itinerary/` → `internal/tripmap/application/itinerary_grpc.go`）。业务契约仍为 `proto/tripmap/v1/itinerary.proto`，实现在 `internal/tripmap/application/itinerary_service.go`，路程估算在 `internal/tripmap/itinerary`（内嵌 `coords.json`，由 `apps/web/scripts/prepare-city-coords.mjs` 从 `apps/web/public/maps` 生成并与 `packages/geo-data/data/city-coords.json` 逐字节一致，`npm run check:maps` 与 Go 测试都会核对）。所有方法须认证（BFF Cookie + 内部凭证），只读写当前用户的行程；不可见行程统一 `not_found`。
+浏览器经 BFF 调用 `proto/bff/tripmap/v1/itinerary.proto`；BFF 适配 tripmap 内部 gRPC（`internal/bff/tripmap/itinerary/` → `internal/tripmap/application/itinerary_grpc.go`）。业务契约仍为 `proto/tripmap/v1/itinerary.proto`，实现在 `internal/tripmap/application/itinerary_service.go`，路程估算在 `internal/tripmap/itinerary`（内嵌 `coords.json`，由 `apps/trip-map/scripts/prepare-city-coords.mjs` 从 `apps/trip-map/public/maps` 生成并与 `packages/geo-data/data/city-coords.json` 逐字节一致，`npm run check:maps` 与 Go 测试都会核对）。所有方法须认证（BFF Cookie + 内部凭证），只读写当前用户的行程；不可见行程统一 `not_found`。
 
 | 方法 | 行为 |
 | --- | --- |
@@ -341,11 +341,11 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 - 表 `itineraries`：所属用户（外键，级联删除）、`itinerary_id`（`user_id + itinerary_id` 唯一）、标题、备注、颜色、`version`、站点 JSON、创建/更新时间；迁移 `migrations/tripmap/20261014140617_f11_itineraries.sql`。
 - 账号注销删除行程；`RegionService` 迁移同时改写行程站点中的历史城市 ID（行程里出现未映射区域时作为阻止项）。其余部署与验证同上，先部署后端再部署前端。
 
-## F12 提醒与通知（`bff.v1.NotificationService` / `tripmap.v1.NotificationService`）
+## F12 提醒与通知（`bff.tripmap.v1.NotificationService` / `tripmap.v1.NotificationService`）
 
-规则与验收见 [功能描述](features.md#提醒与通知f12)。浏览器经 BFF `bff.v1.NotificationService`（Connect + Cookie 会话）；BFF 适配 tripmap gRPC `NotificationService`（内部 Ed25519 凭证 + 用户 ID）。所有设置方法须认证，只读写当前会话用户的设置。契约：`proto/bff/v1/notification.proto`、`proto/tripmap/v1/notification.proto`；实现在 `internal/bff/notification/`（BFF 适配）、`internal/tripmap/application/notification_service.go`（业务 RPC）、`notification_maintenance.go`（发送）、`notification_public.go` / `notification_public_grpc.go`（退订领域逻辑），发送通道在 `internal/tripmap/notification`。tripmap HTTP 不再挂载 `NotificationService` Connect 或公开退订路由（#44 清理其余 Connect 代理）。
+规则与验收见 [功能描述](trip-map/features.md#提醒与通知f12)。浏览器经 BFF `bff.tripmap.v1.NotificationService`（Connect + Cookie 会话）；BFF 适配 tripmap gRPC `NotificationService`（内部 Ed25519 凭证 + 用户 ID）。所有设置方法须认证，只读写当前会话用户的设置。契约：`proto/bff/tripmap/v1/notification.proto`、`proto/tripmap/v1/notification.proto`；实现在 `internal/bff/tripmap/notification/`（BFF 适配）、`internal/tripmap/application/notification_service.go`（业务 RPC）、`notification_maintenance.go`（发送）、`notification_public.go` / `notification_public_grpc.go`（退订领域逻辑），发送通道在 `internal/tripmap/notification`。tripmap HTTP 不再挂载 `NotificationService` Connect 或公开退订路由（#44 清理其余 Connect 代理）。
 
-**配置**（`notification`，全部可选；示例见 `config.example.yaml`，真实凭据放在被忽略的 `config.yaml` 或挂载 Secret 中）：
+**配置**（`notification`，全部可选；示例见 `config.tripmap.example.yaml`，真实凭据放在被忽略的 `config.tripmap.yaml` 或挂载 Secret 中）：
 
 | 字段 | 说明 |
 | --- | --- |
@@ -372,7 +372,7 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 
 **邮件。** 标准库 `net/smtp`，UTF-8 quoted-printable，拒绝头注入；每封邮件带 `List-Unsubscribe` 与 `List-Unsubscribe-Post: List-Unsubscribe=One-Click`。退订链接 `GET/HEAD/POST /api/notifications/unsubscribe?t=<令牌>` 由 **BFF** 应答 HTML，经 gRPC 调用 `tripmap.v1.NotificationPublicService/ProcessEmailUnsubscribe`（匿名内部凭证 + 签名令牌）：令牌为 `userID|kind` 的 HMAC-SHA256（`kind` 为 `*` 表示全部邮件类型），无状态；GET/HEAD 只显示确认页，POST（含邮件客户端一键退订）才关闭对应开关；BFF 边缘与 tripmap 均按客户端 IP 限流，响应 `no-store`、`noindex`、严格 CSP，密钥未配置时不可用，访问日志与 Referer 不记录令牌。
 
-**推送。** 使用 `github.com/SherClockHolmes/webpush-go`；发送前校验端点：必须是 https、域名（非 IP）、端口 443，拨号时再次检查解析出的 IP 不在内网/回环/链路本地等范围，不跟随重定向、不使用代理；返回 404/410 的订阅删除，连续失败 5 次的订阅删除。前端 Service Worker 在 `apps/web/public/sw.js`，只显示服务端发来的标题和正文，点击只打开本站；前端镜像的 Nginx 对 `/sw.js` 设置 `no-cache`，并对 `/api/notifications/` 关闭访问日志、清除 Referer。
+**推送。** 使用 `github.com/SherClockHolmes/webpush-go`；发送前校验端点：必须是 https、域名（非 IP）、端口 443，拨号时再次检查解析出的 IP 不在内网/回环/链路本地等范围，不跟随重定向、不使用代理；返回 404/410 的订阅删除，连续失败 5 次的订阅删除。前端 Service Worker 在 `apps/trip-map/public/sw.js`，只显示服务端发来的标题和正文，点击只打开本站；前端镜像的 Nginx 对 `/sw.js` 设置 `no-cache`，并对 `/api/notifications/` 关闭访问日志、清除 Referer。
 
 **数据与部署。** 新表 `notification_profiles`（每用户一行：时区、发送小时、是否显示地点、已验证邮箱、待验证邮箱及验证码哈希/过期时间/尝试次数）、`notification_settings`（`user_id + kind + channel` 唯一，缺失即关闭）、`push_subscriptions`（`endpoint_hash` 唯一）、`notification_deliveries`；均通过 `users` 外键级联删除，账号注销一并清除。迁移 `migrations/tripmap/20261014165138_f12_notifications.sql` 为纯新增。**部署顺序：** 先执行该迁移，再升级后端，最后部署前端；未配置 `notification` 时不发送任何内容。
 
@@ -380,9 +380,9 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 
 ## Mapbox 瓦片代理（可选）
 
-规则与验收见 [功能描述](features.md#全国与省内地图)，前端启用方式与署名见 [数据与地图说明](data-and-maps.md#mapbox-代理底图可选)，部署见 [部署与发布](deployment.md#mapbox-底图可选)。实现在 `internal/tripmap/tiles/`，由 `internal/tripmap/app/app.go` 挂载到 tripmap 的内部 HTTP 端口；BFF 在 `internal/bff/gateway/services.go` 登记 `/api/tiles/` 并透明转发（见 [BFF](bff.md#路由)），BFF 不持有 Mapbox 配置。不新增 proto、数据库表、迁移或足迹字段。
+规则与验收见 [功能描述](trip-map/features.md#全国与省内地图)，前端启用方式与署名见 [数据与地图说明](trip-map/data-and-maps.md#mapbox-代理底图可选)，部署见 [部署与发布](deployment.md#mapbox-底图可选)。实现在 `internal/tripmap/tiles/`，由 `internal/tripmap/app/app.go` 挂载到 tripmap 的内部 HTTP 端口；BFF 在 `internal/bff/gateway/services.go` 登记 `/api/tiles/` 并透明转发（见 [BFF](bff.md#路由)），BFF 不持有 Mapbox 配置。不新增 proto、数据库表、迁移或足迹字段。
 
-**配置**（`mapbox_tiles`，示例见 `config.example.yaml`；真实 token 只放在被忽略的 `config.yaml` 或挂载 Secret 中）：
+**配置**（`mapbox_tiles`，示例见 `config.tripmap.example.yaml`；真实 token 只放在被忽略的 `config.tripmap.yaml` 或挂载 Secret 中）：
 
 | 字段 | 说明 |
 | --- | --- |
@@ -505,15 +505,15 @@ make test-integration
 
 PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除，以及版本化迁移的升级校验（见上文“版本化数据库迁移”）。
 
-`internal/e2e/` 提供 **`ChainHarness`**（`chain_harness_test.go`）：在设置 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 时启动真实 BFF（独立 schema + Redis 前缀）→ TLS gRPC → 真实 tripmap（独立 schema），经 httptest 暴露 BFF 公网 URL。`FreshBrowser()` 返回带 cookie jar 的 **`Browser`**，自动处理 CSRF（`IssueCSRFToken` + `X-CSRF-Token`）与足迹读所需的 `X-Tripmap-Schema` / `X-Tripmap-Regions`；`Register` / `Login` / `Me` / `Logout` / 足迹读与 sync（`GetFootprints`、`GetChanges`、`SyncChanges`）走 Connect 公共客户端；`region_chain_test.go` 覆盖 `bff.v1.RegionService` 金门迁移、阻止项与 CSRF；`sessions_chain_test.go` 覆盖 `ListSessions`/`RevokeSession`；`notification_test.go` 覆盖 `bff.v1.NotificationService` 与 BFF 公开退订 HTTP；`snapshot_chain_test.go` 覆盖快照创建、去重、恢复、幂等重放与用户隔离；`media_chain_test.go` 覆盖 `bff.v1.MediaService` 预留/确认/读/删与用户隔离（内存 blob，非真实 S3）；`report_chain_test.go` 覆盖 `bff.v1.ReportService` / `SearchService` 与用户隔离；`shared_trip_chain_test.go` 覆盖 `bff.v1.SharedTripService` 邀请/viewer 写入拒绝、editor 足迹 sync、共享媒体与解除好友撤销。后续 ticket 只追加场景测试，复用该 harness。运行：`go test ./internal/e2e/ -count=1`（与 `make test-integration` 同一套 PG/Redis 环境；无需 S3，默认 noop blob，媒体场景可注入 `chainMediaBlobs`）。
+`internal/e2e/` 提供 **`ChainHarness`**（`chain_harness_test.go`）：在设置 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 时启动真实 BFF（独立 schema + Redis 前缀）→ TLS gRPC → 真实 tripmap（独立 schema），经 httptest 暴露 BFF 公网 URL。`FreshBrowser()` 返回带 cookie jar 的 **`Browser`**，自动处理 CSRF（`IssueCSRFToken` + `X-CSRF-Token`）与足迹读所需的 `X-Tripmap-Schema` / `X-Tripmap-Regions`；`Register` / `Login` / `Me` / `Logout` / 足迹读与 sync（`GetFootprints`、`GetChanges`、`SyncChanges`）走 Connect 公共客户端；`region_chain_test.go` 覆盖 `bff.tripmap.v1.RegionService` 金门迁移、阻止项与 CSRF；`sessions_chain_test.go` 覆盖 `ListSessions`/`RevokeSession`；`notification_test.go` 覆盖 `bff.tripmap.v1.NotificationService` 与 BFF 公开退订 HTTP；`snapshot_chain_test.go` 覆盖快照创建、去重、恢复、幂等重放与用户隔离；`media_chain_test.go` 覆盖 `bff.tripmap.v1.MediaService` 预留/确认/读/删与用户隔离（内存 blob，非真实 S3）；`report_chain_test.go` 覆盖 `bff.tripmap.v1.ReportService` / `SearchService` 与用户隔离；`shared_trip_chain_test.go` 覆盖 `bff.tripmap.v1.SharedTripService` 邀请/viewer 写入拒绝、editor 足迹 sync、共享媒体与解除好友撤销。后续 ticket 只追加场景测试，复用该 harness。运行：`go test ./internal/e2e/ -count=1`（与 `make test-integration` 同一套 PG/Redis 环境；无需 S3，默认 noop blob，媒体场景可注入 `chainMediaBlobs`）。
 
 `internal/tripmap/application` 的测试通过 HTTP 调用真实的处理器和拦截器，使用同样的隔离方式（随机 schema 与 Redis key 前缀），未设置 `TRIPMAP_TEST_POSTGRES_DSN` 和 `TRIPMAP_TEST_REDIS_ADDR` 时跳过。覆盖：快照的保存与去重、恢复的差异/撤销/revision 条件/幂等重放/原子性、用户隔离、保留与定时任务、注销清除快照；令牌与密码只存哈希、注册/登录校验与限流、会话过期/撤销/禁用、他人会话不可见、OAuth state 单次使用与注册关闭、用户 A/B 足迹隔离、非法数据、幂等、revision 冲突、省份标记与城市足迹互不影响，以及并发写入不丢失；F5 的账号升级幂等与冻结列、旧客户端被拒绝（所有 RPC）、旅行增删改与级联、旅行校验、用户隔离、变更日志内容、旧批次回执重放、批次原子性与 2000 项上限、新旧客户端并发、旧快照读取与恢复（载荷不变）、恢复时旅行换城市、定时快照、媒体与旅行的关联及隔离、注销清除旅行。`.github/workflows/ci.yml` 在 PostgreSQL 与 Redis 服务容器中运行 `go vet`、`go test -race ./...` 和前端测试、地图检查、构建。
 
-[Docker 镜像与 Actions](docker-images.md) 说明前后端两个镜像的构建发布。根目录 `Dockerfile` 仅构建后端镜像，运行时挂载 `/config/config.yaml`；容器中连接 Compose 依赖时，配置地址使用服务名和容器端口，而不是宿主机的 `127.0.0.1`。
+[Docker 镜像与 Actions](docker-images.md) 说明前后端两个镜像的构建发布。`deploy/tripmap/Dockerfile` 仅构建 tripmap 后端镜像，运行时挂载 `/config/config.yaml`；容器中连接 Compose 依赖时，配置地址使用服务名和容器端口，而不是宿主机的 `127.0.0.1`。
 
 ## 下一阶段
 
-从 [后端功能调研](backend-research.md) 中选择尚未实现的业务切片继续。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）、F5（同城多次旅行）、F6（公开分享页与预览图）与 F7（共同旅行与好友）已实现；F8（统计、年度报告与成就）和 F9（区域搜索增强、私有备注搜索）已实现；F10 区域版本与兼容迁移已实现，限制见对应章节；F11 行程与路线连线和 F12 提醒与通知已实现（F12 未经真实邮件与推送服务验证）。
+从 [后端功能调研](trip-map/backend-research.md) 中选择尚未实现的业务切片继续。F0（本地读取失败保护）以及 F1 的登录、前端云端读写、持久化离线修改与冲突选择已实现；账号注销与增量/批量同步已补齐；真实 OAuth 端到端验证按用户要求留待部署后完成，不能把 F1 全范围标为交付。F2（本地足迹迁移上云）、F3（云端快照与恢复）、F4（照片与附件）、F5（同城多次旅行）、F6（公开分享页与预览图）与 F7（共同旅行与好友）已实现；F8（统计、年度报告与成就）和 F9（区域搜索增强、私有备注搜索）已实现；F10 区域版本与兼容迁移已实现，限制见对应章节；F11 行程与路线连线和 F12 提醒与通知已实现（F12 未经真实邮件与推送服务验证）。
 
 ## F1 新接口与部署
 
@@ -532,7 +532,7 @@ F1 代码范围已覆盖注销与增量同步；F1 总项仍保留真实 OAuth �
 
 **兼容机制。** 每个足迹、快照请求携带 `X-Tripmap-Schema: 2`（新前端的拦截器统一设置；CORS 的 `Access-Control-Allow-Headers` 已加入该头，跨站部署无需额外配置）。`SystemService.GetStatus` 返回 `footprint_schema`（当前 2），`GetFootprints` / `GetChanges` / 快照响应带 `schema_version`，新前端据此在首次同步前判断后端是否已升级。
 
-- 账号为版本 1 且请求带头：在用户行锁内原位升级账号（见 [数据与地图说明](data-and-maps.md#f5-服务端数据与升级)），再按版本 2 语义处理本次写入；读取不会升级账号，版本 1 账号读取时得到合成的 `legacy-` 旅行。
+- 账号为版本 1 且请求带头：在用户行锁内原位升级账号（见 [数据与地图说明](trip-map/data-and-maps.md#f5-服务端数据与升级)），再按版本 2 语义处理本次写入；读取不会升级账号，版本 1 账号读取时得到合成的 `legacy-` 旅行。
 - 账号为版本 2 而请求没有头：足迹与快照 RPC 一律返回 `failed_precondition`（消息以 “client upgrade required” 开头）。媒体接口不门控。已有回执的批量同步重放先于门控检查，因此账号升级前发出、丢失响应的批次仍可得到原结果。
 - 账号为版本 1 且请求没有头：行为与升级前完全相同，旧前端在升级发生前可继续使用。
 
@@ -540,7 +540,7 @@ F1 代码范围已覆盖注销与增量同步；F1 总项仍保留真实 OAuth �
 
 **回滚。** 账号升级是单向的：一旦某账号升到版本 2，旧后端只认识 `city_visits` 里冻结的日期与备注，会看不到升级之后新增的旅行，也看不到对已有旅行的修改，因此回滚到旧后端前必须备份数据库，并接受升级后旅行相关修改丢失；不要在升级过账号的数据库上回滚后继续让旧客户端写入：旧后端对 `city_visits` 的修改不会回流到 `city_trips`，账号的 `schema_version` 仍为 2。需要重新升级时，应从升级前的数据库备份恢复，而不是依赖自动回填。
 
-**请求体与限流。** 一个满批（2000 项、每项备注 1000 个字符）按 JSON 最坏估计约 6–12 MB。Footprint 处理器 Connect 读上限为 16 MiB；前端镜像 Nginx `/api` 为 `client_max_body_size 20m`（`deploy/frontend/default.conf.template`，含 framing 余量）；自行部署的边缘代理应 ≥20 MiB，见 [部署与发布](deployment.md#请求体大小)。批量限流按项计（每用户每分钟 6000 项），单条写入仍为每分钟 600 次。
+**请求体与限流。** 一个满批（2000 项、每项备注 1000 个字符）按 JSON 最坏估计约 6–12 MB。Footprint 处理器 Connect 读上限为 16 MiB；前端镜像 Nginx `/api` 为 `client_max_body_size 20m`（`deploy/trip-map-web/default.conf.template`，含 framing 余量）；自行部署的边缘代理应 ≥20 MiB，见 [部署与发布](deployment.md#请求体大小)。批量限流按项计（每用户每分钟 6000 项），单条写入仍为每分钟 600 次。
 
 **验证。** `make test` 在没有数据库连接时跳过存储相关测试；F5 的 Go 测试需要 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR`（媒体测试使用内存对象存储，不需要 S3；真实 S3 测试另需 `make test-integration` 的环境）。
 

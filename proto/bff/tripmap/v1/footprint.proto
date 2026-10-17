@@ -1,0 +1,148 @@
+syntax = "proto3";
+
+package bff.tripmap.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/tripmap/v1;bfftripmapv1";
+
+// FootprintService exposes signed-in footprint read and sync via the BFF.
+service FootprintService {
+  rpc GetChanges(GetChangesRequest) returns (GetChangesResponse);
+  rpc SyncChanges(SyncChangesRequest) returns (SyncChangesResponse);
+  rpc GetFootprints(GetFootprintsRequest) returns (GetFootprintsResponse);
+  rpc UpsertVisit(UpsertVisitRequest) returns (UpsertVisitResponse);
+  rpc DeleteVisit(DeleteVisitRequest) returns (DeleteVisitResponse);
+  rpc UpsertProvinceMark(UpsertProvinceMarkRequest) returns (UpsertProvinceMarkResponse);
+  rpc DeleteProvinceMark(DeleteProvinceMarkRequest) returns (DeleteProvinceMarkResponse);
+}
+
+message Visit {
+  string code = 1;
+  string name = 2;
+  string province = 3;
+  string color = 4;
+  string date = 5;
+  string note = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message ProvinceMark {
+  string province = 1;
+  string color = 2;
+  google.protobuf.Timestamp updated_at = 3;
+}
+
+message Trip {
+  string id = 1;
+  string city = 2;
+  string date = 3;
+  string note = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message DeleteTrip {
+  string city = 1;
+  string id = 2;
+}
+
+message GetFootprintsRequest {}
+
+message GetFootprintsResponse {
+  int64 revision = 1;
+  string region_version = 2;
+  int32 schema_version = 3;
+  repeated Visit visits = 4;
+  repeated ProvinceMark province_marks = 5;
+  repeated Trip trips = 6;
+}
+
+message UpsertVisitRequest {
+  Visit visit = 1;
+  int64 base_revision = 2;
+  bool require_revision = 3;
+}
+
+message UpsertVisitResponse {
+  Visit visit = 1;
+  int64 revision = 2;
+  bool changed = 3;
+}
+
+message DeleteVisitRequest {
+  string code = 1;
+  int64 base_revision = 2;
+  bool require_revision = 3;
+}
+
+message DeleteVisitResponse {
+  int64 revision = 1;
+  bool deleted = 2;
+}
+
+message UpsertProvinceMarkRequest {
+  ProvinceMark mark = 1;
+  int64 base_revision = 2;
+  bool require_revision = 3;
+}
+
+message UpsertProvinceMarkResponse {
+  ProvinceMark mark = 1;
+  int64 revision = 2;
+  bool changed = 3;
+}
+
+message DeleteProvinceMarkRequest {
+  string province = 1;
+  int64 base_revision = 2;
+  bool require_revision = 3;
+}
+
+message DeleteProvinceMarkResponse {
+  int64 revision = 1;
+  bool deleted = 2;
+}
+
+message FootprintMutation {
+  oneof operation {
+    Visit upsert_visit = 1;
+    string delete_visit = 2;
+    ProvinceMark upsert_mark = 3;
+    string delete_mark = 4;
+    Visit upsert_city = 5;
+    Trip upsert_trip = 6;
+    DeleteTrip delete_trip = 7;
+  }
+}
+
+message FootprintChange {
+  int64 revision = 1;
+  FootprintMutation mutation = 2;
+}
+
+message GetChangesRequest {
+  int64 since_revision = 1;
+  int32 limit = 2;
+}
+
+message GetChangesResponse {
+  repeated FootprintChange changes = 1;
+  int64 next_revision = 2;
+  int64 current_revision = 3;
+  bool has_more = 4;
+  bool resync_required = 5;
+  int32 schema_version = 6;
+  string region_version = 7;
+}
+
+message SyncChangesRequest {
+  string mutation_id = 1;
+  int64 base_revision = 2;
+  repeated FootprintMutation mutations = 3;
+}
+
+message SyncChangesResponse {
+  int64 revision = 1;
+  int32 changed_count = 2;
+  bool replayed = 3;
+}

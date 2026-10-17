@@ -15,8 +15,8 @@ import (
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/rpcauth"
-	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
-	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
+	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -31,7 +31,7 @@ const (
 
 func TestChainConnectProtocolVersionRequired(t *testing.T) {
 	h := NewChainHarness(t)
-	req, err := http.NewRequest(http.MethodPost, h.BFFURL+"/api/bff.v1.StatusService/GetStatus", strings.NewReader("{}"))
+	req, err := http.NewRequest(http.MethodPost, h.BFFURL+"/api/bff.tripmap.v1.StatusService/GetStatus", strings.NewReader("{}"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestChainConnectProtocolVersionRequired(t *testing.T) {
 func TestChainRejectsGRPCAndGRPCWeb(t *testing.T) {
 	h := NewChainHarness(t)
 	for name, ct := range map[string]string{"grpc": "application/grpc", "grpc-web": "application/grpc-web+proto"} {
-		req, _ := http.NewRequest(http.MethodPost, h.BFFURL+"/api/bff.v1.StatusService/GetStatus", strings.NewReader("{}"))
+		req, _ := http.NewRequest(http.MethodPost, h.BFFURL+"/api/bff.tripmap.v1.StatusService/GetStatus", strings.NewReader("{}"))
 		req.Header.Set("Content-Type", ct)
 		req.Header.Set("Connect-Protocol-Version", "1")
 		resp, err := http.DefaultClient.Do(req)
@@ -75,7 +75,7 @@ func TestChainRequestIDAndTraceparent(t *testing.T) {
 	spy := &downstreamSpy{}
 	h := NewChainHarness(t, []grpc.UnaryServerInterceptor{spy.interceptor()})
 	const tp = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-	req, _ := http.NewRequest(http.MethodPost, h.BFFURL+"/api/bff.v1.StatusService/GetStatus", strings.NewReader("{}"))
+	req, _ := http.NewRequest(http.MethodPost, h.BFFURL+"/api/bff.tripmap.v1.StatusService/GetStatus", strings.NewReader("{}"))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Connect-Protocol-Version", "1")
 	req.Header.Set("traceparent", tp)
@@ -107,7 +107,7 @@ func TestLegitimatePayloadLimitsAreConsistent(t *testing.T) {
 	if grpcx.DefaultMaxMessageBytes < grpcx.LegitimatePayloadBytes {
 		t.Fatal("internal gRPC max below public cap")
 	}
-	raw, err := os.ReadFile("../../deploy/frontend/default.conf.template")
+	raw, err := os.ReadFile("../../deploy/trip-map-web/default.conf.template")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestLegitimatePayloadLimitsAreConsistent(t *testing.T) {
 	}
 }
 
-func migrationBatch(t *testing.T) []*bffv1.FootprintMutation {
+func migrationBatch(t *testing.T) []*bfftripmapv1.FootprintMutation {
 	t.Helper()
 	data, err := os.ReadFile("../../internal/tripmap/regions/regions.json")
 	if err != nil {
@@ -132,14 +132,14 @@ func migrationBatch(t *testing.T) []*bffv1.FootprintMutation {
 	if err = json.Unmarshal(data, &list); err != nil {
 		t.Fatal(err)
 	}
-	var out []*bffv1.FootprintMutation
+	var out []*bfftripmapv1.FootprintMutation
 	for _, p := range list {
-		out = append(out, &bffv1.FootprintMutation{Operation: &bffv1.FootprintMutation_UpsertMark{
-			UpsertMark: &bffv1.ProvinceMark{Province: p.Code, Color: "#4b937d"},
+		out = append(out, &bfftripmapv1.FootprintMutation{Operation: &bfftripmapv1.FootprintMutation_UpsertMark{
+			UpsertMark: &bfftripmapv1.ProvinceMark{Province: p.Code, Color: "#4b937d"},
 		}})
 		for _, c := range p.Cities {
-			out = append(out, &bffv1.FootprintMutation{Operation: &bffv1.FootprintMutation_UpsertCity{
-				UpsertCity: &bffv1.Visit{Code: c.Code, Name: c.Name, Province: p.Code, Color: "#e2af5c"},
+			out = append(out, &bfftripmapv1.FootprintMutation{Operation: &bfftripmapv1.FootprintMutation_UpsertCity{
+				UpsertCity: &bfftripmapv1.Visit{Code: c.Code, Name: c.Name, Province: p.Code, Color: "#e2af5c"},
 			}})
 		}
 	}
@@ -159,7 +159,7 @@ func TestChainMaxLegitimateSyncBatchPersists(t *testing.T) {
 	}
 	batch := migrationBatch(t)
 	csrf := u.refreshCSRF(ctx)
-	req := connect.NewRequest(&bffv1.SyncChangesRequest{MutationId: "chain-max-batch", BaseRevision: 0, Mutations: batch})
+	req := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{MutationId: "chain-max-batch", BaseRevision: 0, Mutations: batch})
 	req.Header().Set("Connect-Timeout-Ms", "30000")
 	u.writeHeaders(req, csrf, u.Origin)
 	res, err := u.Foot.SyncChanges(ctx, req)
@@ -197,7 +197,7 @@ func TestChainSyncBatchCountOverLimitRejected(t *testing.T) {
 		batch = append(batch, batch...)
 	}
 	csrf := u.refreshCSRF(ctx)
-	req := connect.NewRequest(&bffv1.SyncChangesRequest{MutationId: "too-many", BaseRevision: 0, Mutations: batch[:2001]})
+	req := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{MutationId: "too-many", BaseRevision: 0, Mutations: batch[:2001]})
 	u.writeHeaders(req, csrf, u.Origin)
 	_, err := u.Foot.SyncChanges(ctx, req)
 	if connect.CodeOf(err) != connect.CodeInvalidArgument {
@@ -208,7 +208,7 @@ func TestChainSyncBatchCountOverLimitRejected(t *testing.T) {
 func TestChainConnectBodyOverReadMaxRejected(t *testing.T) {
 	h := NewChainHarness(t)
 	body := bytes.Repeat([]byte("x"), grpcx.LegitimatePayloadBytes+1)
-	req, _ := http.NewRequest(http.MethodPost, h.BFFURL+"/api/bff.v1.StatusService/GetStatus", bytes.NewReader(body))
+	req, _ := http.NewRequest(http.MethodPost, h.BFFURL+"/api/bff.tripmap.v1.StatusService/GetStatus", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Connect-Protocol-Version", "1")
 	resp, err := http.DefaultClient.Do(req)
@@ -227,8 +227,8 @@ func TestChainDeadlineBudgets(t *testing.T) {
 	spy := &downstreamSpy{}
 	h := NewChainHarness(t, []grpc.UnaryServerInterceptor{spy.interceptor()})
 	ctx := context.Background()
-	client := bffv1connect.NewStatusServiceClient(http.DefaultClient, h.BFFURL+"/api")
-	if _, err := client.GetStatus(ctx, connect.NewRequest(&bffv1.GetStatusRequest{})); err != nil {
+	client := bfftripmapv1connect.NewStatusServiceClient(http.DefaultClient, h.BFFURL+"/api")
+	if _, err := client.GetStatus(ctx, connect.NewRequest(&bfftripmapv1.GetStatusRequest{})); err != nil {
 		t.Fatal(err)
 	}
 	ev, _ := spy.lastMethod(statusGRPCMethod)
@@ -237,7 +237,7 @@ func TestChainDeadlineBudgets(t *testing.T) {
 	}
 	shortCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	req := connect.NewRequest(&bffv1.GetStatusRequest{})
+	req := connect.NewRequest(&bfftripmapv1.GetStatusRequest{})
 	req.Header().Set("Connect-Timeout-Ms", "3000")
 	if _, err := client.GetStatus(shortCtx, req); err != nil {
 		t.Fatal(err)
@@ -246,7 +246,7 @@ func TestChainDeadlineBudgets(t *testing.T) {
 	if d := ev.deadline; d < time.Second || d > 3*time.Second {
 		t.Fatalf("short client deadline became %v", d)
 	}
-	longReq := connect.NewRequest(&bffv1.GetStatusRequest{})
+	longReq := connect.NewRequest(&bfftripmapv1.GetStatusRequest{})
 	longReq.Header().Set("Connect-Timeout-Ms", "60000")
 	if _, err := client.GetStatus(ctx, longReq); err != nil {
 		t.Fatal(err)
@@ -268,11 +268,11 @@ func TestChainClientCancellationPropagates(t *testing.T) {
 		return next(ctx, req)
 	})
 	h := NewChainHarness(t, []grpc.UnaryServerInterceptor{block})
-	client := bffv1connect.NewStatusServiceClient(http.DefaultClient, h.BFFURL+"/api")
+	client := bfftripmapv1connect.NewStatusServiceClient(http.DefaultClient, h.BFFURL+"/api")
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, err := client.GetStatus(ctx, connect.NewRequest(&bffv1.GetStatusRequest{}))
+		_, err := client.GetStatus(ctx, connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 		done <- err
 	}()
 	<-downstreamBlocked
@@ -290,8 +290,8 @@ func TestChainClientCancellationPropagates(t *testing.T) {
 func TestChainNoAutomaticRetryOnUnavailable(t *testing.T) {
 	spy := &downstreamSpy{}
 	h := NewChainHarness(t, []grpc.UnaryServerInterceptor{spy.interceptor(), failFirstUnavailable(statusGRPCMethod)})
-	client := bffv1connect.NewStatusServiceClient(http.DefaultClient, h.BFFURL+"/api")
-	_, err := client.GetStatus(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{}))
+	client := bfftripmapv1connect.NewStatusServiceClient(http.DefaultClient, h.BFFURL+"/api")
+	_, err := client.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 	if connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("code %v", err)
 	}
@@ -313,9 +313,9 @@ func TestChainSensitiveValuesStayOutOfLogsAndResponses(t *testing.T) {
 	}
 	csrf := u.refreshCSRF(ctx)
 	sessionTok := u.SessionCookie()
-	req := connect.NewRequest(&bffv1.SyncChangesRequest{MutationId: "redact-1", BaseRevision: 0, Mutations: []*bffv1.FootprintMutation{{
-		Operation: &bffv1.FootprintMutation_UpsertCity{
-			UpsertCity: &bffv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
+	req := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{MutationId: "redact-1", BaseRevision: 0, Mutations: []*bfftripmapv1.FootprintMutation{{
+		Operation: &bfftripmapv1.FootprintMutation_UpsertCity{
+			UpsertCity: &bfftripmapv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
 		},
 	}}})
 	u.writeHeaders(req, csrf, u.Origin)
@@ -355,7 +355,7 @@ func TestChainGrpcOversizedMessageRejected(t *testing.T) {
 func TestChainForgedClientIPIgnored(t *testing.T) {
 	spy := &downstreamSpy{}
 	h := NewChainHarness(t, []grpc.UnaryServerInterceptor{spy.interceptor()})
-	req, _ := http.NewRequest(http.MethodPost, h.BFFURL+"/api/bff.v1.StatusService/GetStatus", strings.NewReader("{}"))
+	req, _ := http.NewRequest(http.MethodPost, h.BFFURL+"/api/bff.tripmap.v1.StatusService/GetStatus", strings.NewReader("{}"))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Connect-Protocol-Version", "1")
 	req.Header.Set(rpcauth.MetadataClientIP, "198.51.100.9")
@@ -379,9 +379,9 @@ func TestChainSyncBatchWithinLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	csrf := u.refreshCSRF(ctx)
-	req := connect.NewRequest(&bffv1.SyncChangesRequest{MutationId: "batch-limit", BaseRevision: 0, Mutations: []*bffv1.FootprintMutation{{
-		Operation: &bffv1.FootprintMutation_UpsertCity{
-			UpsertCity: &bffv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
+	req := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{MutationId: "batch-limit", BaseRevision: 0, Mutations: []*bfftripmapv1.FootprintMutation{{
+		Operation: &bfftripmapv1.FootprintMutation_UpsertCity{
+			UpsertCity: &bfftripmapv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
 		},
 	}}})
 	u.writeHeaders(req, csrf, u.Origin)

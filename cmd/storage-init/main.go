@@ -145,7 +145,7 @@ func configureMediaBucket(ctx context.Context, client *s3.Client, bucket, prefix
 	return nil
 }
 func main() {
-	path := flag.String("config", "config.yaml", "YAML configuration file")
+	path := flag.String("config", "config.tripmap.yaml", "YAML configuration file")
 	origins := flag.String("media-cors-origins", "", "comma-separated frontend origins allowed to PUT media")
 	lifecycle := flag.Bool("media-staging-lifecycle", false, "expire temporary media uploads after two days, preserving other lifecycle rules")
 	flag.Parse()

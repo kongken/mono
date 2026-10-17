@@ -12,13 +12,13 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"github.com/kongken/mono/internal/bff/app"
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/gateway"
 	"github.com/kongken/mono/internal/platform/testkit"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"gopkg.in/yaml.v3"
 )
 
@@ -114,7 +114,7 @@ func serve(r http.Handler, req *http.Request) *httptest.ResponseRecorder {
 func TestTheBFFOwnsCORS(t *testing.T) {
 	trip := newFake(t, "tripmap")
 	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL, "other": "http://127.0.0.1:1"}, CORSAllowedOrigins: []string{"https://trip.example.com"}}, testServices)
-	preflight := httptest.NewRequest(http.MethodOptions, "/api/bff.v1.FootprintService/GetFootprints", nil)
+	preflight := httptest.NewRequest(http.MethodOptions, "/api/bff.tripmap.v1.FootprintService/GetFootprints", nil)
 	preflight.Header.Set("Origin", "https://trip.example.com")
 	got := serve(r, preflight)
 	if got.Code != http.StatusNoContent || got.Header().Get("Access-Control-Allow-Origin") != "https://trip.example.com" ||
@@ -124,12 +124,12 @@ func TestTheBFFOwnsCORS(t *testing.T) {
 	if seen, _ := trip.seen(); seen != nil {
 		t.Fatal("preflight reached the service")
 	}
-	post := httptest.NewRequest(http.MethodPost, "/api/bff.v1.FootprintService/GetFootprints", nil)
+	post := httptest.NewRequest(http.MethodPost, "/api/bff.tripmap.v1.FootprintService/GetFootprints", nil)
 	post.Header.Set("Origin", "https://trip.example.com")
 	if got := serve(r, post).Header().Values("Access-Control-Allow-Origin"); len(got) != 1 || got[0] != "https://trip.example.com" {
 		t.Fatalf("Access-Control-Allow-Origin = %v, want only the BFF's", got)
 	}
-	post = httptest.NewRequest(http.MethodPost, "/api/bff.v1.FootprintService/GetFootprints", nil)
+	post = httptest.NewRequest(http.MethodPost, "/api/bff.tripmap.v1.FootprintService/GetFootprints", nil)
 	post.Header.Set("Origin", "https://evil.example.com")
 	if got := serve(r, post).Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("unlisted origin got %q", got)

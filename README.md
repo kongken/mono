@@ -2,22 +2,22 @@
 
 一个同时承载前端应用、后端服务与共享基础代码的仓库。前端使用 npm workspaces，后端使用根目录的单个 Go module；各应用和服务独立构建、部署。
 
-当前业务是「山海足迹」中国旅行地图：以省份探索、城市足迹和旅行记录为核心，支持本地保存，以及可选的账号登录、云端同步和公开分享。地图使用随应用分发的 GeoJSON，无需地图 API Key；省内与全国地图可选开启联网底图（默认关闭，默认 OpenStreetMap；部署者也可经服务端代理启用 Mapbox，见 [数据与地图说明](docs/data-and-maps.md)）。完整规则见 [功能描述](docs/features.md)。
+当前业务是「山海足迹」中国旅行地图：以省份探索、城市足迹和旅行记录为核心，支持本地保存，以及可选的账号登录、云端同步和公开分享。地图使用随应用分发的 GeoJSON，无需地图 API Key；省内与全国地图可选开启联网底图（默认关闭，默认 OpenStreetMap；部署者也可经服务端代理启用 Mapbox，见 [数据与地图说明](docs/trip-map/data-and-maps.md)）。完整规则见 [功能描述](docs/trip-map/features.md)。
 
 ## 应用与服务
 
 | 应用 / 服务 | 代码位置 | 职责 | 本地开发入口 |
 | --- | --- | --- | --- |
-| web（山海足迹） | `apps/web/` | React、Vite、TypeScript、Tailwind CSS、shadcn/ui 前端 | Vite 输出地址，通常为 `http://localhost:5173` |
+| trip-map（山海足迹） | `apps/trip-map/` | React、Vite、TypeScript、Tailwind CSS、shadcn/ui 前端 | Vite 输出地址，通常为 `http://localhost:5173` |
 | bff | `cmd/bff/`、`internal/bff/` | 唯一公网 API 入口；账号、OAuth、Cookie 会话、CSRF 和业务接口适配 | HTTP `127.0.0.1:18081` |
 | tripmap | `cmd/tripmap/`、`internal/tripmap/` | 足迹、行程、媒体、分享等旅行领域业务 | 内网 HTTP `127.0.0.1:18082`；TLS gRPC `127.0.0.1:18083` |
 
-浏览器经 BFF 的 `bff.v1` Connect 接口访问后端；BFF 使用内部凭证，通过 TLS gRPC 调用 tripmap。tripmap 的 HTTP 端口提供 `/ping`、`/readyz` 健康检查；启用 Mapbox 底图时还提供匿名的 `GET /api/tiles/…`，由 BFF 转发。账号与会话保存在 BFF 的独立数据库，旅行数据由 tripmap 管理。当前有两个后端服务，其中 tripmap 是唯一的业务服务，详见 [BFF](docs/bff.md)。
+浏览器经 BFF 的 Connect 接口访问后端（账号与会话是共用的 `bff.v1`，山海足迹业务是 `bff.tripmap.v1`）；BFF 使用内部凭证，通过 TLS gRPC 调用 tripmap。tripmap 的 HTTP 端口提供 `/ping`、`/readyz` 健康检查；启用 Mapbox 底图时还提供匿名的 `GET /api/tiles/…`，由 BFF 转发。账号与会话保存在 BFF 的独立数据库，旅行数据由 tripmap 管理。当前有两个后端服务，其中 tripmap 是唯一的业务服务，详见 [BFF](docs/bff.md)。
 
 ## 仓库结构
 
 ```text
-apps/web/             山海足迹前端应用
+apps/trip-map/        山海足迹前端应用
 packages/
   ui/                 共享 shadcn/ui 组件
   api-client/         Buf 生成的 TypeScript RPC 契约
@@ -49,17 +49,17 @@ docs/                 功能、数据、开发与部署文档
 
 ```bash
 npm install
-npm run dev
+npm run dev:trip-map
 ```
 
-默认无需启动后端，未登录的足迹保存在当前浏览器，可通过 JSON 导入导出备份。根目录 npm 脚本目前默认转发到 `@trip-map/web`；也可用 `npm run dev -w @trip-map/web` 指定应用。
+默认无需启动后端，未登录的足迹保存在当前浏览器，可通过 JSON 导入导出备份。根目录 npm 脚本按应用命名（`dev:trip-map`、`build:trip-map` 等）；`build`、`test` 对所有应用运行；地图数据脚本（`check:maps`、`prepare:*`、`download:maps`）目前转发到 `@kongken/trip-map`。
 
 ### 前后端联调
 
 首次准备本地配置与依赖：
 
 ```bash
-cp config.example.yaml config.yaml
+cp config.tripmap.example.yaml config.tripmap.yaml
 cp config.bff.example.yaml config.bff.yaml
 make deps-up
 # Compose 默认只创建 tripmap 数据库；首次使用时另建 BFF 认证库。
@@ -80,7 +80,7 @@ make dev
 
 ```bash
 npm install
-VITE_API_BASE_URL=/api npm run dev
+VITE_API_BASE_URL=/api npm run dev:trip-map
 ```
 
 Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:18081`。BFF 使用其他地址时，通过 `TRIPMAP_DEV_BACKEND` 指定代理目标。生产构建同样需要在构建时设置 `VITE_API_BASE_URL`；配置、依赖端口与启动限制见 [后端初始化](docs/backend.md) 和 [BFF](docs/bff.md)。
@@ -91,10 +91,10 @@ Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:180
 
 | 范围 | 命令 | 说明 |
 | --- | --- | --- |
-| 前端 | `npm run build` | 构建 web，产物在 `apps/web/dist/` |
-| 前端 | `npm run preview` | 预览已构建的 web |
-| 前端 | `npm test` | 运行前端脚本与业务逻辑测试 |
-| 前端 | `npm run test:e2e` | 运行 Playwright 浏览器测试 |
+| 前端 | `npm run build` | 构建所有前端应用；单个应用用 `npm run build:trip-map`，山海足迹产物在 `apps/trip-map/dist/` |
+| 前端 | `npm run preview:trip-map` | 预览已构建的山海足迹 |
+| 前端 | `npm test` | 运行所有前端应用的脚本与业务逻辑测试（`npm run test:trip-map` 只跑山海足迹） |
+| 前端 | `npm run test:e2e:trip-map` | 运行 Playwright 浏览器测试 |
 | 地图与数据 | `npm run check:maps` | 检查地图、区域索引及前后端数据副本 |
 | 后端 | `make build` | 构建 BFF、tripmap 与 legacy 账号导入工具至 `bin/` |
 | 后端 | `make test` | 运行 Go 测试，未配置存储连接时相关集成测试跳过 |
@@ -104,19 +104,19 @@ Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:180
 
 修改 `proto/` 后运行 `make buf`；修改 tripmap / BFF Ent schema 后分别运行 `make ent` / `make ent-bff`，生成文件随变更一起提交。生产关闭两个服务的 `auto_migrate`，使用 `migrations/tripmap/` 与 `migrations/bff/` 中评审过的迁移，详见 [版本化数据库迁移](docs/backend.md#版本化数据库迁移)。
 
-地图文件位于 `apps/web/public/maps/`，区域、坐标、搜索索引与分享预览几何的更新命令和兼容规则见 [数据与地图说明](docs/data-and-maps.md)。
+地图文件位于 `apps/trip-map/public/maps/`，区域、坐标、搜索索引与分享预览几何的更新命令和兼容规则见 [数据与地图说明](docs/trip-map/data-and-maps.md)。
 
 ## 部署
 
-web、BFF 与 tripmap 分别构建镜像，构建上下文均为仓库根目录：
+trip-map-web、BFF 与 tripmap 分别构建镜像，构建上下文均为仓库根目录：
 
 | 部署单元 | Dockerfile |
 | --- | --- |
-| web | `deploy/frontend/Dockerfile` |
+| trip-map-web | `deploy/trip-map-web/Dockerfile` |
 | BFF | `deploy/bff/Dockerfile` |
-| tripmap | `Dockerfile` |
+| tripmap | `deploy/tripmap/Dockerfile` |
 
-GitHub Actions 按矩阵构建并发布三个镜像，镜像名由当前 GitHub 仓库名及 `-front`、`-bff` 后缀生成；PR 仅构建。前端容器提供静态资源并把 API 与分享页请求转发到 BFF，业务服务只在内网暴露。部署拓扑、配置挂载与发布流程见 [部署与发布](docs/deployment.md) 和 [Docker 镜像与 Actions](docs/docker-images.md)。
+GitHub Actions 按矩阵构建并发布三个镜像，镜像名由当前 GitHub 仓库名加组件后缀生成（`-tripmap`、`-trip-map-web`、`-bff`）；PR 仅构建。前端容器提供静态资源并把 API 与分享页请求转发到 BFF，业务服务只在内网暴露。部署拓扑、配置挂载与发布流程见 [部署与发布](docs/deployment.md) 和 [Docker 镜像与 Actions](docs/docker-images.md)。
 
 已有 tripmap 账号升级到 BFF 认证时，先执行两个服务的版本化迁移，再使用 `bin/bff-import-legacy-accounts` 导入（先 `--dry-run`），抽查登录后再按需清理旧凭据列，详见 [Legacy 账号导入](docs/deployment.md#legacy-账号导入-44)。
 
@@ -126,10 +126,10 @@ GitHub Actions 按矩阵构建并发布三个镜像，镜像名由当前 GitHub 
 
 - [文档索引](docs/README.md)：全部专题文档入口。
 - [前后端 monorepo 布局](docs/monorepo.md)：workspace、共享包与新增应用。
-- [功能描述](docs/features.md)：山海足迹的功能规则、验收场景与当前限制。
-- [数据与地图说明](docs/data-and-maps.md)：存储、备份、区域版本和地图维护。
+- [功能描述](docs/trip-map/features.md)：山海足迹的功能规则、验收场景与当前限制。
+- [数据与地图说明](docs/trip-map/data-and-maps.md)：存储、备份、区域版本和地图维护。
 - [后端初始化](docs/backend.md)：依赖、配置、媒体直传、通知、模型与迁移。
 - [BFF](docs/bff.md)：认证、浏览器契约、内部 gRPC 与服务边界。
-- [公开分享页与预览图](docs/sharing.md)：分享模型、隐私与部署配置。
+- [公开分享页与预览图](docs/trip-map/sharing.md)：分享模型、隐私与部署配置。
 - [部署与发布](docs/deployment.md)：部署拓扑、Secret 与升级顺序。
 - [项目协作说明](AGENTS.md)：实现约定、文档同步与验证要求。
