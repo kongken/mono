@@ -254,11 +254,11 @@ func (s *AuthService) Me(ctx context.Context, _ *connect.Request[tripmapv1.MeReq
 }
 
 func (s *AuthService) ListSessions(context.Context, *connect.Request[tripmapv1.ListSessionsRequest]) (*connect.Response[tripmapv1.ListSessionsResponse], error) {
-	return nil, connectUnimplemented()
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("use bff.v1.AuthService"))
 }
 
 func (s *AuthService) RevokeSession(context.Context, *connect.Request[tripmapv1.RevokeSessionRequest]) (*connect.Response[tripmapv1.RevokeSessionResponse], error) {
-	return nil, connectUnimplemented()
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("use bff.v1.AuthService"))
 }
 
 func (s *AuthService) ListOAuthProviders(context.Context, *connect.Request[tripmapv1.ListOAuthProvidersRequest]) (*connect.Response[tripmapv1.ListOAuthProvidersResponse], error) {
