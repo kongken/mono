@@ -8,6 +8,7 @@ import (
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/internal/platform/servicetoken"
+	"github.com/kongken/mono/internal/tripmap/tiles"
 )
 
 // AppConfig shares the YAML file with Butterfly's store.db/redis/s3 definitions.
@@ -24,6 +25,8 @@ type AppConfig struct {
 	InternalAuth servicetoken.VerifyConfig `yaml:"internal_auth"`
 	// Notification configures F12 reminders; every channel is off until configured.
 	Notification NotificationConfig `yaml:"notification"`
+	// MapboxTiles is the optional Mapbox basemap proxy; it is off by default.
+	MapboxTiles tiles.Config `yaml:"mapbox_tiles"`
 }
 
 // ShareConfig controls the public share page (F6). Sharing is off while
@@ -131,6 +134,9 @@ func (c *AppConfig) Validate() error {
 		return err
 	}
 	if err := c.Notification.validate(); err != nil {
+		return err
+	}
+	if err := c.MapboxTiles.Validate(); err != nil {
 		return err
 	}
 	return nil

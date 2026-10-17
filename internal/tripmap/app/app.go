@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/regions"
+	"github.com/kongken/mono/internal/tripmap/tiles"
 	"google.golang.org/grpc"
 )
 
@@ -41,6 +43,7 @@ type Handlers struct {
 	resources atomic.Pointer[Resources]
 	grpc      atomic.Pointer[grpcx.Server]
 	notifier  *application.Notifier
+	tiles     *tiles.Handler
 	grpcUnaryExtra []grpc.UnaryServerInterceptor
 }
 
@@ -49,8 +52,26 @@ func (h *Handlers) SetGRPCTestUnaryInterceptors(in ...grpc.UnaryServerIntercepto
 }
 
 func New(cfg *config.AppConfig) *Handlers {
-	return &Handlers{cfg: cfg, notifier: application.NewNotifier(cfg.Notification)}
+	h := &Handlers{cfg: cfg, notifier: application.NewNotifier(cfg.Notification)}
+	h.tiles = tiles.New(cfg.MapboxTiles, tiles.Deps{ClientIPHeader: cfg.Auth.ClientIPHeader, Limiter: h.tileLimiter})
+	return h
 }
+
+// tileLimiter is the Redis limiter once the stores are connected; before that the
+// tile route answers 502 instead of fetching without a limit.
+func (h *Handlers) tileLimiter() tiles.Limiter {
+	if st := h.Store(); st != nil {
+		return st.Limiter()
+	}
+	return nil
+}
+
+// SetTileClient replaces the HTTP client used to reach Mapbox; tests use it to keep
+// the network out.
+func (h *Handlers) SetTileClient(c *http.Client) { h.tiles.SetClient(c) }
+
+// SetTileLimiter replaces the tile rate limiter; tests use it instead of Redis.
+func (h *Handlers) SetTileLimiter(l tiles.Limiter) { h.tiles.SetLimiter(l) }
 
 // SetNotifier replaces the notification channels; tests use it to avoid real SMTP
 // and push services.
@@ -231,6 +252,11 @@ func (h *Handlers) Routes(r *gin.Engine) {
 		}
 		c.JSON(code, gin.H{"ready": health.Ready(statuses), "dependencies": statuses})
 	})
+	// Anonymous Mapbox basemap tiles. The BFF forwards this one path; the handler
+	// answers 404 unless mapbox_tiles.enabled is set.
+	tileRoute := gin.WrapH(h.tiles)
+	r.Any(strings.TrimSuffix(tiles.PathPrefix, "/"), tileRoute)
+	r.Any(tiles.PathPrefix+"*rest", tileRoute)
 }
 
 // MountShare registers public share HTTP routes (tests only; production serves them on the BFF).

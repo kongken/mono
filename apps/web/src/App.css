@@ -459,6 +459,19 @@ h1 > span {
 .osm-map .leaflet-control-attribution {
   font-size: 9px;
 }
+/* Mapbox logo (proxy basemap only). It sits outside the muted tile pane, is not
+   recolored, and stacks above the credits in the bottom-left corner. */
+.osm-map .mapbox-logo {
+  display: block;
+  width: 65px;
+  height: 20px;
+  margin-bottom: 4px;
+}
+.osm-map .mapbox-logo img {
+  display: block;
+  width: 65px;
+  height: 20px;
+}
 .with-basemap .map-heading {
   top: 14px;
   left: 14px;

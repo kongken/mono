@@ -317,6 +317,10 @@ func (h *Handlers) Routes(r *gin.Engine) {
 			h.servePublic(gw, c)
 			return
 		}
+		// Registered plain HTTP routes (gateway.Service.Routes), such as the tile proxy.
+		if gw.Forward(c) {
+			return
+		}
 		c.AbortWithStatus(http.StatusNotFound)
 	})
 }

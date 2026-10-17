@@ -23,6 +23,7 @@
 - `bff.v1.MediaService`（#35：`PrepareUpload`、`CompleteUpload`、`ListMedia`、`ReadMedia`、`DeleteMedia`）→ tripmap gRPC `MediaService`；写操作校验 CSRF；`PrepareUpload`/`CompleteUpload` 登记 25 秒重任务；Connect 读上限 16 MiB。tripmap 公网 Connect 上的 `MediaService` 已移除。
 - `bff.v1.ReportService/GetReport`（#39）→ tripmap gRPC `ReportService/GetReport`；`bff.v1.SearchService/SearchNotes` → tripmap gRPC `SearchService/SearchNotes`（Connect 读上限 4 KiB）。tripmap 公网 Connect 上的 `ReportService` / `SearchService` 已移除。
 - `bff.v1.RegionService`（#40：`GetRegionIndex`、`PreviewRegionUpgrade`、`ApplyRegionUpgrade`）→ tripmap gRPC `RegionService` 同名方法；`ApplyRegionUpgrade` 校验 Origin/CSRF；`X-Tripmap-Regions` 白名单下传。tripmap 公网 Connect 上的 `RegionService` 已移除。
+- 可选 Mapbox 底图瓦片：`GET /api/tiles/{z}/{x}/{y}.png`（匿名）在 `gateway.Services` 登记为 tripmap 的 HTTP 路由，BFF 透明转发到 `upstreams.tripmap`（需要 tripmap 的 `mapbox_tiles.enabled`，见 [后端初始化](backend.md#mapbox-瓦片代理可选)）。BFF 不持有 Mapbox token、样式或限流配置；转发时只保留 `Accept`、`User-Agent`，丢弃 Cookie、Authorization、CSRF、Origin 等其余浏览器头，并覆盖写入 `X-Real-IP`；去掉 tripmap 的 `Access-Control-*` 并按 `cors_allowed_origins` 应答；tripmap 不可达时返回不缓存的 502。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
 **开发数据保留（#30 / #44）**
@@ -31,7 +32,7 @@
 
 **当前限制**
 
-- 浏览器业务 RPC 仅 `/api/bff.v1.*`；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz`（分享/unsubscribe 由 BFF `publichttp` 提供）。
+- 浏览器业务 RPC 仅 `/api/bff.v1.*`；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/unsubscribe 由 BFF `publichttp` 提供）。
 - 前端（含分享 API）与 OAuth/会话管理均使用 `bff.v1`；账号凭据在 BFF 独立库；tripmap `users` 仍可能含 legacy 凭据列直至 post-import 清理（Ent 不写入这些列）。
 - 真实 GitHub/Google/Logto 端到端授权验收仍依赖部署凭据，CI 使用受控 fake 提供方与 `internal/e2e/oauth_chain_test.go`。
 
@@ -42,13 +43,14 @@
 
 ## 路由
 
-`internal/bff/gateway/services.go` 只登记**上游业务服务名**与是否经 gRPC 调用（当前 tripmap：`GRPC: true`），供 `upstreams` 健康探测与 `grpc.services` 配置对齐；**不再**按 proto 包名透明转发 HTTP。
+`internal/bff/gateway/services.go` 只登记**上游业务服务名**与是否经 gRPC 调用（当前 tripmap：`GRPC: true`），供 `upstreams` 健康探测与 `grpc.services` 配置对齐；**不再**按 proto 包名透明转发 HTTP；仅 `Service.Routes` 中显式登记的 HTTP 路径会转发（目前只有 `/api/tiles/`）。
 
 | 入口 | 登记位置 | 说明 |
 | --- | --- | --- |
 | `/ping`、`/readyz` | `internal/bff/app/app.go` | BFF 自身与依赖就绪 |
 | `/api/bff.v1.<Service>/<Method>` | `app.go` `publicAPI` + `bffv1connect.New*Handler` | 浏览器 Connect RPC；`NoRoute` 下前缀 `/api/bff.v1.` 进入此 mux |
 | `/s/…`、`/api/share/…`、`/api/notifications/unsubscribe` | `app.go` `mountPublicHTTP` + `internal/bff/publichttp` | 分享页/数据/预览图、邮件退订；凭分享或退订令牌，不用 Cookie CSRF |
+| `/api/tiles/{z}/{x}/{y}.png` | `gateway/services.go` `Routes`（`Anonymous: true`）+ `gateway.Forward` | 登记路径透明转发到 tripmap，规则与限流在 tripmap；不规范路径（`..`、`//`）404 |
 | 其他路径 | `NoRoute` | **404**（含旧 `/api/tripmap.v1.*`） |
 
 - 不规范路径（含 `..`、`//`）在 BFF 层拒绝或 404。
@@ -100,7 +102,7 @@ BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法�
 
 ## 统一处理的事项
 
-- **客户端地址**（透明转发的路径）：BFF 按自身的 `client_ip_header`（未设置时用 TCP 对端地址）算出客户端地址，转发时总是覆盖 `X-Real-IP`，客户端无法自选地址。业务服务配置 `auth.client_ip_header: X-Real-IP`，用于登录与分享限流。
+- **客户端地址**（透明转发的 `/api/tiles/` 路径）：BFF 按自身的 `client_ip_header`（未设置时用 TCP 对端地址）算出客户端地址，转发时总是覆盖 `X-Real-IP`，客户端无法自选地址。业务服务配置 `auth.client_ip_header: X-Real-IP`，用于登录与分享限流。
 - **跨域**：`/api/` 下的跨域请求由 BFF 按 `cors_allowed_origins` 应答，预检请求不转发；业务服务返回的 `Access-Control-*` 头会被去掉，避免出现两套。
 - **追踪脱敏**：Butterfly 的 otel 中间件会记录原始路径；登记了 `Trace` 或 `publichttp.TracePattern` 的路径会在追踪里替换为模板（如 `/s/{token}`、`/api/notifications/unsubscribe`），查询串置空。
 

@@ -28,6 +28,7 @@ ARG VITE_API_BASE_URL
 ARG VITE_OSM_TILE_URL
 ARG VITE_OSM_TILE_MAX_ZOOM
 ARG VITE_OSM_TILE_ATTRIBUTION
+ARG VITE_OSM_TILE_PROVIDER
 RUN npm test && npm run check:maps && npm run build
 
 FROM nginx:stable-alpine

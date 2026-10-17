@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { geoMercator, geoPath } from "d3-geo";
 import { normalizeMap, type MapData } from "./lib/maps";
 import { mapProjection, seaInsetPaths } from "./lib/projection";
+import { TILE_SOURCE } from "./lib/tileConfig";
 import { loadCityMaps, type CityMaps } from "./lib/cityMaps";
 import {
   ArrowLeft,
@@ -1669,12 +1670,12 @@ function App() {
                         colors={visitColors}
                         convertCoords={!WGS84_PROVINCES.includes(province.code)}
                         route={activeRoute}
-                        label={`${province.name}${unit}地图（OpenStreetMap 底图）`}
+                        label={`${province.name}${unit}地图（${TILE_SOURCE.label}）`}
                         onToggle={(code) => toggleCity(province.code, code)}
                         onHover={setHover}
                         onTileError={() =>
                           notify(
-                            "OpenStreetMap 底图加载失败，可关闭底图后继续标记",
+                            `${TILE_SOURCE.label}加载失败，可关闭底图后继续标记`,
                           )
                         }
                       />
@@ -1694,7 +1695,7 @@ function App() {
                         viewBounds={NATIONAL_VIEW}
                         resetLabel="回到全国视图"
                         route={activeRoute}
-                        label={`中国${cityMode ? "城市" : "省份"}地图（OpenStreetMap 底图）`}
+                        label={`中国${cityMode ? "城市" : "省份"}地图（${TILE_SOURCE.label}）`}
                         regionLabel={
                           cityMode
                             ? () => null
@@ -1726,7 +1727,7 @@ function App() {
                         }
                         onTileError={() =>
                           notify(
-                            "OpenStreetMap 底图加载失败，可关闭底图后继续浏览",
+                            `${TILE_SOURCE.label}加载失败，可关闭底图后继续浏览`,
                           )
                         }
                       />
@@ -1999,11 +2000,11 @@ function App() {
                     <button
                       className="basemap-toggle"
                       aria-pressed={basemap}
-                      title="开启后会向 openstreetmap.org 请求地图瓦片"
+                      title={TILE_SOURCE.hint}
                       onClick={() => setBasemap((v) => !v)}
                     >
                       <Stack size={16} />
-                      {basemap ? "关闭 OSM 底图" : "OSM 底图"}
+                      {basemap ? `关闭${TILE_SOURCE.toggle}` : TILE_SOURCE.toggle}
                     </button>
                   </div>
                 )}

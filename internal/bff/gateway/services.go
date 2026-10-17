@@ -8,11 +8,11 @@ type Service struct {
 	// grpc.services entry in the configuration. Its upstreams entry stays for the
 	// health probe and for the routes not migrated yet.
 	GRPC bool
-	// Packages and Routes are legacy fields for tests that still model extra
-	// upstreams; production Services only sets GRPC and upstream health probes.
+	// Packages is a legacy field for tests that still model extra upstreams.
 	Packages []string
-	Routes   []Route
-	Headers  []string
+	// Routes are plain HTTP paths forwarded to the service's upstreams address.
+	Routes  []Route
+	Headers []string
 }
 
 // Route is a plain HTTP path owned by a service.
@@ -22,13 +22,24 @@ type Route struct {
 	// Trace replaces the path and query in tracing spans when they carry a
 	// credential. Empty records the request as it is.
 	Trace string
+	// Anonymous marks a path that needs no browser credential: Cookie, Authorization
+	// and every other client header except Accept and User-Agent are dropped before
+	// the request is forwarded.
+	Anonymous bool
 }
 
 // Services is the route table. Business RPCs are served as bff.v1 Connect on the
-// BFF; upstream entries remain for health probes and internal gRPC only.
+// BFF; upstream entries serve health probes, internal gRPC and the plain HTTP
+// Routes listed here.
 var Services = []Service{{
 	Name: "tripmap",
 	GRPC: true,
+	Routes: []Route{
+		// Mapbox basemap tiles: GET /api/tiles/{z}/{x}/{y}.png. tripmap holds the Mapbox
+		// token and the limits; the BFF only forwards. The path carries coordinates, not
+		// credentials, so it is traced as it is.
+		{Path: "/api/tiles/", Anonymous: true},
+	},
 }}
 
 // Names lists the services in the route table.

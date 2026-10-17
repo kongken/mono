@@ -2,7 +2,7 @@
 
 一个同时承载前端应用、后端服务与共享基础代码的仓库。前端使用 npm workspaces，后端使用根目录的单个 Go module；各应用和服务独立构建、部署。
 
-当前业务是「山海足迹」中国旅行地图：以省份探索、城市足迹和旅行记录为核心，支持本地保存，以及可选的账号登录、云端同步和公开分享。地图使用随应用分发的 GeoJSON，无需地图 API Key；省内地图可选开启 OpenStreetMap 底图，默认关闭。完整规则见 [功能描述](docs/features.md)。
+当前业务是「山海足迹」中国旅行地图：以省份探索、城市足迹和旅行记录为核心，支持本地保存，以及可选的账号登录、云端同步和公开分享。地图使用随应用分发的 GeoJSON，无需地图 API Key；省内与全国地图可选开启联网底图（默认关闭，默认 OpenStreetMap；部署者也可经服务端代理启用 Mapbox，见 [数据与地图说明](docs/data-and-maps.md)）。完整规则见 [功能描述](docs/features.md)。
 
 ## 应用与服务
 
@@ -12,7 +12,7 @@
 | bff | `cmd/bff/`、`internal/bff/` | 唯一公网 API 入口；账号、OAuth、Cookie 会话、CSRF 和业务接口适配 | HTTP `127.0.0.1:18081` |
 | tripmap | `cmd/tripmap/`、`internal/tripmap/` | 足迹、行程、媒体、分享等旅行领域业务 | 内网 HTTP `127.0.0.1:18082`；TLS gRPC `127.0.0.1:18083` |
 
-浏览器经 BFF 的 `bff.v1` Connect 接口访问后端；BFF 使用内部凭证，通过 TLS gRPC 调用 tripmap。tripmap 的 HTTP 端口只提供 `/ping`、`/readyz` 健康检查。账号与会话保存在 BFF 的独立数据库，旅行数据由 tripmap 管理。当前有两个后端服务，其中 tripmap 是唯一的业务服务，详见 [BFF](docs/bff.md)。
+浏览器经 BFF 的 `bff.v1` Connect 接口访问后端；BFF 使用内部凭证，通过 TLS gRPC 调用 tripmap。tripmap 的 HTTP 端口提供 `/ping`、`/readyz` 健康检查；启用 Mapbox 底图时还提供匿名的 `GET /api/tiles/…`，由 BFF 转发。账号与会话保存在 BFF 的独立数据库，旅行数据由 tripmap 管理。当前有两个后端服务，其中 tripmap 是唯一的业务服务，详见 [BFF](docs/bff.md)。
 
 ## 仓库结构
 

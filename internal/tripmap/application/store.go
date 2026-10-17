@@ -20,6 +20,9 @@ type Store struct {
 
 const redisPrefix = "tripmap:"
 
+// Limiter is the fixed-window rate limiter over this store's Redis and key prefix.
+func (st *Store) Limiter() *Limiter { return NewLimiter(st.Redis, st.prefix()) }
+
 func (st *Store) prefix() string {
 	if st.KeyPrefix != "" {
 		return st.KeyPrefix

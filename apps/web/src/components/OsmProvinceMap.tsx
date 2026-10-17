@@ -3,16 +3,12 @@ import { ArrowCounterClockwise, Minus, Plus } from "@phosphor-icons/react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { geometryGcj02ToWgs84 } from "@/lib/coords";
-import { resolveTileConfig } from "@/lib/tiles";
+import { mapboxFeedbackUrl } from "@/lib/tiles";
+import { TILES } from "@/lib/tileConfig";
+import mapboxLogo from "@/assets/mapbox-logo.svg";
 import type { Feature } from "geojson";
 import type { MapData } from "@/lib/maps";
 import type { ItineraryInfo } from "@/lib/itinerary";
-
-const TILES = resolveTileConfig({
-  VITE_OSM_TILE_URL: import.meta.env.VITE_OSM_TILE_URL,
-  VITE_OSM_TILE_MAX_ZOOM: import.meta.env.VITE_OSM_TILE_MAX_ZOOM,
-  VITE_OSM_TILE_ATTRIBUTION: import.meta.env.VITE_OSM_TILE_ATTRIBUTION,
-});
 
 /** [[south, west], [north, east]] in WGS-84. */
 export type ViewBounds = [[number, number], [number, number]];
@@ -136,7 +132,48 @@ export default function OsmProvinceMap({
       zoomControl: false,
       attributionControl: false,
     });
-    L.control.attribution({ position: "bottomleft" }).addTo(instance);
+    const credits = L.control
+      .attribution({ position: "bottomleft" })
+      .addTo(instance);
+    let stopFeedback: (() => void) | undefined;
+    if (TILES.provider === "mapbox") {
+      // Mapbox requires its logo next to the map and an "Improve this map" link for
+      // the current view. The logo is added after the credits so it stacks above them.
+      const Logo = L.Control.extend({
+        onAdd() {
+          const link = L.DomUtil.create("a", "mapbox-logo");
+          link.href = "https://www.mapbox.com/";
+          link.target = "_blank";
+          link.rel = "noreferrer";
+          link.setAttribute("aria-label", "Mapbox");
+          const img = L.DomUtil.create("img", "", link);
+          img.src = mapboxLogo;
+          img.alt = "Mapbox";
+          img.width = 65;
+          img.height = 20;
+          L.DomEvent.disableClickPropagation(link);
+          return link;
+        },
+      });
+      new Logo({ position: "bottomleft" }).addTo(instance);
+      const updateFeedback = () => {
+        const center = instance.getCenter();
+        const link = credits
+          .getContainer()
+          ?.querySelector<HTMLAnchorElement>("a[data-mapbox-feedback]");
+        if (link)
+          link.href = mapboxFeedbackUrl({
+            lng: center.lng,
+            lat: center.lat,
+            zoom: instance.getZoom(),
+          });
+      };
+      // The tile layer's credits are written on "layeradd", which Leaflet defers until the
+      // view exists, so listen to it as well to have the right link before any pan.
+      const events = "load layeradd moveend zoomend";
+      instance.on(events, updateFeedback);
+      stopFeedback = () => instance.off(events, updateFeedback);
+    }
     const tiles = L.tileLayer(TILES.url, {
       maxZoom: TILES.maxZoom,
       attribution: TILES.attribution,
@@ -152,6 +189,7 @@ export default function OsmProvinceMap({
     observer.observe(container.current);
     return () => {
       observer.disconnect();
+      stopFeedback?.();
       instance.remove();
       leaflet.current = null;
     };
