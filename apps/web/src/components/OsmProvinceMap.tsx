@@ -168,8 +168,11 @@ export default function OsmProvinceMap({
             zoom: instance.getZoom(),
           });
       };
-      instance.on("moveend zoomend", updateFeedback);
-      stopFeedback = () => instance.off("moveend zoomend", updateFeedback);
+      // The tile layer's credits are written on "layeradd", which Leaflet defers until the
+      // view exists, so listen to it as well to have the right link before any pan.
+      const events = "load layeradd moveend zoomend";
+      instance.on(events, updateFeedback);
+      stopFeedback = () => instance.off(events, updateFeedback);
     }
     const tiles = L.tileLayer(TILES.url, {
       maxZoom: TILES.maxZoom,

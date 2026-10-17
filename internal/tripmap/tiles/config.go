@@ -30,8 +30,10 @@ const (
 )
 
 var (
-	// Mapbox tokens are "pk." or "sk." followed by two base64url segments.
-	tokenPattern = regexp.MustCompile(`^[ps]k\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$`)
+	// Only public ("pk.") tokens are accepted: they are read-scoped by design, and the
+	// proxy never needs a secret ("sk.") token's extra privileges. A Mapbox token is
+	// the prefix followed by two base64url segments.
+	tokenPattern = regexp.MustCompile(`^pk\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$`)
 	// Usernames and style IDs become URL path segments, so only safe characters pass.
 	namePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 )
@@ -42,7 +44,8 @@ type Config struct {
 	// Enabled switches the proxy on. While false the route answers 404 and never
 	// contacts Mapbox.
 	Enabled bool `yaml:"enabled"`
-	// Token is a Mapbox access token with only the styles:tiles scope. Rotate it by
+	// Token is a Mapbox public access token ("pk.") limited to the styles:tiles scope.
+	// Secret ("sk.") tokens are refused. Rotate it by
 	// changing this value and restarting; no front-end rebuild is involved.
 	Token string `yaml:"token"`
 	// Username owns the style, and StyleID names it (for example "mapbox" and

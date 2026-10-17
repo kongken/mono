@@ -59,7 +59,7 @@
 
 默认关闭，未配置的部署继续使用纯本地地图与现有的自定义瓦片源。启用后浏览器 → 边缘 → BFF → tripmap → `api.mapbox.com`；token 只在 tripmap。规则、配置字段与错误码见 [后端初始化](backend.md#mapbox-瓦片代理可选)，前端署名见 [数据与地图说明](data-and-maps.md#mapbox-代理底图可选)。
 
-1. **token**：在 Mapbox 账号创建只含 `styles:tiles` 范围的令牌，设置用量告警。不要使用高权限 secret token；不要给令牌配 URL 限制后再伪造来源头（tripmap 的请求没有 `Referer`），需要限制时在账号侧评估可行方式。
+1. **token**：在 Mapbox 账号创建只含 `styles:tiles` 范围的 `pk.` 公共令牌，设置用量告警；tripmap 拒绝 `sk.` secret token。不要给令牌配 URL 限制后再伪造来源头（tripmap 的请求没有 `Referer`），需要限制时在账号侧评估可行方式。
 2. **tripmap**：在 `config.yaml`（或挂载的 Secret 文件）加入 `mapbox_tiles`（`enabled: true`、`token`、`username`、`style_id`，可调 `max_zoom`、`rate_per_minute`、`upstream_timeout`、`max_response_bytes`），重启。配置不合法会启动失败，错误不含 token。**轮换 token**：只改配置里的 `token` 并重启 tripmap，前端无需重建。
 3. **网络**：tripmap 容器需要能出站访问 `https://api.mapbox.com`（443，遵循 `HTTPS_PROXY` 等标准环境变量）；BFF 到 tripmap 的 HTTP 端口（`upstreams.tripmap`）需要可达。tripmap 的 `18082` 仍不得暴露到公网。
 4. **边缘与 BFF**：现有 Nginx/Caddy 对 `/api/` 的转发已覆盖 `/api/tiles/`，无需新增规则；边缘必须设置 `X-Real-IP`，限流按它计数。tripmap 的 `auth.client_ip_header` 需为 `X-Real-IP`，否则所有请求会被算作 BFF 的地址并共享同一个限流额度。

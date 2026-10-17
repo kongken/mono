@@ -20,6 +20,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/tiles"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // The tests below drive tripmap's real HTTP routes. The only replaced dependency
@@ -109,6 +113,12 @@ func okMapbox(t testing.TB) http.HandlerFunc {
 
 func newTileEnv(t *testing.T, upstream http.HandlerFunc, mutate func(*tiles.Config)) *tileEnv {
 	t.Helper()
+	return newTileEnvWith(t, upstream, mutate)
+}
+
+// newTileEnvWith installs middleware (such as Butterfly's tracing) in front of the routes.
+func newTileEnvWith(t *testing.T, upstream http.HandlerFunc, mutate func(*tiles.Config), middleware ...gin.HandlerFunc) *tileEnv {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	var mu sync.Mutex
 	var hits []*http.Request
@@ -130,6 +140,7 @@ func newTileEnv(t *testing.T, upstream http.HandlerFunc, mutate func(*tiles.Conf
 	handlers.SetTileClient(&http.Client{Transport: rt})
 	handlers.SetTileLimiter(limiter)
 	router := gin.New()
+	router.Use(middleware...)
 	handlers.Routes(router)
 	return &tileEnv{router: router, mapbox: mapbox, rt: rt, limiter: limiter, hits: func() []*http.Request {
 		mu.Lock()
@@ -510,5 +521,49 @@ func TestClientCancellationStopsTheUpstreamRequest(t *testing.T) {
 	}
 	if rec.Body.Len() != 0 {
 		t.Errorf("wrote a body to a client that left: %q", rec.Body.String())
+	}
+}
+
+func TestTileTracesNeverRecordTheToken(t *testing.T) {
+	spans := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))
+	// Anything instrumented that talks to Mapbox would report to the global provider.
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() { otel.SetTracerProvider(previous) })
+
+	fail := false
+	env := newTileEnvWith(t, func(w http.ResponseWriter, r *http.Request) {
+		if fail {
+			http.Error(w, "Invalid token "+testToken, http.StatusUnauthorized)
+			return
+		}
+		okMapbox(t)(w, r)
+	}, nil, otelgin.Middleware("tripmap", otelgin.WithTracerProvider(provider)))
+	if rec := env.get("/api/tiles/3/5/2.png"); rec.Code != http.StatusOK {
+		t.Fatalf("success: %d", rec.Code)
+	}
+	fail = true
+	if rec := env.get("/api/tiles/3/5/2.png"); rec.Code != http.StatusBadGateway {
+		t.Fatalf("failure: %d", rec.Code)
+	}
+	ended := spans.Ended()
+	if len(ended) == 0 {
+		t.Fatal("no spans were recorded; the check proves nothing")
+	}
+	for _, span := range ended {
+		dump := span.Name()
+		for _, attr := range span.Attributes() {
+			dump += " " + string(attr.Key) + "=" + attr.Value.Emit()
+		}
+		for _, event := range span.Events() {
+			dump += " " + event.Name
+			for _, attr := range event.Attributes {
+				dump += " " + attr.Value.Emit()
+			}
+		}
+		if strings.Contains(dump, testToken) || strings.Contains(dump, "access_token") || strings.Contains(dump, "api.mapbox.com") {
+			t.Errorf("span records the credential or upstream URL: %s", dump)
+		}
 	}
 }

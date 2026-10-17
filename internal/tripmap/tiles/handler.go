@@ -52,7 +52,17 @@ type Handler struct {
 // New builds the handler. An invalid or disabled configuration yields a handler
 // that answers 404; startup validation (Config.Validate) is what reports the error.
 func New(cfg Config, deps Deps) *Handler {
-	h := &Handler{cfg: cfg, enabled: cfg.Enabled && cfg.Validate() == nil, deps: deps}
+	h := &Handler{cfg: cfg, deps: deps}
+	if cfg.Enabled {
+		if err := cfg.Validate(); err != nil {
+			// Startup validation already refuses this; the handler stays closed rather
+			// than fetching with a configuration it cannot trust. The error names a
+			// field only, never a value.
+			slog.Error("mapbox tiles disabled by invalid configuration", "error", err)
+		} else {
+			h.enabled = true
+		}
+	}
 	h.SetClient(deps.Client)
 	return h
 }
@@ -62,9 +72,16 @@ func New(cfg Config, deps Deps) *Handler {
 // could carry the token somewhere else.
 func (h *Handler) SetClient(c *http.Client) {
 	if c == nil {
-		transport := http.DefaultTransport.(*http.Transport).Clone()
-		transport.DialContext = (&net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}).DialContext
-		c = &http.Client{Transport: transport}
+		// A dedicated plain transport: no tracing wrapper that would record the request
+		// URL (it carries the token), and no type assertion on the shared default.
+		c = &http.Client{Transport: &http.Transport{
+			Proxy:               http.ProxyFromEnvironment,
+			DialContext:         (&net.Dialer{Timeout: 3 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+			ForceAttemptHTTP2:   true,
+			MaxIdleConns:        20,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 5 * time.Second,
+		}}
 	}
 	copied := *c
 	copied.Timeout = 0 // the per-request context owns the deadline, body included

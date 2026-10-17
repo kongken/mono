@@ -198,6 +198,7 @@ func TestMapboxTilesConfigValidation(t *testing.T) {
 		"no username":         func(c *tiles.Config) { c.Username = "" },
 		"no style":            func(c *tiles.Config) { c.StyleID = "" },
 		"not a mapbox token":  func(c *tiles.Config) { c.Token = "not-a-token-" + mapboxTestToken },
+		"secret token":        func(c *tiles.Config) { c.Token = "sk." + strings.TrimPrefix(mapboxTestToken, "pk.") },
 		"token with newline":  func(c *tiles.Config) { c.Token += "\nX-Evil: 1" },
 		"token with query":    func(c *tiles.Config) { c.Token += "&x=1" },
 		"username with slash": func(c *tiles.Config) { c.Username = "a/b" },

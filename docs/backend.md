@@ -387,7 +387,7 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 | 字段 | 说明 |
 | --- | --- |
 | `enabled` | 默认 `false`。关闭时 `/api/tiles/…` 对任何请求返回不缓存的 404，不访问 Mapbox、不使用 Redis；未配置此段的部署行为与之前完全相同 |
-| `token` | Mapbox 访问令牌（`pk.` 或 `sk.` 开头）。只在服务端使用，不进入响应、日志、错误和追踪；更换后重启 tripmap 即生效，前端无需重建 |
+| `token` | Mapbox 公共访问令牌（`pk.` 开头；`sk.` 密钥令牌会被拒绝）。只在服务端使用，不进入响应、日志、错误和追踪；更换后重启 tripmap 即生效，前端无需重建 |
 | `username`、`style_id` | 样式所属账号与样式 ID，1–64 位字母、数字、`-`、`_`；启用时三者都必填 |
 | `max_zoom` | 1–22，默认 18；超过的层级返回 400 |
 | `rate_per_minute` | 每个客户端地址每分钟请求数，默认 600，最大 100000 |
@@ -396,7 +396,7 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 
 启用但配置不合法（缺字段、token 格式错误、名称含特殊字符、数值越界）时 tripmap 启动校验失败；错误信息只写字段名，不含 token。上游地址固定为 `https://api.mapbox.com` 的 Static Tiles API（`/styles/v1/{username}/{style_id}/tiles/256/{z}/{x}/{y}.png`），配置里没有可改的上游，客户端也不能指定 token、样式或上游。
 
-**token 与账号建议**：只授予 `styles:tiles` 读取范围，不使用高权限 secret token；在 Mapbox 账号设置用量告警。若 token 配了 URL 限制，tripmap 的服务端请求不带 `Referer`，可能被 Mapbox 以 403 拒绝——应改用不带 URL 限制的最小权限 token，**不要**通过伪造来源头绕过。
+**token 与账号建议**：只授予 `styles:tiles` 读取范围，只接受 `pk.` 公共令牌（高权限 `sk.` secret token 启动校验即失败）；在 Mapbox 账号设置用量告警。若 token 配了 URL 限制，tripmap 的服务端请求不带 `Referer`，可能被 Mapbox 以 403 拒绝——应改用不带 URL 限制的最小权限 token，**不要**通过伪造来源头绕过。
 
 **请求规则**（任何一项不满足都不会访问 Mapbox，且响应都带 `Cache-Control: no-store`）：
 

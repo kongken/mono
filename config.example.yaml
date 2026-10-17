@@ -48,7 +48,7 @@ auth:
 # Optional Mapbox basemap proxy: GET /api/tiles/{z}/{x}/{y}.png, reached through the BFF.
 # Off by default; while off the route answers 404 and never contacts Mapbox. The token
 # stays here (never in the front end); rotate it by editing it and restarting tripmap.
-# Use a token limited to the styles:tiles scope. Mapbox bills 256 px tiles as four requests
+# Use a public (pk.) token limited to the styles:tiles scope; sk. tokens are refused. Mapbox bills 256 px tiles as four requests
 # each, and the front end must set VITE_OSM_TILE_URL and VITE_OSM_TILE_PROVIDER=mapbox.
 # mapbox_tiles:
 #   enabled: true
