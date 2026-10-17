@@ -68,6 +68,8 @@ type Browser struct {
 	Friends bffv1connect.FriendServiceClient
 	Itin    bffv1connect.ItineraryServiceClient
 	media   bffv1connect.MediaServiceClient
+	Report  bffv1connect.ReportServiceClient
+	Search  bffv1connect.SearchServiceClient
 	APIURL  string
 	Origin string
 	Region string
@@ -179,6 +181,8 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 		Friends: bffv1connect.NewFriendServiceClient(hc, api),
 		Itin:    bffv1connect.NewItineraryServiceClient(hc, api),
 		media:   bffv1connect.NewMediaServiceClient(hc, api),
+		Report:  bffv1connect.NewReportServiceClient(hc, api),
+		Search:  bffv1connect.NewSearchServiceClient(hc, api),
 	}
 }
 

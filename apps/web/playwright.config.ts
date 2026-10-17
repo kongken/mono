@@ -21,8 +21,10 @@ export default defineConfig({
         timeout: 180_000,
       }
     : {
-        command: "npm run preview -- --host 127.0.0.1 --port 4174",
+        command:
+          "VITE_API_BASE_URL=/api npm run build -w @trip-map/web && npm run preview -w @trip-map/web -- --host 127.0.0.1 --port 4174",
         url: "http://127.0.0.1:4174",
-        reuseExistingServer: false,
+        reuseExistingServer: !process.env.CI,
+        timeout: 180_000,
       },
 });

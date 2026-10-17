@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package bff.v1;
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
+
+// SearchService searches the signed-in user's private travel notes via the BFF.
+service SearchService {
+  rpc SearchNotes(SearchNotesRequest) returns (SearchNotesResponse);
+}
+
+message SearchNotesRequest {
+  string query = 1;
+  string province_code = 2;
+  uint32 limit = 3;
+  uint32 offset = 4;
+  optional int64 expected_revision = 5;
+}
+
+message NoteSearchMatch {
+  string region_code = 1;
+  string region_name = 2;
+  string province_code = 3;
+  string trip_id = 4;
+  string date = 5;
+  string note = 6;
+}
+
+message SearchNotesResponse {
+  repeated NoteSearchMatch matches = 1;
+  int64 revision = 2;
+  uint32 next_offset = 3;
+  bool has_more = 4;
+}
