@@ -8,14 +8,11 @@ type Service struct {
 	// grpc.services entry in the configuration. Its upstreams entry stays for the
 	// health probe and for the routes not migrated yet.
 	GRPC bool
-	// Packages are the proto packages it serves as Connect procedures at
-	// /api/<package>.<Service>/<Method>.
+	// Packages and Routes are legacy fields for tests that still model extra
+	// upstreams; production Services only sets GRPC and upstream health probes.
 	Packages []string
-	// Routes are its plain HTTP paths outside the Connect procedures.
-	Routes []Route
-	// Headers are the extra request headers its browser client sends; CORS
-	// allows them.
-	Headers []string
+	Routes   []Route
+	Headers  []string
 }
 
 // Route is a plain HTTP path owned by a service.

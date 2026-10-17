@@ -168,6 +168,7 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 	conn := clients.Conn("tripmap")
 	policy := ingress.Policy{
 		ClientIPHeader: h.cfg.ClientIPHeader,
+		AllowedOrigins: h.cfg.CORSAllowedOrigins,
 		Heavy: map[string]bool{
 			bffv1connect.FootprintServiceSyncChangesProcedure:             true,
 			bffv1connect.SnapshotServiceRestoreSnapshotProcedure:         true,
@@ -211,14 +212,14 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 			route, handler = bffv1connect.NewNotificationServiceHandler(bffnotification.New(tripmapv1.NewNotificationServiceClient(conn)), opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
 			collab := tripmapv1.NewCollaborationServiceClient(conn)
-			route, handler = bffv1connect.NewFriendServiceHandler(friends.New(collab, h.cfg.CORSAllowedOrigins), opts...)
+			route, handler = bffv1connect.NewFriendServiceHandler(friends.New(collab), opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
-			route, handler = bffv1connect.NewSharedTripServiceHandler(sharedtrip.New(collab, h.cfg.CORSAllowedOrigins), opts...)
+			route, handler = bffv1connect.NewSharedTripServiceHandler(sharedtrip.New(collab), opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
-			itin := bffitinerary.New(tripmapv1.NewItineraryServiceClient(conn), h.cfg.CORSAllowedOrigins)
+			itin := bffitinerary.New(tripmapv1.NewItineraryServiceClient(conn))
 			route, handler = bffv1connect.NewItineraryServiceHandler(itin, opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
-			media := bffmedia.New(tripmapv1.NewMediaServiceClient(conn), h.cfg.CORSAllowedOrigins)
+			media := bffmedia.New(tripmapv1.NewMediaServiceClient(conn))
 			route, handler = bffv1connect.NewMediaServiceHandler(media, opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
 			route, handler = bffv1connect.NewShareServiceHandler(bffshare.New(tripmapv1.NewShareServiceClient(conn)), opts...)
@@ -227,7 +228,7 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 			mux.Handle(route, ingress.ConnectOnly(handler))
 			route, handler = bffv1connect.NewSearchServiceHandler(bffsearch.New(tripmapv1.NewSearchServiceClient(conn)), append(opts, connect.WithReadMaxBytes(4096))...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
-			regions := bffregion.New(tripmapv1.NewRegionServiceClient(conn), h.cfg.CORSAllowedOrigins)
+			regions := bffregion.New(tripmapv1.NewRegionServiceClient(conn))
 			route, handler = bffv1connect.NewRegionServiceHandler(regions, opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
 		}

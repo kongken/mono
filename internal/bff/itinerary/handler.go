@@ -2,22 +2,19 @@ package itinerary
 
 import (
 	"context"
-	"errors"
 
 	"connectrpc.com/connect"
-	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/bff/upstream"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 type Handler struct {
-	client         tripmapv1.ItineraryServiceClient
-	allowedOrigins []string
+	client tripmapv1.ItineraryServiceClient
 }
 
-func New(client tripmapv1.ItineraryServiceClient, allowedOrigins []string) *Handler {
-	return &Handler{client: client, allowedOrigins: allowedOrigins}
+func New(client tripmapv1.ItineraryServiceClient) *Handler {
+	return &Handler{client: client}
 }
 
 func (h *Handler) ListItineraries(ctx context.Context, req *connect.Request[bffv1.ListItinerariesRequest]) (*connect.Response[bffv1.ListItinerariesResponse], error) {
@@ -39,9 +36,6 @@ func (h *Handler) GetItinerary(ctx context.Context, req *connect.Request[bffv1.G
 }
 
 func (h *Handler) SaveItinerary(ctx context.Context, req *connect.Request[bffv1.SaveItineraryRequest]) (*connect.Response[bffv1.SaveItineraryResponse], error) {
-	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	}
 	ctx = upstream.WithTripmapHeaders(ctx, req.Header())
 	in := req.Msg
 	stops := make([]*tripmapv1.ItineraryStopInput, 0, len(in.GetStops()))
@@ -62,9 +56,6 @@ func (h *Handler) SaveItinerary(ctx context.Context, req *connect.Request[bffv1.
 }
 
 func (h *Handler) DeleteItinerary(ctx context.Context, req *connect.Request[bffv1.DeleteItineraryRequest]) (*connect.Response[bffv1.DeleteItineraryResponse], error) {
-	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	}
 	ctx = upstream.WithTripmapHeaders(ctx, req.Header())
 	out, err := h.client.DeleteItinerary(ctx, &tripmapv1.DeleteItineraryRequest{
 		Id: req.Msg.GetId(), ExpectedVersion: req.Msg.GetExpectedVersion(),

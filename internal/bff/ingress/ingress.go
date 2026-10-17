@@ -48,6 +48,8 @@ const (
 
 // Policy configures the interceptor.
 type Policy struct {
+	// AllowedOrigins lists browser Origins permitted on write RPCs (see session.CheckWrite).
+	AllowedOrigins []string
 	// Heavy lists the procedures (full names, such as /tripmap.v1.MediaService/X)
 	// that may run for HeavyTimeout instead of DefaultTimeout.
 	Heavy map[string]bool
@@ -64,6 +66,7 @@ type Policy struct {
 
 var (
 	errUnauthenticated     = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
+	errWriteRejected       = connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
 	errDeletionInProgress  = connect.NewError(connect.CodeFailedPrecondition, errors.New("account deletion in progress"))
 	deletionAllowedMethods = map[string]bool{
 		bffv1connect.AuthServiceMeProcedure:           true,
@@ -88,6 +91,11 @@ func Interceptor(p Policy) connect.Interceptor {
 					ce.Meta().Set(RequestIDHeader, requestID)
 				}
 				return err
+			}
+			if RequiresWriteProtection(procedure) {
+				if err := session.CheckWrite(req.Header(), p.AllowedOrigins, req.Header().Get("Host")); err != nil {
+					return nil, withID(errWriteRejected)
+				}
 			}
 			call := rpcauth.Call{
 				RequestID:   requestID,
