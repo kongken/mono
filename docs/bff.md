@@ -23,7 +23,7 @@
 - `bff.v1.MediaService`（#35：`PrepareUpload`、`CompleteUpload`、`ListMedia`、`ReadMedia`、`DeleteMedia`）→ tripmap gRPC `MediaService`；写操作校验 CSRF；`PrepareUpload`/`CompleteUpload` 登记 25 秒重任务；Connect 读上限 16 MiB。tripmap 公网 Connect 上的 `MediaService` 已移除。
 - `bff.v1.ReportService/GetReport`（#39）→ tripmap gRPC `ReportService/GetReport`；`bff.v1.SearchService/SearchNotes` → tripmap gRPC `SearchService/SearchNotes`（Connect 读上限 4 KiB）。tripmap 公网 Connect 上的 `ReportService` / `SearchService` 已移除。
 - `bff.v1.RegionService`（#40：`GetRegionIndex`、`PreviewRegionUpgrade`、`ApplyRegionUpgrade`）→ tripmap gRPC `RegionService` 同名方法；`ApplyRegionUpgrade` 校验 Origin/CSRF；`X-Tripmap-Regions` 白名单下传。tripmap 公网 Connect 上的 `RegionService` 已移除。
-- 可选 Mapbox 底图瓦片：`GET /api/tiles/{z}/{x}/{y}.png`（匿名）在 `gateway.Services` 登记为 tripmap 的 HTTP 路由，BFF 透明转发到 `upstreams.tripmap`（需要 tripmap 的 `mapbox_tiles.enabled`，见 [后端初始化](backend.md#mapbox-瓦片代理可选)）。BFF 不持有 Mapbox token、样式或限流配置；转发时只保留 `Accept`、`User-Agent`，丢弃 Cookie、Authorization、CSRF、Origin 等其余浏览器头，并覆盖写入 `X-Real-IP`；去掉 tripmap 的 `Access-Control-*` 并按 `cors_allowed_origins` 应答；tripmap 不可达时返回不缓存的 502。
+- 可选 Mapbox 底图瓦片：`GET /api/tiles/{z}/{x}/{y}.png`（匿名）在 `gateway.Services` 登记为 tripmap 的 HTTP 路由，BFF 透明转发到 `upstreams.tripmap`（需要 tripmap 的 `mapbox_tiles.enabled`，见 [后端初始化](backend.md#mapbox-瓦片代理可选)）。BFF 不持有 Mapbox token、样式或限流配置；转发时只保留 `Accept`、`User-Agent` 与缓存验证头 `If-None-Match`、`If-Modified-Since`（查询串原样转发，由 tripmap 校验），丢弃 Cookie、Authorization、CSRF、Origin 等其余浏览器头，并覆盖写入 `X-Real-IP`；保留 tripmap 的图片、缓存与验证响应头及 304 状态，去掉 `Access-Control-*` 并按 `cors_allowed_origins` 应答；tripmap 不可达时返回不缓存的 502。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
 **开发数据保留（#30 / #44）**

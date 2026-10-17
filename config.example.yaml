@@ -55,6 +55,8 @@ auth:
 #   token: pk.replace-with-your-token.replace-with-your-token
 #   username: mapbox        # the account that owns the style
 #   style_id: light-v11
+#   # style_version: 2026-10    # optional label; tile URLs carry ?v=<it>. Change it (and the front end's
+#   #                           # VITE_OSM_TILE_VERSION) together with username/style_id to switch styles
 #   # max_zoom: 18              # 1-22, default 18
 #   # rate_per_minute: 600      # per client address, default 600
 #   # upstream_timeout: 5s      # default 5s, at most 30s

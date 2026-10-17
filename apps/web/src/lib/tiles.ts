@@ -31,7 +31,11 @@ type TileEnv = {
   VITE_OSM_TILE_MAX_ZOOM?: string;
   VITE_OSM_TILE_ATTRIBUTION?: string;
   VITE_OSM_TILE_PROVIDER?: string;
+  VITE_OSM_TILE_VERSION?: string;
 };
+
+// Matches the server's mapbox_tiles.style_version: short and plain, so it is safe in a URL.
+const STYLE_VERSION = /^[A-Za-z0-9_-]{1,32}$/;
 
 const hasTileTokens = (url: string) =>
   ["{z}", "{x}", "{y}"].every((token) => url.includes(token));
@@ -50,6 +54,11 @@ const isProxyUrl = (url: string) =>
  * absolute address). It only takes effect with such a URL, so Mapbox credits are
  * never shown on other tiles, and a URL carrying an access token is refused: the
  * token belongs to the server.
+ *
+ * VITE_OSM_TILE_VERSION (Mapbox proxy only) is the label of the style the server
+ * serves, equal to its mapbox_tiles.style_version. It goes into every tile URL as
+ * "?v=<label>", so switching styles changes the URLs and browsers never show tiles
+ * of the old style from their cache. It is public and unrelated to the token.
  */
 export function resolveTileConfig(env: TileEnv = {}): TileConfig {
   const rawUrl = env.VITE_OSM_TILE_URL?.trim();
@@ -58,7 +67,12 @@ export function resolveTileConfig(env: TileEnv = {}): TileConfig {
   const mapbox = Boolean(wantsMapbox && validUrl && isProxyUrl(validUrl));
   // A Mapbox declaration that does not hold up (no URL, or a URL with a token) goes
   // back to OSM entirely rather than keeping a half-trusted custom address.
-  const url = mapbox ? validUrl! : wantsMapbox ? DEFAULT_TILE_URL : (validUrl ?? DEFAULT_TILE_URL);
+  const version = env.VITE_OSM_TILE_VERSION?.trim() ?? "";
+  const versioned =
+    mapbox && STYLE_VERSION.test(version) && !/[?#]/.test(validUrl!)
+      ? `${validUrl}?v=${version}`
+      : validUrl;
+  const url = mapbox ? versioned! : wantsMapbox ? DEFAULT_TILE_URL : (validUrl ?? DEFAULT_TILE_URL);
   const zoom = Number(env.VITE_OSM_TILE_MAX_ZOOM);
   const maxZoom =
     Number.isInteger(zoom) && zoom >= 1 && zoom <= 22

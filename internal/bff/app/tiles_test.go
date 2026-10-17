@@ -130,3 +130,57 @@ func TestTileRouteRejectsUncleanPathsAndUnreachableUpstream(t *testing.T) {
 		t.Errorf("unreachable tripmap: %d %q %v", rec.Code, rec.Body.String(), rec.Header())
 	}
 }
+
+func TestTileValidatorsAndStatusesAreForwardedBothWays(t *testing.T) {
+	up := newTileUpstream(t)
+	up.reply = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "max-age=43200")
+		w.Header().Set("Expires", "Sat, 17 Oct 2026 22:00:00 GMT")
+		w.Header().Set("ETag", `"tile-1"`)
+		w.Header().Set("Last-Modified", "Sat, 17 Oct 2026 10:00:00 GMT")
+		if r.Header.Get("If-None-Match") == `"tile-1"` {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = io.WriteString(w, "PNGBYTES")
+	}
+	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": up.URL}}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tiles/3/5/2.png?v=2026-10", nil)
+	req.Header.Set("If-None-Match", `"tile-1"`)
+	req.Header.Set("If-Modified-Since", "Sat, 17 Oct 2026 10:00:00 GMT")
+	req.Header.Set("Cookie", "shanhai_sid=session-secret")
+	rec := serve(r, req)
+
+	if rec.Code != http.StatusNotModified || rec.Body.Len() != 0 {
+		t.Fatalf("got %d with %d body bytes, want an empty 304", rec.Code, rec.Body.Len())
+	}
+	for k, want := range map[string]string{"Cache-Control": "max-age=43200", "Expires": "Sat, 17 Oct 2026 22:00:00 GMT", "ETag": `"tile-1"`, "Last-Modified": "Sat, 17 Oct 2026 10:00:00 GMT"} {
+		if got := rec.Header().Get(k); got != want {
+			t.Errorf("%s = %q, want %q", k, got, want)
+		}
+	}
+	seen := up.requests()
+	if len(seen) != 1 {
+		t.Fatalf("%d requests reached tripmap", len(seen))
+	}
+	got := seen[0]
+	if got.URL.RawQuery != "v=2026-10" {
+		t.Errorf("tripmap saw query %q, want the style version", got.URL.RawQuery)
+	}
+	if got.Header.Get("If-None-Match") != `"tile-1"` || got.Header.Get("If-Modified-Since") != "Sat, 17 Oct 2026 10:00:00 GMT" {
+		t.Errorf("validators did not reach tripmap: %v", got.Header)
+	}
+	if got.Header.Get("Cookie") != "" {
+		t.Error("the cookie reached tripmap")
+	}
+
+	// A different validator gets the full image with the same headers.
+	req = httptest.NewRequest(http.MethodGet, "/api/tiles/3/5/2.png", nil)
+	req.Header.Set("If-None-Match", `"stale"`)
+	rec = serve(r, req)
+	if rec.Code != http.StatusOK || rec.Body.String() != "PNGBYTES" || rec.Header().Get("ETag") != `"tile-1"` {
+		t.Errorf("stale validator: %d %q %v", rec.Code, rec.Body.String(), rec.Header())
+	}
+}

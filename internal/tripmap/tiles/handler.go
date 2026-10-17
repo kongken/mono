@@ -3,6 +3,8 @@ package tiles
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"image/png"
 	"io"
@@ -47,6 +49,10 @@ type Handler struct {
 	enabled bool
 	deps    Deps
 	client  *http.Client
+	// fingerprint identifies the effective style (account, style and version, never the
+	// token). It scopes the ETags browsers see, so a validator earned under one style is
+	// never answered for another.
+	fingerprint string
 }
 
 // New builds the handler. An invalid or disabled configuration yields a handler
@@ -61,6 +67,8 @@ func New(cfg Config, deps Deps) *Handler {
 			slog.Error("mapbox tiles disabled by invalid configuration", "error", err)
 		} else {
 			h.enabled = true
+			sum := sha256.Sum256([]byte(cfg.Username + "\x00" + cfg.StyleID + "\x00" + cfg.StyleVersion))
+			h.fingerprint = hex.EncodeToString(sum[:5])
 		}
 	}
 	h.SetClient(deps.Client)
@@ -107,8 +115,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusNotFound)
 		return
 	}
-	// Any query is unknown: the token, style and upstream are never the client's to pick.
-	if r.URL.RawQuery != "" || r.URL.ForceQuery || !h.validCoords(z, x, y) {
+	versioned, ok := h.checkQuery(r.URL)
+	if !ok || !h.validCoords(z, x, y) {
 		fail(w, http.StatusBadRequest)
 		return
 	}
@@ -133,7 +141,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.fetch(w, r, z, x, y)
+	h.fetch(w, r, z, x, y, versioned)
+}
+
+// checkQuery accepts no query, or exactly "v=<style_version>" when a version is
+// configured. Anything else is unknown: the token, style and upstream are never the
+// client's to pick, and one tile must have one URL per style. versioned reports
+// whether the URL carried the configured version.
+func (h *Handler) checkQuery(u *url.URL) (versioned, ok bool) {
+	if u.ForceQuery {
+		return false, false
+	}
+	if u.RawQuery == "" {
+		return false, true
+	}
+	value, found := strings.CutPrefix(u.RawQuery, "v=")
+	if !found || h.cfg.StyleVersion == "" || value != h.cfg.StyleVersion {
+		return false, false
+	}
+	return true, true
 }
 
 func (h *Handler) limiter() Limiter {
@@ -207,7 +233,7 @@ func (h *Handler) upstreamURL(z, x, y string) string {
 }
 
 // fetch asks Mapbox for one tile and relays it, or answers with a generic error.
-func (h *Handler) fetch(w http.ResponseWriter, r *http.Request, z, x, y string) {
+func (h *Handler) fetch(w http.ResponseWriter, r *http.Request, z, x, y string, versioned bool) {
 	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.upstreamTimeout())
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.upstreamURL(z, x, y), nil)
@@ -216,10 +242,13 @@ func (h *Handler) fetch(w http.ResponseWriter, r *http.Request, z, x, y string) 
 		return
 	}
 	// Only what Mapbox needs. Nothing the browser sent is forwarded: no Authorization,
-	// Cookie, Referer, Origin, or internal identity claims.
+	// Cookie, Referer, Origin, or internal identity claims. The validators are the one
+	// exception, rebuilt from what this style issued rather than copied.
 	req.Header.Set("Accept", "image/png")
 	req.Header.Set("User-Agent", "shanhai-footprint-tiles/1")
 	req.Header.Set("Accept-Encoding", "identity")
+	cond := h.conditional(r.Header)
+	cond.apply(req.Header)
 
 	res, err := h.client.Do(req)
 	if err != nil {
@@ -229,6 +258,9 @@ func (h *Handler) fetch(w http.ResponseWriter, r *http.Request, z, x, y string) 
 	defer res.Body.Close()
 	max := h.cfg.maxResponseBytes()
 	switch {
+	case res.StatusCode == http.StatusNotModified && cond.sent():
+		h.notModified(w, res, cond, versioned)
+		return
 	case res.StatusCode != http.StatusOK:
 		h.upstreamFailed(w, r, ctx, "status "+strconv.Itoa(res.StatusCode), nil)
 		return
@@ -253,19 +285,51 @@ func (h *Handler) fetch(w http.ResponseWriter, r *http.Request, z, x, y string) 
 	}
 
 	header := w.Header()
-	for _, name := range []string{"Cache-Control", "Expires", "ETag", "Last-Modified"} {
-		if v := res.Header.Get(name); v != "" {
-			header.Set(name, v)
-		}
-	}
-	if header.Get("Cache-Control") == "" && header.Get("Expires") == "" {
-		header.Set("Cache-Control", "no-cache")
-	}
+	h.relayCacheHeaders(header, res.Header, versioned, nil)
 	header.Set("Content-Type", "image/png")
 	header.Set("Content-Length", strconv.Itoa(len(body)))
 	header.Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
+}
+
+// notModified answers a conditional request Mapbox confirmed: no body, and the same
+// cache headers and validator the full response would have carried.
+func (h *Handler) notModified(w http.ResponseWriter, res *http.Response, cond conditionalHeaders, versioned bool) {
+	header := w.Header()
+	// A 304 should repeat the validator; when Mapbox leaves it out and the browser
+	// offered exactly one, that is the one which matched.
+	var fallback *entityTag
+	if len(cond.tags) == 1 {
+		fallback = &cond.tags[0]
+	}
+	h.relayCacheHeaders(header, res.Header, versioned, fallback)
+	header.Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusNotModified)
+}
+
+// relayCacheHeaders copies the cache headers Mapbox's terms ask us to honour, and
+// nothing else. Freshness is never extended. The ETag is scoped to the style.
+// Without a configured version, a URL that carries none is the legacy form: it may be
+// held by browsers across a style switch, so it must always revalidate.
+func (h *Handler) relayCacheHeaders(dst, src http.Header, versioned bool, fallback *entityTag) {
+	for _, name := range []string{"Cache-Control", "Expires", "Last-Modified"} {
+		if v := src.Get(name); v != "" {
+			dst.Set(name, v)
+		}
+	}
+	if tag, ok := parseEntityTag(src.Get("ETag")); ok {
+		dst.Set("ETag", h.scopeETag(tag))
+	} else if fallback != nil {
+		dst.Set("ETag", h.scopeETag(*fallback))
+	}
+	if h.cfg.StyleVersion != "" && !versioned {
+		dst.Set("Cache-Control", "no-cache")
+		dst.Del("Expires")
+	}
+	if dst.Get("Cache-Control") == "" && dst.Get("Expires") == "" {
+		dst.Set("Cache-Control", "no-cache")
+	}
 }
 
 // upstreamFailed picks the status for a failed Mapbox call and logs only a short

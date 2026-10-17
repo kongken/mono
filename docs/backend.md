@@ -389,6 +389,7 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 | `enabled` | 默认 `false`。关闭时 `/api/tiles/…` 对任何请求返回不缓存的 404，不访问 Mapbox、不使用 Redis；未配置此段的部署行为与之前完全相同 |
 | `token` | Mapbox 公共访问令牌（`pk.` 开头；`sk.` 密钥令牌会被拒绝）。只在服务端使用，不进入响应、日志、错误和追踪；更换后重启 tripmap 即生效，前端无需重建 |
 | `username`、`style_id` | 样式所属账号与样式 ID，1–64 位字母、数字、`-`、`_`；启用时三者都必填 |
+| `style_version` | 可选，1–32 位字母、数字、`-`、`_` 的样式版本标签（如 `2026-10`）。设置后浏览器可见的瓦片地址为 `/api/tiles/{z}/{x}/{y}.png?v=<标签>`，只接受与配置完全相同的值；它不发给 Mapbox、不是机密，作用见下文“缓存与样式切换” |
 | `max_zoom` | 1–22，默认 18；超过的层级返回 400 |
 | `rate_per_minute` | 每个客户端地址每分钟请求数，默认 600，最大 100000 |
 | `upstream_timeout` | 单次 Mapbox 请求（含读取响应）的上限，默认 5 秒，最大 30 秒 |
@@ -406,17 +407,25 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 | 方法不是 `GET`（含 `HEAD`） | 405，`Allow: GET` |
 | 路径不是规范的 `/api/tiles/{z}/{x}/{y}.png`（多余段、`//`、`..`、编码斜杠、结尾 `/`、扩展名不是小写 `.png`） | 404 |
 | 坐标不是无符号十进制整数（含前导零、正负号、小数）、`z` 超过 `max_zoom`、`x` 或 `y` 不小于 2^z | 400 |
-| 带任何查询参数（包括 `access_token`） | 400 |
+| 带查询参数，但不是“已配置 `style_version` 且恰为 `?v=<该值>`”（含 `access_token`、`style`、重复或大小写不同的 `v`、值不匹配、未配置版本时带 `v`、空 `?`） | 400 |
 | 超过 `rate_per_minute`（计数键含客户端地址，复用 Redis 固定窗口限流，键前缀 `tiles:`） | 429，`Retry-After: 60` |
 | 限流存储不可用或尚未连接 | 502（不放行，避免无限制地消耗 Mapbox 额度） |
 
 客户端地址按 `auth.client_ip_header`（生产 `X-Real-IP`，由 BFF 覆盖写入）解析；未设置时使用 TCP 对端。限流只复用现有 Redis 固定窗口操作，没有新增 Redis 命令。
 
-**上游访问**：只发送 `Accept`、`User-Agent` 与 `Accept-Encoding: identity`，不转发客户端的 `Authorization`、`Cookie`、`Referer`、`Origin` 或内部身份声明；不跟随重定向（任何 3xx 视为无效响应）；请求使用独立的 HTTP 传输，不经过会记录 URL 的出站追踪。成功须是 HTTP 200、不超过 `max_response_bytes`、PNG 且为 256×256 像素；其他情况一律为脱敏的 502（正文固定为 `Bad Gateway`，不透传上游状态码或错误正文，日志只记录原因类别且不含 token 或带凭据的 URL），超时为 504，浏览器已断开时终止上游请求且不再写响应。上游返回 429、401、403、404、5xx 对浏览器都是 502。
+**上游访问**：只发送 `Accept`、`User-Agent` 与 `Accept-Encoding: identity`（条件请求时另加下文的 `If-None-Match` 或 `If-Modified-Since`），不转发客户端的 `Authorization`、`Cookie`、`Referer`、`Origin` 或内部身份声明；不跟随重定向（任何 3xx 视为无效响应）；请求使用独立的 HTTP 传输，不经过会记录 URL 的出站追踪。成功须是 HTTP 200、不超过 `max_response_bytes`、PNG 且为 256×256 像素；其他情况一律为脱敏的 502（正文固定为 `Bad Gateway`，不透传上游状态码或错误正文，日志只记录原因类别且不含 token 或带凭据的 URL），超时为 504，浏览器已断开时终止上游请求且不再写响应。上游返回 429、401、403、404、5xx 对浏览器都是 502。
 
-**响应**：成功返回 `image/png`，并只保留 Mapbox 的 `Cache-Control`、`Expires`、`ETag`、`Last-Modified`（上游没给缓存头时用 `Cache-Control: no-cache`）；不透传 `Set-Cookie`、CORS 或其他上游头。没有服务端瓦片缓存、持久瓦片库或预取；不处理条件请求，也不按样式区分缓存生命周期（后续任务）。
+**响应**：成功返回 `image/png`，并只保留 Mapbox 的 `Cache-Control`、`Expires`、`Last-Modified` 与按样式限定范围的 `ETag`（上游没给缓存头时用 `Cache-Control: no-cache`）；不透传 `Set-Cookie`、CORS 或其他上游头。没有服务端瓦片缓存、持久瓦片库或预取，也不延长 Mapbox 给出的新鲜期。
 
-**验证**：`internal/tripmap/app/tiles_routes_test.go` 通过真实 tripmap 路由和本地模拟 Mapbox（替换 HTTP 客户端的网络）覆盖成功、关闭、无效输入、限流、超时、过大和无效响应、重定向、取消、凭据隔离与日志脱敏；`internal/tripmap/config/config_test.go` 覆盖配置校验及 token 不出现在错误和打印里；BFF 转发见 `internal/bff/app/tiles_test.go`。自动化测试不使用真实 token，也不产生 Mapbox 请求。使用真实 token 的验收在独立环境完成。
+**缓存与样式切换**（2026-10 按 [Static Tiles API 文档](https://docs.mapbox.com/api/maps/static-tiles/) 核对：该接口返回 `Cache-Control: max-age=43200, s-maxage=43200`，卫星源 `s-maxage=604800`，样式自带的缓存头会覆盖默认值；样式改动最长约 12 小时才会在 Mapbox 侧生效）：
+
+- **条件请求**：浏览器带 `If-None-Match` 时，只有本样式签发的 ETag 会去掉范围标记后下传给 Mapbox（最多 8 个，头部超过 2 KiB、格式错误或为 `*` 时不下传，按无条件请求返回完整图片）；没有 `If-None-Match` 时才下传合法 HTTP 日期的 `If-Modified-Since`。Mapbox 返回 304 时，tripmap 返回无正文的 304，带与 200 相同口径的 `Cache-Control`、`Expires`、`Last-Modified`、`ETag`；Mapbox 的 304 缺少 ETag 且浏览器只给了一个本样式 ETag 时沿用该值。Mapbox 在没有下传验证器时返回 304 视为无效响应（502）。条件请求同样先过方法、路径、坐标、查询和限流校验，校验失败不会访问 Mapbox。
+- **缓存身份**：返回给浏览器的 ETag 形如 `"<指纹>-<Mapbox 的 ETag>"`，指纹是 `username`、`style_id`、`style_version` 的 SHA-256 前 5 字节（十六进制），不含 token。换账号、样式或版本后，旧样式的 ETag 不会被下传，也不会得到 304。缓存不按用户区分，不保存或转发用户凭据；响应不带 `Vary`。
+- **样式切换流程**：同时修改 tripmap 的 `style_id`（或 `username`）与 `style_version`，并用相同的 `VITE_OSM_TILE_VERSION` 重新构建前端；新页面的瓦片地址随之改变，浏览器不会复用旧样式的新鲜缓存。`style_version` 只是版本标签，不能选择样式、账号或上游。token 轮换仍只改 tripmap 配置，不涉及版本或前端。
+- **兼容旧前端**：配置了 `style_version` 后，没有 `?v=` 的旧地址仍可用，但响应固定为 `Cache-Control: no-cache`（不带 `Expires`），浏览器每次用 ETag 重新验证，切换样式时不会被旧缓存遮住；值不匹配的 `?v=` 返回 400。未配置 `style_version` 时行为与以前相同，不接受 `?v=`。
+- **限制**：未配置 `style_version` 时切换 `style_id`/`username`，浏览器地址不变，已缓存的旧样式瓦片仍会在 Mapbox 给出的新鲜期内（Static Tiles 默认最长 12 小时）被直接复用，之后才会因 ETag 范围变化得到完整 200，因此切换样式前应先配置版本；只有 `If-Modified-Since` 而没有 ETag 的客户端无法发现同一地址上的样式切换，应使用版本化地址；无效输入、关闭的代理、限流和上游错误一律 `no-store`，不会带验证器，也不会以图片成功状态返回。
+
+**验证**：`internal/tripmap/app/tiles_routes_test.go` 通过真实 tripmap 路由和本地模拟 Mapbox（替换 HTTP 客户端的网络）覆盖成功、关闭、无效输入、限流、超时、过大和无效响应、重定向、取消、凭据隔离与日志脱敏，以及验证器下传、304、内容变化后 200、跨样式隔离、版本化与旧地址、条件请求不绕过校验和错误 `no-store`；`internal/tripmap/config/config_test.go` 覆盖配置校验及 token 不出现在错误和打印里；BFF 转发（含验证器与 304）见 `internal/bff/app/tiles_test.go`。自动化测试不使用真实 token，也不产生 Mapbox 请求。使用真实 token 的验收在独立环境完成。
 
 ## 数据库模型
 

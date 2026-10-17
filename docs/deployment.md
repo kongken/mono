@@ -60,13 +60,15 @@
 默认关闭，未配置的部署继续使用纯本地地图与现有的自定义瓦片源。启用后浏览器 → 边缘 → BFF → tripmap → `api.mapbox.com`；token 只在 tripmap。规则、配置字段与错误码见 [后端初始化](backend.md#mapbox-瓦片代理可选)，前端署名见 [数据与地图说明](data-and-maps.md#mapbox-代理底图可选)。
 
 1. **token**：在 Mapbox 账号创建只含 `styles:tiles` 范围的 `pk.` 公共令牌，设置用量告警；tripmap 拒绝 `sk.` secret token。不要给令牌配 URL 限制后再伪造来源头（tripmap 的请求没有 `Referer`），需要限制时在账号侧评估可行方式。
-2. **tripmap**：在 `config.yaml`（或挂载的 Secret 文件）加入 `mapbox_tiles`（`enabled: true`、`token`、`username`、`style_id`，可调 `max_zoom`、`rate_per_minute`、`upstream_timeout`、`max_response_bytes`），重启。配置不合法会启动失败，错误不含 token。**轮换 token**：只改配置里的 `token` 并重启 tripmap，前端无需重建。
+2. **tripmap**：在 `config.yaml`（或挂载的 Secret 文件）加入 `mapbox_tiles`（`enabled: true`、`token`、`username`、`style_id`，可调 `style_version`、`max_zoom`、`rate_per_minute`、`upstream_timeout`、`max_response_bytes`），重启。配置不合法会启动失败，错误不含 token。**轮换 token**：只改配置里的 `token` 并重启 tripmap，前端无需重建。
 3. **网络**：tripmap 容器需要能出站访问 `https://api.mapbox.com`（443，遵循 `HTTPS_PROXY` 等标准环境变量）；BFF 到 tripmap 的 HTTP 端口（`upstreams.tripmap`）需要可达。tripmap 的 `18082` 仍不得暴露到公网。
 4. **边缘与 BFF**：现有 Nginx/Caddy 对 `/api/` 的转发已覆盖 `/api/tiles/`，无需新增规则；边缘必须设置 `X-Real-IP`，限流按它计数。tripmap 的 `auth.client_ip_header` 需为 `X-Real-IP`，否则所有请求会被算作 BFF 的地址并共享同一个限流额度。
-5. **前端**：重新构建并传入 `VITE_OSM_TILE_URL=/api/tiles/{z}/{x}/{y}.png`（同源）和 `VITE_OSM_TILE_PROVIDER=mapbox`，Docker 镜像用 `--build-arg`；前后端跨源时 URL 用 BFF 绝对地址，并在 BFF 配置 `cors_allowed_origins`。构建产物与浏览器请求中不应出现 token。当前 CI 工作流未传递这两个变量。
+5. **前端**：重新构建并传入 `VITE_OSM_TILE_URL=/api/tiles/{z}/{x}/{y}.png`（同源）和 `VITE_OSM_TILE_PROVIDER=mapbox`，Docker 镜像用 `--build-arg`；前后端跨源时 URL 用 BFF 绝对地址，并在 BFF 配置 `cors_allowed_origins`。构建产物与浏览器请求中不应出现 token。可选再传 `VITE_OSM_TILE_VERSION`（与 `style_version` 相同）。当前 CI 工作流未传递这些变量。
 6. **验证**：打开全国与省内地图的底图开关，网络面板中只有 `/api/tiles/…` 请求，响应正常；临时把 `enabled` 设为 `false` 并重启，确认请求得到 404、页面提示底图失败且 SVG 地图可用。
 
-费用与条款：瓦片请求计入 Mapbox 账号用量，256 像素瓦片按请求计费，数量约为 512 像素的 4 倍；代理限流只保护服务，不替代 Mapbox 的额度与条款，使用前请阅读 Mapbox 当前的服务条款和缓存规则。代理不做持久缓存、预取或离线下载。
+7. **切换样式**：同时修改 tripmap 的 `style_id`（或 `username`）与 `style_version`，重启 tripmap，并用新的 `VITE_OSM_TILE_VERSION` 重新构建前端。两者更新之间有短暂的不一致窗口：服务端先更新时，没有 `?v=` 的旧前端地址仍可用（每次重新验证，不会被旧缓存遮住），带旧版本号的地址得到 400；前端先更新时，带新版本号的地址在服务端重启前得到 400。建议同一次发布内完成。切换后在网络面板确认瓦片请求带新的 `?v=`，重复访问得到 304 或命中缓存。token 轮换不需要这些步骤。
+
+费用与条款：瓦片请求计入 Mapbox 账号用量，256 像素瓦片按请求计费，数量约为 512 像素的 4 倍；代理限流只保护服务，不替代 Mapbox 的额度与条款，使用前请阅读 Mapbox 当前的服务条款和缓存规则。代理不做持久缓存、预取或离线下载；浏览器和符合条款的共享缓存按 Mapbox 的 `Cache-Control`（Static Tiles 默认 `max-age=43200`，即最长约 12 小时）缓存，代理不延长。
 
 ## 健康检查
 

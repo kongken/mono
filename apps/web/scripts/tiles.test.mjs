@@ -148,3 +148,61 @@ test("the basemap hint names where tiles really come from", () => {
   assert.match(custom.hint, /tiles\.example\.com/);
   assert.doesNotMatch(custom.hint, /openstreetmap\.org/);
 });
+
+test("mapbox provider appends the style version to the tile URL", () => {
+  const cfg = resolveTileConfig({
+    VITE_OSM_TILE_URL: MAPBOX_PATH,
+    VITE_OSM_TILE_PROVIDER: "mapbox",
+    VITE_OSM_TILE_VERSION: " 2026-10 ",
+  });
+  assert.equal(cfg.provider, "mapbox");
+  assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}.png?v=2026-10");
+  const absolute = resolveTileConfig({
+    VITE_OSM_TILE_URL: "https://api.example.com/api/tiles/{z}/{x}/{y}.png",
+    VITE_OSM_TILE_PROVIDER: "mapbox",
+    VITE_OSM_TILE_VERSION: "v2_a",
+  });
+  assert.equal(absolute.url, "https://api.example.com/api/tiles/{z}/{x}/{y}.png?v=v2_a");
+});
+
+test("an unusable style version leaves the tile URL unversioned", () => {
+  for (const version of ["", "  ", "a b", "a&b=1", "1.0", "x".repeat(33), "é"]) {
+    const cfg = resolveTileConfig({
+      VITE_OSM_TILE_URL: MAPBOX_PATH,
+      VITE_OSM_TILE_PROVIDER: "mapbox",
+      VITE_OSM_TILE_VERSION: version,
+    });
+    assert.equal(cfg.url, MAPBOX_PATH, JSON.stringify(version));
+  }
+  // A URL that already has a query is the deployer's own; the version is not added.
+  const withQuery = resolveTileConfig({
+    VITE_OSM_TILE_URL: "/api/tiles/{z}/{x}/{y}.png?x=1",
+    VITE_OSM_TILE_PROVIDER: "mapbox",
+    VITE_OSM_TILE_VERSION: "2",
+  });
+  assert.equal(withQuery.url, "/api/tiles/{z}/{x}/{y}.png?x=1");
+});
+
+test("the style version never changes non-Mapbox tile sources", () => {
+  const custom = resolveTileConfig({
+    VITE_OSM_TILE_URL: "https://tiles.example.com/{z}/{x}/{y}.png",
+    VITE_OSM_TILE_VERSION: "2",
+  });
+  assert.equal(custom.url, "https://tiles.example.com/{z}/{x}/{y}.png");
+  assert.equal(resolveTileConfig({ VITE_OSM_TILE_VERSION: "2" }).url, DEFAULT_TILE_URL);
+  // A failed Mapbox declaration falls back to OSM without the version.
+  const fallback = resolveTileConfig({
+    VITE_OSM_TILE_PROVIDER: "mapbox",
+    VITE_OSM_TILE_VERSION: "2",
+  });
+  assert.equal(fallback.url, DEFAULT_TILE_URL);
+});
+
+test("the Mapbox source description is unchanged by a version", () => {
+  const cfg = resolveTileConfig({
+    VITE_OSM_TILE_URL: MAPBOX_PATH,
+    VITE_OSM_TILE_PROVIDER: "mapbox",
+    VITE_OSM_TILE_VERSION: "2",
+  });
+  assert.match(describeTileSource(cfg).hint, /本站服务/);
+});
