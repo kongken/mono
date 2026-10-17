@@ -13,6 +13,8 @@ COPY packages/geo-data/data/regions.json packages/geo-data/data/regions.json
 COPY packages/geo-data/data/city-coords.json packages/geo-data/data/city-coords.json
 COPY packages/fixtures packages/fixtures
 COPY migrations/tripmap migrations/tripmap
+# The migration tests check the separate post-import cleanup script.
+COPY deploy/sql/tripmap deploy/sql/tripmap
 RUN go test ./internal/... ./cmd/...
 RUN CGO_ENABLED=0 go build -trimpath -o /tripmap ./cmd/tripmap
 

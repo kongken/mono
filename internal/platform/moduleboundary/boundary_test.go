@@ -1,6 +1,7 @@
 package moduleboundary_test
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -25,17 +26,33 @@ func moduleRoot(t *testing.T) string {
 
 func TestServiceImportBoundaries(t *testing.T) {
 	root := moduleRoot(t)
+	checked := 0
 	for entry, forbidden := range boundaries {
-		cmd := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", entry)
+		// Service images only copy their own cmd/ and business tree, so the other
+		// service's entry point is absent there; the image build itself enforces
+		// the boundary in that case.
+		dir := filepath.Join(root, "cmd", filepath.Base(entry))
+		if _, err := os.Stat(dir); err != nil {
+			continue
+		}
+		checked++
+		cmd := exec.Command("go", "list", "-buildvcs=false", "-deps", "-f", "{{.ImportPath}}", entry)
 		cmd.Dir = root
 		out, err := cmd.Output()
 		if err != nil {
-			t.Fatalf("go list -deps %s: %v", entry, err)
+			var stderr []byte
+			if ee, ok := err.(*exec.ExitError); ok {
+				stderr = ee.Stderr
+			}
+			t.Fatalf("go list -deps %s: %v\n%s", entry, err, stderr)
 		}
 		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 			if line == forbidden || strings.HasPrefix(line, forbidden+"/") {
 				t.Fatalf("%s must not import %s (found %s)", entry, forbidden, line)
 			}
 		}
+	}
+	if checked == 0 {
+		t.Skip("no service entry point present")
 	}
 }
