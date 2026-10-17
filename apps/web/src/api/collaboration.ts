@@ -1,9 +1,13 @@
 import { createClient } from "@connectrpc/connect";
 import {
+  FriendService,
+  type FriendshipInfo as BffFriendshipInfo,
+  type FriendUser as BffFriendUser,
+  type FriendComparison as BffFriendComparison,
+  type SharedTripInfo as BffSharedTripInfo,
+} from "@trip-map/api-client/bff/v1/friends_pb";
+import {
   CollaborationService,
-  type FriendshipInfo,
-  type FriendUser,
-  type FriendComparison,
   type SharedTripInfo,
   type SharedTripMediaInfo,
 } from "@trip-map/api-client/tripmap/v1/collaboration_pb";
@@ -11,25 +15,29 @@ import { parseShareContent, type ShareContent } from "@/lib/share";
 import { normalizeFriendSettings, type FriendPrivacySettings } from "@/lib/collaboration";
 import { transport } from "./transport";
 
-const raw = transport ? createClient(CollaborationService, transport) : null;
-const client = () => {
-  if (!raw) throw new Error("backend not configured");
-  return raw;
+const friendRaw = transport ? createClient(FriendService, transport) : null;
+const sharedTripRaw = transport ? createClient(CollaborationService, transport) : null;
+
+const friendClient = () => {
+  if (!friendRaw) throw new Error("backend not configured");
+  return friendRaw;
 };
 
-export type {
-  FriendshipInfo,
-  FriendUser,
-  FriendComparison,
-  SharedTripInfo,
-  SharedTripMediaInfo,
+const sharedTripClient = () => {
+  if (!sharedTripRaw) throw new Error("backend not configured");
+  return sharedTripRaw;
 };
+
+export type FriendshipInfo = BffFriendshipInfo;
+export type FriendUser = BffFriendUser;
+export type FriendComparison = BffFriendComparison;
+export type { SharedTripInfo, SharedTripMediaInfo };
 
 export type CollaborationOverview = {
   myFriendCode: string;
   friendSettings: FriendPrivacySettings;
   friends: FriendshipInfo[];
-  sharedTrips: SharedTripInfo[];
+  sharedTrips: BffSharedTripInfo[];
 };
 
 export type FriendFootprintView = {
@@ -41,7 +49,7 @@ export type FriendFootprintView = {
 
 export const collaborationApi = {
   getOverview: async (): Promise<CollaborationOverview> => {
-    const r = await client().getCollaborationOverview({});
+    const r = await friendClient().getCollaborationOverview({});
     return {
       myFriendCode: r.myFriendCode,
       friendSettings: normalizeFriendSettings({
@@ -55,7 +63,7 @@ export const collaborationApi = {
   },
   updateFriendSettings: async (settings: FriendPrivacySettings): Promise<FriendPrivacySettings> => {
     const normalized = normalizeFriendSettings(settings);
-    const r = await client().updateFriendSettings({ settings: normalized });
+    const r = await friendClient().updateFriendSettings({ settings: normalized });
     return normalizeFriendSettings({
       showCities: r.settings?.showCities ?? normalized.showCities,
       showDates: r.settings?.showDates ?? normalized.showDates,
@@ -63,18 +71,18 @@ export const collaborationApi = {
     });
   },
   sendFriendRequest: async (target: string): Promise<FriendshipInfo | undefined> => {
-    const r = await client().sendFriendRequest({ target });
+    const r = await friendClient().sendFriendRequest({ target });
     return r.friendship;
   },
   respondFriendRequest: async (friendshipId: string, accept: boolean): Promise<FriendshipInfo | undefined> => {
-    const r = await client().respondFriendRequest({ friendshipId, accept });
+    const r = await friendClient().respondFriendRequest({ friendshipId, accept });
     return r.friendship;
   },
   removeFriend: async (friendshipId: string): Promise<void> => {
-    await client().removeFriend({ friendshipId });
+    await friendClient().removeFriend({ friendshipId });
   },
   getFriendFootprints: async (friendUserId: string): Promise<FriendFootprintView> => {
-    const r = await client().getFriendFootprints({ friendUserId });
+    const r = await friendClient().getFriendFootprints({ friendUserId });
     return {
       friend: r.friend,
       friendSettings: normalizeFriendSettings({
@@ -92,14 +100,14 @@ export const collaborationApi = {
     friendUserId: string;
     role: "editor" | "viewer";
   }): Promise<SharedTripInfo | undefined> => {
-    const r = await client().inviteToSharedTrip(params);
+    const r = await sharedTripClient().inviteToSharedTrip(params);
     return r.sharedTrip;
   },
   respondSharedTripInvite: async (
     sharedTripId: string,
     accept: boolean,
   ): Promise<{ sharedTrip?: SharedTripInfo; footprintRevision: number }> => {
-    const r = await client().respondSharedTripInvite({ sharedTripId, accept });
+    const r = await sharedTripClient().respondSharedTripInvite({ sharedTripId, accept });
     return {
       sharedTrip: r.sharedTrip,
       footprintRevision: Number(r.footprintRevision),
@@ -111,7 +119,7 @@ export const collaborationApi = {
     note: string;
     mutationId: string;
   }): Promise<{ sharedTrip?: SharedTripInfo; footprintRevision: number }> => {
-    const r = await client().updateSharedTrip(params);
+    const r = await sharedTripClient().updateSharedTrip(params);
     return {
       sharedTrip: r.sharedTrip,
       footprintRevision: Number(r.footprintRevision),
@@ -122,29 +130,29 @@ export const collaborationApi = {
     memberUserId: string;
     role: "editor" | "viewer";
   }): Promise<SharedTripInfo | undefined> => {
-    const r = await client().setSharedTripMemberRole(params);
+    const r = await sharedTripClient().setSharedTripMemberRole(params);
     return r.sharedTrip;
   },
   removeSharedTripMember: async (params: {
     sharedTripId: string;
     memberUserId: string;
   }): Promise<SharedTripInfo | undefined> => {
-    const r = await client().removeSharedTripMember(params);
+    const r = await sharedTripClient().removeSharedTripMember(params);
     return r.sharedTrip;
   },
   leaveSharedTrip: async (sharedTripId: string): Promise<number> => {
-    const r = await client().leaveSharedTrip({ sharedTripId });
+    const r = await sharedTripClient().leaveSharedTrip({ sharedTripId });
     return Number(r.footprintRevision);
   },
   deleteSharedTrip: async (sharedTripId: string): Promise<void> => {
-    await client().deleteSharedTrip({ sharedTripId });
+    await sharedTripClient().deleteSharedTrip({ sharedTripId });
   },
   listSharedTripMedia: async (sharedTripId: string): Promise<SharedTripMediaInfo[]> => {
-    const r = await client().listSharedTripMedia({ sharedTripId });
+    const r = await sharedTripClient().listSharedTripMedia({ sharedTripId });
     return r.media;
   },
   readSharedTripMedia: async (sharedTripId: string, mediaId: string, thumbnail = false) => {
-    const r = await client().readSharedTripMedia({ sharedTripId, mediaId, thumbnail });
+    const r = await sharedTripClient().readSharedTripMedia({ sharedTripId, mediaId, thumbnail });
     return {
       blob: new Blob([new Uint8Array(r.data)], { type: r.contentType }),
       filename: r.filename,

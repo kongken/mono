@@ -11,6 +11,7 @@
 - `bff.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
 - `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`IssueCSRFToken`；账号与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`）。会话 Cookie：`shanhai_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `shanhai_csrf` + 请求头 `X-CSRF-Token`；写操作校验 Origin。响应不返回会话令牌。
 - `bff.v1.FootprintService/GetFootprints` → tripmap gRPC `FootprintService/GetFootprints`；注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
+- `bff.v1.FriendService`（#37）：好友概览、隐私设置、请求/解除与好友足迹对比 → tripmap gRPC `CollaborationService` 同名方法；好友码与展示字段在 tripmap 业务档案，不查 BFF 认证库。写操作校验 CSRF。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
 **开发数据保留（#30）**
@@ -19,8 +20,8 @@
 
 **当前限制**
 
-- OAuth、ListSessions、足迹写/sync、快照、媒体等仍经透明网关 `tripmap.v1` + Bearer（#31–#44）。
-- 前端除 auth 与 GetFootprints 外仍调用 `tripmap.v1` Connect；OAuth UI 在 #32 前不可用。
+- OAuth、ListSessions、足迹写/sync、快照、媒体、**共同旅行写操作**等仍经透明网关 `tripmap.v1`（Cookie 账号下共同旅行变更尚未迁移，#41 等）。
+- 前端除 auth、GetFootprints 与好友 RPC 外仍调用 `tripmap.v1` Connect；OAuth UI 在 #32 前不可用。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）
@@ -53,7 +54,7 @@
 - **期限与取消**：普通过程上限 10 秒；上传等重任务上限 25 秒，需在 `ingress.Policy.Heavy` 中显式登记（当前为空）。实际期限取客户端剩余期限（`Connect-Timeout-Ms`）与上限的较小值，在 BFF 设置一次并通过 gRPC 期限传给业务服务；客户端取消会传播到服务，服务端处理随之停止。不做任何自动重试。
 - **请求 ID**：读取 `X-Request-Id`，仅当匹配 `^[A-Za-z0-9._-]{1,64}$` 时沿用，否则替换为随机 32 位十六进制；响应（含错误）回写该头，并作为内部 metadata 下传。
 - **客户端地址**：与透明网关相同，按 `client_ip_header`（受信反向代理写入的头）解析，未设置时用 TCP 对端；客户端自带的 `X-Bff-Client-Ip` 之类的头不会被读取。
-- **错误**：业务服务的错误消息不原样返回；`UNAVAILABLE`、`DEADLINE_EXCEEDED`、`CANCELED` 映射为同名 Connect 码，BFF 凭证被拒（`UNAUTHENTICATED`）、`INTERNAL` 等服务端故障统一为 `INTERNAL: internal error`。tripmap 不可达时返回 `UNAVAILABLE`，不会返回过期或伪造的状态。
+- **错误**：业务服务的错误消息不原样返回；`NOT_FOUND`、`PERMISSION_DENIED`、`INVALID_ARGUMENT`、`RESOURCE_EXHAUSTED` 等用户可见域错误按同名 Connect 码返回；`UNAVAILABLE`、`DEADLINE_EXCEEDED`、`CANCELED` 同理。BFF 凭证被拒（tripmap 返回的 `UNAUTHENTICATED`）与 `INTERNAL` 等服务端故障统一为 `INTERNAL: internal error`。tripmap 不可达时返回 `UNAVAILABLE`。
 - **跨域**：与 `/api/` 其他路径一样由 BFF 按 `cors_allowed_origins` 应答。
 
 ## 内部 gRPC 与凭证
