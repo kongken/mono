@@ -68,7 +68,7 @@ type Browser struct {
 }
 
 // NewChainHarness builds the full stack or skips when storage env is unset.
-func NewChainHarness(t *testing.T) *ChainHarness {
+func NewChainHarness(t *testing.T, mutate ...func(*tripmapconfig.AppConfig)) *ChainHarness {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	idx, err := regions.Default()
@@ -89,6 +89,9 @@ func NewChainHarness(t *testing.T) *ChainHarness {
 	tripCfg := &tripmapconfig.AppConfig{
 		GRPC:         grpcx.ServerConfig{Listen: "127.0.0.1:0", CertFile: tls.CertFile, KeyFile: tls.KeyFile},
 		InternalAuth: servicetoken.VerifyConfig{Issuer: issuer, Audience: audience, TrustedKeys: []servicetoken.TrustedKey{{KID: "k1", PublicKeyFile: keys.PublicFile}}},
+	}
+	for _, m := range mutate {
+		m(tripCfg)
 	}
 	h.Tripmap = tripmapapp.New(tripCfg)
 	h.Tripmap.SetResources(&tripmapapp.Resources{

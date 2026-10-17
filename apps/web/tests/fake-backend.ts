@@ -12,7 +12,7 @@ import * as collaborationPb from "@trip-map/api-client/tripmap/v1/collaboration_
 import * as footprint from "@trip-map/api-client/tripmap/v1/footprint_pb";
 import * as itineraryPb from "@trip-map/api-client/tripmap/v1/itinerary_pb";
 import { DEFAULT_ESTIMATION_POLICY, buildItineraryInfo, validateItineraryInput, type ItineraryRecord } from "../src/lib/itinerary";
-import * as notificationPb from "@trip-map/api-client/tripmap/v1/notification_pb";
+import * as notificationPb from "@trip-map/api-client/bff/v1/notification_pb";
 import * as reportPb from "@trip-map/api-client/tripmap/v1/report_pb";
 import * as regionsPb from "@trip-map/api-client/tripmap/v1/regions_pb";
 import catalog from "@trip-map/geo-data/region-catalog.json" with { type: "json" };

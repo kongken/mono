@@ -82,6 +82,12 @@ func grpcError(err error) error {
 			return status.Error(codes.InvalidArgument, ce.Message())
 		case connect.CodeFailedPrecondition:
 			return status.Error(codes.FailedPrecondition, ce.Message())
+		case connect.CodeResourceExhausted:
+			return status.Error(codes.ResourceExhausted, ce.Message())
+		case connect.CodeUnavailable:
+			return status.Error(codes.Unavailable, ce.Message())
+		case connect.CodePermissionDenied:
+			return status.Error(codes.PermissionDenied, ce.Message())
 		default:
 			return status.Error(codes.Internal, "internal error")
 		}

@@ -343,9 +343,9 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 - 表 `itineraries`：所属用户（外键，级联删除）、`itinerary_id`（`user_id + itinerary_id` 唯一）、标题、备注、颜色、`version`、站点 JSON、创建/更新时间；迁移 `migrations/tripmap/20261014140617_f11_itineraries.sql`。
 - 账号注销删除行程；`RegionService` 迁移同时改写行程站点中的历史城市 ID（行程里出现未映射区域时作为阻止项）。其余部署与验证同上，先部署后端再部署前端。
 
-## F12 提醒与通知（`tripmap.v1.NotificationService`）
+## F12 提醒与通知（`bff.v1.NotificationService` / `tripmap.v1.NotificationService`）
 
-规则与验收见 [功能描述](features.md#提醒与通知f12)。所有方法须认证，只读写当前会话用户的设置；`proto/tripmap/v1/notification.proto`，实现在 `internal/tripmap/application/notification_service.go`（RPC）、`notification_maintenance.go`（发送）、`notification_public.go`（公开退订页），发送通道在 `internal/tripmap/notification`。
+规则与验收见 [功能描述](features.md#提醒与通知f12)。浏览器经 BFF `bff.v1.NotificationService`（Connect + Cookie 会话）；BFF 适配 tripmap gRPC `NotificationService`（内部 Ed25519 凭证 + 用户 ID）。所有设置方法须认证，只读写当前会话用户的设置。契约：`proto/bff/v1/notification.proto`、`proto/tripmap/v1/notification.proto`；实现在 `internal/bff/notification/`（BFF 适配）、`internal/tripmap/application/notification_service.go`（业务 RPC）、`notification_maintenance.go`（发送）、`notification_public.go` / `notification_public_grpc.go`（退订领域逻辑），发送通道在 `internal/tripmap/notification`。tripmap HTTP 不再挂载 `NotificationService` Connect 或公开退订路由（#44 清理其余 Connect 代理）。
 
 **配置**（`notification`，全部可选；示例见 `config.example.yaml`，真实凭据放在被忽略的 `config.yaml` 或挂载 Secret 中）：
 
@@ -372,7 +372,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 **发送。** `internal/tripmap/app` 每小时在 Redis 锁 `tripmap:notification-maintenance` 下运行一次 `RunNotificationMaintenance`：按用户时区计算本地日期，到达发送小时后，为开启的类型/渠道在 `notification_deliveries` 里以唯一键（用户、类型、渠道、周期；周期为本地日期，年度为年份）先占位再发送，所以多实例或重复检查不会重复发送；失败最多尝试 3 次，状态为 `pending/sent/failed/skipped`，占位后进程崩溃的周期不再重发（最多一次）；发送记录保留 30 天后清理。回忆匹配规则：往年同月同日的旅行，非闰年的 2 月 28 日包含 2 月 29 日的旅行；旧版本 1 账号读取 `city_visits.travel_date`，版本 2 账号读取 `city_trips`；年度回顾在用户本地 1 月 1–7 日发送上一年的数量。
 
-**邮件。** 标准库 `net/smtp`，UTF-8 quoted-printable，拒绝头注入；每封邮件带 `List-Unsubscribe` 与 `List-Unsubscribe-Post: List-Unsubscribe=One-Click`。退订链接 `GET/HEAD/POST /api/notifications/unsubscribe?t=<令牌>`：令牌为 `userID|kind` 的 HMAC-SHA256（`kind` 为 `*` 表示全部邮件类型），无状态；GET 只显示确认页，POST（含邮件客户端一键退订）才关闭对应开关；按 IP 限流，响应 `no-store`、`noindex`、严格 CSP，密钥未配置时路由不提供服务，访问日志与 Referer 不记录令牌。
+**邮件。** 标准库 `net/smtp`，UTF-8 quoted-printable，拒绝头注入；每封邮件带 `List-Unsubscribe` 与 `List-Unsubscribe-Post: List-Unsubscribe=One-Click`。退订链接 `GET/HEAD/POST /api/notifications/unsubscribe?t=<令牌>` 由 **BFF** 应答 HTML，经 gRPC 调用 `tripmap.v1.NotificationPublicService/ProcessEmailUnsubscribe`（匿名内部凭证 + 签名令牌）：令牌为 `userID|kind` 的 HMAC-SHA256（`kind` 为 `*` 表示全部邮件类型），无状态；GET/HEAD 只显示确认页，POST（含邮件客户端一键退订）才关闭对应开关；BFF 边缘与 tripmap 均按客户端 IP 限流，响应 `no-store`、`noindex`、严格 CSP，密钥未配置时不可用，访问日志与 Referer 不记录令牌。
 
 **推送。** 使用 `github.com/SherClockHolmes/webpush-go`；发送前校验端点：必须是 https、域名（非 IP）、端口 443，拨号时再次检查解析出的 IP 不在内网/回环/链路本地等范围，不跟随重定向、不使用代理；返回 404/410 的订阅删除，连续失败 5 次的订阅删除。前端 Service Worker 在 `apps/web/public/sw.js`，只显示服务端发来的标题和正文，点击只打开本站；前端镜像的 Nginx 对 `/sw.js` 设置 `no-cache`，并对 `/api/notifications/` 关闭访问日志、清除 Referer。
 
@@ -455,7 +455,7 @@ make test-integration
 
 PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除，以及版本化迁移的升级校验（见上文“版本化数据库迁移”）。
 
-`internal/e2e/` 提供 **`ChainHarness`**（`chain_harness_test.go`）：在设置 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 时启动真实 BFF（独立 schema + Redis 前缀）→ TLS gRPC → 真实 tripmap（独立 schema），经 httptest 暴露 BFF 公网 URL。`FreshBrowser()` 返回带 cookie jar 的 **`Browser`**，自动处理 CSRF（`IssueCSRFToken` + `X-CSRF-Token`）与足迹读所需的 `X-Tripmap-Schema` / `X-Tripmap-Regions`；`Register` / `Login` / `Me` / `Logout` / `GetFootprints` 走 Connect 公共客户端。后续 ticket 只追加场景测试，复用该 harness。运行：`go test ./internal/e2e/ -run Chain -count=1`（与 `make test-integration` 同一套 PG/Redis 环境；无需 S3，tripmap 使用 noop blob）。
+`internal/e2e/` 提供 **`ChainHarness`**（`chain_harness_test.go`）：在设置 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 时启动真实 BFF（独立 schema + Redis 前缀）→ TLS gRPC → 真实 tripmap（独立 schema），经 httptest 暴露 BFF 公网 URL。`FreshBrowser()` 返回带 cookie jar 的 **`Browser`**，自动处理 CSRF（`IssueCSRFToken` + `X-CSRF-Token`）与足迹读所需的 `X-Tripmap-Schema` / `X-Tripmap-Regions`；`Register` / `Login` / `Me` / `Logout` / `GetFootprints` 走 Connect 公共客户端；`notification_test.go` 覆盖 `bff.v1.NotificationService` 与 BFF 公开退订 HTTP。后续 ticket 只追加场景测试，复用该 harness。运行：`go test ./internal/e2e/ -count=1`（与 `make test-integration` 同一套 PG/Redis 环境；无需 S3，tripmap 使用 noop blob）。
 
 `internal/tripmap/application` 的测试通过 HTTP 调用真实的处理器和拦截器，使用同样的隔离方式（随机 schema 与 Redis key 前缀），未设置 `TRIPMAP_TEST_POSTGRES_DSN` 和 `TRIPMAP_TEST_REDIS_ADDR` 时跳过。覆盖：快照的保存与去重、恢复的差异/撤销/revision 条件/幂等重放/原子性、用户隔离、保留与定时任务、注销清除快照；令牌与密码只存哈希、注册/登录校验与限流、会话过期/撤销/禁用、他人会话不可见、OAuth state 单次使用与注册关闭、用户 A/B 足迹隔离、非法数据、幂等、revision 冲突、省份标记与城市足迹互不影响，以及并发写入不丢失；F5 的账号升级幂等与冻结列、旧客户端被拒绝（所有 RPC）、旅行增删改与级联、旅行校验、用户隔离、变更日志内容、旧批次回执重放、批次原子性与 2000 项上限、新旧客户端并发、旧快照读取与恢复（载荷不变）、恢复时旅行换城市、定时快照、媒体与旅行的关联及隔离、注销清除旅行。`.github/workflows/ci.yml` 在 PostgreSQL 与 Redis 服务容器中运行 `go vet`、`go test -race ./...` 和前端测试、地图检查、构建。
 

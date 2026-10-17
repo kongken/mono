@@ -11,6 +11,8 @@
 - `bff.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
 - `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`IssueCSRFToken`；账号与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`）。会话 Cookie：`shanhai_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `shanhai_csrf` + 请求头 `X-CSRF-Token`；写操作校验 Origin。响应不返回会话令牌。
 - `bff.v1.FootprintService/GetFootprints` → tripmap gRPC `FootprintService/GetFootprints`；注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
+- `bff.v1.NotificationService`（全部提醒设置 RPC）→ tripmap gRPC `NotificationService`；浏览器经 Cookie 会话，业务仍只认 BFF 签发的内部凭证与用户 ID。
+- 公开 HTTP：`GET/HEAD/POST /api/notifications/unsubscribe` 在 BFF 显式注册（`internal/bff/publichttp`），边缘限流与追踪路径模板 `/api/notifications/unsubscribe`（不含查询令牌），再调用 tripmap gRPC `NotificationPublicService/ProcessEmailUnsubscribe`（匿名内部凭证 + 退订签名令牌）；不使用 Cookie CSRF。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
 **开发数据保留（#30）**
@@ -20,7 +22,7 @@
 **当前限制**
 
 - OAuth、ListSessions、足迹写/sync、快照、媒体等仍经透明网关 `tripmap.v1` + Bearer（#31–#44）。
-- 前端除 auth 与 GetFootprints 外仍调用 `tripmap.v1` Connect；OAuth UI 在 #32 前不可用。
+- 前端除 auth、GetFootprints 与提醒设置外仍调用 `tripmap.v1` Connect；OAuth UI 在 #32 前不可用。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）
@@ -35,7 +37,7 @@
 | --- | --- | --- |
 | `GRPC` | 该服务的已迁移过程经内部 gRPC 调用，需要 `grpc.services` 与 `internal_auth` 配置 | `true` |
 | `Packages` | Connect 过程 `/api/<包名>.<服务>/<方法>` 按包名转发 | `tripmap.v1` |
-| `Routes` | 其他 HTTP 路径：精确匹配，或以 `/` 结尾时按前缀匹配，最长者优先；携带凭据的路径填写 `Trace` | `/s`、`/s/`、`/api/share/`（分享令牌）、`/api/notifications/`（退订签名） |
+| `Routes` | 其他 HTTP 路径：精确匹配，或以 `/` 结尾时按前缀匹配，最长者优先；携带凭据的路径填写 `Trace` | `/s`、`/s/`、`/api/share/`（分享令牌）；退订由 BFF `publichttp` 登记，不再经透明网关 |
 | `Headers` | 浏览器客户端额外发送、需要跨域放行的请求头 | `X-Tripmap-Schema`、`X-Tripmap-Regions` |
 
 - 未登记的路径和不规范路径（含 `..`、`//`）返回 404，不转发。
@@ -82,11 +84,15 @@ BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法�
 
 本地开发用 `make dev-secrets` 生成 `dev-secrets/`（CA、tripmap 证书、签名密钥，`kid` 为 `dev-1`，已被 Git 忽略）。
 
+## 公开 HTTP（`internal/bff/publichttp`）
+
+分享页等仍经透明网关；**凭证型公开页**（退订、后续 #36 分享页）在 BFF 用 `publichttp.Registry` 逐条登记：HTTP 方法、路径、可选 Redis 边缘限流（按客户端 IP）、`TracePattern`（追踪与 span 不含查询令牌）。处理器内调用 tripmap gRPC，经 `rpcauth.WithCall` 下传 `ClientIP`。
+
 ## 统一处理的事项
 
 - **客户端地址**（透明转发的路径）：BFF 按自身的 `client_ip_header`（未设置时用 TCP 对端地址）算出客户端地址，转发时总是覆盖 `X-Real-IP`，客户端无法自选地址。业务服务配置 `auth.client_ip_header: X-Real-IP`，用于登录与分享限流。
 - **跨域**：`/api/` 下的跨域请求由 BFF 按 `cors_allowed_origins` 应答，预检请求不转发；业务服务返回的 `Access-Control-*` 头会被去掉，避免出现两套。
-- **追踪脱敏**：Butterfly 的 otel 中间件会记录原始路径；登记了 `Trace` 的路径会在追踪里替换为模板（如 `/s/{token}`），查询串置空。
+- **追踪脱敏**：Butterfly 的 otel 中间件会记录原始路径；登记了 `Trace` 或 `publichttp.TracePattern` 的路径会在追踪里替换为模板（如 `/s/{token}`、`/api/notifications/unsubscribe`），查询串置空。
 
 ## 健康检查
 
@@ -117,7 +123,7 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 - `internal/bff/auth`：注册/登录/会话/CSRF（需 `TRIPMAP_TEST_*`）。
 - `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与 TLS gRPC 信任。
-- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、A/B `GetFootprints` 隔离、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -run Chain`。
+- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、A/B `GetFootprints` 隔离、提醒设置、公开退订 HTTP、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。
 - **Playwright 真实栈**（默认跳过）：`apps/web/tests/bff-cookie-real.spec.ts`；先 `make dev`（或等价 BFF+tripmap），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @trip-map/web -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
 - 其余 UI：Playwright 模拟后端覆盖登录骨架与业务场景。
 

@@ -37,8 +37,6 @@ var Services = []Service{{
 		{Path: "/s", Trace: "/s"},
 		{Path: "/s/", Trace: "/s/{token}"},
 		{Path: "/api/share/", Trace: "/api/share/{token}"},
-		// Unsubscribe links in reminder emails carry a signed token in the query.
-		{Path: "/api/notifications/", Trace: "/api/notifications/{path}"},
 	},
 	Headers: []string{"X-Tripmap-Schema", "X-Tripmap-Regions"},
 }}
