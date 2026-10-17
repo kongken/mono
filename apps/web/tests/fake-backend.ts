@@ -9,8 +9,7 @@ import {
 } from "@bufbuild/protobuf";
 import * as bffAuth from "@trip-map/api-client/bff/v1/auth_pb";
 import * as bffItinerary from "@trip-map/api-client/bff/v1/itinerary_pb";
-import * as auth from "@trip-map/api-client/tripmap/v1/auth_pb";
-import * as collaborationPb from "@trip-map/api-client/tripmap/v1/collaboration_pb";
+import * as bffFriends from "@trip-map/api-client/bff/v1/friends_pb";
 import * as footprint from "@trip-map/api-client/bff/v1/footprint_pb";
 import { DEFAULT_ESTIMATION_POLICY, buildItineraryInfo, validateItineraryInput, type ItineraryRecord } from "../src/lib/itinerary";
 import * as notificationPb from "@trip-map/api-client/bff/v1/notification_pb";
@@ -288,7 +287,8 @@ export function fakeBackend(
           });
         };
         // The anonymous status query (bff.v1) carries no client capability headers.
-        if (method !== "GetStatus") state.regionHeaders.add(req.headers()["x-tripmap-regions"] ?? "");
+        const regionHdr = req.headers()["x-tripmap-regions"];
+        if (method !== "GetStatus" && regionHdr) state.regionHeaders.add(regionHdr);
         const gated = ["GetFootprints", "GetChanges", "SyncChanges", "CreateSnapshot", "ListSnapshots", "GetSnapshot", "RestoreSnapshot"];
         if (gated.includes(method)) {
           const header = req.headers()["x-tripmap-schema"] ?? "";
@@ -326,21 +326,15 @@ export function fakeBackend(
             });
           case "CompleteOAuthFlow":
             return send(bffAuth.CompleteOAuthFlowResponseSchema, {
-              user,
+              user: bffUser(),
               expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
             });
           case "Me":
             return send(bffAuth.MeResponseSchema, { user: bffUser() });
           case "ListSessions":
-            return send(
-              req.url().includes("bff.v1") ? bffAuth.ListSessionsResponseSchema : auth.ListSessionsResponseSchema,
-              {},
-            );
+            return send(bffAuth.ListSessionsResponseSchema, {});
           case "RevokeSession":
-            return send(
-              req.url().includes("bff.v1") ? bffAuth.RevokeSessionResponseSchema : auth.RevokeSessionResponseSchema,
-              {},
-            );
+            return send(bffAuth.RevokeSessionResponseSchema, {});
           case "GetRegionIndex": {
             state.regionCalls.push(method);
             const body = read(regionsPb.GetRegionIndexRequestSchema) as regionsPb.GetRegionIndexRequest;
@@ -556,7 +550,7 @@ export function fakeBackend(
             });
           }
           case "GetCollaborationOverview":
-            return send(collaborationPb.GetCollaborationOverviewResponseSchema, {
+            return send(bffFriends.GetCollaborationOverviewResponseSchema, {
               myFriendCode: "fc_ci_user_1234",
               friendSettings: { showCities: true, showDates: false, showNotes: false },
               friends: [],

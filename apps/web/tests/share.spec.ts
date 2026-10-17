@@ -76,7 +76,9 @@ function fakeShare(page: Page) {
           expectedVersion: "0", previewRevision: "0", refreshContent: false, ...raw,
           settings: { ...privateSettings(), ...raw.settings },
         };
-        expect(route.request().headers().authorization).toBeTruthy();
+        const h = route.request().headers();
+        expect(h["x-csrf-token"]).toBeTruthy();
+        expect(h.authorization).toBeUndefined();
         const ok = (json: unknown) => route.fulfill({ status: 200, json });
         if (method === "GetShare") return ok({ share: info(), enabled: state.enabled });
         if (method === "PreviewShare") {

@@ -1,30 +1,54 @@
+import { execSync } from "node:child_process";
 import { defineConfig } from "@playwright/test";
 
 const realBff = process.env.E2E_REAL_BFF === "1";
 const backend = process.env.TRIPMAP_DEV_BACKEND ?? "http://127.0.0.1:18081";
+
+/** Bind probe: exit 0 when the port is free on 127.0.0.1. */
+function pickPort(preferred = 4174, attempts = 32): number {
+  for (let p = preferred; p < preferred + attempts; p++) {
+    try {
+      execSync(
+        `node -e "require('net').createServer().once('error',()=>process.exit(1)).listen(${p},'127.0.0.1',()=>process.exit(0))"`,
+        { stdio: "ignore", timeout: 3000 },
+      );
+      return p;
+    } catch {
+      /* port in use */
+    }
+  }
+  throw new Error(`no free port in ${preferred}..${preferred + attempts - 1}`);
+}
+
+// Pin default port so config reloads in the runner and worker agree; scan upward only when busy.
+const port = Number(process.env.E2E_PORT) || pickPort(4174);
+const host = "127.0.0.1";
+const baseURL = `http://${host}:${port}`;
+const preview = `npm run preview -w @trip-map/web -- --host ${host} --port ${port}`;
+const build = "VITE_API_BASE_URL=/api npm run build -w @trip-map/web";
+const freePort = `fuser -k ${port}/tcp 2>/dev/null || true`;
 
 export default defineConfig({
   testDir: "tests",
   timeout: 30000,
   fullyParallel: false,
   workers: 1,
-  use: { baseURL: "http://127.0.0.1:4174", trace: "retain-on-failure" },
+  use: { baseURL, trace: "retain-on-failure" },
   projects: [
     { name: "desktop", use: { viewport: { width: 1280, height: 960 } } },
     { name: "mobile", use: { viewport: { width: 390, height: 844 } } },
   ],
   webServer: realBff
     ? {
-        command: `VITE_API_BASE_URL=/api npm run build -w @trip-map/web && TRIPMAP_DEV_BACKEND=${backend} npm run preview -w @trip-map/web -- --host 127.0.0.1 --port 4174`,
-        url: "http://127.0.0.1:4174",
-        reuseExistingServer: !process.env.CI,
+        command: `${freePort}; ${build} && TRIPMAP_DEV_BACKEND=${backend} ${preview}`,
+        url: baseURL,
+        reuseExistingServer: false,
         timeout: 180_000,
       }
     : {
-        command:
-          "VITE_API_BASE_URL=/api npm run build -w @trip-map/web && npm run preview -w @trip-map/web -- --host 127.0.0.1 --port 4174",
-        url: "http://127.0.0.1:4174",
-        reuseExistingServer: !process.env.CI,
+        command: `${freePort}; ${build} && ${preview}`,
+        url: baseURL,
+        reuseExistingServer: false,
         timeout: 180_000,
       },
 });
