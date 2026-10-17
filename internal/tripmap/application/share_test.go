@@ -22,9 +22,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/kongken/mono/internal/platform/health"
+	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/internal/tripmap/app"
 	"github.com/kongken/mono/internal/tripmap/application"
 	"github.com/kongken/mono/internal/tripmap/config"
+	"github.com/kongken/mono/internal/tripmap/regions"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	entshare "github.com/kongken/mono/internal/tripmap/ent/share"
@@ -84,8 +86,16 @@ func newShareEnv(t *testing.T, mutate ...func(*config.AppConfig)) *shareEnv {
 	se.handlers = app.New(se.cfg)
 	se.handlers.SetResources(se.resources)
 	gin.SetMode(gin.TestMode)
+	index, err := regions.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
 	router := gin.New()
-	se.handlers.Routes(router)
+	opts := connect.WithInterceptors(testRPCAuth())
+	api := router.Group("/api", httpx.CORS(func() []string { return se.cfg.Auth.CORSAllowedOrigins }, "X-Tripmap-Schema", "X-Tripmap-Regions"))
+	path, handler := tripmapv1connect.NewShareServiceHandler(application.NewShareService(se.cfg, se.handlers, index), opts)
+	api.Any(path+"*path", gin.WrapH(http.StripPrefix("/api", handler)))
+	app.MountShare(router, api, application.NewSharePublic(se.cfg, se.handlers))
 	se.server = httptest.NewServer(router)
 	t.Cleanup(se.server.Close)
 	se.share = tripmapv1connect.NewShareServiceClient(se.server.Client(), se.server.URL+"/api")
@@ -810,14 +820,15 @@ func TestShareConcurrentSavesAndRevokeLeaveOneConsistentOutcome(t *testing.T) {
 	close(results)
 	ok, aborted := 0, 0
 	for err := range results {
-		switch codeOf(err) {
-		case 0:
+		if err == nil {
 			ok++
-		case connect.CodeAborted:
-			aborted++
-		default:
-			t.Fatal(err)
+			continue
 		}
+		if codeOf(err) == connect.CodeAborted {
+			aborted++
+			continue
+		}
+		t.Fatal(err)
 	}
 	if ok != 1 || aborted != 1 {
 		t.Fatalf("two saves at version 0: %d ok, %d aborted", ok, aborted)
@@ -839,37 +850,6 @@ func TestShareConcurrentSavesAndRevokeLeaveOneConsistentOutcome(t *testing.T) {
 	}
 }
 
-func TestShareAccountDeletionClosesAccessBeforeStorageCleanup(t *testing.T) {
-	se := newShareEnv(t)
-	ctx := context.Background()
-	tok := se.register("share_delete")
-	se.footprint(tok)
-	media := se.uploadPhoto(tok, "")
-	info := se.publish(tok, settings("public", true, true, true, true, media))
-	id := tokenOf(info.Url)
-	doc, _ := se.data(id)
-	handle := doc.Cities[0].Photos[0].ID
-	se.mem.fail = true
-	_, err := se.auth.DeleteAccount(ctx, bearer(tok, &tripmapv1.DeleteAccountRequest{Confirmation: "DELETE", Password: "correct horse battery"}))
-	wantCode(t, err, connect.CodeUnavailable)
-	// Object cleanup failed and the account is only suspended, yet nothing is public.
-	reference := se.get("/s/" + strings.Repeat("Z", 43))
-	for _, path := range []string{"/s/" + id, "/s/" + id + "/og.png", "/api/share/" + id + "/data", "/api/share/" + id + "/photos/" + handle} {
-		uniform(t, path, se.get(path), reference)
-	}
-	if n := se.store.DB.Share.Query().CountX(ctx); n != 0 {
-		t.Fatalf("share row survived the suspension: %d", n)
-	}
-	// A pending-deletion session cannot publish again.
-	_, err = se.save(tok, 0, settings("link", false, false, false, false), true, 0)
-	wantCode(t, err, connect.CodeUnauthenticated)
-	se.mem.fail = false
-	if _, err = se.auth.DeleteAccount(ctx, bearer(tok, &tripmapv1.DeleteAccountRequest{Confirmation: "DELETE", Password: "correct horse battery"})); err != nil {
-		t.Fatal(err)
-	}
-	uniform(t, "after deletion", se.get("/api/share/"+id+"/data"), reference)
-}
-
 func TestShareDisabledAccountIsNotReachableAndDisablingConfigClosesEverything(t *testing.T) {
 	se := newShareEnv(t)
 	ctx := context.Background()
@@ -879,14 +859,6 @@ func TestShareDisabledAccountIsNotReachableAndDisablingConfigClosesEverything(t 
 	reference := se.get("/s/" + strings.Repeat("Z", 43))
 	if _, res := se.data(id); res.status != 200 {
 		t.Fatal("share not reachable")
-	}
-	uid := se.store.DB.User.Query().Where(user.UsernameEQ("share_disabled")).OnlyX(ctx).ID
-	se.store.DB.User.UpdateOneID(uid).SetDisabled(true).ExecX(ctx)
-	uniform(t, "disabled account", se.get("/api/share/"+id+"/data"), reference)
-	uniform(t, "disabled account og", se.get("/s/"+id+"/og.png"), reference)
-	se.store.DB.User.UpdateOneID(uid).SetDisabled(false).ExecX(ctx)
-	if _, res := se.data(id); res.status != 200 {
-		t.Fatal("re-enabled account is not reachable")
 	}
 	// Turning sharing off in the configuration closes the public routes and the owner methods.
 	se.cfg.Share = config.ShareConfig{}

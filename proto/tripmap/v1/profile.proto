@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package tripmap.v1;
+
+option go_package = "github.com/kongken/mono/pkg/proto/tripmap/v1;tripmapv1";
+
+// ProfileService keeps tripmap business user rows in sync with BFF identity.
+// Only the BFF calls these methods over internal gRPC.
+service ProfileService {
+  // EnsureProfile creates or updates the business profile for user_id.
+  rpc EnsureProfile(EnsureProfileRequest) returns (EnsureProfileResponse);
+}
+
+message EnsureProfileRequest {
+  string user_id = 1;
+  string username = 2;
+  string display_name = 3;
+  string avatar_url = 4;
+}
+
+message EnsureProfileResponse {
+  bool created = 1;
+}

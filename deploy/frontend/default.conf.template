@@ -4,6 +4,11 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
     # BACKEND_UPSTREAM is the BFF, the entry in front of the business services. It is
     # resolved at request time, so the static site can start independently.
     resolver 127.0.0.11 valid=10s;
@@ -65,7 +70,7 @@ server {
     location ~ ^/(api/|ping$|readyz$) {
         # nginx's default is 1 MB. A full sync batch is up to 2000 operations; with
         # 1000-character notes that is 6-12 MB, so match the backend's 16 MiB read limit.
-        client_max_body_size 16m;
+        client_max_body_size 20m;
         proxy_pass http://$backend_upstream$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;

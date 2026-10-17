@@ -5,35 +5,49 @@ log:
   format: text
   add_source: false
 
-# Internal base URL of every service in the route table (internal/bff/gateway/services.go).
-# Services listen on the internal network only; make dev runs tripmap on 18082. This
-# address serves the health probe and the routes not migrated to gRPC yet.
+db_store: main
+redis_store: main
+key_prefix: bff
+auto_migrate: true
+
 upstreams:
   tripmap: http://127.0.0.1:18082
 
-# The BFF calls migrated procedures over gRPC with TLS. `make dev-secrets` writes the
-# local CA, certificate and keys under dev-secrets/ (ignored by Git).
 grpc:
   ca_file: dev-secrets/ca.pem
   services:
     tripmap:
       address: 127.0.0.1:18083
-      # server_name: tripmap.internal   # certificate name when it differs from the host
-  # max_message_bytes: 20971520         # default 20 MiB
 
-# Every internal call carries a 60-second Ed25519 credential signed here. Services
-# hold only the public key. Rotation: add the new public key to every service's
-# internal_auth.trusted_keys, switch kid and private_key_file here, and remove the
-# old public key after about 70 seconds.
 internal_auth:
   issuer: tripmap-bff
   kid: dev-1
   private_key_file: dev-secrets/bff.key
 
-# Only behind a trusted reverse proxy that sets this header, for example X-Real-IP
-# from the front image's Nginx or CF-Connecting-IP. The BFF passes the address on
-# to the services as X-Real-IP, overwriting whatever the client sent.
-# client_ip_header: X-Real-IP
+auth:
+  session_ttl: 168h
+  csrf_token_ttl: 24h    # optional; default 24h when unset
+  cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP
+  # registration_disabled: true
+  # oauth_providers.github:
+  #   client_id: ...
+  #   client_secret: ...
+  #   redirect_url: http://localhost:5173/auth/callback/github
 
-# Exact browser origins allowed to call the API from another site.
-# cors_allowed_origins: ["http://localhost:5173"]
+client_ip_header: X-Real-IP
+
+store:
+  db:
+    main:
+      driver: postgres
+      host: 127.0.0.1
+      port: 15432
+      user: tripmap
+      password: tripmap-local
+      db_name: bff
+      ssl_mode: disable
+  redis:
+    main:
+      addr: 127.0.0.1:16379
+      password: tripmap-local
+      db: 0

@@ -8,14 +8,11 @@ type Service struct {
 	// grpc.services entry in the configuration. Its upstreams entry stays for the
 	// health probe and for the routes not migrated yet.
 	GRPC bool
-	// Packages are the proto packages it serves as Connect procedures at
-	// /api/<package>.<Service>/<Method>.
+	// Packages and Routes are legacy fields for tests that still model extra
+	// upstreams; production Services only sets GRPC and upstream health probes.
 	Packages []string
-	// Routes are its plain HTTP paths outside the Connect procedures.
-	Routes []Route
-	// Headers are the extra request headers its browser client sends; CORS
-	// allows them.
-	Headers []string
+	Routes   []Route
+	Headers  []string
 }
 
 // Route is a plain HTTP path owned by a service.
@@ -27,20 +24,11 @@ type Route struct {
 	Trace string
 }
 
-// Services is the route table.
+// Services is the route table. Business RPCs are served as bff.v1 Connect on the
+// BFF; upstream entries remain for health probes and internal gRPC only.
 var Services = []Service{{
-	Name:     "tripmap",
-	GRPC:     true,
-	Packages: []string{"tripmap.v1"},
-	Routes: []Route{
-		// Public share pages, preview images and data; the token is the credential.
-		{Path: "/s", Trace: "/s"},
-		{Path: "/s/", Trace: "/s/{token}"},
-		{Path: "/api/share/", Trace: "/api/share/{token}"},
-		// Unsubscribe links in reminder emails carry a signed token in the query.
-		{Path: "/api/notifications/", Trace: "/api/notifications/{path}"},
-	},
-	Headers: []string{"X-Tripmap-Schema", "X-Tripmap-Regions"},
+	Name: "tripmap",
+	GRPC: true,
 }}
 
 // Names lists the services in the route table.

@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package tripmap.v1;
+
+option go_package = "github.com/kongken/mono/pkg/proto/tripmap/v1;tripmapv1";
+
+// AccountCleanupService is internal-only (BFF → tripmap gRPC). It removes one
+// user's business data and object storage keys; BFF owns auth rows and receipts.
+service AccountCleanupService {
+  // CleanupUserData is idempotent: missing users succeed; partial S3 failures
+  // return UNAVAILABLE so the caller can retry.
+  rpc CleanupUserData(CleanupUserDataRequest) returns (CleanupUserDataResponse);
+}
+
+message CleanupUserDataRequest {
+  string user_id = 1;
+}
+
+message CleanupUserDataResponse {}

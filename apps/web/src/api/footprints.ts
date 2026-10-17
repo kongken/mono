@@ -2,12 +2,12 @@ import { create } from "@bufbuild/protobuf";
 import { createIncrementalReader } from "@/lib/delta";
 import {
   FootprintMutationSchema,
+  FootprintService,
   type FootprintMutation,
   type GetFootprintsResponse,
-} from "@trip-map/api-client/tripmap/v1/footprint_pb";
+} from "@trip-map/api-client/bff/v1/footprint_pb";
 import type { CloudSnapshot } from "@/lib/sync";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
-import { FootprintService } from "@trip-map/api-client/tripmap/v1/footprint_pb";
 import { RevisionChanged, type FootprintApi, type Op } from "@/lib/sync";
 import { BackendNotUpgraded } from "@/lib/errors";
 import type { Trip } from "@/lib/travel";
@@ -16,11 +16,10 @@ import { REGION_VERSION, RegionCompatibilityError } from "@/lib/region-catalog";
 import { projectRegionOps } from "@/lib/region-operations";
 import { getBackendStatus } from "./system";
 
-const raw = transport ? createClient(FootprintService, transport) : null;
-// Only reachable once a session exists, which requires a configured backend.
-const client = () => {
-  if (!raw) throw new Error("backend not configured");
-  return raw;
+const client = transport ? createClient(FootprintService, transport) : null;
+const api = () => {
+  if (!client) throw new Error("backend not configured");
+  return client;
 };
 
 let capability: Promise<void> | null = null;
@@ -55,8 +54,10 @@ function toSnapshot(r: GetFootprintsResponse): CloudSnapshot {
   if (r.schemaVersion < 2) throw new BackendNotUpgraded();
   assertRegionVersion(r.regionVersion);
   const trips = new Map<string, Trip[]>();
-  for (const t of r.trips)
-    trips.set(t.regionCode, [...(trips.get(t.regionCode) ?? []), { id: t.id, date: t.date, note: t.note }]);
+  for (const t of r.trips) {
+    const city = t.city ?? "";
+    trips.set(city, [...(trips.get(city) ?? []), { id: t.id, date: t.date, note: t.note }]);
+  }
   return {
     revision: Number(r.revision),
     saved: {
@@ -95,12 +96,12 @@ function mutation(op: Op): FootprintMutation {
       return create(FootprintMutationSchema, {
         operation: {
           case: "upsertTrip",
-          value: { id: op.trip.id, regionCode: op.code, date: op.trip.date, note: op.trip.note },
+          value: { id: op.trip.id, city: op.code, date: op.trip.date, note: op.trip.note },
         },
       });
     case "deleteTrip":
       return create(FootprintMutationSchema, {
-        operation: { case: "deleteTrip", value: { regionCode: op.code, id: op.id } },
+        operation: { case: "deleteTrip", value: { city: op.code, id: op.id } },
       });
     case "deleteVisit":
       return create(FootprintMutationSchema, {
@@ -147,11 +148,11 @@ function operation(m?: FootprintMutation): Op {
     case "upsertTrip":
       return {
         type: "upsertTrip",
-        code: o.value.regionCode,
+        code: o.value.city,
         trip: { id: o.value.id, date: o.value.date, note: o.value.note },
       };
     case "deleteTrip":
-      return { type: "deleteTrip", code: o.value.regionCode, id: o.value.id };
+      return { type: "deleteTrip", code: o.value.city, id: o.value.id };
     case "deleteVisit":
       return { type: "deleteVisit", code: o.value };
     case "upsertMark":
@@ -171,7 +172,7 @@ async function send(ops: Op[], revision: number, id: string): Promise<number> {
   try {
     return Number(
       (
-        await client().syncChanges({
+        await api().syncChanges({
           mutationId: id,
           baseRevision: BigInt(revision),
           mutations: ops.map(mutation),
@@ -192,7 +193,7 @@ const fullApi: FootprintApi = {
   ready: ensureBackendUpgraded,
   project: projectRegionOps,
   async get() {
-    return toSnapshot(await client().getFootprints({}));
+    return toSnapshot(await api().getFootprints({}));
   },
   apply: (op, revision) => send([op], revision, crypto.randomUUID()),
 };
@@ -205,7 +206,7 @@ export function createFootprintApi(seed?: CloudSnapshot): FootprintApi {
       project: projectRegionOps,
       delta: async (revision) => {
         try {
-          const page = await client().getChanges({
+          const page = await api().getChanges({
             sinceRevision: BigInt(revision),
             limit: 500,
           });

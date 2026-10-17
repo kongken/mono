@@ -7,19 +7,19 @@ import {
   fromJson,
   type DescMessage,
 } from "@bufbuild/protobuf";
-import * as auth from "@trip-map/api-client/tripmap/v1/auth_pb";
-import * as collaborationPb from "@trip-map/api-client/tripmap/v1/collaboration_pb";
-import * as footprint from "@trip-map/api-client/tripmap/v1/footprint_pb";
-import * as itineraryPb from "@trip-map/api-client/tripmap/v1/itinerary_pb";
+import * as bffAuth from "@trip-map/api-client/bff/v1/auth_pb";
+import * as bffItinerary from "@trip-map/api-client/bff/v1/itinerary_pb";
+import * as bffFriends from "@trip-map/api-client/bff/v1/friends_pb";
+import * as footprint from "@trip-map/api-client/bff/v1/footprint_pb";
 import { DEFAULT_ESTIMATION_POLICY, buildItineraryInfo, validateItineraryInput, type ItineraryRecord } from "../src/lib/itinerary";
-import * as notificationPb from "@trip-map/api-client/tripmap/v1/notification_pb";
-import * as reportPb from "@trip-map/api-client/tripmap/v1/report_pb";
-import * as regionsPb from "@trip-map/api-client/tripmap/v1/regions_pb";
+import * as notificationPb from "@trip-map/api-client/bff/v1/notification_pb";
+import * as reportPb from "@trip-map/api-client/bff/v1/report_pb";
+import * as regionsPb from "@trip-map/api-client/bff/v1/region_pb";
 import catalog from "@trip-map/geo-data/region-catalog.json" with { type: "json" };
 import areas from "@trip-map/geo-data/regions.json" with { type: "json" };
 import { regionCatalog, REGION_VERSION } from "../src/lib/region-catalog";
-import * as searchPb from "@trip-map/api-client/tripmap/v1/search_pb";
-import * as snapshotPb from "@trip-map/api-client/tripmap/v1/snapshot_pb";
+import * as searchPb from "@trip-map/api-client/bff/v1/search_pb";
+import * as snapshotPb from "@trip-map/api-client/bff/v1/snapshot_pb";
 import * as statusPb from "@trip-map/api-client/bff/v1/status_pb";
 import { buildReport } from "../src/lib/report";
 import { searchNotes } from "../src/lib/search";
@@ -138,8 +138,20 @@ export function fakeBackend(
   const ts = () => ({ seconds: BigInt(Math.floor(Date.now() / 1000)) });
   const tripsOf = (code: string) => [...state.trips.values()].filter((t) => t.code === code);
   const wireTrip = (t: StoredTrip) => ({
-    id: t.id, regionCode: t.code, date: t.date, note: t.note, createdAt: ts(), updatedAt: ts(),
+    id: t.id, city: t.code, date: t.date, note: t.note, updatedAt: ts(),
   });
+  const wireBffTrip = (t: StoredTrip) => ({
+    id: t.id, city: t.code, date: t.date, note: t.note, updatedAt: ts(),
+  });
+  const bffUser = () => ({
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    avatarUrl: "",
+    createdAt: ts(),
+    deletionPending: false,
+  });
+  const csrfToken = "ci-csrf-test-token";
   const wireItinerary = (r: ItineraryRecord) => {
     const info = buildItineraryInfo(r);
     return { ...info, version: BigInt(info.version), createdAt: ts(), updatedAt: ts() };
@@ -191,7 +203,7 @@ export function fakeBackend(
     create(footprint.FootprintMutationSchema, { operation } as never);
   const upsertCityMutation = (c: City) => mutation({ case: "upsertCity", value: c });
   const upsertTripMutation = (t: StoredTrip) =>
-    mutation({ case: "upsertTrip", value: { id: t.id, regionCode: t.code, date: t.date, note: t.note } });
+    mutation({ case: "upsertTrip", value: { id: t.id, city: t.code, date: t.date, note: t.note } });
   /** Applies one mutation as the server does; returns false when it is rejected. */
   const apply = (m: footprint.FootprintMutation): string => {
     const op = m.operation;
@@ -207,8 +219,8 @@ export function fakeBackend(
         return "upsertCity";
       case "upsertTrip": {
         const t = op.value;
-        if (!state.visits.has(t.regionCode)) throw new Error("trip city does not exist");
-        state.trips.set(t.id, { id: t.id, code: t.regionCode, date: t.date, note: t.note });
+        if (!state.visits.has(t.city)) throw new Error("trip city does not exist");
+        state.trips.set(t.id, { id: t.id, code: t.city, date: t.date, note: t.note });
         return "upsertTrip";
       }
       case "deleteTrip":
@@ -249,7 +261,7 @@ export function fakeBackend(
       const t = state.trips.get(id);
       if (!t) return;
       state.trips.delete(id);
-      logChange(mutation({ case: "deleteTrip", value: { regionCode: t.code, id } }));
+      logChange(mutation({ case: "deleteTrip", value: { city: t.code, id } }));
     },
     otherDeviceDeleteVisit: (code: string) => {
       apply(mutation({ case: "deleteVisit", value: code }) as footprint.FootprintMutation);
@@ -275,7 +287,8 @@ export function fakeBackend(
           });
         };
         // The anonymous status query (bff.v1) carries no client capability headers.
-        if (method !== "GetStatus") state.regionHeaders.add(req.headers()["x-tripmap-regions"] ?? "");
+        const regionHdr = req.headers()["x-tripmap-regions"];
+        if (method !== "GetStatus" && regionHdr) state.regionHeaders.add(regionHdr);
         const gated = ["GetFootprints", "GetChanges", "SyncChanges", "CreateSnapshot", "ListSnapshots", "GetSnapshot", "RestoreSnapshot"];
         if (gated.includes(method)) {
           const header = req.headers()["x-tripmap-schema"] ?? "";
@@ -290,18 +303,38 @@ export function fakeBackend(
         switch (method) {
           case "GetStatus":
             return send(statusPb.GetStatusResponseSchema, { footprintSchema: state.footprintSchema, shareEnabled: options.shareEnabled ?? false, regionVersion: state.regionVersion });
-          case "Login":
-            return send(auth.LoginResponseSchema, {
-              token: "ci-token",
-              user,
+          case "IssueCSRFToken":
+            return send(bffAuth.IssueCSRFTokenResponseSchema, { token: csrfToken });
+          case "Register":
+            return send(bffAuth.RegisterResponseSchema, {
+              user: bffUser(),
               expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
             });
+          case "Login":
+            return send(bffAuth.LoginResponseSchema, {
+              user: bffUser(),
+              expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
+            });
+          case "Logout":
+            return send(bffAuth.LogoutResponseSchema, {});
           case "ListOAuthProviders":
-            return send(auth.ListOAuthProvidersResponseSchema, {});
+            return send(bffAuth.ListOAuthProvidersResponseSchema, {});
+          case "BeginOAuthFlow":
+            return send(bffAuth.BeginOAuthFlowResponseSchema, {
+              authorizeUrl: "https://example.test/oauth?state=ci-state",
+              state: "ci-state",
+            });
+          case "CompleteOAuthFlow":
+            return send(bffAuth.CompleteOAuthFlowResponseSchema, {
+              user: bffUser(),
+              expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
+            });
           case "Me":
-            return send(auth.MeResponseSchema, { user });
+            return send(bffAuth.MeResponseSchema, { user: bffUser() });
           case "ListSessions":
-            return send(auth.ListSessionsResponseSchema, {});
+            return send(bffAuth.ListSessionsResponseSchema, {});
+          case "RevokeSession":
+            return send(bffAuth.RevokeSessionResponseSchema, {});
           case "GetRegionIndex": {
             state.regionCalls.push(method);
             const body = read(regionsPb.GetRegionIndexRequestSchema) as regionsPb.GetRegionIndexRequest;
@@ -347,7 +380,7 @@ export function fakeBackend(
             return send(footprint.GetFootprintsResponseSchema, {
               revision: BigInt(state.revision),
               visits: [...state.visits.values()].map((v) => ({ ...v, date: "", note: "", updatedAt: ts() })),
-              trips: [...state.trips.values()].map(wireTrip),
+              trips: [...state.trips.values()].map(wireBffTrip),
               provinceMarks: [...state.marks].map(([province, color]) => ({ province, color, updatedAt: ts() })),
               schemaVersion: state.footprintSchema,
               regionVersion: state.regionVersion,
@@ -474,7 +507,7 @@ export function fakeBackend(
               if (!state.trips.delete(t.id)) continue;
               // A trip of a city that goes away is removed by that city's own deletion.
               if (!wantCities.has(t.code)) continue;
-              logChange(mutation({ case: "deleteTrip", value: { regionCode: t.code, id: t.id } }));
+              logChange(mutation({ case: "deleteTrip", value: { city: t.code, id: t.id } }));
               changed++;
             }
             for (const code of [...state.visits.keys()]) {
@@ -517,7 +550,7 @@ export function fakeBackend(
             });
           }
           case "GetCollaborationOverview":
-            return send(collaborationPb.GetCollaborationOverviewResponseSchema, {
+            return send(bffFriends.GetCollaborationOverviewResponseSchema, {
               myFriendCode: "fc_ci_user_1234",
               friendSettings: { showCities: true, showDates: false, showNotes: false },
               friends: [],
@@ -538,12 +571,12 @@ export function fakeBackend(
           }
           case "ListItineraries":
             state.itineraryCalls.push(method);
-            return send(itineraryPb.ListItinerariesResponseSchema, {
+            return send(bffItinerary.ListItinerariesResponseSchema, {
               itineraries: [...state.itineraries.values()].map(wireItinerary),
               policy: DEFAULT_ESTIMATION_POLICY,
             });
           case "SaveItinerary": {
-            const body = read(itineraryPb.SaveItineraryRequestSchema) as itineraryPb.SaveItineraryRequest;
+            const body = read(bffItinerary.SaveItineraryRequestSchema) as bffItinerary.SaveItineraryRequest;
             state.itineraryCalls.push(method);
             if (state.failItinerarySave > 0) {
               state.failItinerarySave--;
@@ -553,7 +586,7 @@ export function fakeBackend(
             const request = JSON.stringify([body.id, body.title, body.note, body.color, body.stops.map((x) => [x.id, x.regionCode, x.date, x.note, x.transport])]);
             if (body.mutationId && state.itineraryMutations.has(body.mutationId)) {
               if (state.itineraryMutations.get(body.mutationId) !== request) return route.fulfill(failure("already_exists", "mutation_id was already used", 409));
-              return send(itineraryPb.SaveItineraryResponseSchema, { itinerary: wireItinerary(prior!), policy: DEFAULT_ESTIMATION_POLICY, replayed: true });
+              return send(bffItinerary.SaveItineraryResponseSchema, { itinerary: wireItinerary(prior!), policy: DEFAULT_ESTIMATION_POLICY, replayed: true });
             }
             if (body.expectedVersion !== 0n && BigInt(prior?.version ?? 0) !== body.expectedVersion) return route.fulfill(failure("aborted", "itinerary changed, reload", 409));
             let record: ItineraryRecord;
@@ -572,13 +605,13 @@ export function fakeBackend(
               state.dropNextItineraryReply--;
               return route.fulfill(failure("unavailable", "lost reply", 503));
             }
-            return send(itineraryPb.SaveItineraryResponseSchema, { itinerary: wireItinerary(record), policy: DEFAULT_ESTIMATION_POLICY, replayed: false });
+            return send(bffItinerary.SaveItineraryResponseSchema, { itinerary: wireItinerary(record), policy: DEFAULT_ESTIMATION_POLICY, replayed: false });
           }
           case "DeleteItinerary": {
-            const body = read(itineraryPb.DeleteItineraryRequestSchema) as itineraryPb.DeleteItineraryRequest;
+            const body = read(bffItinerary.DeleteItineraryRequestSchema) as bffItinerary.DeleteItineraryRequest;
             state.itineraryCalls.push(method);
             const existed = state.itineraries.delete(body.id);
-            return send(itineraryPb.DeleteItineraryResponseSchema, { deleted: existed });
+            return send(bffItinerary.DeleteItineraryResponseSchema, { deleted: existed });
           }
           case "GetNotificationSettings":
             state.notify.calls.push(method);

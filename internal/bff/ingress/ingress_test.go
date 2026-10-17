@@ -10,6 +10,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/bff/ingress"
+	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
@@ -95,7 +96,7 @@ const (
 	anonymousProcedure = bffv1connect.StatusServiceGetStatusProcedure
 	// A real protected method: it has no anonymous option, so it needs a user.
 	protectedProcedure = "/tripmap.v1.FootprintService/GetFootprints"
-	heavyProcedure     = "/tripmap.v1.MediaService/UploadMedia"
+	heavyProcedure     = bffv1connect.MediaServiceCompleteUploadProcedure
 )
 
 // probe is what a handler behind the interceptor observes.
@@ -103,6 +104,15 @@ type probe struct {
 	called   bool
 	call     rpcauth.Call
 	deadline time.Duration
+}
+
+func writeSafeReq() *connect.Request[bffv1.GetStatusRequest] {
+	req := connect.NewRequest(&bffv1.GetStatusRequest{})
+	tok := "test-csrf"
+	req.Header().Set(session.CSRFHeader, tok)
+	req.Header().Set("Cookie", session.CSRFCookieName+"="+tok)
+	req.Header().Set("Sec-Fetch-Site", "same-origin")
+	return req
 }
 
 func intercepted(t *testing.T, policy ingress.Policy, procedure string) (*probe, *connect.Client[bffv1.GetStatusRequest, bffv1.GetStatusResponse]) {
@@ -132,7 +142,7 @@ func TestProceduresAreProtectedUnlessDeclaredAnonymous(t *testing.T) {
 
 	// An unknown procedure is protected too.
 	seen, client = intercepted(t, ingress.Policy{}, "/bff.v1.UnknownService/Do")
-	if _, err = client.CallUnary(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated || seen.called {
+	if _, err = client.CallUnary(context.Background(), writeSafeReq()); connect.CodeOf(err) != connect.CodeUnauthenticated || seen.called {
 		t.Fatalf("unknown procedure: err=%v called=%v", err, seen.called)
 	}
 
@@ -144,9 +154,11 @@ func TestProceduresAreProtectedUnlessDeclaredAnonymous(t *testing.T) {
 
 	// A session resolved by the BFF becomes the user of a protected call; an
 	// anonymous procedure ignores it.
-	policy := ingress.Policy{Authenticate: func(context.Context, http.Header) (string, error) { return "user-1", nil }}
+	policy := ingress.Policy{Authenticate: func(context.Context, http.Header) (session.BrowserSession, error) {
+		return session.BrowserSession{UserID: "user-1", SessionID: "s1"}, nil
+	}}
 	seen, client = intercepted(t, policy, protectedProcedure)
-	if _, err = client.CallUnary(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{})); err != nil || seen.call.UserID != "user-1" {
+	if _, err = client.CallUnary(context.Background(), writeSafeReq()); err != nil || seen.call.UserID != "user-1" {
 		t.Fatalf("signed-in call: err=%v user=%q", err, seen.call.UserID)
 	}
 	seen, client = intercepted(t, policy, anonymousProcedure)
@@ -160,7 +172,7 @@ func TestCallLifetimeIsBoundedAndKeepsTheShorterDeadline(t *testing.T) {
 	call := func(policy ingress.Policy, procedure string, clientTimeout time.Duration) time.Duration {
 		seen, client := intercepted(t, policy, procedure)
 		ctx := context.Background()
-		req := connect.NewRequest(&bffv1.GetStatusRequest{})
+		req := writeSafeReq()
 		if clientTimeout > 0 {
 			var cancel context.CancelFunc
 			ctx, cancel = context.WithTimeout(ctx, clientTimeout)
@@ -171,7 +183,9 @@ func TestCallLifetimeIsBoundedAndKeepsTheShorterDeadline(t *testing.T) {
 		}
 		return seen.deadline
 	}
-	policy := ingress.Policy{Authenticate: func(context.Context, http.Header) (string, error) { return "u", nil }, Heavy: map[string]bool{heavyProcedure: true}}
+	policy := ingress.Policy{Authenticate: func(context.Context, http.Header) (session.BrowserSession, error) {
+		return session.BrowserSession{UserID: "u", SessionID: "s1"}, nil
+	}, Heavy: map[string]bool{heavyProcedure: true}}
 	if got := call(policy, protectedProcedure, 0); !near(got, 10*time.Second) {
 		t.Errorf("ordinary call without a client deadline: %v, want about 10s", got)
 	}

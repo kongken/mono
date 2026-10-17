@@ -14,10 +14,9 @@ export type StoredUser = {
   deletionPending?: boolean;
 };
 export type StoredSession = {
-  token: string;
-  /** Milliseconds since the epoch. */
-  expiresAt: number;
   user: StoredUser;
+  /** Hint from the last login response; the HttpOnly cookie is authoritative. */
+  expiresAt?: number;
 };
 /** The cache layout this version writes; caches without the field are version 1 (one date and note per city). */
 export const CACHE_SCHEMA = 2;
@@ -75,20 +74,16 @@ export function loadSession(
     const data = JSON.parse(raw) as Partial<StoredSession>;
     const user = data.user as Partial<StoredUser> | undefined;
     if (
-      !isString(data.token) ||
-      !data.token ||
-      typeof data.expiresAt !== "number" ||
-      data.expiresAt <= now ||
       !user ||
       !isString(user.id) ||
-      !user.id
+      !user.id ||
+      (typeof data.expiresAt === "number" && data.expiresAt <= now)
     ) {
       storage.removeItem(SESSION_KEY);
       return null;
     }
     return {
-      token: data.token,
-      expiresAt: data.expiresAt,
+      ...(typeof data.expiresAt === "number" ? { expiresAt: data.expiresAt } : {}),
       user: {
         id: user.id,
         username: isString(user.username) ? user.username : "",

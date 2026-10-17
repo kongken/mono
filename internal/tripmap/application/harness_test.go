@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/tripmap/application"
-	"github.com/kongken/mono/internal/tripmap/auth/provider"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/regions"
 	"github.com/kongken/mono/internal/tripmap/testutil"
@@ -22,7 +22,6 @@ type env struct {
 	t         *testing.T
 	store     *application.Store
 	cfg       *config.AppConfig
-	auth      tripmapv1connect.AuthServiceClient
 	foot      tripmapv1connect.FootprintServiceClient
 	snap      tripmapv1connect.SnapshotServiceClient
 	media     tripmapv1connect.MediaServiceClient
@@ -37,7 +36,6 @@ type env struct {
 	pusher    *fakePusher
 	public    *application.NotificationPublic
 	clock     *fakeClock
-	svc       *application.AuthService
 	reportSvc *application.ReportService
 }
 
@@ -45,8 +43,28 @@ type storeSource struct{ st *application.Store }
 
 func (s storeSource) Store() *application.Store { return s.st }
 
-// newEnv serves the real handlers and interceptor over HTTP, backed by an
-// isolated PostgreSQL schema and Redis prefix.
+// testRPCAuth maps the bearer token to a user ID for isolated application tests.
+// Production tripmap no longer serves Connect; this harness exercises handlers only.
+func testRPCAuth() connect.Interceptor {
+	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			call := rpcauth.Call{
+				TripmapSchema:  req.Header().Get("X-Tripmap-Schema"),
+				TripmapRegions: req.Header().Get("X-Tripmap-Regions"),
+			}
+			header := req.Header().Get("Authorization")
+			token, ok := strings.CutPrefix(header, "Bearer ")
+			if ok {
+				if id := strings.TrimSpace(token); id != "" {
+					call.UserID = id
+				}
+			}
+			ctx = rpcauth.WithCall(ctx, call)
+			return next(ctx, req)
+		}
+	})
+}
+
 func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 	t.Helper()
 	db, rdb, prefix := testutil.Backing(t)
@@ -59,9 +77,7 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	authSvc := application.NewAuthService(cfg, src)
-	reportSvc := application.NewReportService(src, idx)
-	opts := connect.WithInterceptors(application.NewAuthInterceptor(src))
+	opts := connect.WithInterceptors(testRPCAuth())
 	mailer, pusher, clock := &fakeMailer{}, &fakePusher{}, &fakeClock{}
 	clock.set(time.Date(2026, 10, 15, 2, 0, 0, 0, time.UTC))
 	notifier := &application.Notifier{
@@ -73,9 +89,9 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 		},
 		Mail: mailer, Push: pusher, Now: clock.now,
 	}
+	reportSvc := application.NewReportService(src, idx)
 	mux := http.NewServeMux()
 	mux.Handle(tripmapv1connect.NewNotificationServiceHandler(application.NewNotificationService(src, notifier), opts))
-	mux.Handle(tripmapv1connect.NewAuthServiceHandler(authSvc, opts))
 	mux.Handle(tripmapv1connect.NewFootprintServiceHandler(application.NewFootprintService(cfg, src, idx), opts))
 	mux.Handle(tripmapv1connect.NewSnapshotServiceHandler(application.NewSnapshotService(cfg, src, idx), opts))
 	mux.Handle(tripmapv1connect.NewMediaServiceHandler(application.NewMediaService(src, idx), opts))
@@ -87,11 +103,10 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return &env{
-		t: t, store: src.st, cfg: cfg, svc: authSvc, reportSvc: reportSvc,
+		t: t, store: src.st, cfg: cfg, reportSvc: reportSvc,
 		notify:   tripmapv1connect.NewNotificationServiceClient(server.Client(), server.URL),
 		notifier: notifier, mailer: mailer, pusher: pusher, clock: clock,
 		public: application.NewNotificationPublic(cfg, src, notifier),
-		auth:      tripmapv1connect.NewAuthServiceClient(server.Client(), server.URL),
 		foot:      tripmapv1connect.NewFootprintServiceClient(server.Client(), server.URL),
 		snap:      tripmapv1connect.NewSnapshotServiceClient(server.Client(), server.URL),
 		media:     tripmapv1connect.NewMediaServiceClient(server.Client(), server.URL),
@@ -103,52 +118,45 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 	}
 }
 
-// bearer attaches a session token to a request.
-func bearer[T any](token string, msg *T) *connect.Request[T] {
+func bearer[T any](userID string, msg *T) *connect.Request[T] {
 	req := connect.NewRequest(msg)
-	if token != "" {
-		req.Header().Set("Authorization", "Bearer "+token)
+	if userID != "" {
+		req.Header().Set("Authorization", "Bearer "+userID)
 	}
 	return req
 }
 
 func (e *env) register(username string) string {
 	e.t.Helper()
-	res, err := e.auth.Register(context.Background(), connect.NewRequest(&tripmapv1.RegisterRequest{Username: username, Password: "correct horse battery"}))
+	u, err := e.store.DB.User.Create().SetUsername(username).Save(context.Background())
 	if err != nil {
 		e.t.Fatalf("register %s: %v", username, err)
 	}
-	return res.Msg.Token
+	return u.ID
 }
 
-func codeOf(err error) connect.Code {
-	if err == nil {
-		return 0
+func (e *env) cleanupAccount(ctx context.Context, userID string) error {
+	e.t.Helper()
+	svc := application.NewAccountCleanupService(storeSource{e.store})
+	_, err := svc.CleanupUserData(rpcauth.WithCall(ctx, rpcauth.Call{UserID: userID}), &tripmapv1.CleanupUserDataRequest{UserId: userID})
+	return err
+}
+
+func (e *env) mustCleanupAccount(ctx context.Context, userID string) {
+	e.t.Helper()
+	if err := e.cleanupAccount(ctx, userID); err != nil {
+		e.t.Fatalf("cleanup %s: %v", userID, err)
 	}
-	return connect.CodeOf(err)
 }
 
-func wantCode(t *testing.T, err error, want connect.Code) {
+func codeOf(err error) connect.Code { return connect.CodeOf(err) }
+
+func wantCode(t *testing.T, err error, code connect.Code) {
 	t.Helper()
-	if got := codeOf(err); got != want {
-		t.Fatalf("code = %v (%v), want %v", got, err, want)
+	if err == nil {
+		t.Fatalf("want %v, got success", code)
 	}
-}
-
-// fakeProvider is an OAuth provider whose Exchange returns canned claims.
-type fakeProvider struct {
-	name   string
-	claims *provider.Claims
-}
-
-func (f *fakeProvider) Name() string        { return f.name }
-func (f *fakeProvider) DisplayName() string { return strings.ToUpper(f.name) }
-func (f *fakeProvider) AuthorizeURL(state string) string {
-	return "https://provider.example/authorize?state=" + state
-}
-func (f *fakeProvider) Exchange(_ context.Context, code string) (*provider.Claims, error) {
-	if code != "good-code" {
-		return nil, context.DeadlineExceeded
+	if connect.CodeOf(err) != code {
+		t.Fatalf("want %v, got %v", code, err)
 	}
-	return f.claims, nil
 }

@@ -91,7 +91,7 @@ func retiredIndex(t *testing.T) *regions.Index {
 func serveRegionIndex(t *testing.T, e *env, idx *regions.Index) (tripmapv1connect.RegionServiceClient, tripmapv1connect.SnapshotServiceClient, tripmapv1connect.FootprintServiceClient) {
 	t.Helper()
 	src := storeSource{e.store}
-	opts := connect.WithInterceptors(application.NewAuthInterceptor(src))
+	opts := connect.WithInterceptors(testRPCAuth())
 	mux := http.NewServeMux()
 	mux.Handle(tripmapv1connect.NewRegionServiceHandler(application.NewRegionService(src, idx), opts))
 	mux.Handle(tripmapv1connect.NewSnapshotServiceHandler(application.NewSnapshotService(e.cfg, src, idx), opts))
@@ -119,9 +119,6 @@ func TestRegionIndexAuthenticationConditionalReadAndMismatch(t *testing.T) {
 	wrong.Header().Set("X-Tripmap-Regions", "sha256:unknown-client")
 	_, err = e.foot.GetFootprints(ctx, wrong)
 	wantCode(t, err, connect.CodeFailedPrecondition)
-	if _, err := e.auth.Me(ctx, bearer(token, &tripmapv1.MeRequest{})); err != nil {
-		t.Fatal("a catalog mismatch must not sign the user out")
-	}
 }
 
 func TestRegionUpgradePreservesIslandContentAndOtherAccounts(t *testing.T) {

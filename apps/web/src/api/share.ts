@@ -1,11 +1,36 @@
+import type { Interceptor } from "@connectrpc/connect";
 import { createClient } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-web";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
-import { ShareService, type ShareInfo } from "@trip-map/api-client/tripmap/v1/share_pb";
+import {
+  ShareService,
+  type ShareInfo,
+} from "@trip-map/api-client/bff/v1/share_pb";
 import { parseShareContent, type ShareContent } from "@/lib/share";
-import { transport } from "./transport";
+import { apiConfig } from "./transport";
+import { csrfHeader } from "./csrf";
+import { REGION_HEADER, REGION_VERSION } from "@/lib/region-catalog";
 
-const raw = transport ? createClient(ShareService, transport) : null;
-// Only reachable once a session exists, which requires a configured backend.
+const withCredentials = (input: RequestInfo | URL, init?: RequestInit) =>
+  fetch(input, { ...init, credentials: "include" });
+
+const schemaHeaders: Interceptor = (next) => (req) => {
+  req.header.set("X-Tripmap-Schema", "2");
+  req.header.set(REGION_HEADER, REGION_VERSION);
+  const csrf = csrfHeader();
+  if (csrf) req.header.set("X-CSRF-Token", csrf);
+  return next(req);
+};
+
+const shareTransport = !apiConfig.enabled
+  ? null
+  : createConnectTransport({
+      baseUrl: apiConfig.baseUrl,
+      interceptors: [schemaHeaders],
+      fetch: withCredentials,
+    });
+
+const raw = shareTransport ? createClient(ShareService, shareTransport) : null;
 const client = () => {
   if (!raw) throw new Error("backend not configured");
   return raw;
@@ -23,7 +48,6 @@ export type ShareSettings = {
 export type ShareState = {
   settings: ShareSettings;
   version: number;
-  /** Full public link; empty unless published. */
   url: string;
   published: boolean;
   publishedAt: number | null;

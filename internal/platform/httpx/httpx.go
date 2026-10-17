@@ -33,7 +33,7 @@ func ClientAddr(headerName string, h http.Header, remoteAddr string) string {
 }
 
 // connectHeaders are the request headers every Connect-Web client may send.
-var connectHeaders = []string{"Authorization", "Content-Type", "Connect-Protocol-Version", "Connect-Timeout-Ms", "X-User-Agent"}
+var connectHeaders = []string{"Authorization", "Content-Type", "Connect-Protocol-Version", "Connect-Timeout-Ms", "X-User-Agent", "X-CSRF-Token", "X-Tripmap-Schema", "X-Tripmap-Regions"}
 
 // CORS answers cross-origin requests from the configured origins only. Requests
 // without an Origin header, and same-origin deployments, are unaffected.

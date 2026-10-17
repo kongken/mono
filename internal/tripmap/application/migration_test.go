@@ -85,7 +85,8 @@ func TestStaleMigrationLeavesCloudUntouched(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 	a := e.register("migrate_stale")
-	if _, err := e.foot.SyncChanges(ctx, bearer(a, &tripmapv1.SyncChangesRequest{MutationId: "other-device", Mutations: []*tripmapv1.FootprintMutation{putCity("330100", "杭州市")}})); err != nil {
+	seed := &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_UpsertVisit{UpsertVisit: &tripmapv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d", Date: "2026-10-01", Note: "other device"}}}
+	if _, err := e.foot.SyncChanges(ctx, bearer(a, &tripmapv1.SyncChangesRequest{MutationId: "other-device", Mutations: []*tripmapv1.FootprintMutation{seed}})); err != nil {
 		t.Fatal(err)
 	}
 	// The migration was planned against revision 0, but another device wrote first.

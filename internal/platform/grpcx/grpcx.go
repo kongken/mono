@@ -16,8 +16,13 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
-// DefaultMaxMessageBytes leaves room above the 16 MiB legitimate footprint and
-// media requests for protobuf framing, instead of relying on gRPC's 4 MiB default.
+// LegitimatePayloadBytes is the largest request body the product allows on the
+// public edge (footprint batches, media). Connect handlers should use this for
+// read limits; proxies may enforce the same cap.
+const LegitimatePayloadBytes = 16 * 1024 * 1024
+
+// DefaultMaxMessageBytes leaves room above LegitimatePayloadBytes for protobuf
+// framing on internal gRPC, instead of relying on gRPC's 4 MiB default.
 const DefaultMaxMessageBytes = 20 * 1024 * 1024
 
 // ServerConfig is the gRPC listener section of a service's configuration.

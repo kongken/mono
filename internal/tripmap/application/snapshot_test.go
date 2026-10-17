@@ -386,9 +386,7 @@ func TestAccountDeletionRemovesSnapshots(t *testing.T) {
 	e.snapshot(a, "manual")
 	e.sync(b, "d2", 0, putCity("330200", "宁波市"))
 	e.snapshot(b, "manual")
-	if _, err := e.auth.DeleteAccount(ctx, bearer(a, &tripmapv1.DeleteAccountRequest{Confirmation: "DELETE", Password: "correct horse battery"})); err != nil {
-		t.Fatal(err)
-	}
+	e.mustCleanupAccount(ctx, a)
 	if n := e.store.DB.Snapshot.Query().CountX(ctx); n != 1 {
 		t.Fatalf("%d snapshots remain, want only the other account's", n)
 	}

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationprofile"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationsetting"
@@ -47,7 +46,7 @@ func NewNotificationService(src StoreSource, notifier *Notifier) *NotificationSe
 }
 
 func (s *NotificationService) allow(ctx context.Context, st *Store, key string, limit int64, window time.Duration) error {
-	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, key, limit, window)
+	ok, err := NewLimiter(st.Redis, st.prefix()).Allow(ctx, key, limit, window)
 	if err != nil {
 		return connect.NewError(connect.CodeUnavailable, errors.New("notification service temporarily unavailable"))
 	}
@@ -168,7 +167,7 @@ func (n *Notifier) settingsMessage(st *notificationState) *tripmapv1.Notificatio
 	return out
 }
 
-func (s *NotificationService) current(ctx context.Context, st *Store, p auth.Principal) (*notificationState, error) {
+func (s *NotificationService) current(ctx context.Context, st *Store, p Caller) (*notificationState, error) {
 	state, err := loadNotificationState(ctx, st.DB, nil, p.UserID)
 	if err != nil {
 		return nil, internalError(err)

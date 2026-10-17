@@ -56,4 +56,4 @@ docker run --rm --network trip-map_default -p 8088:80 \
   ghcr.io/kongken/trip-map-front:main
 ```
 
-后端运行配置和依赖启动见 [后端初始化](backend.md)。镜像中不包含真实 `config.yaml` 或 `.env`，生产配置在运行时挂载。镜像发布只完成构建与上传，不会自动部署服务。
+后端见 [后端初始化](backend.md)；部署见 [部署与发布](deployment.md)。镜像中不包含真实 `config.yaml` 或 `.env`，生产配置在运行时挂载。镜像发布只完成构建与上传，不会自动部署服务。

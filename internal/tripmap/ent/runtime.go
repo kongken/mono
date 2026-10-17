@@ -5,7 +5,6 @@ package ent
 import (
 	"time"
 
-	"github.com/kongken/mono/internal/tripmap/ent/accountdeletionreceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
 	"github.com/kongken/mono/internal/tripmap/ent/footprintchange"
 	"github.com/kongken/mono/internal/tripmap/ent/friendship"
@@ -18,7 +17,6 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/provincemark"
 	"github.com/kongken/mono/internal/tripmap/ent/pushsubscription"
 	"github.com/kongken/mono/internal/tripmap/ent/schema"
-	"github.com/kongken/mono/internal/tripmap/ent/session"
 	"github.com/kongken/mono/internal/tripmap/ent/share"
 	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
 	"github.com/kongken/mono/internal/tripmap/ent/snapshot"
@@ -32,16 +30,6 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
-	accountdeletionreceiptFields := schema.AccountDeletionReceipt{}.Fields()
-	_ = accountdeletionreceiptFields
-	// accountdeletionreceiptDescTokenHash is the schema descriptor for token_hash field.
-	accountdeletionreceiptDescTokenHash := accountdeletionreceiptFields[1].Descriptor()
-	// accountdeletionreceipt.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
-	accountdeletionreceipt.TokenHashValidator = accountdeletionreceiptDescTokenHash.Validators[0].(func(string) error)
-	// accountdeletionreceiptDescID is the schema descriptor for id field.
-	accountdeletionreceiptDescID := accountdeletionreceiptFields[0].Descriptor()
-	// accountdeletionreceipt.DefaultID holds the default value on creation for the id field.
-	accountdeletionreceipt.DefaultID = accountdeletionreceiptDescID.Default.(func() string)
 	cityvisitFields := schema.CityVisit{}.Fields()
 	_ = cityvisitFields
 	// cityvisitDescRegionCode is the schema descriptor for region_code field.
@@ -438,24 +426,6 @@ func init() {
 	pushsubscriptionDescID := pushsubscriptionFields[0].Descriptor()
 	// pushsubscription.DefaultID holds the default value on creation for the id field.
 	pushsubscription.DefaultID = pushsubscriptionDescID.Default.(func() string)
-	sessionFields := schema.Session{}.Fields()
-	_ = sessionFields
-	// sessionDescTokenHash is the schema descriptor for token_hash field.
-	sessionDescTokenHash := sessionFields[2].Descriptor()
-	// session.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
-	session.TokenHashValidator = sessionDescTokenHash.Validators[0].(func(string) error)
-	// sessionDescCreatedAt is the schema descriptor for created_at field.
-	sessionDescCreatedAt := sessionFields[3].Descriptor()
-	// session.DefaultCreatedAt holds the default value on creation for the created_at field.
-	session.DefaultCreatedAt = sessionDescCreatedAt.Default.(func() time.Time)
-	// sessionDescRevoked is the schema descriptor for revoked field.
-	sessionDescRevoked := sessionFields[6].Descriptor()
-	// session.DefaultRevoked holds the default value on creation for the revoked field.
-	session.DefaultRevoked = sessionDescRevoked.Default.(bool)
-	// sessionDescID is the schema descriptor for id field.
-	sessionDescID := sessionFields[0].Descriptor()
-	// session.DefaultID holds the default value on creation for the id field.
-	session.DefaultID = sessionDescID.Default.(func() string)
 	shareFields := schema.Share{}.Fields()
 	_ = shareFields
 	// shareDescShowCities is the schema descriptor for show_cities field.
@@ -667,11 +637,11 @@ func init() {
 	userFields := schema.User{}.Fields()
 	_ = userFields
 	// userDescDisplayName is the schema descriptor for display_name field.
-	userDescDisplayName := userFields[3].Descriptor()
+	userDescDisplayName := userFields[2].Descriptor()
 	// user.DefaultDisplayName holds the default value on creation for the display_name field.
 	user.DefaultDisplayName = userDescDisplayName.Default.(string)
 	// userDescAvatarURL is the schema descriptor for avatar_url field.
-	userDescAvatarURL := userFields[4].Descriptor()
+	userDescAvatarURL := userFields[3].Descriptor()
 	// user.DefaultAvatarURL holds the default value on creation for the avatar_url field.
 	user.DefaultAvatarURL = userDescAvatarURL.Default.(string)
 	// userDescProvider is the schema descriptor for provider field.

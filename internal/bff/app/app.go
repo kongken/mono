@@ -4,49 +4,90 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"path"
 	"strings"
 	"sync/atomic"
+	"time"
 
+	"butterfly.orx.me/core/store/redis"
+	"butterfly.orx.me/core/store/sqldb"
 	"connectrpc.com/connect"
+	"entgo.io/ent/dialect"
+	entsql "entgo.io/ent/dialect/sql"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/stdlib"
+	redisclient "github.com/redis/go-redis/v9"
+	bffauth "github.com/kongken/mono/internal/bff/auth"
+	"github.com/kongken/mono/internal/bff/oauth"
+	"github.com/kongken/mono/internal/bff/oauth/provider"
 	"github.com/kongken/mono/internal/bff/config"
+	"github.com/kongken/mono/internal/bff/ent"
+	"github.com/kongken/mono/internal/bff/footprint"
+	"github.com/kongken/mono/internal/bff/snapshot"
+	"github.com/kongken/mono/internal/bff/friends"
+	"github.com/kongken/mono/internal/bff/sharedtrip"
+	bffitinerary "github.com/kongken/mono/internal/bff/itinerary"
+	bffmedia "github.com/kongken/mono/internal/bff/media"
+	bffregion "github.com/kongken/mono/internal/bff/region"
+	bffreport "github.com/kongken/mono/internal/bff/report"
+	bffsearch "github.com/kongken/mono/internal/bff/search"
 	"github.com/kongken/mono/internal/bff/gateway"
 	"github.com/kongken/mono/internal/bff/ingress"
+	bffnotification "github.com/kongken/mono/internal/bff/notification"
+	"github.com/kongken/mono/internal/bff/publichttp"
+	"github.com/kongken/mono/internal/bff/ratelimit"
+	bffshare "github.com/kongken/mono/internal/bff/share"
+	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/bff/status"
 	"github.com/kongken/mono/internal/bff/upstream"
+	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
-	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
+	bffv1connect "github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
-// publicPrefix is where the BFF's own Connect procedures (package bff.v1) live;
-// everything under it is answered by the BFF and never forwarded.
 const publicPrefix = "/api/bff.v1."
 
+type Resources struct {
+	DB        *ent.Client
+	Redis     *redisclient.Client
+	KeyPrefix string
+}
+
 type Handlers struct {
-	cfg      *config.Config
-	services []gateway.Service
-	gateway  atomic.Pointer[gateway.Gateway]
-	health   atomic.Pointer[health.Checker]
-	// public serves the bff.v1 procedures; upstreams are the gRPC connections it uses.
+	cfg       *config.Config
+	services  []gateway.Service
+	gateway   atomic.Pointer[gateway.Gateway]
+	health    atomic.Pointer[health.Checker]
 	public    atomic.Pointer[http.Handler]
 	upstreams atomic.Pointer[upstream.Clients]
+	resources atomic.Pointer[Resources]
+	auth      atomic.Pointer[bffauth.Handler]
+	oauthReg  atomic.Pointer[provider.Registry]
 }
 
 func New(cfg *config.Config) *Handlers {
 	return &Handlers{cfg: cfg, services: gateway.Services}
 }
 
-// SetServices replaces the route table; tests use it to route to fake services.
 func (h *Handlers) SetServices(services []gateway.Service) { h.services = services }
+func (h *Handlers) SetResources(r *Resources)                { h.resources.Store(r) }
 
-// Bootstrap runs after Butterfly loads the YAML. Services are not required to be
-// up: the BFF starts first and reports them in /readyz.
+// SetOAuthRegistry overrides configured OAuth providers (tests).
+func (h *Handlers) SetOAuthRegistry(reg *provider.Registry) { h.oauthReg.Store(reg) }
+
 func (h *Handlers) Bootstrap() error {
 	if err := h.cfg.Validate(gateway.Names(h.services)); err != nil {
 		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if h.cfg.DBStore != "" {
+		if err := h.bootstrapStores(ctx); err != nil {
+			return err
+		}
 	}
 	gw, err := gateway.New(h.cfg, h.services)
 	if err != nil {
@@ -56,44 +97,195 @@ func (h *Handlers) Bootstrap() error {
 	if err := h.cfg.ValidateInternal(grpcServices); err != nil {
 		return err
 	}
+	var clients *upstream.Clients
 	if len(grpcServices) > 0 {
-		clients, err := upstream.Dial(h.cfg, grpcServices)
+		clients, err = upstream.Dial(h.cfg, grpcServices)
 		if err != nil {
 			return err
 		}
 		h.upstreams.Store(clients)
+	}
+	if clients != nil {
 		public := h.publicAPI(clients)
 		h.public.Store(&public)
 	}
+	probes := gw.Probes()
+	if r := h.resources.Load(); r != nil && r.DB != nil {
+		probes = append(probes, health.Probe{Name: "bff_postgres", Check: func(ctx context.Context) error {
+			_, err := r.DB.User.Query().Exist(ctx)
+			return err
+		}})
+		if r.Redis != nil {
+			probes = append(probes, health.Probe{Name: "bff_redis", Check: func(ctx context.Context) error {
+				return r.Redis.Ping(ctx).Err()
+			}})
+		}
+	}
+	if clients != nil {
+		probes = append(probes, upstream.GRPCProbes(clients, grpcServices)...)
+	}
 	h.gateway.Store(gw)
-	h.health.Store(health.New(gw.Probes()...))
+	h.health.Store(health.New(probes...))
 	return nil
 }
 
-// publicAPI serves the BFF's own Connect procedures. Handlers are built with the
-// Connect-only gate and the ingress interceptor, and share one authentication
-// policy; sessions are not implemented yet, so protected procedures refuse
-// every caller.
+func (h *Handlers) bootstrapStores(ctx context.Context) error {
+	if r := h.resources.Load(); r != nil {
+		return nil
+	}
+	if h.cfg.DBStore == "" || h.cfg.RedisStore == "" {
+		return fmt.Errorf("db_store and redis_store are required")
+	}
+	db := sqldb.GetDB(h.cfg.DBStore)
+	if db == nil {
+		return fmt.Errorf("db_store does not refer to a configured store.db client")
+	}
+	if _, ok := db.Driver().(*stdlib.Driver); !ok {
+		return fmt.Errorf("db_store must use PostgreSQL")
+	}
+	cache := redis.GetClient(h.cfg.RedisStore)
+	if cache == nil {
+		return fmt.Errorf("redis_store does not refer to a configured store.redis client")
+	}
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("postgres startup check: %w", err)
+	}
+	if err := cache.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("redis startup check: %w", err)
+	}
+	client := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, db)))
+	if h.cfg.AutoMigrate {
+		if err := client.Schema.Create(ctx); err != nil {
+			_ = client.Close()
+			return fmt.Errorf("ent migration: %w", err)
+		}
+	}
+	h.resources.Store(&Resources{DB: client, Redis: cache, KeyPrefix: h.cfg.KeyPrefix})
+	return nil
+}
+
 func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
+	conn := clients.Conn("tripmap")
+	policy := ingress.Policy{
+		ClientIPHeader: h.cfg.ClientIPHeader,
+		AllowedOrigins: h.cfg.CORSAllowedOrigins,
+		Heavy: map[string]bool{
+			bffv1connect.FootprintServiceSyncChangesProcedure:             true,
+			bffv1connect.SnapshotServiceRestoreSnapshotProcedure:         true,
+			bffv1connect.AuthServiceDeleteAccountProcedure:               true,
+			bffv1connect.MediaServicePrepareUploadProcedure:              true,
+			bffv1connect.MediaServiceCompleteUploadProcedure:             true,
+			bffv1connect.SharedTripServiceReadSharedTripMediaProcedure:   true,
+		},
+	}
+	if r := h.resources.Load(); r != nil && conn != nil {
+		cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode, Secure: h.cfg.Auth.CookieSecure}
+		oauthState := oauth.NewStateStore(r.Redis, r.KeyPrefix)
+		var reg *provider.Registry
+		if custom := h.oauthReg.Load(); custom != nil {
+			reg = custom
+		}
+		oauthDeps := bffauth.OAuthDeps{State: oauthState, Registry: reg}
+		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix),
+			tripmapv1.NewProfileServiceClient(conn), tripmapv1.NewAccountCleanupServiceClient(conn), oauthDeps)
+		authHandler := bffauth.NewHandler(svc, h.cfg.CORSAllowedOrigins, h.cfg.Auth.CSRFTokenTTL)
+		h.auth.Store(authHandler)
+		policy.Authenticate = authHandler.Authenticate
+		policy.DeletionReceiptValid = svc.CompletionReceiptValid
+	}
 	opts := []connect.HandlerOption{
-		connect.WithInterceptors(ingress.Interceptor(ingress.Policy{ClientIPHeader: h.cfg.ClientIPHeader})),
+		connect.WithInterceptors(ingress.Interceptor(policy)),
 		connect.WithRequireConnectProtocolHeader(),
-		connect.WithReadMaxBytes(4096),
+		connect.WithReadMaxBytes(grpcx.LegitimatePayloadBytes),
 	}
 	mux := http.NewServeMux()
-	if conn := clients.Conn("tripmap"); conn != nil {
+	if conn != nil {
 		route, handler := bffv1connect.NewStatusServiceHandler(status.New(tripmapv1.NewSystemServiceClient(conn)), opts...)
 		mux.Handle(route, ingress.ConnectOnly(handler))
+		if auth := h.auth.Load(); auth != nil {
+			route, handler = bffv1connect.NewAuthServiceHandler(auth, opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			route, handler = bffv1connect.NewFootprintServiceHandler(footprint.New(tripmapv1.NewFootprintServiceClient(conn)), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			route, handler = bffv1connect.NewSnapshotServiceHandler(snapshot.New(tripmapv1.NewSnapshotServiceClient(conn)), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			route, handler = bffv1connect.NewNotificationServiceHandler(bffnotification.New(tripmapv1.NewNotificationServiceClient(conn)), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			collab := tripmapv1.NewCollaborationServiceClient(conn)
+			route, handler = bffv1connect.NewFriendServiceHandler(friends.New(collab), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			route, handler = bffv1connect.NewSharedTripServiceHandler(sharedtrip.New(collab), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			itin := bffitinerary.New(tripmapv1.NewItineraryServiceClient(conn))
+			route, handler = bffv1connect.NewItineraryServiceHandler(itin, opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			media := bffmedia.New(tripmapv1.NewMediaServiceClient(conn))
+			route, handler = bffv1connect.NewMediaServiceHandler(media, opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			route, handler = bffv1connect.NewShareServiceHandler(bffshare.New(tripmapv1.NewShareServiceClient(conn)), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			route, handler = bffv1connect.NewReportServiceHandler(bffreport.New(tripmapv1.NewReportServiceClient(conn)), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			route, handler = bffv1connect.NewSearchServiceHandler(bffsearch.New(tripmapv1.NewSearchServiceClient(conn)), append(opts, connect.WithReadMaxBytes(4096))...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			regions := bffregion.New(tripmapv1.NewRegionServiceClient(conn))
+			route, handler = bffv1connect.NewRegionServiceHandler(regions, opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+		}
 	}
 	return http.StripPrefix("/api", mux)
 }
 
-// Shutdown closes the connections to the business services.
-func (h *Handlers) Shutdown() error {
-	if c := h.upstreams.Swap(nil); c != nil {
-		return c.Close()
+func (h *Handlers) mountPublicHTTP(r *gin.Engine) {
+	clients := h.upstreams.Load()
+	if clients == nil {
+		return
 	}
-	return nil
+	conn := clients.Conn("tripmap")
+	if conn == nil {
+		return
+	}
+	var limiter *ratelimit.Limiter
+	if res := h.resources.Load(); res != nil {
+		limiter = ratelimit.New(res.Redis, res.KeyPrefix)
+	}
+	reg := publichttp.New(limiter, h.cfg.ClientIPHeader)
+	unsub := bffnotification.NewUnsubscribeHTTP(tripmapv1.NewNotificationPublicServiceClient(conn), h.cfg.ClientIPHeader)
+	reg.Mount(r, publichttp.Route{
+		Methods:      []string{http.MethodGet, http.MethodHead, http.MethodPost},
+		Path:         "/api/notifications/unsubscribe",
+		TracePattern: "/api/notifications/unsubscribe",
+		Limit:        &publichttp.Limit{KeyPrefix: "unsubscribe:", Max: 30, Window: time.Minute},
+		Handler:      unsub,
+	})
+	sharePub := bffshare.NewPublicHTTP(tripmapv1.NewSharePublicServiceClient(conn), h.cfg.ClientIPHeader)
+	shareLimit := func(prefix string, max int64) *publichttp.Limit {
+		return &publichttp.Limit{KeyPrefix: prefix, Max: max, Window: time.Minute}
+	}
+	reg.Mount(r, publichttp.Route{
+		Methods: sharePub.Methods(), Path: "/s", TracePattern: "/s", Limit: shareLimit("share-page:", 120),
+		Handler: http.HandlerFunc(sharePub.ServeRoot),
+	})
+	reg.MountParam(r, publichttp.Route{
+		Methods: sharePub.Methods(), TracePattern: "/s/{token}", Limit: shareLimit("share-page:", 120),
+	}, "/s/*rest", "rest", sharePub.ServeSharePath)
+	reg.MountParam(r, publichttp.Route{
+		Methods: sharePub.Methods(), TracePattern: "/api/share/{token}", Limit: shareLimit("share-page:", 120),
+	}, "/api/share/*rest", "rest", sharePub.ServeAPIPath)
+}
+
+func (h *Handlers) Shutdown() error {
+	var errs []error
+	if c := h.upstreams.Swap(nil); c != nil {
+		errs = append(errs, c.Close())
+	}
+	if r := h.resources.Swap(nil); r != nil && r.DB != nil {
+		errs = append(errs, r.DB.Close())
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	return errs[0]
 }
 
 func (h *Handlers) Check(ctx context.Context) []health.Status {
@@ -104,7 +296,6 @@ func (h *Handlers) Check(ctx context.Context) []health.Status {
 }
 
 func (h *Handlers) Routes(r *gin.Engine) {
-	// A reverse proxy can be explicitly configured later; don't trust arbitrary X-Forwarded-For.
 	_ = r.SetTrustedProxies(nil)
 	r.GET("/ping", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"message": "pong"}) })
 	r.GET("/readyz", func(c *gin.Context) {
@@ -115,6 +306,7 @@ func (h *Handlers) Routes(r *gin.Engine) {
 		}
 		c.JSON(code, gin.H{"ready": health.Ready(statuses), "dependencies": statuses})
 	})
+	h.mountPublicHTTP(r)
 	r.NoRoute(func(c *gin.Context) {
 		gw := h.gateway.Load()
 		if gw == nil {
@@ -125,12 +317,10 @@ func (h *Handlers) Routes(r *gin.Engine) {
 			h.servePublic(gw, c)
 			return
 		}
-		gw.Handle(c)
+		c.AbortWithStatus(http.StatusNotFound)
 	})
 }
 
-// servePublic answers a bff.v1 procedure. Paths that are not canonical, and
-// procedures that do not exist, are 404 and are not forwarded anywhere.
 func (h *Handlers) servePublic(gw *gateway.Gateway, c *gin.Context) {
 	p := c.Request.URL.Path
 	public := h.public.Load()
@@ -141,7 +331,19 @@ func (h *Handlers) servePublic(gw *gateway.Gateway, c *gin.Context) {
 	if gw.CORS()(c); c.IsAborted() {
 		return
 	}
-	// NoRoute starts the response as 404; Connect writes 200 implicitly.
 	c.Status(http.StatusOK)
 	(*public).ServeHTTP(c.Writer, c.Request)
+}
+
+// AuthHandler exposes the auth handler for tests.
+func (h *Handlers) AuthHandler() *bffauth.Handler {
+	if a := h.auth.Load(); a != nil {
+		return a
+	}
+	return nil
+}
+
+// CORSHeaders returns extra allowed headers for bff.v1 browser clients.
+func CORSHeaders() []string {
+	return []string{"X-CSRF-Token", "X-Tripmap-Schema", "X-Tripmap-Regions"}
 }

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/kongken/mono/internal/tripmap/auth"
+	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
@@ -85,33 +85,58 @@ func toMark(m *ent.ProvinceMark) *tripmapv1.ProvinceMark {
 	return &tripmapv1.ProvinceMark{Province: m.ProvinceCode, Color: m.Color, UpdatedAt: timestamppb.New(m.UpdatedAt)}
 }
 
-func (s *FootprintService) GetFootprints(ctx context.Context, _ *connect.Request[tripmapv1.GetFootprintsRequest]) (*connect.Response[tripmapv1.GetFootprintsResponse], error) {
+func (s *FootprintService) GetFootprints(ctx context.Context, req *connect.Request[tripmapv1.GetFootprintsRequest]) (*connect.Response[tripmapv1.GetFootprintsResponse], error) {
 	p, err := principal(ctx)
 	if err != nil {
 		return nil, err
 	}
+	if err := checkRegionVersion(regionVersionFrom(ctx, req.Header())); err != nil {
+		return nil, err
+	}
+	out, err := s.snapshotFootprints(ctx, p.UserID, false)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), nil
+}
+
+// GetFootprintsGRPC serves the internal gRPC entry used by the BFF.
+func (s *FootprintService) GetFootprintsGRPC(ctx context.Context, _ *tripmapv1.GetFootprintsRequest) (*tripmapv1.GetFootprintsResponse, error) {
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	return s.snapshotFootprints(ctx, p.UserID, true)
+}
+
+func (s *FootprintService) snapshotFootprints(ctx context.Context, userID string, fromRPC bool) (*tripmapv1.GetFootprintsResponse, error) {
 	st, err := storeFrom(s.src)
 	if err != nil {
 		return nil, err
 	}
-	// One snapshot so the revision matches the records returned with it.
 	tx, err := st.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	if err != nil {
 		return nil, internalError(err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	u, err := tx.User.Get(ctx, p.UserID)
+	u, err := tx.User.Get(ctx, userID)
 	if err != nil {
 		if ent.IsNotFound(err) {
 			return nil, errUnauthenticated
 		}
 		return nil, internalError(err)
 	}
-	visits, err := tx.CityVisit.Query().Where(cityvisit.UserID(p.UserID)).Order(ent.Asc(cityvisit.FieldRegionCode)).All(ctx)
+	if fromRPC {
+		if err := checkRegionVersion(rpcauth.CallFrom(ctx).TripmapRegions); err != nil {
+			return nil, err
+		}
+	}
+	ctx = withSchemasFromRPC(ctx, u.SchemaVersion)
+	visits, err := tx.CityVisit.Query().Where(cityvisit.UserID(userID)).Order(ent.Asc(cityvisit.FieldRegionCode)).All(ctx)
 	if err != nil {
 		return nil, internalError(err)
 	}
-	marks, err := tx.ProvinceMark.Query().Where(provincemark.UserID(p.UserID)).Order(ent.Asc(provincemark.FieldProvinceCode)).All(ctx)
+	marks, err := tx.ProvinceMark.Query().Where(provincemark.UserID(userID)).Order(ent.Asc(provincemark.FieldProvinceCode)).All(ctx)
 	if err != nil {
 		return nil, internalError(err)
 	}
@@ -120,14 +145,12 @@ func (s *FootprintService) GetFootprints(ctx context.Context, _ *connect.Request
 	}
 	out := &tripmapv1.GetFootprintsResponse{Revision: u.Revision, RegionVersion: s.regions.Version()}
 	if clientSchema(ctx) >= schemaTrips {
-		// Schema 2 view: cities without date or note, and the trips. A schema 1
-		// account that has not been upgraded yet is read as one legacy trip per city.
 		out.SchemaVersion = schemaTrips
 		for _, v := range visits {
 			out.Visits = append(out.Visits, toCity(v))
 		}
 		if u.SchemaVersion >= schemaTrips {
-			trips, terr := loadTrips(ctx, tx, p.UserID)
+			trips, terr := loadTrips(ctx, tx, userID)
 			if terr != nil {
 				return nil, internalError(terr)
 			}
@@ -147,7 +170,7 @@ func (s *FootprintService) GetFootprints(ctx context.Context, _ *connect.Request
 	for _, m := range marks {
 		out.ProvinceMarks = append(out.ProvinceMarks, toMark(m))
 	}
-	return connect.NewResponse(out), nil
+	return out, nil
 }
 
 // write runs apply inside a transaction that holds the user's row lock, so
@@ -167,7 +190,7 @@ func (s *FootprintService) write(ctx context.Context, base int64, requireRevisio
 	if base < 0 {
 		return 0, false, invalid("base_revision must not be negative")
 	}
-	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, "write:"+p.UserID, writesPerWindow, writeWindow)
+	ok, err := NewLimiter(st.Redis, st.prefix()).Allow(ctx, "write:"+p.UserID, writesPerWindow, writeWindow)
 	if err != nil {
 		slog.Error("rate limiter unavailable", "error", err)
 		return 0, false, connect.NewError(connect.CodeUnavailable, errors.New("service temporarily unavailable"))
@@ -187,9 +210,7 @@ func (s *FootprintService) write(ctx context.Context, base int64, requireRevisio
 		}
 		return 0, false, internalError(err)
 	}
-	if u.Disabled {
-		return 0, false, errUnauthenticated
-	}
+	ctx = withSchemasFromRPC(ctx, u.SchemaVersion)
 	if err := requireCurrentRegionIDs(ctx, tx.CityVisit.Query().Where(cityvisit.UserID(u.ID)), s.regions); err != nil {
 		return 0, false, err
 	}

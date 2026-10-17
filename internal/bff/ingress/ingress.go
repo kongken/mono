@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/internal/platform/rpcauth"
+	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 )
 
 // ConnectOnly lets only Connect unary requests through. connect-go's handler also
@@ -46,6 +48,8 @@ const (
 
 // Policy configures the interceptor.
 type Policy struct {
+	// AllowedOrigins lists browser Origins permitted on write RPCs (see session.CheckWrite).
+	AllowedOrigins []string
 	// Heavy lists the procedures (full names, such as /tripmap.v1.MediaService/X)
 	// that may run for HeavyTimeout instead of DefaultTimeout.
 	Heavy map[string]bool
@@ -53,13 +57,23 @@ type Policy struct {
 	// writes the client address into; empty uses the TCP peer. Never set it when
 	// clients can reach the BFF directly.
 	ClientIPHeader string
-	// Authenticate resolves the browser's credentials (session cookie) to a user
-	// ID, for procedures that are not anonymous. Nil means nobody can
-	// authenticate, so every protected procedure answers UNAUTHENTICATED.
-	Authenticate func(ctx context.Context, header http.Header) (userID string, err error)
+	// Authenticate resolves the browser session cookie for protected procedures.
+	Authenticate func(ctx context.Context, header http.Header) (session.BrowserSession, error)
+	// DeletionReceiptValid allows AuthService/DeleteAccount when the session cookie
+	// matches a stored completion receipt (24h replay after auth rows are gone).
+	DeletionReceiptValid func(ctx context.Context, sessionToken string) bool
 }
 
-var errUnauthenticated = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
+var (
+	errUnauthenticated     = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
+	errWriteRejected       = connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
+	errDeletionInProgress  = connect.NewError(connect.CodeFailedPrecondition, errors.New("account deletion in progress"))
+	deletionAllowedMethods = map[string]bool{
+		bffv1connect.AuthServiceMeProcedure:           true,
+		bffv1connect.AuthServiceLogoutProcedure:       true,
+		bffv1connect.AuthServiceDeleteAccountProcedure: true,
+	}
+)
 
 // Interceptor applies, to every unary procedure and independently of the service
 // behind it: the anonymous policy declared in proto (default protected), the
@@ -78,23 +92,45 @@ func Interceptor(p Policy) connect.Interceptor {
 				}
 				return err
 			}
-			call := rpcauth.Call{RequestID: requestID, ClientIP: httpx.ClientAddr(p.ClientIPHeader, req.Header(), req.Peer().Addr)}
+			if RequiresWriteProtection(procedure) {
+				if err := session.CheckWrite(req.Header(), p.AllowedOrigins, req.Header().Get("Host")); err != nil {
+					return nil, withID(errWriteRejected)
+				}
+			}
+			call := rpcauth.Call{
+				RequestID:   requestID,
+				ClientIP:    httpx.ClientAddr(p.ClientIPHeader, req.Header(), req.Peer().Addr),
+				TraceParent: rpcauth.NormalizeTraceparent(req.Header().Get(rpcauth.MetadataTraceparent)),
+			}
+			var browser session.BrowserSession
 			if !rpcauth.Anonymous(procedure) {
 				if p.Authenticate == nil {
 					return nil, withID(errUnauthenticated)
 				}
-				user, err := p.Authenticate(ctx, req.Header())
-				if err != nil || user == "" {
-					return nil, withID(errUnauthenticated)
+				var err error
+				browser, err = p.Authenticate(ctx, req.Header())
+				if err != nil || browser.UserID == "" {
+					token := session.TokenFromRequest(req.Header())
+					if procedure != bffv1connect.AuthServiceDeleteAccountProcedure ||
+						p.DeletionReceiptValid == nil || !p.DeletionReceiptValid(ctx, token) {
+						return nil, withID(errUnauthenticated)
+					}
 				}
-				call.UserID = user
+				call.UserID = browser.UserID
+				if browser.DeletionPending && !deletionAllowedMethods[procedure] {
+					return nil, withID(errDeletionInProgress)
+				}
+			}
+			ctx = rpcauth.WithCall(ctx, call)
+			if browser.UserID != "" {
+				ctx = session.WithBrowser(ctx, browser)
 			}
 			limit := DefaultTimeout
 			if p.Heavy[procedure] {
 				limit = HeavyTimeout
 			}
 			// WithTimeout keeps an earlier client deadline, so the smaller wins.
-			ctx, cancel := context.WithTimeout(rpcauth.WithCall(ctx, call), limit)
+			ctx, cancel := context.WithTimeout(ctx, limit)
 			defer cancel()
 			res, err := next(ctx, req)
 			if err != nil {

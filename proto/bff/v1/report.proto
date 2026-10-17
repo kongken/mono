@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package bff.v1;
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
+
+// ReportService exposes signed-in travel statistics, annual reports and achievements via the BFF.
+service ReportService {
+  rpc GetReport(GetReportRequest) returns (GetReportResponse);
+}
+
+message ReportRecordRef {
+  string kind = 1;
+  string trip_id = 2;
+  string region_code = 3;
+  string region_name = 4;
+  string province_code = 5;
+  string province_name = 6;
+  string date = 7;
+  int32 note_length = 8;
+  string note_preview = 9;
+  int32 trip_count = 10;
+}
+
+message ReportProvinceProgress {
+  string province_code = 1;
+  string province_name = 2;
+  int32 visited_cities = 3;
+  int32 total_cities = 4;
+  bool marked_only = 5;
+  repeated ReportRecordRef visited_regions = 6;
+}
+
+message ReportOverview {
+  int32 explored_provinces = 1;
+  int32 total_provinces = 2;
+  int32 visited_cities = 3;
+  int32 total_cities = 4;
+  int32 visited_regions = 5;
+  int32 total_regions = 6;
+  int32 total_trips = 7;
+  int32 dated_trips = 8;
+  int32 undated_trips = 9;
+  repeated ReportProvinceProgress province_progress = 10;
+}
+
+message AnnualReport {
+  int32 year = 1;
+  int32 trip_count = 2;
+  int32 city_count = 3;
+  int32 region_count = 4;
+  int32 new_city_count = 5;
+  int32 new_region_count = 6;
+  int32 province_count = 7;
+  int32 new_province_count = 8;
+  int32 span_days = 9;
+  int32 busiest_month = 10;
+  int32 busiest_month_trips = 11;
+  ReportRecordRef earliest_trip = 12;
+  ReportRecordRef latest_trip = 13;
+  ReportRecordRef longest_note_trip = 14;
+  ReportRecordRef most_visited_city = 15;
+  repeated ReportRecordRef new_regions = 16;
+  repeated ReportRecordRef provinces = 17;
+  repeated ReportRecordRef trips = 18;
+}
+
+message AchievementStatus {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  bool unlocked = 4;
+  int32 current = 5;
+  int32 target = 6;
+  string unlocked_at = 7;
+  repeated ReportRecordRef evidence = 8;
+}
+
+message GetReportRequest {
+  string timezone = 1;
+  int32 year = 2;
+}
+
+message GetReportResponse {
+  int64 revision = 1;
+  string timezone = 2;
+  string generated_on = 3;
+  int32 current_year = 4;
+  int32 selected_year = 5;
+  repeated int32 available_years = 6;
+  ReportOverview overview = 7;
+  repeated AnnualReport annual_reports = 8;
+  repeated AchievementStatus achievements = 9;
+  bool from_cache = 10;
+}

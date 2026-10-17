@@ -1,14 +1,24 @@
-.PHONY: build test ent buf dev dev-bff dev-tripmap dev-secrets deps-up deps-down storage-init migration vapid-keys
+.PHONY: build test ent buf dev dev-bff dev-tripmap dev-secrets deps-up deps-down storage-init migration vapid-keys check-import-boundaries check-docs
 
 build:
 	go build -o bin/bff ./cmd/bff
 	go build -o bin/tripmap ./cmd/tripmap
+	go build -o bin/bff-import-legacy-accounts ./cmd/bff-import-legacy-accounts
 
 test:
 	go test ./...
 
+check-import-boundaries:
+	go test ./internal/platform/moduleboundary/ -count=1
+
+check-docs:
+	./scripts/check-doc-links.sh
+
 ent:
 	go generate ./internal/tripmap/ent
+
+ent-bff:
+	go generate ./internal/bff/ent
 
 buf:
 	buf generate
@@ -18,6 +28,9 @@ buf:
 # Usage: make migration NAME=add_something DEV_DSN='postgres://...'
 migration:
 	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations/tripmap
+
+bff-migration:
+	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations/bff
 
 # Writes dev-secrets/: a local CA, tripmap's TLS certificate and the BFF's Ed25519 signing
 # key (kid dev-1) that the example configs refer to. Refuses to overwrite; add -force via

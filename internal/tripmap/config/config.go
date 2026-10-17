@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/httpx"
@@ -103,42 +102,16 @@ type StorageConfig struct {
 	KeyPrefix string `yaml:"key_prefix"`
 }
 
-// AuthConfig controls accounts, sessions, rate limits and cross-origin access.
+// AuthConfig holds tripmap settings for client address resolution on public HTTP
+// adapters used in tests. Account sessions and OAuth live on the BFF.
 type AuthConfig struct {
-	// SessionTTL is the bearer session lifetime. Defaults to 7 days.
-	SessionTTL time.Duration `yaml:"session_ttl"`
-	// RegistrationDisabled closes sign-up for both password and OAuth accounts.
-	// Registration is open by default.
-	RegistrationDisabled bool `yaml:"registration_disabled"`
 	// ClientIPHeader names a header set by a trusted reverse proxy (for example
-	// X-Forwarded-For or CF-Connecting-IP) holding the client address. Leave
-	// empty to use the TCP peer address; never set it when clients can reach the
-	// service directly, because they could spoof it and dodge rate limits.
+	// X-Real-IP) holding the client address. Leave empty to use the TCP peer
+	// address when serving share/unsubscribe routes in application tests.
 	ClientIPHeader string `yaml:"client_ip_header"`
-	// CORSAllowedOrigins lists exact browser origins allowed to call the API
-	// from another site, for example https://trip.example.com. Same-origin
-	// deployments behind the front-end proxy need none.
-	CORSAllowedOrigins []string                 `yaml:"cors_allowed_origins"`
-	OAuthProviders     map[string]OAuthProvider `yaml:"oauth_providers"`
+	// CORSAllowedOrigins is ignored in production (the BFF owns CORS); tests may set it.
+	CORSAllowedOrigins []string `yaml:"cors_allowed_origins"`
 }
-
-// OAuthProvider configures one sign-in provider. It is offered only when both
-// ClientID and ClientSecret are set. RedirectURL must be the frontend callback
-// page registered with the OAuth app.
-type OAuthProvider struct {
-	// IssuerURL is the OIDC issuer (for Logto, https://<domain>/oidc). Required
-	// by the "logto" provider, whose endpoints are derived from it.
-	IssuerURL    string   `yaml:"issuer_url"`
-	ClientID     string   `yaml:"client_id"`
-	ClientSecret string   `yaml:"client_secret"`
-	RedirectURL  string   `yaml:"redirect_url"`
-	Scopes       []string `yaml:"scopes"`
-	DisplayName  string   `yaml:"display_name"`
-}
-
-func (p OAuthProvider) Enabled() bool { return p.ClientID != "" && p.ClientSecret != "" }
-
-const DefaultSessionTTL = 7 * 24 * time.Hour
 
 func (c *AppConfig) Print() {}
 func (c *AppConfig) Validate() error {
@@ -151,9 +124,6 @@ func (c *AppConfig) Validate() error {
 	if c.InternalAuth.Issuer == "" || c.InternalAuth.Audience == "" || len(c.InternalAuth.TrustedKeys) == 0 {
 		return fmt.Errorf("internal_auth requires issuer, audience and at least one trusted_keys entry")
 	}
-	if c.Auth.SessionTTL < 0 {
-		return fmt.Errorf("auth.session_ttl must not be negative")
-	}
 	if err := httpx.CheckOrigins("auth.cors_allowed_origins", c.Auth.CORSAllowedOrigins); err != nil {
 		return err
 	}
@@ -163,29 +133,5 @@ func (c *AppConfig) Validate() error {
 	if err := c.Notification.validate(); err != nil {
 		return err
 	}
-	for name, p := range c.Auth.OAuthProviders {
-		if p.Enabled() && p.RedirectURL == "" {
-			return fmt.Errorf("auth.oauth_providers.%s.redirect_url is required", name)
-		}
-		if name == "logto" && p.Enabled() {
-			if p.IssuerURL == "" {
-				return fmt.Errorf("auth.oauth_providers.logto.issuer_url is required")
-			}
-			if err := shareURL("auth.oauth_providers.logto.issuer_url", p.IssuerURL, true); err != nil {
-				return err
-			}
-			if u, err := url.Parse(p.RedirectURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Fragment != "" || strings.Contains(p.RedirectURL, "#") {
-				return fmt.Errorf("auth.oauth_providers.logto.redirect_url: %q must be an http(s) URL without fragment", p.RedirectURL)
-			}
-		}
-	}
 	return nil
-}
-
-// SessionLifetime returns the configured or default session lifetime.
-func (c *AppConfig) SessionLifetime() time.Duration {
-	if c.Auth.SessionTTL > 0 {
-		return c.Auth.SessionTTL
-	}
-	return DefaultSessionTTL
 }

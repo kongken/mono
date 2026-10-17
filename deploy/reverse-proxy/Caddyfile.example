@@ -1,0 +1,66 @@
+# Same-origin edge: TLS termination + static SPA + BFF API on one site.
+# Replace example.com and file paths. Mount Secrets at /secrets (see docs/deployment.md).
+
+example.com {
+	encode gzip zstd
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
+
+	# Public share and unsubscribe paths (credentials in path or query).
+	handle_path /s/* {
+		reverse_proxy bff:18081 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+	handle /api/share/* {
+		reverse_proxy bff:18081 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+	handle /api/notifications/* {
+		reverse_proxy bff:18081 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	# BFF Connect, health and probes (do not strip Connect or CSRF headers).
+	handle /api/* {
+		request_body {
+			max_size 20MB
+		}
+		reverse_proxy bff:18081 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+	handle /ping /readyz {
+		reverse_proxy bff:18081 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	# SPA static files (build with --build-arg VITE_API_BASE_URL=/api).
+	root * /srv/www
+	try_files {path} /index.html
+	file_server
+}

@@ -7,7 +7,7 @@ import {
   type ReportOverview as ProtoReportOverview,
   type ReportProvinceProgress as ProtoProvinceProgress,
   type ReportRecordRef as ProtoRecordRef,
-} from "@trip-map/api-client/tripmap/v1/report_pb";
+} from "@trip-map/api-client/bff/v1/report_pb";
 import type {
   AchievementData,
   AnnualReportData,

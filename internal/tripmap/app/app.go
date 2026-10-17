@@ -12,7 +12,6 @@ import (
 	redisstore "butterfly.orx.me/core/store/redis"
 	s3store "butterfly.orx.me/core/store/s3"
 	"butterfly.orx.me/core/store/sqldb"
-	"connectrpc.com/connect"
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/gin-gonic/gin"
@@ -20,14 +19,12 @@ import (
 	redisclient "github.com/redis/go-redis/v9"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
-	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/internal/tripmap/application"
 	"github.com/kongken/mono/internal/tripmap/blobstore"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent"
-	"github.com/kongken/mono/internal/tripmap/ent/accountdeletionreceipt"
 	"github.com/kongken/mono/internal/tripmap/regions"
-	"github.com/kongken/mono/pkg/proto/tripmap/v1/tripmapv1connect"
+	"google.golang.org/grpc"
 )
 
 type Resources struct {
@@ -44,6 +41,11 @@ type Handlers struct {
 	resources atomic.Pointer[Resources]
 	grpc      atomic.Pointer[grpcx.Server]
 	notifier  *application.Notifier
+	grpcUnaryExtra []grpc.UnaryServerInterceptor
+}
+
+func (h *Handlers) SetGRPCTestUnaryInterceptors(in ...grpc.UnaryServerInterceptor) {
+	h.grpcUnaryExtra = append(h.grpcUnaryExtra, in...)
 }
 
 func New(cfg *config.AppConfig) *Handlers {
@@ -121,9 +123,6 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 			case <-maintenance.Done():
 				return
 			case <-ticker.C:
-				cleanup, cancel := context.WithTimeout(maintenance, 10*time.Second)
-				_, _ = client.AccountDeletionReceipt.Delete().Where(accountdeletionreceipt.ExpiresAtLTE(time.Now().UTC())).Exec(cleanup)
-				cancel()
 				runSnapshotMaintenance(maintenance, client, cache)
 				runReportMaintenance(maintenance, &application.Store{DB: client, Redis: cache, Blobs: blobs}, index)
 				runNotificationMaintenance(maintenance, &application.Store{DB: client, Redis: cache, Blobs: blobs}, index, h.notifier)
@@ -222,7 +221,6 @@ func (h *Handlers) Store() *application.Store {
 	return &application.Store{DB: r.DB, Redis: r.Redis, Blobs: r.Blobs, KeyPrefix: r.KeyPrefix}
 }
 func (h *Handlers) Routes(r *gin.Engine) {
-	// A reverse proxy can be explicitly configured later; don't trust arbitrary X-Forwarded-For.
 	_ = r.SetTrustedProxies(nil)
 	r.GET("/ping", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"message": "pong"}) })
 	r.GET("/readyz", func(c *gin.Context) {
@@ -233,40 +231,9 @@ func (h *Handlers) Routes(r *gin.Engine) {
 		}
 		c.JSON(code, gin.H{"ready": health.Ready(statuses), "dependencies": statuses})
 	})
-	index, err := regions.Default()
-	if err != nil {
-		panic(err) // the index is embedded, so this is a build defect
-	}
-	opts := connect.WithInterceptors(application.NewAuthInterceptor(h))
-	api := r.Group("/api", httpx.CORS(func() []string { return h.cfg.Auth.CORSAllowedOrigins }, "X-Tripmap-Schema", "X-Tripmap-Regions"))
-	mount := func(path string, handler http.Handler) {
-		api.Any(path+"*path", gin.WrapH(http.StripPrefix("/api", handler)))
-	}
-	path, handler := tripmapv1connect.NewAuthServiceHandler(application.NewAuthService(h.cfg, h), opts)
-	mount(path, handler)
-	path, handler = tripmapv1connect.NewFootprintServiceHandler(application.NewFootprintService(h.cfg, h, index), opts, connect.WithReadMaxBytes(16*1024*1024))
-	mount(path, handler)
-	path, handler = tripmapv1connect.NewSnapshotServiceHandler(application.NewSnapshotService(h.cfg, h, index), opts)
-	mount(path, handler)
-	path, handler = tripmapv1connect.NewMediaServiceHandler(application.NewMediaService(h, index), opts, connect.WithReadMaxBytes(16*1024*1024))
-	mount(path, handler)
-	path, handler = tripmapv1connect.NewShareServiceHandler(application.NewShareService(h.cfg, h, index), opts)
-	mount(path, handler)
-	path, handler = tripmapv1connect.NewCollaborationServiceHandler(application.NewCollaborationService(h, index), opts)
-	mount(path, handler)
-	path, handler = tripmapv1connect.NewReportServiceHandler(application.NewReportService(h, index), opts)
-	mount(path, handler)
-	path, handler = tripmapv1connect.NewRegionServiceHandler(application.NewRegionService(h, index), opts, connect.WithReadMaxBytes(4096))
-	mount(path, handler)
-	path, handler = tripmapv1connect.NewSearchServiceHandler(application.NewSearchService(h, index), opts, connect.WithReadMaxBytes(4096))
-	mount(path, handler)
-	path, handler = tripmapv1connect.NewItineraryServiceHandler(application.NewItineraryService(h, index), opts, connect.WithReadMaxBytes(256*1024))
-	mount(path, handler)
-	path, handler = tripmapv1connect.NewNotificationServiceHandler(application.NewNotificationService(h, h.notifier), opts, connect.WithReadMaxBytes(16*1024))
-	mount(path, handler)
-	mountShare(r, api, application.NewSharePublic(h.cfg, h))
-	notifications := application.NewNotificationPublic(h.cfg, h, h.notifier)
-	api.Match([]string{http.MethodGet, http.MethodHead, http.MethodPost}, "/notifications/unsubscribe", httpx.RedactTrace("/api/notifications/unsubscribe"), func(c *gin.Context) {
-		notifications.Unsubscribe(c.Writer, c.Request)
-	})
+}
+
+// MountShare registers public share HTTP routes (tests only; production serves them on the BFF).
+func MountShare(r *gin.Engine, api *gin.RouterGroup, public *application.SharePublic) {
+	mountShare(r, api, public)
 }

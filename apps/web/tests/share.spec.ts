@@ -68,7 +68,7 @@ function fakeShare(page: Page) {
   return {
     state,
     install: () =>
-      page.route("**/api/tripmap.v1.ShareService/**", async (route) => {
+      page.route("**/api/bff.v1.ShareService/**", async (route) => {
         const method = route.request().url().split("/").pop();
         // JSON omits zero values; read them back as the server would.
         const raw = route.request().postDataJSON();
@@ -76,7 +76,9 @@ function fakeShare(page: Page) {
           expectedVersion: "0", previewRevision: "0", refreshContent: false, ...raw,
           settings: { ...privateSettings(), ...raw.settings },
         };
-        expect(route.request().headers().authorization).toBeTruthy();
+        const h = route.request().headers();
+        expect(h["x-csrf-token"]).toBeTruthy();
+        expect(h.authorization).toBeUndefined();
         const ok = (json: unknown) => route.fulfill({ status: 200, json });
         if (method === "GetShare") return ok({ share: info(), enabled: state.enabled });
         if (method === "PreviewShare") {
@@ -144,7 +146,7 @@ async function ownerPage(page: Page, shareEnabled = true) {
   await backend.install();
   const share = fakeShare(page);
   await share.install();
-  await page.route("**/api/tripmap.v1.MediaService/ListMedia", (route) => route.fulfill({ json: { media } }));
+  await page.route("**/api/bff.v1.MediaService/ListMedia", (route) => route.fulfill({ json: { media } }));
   await login(page);
   return share;
 }
