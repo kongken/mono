@@ -258,8 +258,10 @@ func TestChainDeadlineBudgets(t *testing.T) {
 }
 
 func TestChainClientCancellationPropagates(t *testing.T) {
+	downstreamBlocked := make(chan struct{})
 	block := grpc.UnaryServerInterceptor(func(ctx context.Context, req any, info *grpc.UnaryServerInfo, next grpc.UnaryHandler) (any, error) {
 		if info.FullMethod == statusGRPCMethod {
+			close(downstreamBlocked)
 			<-ctx.Done()
 			return nil, ctx.Err()
 		}
@@ -273,7 +275,7 @@ func TestChainClientCancellationPropagates(t *testing.T) {
 		_, err := client.GetStatus(ctx, connect.NewRequest(&bffv1.GetStatusRequest{}))
 		done <- err
 	}()
-	time.Sleep(50 * time.Millisecond)
+	<-downstreamBlocked
 	cancel()
 	select {
 	case err := <-done:
