@@ -24,6 +24,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/regions"
+	"google.golang.org/grpc"
 )
 
 type Resources struct {
@@ -40,6 +41,11 @@ type Handlers struct {
 	resources atomic.Pointer[Resources]
 	grpc      atomic.Pointer[grpcx.Server]
 	notifier  *application.Notifier
+	grpcUnaryExtra []grpc.UnaryServerInterceptor
+}
+
+func (h *Handlers) SetGRPCTestUnaryInterceptors(in ...grpc.UnaryServerInterceptor) {
+	h.grpcUnaryExtra = append(h.grpcUnaryExtra, in...)
 }
 
 func New(cfg *config.AppConfig) *Handlers {

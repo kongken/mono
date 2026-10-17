@@ -498,3 +498,28 @@ F1 代码范围已覆盖注销与增量同步；F1 总项仍保留真实 OAuth �
 **请求体与限流。** 一个满批（2000 项、每项备注 1000 个字符）按 JSON 最坏估计约 6–12 MB。Footprint 处理器读取上限为 16 MiB；前端镜像的 Nginx `/api` 转发默认 1 MB，已加 `client_max_body_size 16m`（`deploy/frontend/default.conf.template`）；自行部署的其他反向代理需调到不低于 16 MB。批量限流按项计（每用户每分钟 6000 项），单条写入仍为每分钟 600 次。
 
 **验证。** `make test` 在没有数据库连接时跳过存储相关测试；F5 的 Go 测试需要 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR`（媒体测试使用内存对象存储，不需要 S3；真实 S3 测试另需 `make test-integration` 的环境）。
+
+## 跨功能加固测试覆盖
+
+以下用例在 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 已配置时运行真实 Connect → BFF → TLS gRPC → tripmap 链（`internal/e2e/chain_harness_test.go`），未配置则跳过。
+
+| 测试 | 规格要点 |
+| --- | --- |
+| `TestChainMaxLegitimateSyncBatchPersists` | 接近满批迁移同步成功并持久化；重任务下游期限约 25s（需 `Connect-Timeout-Ms`） |
+| `TestChainSyncBatchCountOverLimitRejected` | 超过 2000 项批量返回 `invalid_argument`，无写入 |
+| `TestChainConnectBodyOverReadMaxRejected` | 超过 Connect 16 MiB 读上限被拒绝，不挂起 |
+| `TestChainGrpcOversizedMessageRejected` | 超过内部 gRPC 默认 20 MiB 消息被拒绝 |
+| `TestLegitimatePayloadLimitsAreConsistent` | 公网 16 MiB、内部 20 MiB、Nginx `client_max_body_size` 一致 |
+| `TestChainDeadlineBudgets` | 普通 10s / 重任务 25s 上限、更短 `Connect-Timeout-Ms`、不可抬高上限 |
+| `TestChainClientCancellationPropagates` | 取消 Connect 请求后下游 gRPC 上下文取消 |
+| `TestChainNoAutomaticRetryOnUnavailable` | 下游 `Unavailable` 仅调用一次 |
+| `TestChainRequestIDAndTraceparent` | 非法 request-id 替换、有效 traceparent 下传 |
+| `TestChainSensitiveValuesStayOutOfLogsAndResponses` | 会话/CSRF 等不出现在响应与捕获日志 |
+| `TestChainConnectProtocolVersionRequired` / `TestChainRejectsGRPCAndGRPCWeb` | 仅 Connect；拒绝 gRPC/gRPC-Web |
+| `TestChainAnonymousFootprintDenied` | 匿名默认拒绝受保护读 |
+| `TestChainForgedClientIPIgnored` | 伪造客户端地址 metadata 不被采信 |
+| `TestForgedMetadataChangesNothing`（`trust_test.go`） | 伪造身份 metadata 无效 |
+| `TestTripmapRejectsEveryCallWithoutAValidBFFCredential`（`trust_test.go`） | 无凭证/匿名凭证不能访问受保护方法 |
+| `TestPublicKeyRotation` / `TestTripmapOnlyTalksTLSToATrustedIdentity`（`trust_test.go`） | 密钥轮换与 TLS 身份 |
+| `TestPublicEntryIsConnectOnlyAndUnknownPathsAreNotForwarded`（`bff/app/status_test.go`） | 公网协议与路由 |
+| `TestCredentialPathsStayOutOfTraces`（`bff/app/app_test.go`） | 分享/退订路径 span 脱敏 |

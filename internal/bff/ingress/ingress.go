@@ -89,7 +89,11 @@ func Interceptor(p Policy) connect.Interceptor {
 				}
 				return err
 			}
-			call := rpcauth.Call{RequestID: requestID, ClientIP: httpx.ClientAddr(p.ClientIPHeader, req.Header(), req.Peer().Addr)}
+			call := rpcauth.Call{
+				RequestID:   requestID,
+				ClientIP:    httpx.ClientAddr(p.ClientIPHeader, req.Header(), req.Peer().Addr),
+				TraceParent: rpcauth.NormalizeTraceparent(req.Header().Get(rpcauth.MetadataTraceparent)),
+			}
 			var browser session.BrowserSession
 			if !rpcauth.Anonymous(procedure) {
 				if p.Authenticate == nil {

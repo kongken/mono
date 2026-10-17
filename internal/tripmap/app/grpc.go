@@ -25,6 +25,8 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 	if err != nil {
 		return err
 	}
+	unary := []grpc.UnaryServerInterceptor{rpcauth.UnaryServerInterceptor(verifier)}
+	unary = append(unary, h.grpcUnaryExtra...)
 	srv, err := grpcx.Start(h.cfg.GRPC, func(r grpc.ServiceRegistrar) {
 		tripmapv1.RegisterSystemServiceServer(r, application.NewSystemService(h, func() bool { return h.cfg.Share.Enabled() }))
 		if st := h.Store(); st != nil {
@@ -52,7 +54,7 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 		for _, register := range extra {
 			register(r)
 		}
-	}, []grpc.UnaryServerInterceptor{rpcauth.UnaryServerInterceptor(verifier)}, []grpc.StreamServerInterceptor{rpcauth.StreamServerInterceptor(verifier)})
+	}, unary, []grpc.StreamServerInterceptor{rpcauth.StreamServerInterceptor(verifier)})
 	if err != nil {
 		return fmt.Errorf("start grpc: %w", err)
 	}
