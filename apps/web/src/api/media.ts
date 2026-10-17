@@ -1,5 +1,5 @@
 import { createClient } from "@connectrpc/connect";
-import { MediaService, type MediaInfo } from "@trip-map/api-client/tripmap/v1/media_pb";
+import { MediaService, type MediaInfo } from "@trip-map/api-client/bff/v1/media_pb";
 import { transport } from "./transport";
 
 const raw = transport ? createClient(MediaService, transport) : null;

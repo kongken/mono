@@ -77,7 +77,7 @@ test("a signed-in editor with several trips and photo buttons fits a 320px scree
     ],
   });
   await backend.install();
-  await page.route("**/api/tripmap.v1.MediaService/**", (route) => route.fulfill({ status: 200, json: { media: [] } }));
+  await page.route("**/api/bff.v1.MediaService/**", (route) => route.fulfill({ status: 200, json: { media: [] } }));
   await login(page);
   await expect(page.getByRole("button", { name: "账号", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "旅行足迹" }).first().click();

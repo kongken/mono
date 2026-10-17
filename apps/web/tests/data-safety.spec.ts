@@ -35,7 +35,7 @@ async function openCity(page: Page) {
 const pull = (page: Page) => page.evaluate(() => window.dispatchEvent(new Event("online")));
 
 async function emptyMedia(page: Page) {
-  await page.route("**/api/tripmap.v1.MediaService/**", (route) => route.fulfill({ status: 200, json: { media: [] } }));
+  await page.route("**/api/bff.v1.MediaService/**", (route) => route.fulfill({ status: 200, json: { media: [] } }));
 }
 
 // ---------- editor draft versus live data (items 13, 18) ----------

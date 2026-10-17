@@ -38,6 +38,7 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 			tripmapv1.RegisterNotificationPublicServiceServer(r, application.NotificationPublicGRPC(application.NewNotificationPublic(h.cfg, h, h.notifier)))
 			collab := application.NewCollaborationService(h, idx)
 			tripmapv1.RegisterCollaborationServiceServer(r, application.CollaborationGRPC(collab))
+			tripmapv1.RegisterMediaServiceServer(r, application.MediaGRPC(application.NewMediaService(h, idx)))
 			tripmapv1.RegisterAccountCleanupServiceServer(r, application.NewAccountCleanupService(h))
 		}
 		for _, register := range extra {

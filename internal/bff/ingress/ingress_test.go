@@ -96,7 +96,7 @@ const (
 	anonymousProcedure = bffv1connect.StatusServiceGetStatusProcedure
 	// A real protected method: it has no anonymous option, so it needs a user.
 	protectedProcedure = "/tripmap.v1.FootprintService/GetFootprints"
-	heavyProcedure     = "/tripmap.v1.MediaService/UploadMedia"
+	heavyProcedure     = bffv1connect.MediaServiceCompleteUploadProcedure
 )
 
 // probe is what a handler behind the interceptor observes.
