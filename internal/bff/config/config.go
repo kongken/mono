@@ -1,5 +1,5 @@
 // Package config is the BFF configuration. It shares the YAML file with
-// Butterfly's log settings; the BFF uses no stores yet.
+// Butterfly's log settings.
 package config
 
 import (
@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/kongken/mono/internal/platform/httpx"
 )
@@ -30,6 +31,19 @@ type Config struct {
 	// GRPC says where each business service's gRPC listener is and which
 	// certificate authority vouches for it.
 	GRPC GRPCConfig `yaml:"grpc"`
+	DBStore        string `yaml:"db_store"`
+	RedisStore     string `yaml:"redis_store"`
+	KeyPrefix      string `yaml:"key_prefix"`
+	AutoMigrate    bool   `yaml:"auto_migrate"`
+	Auth           AuthConfig `yaml:"auth"`
+}
+
+// AuthConfig controls browser sessions and registration.
+type AuthConfig struct {
+	SessionTTL           time.Duration `yaml:"session_ttl"`
+	RegistrationDisabled bool          `yaml:"registration_disabled"`
+	CookieSecure         bool          `yaml:"cookie_secure"`
+	CSRFTokenTTL         time.Duration `yaml:"csrf_token_ttl"`
 }
 
 type InternalAuth struct {

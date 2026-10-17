@@ -8,6 +8,7 @@ import (
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/tripmap/application"
+	"github.com/kongken/mono/internal/tripmap/regions"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	"google.golang.org/grpc"
 )
@@ -26,6 +27,12 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 	}
 	srv, err := grpcx.Start(h.cfg.GRPC, func(r grpc.ServiceRegistrar) {
 		tripmapv1.RegisterSystemServiceServer(r, application.NewSystemService(h, func() bool { return h.cfg.Share.Enabled() }))
+		if st := h.Store(); st != nil {
+			idx, _ := regions.Default()
+			foot := application.NewFootprintService(h.cfg, h, idx)
+			tripmapv1.RegisterFootprintServiceServer(r, application.FootprintGRPC(foot))
+			tripmapv1.RegisterProfileServiceServer(r, application.NewProfileService(h))
+		}
 		for _, register := range extra {
 			register(r)
 		}

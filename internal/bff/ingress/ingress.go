@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 )
@@ -53,10 +54,8 @@ type Policy struct {
 	// writes the client address into; empty uses the TCP peer. Never set it when
 	// clients can reach the BFF directly.
 	ClientIPHeader string
-	// Authenticate resolves the browser's credentials (session cookie) to a user
-	// ID, for procedures that are not anonymous. Nil means nobody can
-	// authenticate, so every protected procedure answers UNAUTHENTICATED.
-	Authenticate func(ctx context.Context, header http.Header) (userID string, err error)
+	// Authenticate resolves the browser session cookie for protected procedures.
+	Authenticate func(ctx context.Context, header http.Header) (session.BrowserSession, error)
 }
 
 var errUnauthenticated = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
@@ -79,22 +78,28 @@ func Interceptor(p Policy) connect.Interceptor {
 				return err
 			}
 			call := rpcauth.Call{RequestID: requestID, ClientIP: httpx.ClientAddr(p.ClientIPHeader, req.Header(), req.Peer().Addr)}
+			var browser session.BrowserSession
 			if !rpcauth.Anonymous(procedure) {
 				if p.Authenticate == nil {
 					return nil, withID(errUnauthenticated)
 				}
-				user, err := p.Authenticate(ctx, req.Header())
-				if err != nil || user == "" {
+				var err error
+				browser, err = p.Authenticate(ctx, req.Header())
+				if err != nil || browser.UserID == "" {
 					return nil, withID(errUnauthenticated)
 				}
-				call.UserID = user
+				call.UserID = browser.UserID
+			}
+			ctx = rpcauth.WithCall(ctx, call)
+			if browser.UserID != "" {
+				ctx = session.WithBrowser(ctx, browser)
 			}
 			limit := DefaultTimeout
 			if p.Heavy[procedure] {
 				limit = HeavyTimeout
 			}
 			// WithTimeout keeps an earlier client deadline, so the smaller wins.
-			ctx, cancel := context.WithTimeout(rpcauth.WithCall(ctx, call), limit)
+			ctx, cancel := context.WithTimeout(ctx, limit)
 			defer cancel()
 			res, err := next(ctx, req)
 			if err != nil {

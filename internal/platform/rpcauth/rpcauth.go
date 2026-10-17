@@ -30,6 +30,10 @@ const (
 	// MetadataClientIP carries the client address the BFF resolved from its trusted
 	// proxy configuration. A service believes it only after the credential verifies.
 	MetadataClientIP = "x-bff-client-ip"
+	// MetadataTripmapSchema and MetadataTripmapRegions carry the browser client's
+	// declared footprint schema and region catalog version from the BFF.
+	MetadataTripmapSchema  = "x-tripmap-schema"
+	MetadataTripmapRegions = "x-tripmap-regions"
 )
 
 // Call is what a handler may know about the caller of the current request.
@@ -41,6 +45,9 @@ type Call struct {
 	RequestID string
 	// TraceParent is the W3C traceparent the BFF sent; empty if absent.
 	TraceParent string
+	// TripmapSchema and TripmapRegions are forwarded from the browser when set.
+	TripmapSchema  string
+	TripmapRegions string
 }
 
 type callKey struct{}

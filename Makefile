@@ -10,6 +10,9 @@ test:
 ent:
 	go generate ./internal/tripmap/ent
 
+ent-bff:
+	go generate ./internal/bff/ent
+
 buf:
 	buf generate
 
@@ -18,6 +21,9 @@ buf:
 # Usage: make migration NAME=add_something DEV_DSN='postgres://...'
 migration:
 	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations/tripmap
+
+bff-migration:
+	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations/bff
 
 # Writes dev-secrets/: a local CA, tripmap's TLS certificate and the BFF's Ed25519 signing
 # key (kid dev-1) that the example configs refer to. Refuses to overwrite; add -force via

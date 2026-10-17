@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package bff.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
+
+// FootprintService exposes the signed-in user's footprint snapshot via the BFF.
+service FootprintService {
+  rpc GetFootprints(GetFootprintsRequest) returns (GetFootprintsResponse);
+}
+
+message GetFootprintsRequest {}
+
+message Visit {
+  string code = 1;
+  string name = 2;
+  string province = 3;
+  string color = 4;
+  string date = 5;
+  string note = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message ProvinceMark {
+  string province = 1;
+  string color = 2;
+  google.protobuf.Timestamp updated_at = 3;
+}
+
+message Trip {
+  string id = 1;
+  string city = 2;
+  string date = 3;
+  string note = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message GetFootprintsResponse {
+  int64 revision = 1;
+  string region_version = 2;
+  int32 schema_version = 3;
+  repeated Visit visits = 4;
+  repeated ProvinceMark province_marks = 5;
+  repeated Trip trips = 6;
+}

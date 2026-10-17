@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
+	bffmigrate "github.com/kongken/mono/internal/bff/ent/migrate"
 	entmigrate "github.com/kongken/mono/internal/tripmap/ent/migrate"
 )
 
@@ -34,14 +35,18 @@ func main() {
 	dev := flag.String("dev", os.Getenv("DEV_DSN"), "DSN of a PostgreSQL server where a scratch database may be created")
 	flag.Parse()
 	if *name == "" || *dev == "" {
-		log.Fatal("usage: migrate-gen -name <change> -dev <dsn> [-dir migrations/tripmap]")
+		log.Fatal("usage: migrate-gen -name <change> -dev <dsn> [-dir migrations/tripmap|migrations/bff]")
 	}
-	if err := run(context.Background(), *dir, *name, *dev); err != nil {
+	tables := entmigrate.Tables
+	if strings.HasSuffix(*dir, "/bff") || *dir == "migrations/bff" {
+		tables = bffmigrate.Tables
+	}
+	if err := run(context.Background(), *dir, *name, *dev, tables); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(ctx context.Context, dir, name, dsn string) error {
+func run(ctx context.Context, dir, name, dsn string, tables []*schema.Table) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -81,7 +86,7 @@ func run(ctx context.Context, dir, name, dsn string) error {
 		return err
 	}
 	before, _ := os.ReadDir(dir)
-	if err = m.NamedDiff(ctx, name, entmigrate.Tables...); err != nil {
+	if err = m.NamedDiff(ctx, name, tables...); err != nil {
 		return fmt.Errorf("diff: %w", err)
 	}
 	after, _ := os.ReadDir(dir)

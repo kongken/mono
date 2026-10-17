@@ -10,6 +10,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/bff/ingress"
+	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
@@ -144,7 +145,9 @@ func TestProceduresAreProtectedUnlessDeclaredAnonymous(t *testing.T) {
 
 	// A session resolved by the BFF becomes the user of a protected call; an
 	// anonymous procedure ignores it.
-	policy := ingress.Policy{Authenticate: func(context.Context, http.Header) (string, error) { return "user-1", nil }}
+	policy := ingress.Policy{Authenticate: func(context.Context, http.Header) (session.BrowserSession, error) {
+		return session.BrowserSession{UserID: "user-1", SessionID: "s1"}, nil
+	}}
 	seen, client = intercepted(t, policy, protectedProcedure)
 	if _, err = client.CallUnary(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{})); err != nil || seen.call.UserID != "user-1" {
 		t.Fatalf("signed-in call: err=%v user=%q", err, seen.call.UserID)
@@ -171,7 +174,9 @@ func TestCallLifetimeIsBoundedAndKeepsTheShorterDeadline(t *testing.T) {
 		}
 		return seen.deadline
 	}
-	policy := ingress.Policy{Authenticate: func(context.Context, http.Header) (string, error) { return "u", nil }, Heavy: map[string]bool{heavyProcedure: true}}
+	policy := ingress.Policy{Authenticate: func(context.Context, http.Header) (session.BrowserSession, error) {
+		return session.BrowserSession{UserID: "u", SessionID: "s1"}, nil
+	}, Heavy: map[string]bool{heavyProcedure: true}}
 	if got := call(policy, protectedProcedure, 0); !near(got, 10*time.Second) {
 		t.Errorf("ordinary call without a client deadline: %v, want about 10s", got)
 	}
