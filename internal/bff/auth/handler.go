@@ -79,6 +79,38 @@ func (h *Handler) Me(ctx context.Context, _ *connect.Request[bffv1.MeRequest]) (
 	return connect.NewResponse(msg), nil
 }
 
+func (h *Handler) ListOAuthProviders(ctx context.Context, _ *connect.Request[bffv1.ListOAuthProvidersRequest]) (*connect.Response[bffv1.ListOAuthProvidersResponse], error) {
+	msg, err := h.svc.ListOAuthProviders(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(msg), nil
+}
+
+func (h *Handler) BeginOAuthFlow(ctx context.Context, req *connect.Request[bffv1.BeginOAuthFlowRequest]) (*connect.Response[bffv1.BeginOAuthFlowResponse], error) {
+	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
+	}
+	msg, err := h.svc.BeginOAuthFlow(ctx, httpx.ClientAddr("", req.Header(), req.Peer().Addr), req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(msg), nil
+}
+
+func (h *Handler) CompleteOAuthFlow(ctx context.Context, req *connect.Request[bffv1.CompleteOAuthFlowRequest]) (*connect.Response[bffv1.CompleteOAuthFlowResponse], error) {
+	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
+	}
+	msg, expires, token, err := h.svc.CompleteOAuthFlow(ctx, httpx.ClientAddr("", req.Header(), req.Peer().Addr), req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	res := connect.NewResponse(msg)
+	session.SetSessionCookie(res.Header(), h.svc.cookies, token, expires)
+	return res, nil
+}
+
 func (h *Handler) IssueCSRFToken(_ context.Context, req *connect.Request[bffv1.IssueCSRFTokenRequest]) (*connect.Response[bffv1.IssueCSRFTokenResponse], error) {
 	token, err := h.svc.IssueCSRF()
 	if err != nil {

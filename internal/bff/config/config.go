@@ -44,6 +44,42 @@ type AuthConfig struct {
 	RegistrationDisabled bool          `yaml:"registration_disabled"`
 	CookieSecure         bool          `yaml:"cookie_secure"`
 	CSRFTokenTTL         time.Duration `yaml:"csrf_token_ttl"`
+	OAuthProviders       map[string]OAuthProvider `yaml:"oauth_providers"`
+}
+
+// OAuthProvider configures one sign-in provider. It is offered only when both
+// ClientID and ClientSecret are set. RedirectURL must be the frontend callback
+// page registered with the OAuth app.
+type OAuthProvider struct {
+	IssuerURL    string   `yaml:"issuer_url"`
+	ClientID     string   `yaml:"client_id"`
+	ClientSecret string   `yaml:"client_secret"`
+	RedirectURL  string   `yaml:"redirect_url"`
+	Scopes       []string `yaml:"scopes"`
+	DisplayName  string   `yaml:"display_name"`
+}
+
+func (p OAuthProvider) Enabled() bool { return p.ClientID != "" && p.ClientSecret != "" }
+
+func (a *AuthConfig) validateOAuth() error {
+	for name, p := range a.OAuthProviders {
+		if p.Enabled() && p.RedirectURL == "" {
+			return fmt.Errorf("auth.oauth_providers.%s.redirect_url is required", name)
+		}
+		if name == "logto" && p.Enabled() {
+			if p.IssuerURL == "" {
+				return fmt.Errorf("auth.oauth_providers.logto.issuer_url is required")
+			}
+			u, err := url.Parse(p.IssuerURL)
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.Fragment != "" {
+				return fmt.Errorf("auth.oauth_providers.logto.issuer_url: %q must be an http(s) URL without credentials or fragment", p.IssuerURL)
+			}
+			if u, err := url.Parse(p.RedirectURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Fragment != "" {
+				return fmt.Errorf("auth.oauth_providers.logto.redirect_url: %q must be an http(s) URL without fragment", p.RedirectURL)
+			}
+		}
+	}
+	return nil
 }
 
 type InternalAuth struct {
@@ -123,5 +159,8 @@ func (c *Config) Validate(services []string) error {
 			return fmt.Errorf("upstreams.%s: %q must be an http(s) base URL without path, query or credentials", name, raw)
 		}
 	}
-	return httpx.CheckOrigins("cors_allowed_origins", c.CORSAllowedOrigins)
+	if err := httpx.CheckOrigins("cors_allowed_origins", c.CORSAllowedOrigins); err != nil {
+		return err
+	}
+	return c.Auth.validateOAuth()
 }

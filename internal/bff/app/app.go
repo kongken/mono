@@ -20,6 +20,8 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	redisclient "github.com/redis/go-redis/v9"
 	bffauth "github.com/kongken/mono/internal/bff/auth"
+	"github.com/kongken/mono/internal/bff/oauth"
+	"github.com/kongken/mono/internal/bff/oauth/provider"
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/ent"
 	"github.com/kongken/mono/internal/bff/footprint"
@@ -54,6 +56,7 @@ type Handlers struct {
 	upstreams atomic.Pointer[upstream.Clients]
 	resources atomic.Pointer[Resources]
 	auth      atomic.Pointer[bffauth.Handler]
+	oauthReg  atomic.Pointer[provider.Registry]
 }
 
 func New(cfg *config.Config) *Handlers {
@@ -62,6 +65,9 @@ func New(cfg *config.Config) *Handlers {
 
 func (h *Handlers) SetServices(services []gateway.Service) { h.services = services }
 func (h *Handlers) SetResources(r *Resources)                { h.resources.Store(r) }
+
+// SetOAuthRegistry overrides configured OAuth providers (tests).
+func (h *Handlers) SetOAuthRegistry(reg *provider.Registry) { h.oauthReg.Store(reg) }
 
 func (h *Handlers) Bootstrap() error {
 	if err := h.cfg.Validate(gateway.Names(h.services)); err != nil {
@@ -151,7 +157,13 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 	}
 	if r := h.resources.Load(); r != nil && conn != nil {
 		cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode, Secure: h.cfg.Auth.CookieSecure}
-		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix), tripmapv1.NewProfileServiceClient(conn))
+		oauthState := oauth.NewStateStore(r.Redis, r.KeyPrefix)
+		var reg *provider.Registry
+		if custom := h.oauthReg.Load(); custom != nil {
+			reg = custom
+		}
+		oauthDeps := bffauth.OAuthDeps{State: oauthState, Registry: reg}
+		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix), tripmapv1.NewProfileServiceClient(conn), oauthDeps)
 		authHandler := bffauth.NewHandler(svc, h.cfg.CORSAllowedOrigins, h.cfg.Auth.CSRFTokenTTL)
 		h.auth.Store(authHandler)
 		policy.Authenticate = authHandler.Authenticate

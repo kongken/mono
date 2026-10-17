@@ -26,6 +26,7 @@ import (
 	"github.com/gin-gonic/gin"
 	bffapp "github.com/kongken/mono/internal/bff/app"
 	bffconfig "github.com/kongken/mono/internal/bff/config"
+	"github.com/kongken/mono/internal/bff/oauth/provider"
 	bffent "github.com/kongken/mono/internal/bff/ent"
 	bfftestutil "github.com/kongken/mono/internal/bff/testutil"
 	"github.com/kongken/mono/internal/bff/session"
@@ -68,8 +69,21 @@ type Browser struct {
 }
 
 // NewChainHarness builds the full stack or skips when storage env is unset.
-func NewChainHarness(t *testing.T, mutate ...func(*tripmapconfig.AppConfig)) *ChainHarness {
+// Optional extras: *provider.Registry (OAuth tests) and/or func(*tripmapconfig.AppConfig) (tripmap config).
+func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	t.Helper()
+	var oauthReg *provider.Registry
+	var mutate []func(*tripmapconfig.AppConfig)
+	for _, e := range extras {
+		switch v := e.(type) {
+		case *provider.Registry:
+			oauthReg = v
+		case func(*tripmapconfig.AppConfig):
+			mutate = append(mutate, v)
+		default:
+			t.Fatalf("NewChainHarness: unsupported option %T", e)
+		}
+	}
 	gin.SetMode(gin.TestMode)
 	idx, err := regions.Default()
 	if err != nil {
@@ -121,6 +135,9 @@ func NewChainHarness(t *testing.T, mutate ...func(*tripmapconfig.AppConfig)) *Ch
 		Auth: bffconfig.AuthConfig{CookieSecure: false},
 	}
 	h.BFF = bffapp.New(bffCfg)
+	if oauthReg != nil {
+		h.BFF.SetOAuthRegistry(oauthReg)
+	}
 	h.BFF.SetResources(&bffapp.Resources{DB: bffDB, Redis: bffRedis, KeyPrefix: bffPrefix})
 	if err := h.BFF.Bootstrap(); err != nil {
 		t.Fatal(err)

@@ -22,6 +22,15 @@ service AuthService {
   rpc IssueCSRFToken(IssueCSRFTokenRequest) returns (IssueCSRFTokenResponse) {
     option (platform.v1.anonymous) = true;
   }
+  rpc ListOAuthProviders(ListOAuthProvidersRequest) returns (ListOAuthProvidersResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  rpc BeginOAuthFlow(BeginOAuthFlowRequest) returns (BeginOAuthFlowResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  rpc CompleteOAuthFlow(CompleteOAuthFlowRequest) returns (CompleteOAuthFlowResponse) {
+    option (platform.v1.anonymous) = true;
+  }
 }
 
 message User {
@@ -68,4 +77,35 @@ message IssueCSRFTokenRequest {}
 
 message IssueCSRFTokenResponse {
   string token = 1;
+}
+
+message OAuthProvider {
+  string name = 1;
+  string display_name = 2;
+}
+
+message ListOAuthProvidersRequest {}
+
+message ListOAuthProvidersResponse {
+  repeated OAuthProvider providers = 1;
+}
+
+message BeginOAuthFlowRequest {
+  string provider = 1;
+}
+
+message BeginOAuthFlowResponse {
+  string authorize_url = 1;
+  string state = 2;
+}
+
+message CompleteOAuthFlowRequest {
+  string provider = 1;
+  string code = 2;
+  string state = 3;
+}
+
+message CompleteOAuthFlowResponse {
+  User user = 1;
+  google.protobuf.Timestamp expires_at = 2;
 }

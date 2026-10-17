@@ -60,12 +60,24 @@ export const authApi = {
   revokeSession: (_id: string) => {
     throw new Error("revokeSession not migrated to bff.v1 yet");
   },
-  listProviders: (): Promise<ProviderInfo[]> =>
-    Promise.reject(new Error("OAuth not migrated to bff.v1 yet (#32)")),
-  beginOAuth: (_provider: string): Promise<{ authorizeUrl: string; state: string }> =>
-    Promise.reject(new Error("OAuth not migrated to bff.v1 yet (#32)")),
-  completeOAuth: (_provider: string, _code: string, _state: string): Promise<StoredSession> =>
-    Promise.reject(new Error("OAuth not migrated to bff.v1 yet (#32)")),
+  listProviders: async (): Promise<ProviderInfo[]> => {
+    const res = await client().listOAuthProviders({});
+    return (res.providers ?? []).map((p) => ({
+      name: p.name,
+      displayName: p.displayName,
+    }));
+  },
+  beginOAuth: async (provider: string) => {
+    await refreshCSRF();
+    const res = await client().beginOAuthFlow({ provider });
+    return { authorizeUrl: res.authorizeUrl, state: res.state };
+  },
+  completeOAuth: async (provider: string, code: string, state: string) => {
+    await refreshCSRF();
+    return toStoredSession(
+      await client().completeOAuthFlow({ provider, code, state }),
+    );
+  },
 };
 
 export type SessionInfo = {

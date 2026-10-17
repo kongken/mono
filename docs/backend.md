@@ -19,7 +19,8 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
 | `internal/tripmap/application/` | 服务实现：`SystemService` 与完整 `FootprintService`（gRPC，供 BFF；#33 起浏览器经 `bff.v1.FootprintService`）、ConnectRPC 的 `AuthService`、`SnapshotService`（含定时快照与保留维护）、`ShareService`、`CollaborationService`、`ReportService`（含 Redis 汇总缓存与定时预热维护）、`SearchService`（私有备注分页检索）、`NotificationService`（F12 提醒设置与每小时发送维护）、公开分享路由处理（`share_public.go`）及认证拦截器 |
-| `internal/tripmap/auth/` | 会话令牌、Redis 限流与 OAuth state 存储；`provider/` 为 GitHub、Google、Logto OAuth/OIDC 适配（Logto 带 PKCE） |
+| `internal/tripmap/auth/` | 会话令牌与 Redis 限流（Connect Bearer 路径，待 #44 移除）；OAuth 已迁至 BFF（`internal/bff/oauth/`） |
+| `internal/bff/oauth/` | BFF OAuth state（Redis）与 `provider/`（GitHub、Google、Logto/PKCE） |
 | `internal/tripmap/share/` | F6：公开内容白名单与快照构建、统计、预览图渲染（纯 Go）、HTML 元数据注入、受信任 index.html 获取；`assets/` 含预览几何和 Noto Sans SC 子集 |
 | `internal/tripmap/report/` | F8：统计总览、按时区计算的年度报告、8 项旅行成就及可追溯记录引用计算（与前端 `apps/web/src/lib/report.ts` 共用 `packages/fixtures/report-stats.json` 测试夹具） |
 | `internal/tripmap/notification/` | F12：提醒内容规则（回忆匹配、年度窗口、文案）、退订令牌签名、SMTP 发送、Web Push 发送与 SSRF 防护（纯 Go，可单独测试） |
@@ -139,7 +140,7 @@ Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CON
 - `auth.registration_disabled` 为 `true` 时关闭注册（密码与 OAuth 新账号都被拒绝），默认开放注册。
 - `auth.client_ip_header` 指向可信反向代理写入的客户端地址头，用于登录与分享限流；不设置则使用 TCP 对端地址。位于 BFF 之后设为 `X-Real-IP`（BFF 总是覆盖写入该头，示例配置已设置）。直接暴露在公网时不要设置，否则客户端可伪造该头绕过限流。
 - `auth.cors_allowed_origins` 允许跨站调用 API 的浏览器来源（精确匹配，如 `https://trip.example.com`，不支持通配符）。同源部署（前端镜像的 Nginx 转发 `/api`）无需配置。位于 BFF 之后改在 BFF 的 `cors_allowed_origins` 配置，BFF 会去掉 tripmap 返回的跨域头。
-- `auth.oauth_providers.<github|google|logto>` 配置 `client_id`、`client_secret`、`redirect_url`（OAuth 应用登记的前端回调页）、可选 `scopes` 与 `display_name`；缺少 `client_id` 或 `client_secret` 的提供方不会出现在 `ListOAuthProviders` 中（`logto` 缺少 `issuer_url` 或 `redirect_url` 时同样不出现）。`logto` 另需 `issuer_url`（Logto 租户的 OIDC 地址，形如 `https://<域名>/oidc`，须为不含账号、查询和片段的 http(s) 地址；`redirect_url` 也须为不含片段的 http(s) 地址），授权、令牌和用户信息端点按 `<issuer_url>/auth`、`/token`、`/me` 推导，默认 scope 为 `openid profile email`。Logto 控制台中创建“传统网页应用”，登记的回调地址与 `redirect_url` 一致；服务启动时若 `logto` 已配置但缺少或写错 `issuer_url` 会拒绝启动。
+- **OAuth（#32 已迁至 BFF）**：在 `config.bff.yaml` 的 `auth.oauth_providers.<github|google|logto>` 配置（字段含义与旧 tripmap 相同：`client_id`、`client_secret`、`redirect_url`、可选 `scopes` 与 `display_name`；Logto 另需 `issuer_url`）。tripmap `config.yaml` 中的 `auth.oauth_providers` 不再用于浏览器登录。
 - `grpc.listen`、`grpc.cert_file`、`grpc.key_file` 必填：tripmap 自管的 gRPC over TLS 监听（业务 RPC 只在这里提供，BFF 调用）；`grpc.max_message_bytes` 默认 20 MiB。
 - `internal_auth.issuer`、`audience`、`trusted_keys[]`（`kid` + `public_key_file`）必填，可选 `clock_skew`（默认 10 秒）：只接受这些 BFF 公钥签名的内部凭证，规则见 [内部 gRPC 与凭证](bff.md#内部-grpc-与凭证)。缺失时启动失败；本地用 `make dev-secrets` 生成文件。
 - `share.public_base_url` 开启公开分享（为空即关闭）；`share.app_index_url`、`share.html_csp` 与限流项见下文 F6 一节。
@@ -174,22 +175,21 @@ curl --fail http://127.0.0.1:18081/api/bff.v1.StatusService/GetStatus \
 
 状态接口无用户数据，无需登录。前端 `getBackendStatus()` 使用独立的匿名客户端（不带 Authorization 与 Cookie）：同步前的能力检查（`footprint_schema`、`region_version`）、账号面板的分享入口和公开的 `/status` 页面都使用它；没有配置 `VITE_API_BASE_URL` 时前端根本不会发请求。
 
-### 账号与会话（`tripmap.v1.AuthService`）
+### 账号与会话（浏览器：`bff.v1.AuthService`；遗留：`tripmap.v1.AuthService`）
 
-除公共方法外，所有 RPC 都要求 `Authorization: Bearer <token>`，由 ConnectRPC 拦截器统一校验；未知、过期、已撤销令牌以及被禁用用户的会话返回相同的 `unauthenticated`。
+浏览器经 BFF Connect 使用 `bff.v1.AuthService`（Cookie `shanhai_sid`、CSRF，见 [BFF](bff.md)）。密码与 OAuth 的 `Register`/`Login`/`ListOAuthProviders`/`BeginOAuthFlow`/`CompleteOAuthFlow` 已在 BFF 实现；OAuth 完成登录后只设置 Cookie，响应不含会话令牌。OAuth 账号按 `(provider, external_id)` 识别，不按邮箱合并；不保存提供方邮箱。Logto 使用 PKCE（`code_verifier` 与 state 同存 BFF Redis，10 分钟、单次使用）。
+
+tripmap Connect 上的 `tripmap.v1.AuthService` 仍挂载但 OAuth 三方法返回 `unimplemented`；其余方法仍用 Bearer `tm_` 令牌（透明网关路径，待 #44 移除）。除公共方法外，所有 RPC 都要求 Bearer，由 ConnectRPC 拦截器统一校验。
 
 | 方法 | 公共 | 行为 |
 | --- | --- | --- |
-| `Register` | 是 | 用户名（3–32 位 `a-z0-9_`，不区分大小写）和密码（8–72 字节）创建账号并登录；用户名冲突返回 `already_exists`；注册关闭返回 `permission_denied` |
-| `Login` | 是 | 用户名 + 密码换取令牌；用户名不存在与密码错误返回同样的错误，并做等耗时的哈希比较 |
+| `Register` / `Login`（tripmap） | 是 | 遗留 Bearer 路径；新前端使用 BFF |
 | `Logout` / `Me` | 否 | 撤销当前会话 / 返回当前用户 |
 | `ListSessions` / `RevokeSession` | 否 | 列出自己未过期未撤销的会话（标记 `current`）/ 撤销自己的会话；他人的会话返回 `not_found` |
-| `ListOAuthProviders` | 是 | 已配置的 OAuth 提供方，供客户端决定显示哪些登录按钮 |
-| `BeginOAuthFlow` | 是 | 返回提供方授权地址和单次使用的 state（Redis，10 分钟）；需要 PKCE 的提供方（Logto）由服务端生成 `code_verifier` 与 S256 `code_challenge`，授权地址带 `code_challenge` 和 `code_challenge_method=S256` |
-| `CompleteOAuthFlow` | 是 | 校验并消耗 state，用授权码（PKCE 提供方同时带上该 state 保存的 `code_verifier`）换取身份，找到或创建账号并登录 |
+| OAuth 三方法（tripmap） | — | 已拒绝，请使用 `bff.v1` |
 
-- 令牌为 `tm_` 加 32 字节随机十六进制；数据库只保存 SHA-256，密码使用 bcrypt。
-- OAuth 账号按 `(provider, external_id)` 识别，不按邮箱合并；不保存提供方邮箱。OAuth 账号没有用户名和密码。Logto 账号为 `provider = "logto"`、`external_id` 为用户信息中的 `sub`；登录成功后仍签发本地 `tm_` 会话令牌，足迹同步、好友邀请码、会话管理和 15 分钟内重新登录的注销检查与其他 OAuth 账号一致。
+- BFF 会话令牌为 `bf_` 前缀；tripmap 遗留为 `tm_` 加 32 字节随机十六进制；数据库只保存 SHA-256，密码使用 bcrypt。
+- OAuth 登录成功后 BFF 签发 Cookie 会话；业务档案经 `ProfileService/EnsureProfile` 同步（与密码账号相同 `user_id`）。
 - PKCE：`code_verifier` 随 state 存入 Redis（同样 10 分钟、单次消费），只在后端换取令牌时使用，不返回给浏览器；换取失败后 state 已被消耗，需重新发起登录。Logto 令牌端点使用 `client_secret_basic` 认证，用户信息取自 `<issuer_url>/me`，不校验 ID Token。同一用户在 Logto 与 GitHub/Google 之间不会自动合并账号。state 存储格式升级后，升级前尚未完成的授权仍可完成（旧格式只含提供方名）。
 - `state` 只能防止服务端重放；客户端必须在发起前保存 `state` 并在回调时比对，否则存在登录 CSRF。前端已实现：发起前把 provider 与 state 存入 `sessionStorage`，回调时比对并立即消耗，不一致则不调用 `CompleteOAuthFlow`。
 - 限流（Redis 固定窗口）：登录每用户名 10 次 / 15 分钟、每客户端地址 40 次 / 15 分钟；注册每地址 10 次 / 小时；OAuth 每地址 60 次 / 15 分钟；单条足迹写入每用户 600 次 / 分钟；批量同步按项一次性扣减，每用户每分钟共 6000 项（一个满批 2000 项，一次迁移可连续发送数批）；已有回执的批量重放不消耗额度。超限返回 `resource_exhausted`，Redis 不可用时返回 `unavailable`（不放行）。

@@ -8,6 +8,7 @@ import {
   type DescMessage,
 } from "@bufbuild/protobuf";
 import * as auth from "@trip-map/api-client/tripmap/v1/auth_pb";
+import * as bffAuth from "@trip-map/api-client/bff/v1/auth_pb";
 import * as collaborationPb from "@trip-map/api-client/tripmap/v1/collaboration_pb";
 import * as footprint from "@trip-map/api-client/bff/v1/footprint_pb";
 import * as itineraryPb from "@trip-map/api-client/tripmap/v1/itinerary_pb";
@@ -297,7 +298,17 @@ export function fakeBackend(
               expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
             });
           case "ListOAuthProviders":
-            return send(auth.ListOAuthProvidersResponseSchema, {});
+            return send(bffAuth.ListOAuthProvidersResponseSchema, {});
+          case "BeginOAuthFlow":
+            return send(bffAuth.BeginOAuthFlowResponseSchema, {
+              authorizeUrl: "https://example.test/oauth?state=ci-state",
+              state: "ci-state",
+            });
+          case "CompleteOAuthFlow":
+            return send(bffAuth.CompleteOAuthFlowResponseSchema, {
+              user,
+              expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
+            });
           case "Me":
             return send(auth.MeResponseSchema, { user });
           case "ListSessions":
