@@ -23,6 +23,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/kongken/mono/internal/platform/health"
 	"github.com/kongken/mono/internal/tripmap/app"
+	"github.com/kongken/mono/internal/tripmap/application"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
@@ -903,8 +904,8 @@ func TestShareDisabledAccountIsNotReachableAndDisablingConfigClosesEverything(t 
 	if _, err = se.share.RevokeShare(ctx, bearer(tok, &tripmapv1.RevokeShareRequest{MutationId: "off-revoke"})); err != nil {
 		t.Fatal(err)
 	}
-	status, err := tripmapv1connect.NewSystemServiceClient(se.server.Client(), se.server.URL+"/api").GetStatus(ctx, connect.NewRequest(&tripmapv1.GetStatusRequest{}))
-	if err != nil || status.Msg.ShareEnabled {
+	status, err := application.NewSystemService(health.New(), func() bool { return se.cfg.Share.Enabled() }).GetStatus(ctx, &tripmapv1.GetStatusRequest{})
+	if err != nil || status.ShareEnabled {
 		t.Fatalf("status %v %v", status, err)
 	}
 }

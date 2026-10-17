@@ -7,6 +7,8 @@ RUN go mod download
 COPY cmd/bff cmd/bff
 COPY internal/bff internal/bff
 COPY internal/platform internal/platform
+# Generated gRPC and Connect contracts shared with the services.
+COPY pkg pkg
 # The example configuration is checked against the route table.
 COPY config.bff.example.yaml config.bff.example.yaml
 RUN go test ./internal/bff/... ./internal/platform/...

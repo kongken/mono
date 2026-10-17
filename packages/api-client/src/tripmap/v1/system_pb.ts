@@ -4,13 +4,14 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
+import { file_platform_v1_options } from "../../platform/v1/options_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file tripmap/v1/system.proto.
  */
 export const file_tripmap_v1_system: GenFile = /*@__PURE__*/
-  fileDesc("Chd0cmlwbWFwL3YxL3N5c3RlbS5wcm90bxIKdHJpcG1hcC52MSISChBHZXRTdGF0dXNSZXF1ZXN0Ip8BChFHZXRTdGF0dXNSZXNwb25zZRINCgVyZWFkeRgBIAEoCBIyCgxkZXBlbmRlbmNpZXMYAiADKAsyHC50cmlwbWFwLnYxLkRlcGVuZGVuY3lTdGF0dXMSGAoQZm9vdHByaW50X3NjaGVtYRgDIAEoBRIVCg1zaGFyZV9lbmFibGVkGAQgASgIEhYKDnJlZ2lvbl92ZXJzaW9uGAUgASgJIi8KEERlcGVuZGVuY3lTdGF0dXMSDAoEbmFtZRgBIAEoCRINCgVyZWFkeRgCIAEoCDJZCg1TeXN0ZW1TZXJ2aWNlEkgKCUdldFN0YXR1cxIcLnRyaXBtYXAudjEuR2V0U3RhdHVzUmVxdWVzdBodLnRyaXBtYXAudjEuR2V0U3RhdHVzUmVzcG9uc2VCOFo2Z2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL3RyaXBtYXAvdjE7dHJpcG1hcHYxYgZwcm90bzM");
+  fileDesc("Chd0cmlwbWFwL3YxL3N5c3RlbS5wcm90bxIKdHJpcG1hcC52MSISChBHZXRTdGF0dXNSZXF1ZXN0Ip8BChFHZXRTdGF0dXNSZXNwb25zZRINCgVyZWFkeRgBIAEoCBIyCgxkZXBlbmRlbmNpZXMYAiADKAsyHC50cmlwbWFwLnYxLkRlcGVuZGVuY3lTdGF0dXMSGAoQZm9vdHByaW50X3NjaGVtYRgDIAEoBRIVCg1zaGFyZV9lbmFibGVkGAQgASgIEhYKDnJlZ2lvbl92ZXJzaW9uGAUgASgJIi8KEERlcGVuZGVuY3lTdGF0dXMSDAoEbmFtZRgBIAEoCRINCgVyZWFkeRgCIAEoCDJfCg1TeXN0ZW1TZXJ2aWNlEk4KCUdldFN0YXR1cxIcLnRyaXBtYXAudjEuR2V0U3RhdHVzUmVxdWVzdBodLnRyaXBtYXAudjEuR2V0U3RhdHVzUmVzcG9uc2UiBKC7GAFCOFo2Z2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL3RyaXBtYXAvdjE7dHJpcG1hcHYxYgZwcm90bzM", [file_platform_v1_options]);
 
 /**
  * @generated from message tripmap.v1.GetStatusRequest
@@ -92,7 +93,8 @@ export const DependencyStatusSchema: GenMessage<DependencyStatus> = /*@__PURE__*
   messageDesc(file_tripmap_v1_system, 2);
 
 /**
- * SystemService exposes read-only infrastructure readiness, not user data.
+ * SystemService exposes read-only infrastructure readiness, not user data. It is
+ * served over gRPC to the BFF only.
  *
  * @generated from service tripmap.v1.SystemService
  */

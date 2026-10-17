@@ -16,9 +16,9 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | --- | --- |
 | `cmd/bff/`、`internal/bff/` | BFF：公网入口，按路由表转发到业务服务，统一处理跨域、客户端地址与追踪脱敏（[说明](bff.md)） |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
-| `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由 |
+| `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
-| `internal/tripmap/application/` | ConnectRPC 服务实现：`SystemService`、`AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）、`ShareService`、`CollaborationService`、`ReportService`（含 Redis 汇总缓存与定时预热维护）、`SearchService`（私有备注分页检索）、`NotificationService`（F12 提醒设置与每小时发送维护）、公开分享路由处理（`share_public.go`）及认证拦截器 |
+| `internal/tripmap/application/` | 服务实现：`SystemService`（gRPC，仅供 BFF）、ConnectRPC 的 `AuthService`、`FootprintService`、`SnapshotService`（含定时快照与保留维护）、`ShareService`、`CollaborationService`、`ReportService`（含 Redis 汇总缓存与定时预热维护）、`SearchService`（私有备注分页检索）、`NotificationService`（F12 提醒设置与每小时发送维护）、公开分享路由处理（`share_public.go`）及认证拦截器 |
 | `internal/tripmap/auth/` | 会话令牌、Redis 限流与 OAuth state 存储；`provider/` 为 GitHub、Google、Logto OAuth/OIDC 适配（Logto 带 PKCE） |
 | `internal/tripmap/share/` | F6：公开内容白名单与快照构建、统计、预览图渲染（纯 Go）、HTML 元数据注入、受信任 index.html 获取；`assets/` 含预览几何和 Noto Sans SC 子集 |
 | `internal/tripmap/report/` | F8：统计总览、按时区计算的年度报告、8 项旅行成就及可追溯记录引用计算（与前端 `apps/web/src/lib/report.ts` 共用 `packages/fixtures/report-stats.json` 测试夹具） |
@@ -31,11 +31,18 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `internal/tripmap/ent/` | 生成的 Ent 客户端与迁移结构 |
 | `proto/tripmap/v1/` | Protobuf 接口定义 |
 | `pkg/proto/`、`packages/api-client/src/` | 生成的 Go / TypeScript 契约 |
-| `apps/web/src/api/system.ts` | 前端 Connect-Web 健康状态客户端 |
+| `apps/web/src/api/system.ts` | 前端 Connect-Web 匿名状态客户端（`bff.v1.StatusService`，无 Authorization、无 Cookie） |
+| `apps/web/src/components/StatusPage.tsx` | 公开的 `/status` 服务状态页 |
 | `cmd/storage-init/` | 显式初始化配置中指定的 S3 bucket |
 | `internal/tripmap/integration/` | 可选的实际 PostgreSQL、Redis、S3 集成测试 |
 | `internal/platform/health/` | 跨服务共享：有超时的依赖就绪检查 |
 | `internal/platform/httpx/` | 跨服务共享：客户端地址、跨域应答、来源校验与追踪脱敏 |
+| `internal/platform/servicetoken/` | 跨服务共享：BFF 与业务服务之间 60 秒 Ed25519 内部凭证的签发、校验与密钥加载 |
+| `internal/platform/rpcauth/` | 跨服务共享：gRPC 客户端/服务端拦截器、proto 匿名选项读取、metadata 白名单与类型化调用者信息 |
+| `internal/platform/grpcx/` | 跨服务共享：自管 TLS gRPC 监听、消息大小限制与优雅关闭 |
+| `internal/platform/testkit/` | 跨服务共享：测试用临时 CA、证书与签名密钥 |
+| `internal/e2e/` | 仅测试：真实 BFF → TLS gRPC → 真实 tripmap 的端到端测试（[说明](bff.md#验证)） |
+| `cmd/dev-secrets/` | `make dev-secrets`：生成本地开发用 CA、证书与签名密钥 |
 
 ## 媒体接口（F4，`tripmap.v1.MediaService`）
 
@@ -112,7 +119,8 @@ Compose 只启动本项目的开发依赖，使用命名卷保存数据。S3 开
 | S3 API | `http://127.0.0.1:19000` |
 | S3 开发控制台 | `http://127.0.0.1:19001` |
 | BFF（公网入口） | `http://127.0.0.1:18081` |
-| tripmap 服务（仅供 BFF 访问） | `http://127.0.0.1:18082` |
+| tripmap 服务 HTTP（仅供 BFF 访问） | `http://127.0.0.1:18082` |
+| tripmap 服务 gRPC over TLS（仅供 BFF 访问） | `127.0.0.1:18083` |
 | Vite 前端 | 启动时输出地址，通常为 `http://localhost:5173` |
 
 端口避开了现有 `neo-box` 开发服务。Vite 代理 `/api`、`/ping` 和 `/readyz` 到 BFF 的 `18081`；若改变 BFF 端口，同时更新代理配置。`make deps-down` 仅停止并移除本项目容器，保留数据卷。
@@ -132,6 +140,8 @@ Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CON
 - `auth.client_ip_header` 指向可信反向代理写入的客户端地址头，用于登录与分享限流；不设置则使用 TCP 对端地址。位于 BFF 之后设为 `X-Real-IP`（BFF 总是覆盖写入该头，示例配置已设置）。直接暴露在公网时不要设置，否则客户端可伪造该头绕过限流。
 - `auth.cors_allowed_origins` 允许跨站调用 API 的浏览器来源（精确匹配，如 `https://trip.example.com`，不支持通配符）。同源部署（前端镜像的 Nginx 转发 `/api`）无需配置。位于 BFF 之后改在 BFF 的 `cors_allowed_origins` 配置，BFF 会去掉 tripmap 返回的跨域头。
 - `auth.oauth_providers.<github|google|logto>` 配置 `client_id`、`client_secret`、`redirect_url`（OAuth 应用登记的前端回调页）、可选 `scopes` 与 `display_name`；缺少 `client_id` 或 `client_secret` 的提供方不会出现在 `ListOAuthProviders` 中（`logto` 缺少 `issuer_url` 或 `redirect_url` 时同样不出现）。`logto` 另需 `issuer_url`（Logto 租户的 OIDC 地址，形如 `https://<域名>/oidc`，须为不含账号、查询和片段的 http(s) 地址；`redirect_url` 也须为不含片段的 http(s) 地址），授权、令牌和用户信息端点按 `<issuer_url>/auth`、`/token`、`/me` 推导，默认 scope 为 `openid profile email`。Logto 控制台中创建“传统网页应用”，登记的回调地址与 `redirect_url` 一致；服务启动时若 `logto` 已配置但缺少或写错 `issuer_url` 会拒绝启动。
+- `grpc.listen`、`grpc.cert_file`、`grpc.key_file` 必填：tripmap 自管的 gRPC over TLS 监听（业务 RPC 只在这里提供，BFF 调用）；`grpc.max_message_bytes` 默认 20 MiB。
+- `internal_auth.issuer`、`audience`、`trusted_keys[]`（`kid` + `public_key_file`）必填，可选 `clock_skew`（默认 10 秒）：只接受这些 BFF 公钥签名的内部凭证，规则见 [内部 gRPC 与凭证](bff.md#内部-grpc-与凭证)。缺失时启动失败；本地用 `make dev-secrets` 生成文件。
 - `share.public_base_url` 开启公开分享（为空即关闭）；`share.app_index_url`、`share.html_csp` 与限流项见下文 F6 一节。
 - `auto_migrate: true` 在启动时通过 Ent 创建或补充表结构。本地示例开启；生产环境应设为 `false`，改由下文“版本化数据库迁移”中评审过的 SQL 文件升级，再启动新版本后端。
 
@@ -147,21 +157,22 @@ S3 兼容服务可设置 endpoint 和 `use_path_style: true`；AWS S3 可省略 
 | --- | --- |
 | `GET /ping` | 存活检查，返回 `{"message":"pong"}` |
 | `GET /readyz` | 检查 PostgreSQL、Redis 和 S3 bucket；全部可用返回 200，否则 503 |
-| `POST /api/tripmap.v1.SystemService/GetStatus` | ConnectRPC 健康状态，返回 `ready` 和各依赖的 `name` / `ready` |
+| gRPC `tripmap.v1.SystemService/GetStatus` | 仅在内部 TLS gRPC 端口，匿名方法但仍需 BFF 凭证；返回 `ready`、各依赖的 `name` / `ready`、`footprint_schema`、`share_enabled`、`region_version` |
+| `POST /api/bff.v1.StatusService/GetStatus`（BFF） | 浏览器的匿名状态查询，内容与上一行相同，由 BFF 经内部 gRPC 获取 |
 
-就绪检查对每个依赖设置 2 秒超时并发执行，只返回状态，不返回原始驱动错误、连接字符串或凭据。RPC 请求成功时 HTTP 状态表示 RPC 调用结果，依赖可用性应读取响应中的 `ready`；运维探针使用 `/readyz`。
+就绪检查对每个依赖设置 2 秒超时并发执行，只返回状态，不返回原始驱动错误、连接字符串或凭据。RPC 请求成功时 HTTP 状态表示 RPC 调用结果，依赖可用性应读取响应中的 `ready`；运维探针使用 `/readyz`。tripmap 原来的 Connect 版 `tripmap.v1.SystemService` 已移除，不保留旧过程名。
 
 ```bash
 curl --fail http://127.0.0.1:18082/ping
 curl --fail http://127.0.0.1:18082/readyz
-# 经 BFF 转发
-curl --fail http://127.0.0.1:18081/api/tripmap.v1.SystemService/GetStatus \
+# 经 BFF（先 make dev-secrets，BFF 与 tripmap 都已启动）
+curl --fail http://127.0.0.1:18081/api/bff.v1.StatusService/GetStatus \
   -H 'Content-Type: application/json' \
   -H 'Connect-Protocol-Version: 1' \
   -d '{}'
 ```
 
-健康接口无用户数据，无需登录。前端 `getBackendStatus()` 可调用生成客户端，界面不主动调用；没有配置 `VITE_API_BASE_URL` 时前端根本不会发请求。
+状态接口无用户数据，无需登录。前端 `getBackendStatus()` 使用独立的匿名客户端（不带 Authorization 与 Cookie）：同步前的能力检查（`footprint_schema`、`region_version`）、账号面板的分享入口和公开的 `/status` 页面都使用它；没有配置 `VITE_API_BASE_URL` 时前端根本不会发请求。
 
 ### 账号与会话（`tripmap.v1.AuthService`）
 
@@ -256,7 +267,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 **部署顺序与反向代理。** 先应用 `migrations/tripmap/20261014022913_f6_shares.sql`，再部署后端，最后部署前端。代理（BFF 与前端 Nginx）必须转发 `/s/` 与 `/api/share/` 到后端，且这些路径不写访问日志（令牌）；位于代理之后设置 `auth.client_ip_header`。镜像内的 Nginx 配置已处理；Vite 开发服务器代理 `/s/`。后端镜像构建需要 `internal/` 下的预览资源、`packages/fixtures` 和 `packages/geo-data/data` 中的区域索引与城市坐标；前端镜像构建需要 `internal/tripmap/share/assets/geometry.json`（`check:maps` 校验）。后端 `CGO_ENABLED=0` 构建通过。
 
-**生成。** 修改 `proto/` 后 `make buf`，修改 `internal/tripmap/ent/schema/` 后 `make ent`，迁移文件用 `make migration NAME=… DEV_DSN=…` 生成；生成文件不手改。
+**生成。** 修改 `proto/` 后 `make buf`（同时生成 Connect、grpc-go 与 TypeScript 代码），修改 `internal/tripmap/ent/schema/` 后 `make ent`，迁移文件用 `make migration NAME=… DEV_DSN=…` 生成；生成文件不手改。
 
 ## F7 共同旅行与好友（`tripmap.v1.CollaborationService`）
 

@@ -5,14 +5,40 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kongken/mono/internal/platform/grpcx"
+	"github.com/kongken/mono/internal/platform/servicetoken"
 	"gopkg.in/yaml.v3"
 )
+
+// valid returns a configuration that passes Validate; tests mutate it.
+func valid() *AppConfig {
+	return &AppConfig{
+		DBStore: "main", RedisStore: "main", Storage: StorageConfig{S3Store: "main"},
+		GRPC:         grpcx.ServerConfig{Listen: ":18083", CertFile: "server.pem", KeyFile: "server.key"},
+		InternalAuth: servicetoken.VerifyConfig{Issuer: "bff", Audience: "tripmap", TrustedKeys: []servicetoken.TrustedKey{{KID: "k1", PublicKeyFile: "bff.pub"}}},
+	}
+}
+
+func TestInternalTransportIsRequired(t *testing.T) {
+	for name, mutate := range map[string]func(*AppConfig){
+		"no grpc listener": func(c *AppConfig) { c.GRPC = grpcx.ServerConfig{} },
+		"no tls key":       func(c *AppConfig) { c.GRPC.KeyFile = "" },
+		"no trusted keys":  func(c *AppConfig) { c.InternalAuth.TrustedKeys = nil },
+		"no audience":      func(c *AppConfig) { c.InternalAuth.Audience = "" },
+	} {
+		cfg := valid()
+		mutate(cfg)
+		if cfg.Validate() == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}
 
 func TestRequiredStores(t *testing.T) {
 	if (&AppConfig{}).Validate() == nil {
 		t.Fatal("empty configuration accepted")
 	}
-	cfg := &AppConfig{DBStore: "main", RedisStore: "main", Storage: StorageConfig{S3Store: "main"}}
+	cfg := valid()
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -20,7 +46,7 @@ func TestRequiredStores(t *testing.T) {
 
 func TestAuthConfigValidation(t *testing.T) {
 	base := func() *AppConfig {
-		return &AppConfig{DBStore: "main", RedisStore: "main", Storage: StorageConfig{S3Store: "main"}}
+		return valid()
 	}
 	if got := base().SessionLifetime(); got != DefaultSessionTTL {
 		t.Fatalf("default session lifetime = %v", got)
@@ -53,7 +79,7 @@ func TestAuthConfigValidation(t *testing.T) {
 
 func TestLogtoConfigValidation(t *testing.T) {
 	base := func() *AppConfig {
-		return &AppConfig{DBStore: "main", RedisStore: "main", Storage: StorageConfig{S3Store: "main"}}
+		return valid()
 	}
 	logto := func(mutate func(*OAuthProvider)) *AppConfig {
 		p := OAuthProvider{
@@ -121,7 +147,7 @@ func TestExampleConfigParses(t *testing.T) {
 
 func TestShareConfigValidation(t *testing.T) {
 	base := func() *AppConfig {
-		return &AppConfig{DBStore: "main", RedisStore: "main", Storage: StorageConfig{S3Store: "main"}}
+		return valid()
 	}
 	cfg := base()
 	if cfg.Share.Enabled() {
@@ -157,7 +183,7 @@ func TestShareConfigValidation(t *testing.T) {
 
 func TestNotificationConfigValidation(t *testing.T) {
 	base := func() *AppConfig {
-		return &AppConfig{DBStore: "main", RedisStore: "main", Storage: StorageConfig{S3Store: "main"}}
+		return valid()
 	}
 	cfg := base()
 	if cfg.Notification.EmailEnabled() || cfg.Notification.PushEnabled() {

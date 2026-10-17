@@ -2,11 +2,16 @@ syntax = "proto3";
 
 package tripmap.v1;
 
+import "platform/v1/options.proto";
+
 option go_package = "github.com/kongken/mono/pkg/proto/tripmap/v1;tripmapv1";
 
-// SystemService exposes read-only infrastructure readiness, not user data.
+// SystemService exposes read-only infrastructure readiness, not user data. It is
+// served over gRPC to the BFF only.
 service SystemService {
-  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {
+    option (platform.v1.anonymous) = true;
+  }
 }
 
 message GetStatusRequest {}

@@ -1,7 +1,6 @@
 package app
 
 import (
-	"connectrpc.com/connect"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -10,9 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/kongken/mono/internal/platform/health"
+	"github.com/kongken/mono/internal/tripmap/application"
 	"github.com/kongken/mono/internal/tripmap/config"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
-	"github.com/kongken/mono/pkg/proto/tripmap/v1/tripmapv1connect"
 )
 
 func TestRoutesBeforeBootstrap(t *testing.T) {
@@ -31,20 +30,21 @@ func TestRoutesBeforeBootstrap(t *testing.T) {
 			t.Fatalf("%s: %d %s", tc.path, response.Code, response.Body.String())
 		}
 	}
-	server := httptest.NewServer(router)
-	defer server.Close()
-	client := tripmapv1connect.NewSystemServiceClient(server.Client(), server.URL+"/api")
-	response, err := client.GetStatus(context.Background(), connect.NewRequest(&tripmapv1.GetStatusRequest{}))
-	if err != nil || response.Msg.Ready || len(response.Msg.Dependencies) != 3 {
-		t.Fatalf("RPC readiness: response=%v err=%v", response, err)
+	// The status query is served over gRPC only; the old Connect procedure is gone.
+	legacy := httptest.NewRecorder()
+	router.ServeHTTP(legacy, httptest.NewRequest(http.MethodPost, "/api/tripmap.v1.SystemService/GetStatus", strings.NewReader("{}")))
+	if legacy.Code != http.StatusNotFound {
+		t.Fatalf("legacy Connect status procedure: %d", legacy.Code)
+	}
+	status := application.NewSystemService(handlers, func() bool { return false })
+	response, err := status.GetStatus(context.Background(), &tripmapv1.GetStatusRequest{})
+	if err != nil || response.Ready || len(response.Dependencies) != 3 || response.FootprintSchema < 2 {
+		t.Fatalf("readiness before wiring: response=%v err=%v", response, err)
 	}
 	handlers.resources.Store(&Resources{Health: health.New(health.Probe{Name: "test", Check: func(context.Context) error { return nil }})})
-	if response.Msg.FootprintSchema < 2 {
-		t.Fatalf("status does not advertise the multi-trip schema: %v", response.Msg)
-	}
-	response, err = client.GetStatus(context.Background(), connect.NewRequest(&tripmapv1.GetStatusRequest{}))
-	if err != nil || !response.Msg.Ready {
-		t.Fatalf("RPC after resource wiring: %v", err)
+	response, err = status.GetStatus(context.Background(), &tripmapv1.GetStatusRequest{})
+	if err != nil || !response.Ready {
+		t.Fatalf("readiness after resource wiring: %v", err)
 	}
 }
 
