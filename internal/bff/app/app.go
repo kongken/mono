@@ -26,6 +26,7 @@ import (
 	"github.com/kongken/mono/internal/bff/ent"
 	"github.com/kongken/mono/internal/bff/footprint"
 	"github.com/kongken/mono/internal/bff/friends"
+	bffitinerary "github.com/kongken/mono/internal/bff/itinerary"
 	"github.com/kongken/mono/internal/bff/gateway"
 	"github.com/kongken/mono/internal/bff/ingress"
 	bffnotification "github.com/kongken/mono/internal/bff/notification"
@@ -187,6 +188,9 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 			mux.Handle(route, ingress.ConnectOnly(handler))
 			collab := tripmapv1.NewCollaborationServiceClient(conn)
 			route, handler = bffv1connect.NewFriendServiceHandler(friends.New(collab, h.cfg.CORSAllowedOrigins), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			itin := bffitinerary.New(tripmapv1.NewItineraryServiceClient(conn), h.cfg.CORSAllowedOrigins)
+			route, handler = bffv1connect.NewItineraryServiceHandler(itin, opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
 		}
 	}

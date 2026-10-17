@@ -62,9 +62,10 @@ type Browser struct {
 	t      *testing.T
 	HTTP   *http.Client
 	Auth   bffv1connect.AuthServiceClient
-	Foot   bffv1connect.FootprintServiceClient
+	Foot    bffv1connect.FootprintServiceClient
 	Friends bffv1connect.FriendServiceClient
-	APIURL string
+	Itin    bffv1connect.ItineraryServiceClient
+	APIURL  string
 	Origin string
 	Region string
 }
@@ -165,10 +166,13 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 	return &Browser{
 		t: h.T, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
 		Auth: bffv1connect.NewAuthServiceClient(hc, api),
-		Foot: bffv1connect.NewFootprintServiceClient(hc, api),
+		Foot:    bffv1connect.NewFootprintServiceClient(hc, api),
 		Friends: bffv1connect.NewFriendServiceClient(hc, api),
+		Itin:    bffv1connect.NewItineraryServiceClient(hc, api),
 	}
 }
+
+func (b *Browser) Itinerary() bffv1connect.ItineraryServiceClient { return b.Itin }
 
 func (b *Browser) GetCollaborationOverview(ctx context.Context) (*bffv1.GetCollaborationOverviewResponse, error) {
 	req := connect.NewRequest(&bffv1.GetCollaborationOverviewRequest{})
@@ -184,6 +188,48 @@ func (b *Browser) GetFriendFootprints(ctx context.Context, friendUserID string) 
 	req := connect.NewRequest(&bffv1.GetFriendFootprintsRequest{FriendUserId: friendUserID})
 	b.withTripmapHeaders(req)
 	res, err := b.Friends.GetFriendFootprints(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+func (b *Browser) ListItineraries(ctx context.Context) (*bffv1.ListItinerariesResponse, error) {
+	req := connect.NewRequest(&bffv1.ListItinerariesRequest{})
+	b.withTripmapHeaders(req)
+	res, err := b.Itin.ListItineraries(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+func (b *Browser) GetItinerary(ctx context.Context, id string) (*bffv1.GetItineraryResponse, error) {
+	req := connect.NewRequest(&bffv1.GetItineraryRequest{Id: id})
+	b.withTripmapHeaders(req)
+	res, err := b.Itin.GetItinerary(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+func (b *Browser) SaveItinerary(ctx context.Context, msg *bffv1.SaveItineraryRequest) (*bffv1.SaveItineraryResponse, error) {
+	csrf := b.refreshCSRF(ctx)
+	req := connect.NewRequest(msg)
+	b.writeHeaders(req, csrf, b.Origin)
+	res, err := b.Itin.SaveItinerary(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+func (b *Browser) DeleteItinerary(ctx context.Context, msg *bffv1.DeleteItineraryRequest) (*bffv1.DeleteItineraryResponse, error) {
+	csrf := b.refreshCSRF(ctx)
+	req := connect.NewRequest(msg)
+	b.writeHeaders(req, csrf, b.Origin)
+	res, err := b.Itin.DeleteItinerary(ctx, req)
 	if err != nil {
 		return nil, err
 	}

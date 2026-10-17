@@ -7,11 +7,11 @@ import {
   fromJson,
   type DescMessage,
 } from "@bufbuild/protobuf";
-import * as auth from "@trip-map/api-client/tripmap/v1/auth_pb";
 import * as bffAuth from "@trip-map/api-client/bff/v1/auth_pb";
+import * as bffItinerary from "@trip-map/api-client/bff/v1/itinerary_pb";
+import * as auth from "@trip-map/api-client/tripmap/v1/auth_pb";
 import * as collaborationPb from "@trip-map/api-client/tripmap/v1/collaboration_pb";
 import * as footprint from "@trip-map/api-client/bff/v1/footprint_pb";
-import * as itineraryPb from "@trip-map/api-client/tripmap/v1/itinerary_pb";
 import { DEFAULT_ESTIMATION_POLICY, buildItineraryInfo, validateItineraryInput, type ItineraryRecord } from "../src/lib/itinerary";
 import * as notificationPb from "@trip-map/api-client/bff/v1/notification_pb";
 import * as reportPb from "@trip-map/api-client/tripmap/v1/report_pb";
@@ -21,7 +21,6 @@ import areas from "@trip-map/geo-data/regions.json" with { type: "json" };
 import { regionCatalog, REGION_VERSION } from "../src/lib/region-catalog";
 import * as searchPb from "@trip-map/api-client/tripmap/v1/search_pb";
 import * as snapshotPb from "@trip-map/api-client/tripmap/v1/snapshot_pb";
-import * as bffAuth from "@trip-map/api-client/bff/v1/auth_pb";
 import * as statusPb from "@trip-map/api-client/bff/v1/status_pb";
 import { buildReport } from "../src/lib/report";
 import { searchNotes } from "../src/lib/search";
@@ -142,6 +141,18 @@ export function fakeBackend(
   const wireTrip = (t: StoredTrip) => ({
     id: t.id, city: t.code, date: t.date, note: t.note, updatedAt: ts(),
   });
+  const wireBffTrip = (t: StoredTrip) => ({
+    id: t.id, city: t.code, date: t.date, note: t.note, updatedAt: ts(),
+  });
+  const bffUser = () => ({
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    avatarUrl: "",
+    createdAt: ts(),
+    deletionPending: false,
+  });
+  const csrfToken = "ci-csrf-test-token";
   const wireItinerary = (r: ItineraryRecord) => {
     const info = buildItineraryInfo(r);
     return { ...info, version: BigInt(info.version), createdAt: ts(), updatedAt: ts() };
@@ -292,12 +303,20 @@ export function fakeBackend(
         switch (method) {
           case "GetStatus":
             return send(statusPb.GetStatusResponseSchema, { footprintSchema: state.footprintSchema, shareEnabled: options.shareEnabled ?? false, regionVersion: state.regionVersion });
-          case "Login":
-            return send(auth.LoginResponseSchema, {
-              token: "ci-token",
-              user,
+          case "IssueCSRFToken":
+            return send(bffAuth.IssueCSRFTokenResponseSchema, { token: csrfToken });
+          case "Register":
+            return send(bffAuth.RegisterResponseSchema, {
+              user: bffUser(),
               expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
             });
+          case "Login":
+            return send(bffAuth.LoginResponseSchema, {
+              user: bffUser(),
+              expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
+            });
+          case "Logout":
+            return send(bffAuth.LogoutResponseSchema, {});
           case "ListOAuthProviders":
             return send(bffAuth.ListOAuthProvidersResponseSchema, {});
           case "BeginOAuthFlow":
@@ -311,7 +330,7 @@ export function fakeBackend(
               expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
             });
           case "Me":
-            return send(auth.MeResponseSchema, { user });
+            return send(bffAuth.MeResponseSchema, { user: bffUser() });
           case "ListSessions":
             return send(
               req.url().includes("bff.v1") ? bffAuth.ListSessionsResponseSchema : auth.ListSessionsResponseSchema,
@@ -364,10 +383,10 @@ export function fakeBackend(
             return send(regionsPb.ApplyRegionUpgradeResponseSchema, { version: body.version, revision: BigInt(saved.revision), changedCount: saved.changed, snapshotId: saved.snapshotId });
           }
           case "GetFootprints":
-            return send(footprint.GetFootprintsResponseSchema, {
+            return send(bffFootprint.GetFootprintsResponseSchema, {
               revision: BigInt(state.revision),
               visits: [...state.visits.values()].map((v) => ({ ...v, date: "", note: "", updatedAt: ts() })),
-              trips: [...state.trips.values()].map(wireTrip),
+              trips: [...state.trips.values()].map(wireBffTrip),
               provinceMarks: [...state.marks].map(([province, color]) => ({ province, color, updatedAt: ts() })),
               schemaVersion: state.footprintSchema,
               regionVersion: state.regionVersion,
@@ -558,12 +577,12 @@ export function fakeBackend(
           }
           case "ListItineraries":
             state.itineraryCalls.push(method);
-            return send(itineraryPb.ListItinerariesResponseSchema, {
+            return send(bffItinerary.ListItinerariesResponseSchema, {
               itineraries: [...state.itineraries.values()].map(wireItinerary),
               policy: DEFAULT_ESTIMATION_POLICY,
             });
           case "SaveItinerary": {
-            const body = read(itineraryPb.SaveItineraryRequestSchema) as itineraryPb.SaveItineraryRequest;
+            const body = read(bffItinerary.SaveItineraryRequestSchema) as bffItinerary.SaveItineraryRequest;
             state.itineraryCalls.push(method);
             if (state.failItinerarySave > 0) {
               state.failItinerarySave--;
@@ -573,7 +592,7 @@ export function fakeBackend(
             const request = JSON.stringify([body.id, body.title, body.note, body.color, body.stops.map((x) => [x.id, x.regionCode, x.date, x.note, x.transport])]);
             if (body.mutationId && state.itineraryMutations.has(body.mutationId)) {
               if (state.itineraryMutations.get(body.mutationId) !== request) return route.fulfill(failure("already_exists", "mutation_id was already used", 409));
-              return send(itineraryPb.SaveItineraryResponseSchema, { itinerary: wireItinerary(prior!), policy: DEFAULT_ESTIMATION_POLICY, replayed: true });
+              return send(bffItinerary.SaveItineraryResponseSchema, { itinerary: wireItinerary(prior!), policy: DEFAULT_ESTIMATION_POLICY, replayed: true });
             }
             if (body.expectedVersion !== 0n && BigInt(prior?.version ?? 0) !== body.expectedVersion) return route.fulfill(failure("aborted", "itinerary changed, reload", 409));
             let record: ItineraryRecord;
@@ -592,13 +611,13 @@ export function fakeBackend(
               state.dropNextItineraryReply--;
               return route.fulfill(failure("unavailable", "lost reply", 503));
             }
-            return send(itineraryPb.SaveItineraryResponseSchema, { itinerary: wireItinerary(record), policy: DEFAULT_ESTIMATION_POLICY, replayed: false });
+            return send(bffItinerary.SaveItineraryResponseSchema, { itinerary: wireItinerary(record), policy: DEFAULT_ESTIMATION_POLICY, replayed: false });
           }
           case "DeleteItinerary": {
-            const body = read(itineraryPb.DeleteItineraryRequestSchema) as itineraryPb.DeleteItineraryRequest;
+            const body = read(bffItinerary.DeleteItineraryRequestSchema) as bffItinerary.DeleteItineraryRequest;
             state.itineraryCalls.push(method);
             const existed = state.itineraries.delete(body.id);
-            return send(itineraryPb.DeleteItineraryResponseSchema, { deleted: existed });
+            return send(bffItinerary.DeleteItineraryResponseSchema, { deleted: existed });
           }
           case "GetNotificationSettings":
             state.notify.calls.push(method);

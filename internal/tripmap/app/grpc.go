@@ -31,6 +31,7 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 			idx, _ := regions.Default()
 			foot := application.NewFootprintService(h.cfg, h, idx)
 			tripmapv1.RegisterFootprintServiceServer(r, application.FootprintGRPC(foot))
+			tripmapv1.RegisterItineraryServiceServer(r, application.ItineraryGRPC(application.NewItineraryService(h, idx)))
 			tripmapv1.RegisterProfileServiceServer(r, application.NewProfileService(h))
 			notif := application.NewNotificationService(h, h.notifier)
 			tripmapv1.RegisterNotificationServiceServer(r, application.NotificationGRPC(notif))

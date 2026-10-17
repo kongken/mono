@@ -6,7 +6,7 @@ import {
   type ItineraryInfo as ProtoItineraryInfo,
   type ItineraryLeg as ProtoLeg,
   type ItineraryStop as ProtoStop,
-} from "@trip-map/api-client/tripmap/v1/itinerary_pb";
+} from "@trip-map/api-client/bff/v1/itinerary_pb";
 import {
   DEFAULT_ESTIMATION_POLICY,
   normalizeTransport,
