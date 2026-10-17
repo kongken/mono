@@ -183,7 +183,7 @@ curl --fail http://127.0.0.1:18081/api/bff.v1.StatusService/GetStatus \
 | `Register` | 是 | 用户名（3–32 位 `a-z0-9_`，不区分大小写）和密码（8–72 字节）创建账号并登录；用户名冲突返回 `already_exists`；注册关闭返回 `permission_denied` |
 | `Login` | 是 | 用户名 + 密码换取令牌；用户名不存在与密码错误返回同样的错误，并做等耗时的哈希比较 |
 | `Logout` / `Me` | 否 | 撤销当前会话 / 返回当前用户 |
-| `ListSessions` / `RevokeSession` | 否 | 列出自己未过期未撤销的会话（标记 `current`）/ 撤销自己的会话；他人的会话返回 `not_found` |
+| `ListSessions` / `RevokeSession` | 否 | **Connect 已关闭（#31）**，返回 `unimplemented`；浏览器使用 BFF `bff.v1.AuthService` 同名方法（BFF 存储，标记 `current`，撤销写操作需 CSRF；他人或不存在的会话撤销返回 `not_found`） |
 | `ListOAuthProviders` | 是 | 已配置的 OAuth 提供方，供客户端决定显示哪些登录按钮 |
 | `BeginOAuthFlow` | 是 | 返回提供方授权地址和单次使用的 state（Redis，10 分钟）；需要 PKCE 的提供方（Logto）由服务端生成 `code_verifier` 与 S256 `code_challenge`，授权地址带 `code_challenge` 和 `code_challenge_method=S256` |
 | `CompleteOAuthFlow` | 是 | 校验并消耗 state，用授权码（PKCE 提供方同时带上该 state 保存的 `code_verifier`）换取身份，找到或创建账号并登录 |
@@ -455,7 +455,7 @@ make test-integration
 
 PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除，以及版本化迁移的升级校验（见上文“版本化数据库迁移”）。
 
-`internal/e2e/` 提供 **`ChainHarness`**（`chain_harness_test.go`）：在设置 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 时启动真实 BFF（独立 schema + Redis 前缀）→ TLS gRPC → 真实 tripmap（独立 schema），经 httptest 暴露 BFF 公网 URL。`FreshBrowser()` 返回带 cookie jar 的 **`Browser`**，自动处理 CSRF（`IssueCSRFToken` + `X-CSRF-Token`）与足迹读所需的 `X-Tripmap-Schema` / `X-Tripmap-Regions`；`Register` / `Login` / `Me` / `Logout` / `GetFootprints` 走 Connect 公共客户端。后续 ticket 只追加场景测试，复用该 harness。运行：`go test ./internal/e2e/ -run Chain -count=1`（与 `make test-integration` 同一套 PG/Redis 环境；无需 S3，tripmap 使用 noop blob）。
+`internal/e2e/` 提供 **`ChainHarness`**（`chain_harness_test.go`）：在设置 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 时启动真实 BFF（独立 schema + Redis 前缀）→ TLS gRPC → 真实 tripmap（独立 schema），经 httptest 暴露 BFF 公网 URL。`FreshBrowser()` 返回带 cookie jar 的 **`Browser`**，自动处理 CSRF（`IssueCSRFToken` + `X-CSRF-Token`）与足迹读所需的 `X-Tripmap-Schema` / `X-Tripmap-Regions`；`Register` / `Login` / `Me` / `Logout` / `GetFootprints` 走 Connect 公共客户端；会话列表与撤销见 `sessions_chain_test.go`。后续 ticket 只追加场景测试，复用该 harness。运行：`go test ./internal/e2e/ -run Chain -count=1`（与 `make test-integration` 同一套 PG/Redis 环境；无需 S3，tripmap 使用 noop blob）。
 
 `internal/tripmap/application` 的测试通过 HTTP 调用真实的处理器和拦截器，使用同样的隔离方式（随机 schema 与 Redis key 前缀），未设置 `TRIPMAP_TEST_POSTGRES_DSN` 和 `TRIPMAP_TEST_REDIS_ADDR` 时跳过。覆盖：快照的保存与去重、恢复的差异/撤销/revision 条件/幂等重放/原子性、用户隔离、保留与定时任务、注销清除快照；令牌与密码只存哈希、注册/登录校验与限流、会话过期/撤销/禁用、他人会话不可见、OAuth state 单次使用与注册关闭、用户 A/B 足迹隔离、非法数据、幂等、revision 冲突、省份标记与城市足迹互不影响，以及并发写入不丢失；F5 的账号升级幂等与冻结列、旧客户端被拒绝（所有 RPC）、旅行增删改与级联、旅行校验、用户隔离、变更日志内容、旧批次回执重放、批次原子性与 2000 项上限、新旧客户端并发、旧快照读取与恢复（载荷不变）、恢复时旅行换城市、定时快照、媒体与旅行的关联及隔离、注销清除旅行。`.github/workflows/ci.yml` 在 PostgreSQL 与 Redis 服务容器中运行 `go vet`、`go test -race ./...` 和前端测试、地图检查、构建。
 

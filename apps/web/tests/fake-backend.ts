@@ -20,6 +20,7 @@ import areas from "@trip-map/geo-data/regions.json" with { type: "json" };
 import { regionCatalog, REGION_VERSION } from "../src/lib/region-catalog";
 import * as searchPb from "@trip-map/api-client/tripmap/v1/search_pb";
 import * as snapshotPb from "@trip-map/api-client/tripmap/v1/snapshot_pb";
+import * as bffAuth from "@trip-map/api-client/bff/v1/auth_pb";
 import * as statusPb from "@trip-map/api-client/bff/v1/status_pb";
 import { buildReport } from "../src/lib/report";
 import { searchNotes } from "../src/lib/search";
@@ -301,7 +302,15 @@ export function fakeBackend(
           case "Me":
             return send(auth.MeResponseSchema, { user });
           case "ListSessions":
-            return send(auth.ListSessionsResponseSchema, {});
+            return send(
+              req.url().includes("bff.v1") ? bffAuth.ListSessionsResponseSchema : auth.ListSessionsResponseSchema,
+              {},
+            );
+          case "RevokeSession":
+            return send(
+              req.url().includes("bff.v1") ? bffAuth.RevokeSessionResponseSchema : auth.RevokeSessionResponseSchema,
+              {},
+            );
           case "GetRegionIndex": {
             state.regionCalls.push(method);
             const body = read(regionsPb.GetRegionIndexRequestSchema) as regionsPb.GetRegionIndexRequest;

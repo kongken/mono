@@ -150,37 +150,14 @@ func TestSessionListingAndRevocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := login.Msg.Token
-	list, err := e.auth.ListSessions(ctx, bearer(second, &tripmapv1.ListSessionsRequest{}))
-	if err != nil || len(list.Msg.Sessions) != 2 {
-		t.Fatalf("sessions: %v %v", list, err)
-	}
-	var current, other *tripmapv1.Session
-	for _, s := range list.Msg.Sessions {
-		if s.Current {
-			current = s
-		} else {
-			other = s
-		}
-	}
-	if current == nil || other == nil {
-		t.Fatalf("expected one current and one other session: %v", list.Msg.Sessions)
-	}
-	// Another user cannot see or revoke it.
-	stranger := e.register("mallory")
-	_, err = e.auth.RevokeSession(ctx, bearer(stranger, &tripmapv1.RevokeSessionRequest{Id: other.Id}))
-	wantCode(t, err, connect.CodeNotFound)
+	_, err = e.auth.ListSessions(ctx, bearer(second, &tripmapv1.ListSessionsRequest{}))
+	wantCode(t, err, connect.CodeUnimplemented)
+	_, err = e.auth.RevokeSession(ctx, bearer(second, &tripmapv1.RevokeSessionRequest{Id: "any"}))
+	wantCode(t, err, connect.CodeUnimplemented)
 	if _, err = e.auth.Me(ctx, bearer(first, &tripmapv1.MeRequest{})); err != nil {
-		t.Fatalf("stranger revoked someone else's session: %v", err)
+		t.Fatalf("sessions still on tripmap connect: %v", err)
 	}
-	// The owner can.
-	if _, err = e.auth.RevokeSession(ctx, bearer(second, &tripmapv1.RevokeSessionRequest{Id: other.Id})); err != nil {
-		t.Fatal(err)
-	}
-	_, err = e.auth.Me(ctx, bearer(first, &tripmapv1.MeRequest{}))
-	wantCode(t, err, connect.CodeUnauthenticated)
-	if n, _ := e.store.DB.Session.Query().Where(session.Revoked(false)).Count(ctx); n != 2 { // second + mallory
-		t.Fatalf("active sessions = %d", n)
-	}
+	_ = first
 }
 
 func TestOAuthFlow(t *testing.T) {
@@ -400,9 +377,8 @@ func TestLogtoOAuthFlowUsesPKCE(t *testing.T) {
 	if _, err = e.foot.GetFootprints(ctx, bearer(signedIn.Token, &tripmapv1.GetFootprintsRequest{})); err != nil {
 		t.Fatal(err)
 	}
-	sessions, err := e.auth.ListSessions(ctx, bearer(signedIn.Token, &tripmapv1.ListSessionsRequest{}))
-	if err != nil || len(sessions.Msg.Sessions) != 2 {
-		t.Fatalf("sessions: %v %v", sessions, err)
+	if n, _ := e.store.DB.Session.Query().Where(session.Revoked(false)).Count(ctx); n != 2 {
+		t.Fatalf("expected two active sessions after second Logto sign-in, got %d", n)
 	}
 	// Provider email is not stored, and the account takes part in friend invitations.
 	if created.Email != nil {

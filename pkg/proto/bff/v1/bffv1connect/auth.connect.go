@@ -41,6 +41,12 @@ const (
 	AuthServiceLogoutProcedure = "/bff.v1.AuthService/Logout"
 	// AuthServiceMeProcedure is the fully-qualified name of the AuthService's Me RPC.
 	AuthServiceMeProcedure = "/bff.v1.AuthService/Me"
+	// AuthServiceListSessionsProcedure is the fully-qualified name of the AuthService's ListSessions
+	// RPC.
+	AuthServiceListSessionsProcedure = "/bff.v1.AuthService/ListSessions"
+	// AuthServiceRevokeSessionProcedure is the fully-qualified name of the AuthService's RevokeSession
+	// RPC.
+	AuthServiceRevokeSessionProcedure = "/bff.v1.AuthService/RevokeSession"
 	// AuthServiceIssueCSRFTokenProcedure is the fully-qualified name of the AuthService's
 	// IssueCSRFToken RPC.
 	AuthServiceIssueCSRFTokenProcedure = "/bff.v1.AuthService/IssueCSRFToken"
@@ -52,6 +58,10 @@ type AuthServiceClient interface {
 	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
 	Me(context.Context, *connect.Request[v1.MeRequest]) (*connect.Response[v1.MeResponse], error)
+	// ListSessions lists the caller's active browser sessions in BFF storage.
+	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
+	// RevokeSession revokes one of the caller's own sessions.
+	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
 }
@@ -91,6 +101,18 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("Me")),
 			connect.WithClientOptions(opts...),
 		),
+		listSessions: connect.NewClient[v1.ListSessionsRequest, v1.ListSessionsResponse](
+			httpClient,
+			baseURL+AuthServiceListSessionsProcedure,
+			connect.WithSchema(authServiceMethods.ByName("ListSessions")),
+			connect.WithClientOptions(opts...),
+		),
+		revokeSession: connect.NewClient[v1.RevokeSessionRequest, v1.RevokeSessionResponse](
+			httpClient,
+			baseURL+AuthServiceRevokeSessionProcedure,
+			connect.WithSchema(authServiceMethods.ByName("RevokeSession")),
+			connect.WithClientOptions(opts...),
+		),
 		issueCSRFToken: connect.NewClient[v1.IssueCSRFTokenRequest, v1.IssueCSRFTokenResponse](
 			httpClient,
 			baseURL+AuthServiceIssueCSRFTokenProcedure,
@@ -106,6 +128,8 @@ type authServiceClient struct {
 	login          *connect.Client[v1.LoginRequest, v1.LoginResponse]
 	logout         *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
 	me             *connect.Client[v1.MeRequest, v1.MeResponse]
+	listSessions   *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
+	revokeSession  *connect.Client[v1.RevokeSessionRequest, v1.RevokeSessionResponse]
 	issueCSRFToken *connect.Client[v1.IssueCSRFTokenRequest, v1.IssueCSRFTokenResponse]
 }
 
@@ -129,6 +153,16 @@ func (c *authServiceClient) Me(ctx context.Context, req *connect.Request[v1.MeRe
 	return c.me.CallUnary(ctx, req)
 }
 
+// ListSessions calls bff.v1.AuthService.ListSessions.
+func (c *authServiceClient) ListSessions(ctx context.Context, req *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error) {
+	return c.listSessions.CallUnary(ctx, req)
+}
+
+// RevokeSession calls bff.v1.AuthService.RevokeSession.
+func (c *authServiceClient) RevokeSession(ctx context.Context, req *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error) {
+	return c.revokeSession.CallUnary(ctx, req)
+}
+
 // IssueCSRFToken calls bff.v1.AuthService.IssueCSRFToken.
 func (c *authServiceClient) IssueCSRFToken(ctx context.Context, req *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {
 	return c.issueCSRFToken.CallUnary(ctx, req)
@@ -140,6 +174,10 @@ type AuthServiceHandler interface {
 	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
 	Me(context.Context, *connect.Request[v1.MeRequest]) (*connect.Response[v1.MeResponse], error)
+	// ListSessions lists the caller's active browser sessions in BFF storage.
+	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
+	// RevokeSession revokes one of the caller's own sessions.
+	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
 }
@@ -175,6 +213,18 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("Me")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceListSessionsHandler := connect.NewUnaryHandler(
+		AuthServiceListSessionsProcedure,
+		svc.ListSessions,
+		connect.WithSchema(authServiceMethods.ByName("ListSessions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceRevokeSessionHandler := connect.NewUnaryHandler(
+		AuthServiceRevokeSessionProcedure,
+		svc.RevokeSession,
+		connect.WithSchema(authServiceMethods.ByName("RevokeSession")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceIssueCSRFTokenHandler := connect.NewUnaryHandler(
 		AuthServiceIssueCSRFTokenProcedure,
 		svc.IssueCSRFToken,
@@ -191,6 +241,10 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceLogoutHandler.ServeHTTP(w, r)
 		case AuthServiceMeProcedure:
 			authServiceMeHandler.ServeHTTP(w, r)
+		case AuthServiceListSessionsProcedure:
+			authServiceListSessionsHandler.ServeHTTP(w, r)
+		case AuthServiceRevokeSessionProcedure:
+			authServiceRevokeSessionHandler.ServeHTTP(w, r)
 		case AuthServiceIssueCSRFTokenProcedure:
 			authServiceIssueCSRFTokenHandler.ServeHTTP(w, r)
 		default:
@@ -216,6 +270,14 @@ func (UnimplementedAuthServiceHandler) Logout(context.Context, *connect.Request[
 
 func (UnimplementedAuthServiceHandler) Me(context.Context, *connect.Request[v1.MeRequest]) (*connect.Response[v1.MeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.Me is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.ListSessions is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.RevokeSession is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {

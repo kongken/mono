@@ -9,7 +9,7 @@
 **当前已实现**
 
 - `bff.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
-- `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`IssueCSRFToken`；账号与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`）。会话 Cookie：`shanhai_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `shanhai_csrf` + 请求头 `X-CSRF-Token`；写操作校验 Origin。响应不返回会话令牌。
+- `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`ListSessions`、`RevokeSession`、`IssueCSRFToken`；账号与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`）。会话 Cookie：`shanhai_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `shanhai_csrf` + 请求头 `X-CSRF-Token`；写操作（含 `RevokeSession`）校验 Origin。响应不返回会话令牌；会话列表与撤销只读写 BFF 存储，不向 tripmap 下传浏览器会话 ID。
 - `bff.v1.FootprintService/GetFootprints` → tripmap gRPC `FootprintService/GetFootprints`；注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
@@ -19,7 +19,7 @@
 
 **当前限制**
 
-- OAuth、ListSessions、足迹写/sync、快照、媒体等仍经透明网关 `tripmap.v1` + Bearer（#31–#44）。
+- OAuth、足迹写/sync、快照、媒体等仍经透明网关 `tripmap.v1` + Bearer（#32–#44）；`tripmap.v1.AuthService/ListSessions` 与 `RevokeSession` 的 Connect 路径已返回 `unimplemented`（#31）。
 - 前端除 auth 与 GetFootprints 外仍调用 `tripmap.v1` Connect；OAuth UI 在 #32 前不可用。
 
 ```
@@ -117,7 +117,7 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 - `internal/bff/auth`：注册/登录/会话/CSRF（需 `TRIPMAP_TEST_*`）。
 - `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与 TLS gRPC 信任。
-- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、A/B `GetFootprints` 隔离、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -run Chain`。
+- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、`ListSessions`/`RevokeSession`（跨设备撤销与 CSRF）、A/B `GetFootprints` 隔离、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -run Chain`。
 - **Playwright 真实栈**（默认跳过）：`apps/web/tests/bff-cookie-real.spec.ts`；先 `make dev`（或等价 BFF+tripmap），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @trip-map/web -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
 - 其余 UI：Playwright 模拟后端覆盖登录骨架与业务场景。
 
@@ -127,4 +127,4 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 ## 待实现
 
-OAuth、会话管理、其余业务 RPC 经 `bff.v1` 迁移、移除透明网关与 tripmap Bearer（#31–#44）。
+OAuth、其余业务 RPC 经 `bff.v1` 迁移、移除透明网关与 tripmap Bearer（#32–#44）。

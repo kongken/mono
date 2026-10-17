@@ -79,6 +79,32 @@ func (h *Handler) Me(ctx context.Context, _ *connect.Request[bffv1.MeRequest]) (
 	return connect.NewResponse(msg), nil
 }
 
+func (h *Handler) ListSessions(ctx context.Context, _ *connect.Request[bffv1.ListSessionsRequest]) (*connect.Response[bffv1.ListSessionsResponse], error) {
+	bs, ok := session.FromBrowser(ctx)
+	if !ok {
+		return nil, errUnauth
+	}
+	msg, err := h.svc.ListSessions(ctx, bs.UserID, bs.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(msg), nil
+}
+
+func (h *Handler) RevokeSession(ctx context.Context, req *connect.Request[bffv1.RevokeSessionRequest]) (*connect.Response[bffv1.RevokeSessionResponse], error) {
+	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
+	}
+	bs, ok := session.FromBrowser(ctx)
+	if !ok {
+		return nil, errUnauth
+	}
+	if err := h.svc.RevokeSession(ctx, bs.UserID, req.Msg.GetId()); err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&bffv1.RevokeSessionResponse{}), nil
+}
+
 func (h *Handler) IssueCSRFToken(_ context.Context, req *connect.Request[bffv1.IssueCSRFTokenRequest]) (*connect.Response[bffv1.IssueCSRFTokenResponse], error) {
 	token, err := h.svc.IssueCSRF()
 	if err != nil {
