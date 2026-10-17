@@ -3,7 +3,7 @@ import { timestampMs } from "@bufbuild/protobuf/wkt";
 import {
   SnapshotService,
   type SnapshotInfo as WireInfo,
-} from "@trip-map/api-client/tripmap/v1/snapshot_pb";
+} from "@trip-map/api-client/bff/v1/snapshot_pb";
 import {
   snapshotToSaved,
   type SnapshotInfo,
@@ -55,7 +55,22 @@ export const snapshotApi = {
   get: async (id: string): Promise<{ snapshot: SnapshotInfo; saved: Saved }> => {
     const r = await client().getSnapshot({ id });
     if (!r.snapshot || !r.data) throw new Error("incomplete snapshot reply");
-    return { snapshot: info(r.snapshot), saved: snapshotToSaved(r.data) };
+    const data = r.data;
+    return {
+      snapshot: info(r.snapshot),
+      saved: snapshotToSaved({
+        visits: data.visits,
+        provinceMarks: data.provinceMarks,
+        schemaVersion: data.schemaVersion,
+        regionVersion: data.regionVersion,
+        trips: data.trips.map((t) => ({
+          id: t.id,
+          regionCode: t.city,
+          date: t.date,
+          note: t.note,
+        })),
+      }),
+    };
   },
   /**
    * Make the account equal the snapshot. `baseRevision` is the revision the

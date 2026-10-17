@@ -16,6 +16,7 @@
 - 公开 HTTP：`GET/HEAD/POST /api/notifications/unsubscribe` 在 BFF 显式注册（`internal/bff/publichttp`），边缘限流与追踪路径模板 `/api/notifications/unsubscribe`（不含查询令牌），再调用 tripmap gRPC `NotificationPublicService/ProcessEmailUnsubscribe`（匿名内部凭证 + 退订签名令牌）；不使用 Cookie CSRF。
 - `bff.v1.FriendService`（#37）：好友概览、隐私设置、请求/解除与好友足迹对比 → tripmap gRPC `CollaborationService` 同名方法；好友码与展示字段在 tripmap 业务档案，不查 BFF 认证库。写操作校验 CSRF。
 - `bff.v1.ItineraryService`（#41：`ListItineraries`、`GetItinerary`、`SaveItinerary`、`DeleteItinerary`）→ tripmap gRPC `ItineraryService` 同名方法；写操作校验 Origin/CSRF。tripmap 公网 Connect 上的 `ItineraryService` 已移除。
+- `bff.v1.SnapshotService`（#34：`ListSnapshots`、`CreateSnapshot`、`GetSnapshot`、`RestoreSnapshot`）→ tripmap gRPC `SnapshotService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`CreateSnapshot` / `RestoreSnapshot` 写操作校验 Origin/CSRF；`RestoreSnapshot` 登记为 25 秒重任务。tripmap 公网 Connect 上的 `SnapshotService` 已移除。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
 **开发数据保留（#30）**
@@ -24,9 +25,9 @@
 
 **当前限制**
 
-- 快照、媒体、**共同旅行写操作**等仍经透明网关 `tripmap.v1` + Bearer（#34 等）；`tripmap.v1.AuthService/ListSessions` 与 `RevokeSession` 的 Connect 路径已返回 `unimplemented`（#31）。
+- 媒体、**共同旅行写操作**等仍经透明网关 `tripmap.v1` + Bearer（#35 等）；`tripmap.v1.AuthService/ListSessions` 与 `RevokeSession` 的 Connect 路径已返回 `unimplemented`（#31）。
 - tripmap HTTP 已不再挂载 `FootprintService` / `ItineraryService` Connect；BFF 透明网关上的 `/api/tripmap.v1.FootprintService/*` 仍代理至 tripmap 直至 #44 移除整包转发。
-- 前端 auth（含 OAuth 与会话管理）、足迹、提醒、好友与行程 API 已调用 `bff.v1`。
+- 前端 auth（含 OAuth 与会话管理）、足迹、快照、提醒、好友与行程 API 已调用 `bff.v1`。
 - 真实 GitHub/Google/Logto 端到端授权验收仍依赖部署凭据，CI 使用受控 fake 提供方与 `internal/e2e/oauth_chain_test.go`。
 
 ```
@@ -138,4 +139,4 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 ## 待实现
 
-快照、媒体等其余业务 RPC 经 `bff.v1` 迁移、移除透明网关与 tripmap Bearer（#34–#44）。**#43 已交付：** BFF 编排注销与内部 `AccountCleanupService`。
+媒体等其余业务 RPC 经 `bff.v1` 迁移、移除透明网关与 tripmap Bearer（#35–#44）。**#34 已交付：** 云端快照经 `bff.v1.SnapshotService`。**#43 已交付：** BFF 编排注销与内部 `AccountCleanupService`。
