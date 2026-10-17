@@ -9,7 +9,6 @@ import (
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/config"
-	"github.com/kongken/mono/internal/tripmap/ent/session"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
