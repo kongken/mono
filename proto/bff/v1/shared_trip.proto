@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package bff.v1;
+
+import "bff/v1/friends.proto";
+import "bff/v1/media.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
+
+// SharedTripService exposes shared-trip collaboration via the BFF.
+service SharedTripService {
+  rpc InviteToSharedTrip(InviteToSharedTripRequest) returns (InviteToSharedTripResponse);
+  rpc RespondSharedTripInvite(RespondSharedTripInviteRequest) returns (RespondSharedTripInviteResponse);
+  rpc UpdateSharedTrip(UpdateSharedTripRequest) returns (UpdateSharedTripResponse);
+  rpc SetSharedTripMemberRole(SetSharedTripMemberRoleRequest) returns (SetSharedTripMemberRoleResponse);
+  rpc RemoveSharedTripMember(RemoveSharedTripMemberRequest) returns (RemoveSharedTripMemberResponse);
+  rpc LeaveSharedTrip(LeaveSharedTripRequest) returns (LeaveSharedTripResponse);
+  rpc DeleteSharedTrip(DeleteSharedTripRequest) returns (DeleteSharedTripResponse);
+  rpc ListSharedTripMedia(ListSharedTripMediaRequest) returns (ListSharedTripMediaResponse);
+  rpc ReadSharedTripMedia(ReadSharedTripMediaRequest) returns (ReadSharedTripMediaResponse);
+}
+
+message InviteToSharedTripRequest {
+  string region_code = 1;
+  string trip_id = 2;
+  string friend_user_id = 3;
+  string role = 4;
+}
+
+message InviteToSharedTripResponse {
+  SharedTripInfo shared_trip = 1;
+}
+
+message RespondSharedTripInviteRequest {
+  string shared_trip_id = 1;
+  bool accept = 2;
+}
+
+message RespondSharedTripInviteResponse {
+  SharedTripInfo shared_trip = 1;
+  int64 footprint_revision = 2;
+}
+
+message UpdateSharedTripRequest {
+  string shared_trip_id = 1;
+  string date = 2;
+  string note = 3;
+  string mutation_id = 4;
+}
+
+message UpdateSharedTripResponse {
+  SharedTripInfo shared_trip = 1;
+  int64 footprint_revision = 2;
+}
+
+message SetSharedTripMemberRoleRequest {
+  string shared_trip_id = 1;
+  string member_user_id = 2;
+  string role = 3;
+}
+
+message SetSharedTripMemberRoleResponse {
+  SharedTripInfo shared_trip = 1;
+}
+
+message RemoveSharedTripMemberRequest {
+  string shared_trip_id = 1;
+  string member_user_id = 2;
+}
+
+message RemoveSharedTripMemberResponse {
+  SharedTripInfo shared_trip = 1;
+}
+
+message LeaveSharedTripRequest {
+  string shared_trip_id = 1;
+}
+
+message LeaveSharedTripResponse {
+  int64 footprint_revision = 1;
+}
+
+message DeleteSharedTripRequest {
+  string shared_trip_id = 1;
+}
+
+message DeleteSharedTripResponse {}
+
+message SharedTripMediaInfo {
+  MediaInfo media = 1;
+  FriendUser uploader = 2;
+  bool mine = 3;
+}
+
+message ListSharedTripMediaRequest {
+  string shared_trip_id = 1;
+}
+
+message ListSharedTripMediaResponse {
+  repeated SharedTripMediaInfo media = 1;
+}
+
+message ReadSharedTripMediaRequest {
+  string shared_trip_id = 1;
+  string media_id = 2;
+  bool thumbnail = 3;
+}
+
+message ReadSharedTripMediaResponse {
+  bytes data = 1;
+  string content_type = 2;
+  string filename = 3;
+}

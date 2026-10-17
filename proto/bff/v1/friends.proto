@@ -7,7 +7,7 @@ import "google/protobuf/timestamp.proto";
 option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
 
 // FriendService exposes friendships, privacy settings and friend footprint comparison via the BFF.
-// Shared-trip mutations remain on tripmap.v1 until a follow-up slice; overview may list shared trips read-only.
+// Shared-trip mutations use bff.v1.SharedTripService; overview lists shared trips read-only here.
 service FriendService {
   rpc GetCollaborationOverview(GetCollaborationOverviewRequest) returns (GetCollaborationOverviewResponse);
   rpc UpdateFriendSettings(UpdateFriendSettingsRequest) returns (UpdateFriendSettingsResponse);

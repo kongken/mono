@@ -193,7 +193,7 @@
 
 仅当构建时设置了 `VITE_API_BASE_URL`（见 [后端初始化](backend.md)）才出现，未设置时界面没有任何登录入口，应用保持纯本地模式。登录可选，不登录的行为完全不变。
 
-**登录与注册。** 页眉“登录”按钮（手机上为圆形图标）打开登录弹窗：用户名 + 密码登录，或切换到“注册”创建账号（用户名 3–32 位小写字母、数字、下划线，密码至少 8 位，昵称选填）。**已实现（#30–#33、#43）：** 密码与 OAuth 注册/登录与账号注销经 BFF `bff.v1.AuthService`（注销含密码确认、注销中仅 Me/Logout/注销重试、24 小时完成回执），会话为 HttpOnly Cookie `shanhai_sid`（`SameSite=Lax`），写操作带 CSRF；`localStorage` 的 `shanhai-session-v1` 只存用户信息与可选过期提示，**不存** Bearer/会话令牌；账号弹窗的已登录设备列表与撤销其他设备经 BFF `ListSessions` / `RevokeSession`（BFF 存储，标记当前设备）；城市足迹与省份标记的读、增量与批量同步经 BFF `bff.v1.FootprintService`（含 `GetFootprints`、`GetChanges`、`SyncChanges` 及仍被调用的单条写操作），经内部 gRPC 到 tripmap，保留 revision/幂等/2000 项批次语义。**已实现（#34）：** 云端快照列表、保存、预览与恢复经 BFF `bff.v1.SnapshotService`（写操作带 CSRF），迁移前保护快照仍由前端在确认迁移时调用 `CreateSnapshot(before_migration)`。**已实现（#37、#41–#42、#39）：** 好友与行程经 `bff.v1.FriendService` / `bff.v1.ItineraryService`；提醒与通知经 `bff.v1.NotificationService`（退订 HTTP 见上）；足迹统计、年度报告、成就与私有备注搜索经 `bff.v1.ReportService` / `bff.v1.SearchService`。**待迁移（#38、#40、#44）：** 共同旅行写操作等仍走透明网关 `tripmap.v1` + Bearer（媒体与分享已迁，见 F4、F6）。BFF `config.bff.yaml` 配置了 GitHub、Google 或 Logto 时，弹窗下方显示对应按钮（Logto 使用服务端配置的显示名，默认“Logto”），点击后跳转第三方授权，回到 `/auth/callback/<provider>` 后完成登录。回调时必须与本浏览器发起的授权（保存在 `sessionStorage` 的 provider 与 state）一致，且只能使用一次，否则提示“登录请求无效或已过期”；回调地址里的授权码在请求前就从地址栏移除。Logto 使用 OIDC 授权码 + PKCE：授权地址带 `code_challenge` 与 `code_challenge_method=S256`，换取令牌所需的 `code_verifier` 只保存在服务端；登录后创建或进入 `(logto, sub)` 账号，足迹同步、好友邀请码、会话管理和注销（需 15 分钟内登录）与其他第三方账号一致，不与 GitHub/Google 账号按邮箱合并。当前不提供仅第三方登录的界面开关，用户名密码登录始终并列显示；真实 Logto 授权验收留待部署后进行。错误提示一律为中文。
+**登录与注册。** 页眉“登录”按钮（手机上为圆形图标）打开登录弹窗：用户名 + 密码登录，或切换到“注册”创建账号（用户名 3–32 位小写字母、数字、下划线，密码至少 8 位，昵称选填）。**已实现（#30–#33、#43）：** 密码与 OAuth 注册/登录与账号注销经 BFF `bff.v1.AuthService`（注销含密码确认、注销中仅 Me/Logout/注销重试、24 小时完成回执），会话为 HttpOnly Cookie `shanhai_sid`（`SameSite=Lax`），写操作带 CSRF；`localStorage` 的 `shanhai-session-v1` 只存用户信息与可选过期提示，**不存** Bearer/会话令牌；账号弹窗的已登录设备列表与撤销其他设备经 BFF `ListSessions` / `RevokeSession`（BFF 存储，标记当前设备）；城市足迹与省份标记的读、增量与批量同步经 BFF `bff.v1.FootprintService`（含 `GetFootprints`、`GetChanges`、`SyncChanges` 及仍被调用的单条写操作），经内部 gRPC 到 tripmap，保留 revision/幂等/2000 项批次语义。**已实现（#34）：** 云端快照列表、保存、预览与恢复经 BFF `bff.v1.SnapshotService`（写操作带 CSRF），迁移前保护快照仍由前端在确认迁移时调用 `CreateSnapshot(before_migration)`。**已实现（#37、#38、#41–#42、#39）：** 好友、共同旅行与行程经 `bff.v1.FriendService` / `bff.v1.SharedTripService` / `bff.v1.ItineraryService`；提醒与通知经 `bff.v1.NotificationService`（退订 HTTP 见上）；足迹统计、年度报告、成就与私有备注搜索经 `bff.v1.ReportService` / `bff.v1.SearchService`。**待迁移（#40、#44 等）：** 分享写操作等仍走透明网关 `tripmap.v1` + Bearer（媒体已迁，见 F4、F6）。BFF `config.bff.yaml` 配置了 GitHub、Google 或 Logto 时，弹窗下方显示对应按钮（Logto 使用服务端配置的显示名，默认“Logto”），点击后跳转第三方授权，回到 `/auth/callback/<provider>` 后完成登录。回调时必须与本浏览器发起的授权（保存在 `sessionStorage` 的 provider 与 state）一致，且只能使用一次，否则提示“登录请求无效或已过期”；回调地址里的授权码在请求前就从地址栏移除。Logto 使用 OIDC 授权码 + PKCE：授权地址带 `code_challenge` 与 `code_challenge_method=S256`，换取令牌所需的 `code_verifier` 只保存在服务端；登录后创建或进入 `(logto, sub)` 账号，足迹同步、好友邀请码、会话管理和注销（需 15 分钟内登录）与其他第三方账号一致，不与 GitHub/Google 账号按邮箱合并。当前不提供仅第三方登录的界面开关，用户名密码登录始终并列显示；真实 Logto 授权验收留待部署后进行。错误提示一律为中文。
 
 **登录后的数据。** 登录后页面显示并编辑该账号的云端足迹，本机登录前保存的本地足迹不直接显示，也不会自动上传，需通过下文“本地足迹迁移”主动导入。每次编辑先把目标数据及服务端确认的祖先副本一起保存到本机账号缓存，再立即显示并后台按最多 2000 项的批次发送（更大的普通改动按序拆成多个批次，城市先于其旅行；迁移是整体提交，规则见下）；本机写入失败时拒绝此次编辑并提示导出备份。全部发送成功后显示“已同步到云端”，发送失败不回滚或丢弃修改，显示“本机已保存，待同步”。页面重新可见、网络恢复或点击重试时自动尝试同步。
 
@@ -244,7 +244,7 @@
 
 ## 照片与附件（F4）
 
-**已实现（#35）：** 登录用户的媒体生命周期经 BFF `bff.v1.MediaService`（Cookie + CSRF；`PrepareUpload`/`CompleteUpload` 登记 25 秒重任务）→ tripmap gRPC `MediaService`；预签名 S3 直传仍由 tripmap 签发，浏览器不向对象存储发送 Cookie。共同旅行成员的读/写扩展由 #38 在 `AuthorizeTripMediaWrite` 与协作 RPC 上衔接。
+**已实现（#35、#38）：** 登录用户的媒体生命周期经 BFF `bff.v1.MediaService`（Cookie + CSRF；`PrepareUpload`/`CompleteUpload` 登记 25 秒重任务）→ tripmap gRPC `MediaService`；预签名 S3 直传仍由 tripmap 签发，浏览器不向对象存储发送 Cookie。共同旅行 active 的 owner/editor 可向关联合旅行上传；viewer 被拒绝。共享照片列表与读取经 BFF `bff.v1.SharedTripService`；成员退出、被移除或解除好友后立即失去他人照片的共享访问。
 
 登录后，城市足迹编辑窗口有“照片与附件”入口；账号窗口也有入口，可查看全部目的地，包括取消打卡后保留的媒体。选择目的地后可上传 JPEG、PNG、WebP 照片或 PDF 附件，单文件不超过 10 MiB，每座城市最多 20 个（未确认上传也占名额）；每账号每小时最多 60 次签发请求。媒体以区域 ID 关联，不要求该城市仍被标记，不增加城市数量，不改变足迹 revision。
 
@@ -292,7 +292,7 @@
 
 ## 共同旅行与好友（F7）
 
-**已实现（#37）：** 好友邀请码、隐私设置、请求/解除与好友足迹对比经 BFF `bff.v1.FriendService`（Cookie + CSRF）；好友码与展示信息保存在 tripmap 业务用户档案，不经 BFF 认证库查询。概览中的共同旅行列表随好友概览只读返回；共同旅行的创建/编辑/媒体等写操作仍走 `tripmap.v1.CollaborationService`（待后续切片迁移）。
+**已实现（#37、#38）：** 好友邀请码、隐私设置、请求/解除与好友足迹对比经 BFF `bff.v1.FriendService`（Cookie + CSRF）；共同旅行的邀请/响应、编辑、角色与成员管理、解散/退出及共享媒体经 BFF `bff.v1.SharedTripService`（写操作 CSRF）。好友码与展示信息保存在 tripmap 业务用户档案。owner/editor 可修改共同旅行日期与备注（含足迹 `SyncChanges` 的 `upsert_trip`）；viewer 只读。不可见或非成员返回 `not_found`，可见但权限不足返回 `permission_denied`。
 
 登录后，账号窗口出现“好友与共同旅行”入口，城市足迹编辑窗口中每次已同步到云端的旅行卡片也提供“邀请共同旅行 / 共同旅行详情”按钮。
 

@@ -64,16 +64,17 @@ type Browser struct {
 	HTTP   *http.Client
 	Auth   bffv1connect.AuthServiceClient
 	Foot    bffv1connect.FootprintServiceClient
-	Snap    bffv1connect.SnapshotServiceClient
-	Friends bffv1connect.FriendServiceClient
-	Itin      bffv1connect.ItineraryServiceClient
-	media     bffv1connect.MediaServiceClient
-	Report    bffv1connect.ReportServiceClient
-	Search    bffv1connect.SearchServiceClient
-	RegionSvc bffv1connect.RegionServiceClient
-	APIURL    string
-	Origin    string
-	Region    string
+	Snap       bffv1connect.SnapshotServiceClient
+	Friends    bffv1connect.FriendServiceClient
+	SharedTrip bffv1connect.SharedTripServiceClient
+	Itin       bffv1connect.ItineraryServiceClient
+	media      bffv1connect.MediaServiceClient
+	Report     bffv1connect.ReportServiceClient
+	Search     bffv1connect.SearchServiceClient
+	RegionSvc  bffv1connect.RegionServiceClient
+	APIURL     string
+	Origin     string
+	Region     string
 }
 
 // NewChainHarness builds the full stack or skips when storage env is unset.
@@ -178,13 +179,14 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 		t: h.T, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
 		Auth: bffv1connect.NewAuthServiceClient(hc, api),
 		Foot:    bffv1connect.NewFootprintServiceClient(hc, api),
-		Snap:    bffv1connect.NewSnapshotServiceClient(hc, api),
-		Friends: bffv1connect.NewFriendServiceClient(hc, api),
-		Itin:      bffv1connect.NewItineraryServiceClient(hc, api),
-		media:     bffv1connect.NewMediaServiceClient(hc, api),
-		Report:    bffv1connect.NewReportServiceClient(hc, api),
-		Search:    bffv1connect.NewSearchServiceClient(hc, api),
-		RegionSvc: bffv1connect.NewRegionServiceClient(hc, api),
+		Snap:       bffv1connect.NewSnapshotServiceClient(hc, api),
+		Friends:    bffv1connect.NewFriendServiceClient(hc, api),
+		SharedTrip: bffv1connect.NewSharedTripServiceClient(hc, api),
+		Itin:       bffv1connect.NewItineraryServiceClient(hc, api),
+		media:      bffv1connect.NewMediaServiceClient(hc, api),
+		Report:     bffv1connect.NewReportServiceClient(hc, api),
+		Search:     bffv1connect.NewSearchServiceClient(hc, api),
+		RegionSvc:  bffv1connect.NewRegionServiceClient(hc, api),
 	}
 }
 

@@ -17,6 +17,7 @@
 - `bff.v1.ShareService`（#36：`GetShare`、`PreviewShare`、`SaveShare`、`RevokeShare`）→ tripmap gRPC `ShareService` 同名方法；浏览器经 Cookie 会话。
 - 分享公开页：`GET|HEAD /s/<token>`、`/s/<token>/og.png`、`/api/share/<token>/data`、`/api/share/<token>/photos/<句柄>` 在 BFF `publichttp` 登记（边缘限流、追踪模板 `/s/{token}` / `/api/share/{token}`），再调用 tripmap gRPC `SharePublicService`（匿名内部凭证 + 分享令牌）；tripmap HTTP 不再挂载这些路径。
 - `bff.v1.FriendService`（#37）：好友概览、隐私设置、请求/解除与好友足迹对比 → tripmap gRPC `CollaborationService` 同名方法；好友码与展示字段在 tripmap 业务档案，不查 BFF 认证库。写操作校验 CSRF。
+- `bff.v1.SharedTripService`（#38）：共同旅行邀请/响应、更新、角色与成员管理、解散/退出及共享媒体列表/读取 → tripmap gRPC `CollaborationService` 对应方法；写操作校验 CSRF；`ReadSharedTripMedia` 登记 25 秒重任务。tripmap 公网 Connect 上的 `CollaborationService` 已移除。
 - `bff.v1.ItineraryService`（#41：`ListItineraries`、`GetItinerary`、`SaveItinerary`、`DeleteItinerary`）→ tripmap gRPC `ItineraryService` 同名方法；写操作校验 Origin/CSRF。tripmap 公网 Connect 上的 `ItineraryService` 已移除。
 - `bff.v1.SnapshotService`（#34：`ListSnapshots`、`CreateSnapshot`、`GetSnapshot`、`RestoreSnapshot`）→ tripmap gRPC `SnapshotService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`CreateSnapshot` / `RestoreSnapshot` 写操作校验 Origin/CSRF；`RestoreSnapshot` 登记为 25 秒重任务。tripmap 公网 Connect 上的 `SnapshotService` 已移除。
 - `bff.v1.MediaService`（#35：`PrepareUpload`、`CompleteUpload`、`ListMedia`、`ReadMedia`、`DeleteMedia`）→ tripmap gRPC `MediaService`；写操作校验 CSRF；`PrepareUpload`/`CompleteUpload` 登记 25 秒重任务；Connect 读上限 16 MiB。tripmap 公网 Connect 上的 `MediaService` 已移除。

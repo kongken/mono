@@ -536,7 +536,7 @@ export const GetFriendFootprintsResponseSchema: GenMessage<GetFriendFootprintsRe
 
 /**
  * FriendService exposes friendships, privacy settings and friend footprint comparison via the BFF.
- * Shared-trip mutations remain on tripmap.v1 until a follow-up slice; overview may list shared trips read-only.
+ * Shared-trip mutations use bff.v1.SharedTripService; overview lists shared trips read-only here.
  *
  * @generated from service bff.v1.FriendService
  */
