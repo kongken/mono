@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { create, toBinary, toJsonString, fromBinary } from "@bufbuild/protobuf";
 import * as auth from "@trip-map/api-client/tripmap/v1/auth_pb";
-import * as footprint from "@trip-map/api-client/tripmap/v1/footprint_pb";
+import * as footprint from "@trip-map/api-client/bff/v1/footprint_pb";
 import * as statusPb from "@trip-map/api-client/bff/v1/status_pb";
 import { REGION_VERSION } from "../src/lib/region-catalog";
 

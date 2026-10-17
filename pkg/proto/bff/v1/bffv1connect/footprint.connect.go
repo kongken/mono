@@ -33,14 +33,38 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// FootprintServiceGetChangesProcedure is the fully-qualified name of the FootprintService's
+	// GetChanges RPC.
+	FootprintServiceGetChangesProcedure = "/bff.v1.FootprintService/GetChanges"
+	// FootprintServiceSyncChangesProcedure is the fully-qualified name of the FootprintService's
+	// SyncChanges RPC.
+	FootprintServiceSyncChangesProcedure = "/bff.v1.FootprintService/SyncChanges"
 	// FootprintServiceGetFootprintsProcedure is the fully-qualified name of the FootprintService's
 	// GetFootprints RPC.
 	FootprintServiceGetFootprintsProcedure = "/bff.v1.FootprintService/GetFootprints"
+	// FootprintServiceUpsertVisitProcedure is the fully-qualified name of the FootprintService's
+	// UpsertVisit RPC.
+	FootprintServiceUpsertVisitProcedure = "/bff.v1.FootprintService/UpsertVisit"
+	// FootprintServiceDeleteVisitProcedure is the fully-qualified name of the FootprintService's
+	// DeleteVisit RPC.
+	FootprintServiceDeleteVisitProcedure = "/bff.v1.FootprintService/DeleteVisit"
+	// FootprintServiceUpsertProvinceMarkProcedure is the fully-qualified name of the FootprintService's
+	// UpsertProvinceMark RPC.
+	FootprintServiceUpsertProvinceMarkProcedure = "/bff.v1.FootprintService/UpsertProvinceMark"
+	// FootprintServiceDeleteProvinceMarkProcedure is the fully-qualified name of the FootprintService's
+	// DeleteProvinceMark RPC.
+	FootprintServiceDeleteProvinceMarkProcedure = "/bff.v1.FootprintService/DeleteProvinceMark"
 )
 
 // FootprintServiceClient is a client for the bff.v1.FootprintService service.
 type FootprintServiceClient interface {
+	GetChanges(context.Context, *connect.Request[v1.GetChangesRequest]) (*connect.Response[v1.GetChangesResponse], error)
+	SyncChanges(context.Context, *connect.Request[v1.SyncChangesRequest]) (*connect.Response[v1.SyncChangesResponse], error)
 	GetFootprints(context.Context, *connect.Request[v1.GetFootprintsRequest]) (*connect.Response[v1.GetFootprintsResponse], error)
+	UpsertVisit(context.Context, *connect.Request[v1.UpsertVisitRequest]) (*connect.Response[v1.UpsertVisitResponse], error)
+	DeleteVisit(context.Context, *connect.Request[v1.DeleteVisitRequest]) (*connect.Response[v1.DeleteVisitResponse], error)
+	UpsertProvinceMark(context.Context, *connect.Request[v1.UpsertProvinceMarkRequest]) (*connect.Response[v1.UpsertProvinceMarkResponse], error)
+	DeleteProvinceMark(context.Context, *connect.Request[v1.DeleteProvinceMarkRequest]) (*connect.Response[v1.DeleteProvinceMarkResponse], error)
 }
 
 // NewFootprintServiceClient constructs a client for the bff.v1.FootprintService service. By
@@ -54,10 +78,46 @@ func NewFootprintServiceClient(httpClient connect.HTTPClient, baseURL string, op
 	baseURL = strings.TrimRight(baseURL, "/")
 	footprintServiceMethods := v1.File_bff_v1_footprint_proto.Services().ByName("FootprintService").Methods()
 	return &footprintServiceClient{
+		getChanges: connect.NewClient[v1.GetChangesRequest, v1.GetChangesResponse](
+			httpClient,
+			baseURL+FootprintServiceGetChangesProcedure,
+			connect.WithSchema(footprintServiceMethods.ByName("GetChanges")),
+			connect.WithClientOptions(opts...),
+		),
+		syncChanges: connect.NewClient[v1.SyncChangesRequest, v1.SyncChangesResponse](
+			httpClient,
+			baseURL+FootprintServiceSyncChangesProcedure,
+			connect.WithSchema(footprintServiceMethods.ByName("SyncChanges")),
+			connect.WithClientOptions(opts...),
+		),
 		getFootprints: connect.NewClient[v1.GetFootprintsRequest, v1.GetFootprintsResponse](
 			httpClient,
 			baseURL+FootprintServiceGetFootprintsProcedure,
 			connect.WithSchema(footprintServiceMethods.ByName("GetFootprints")),
+			connect.WithClientOptions(opts...),
+		),
+		upsertVisit: connect.NewClient[v1.UpsertVisitRequest, v1.UpsertVisitResponse](
+			httpClient,
+			baseURL+FootprintServiceUpsertVisitProcedure,
+			connect.WithSchema(footprintServiceMethods.ByName("UpsertVisit")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteVisit: connect.NewClient[v1.DeleteVisitRequest, v1.DeleteVisitResponse](
+			httpClient,
+			baseURL+FootprintServiceDeleteVisitProcedure,
+			connect.WithSchema(footprintServiceMethods.ByName("DeleteVisit")),
+			connect.WithClientOptions(opts...),
+		),
+		upsertProvinceMark: connect.NewClient[v1.UpsertProvinceMarkRequest, v1.UpsertProvinceMarkResponse](
+			httpClient,
+			baseURL+FootprintServiceUpsertProvinceMarkProcedure,
+			connect.WithSchema(footprintServiceMethods.ByName("UpsertProvinceMark")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteProvinceMark: connect.NewClient[v1.DeleteProvinceMarkRequest, v1.DeleteProvinceMarkResponse](
+			httpClient,
+			baseURL+FootprintServiceDeleteProvinceMarkProcedure,
+			connect.WithSchema(footprintServiceMethods.ByName("DeleteProvinceMark")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -65,7 +125,23 @@ func NewFootprintServiceClient(httpClient connect.HTTPClient, baseURL string, op
 
 // footprintServiceClient implements FootprintServiceClient.
 type footprintServiceClient struct {
-	getFootprints *connect.Client[v1.GetFootprintsRequest, v1.GetFootprintsResponse]
+	getChanges         *connect.Client[v1.GetChangesRequest, v1.GetChangesResponse]
+	syncChanges        *connect.Client[v1.SyncChangesRequest, v1.SyncChangesResponse]
+	getFootprints      *connect.Client[v1.GetFootprintsRequest, v1.GetFootprintsResponse]
+	upsertVisit        *connect.Client[v1.UpsertVisitRequest, v1.UpsertVisitResponse]
+	deleteVisit        *connect.Client[v1.DeleteVisitRequest, v1.DeleteVisitResponse]
+	upsertProvinceMark *connect.Client[v1.UpsertProvinceMarkRequest, v1.UpsertProvinceMarkResponse]
+	deleteProvinceMark *connect.Client[v1.DeleteProvinceMarkRequest, v1.DeleteProvinceMarkResponse]
+}
+
+// GetChanges calls bff.v1.FootprintService.GetChanges.
+func (c *footprintServiceClient) GetChanges(ctx context.Context, req *connect.Request[v1.GetChangesRequest]) (*connect.Response[v1.GetChangesResponse], error) {
+	return c.getChanges.CallUnary(ctx, req)
+}
+
+// SyncChanges calls bff.v1.FootprintService.SyncChanges.
+func (c *footprintServiceClient) SyncChanges(ctx context.Context, req *connect.Request[v1.SyncChangesRequest]) (*connect.Response[v1.SyncChangesResponse], error) {
+	return c.syncChanges.CallUnary(ctx, req)
 }
 
 // GetFootprints calls bff.v1.FootprintService.GetFootprints.
@@ -73,9 +149,35 @@ func (c *footprintServiceClient) GetFootprints(ctx context.Context, req *connect
 	return c.getFootprints.CallUnary(ctx, req)
 }
 
+// UpsertVisit calls bff.v1.FootprintService.UpsertVisit.
+func (c *footprintServiceClient) UpsertVisit(ctx context.Context, req *connect.Request[v1.UpsertVisitRequest]) (*connect.Response[v1.UpsertVisitResponse], error) {
+	return c.upsertVisit.CallUnary(ctx, req)
+}
+
+// DeleteVisit calls bff.v1.FootprintService.DeleteVisit.
+func (c *footprintServiceClient) DeleteVisit(ctx context.Context, req *connect.Request[v1.DeleteVisitRequest]) (*connect.Response[v1.DeleteVisitResponse], error) {
+	return c.deleteVisit.CallUnary(ctx, req)
+}
+
+// UpsertProvinceMark calls bff.v1.FootprintService.UpsertProvinceMark.
+func (c *footprintServiceClient) UpsertProvinceMark(ctx context.Context, req *connect.Request[v1.UpsertProvinceMarkRequest]) (*connect.Response[v1.UpsertProvinceMarkResponse], error) {
+	return c.upsertProvinceMark.CallUnary(ctx, req)
+}
+
+// DeleteProvinceMark calls bff.v1.FootprintService.DeleteProvinceMark.
+func (c *footprintServiceClient) DeleteProvinceMark(ctx context.Context, req *connect.Request[v1.DeleteProvinceMarkRequest]) (*connect.Response[v1.DeleteProvinceMarkResponse], error) {
+	return c.deleteProvinceMark.CallUnary(ctx, req)
+}
+
 // FootprintServiceHandler is an implementation of the bff.v1.FootprintService service.
 type FootprintServiceHandler interface {
+	GetChanges(context.Context, *connect.Request[v1.GetChangesRequest]) (*connect.Response[v1.GetChangesResponse], error)
+	SyncChanges(context.Context, *connect.Request[v1.SyncChangesRequest]) (*connect.Response[v1.SyncChangesResponse], error)
 	GetFootprints(context.Context, *connect.Request[v1.GetFootprintsRequest]) (*connect.Response[v1.GetFootprintsResponse], error)
+	UpsertVisit(context.Context, *connect.Request[v1.UpsertVisitRequest]) (*connect.Response[v1.UpsertVisitResponse], error)
+	DeleteVisit(context.Context, *connect.Request[v1.DeleteVisitRequest]) (*connect.Response[v1.DeleteVisitResponse], error)
+	UpsertProvinceMark(context.Context, *connect.Request[v1.UpsertProvinceMarkRequest]) (*connect.Response[v1.UpsertProvinceMarkResponse], error)
+	DeleteProvinceMark(context.Context, *connect.Request[v1.DeleteProvinceMarkRequest]) (*connect.Response[v1.DeleteProvinceMarkResponse], error)
 }
 
 // NewFootprintServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -85,16 +187,64 @@ type FootprintServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewFootprintServiceHandler(svc FootprintServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	footprintServiceMethods := v1.File_bff_v1_footprint_proto.Services().ByName("FootprintService").Methods()
+	footprintServiceGetChangesHandler := connect.NewUnaryHandler(
+		FootprintServiceGetChangesProcedure,
+		svc.GetChanges,
+		connect.WithSchema(footprintServiceMethods.ByName("GetChanges")),
+		connect.WithHandlerOptions(opts...),
+	)
+	footprintServiceSyncChangesHandler := connect.NewUnaryHandler(
+		FootprintServiceSyncChangesProcedure,
+		svc.SyncChanges,
+		connect.WithSchema(footprintServiceMethods.ByName("SyncChanges")),
+		connect.WithHandlerOptions(opts...),
+	)
 	footprintServiceGetFootprintsHandler := connect.NewUnaryHandler(
 		FootprintServiceGetFootprintsProcedure,
 		svc.GetFootprints,
 		connect.WithSchema(footprintServiceMethods.ByName("GetFootprints")),
 		connect.WithHandlerOptions(opts...),
 	)
+	footprintServiceUpsertVisitHandler := connect.NewUnaryHandler(
+		FootprintServiceUpsertVisitProcedure,
+		svc.UpsertVisit,
+		connect.WithSchema(footprintServiceMethods.ByName("UpsertVisit")),
+		connect.WithHandlerOptions(opts...),
+	)
+	footprintServiceDeleteVisitHandler := connect.NewUnaryHandler(
+		FootprintServiceDeleteVisitProcedure,
+		svc.DeleteVisit,
+		connect.WithSchema(footprintServiceMethods.ByName("DeleteVisit")),
+		connect.WithHandlerOptions(opts...),
+	)
+	footprintServiceUpsertProvinceMarkHandler := connect.NewUnaryHandler(
+		FootprintServiceUpsertProvinceMarkProcedure,
+		svc.UpsertProvinceMark,
+		connect.WithSchema(footprintServiceMethods.ByName("UpsertProvinceMark")),
+		connect.WithHandlerOptions(opts...),
+	)
+	footprintServiceDeleteProvinceMarkHandler := connect.NewUnaryHandler(
+		FootprintServiceDeleteProvinceMarkProcedure,
+		svc.DeleteProvinceMark,
+		connect.WithSchema(footprintServiceMethods.ByName("DeleteProvinceMark")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/bff.v1.FootprintService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case FootprintServiceGetChangesProcedure:
+			footprintServiceGetChangesHandler.ServeHTTP(w, r)
+		case FootprintServiceSyncChangesProcedure:
+			footprintServiceSyncChangesHandler.ServeHTTP(w, r)
 		case FootprintServiceGetFootprintsProcedure:
 			footprintServiceGetFootprintsHandler.ServeHTTP(w, r)
+		case FootprintServiceUpsertVisitProcedure:
+			footprintServiceUpsertVisitHandler.ServeHTTP(w, r)
+		case FootprintServiceDeleteVisitProcedure:
+			footprintServiceDeleteVisitHandler.ServeHTTP(w, r)
+		case FootprintServiceUpsertProvinceMarkProcedure:
+			footprintServiceUpsertProvinceMarkHandler.ServeHTTP(w, r)
+		case FootprintServiceDeleteProvinceMarkProcedure:
+			footprintServiceDeleteProvinceMarkHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -104,6 +254,30 @@ func NewFootprintServiceHandler(svc FootprintServiceHandler, opts ...connect.Han
 // UnimplementedFootprintServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedFootprintServiceHandler struct{}
 
+func (UnimplementedFootprintServiceHandler) GetChanges(context.Context, *connect.Request[v1.GetChangesRequest]) (*connect.Response[v1.GetChangesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.FootprintService.GetChanges is not implemented"))
+}
+
+func (UnimplementedFootprintServiceHandler) SyncChanges(context.Context, *connect.Request[v1.SyncChangesRequest]) (*connect.Response[v1.SyncChangesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.FootprintService.SyncChanges is not implemented"))
+}
+
 func (UnimplementedFootprintServiceHandler) GetFootprints(context.Context, *connect.Request[v1.GetFootprintsRequest]) (*connect.Response[v1.GetFootprintsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.FootprintService.GetFootprints is not implemented"))
+}
+
+func (UnimplementedFootprintServiceHandler) UpsertVisit(context.Context, *connect.Request[v1.UpsertVisitRequest]) (*connect.Response[v1.UpsertVisitResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.FootprintService.UpsertVisit is not implemented"))
+}
+
+func (UnimplementedFootprintServiceHandler) DeleteVisit(context.Context, *connect.Request[v1.DeleteVisitRequest]) (*connect.Response[v1.DeleteVisitResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.FootprintService.DeleteVisit is not implemented"))
+}
+
+func (UnimplementedFootprintServiceHandler) UpsertProvinceMark(context.Context, *connect.Request[v1.UpsertProvinceMarkRequest]) (*connect.Response[v1.UpsertProvinceMarkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.FootprintService.UpsertProvinceMark is not implemented"))
+}
+
+func (UnimplementedFootprintServiceHandler) DeleteProvinceMark(context.Context, *connect.Request[v1.DeleteProvinceMarkRequest]) (*connect.Response[v1.DeleteProvinceMarkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.FootprintService.DeleteProvinceMark is not implemented"))
 }

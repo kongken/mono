@@ -244,8 +244,6 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	}
 	path, handler := tripmapv1connect.NewAuthServiceHandler(application.NewAuthService(h.cfg, h), opts)
 	mount(path, handler)
-	path, handler = tripmapv1connect.NewFootprintServiceHandler(application.NewFootprintService(h.cfg, h, index), opts, connect.WithReadMaxBytes(16*1024*1024))
-	mount(path, handler)
 	path, handler = tripmapv1connect.NewSnapshotServiceHandler(application.NewSnapshotService(h.cfg, h, index), opts)
 	mount(path, handler)
 	path, handler = tripmapv1connect.NewMediaServiceHandler(application.NewMediaService(h, index), opts, connect.WithReadMaxBytes(16*1024*1024))

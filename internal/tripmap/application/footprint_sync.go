@@ -312,7 +312,7 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 	// Freeze the receipt hash to the original wire contract. Hashing the current
 	// regional projection would change it again after the next catalog upgrade.
 	hash := legacyHash
-	if err := checkRegionVersion(req.Header().Get(regionVersionHeader)); err != nil {
+	if err := checkRegionVersion(regionVersionFrom(ctx, req.Header())); err != nil {
 		return nil, err
 	}
 	// A batch is charged per operation in one step, from a budget of its own so a

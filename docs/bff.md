@@ -4,13 +4,13 @@
 
 ## 当前状态
 
-目标架构见 [Issue #26](https://github.com/kongken/mono/issues/26)。[Issue #29](https://github.com/kongken/mono/issues/29) 迁移匿名状态；[Issue #30](https://github.com/kongken/mono/issues/30) 迁移密码账号、Cookie 会话与 `GetFootprints` 私有读。
+目标架构见 [Issue #26](https://github.com/kongken/mono/issues/26)。[Issue #29](https://github.com/kongken/mono/issues/29) 迁移匿名状态；[Issue #30](https://github.com/kongken/mono/issues/30) 迁移密码账号与 Cookie 会话；[Issue #33](https://github.com/kongken/mono/issues/33) 迁移足迹读/sync 全链路。
 
 **当前已实现**
 
 - `bff.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
 - `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`IssueCSRFToken`；账号与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`）。会话 Cookie：`shanhai_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `shanhai_csrf` + 请求头 `X-CSRF-Token`；写操作校验 Origin。响应不返回会话令牌。
-- `bff.v1.FootprintService/GetFootprints` → tripmap gRPC `FootprintService/GetFootprints`；注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
+- `bff.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
 **开发数据保留（#30）**
@@ -19,8 +19,9 @@
 
 **当前限制**
 
-- OAuth、ListSessions、足迹写/sync、快照、媒体等仍经透明网关 `tripmap.v1` + Bearer（#31–#44）。
-- 前端除 auth 与 GetFootprints 外仍调用 `tripmap.v1` Connect；OAuth UI 在 #32 前不可用。
+- OAuth、ListSessions、快照、媒体、协作等仍经透明网关 `tripmap.v1` + Bearer（#31–#32、#34–#44）。
+- tripmap HTTP 已不再挂载 `FootprintService` Connect；BFF 透明网关上的 `/api/tripmap.v1.FootprintService/*` 仍代理至 tripmap 直至 #44 移除整包转发。
+- 前端足迹 API 已全部调用 `bff.v1`；OAuth UI 在 #32 前不可用。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）
@@ -50,7 +51,7 @@
 - **只接受 Connect**：仅 `POST`，`Content-Type` 必须是 `application/json` 或 `application/proto`（可带 charset），否则返回 405 / 415（`Accept-Post` 列出可用类型）。gRPC、gRPC-Web 与 Connect 流式帧都在到达处理器前被拒绝。处理器还要求 `Connect-Protocol-Version: 1`，缺失或不是 `1` 返回 400。
 - **路径**：未知方法或服务、多余路径段、含 `..` 或 `//` 的路径一律 404，不会落入通用转发。
 - **匿名策略**：由 proto 方法选项 `platform.v1.anonymous` 声明（`proto/platform/v1/options.proto`）；**默认受保护**，未知过程也受保护。BFF 的拦截器和 tripmap 的拦截器各自独立执行同一规则。匿名方法不使用浏览器会话，调用内部服务时不带用户 ID。
-- **期限与取消**：普通过程上限 10 秒；上传等重任务上限 25 秒，需在 `ingress.Policy.Heavy` 中显式登记（当前为空）。实际期限取客户端剩余期限（`Connect-Timeout-Ms`）与上限的较小值，在 BFF 设置一次并通过 gRPC 期限传给业务服务；客户端取消会传播到服务，服务端处理随之停止。不做任何自动重试。
+- **期限与取消**：普通过程上限 10 秒；上传等重任务上限 25 秒，需在 `ingress.Policy.Heavy` 中显式登记（已登记 `FootprintService/SyncChanges`）。实际期限取客户端剩余期限（`Connect-Timeout-Ms`）与上限的较小值，在 BFF 设置一次并通过 gRPC 期限传给业务服务；客户端取消会传播到服务，服务端处理随之停止。不做任何自动重试。
 - **请求 ID**：读取 `X-Request-Id`，仅当匹配 `^[A-Za-z0-9._-]{1,64}$` 时沿用，否则替换为随机 32 位十六进制；响应（含错误）回写该头，并作为内部 metadata 下传。
 - **客户端地址**：与透明网关相同，按 `client_ip_header`（受信反向代理写入的头）解析，未设置时用 TCP 对端；客户端自带的 `X-Bff-Client-Ip` 之类的头不会被读取。
 - **错误**：业务服务的错误消息不原样返回；`UNAVAILABLE`、`DEADLINE_EXCEEDED`、`CANCELED` 映射为同名 Connect 码，BFF 凭证被拒（`UNAUTHENTICATED`）、`INTERNAL` 等服务端故障统一为 `INTERNAL: internal error`。tripmap 不可达时返回 `UNAVAILABLE`，不会返回过期或伪造的状态。
@@ -117,7 +118,7 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 - `internal/bff/auth`：注册/登录/会话/CSRF（需 `TRIPMAP_TEST_*`）。
 - `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与 TLS gRPC 信任。
-- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、A/B `GetFootprints` 隔离、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -run Chain`。
+- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、A/B 足迹隔离、`SyncChanges` 幂等与 revision 冲突、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -run Chain`。
 - **Playwright 真实栈**（默认跳过）：`apps/web/tests/bff-cookie-real.spec.ts`；先 `make dev`（或等价 BFF+tripmap），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @trip-map/web -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
 - 其余 UI：Playwright 模拟后端覆盖登录骨架与业务场景。
 

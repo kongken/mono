@@ -6,10 +6,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
@@ -32,6 +34,13 @@ func checkRegionVersion(version string) error {
 		return connect.NewError(connect.CodeFailedPrecondition, errors.New("region index version mismatch: reload the app or upgrade the server"))
 	}
 	return nil
+}
+
+func regionVersionFrom(ctx context.Context, header http.Header) string {
+	if v := header.Get(regionVersionHeader); v != "" {
+		return v
+	}
+	return rpcauth.CallFrom(ctx).TripmapRegions
 }
 
 // A canonical write must not create a second city alongside its retired ID.
