@@ -17,35 +17,80 @@ func New(client tripmapv1.FootprintServiceClient) *Handler {
 	return &Handler{client: client}
 }
 
+func (h *Handler) tripmap(ctx context.Context, req connect.AnyRequest) context.Context {
+	return upstream.WithTripmapHeaders(ctx, req.Header())
+}
+
 func (h *Handler) GetFootprints(ctx context.Context, req *connect.Request[bffv1.GetFootprintsRequest]) (*connect.Response[bffv1.GetFootprintsResponse], error) {
-	ctx = upstream.WithTripmapHeaders(ctx, req.Header())
-	out, err := h.client.GetFootprints(ctx, &tripmapv1.GetFootprintsRequest{})
+	out, err := h.client.GetFootprints(h.tripmap(ctx, req), &tripmapv1.GetFootprintsRequest{})
 	if err != nil {
 		return nil, upstream.ToConnect("tripmap", err)
 	}
 	return connect.NewResponse(mapFootprints(out)), nil
 }
 
-func mapFootprints(in *tripmapv1.GetFootprintsResponse) *bffv1.GetFootprintsResponse {
-	out := &bffv1.GetFootprintsResponse{
-		Revision: in.GetRevision(), RegionVersion: in.GetRegionVersion(), SchemaVersion: in.GetSchemaVersion(),
+func (h *Handler) GetChanges(ctx context.Context, req *connect.Request[bffv1.GetChangesRequest]) (*connect.Response[bffv1.GetChangesResponse], error) {
+	out, err := h.client.GetChanges(h.tripmap(ctx, req), &tripmapv1.GetChangesRequest{
+		SinceRevision: req.Msg.GetSinceRevision(), Limit: req.Msg.GetLimit(),
+	})
+	if err != nil {
+		return nil, upstream.ToConnect("tripmap", err)
 	}
-	for _, v := range in.GetVisits() {
-		out.Visits = append(out.Visits, &bffv1.Visit{
-			Code: v.GetCode(), Name: v.GetName(), Province: v.GetProvince(), Color: v.GetColor(),
-			Date: v.GetDate(), Note: v.GetNote(), UpdatedAt: v.GetUpdatedAt(),
-		})
+	return connect.NewResponse(mapChanges(out)), nil
+}
+
+func (h *Handler) SyncChanges(ctx context.Context, req *connect.Request[bffv1.SyncChangesRequest]) (*connect.Response[bffv1.SyncChangesResponse], error) {
+	out, err := h.client.SyncChanges(h.tripmap(ctx, req), &tripmapv1.SyncChangesRequest{
+		MutationId: req.Msg.GetMutationId(), BaseRevision: req.Msg.GetBaseRevision(), Mutations: toMutations(req.Msg.GetMutations()),
+	})
+	if err != nil {
+		return nil, upstream.ToConnect("tripmap", err)
 	}
-	for _, m := range in.GetProvinceMarks() {
-		out.ProvinceMarks = append(out.ProvinceMarks, &bffv1.ProvinceMark{
-			Province: m.GetProvince(), Color: m.GetColor(), UpdatedAt: m.GetUpdatedAt(),
-		})
+	return connect.NewResponse(&bffv1.SyncChangesResponse{
+		Revision: out.GetRevision(), ChangedCount: out.GetChangedCount(), Replayed: out.GetReplayed(),
+	}), nil
+}
+
+func (h *Handler) UpsertVisit(ctx context.Context, req *connect.Request[bffv1.UpsertVisitRequest]) (*connect.Response[bffv1.UpsertVisitResponse], error) {
+	out, err := h.client.UpsertVisit(h.tripmap(ctx, req), &tripmapv1.UpsertVisitRequest{
+		Visit: toVisit(req.Msg.GetVisit()), BaseRevision: req.Msg.GetBaseRevision(), RequireRevision: req.Msg.GetRequireRevision(),
+	})
+	if err != nil {
+		return nil, upstream.ToConnect("tripmap", err)
 	}
-	for _, t := range in.GetTrips() {
-		out.Trips = append(out.Trips, &bffv1.Trip{
-			Id: t.GetId(), City: t.GetRegionCode(), Date: t.GetDate(),
-			Note: t.GetNote(), UpdatedAt: t.GetUpdatedAt(),
-		})
+	return connect.NewResponse(&bffv1.UpsertVisitResponse{
+		Visit: mapVisit(out.GetVisit()), Revision: out.GetRevision(), Changed: out.GetChanged(),
+	}), nil
+}
+
+func (h *Handler) DeleteVisit(ctx context.Context, req *connect.Request[bffv1.DeleteVisitRequest]) (*connect.Response[bffv1.DeleteVisitResponse], error) {
+	out, err := h.client.DeleteVisit(h.tripmap(ctx, req), &tripmapv1.DeleteVisitRequest{
+		Code: req.Msg.GetCode(), BaseRevision: req.Msg.GetBaseRevision(), RequireRevision: req.Msg.GetRequireRevision(),
+	})
+	if err != nil {
+		return nil, upstream.ToConnect("tripmap", err)
 	}
-	return out
+	return connect.NewResponse(&bffv1.DeleteVisitResponse{Revision: out.GetRevision(), Deleted: out.GetDeleted()}), nil
+}
+
+func (h *Handler) UpsertProvinceMark(ctx context.Context, req *connect.Request[bffv1.UpsertProvinceMarkRequest]) (*connect.Response[bffv1.UpsertProvinceMarkResponse], error) {
+	out, err := h.client.UpsertProvinceMark(h.tripmap(ctx, req), &tripmapv1.UpsertProvinceMarkRequest{
+		Mark: toMark(req.Msg.GetMark()), BaseRevision: req.Msg.GetBaseRevision(), RequireRevision: req.Msg.GetRequireRevision(),
+	})
+	if err != nil {
+		return nil, upstream.ToConnect("tripmap", err)
+	}
+	return connect.NewResponse(&bffv1.UpsertProvinceMarkResponse{
+		Mark: mapMark(out.GetMark()), Revision: out.GetRevision(), Changed: out.GetChanged(),
+	}), nil
+}
+
+func (h *Handler) DeleteProvinceMark(ctx context.Context, req *connect.Request[bffv1.DeleteProvinceMarkRequest]) (*connect.Response[bffv1.DeleteProvinceMarkResponse], error) {
+	out, err := h.client.DeleteProvinceMark(h.tripmap(ctx, req), &tripmapv1.DeleteProvinceMarkRequest{
+		Province: req.Msg.GetProvince(), BaseRevision: req.Msg.GetBaseRevision(), RequireRevision: req.Msg.GetRequireRevision(),
+	})
+	if err != nil {
+		return nil, upstream.ToConnect("tripmap", err)
+	}
+	return connect.NewResponse(&bffv1.DeleteProvinceMarkResponse{Revision: out.GetRevision(), Deleted: out.GetDeleted()}), nil
 }

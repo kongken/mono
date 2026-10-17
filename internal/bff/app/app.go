@@ -29,6 +29,7 @@ import (
 	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/bff/status"
 	"github.com/kongken/mono/internal/bff/upstream"
+	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
@@ -140,7 +141,12 @@ func (h *Handlers) bootstrapStores(ctx context.Context) error {
 
 func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 	conn := clients.Conn("tripmap")
-	policy := ingress.Policy{ClientIPHeader: h.cfg.ClientIPHeader}
+	policy := ingress.Policy{
+		ClientIPHeader: h.cfg.ClientIPHeader,
+		Heavy: map[string]bool{
+			bffv1connect.FootprintServiceSyncChangesProcedure: true,
+		},
+	}
 	if r := h.resources.Load(); r != nil && conn != nil {
 		cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode, Secure: h.cfg.Auth.CookieSecure}
 		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix), tripmapv1.NewProfileServiceClient(conn))
@@ -151,7 +157,7 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 	opts := []connect.HandlerOption{
 		connect.WithInterceptors(ingress.Interceptor(policy)),
 		connect.WithRequireConnectProtocolHeader(),
-		connect.WithReadMaxBytes(16 * 1024 * 1024),
+		connect.WithReadMaxBytes(grpcx.LegitimatePayloadBytes),
 	}
 	mux := http.NewServeMux()
 	if conn != nil {

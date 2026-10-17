@@ -9,7 +9,7 @@ import {
 } from "@bufbuild/protobuf";
 import * as auth from "@trip-map/api-client/tripmap/v1/auth_pb";
 import * as collaborationPb from "@trip-map/api-client/tripmap/v1/collaboration_pb";
-import * as footprint from "@trip-map/api-client/tripmap/v1/footprint_pb";
+import * as footprint from "@trip-map/api-client/bff/v1/footprint_pb";
 import * as itineraryPb from "@trip-map/api-client/tripmap/v1/itinerary_pb";
 import { DEFAULT_ESTIMATION_POLICY, buildItineraryInfo, validateItineraryInput, type ItineraryRecord } from "../src/lib/itinerary";
 import * as notificationPb from "@trip-map/api-client/tripmap/v1/notification_pb";
@@ -138,7 +138,7 @@ export function fakeBackend(
   const ts = () => ({ seconds: BigInt(Math.floor(Date.now() / 1000)) });
   const tripsOf = (code: string) => [...state.trips.values()].filter((t) => t.code === code);
   const wireTrip = (t: StoredTrip) => ({
-    id: t.id, regionCode: t.code, date: t.date, note: t.note, createdAt: ts(), updatedAt: ts(),
+    id: t.id, city: t.code, date: t.date, note: t.note, updatedAt: ts(),
   });
   const wireItinerary = (r: ItineraryRecord) => {
     const info = buildItineraryInfo(r);
@@ -191,7 +191,7 @@ export function fakeBackend(
     create(footprint.FootprintMutationSchema, { operation } as never);
   const upsertCityMutation = (c: City) => mutation({ case: "upsertCity", value: c });
   const upsertTripMutation = (t: StoredTrip) =>
-    mutation({ case: "upsertTrip", value: { id: t.id, regionCode: t.code, date: t.date, note: t.note } });
+    mutation({ case: "upsertTrip", value: { id: t.id, city: t.code, date: t.date, note: t.note } });
   /** Applies one mutation as the server does; returns false when it is rejected. */
   const apply = (m: footprint.FootprintMutation): string => {
     const op = m.operation;
@@ -207,8 +207,8 @@ export function fakeBackend(
         return "upsertCity";
       case "upsertTrip": {
         const t = op.value;
-        if (!state.visits.has(t.regionCode)) throw new Error("trip city does not exist");
-        state.trips.set(t.id, { id: t.id, code: t.regionCode, date: t.date, note: t.note });
+        if (!state.visits.has(t.city)) throw new Error("trip city does not exist");
+        state.trips.set(t.id, { id: t.id, code: t.city, date: t.date, note: t.note });
         return "upsertTrip";
       }
       case "deleteTrip":
@@ -249,7 +249,7 @@ export function fakeBackend(
       const t = state.trips.get(id);
       if (!t) return;
       state.trips.delete(id);
-      logChange(mutation({ case: "deleteTrip", value: { regionCode: t.code, id } }));
+      logChange(mutation({ case: "deleteTrip", value: { city: t.code, id } }));
     },
     otherDeviceDeleteVisit: (code: string) => {
       apply(mutation({ case: "deleteVisit", value: code }) as footprint.FootprintMutation);
@@ -474,7 +474,7 @@ export function fakeBackend(
               if (!state.trips.delete(t.id)) continue;
               // A trip of a city that goes away is removed by that city's own deletion.
               if (!wantCities.has(t.code)) continue;
-              logChange(mutation({ case: "deleteTrip", value: { regionCode: t.code, id: t.id } }));
+              logChange(mutation({ case: "deleteTrip", value: { city: t.code, id: t.id } }));
               changed++;
             }
             for (const code of [...state.visits.keys()]) {
