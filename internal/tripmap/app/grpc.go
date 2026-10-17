@@ -39,6 +39,9 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 			collab := application.NewCollaborationService(h, idx)
 			tripmapv1.RegisterCollaborationServiceServer(r, application.CollaborationGRPC(collab))
 			tripmapv1.RegisterAccountCleanupServiceServer(r, application.NewAccountCleanupService(h))
+			report := application.NewReportService(h, idx)
+			tripmapv1.RegisterReportServiceServer(r, application.ReportGRPC(report))
+			tripmapv1.RegisterSearchServiceServer(r, application.SearchGRPC(application.NewSearchService(h, idx)))
 		}
 		for _, register := range extra {
 			register(r)

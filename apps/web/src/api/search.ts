@@ -1,5 +1,5 @@
 import { createClient } from "@connectrpc/connect";
-import { SearchService } from "@trip-map/api-client/tripmap/v1/search_pb";
+import { SearchService } from "@trip-map/api-client/bff/v1/search_pb";
 import type { NoteMatch } from "@/lib/search";
 import { transport } from "./transport";
 

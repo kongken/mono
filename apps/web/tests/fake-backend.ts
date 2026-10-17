@@ -14,12 +14,12 @@ import * as collaborationPb from "@trip-map/api-client/tripmap/v1/collaboration_
 import * as footprint from "@trip-map/api-client/bff/v1/footprint_pb";
 import { DEFAULT_ESTIMATION_POLICY, buildItineraryInfo, validateItineraryInput, type ItineraryRecord } from "../src/lib/itinerary";
 import * as notificationPb from "@trip-map/api-client/bff/v1/notification_pb";
-import * as reportPb from "@trip-map/api-client/tripmap/v1/report_pb";
+import * as reportPb from "@trip-map/api-client/bff/v1/report_pb";
 import * as regionsPb from "@trip-map/api-client/tripmap/v1/regions_pb";
 import catalog from "@trip-map/geo-data/region-catalog.json" with { type: "json" };
 import areas from "@trip-map/geo-data/regions.json" with { type: "json" };
 import { regionCatalog, REGION_VERSION } from "../src/lib/region-catalog";
-import * as searchPb from "@trip-map/api-client/tripmap/v1/search_pb";
+import * as searchPb from "@trip-map/api-client/bff/v1/search_pb";
 import * as snapshotPb from "@trip-map/api-client/tripmap/v1/snapshot_pb";
 import * as statusPb from "@trip-map/api-client/bff/v1/status_pb";
 import { buildReport } from "../src/lib/report";
@@ -383,7 +383,7 @@ export function fakeBackend(
             return send(regionsPb.ApplyRegionUpgradeResponseSchema, { version: body.version, revision: BigInt(saved.revision), changedCount: saved.changed, snapshotId: saved.snapshotId });
           }
           case "GetFootprints":
-            return send(bffFootprint.GetFootprintsResponseSchema, {
+            return send(footprint.GetFootprintsResponseSchema, {
               revision: BigInt(state.revision),
               visits: [...state.visits.values()].map((v) => ({ ...v, date: "", note: "", updatedAt: ts() })),
               trips: [...state.trips.values()].map(wireBffTrip),

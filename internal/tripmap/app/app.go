@@ -253,11 +253,7 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	collab := application.NewCollaborationService(h, index)
 	path, handler = tripmapv1connect.NewCollaborationServiceHandler(application.NewCollaborationConnectSharedOnly(collab), opts)
 	mount(path, handler)
-	path, handler = tripmapv1connect.NewReportServiceHandler(application.NewReportService(h, index), opts)
-	mount(path, handler)
 	path, handler = tripmapv1connect.NewRegionServiceHandler(application.NewRegionService(h, index), opts, connect.WithReadMaxBytes(4096))
-	mount(path, handler)
-	path, handler = tripmapv1connect.NewSearchServiceHandler(application.NewSearchService(h, index), opts, connect.WithReadMaxBytes(4096))
 	mount(path, handler)
 	mountShare(r, api, application.NewSharePublic(h.cfg, h))
 }
