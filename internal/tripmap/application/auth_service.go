@@ -16,7 +16,6 @@ import (
 	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent"
-	"github.com/kongken/mono/internal/tripmap/ent/session"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	"golang.org/x/crypto/bcrypt"
@@ -254,51 +253,12 @@ func (s *AuthService) Me(ctx context.Context, _ *connect.Request[tripmapv1.MeReq
 	return connect.NewResponse(&tripmapv1.MeResponse{User: toUser(u)}), nil
 }
 
-func (s *AuthService) ListSessions(ctx context.Context, _ *connect.Request[tripmapv1.ListSessionsRequest]) (*connect.Response[tripmapv1.ListSessionsResponse], error) {
-	p, err := principal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	st, err := storeFrom(s.src)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := st.DB.Session.Query().
-		Where(session.UserID(p.UserID), session.Revoked(false), session.ExpiresAtGT(time.Now().UTC())).
-		Order(ent.Desc(session.FieldCreatedAt)).All(ctx)
-	if err != nil {
-		return nil, internalError(err)
-	}
-	out := &tripmapv1.ListSessionsResponse{}
-	for _, r := range rows {
-		item := &tripmapv1.Session{Id: r.ID, CreatedAt: timestamppb.New(r.CreatedAt), ExpiresAt: timestamppb.New(r.ExpiresAt), Current: r.ID == p.SessionID}
-		if r.LastUsedAt != nil {
-			item.LastUsedAt = timestamppb.New(*r.LastUsedAt)
-		}
-		out.Sessions = append(out.Sessions, item)
-	}
-	return connect.NewResponse(out), nil
+func (s *AuthService) ListSessions(context.Context, *connect.Request[tripmapv1.ListSessionsRequest]) (*connect.Response[tripmapv1.ListSessionsResponse], error) {
+	return nil, connectUnimplemented()
 }
 
-func (s *AuthService) RevokeSession(ctx context.Context, req *connect.Request[tripmapv1.RevokeSessionRequest]) (*connect.Response[tripmapv1.RevokeSessionResponse], error) {
-	p, err := principal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	st, err := storeFrom(s.src)
-	if err != nil {
-		return nil, err
-	}
-	// Scoping by user_id makes other users' sessions indistinguishable from
-	// missing ones.
-	n, err := st.DB.Session.Update().Where(session.ID(req.Msg.GetId()), session.UserID(p.UserID)).SetRevoked(true).Save(ctx)
-	if err != nil {
-		return nil, internalError(err)
-	}
-	if n == 0 {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("session not found"))
-	}
-	return connect.NewResponse(&tripmapv1.RevokeSessionResponse{}), nil
+func (s *AuthService) RevokeSession(context.Context, *connect.Request[tripmapv1.RevokeSessionRequest]) (*connect.Response[tripmapv1.RevokeSessionResponse], error) {
+	return nil, connectUnimplemented()
 }
 
 func (s *AuthService) ListOAuthProviders(context.Context, *connect.Request[tripmapv1.ListOAuthProvidersRequest]) (*connect.Response[tripmapv1.ListOAuthProvidersResponse], error) {

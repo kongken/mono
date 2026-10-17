@@ -13,7 +13,46 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file bff/v1/auth.proto.
  */
 export const file_bff_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChFiZmYvdjEvYXV0aC5wcm90bxIGYmZmLnYxIpgBCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRISCgphdmF0YXJfdXJsGAQgASgJEi4KCmNyZWF0ZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhgKEGRlbGV0aW9uX3BlbmRpbmcYBiABKAgiSwoPUmVnaXN0ZXJSZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCSJeChBSZWdpc3RlclJlc3BvbnNlEhoKBHVzZXIYASABKAsyDC5iZmYudjEuVXNlchIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIyCgxMb2dpblJlcXVlc3QSEAoIdXNlcm5hbWUYASABKAkSEAoIcGFzc3dvcmQYAiABKAkiWwoNTG9naW5SZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSILCglNZVJlcXVlc3QiKAoKTWVSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXIiFwoVSXNzdWVDU1JGVG9rZW5SZXF1ZXN0IicKFklzc3VlQ1NSRlRva2VuUmVzcG9uc2USDQoFdG9rZW4YASABKAkiMwoNT0F1dGhQcm92aWRlchIMCgRuYW1lGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgCIAEoCSIbChlMaXN0T0F1dGhQcm92aWRlcnNSZXF1ZXN0IkYKGkxpc3RPQXV0aFByb3ZpZGVyc1Jlc3BvbnNlEigKCXByb3ZpZGVycxgBIAMoCzIVLmJmZi52MS5PQXV0aFByb3ZpZGVyIikKFUJlZ2luT0F1dGhGbG93UmVxdWVzdBIQCghwcm92aWRlchgBIAEoCSI+ChZCZWdpbk9BdXRoRmxvd1Jlc3BvbnNlEhUKDWF1dGhvcml6ZV91cmwYASABKAkSDQoFc3RhdGUYAiABKAkiSQoYQ29tcGxldGVPQXV0aEZsb3dSZXF1ZXN0EhAKCHByb3ZpZGVyGAEgASgJEgwKBGNvZGUYAiABKAkSDQoFc3RhdGUYAyABKAkiZwoZQ29tcGxldGVPQXV0aEZsb3dSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAy5QQKC0F1dGhTZXJ2aWNlEkMKCFJlZ2lzdGVyEhcuYmZmLnYxLlJlZ2lzdGVyUmVxdWVzdBoYLmJmZi52MS5SZWdpc3RlclJlc3BvbnNlIgSguxgBEjoKBUxvZ2luEhQuYmZmLnYxLkxvZ2luUmVxdWVzdBoVLmJmZi52MS5Mb2dpblJlc3BvbnNlIgSguxgBEjcKBkxvZ291dBIVLmJmZi52MS5Mb2dvdXRSZXF1ZXN0GhYuYmZmLnYxLkxvZ291dFJlc3BvbnNlEisKAk1lEhEuYmZmLnYxLk1lUmVxdWVzdBoSLmJmZi52MS5NZVJlc3BvbnNlElUKDklzc3VlQ1NSRlRva2VuEh0uYmZmLnYxLklzc3VlQ1NSRlRva2VuUmVxdWVzdBoeLmJmZi52MS5Jc3N1ZUNTUkZUb2tlblJlc3BvbnNlIgSguxgBEmEKEkxpc3RPQXV0aFByb3ZpZGVycxIhLmJmZi52MS5MaXN0T0F1dGhQcm92aWRlcnNSZXF1ZXN0GiIuYmZmLnYxLkxpc3RPQXV0aFByb3ZpZGVyc1Jlc3BvbnNlIgSguxgBElUKDkJlZ2luT0F1dGhGbG93Eh0uYmZmLnYxLkJlZ2luT0F1dGhGbG93UmVxdWVzdBoeLmJmZi52MS5CZWdpbk9BdXRoRmxvd1Jlc3BvbnNlIgSguxgBEl4KEUNvbXBsZXRlT0F1dGhGbG93EiAuYmZmLnYxLkNvbXBsZXRlT0F1dGhGbG93UmVxdWVzdBohLmJmZi52MS5Db21wbGV0ZU9BdXRoRmxvd1Jlc3BvbnNlIgSguxgBQjBaLmdpdGh1Yi5jb20va29uZ2tlbi9tb25vL3BrZy9wcm90by9iZmYvdjE7YmZmdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_platform_v1_options]);
+  fileDesc("ChFiZmYvdjEvYXV0aC5wcm90bxIGYmZmLnYxIrgBCgdTZXNzaW9uEgoKAmlkGAEgASgJEi4KCmNyZWF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3RfdXNlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHY3VycmVudBgFIAEoCCKYAQoEVXNlchIKCgJpZBgBIAEoCRIQCgh1c2VybmFtZRgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSEgoKYXZhdGFyX3VybBgEIAEoCRIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIYChBkZWxldGlvbl9wZW5kaW5nGAYgASgIIksKD1JlZ2lzdGVyUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkiXgoQUmVnaXN0ZXJSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiMgoMTG9naW5SZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIlsKDUxvZ2luUmVzcG9uc2USGgoEdXNlchgBIAEoCzIMLmJmZi52MS5Vc2VyEi4KCmV4cGlyZXNfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIg8KDUxvZ291dFJlcXVlc3QiEAoOTG9nb3V0UmVzcG9uc2UiCwoJTWVSZXF1ZXN0IigKCk1lUmVzcG9uc2USGgoEdXNlchgBIAEoCzIMLmJmZi52MS5Vc2VyIhUKE0xpc3RTZXNzaW9uc1JlcXVlc3QiOQoUTGlzdFNlc3Npb25zUmVzcG9uc2USIQoIc2Vzc2lvbnMYASADKAsyDy5iZmYudjEuU2Vzc2lvbiIiChRSZXZva2VTZXNzaW9uUmVxdWVzdBIKCgJpZBgBIAEoCSIXChVSZXZva2VTZXNzaW9uUmVzcG9uc2UiFwoVSXNzdWVDU1JGVG9rZW5SZXF1ZXN0IicKFklzc3VlQ1NSRlRva2VuUmVzcG9uc2USDQoFdG9rZW4YASABKAkiMwoNT0F1dGhQcm92aWRlchIMCgRuYW1lGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgCIAEoCSIbChlMaXN0T0F1dGhQcm92aWRlcnNSZXF1ZXN0IkYKGkxpc3RPQXV0aFByb3ZpZGVyc1Jlc3BvbnNlEigKCXByb3ZpZGVycxgBIAMoCzIVLmJmZi52MS5PQXV0aFByb3ZpZGVyIikKFUJlZ2luT0F1dGhGbG93UmVxdWVzdBIQCghwcm92aWRlchgBIAEoCSI+ChZCZWdpbk9BdXRoRmxvd1Jlc3BvbnNlEhUKDWF1dGhvcml6ZV91cmwYASABKAkSDQoFc3RhdGUYAiABKAkiSQoYQ29tcGxldGVPQXV0aEZsb3dSZXF1ZXN0EhAKCHByb3ZpZGVyGAEgASgJEgwKBGNvZGUYAiABKAkSDQoFc3RhdGUYAyABKAkiZwoZQ29tcGxldGVPQXV0aEZsb3dSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAy/gUKC0F1dGhTZXJ2aWNlEkMKCFJlZ2lzdGVyEhcuYmZmLnYxLlJlZ2lzdGVyUmVxdWVzdBoYLmJmZi52MS5SZWdpc3RlclJlc3BvbnNlIgSguxgBEjoKBUxvZ2luEhQuYmZmLnYxLkxvZ2luUmVxdWVzdBoVLmJmZi52MS5Mb2dpblJlc3BvbnNlIgSguxgBEjcKBkxvZ291dBIVLmJmZi52MS5Mb2dvdXRSZXF1ZXN0GhYuYmZmLnYxLkxvZ291dFJlc3BvbnNlEisKAk1lEhEuYmZmLnYxLk1lUmVxdWVzdBoSLmJmZi52MS5NZVJlc3BvbnNlEkkKDExpc3RTZXNzaW9ucxIbLmJmZi52MS5MaXN0U2Vzc2lvbnNSZXF1ZXN0GhwuYmZmLnYxLkxpc3RTZXNzaW9uc1Jlc3BvbnNlEkwKDVJldm9rZVNlc3Npb24SHC5iZmYudjEuUmV2b2tlU2Vzc2lvblJlcXVlc3QaHS5iZmYudjEuUmV2b2tlU2Vzc2lvblJlc3BvbnNlElUKDklzc3VlQ1NSRlRva2VuEh0uYmZmLnYxLklzc3VlQ1NSRlRva2VuUmVxdWVzdBoeLmJmZi52MS5Jc3N1ZUNTUkZUb2tlblJlc3BvbnNlIgSguxgBEmEKEkxpc3RPQXV0aFByb3ZpZGVycxIhLmJmZi52MS5MaXN0T0F1dGhQcm92aWRlcnNSZXF1ZXN0GiIuYmZmLnYxLkxpc3RPQXV0aFByb3ZpZGVyc1Jlc3BvbnNlIgSguxgBElUKDkJlZ2luT0F1dGhGbG93Eh0uYmZmLnYxLkJlZ2luT0F1dGhGbG93UmVxdWVzdBoeLmJmZi52MS5CZWdpbk9BdXRoRmxvd1Jlc3BvbnNlIgSguxgBEl4KEUNvbXBsZXRlT0F1dGhGbG93EiAuYmZmLnYxLkNvbXBsZXRlT0F1dGhGbG93UmVxdWVzdBohLmJmZi52MS5Db21wbGV0ZU9BdXRoRmxvd1Jlc3BvbnNlIgSguxgBQjBaLmdpdGh1Yi5jb20va29uZ2tlbi9tb25vL3BrZy9wcm90by9iZmYvdjE7YmZmdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_platform_v1_options]);
+
+/**
+ * @generated from message bff.v1.Session
+ */
+export type Session = Message<"bff.v1.Session"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 2;
+   */
+  createdAt?: Timestamp;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp last_used_at = 3;
+   */
+  lastUsedAt?: Timestamp;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 4;
+   */
+  expiresAt?: Timestamp;
+
+  /**
+   * True for the session that made this request.
+   *
+   * @generated from field: bool current = 5;
+   */
+  current: boolean;
+};
+
+/**
+ * Describes the message bff.v1.Session.
+ * Use `create(SessionSchema)` to create a new message.
+ */
+export const SessionSchema: GenMessage<Session> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 0);
 
 /**
  * @generated from message bff.v1.User
@@ -55,7 +94,7 @@ export type User = Message<"bff.v1.User"> & {
  * Use `create(UserSchema)` to create a new message.
  */
 export const UserSchema: GenMessage<User> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 0);
+  messageDesc(file_bff_v1_auth, 1);
 
 /**
  * @generated from message bff.v1.RegisterRequest
@@ -82,7 +121,7 @@ export type RegisterRequest = Message<"bff.v1.RegisterRequest"> & {
  * Use `create(RegisterRequestSchema)` to create a new message.
  */
 export const RegisterRequestSchema: GenMessage<RegisterRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 1);
+  messageDesc(file_bff_v1_auth, 2);
 
 /**
  * @generated from message bff.v1.RegisterResponse
@@ -104,7 +143,7 @@ export type RegisterResponse = Message<"bff.v1.RegisterResponse"> & {
  * Use `create(RegisterResponseSchema)` to create a new message.
  */
 export const RegisterResponseSchema: GenMessage<RegisterResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 2);
+  messageDesc(file_bff_v1_auth, 3);
 
 /**
  * @generated from message bff.v1.LoginRequest
@@ -126,7 +165,7 @@ export type LoginRequest = Message<"bff.v1.LoginRequest"> & {
  * Use `create(LoginRequestSchema)` to create a new message.
  */
 export const LoginRequestSchema: GenMessage<LoginRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 3);
+  messageDesc(file_bff_v1_auth, 4);
 
 /**
  * @generated from message bff.v1.LoginResponse
@@ -148,7 +187,7 @@ export type LoginResponse = Message<"bff.v1.LoginResponse"> & {
  * Use `create(LoginResponseSchema)` to create a new message.
  */
 export const LoginResponseSchema: GenMessage<LoginResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 4);
+  messageDesc(file_bff_v1_auth, 5);
 
 /**
  * @generated from message bff.v1.LogoutRequest
@@ -161,7 +200,7 @@ export type LogoutRequest = Message<"bff.v1.LogoutRequest"> & {
  * Use `create(LogoutRequestSchema)` to create a new message.
  */
 export const LogoutRequestSchema: GenMessage<LogoutRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 5);
+  messageDesc(file_bff_v1_auth, 6);
 
 /**
  * @generated from message bff.v1.LogoutResponse
@@ -174,7 +213,7 @@ export type LogoutResponse = Message<"bff.v1.LogoutResponse"> & {
  * Use `create(LogoutResponseSchema)` to create a new message.
  */
 export const LogoutResponseSchema: GenMessage<LogoutResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 6);
+  messageDesc(file_bff_v1_auth, 7);
 
 /**
  * @generated from message bff.v1.MeRequest
@@ -187,7 +226,7 @@ export type MeRequest = Message<"bff.v1.MeRequest"> & {
  * Use `create(MeRequestSchema)` to create a new message.
  */
 export const MeRequestSchema: GenMessage<MeRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 7);
+  messageDesc(file_bff_v1_auth, 8);
 
 /**
  * @generated from message bff.v1.MeResponse
@@ -204,7 +243,67 @@ export type MeResponse = Message<"bff.v1.MeResponse"> & {
  * Use `create(MeResponseSchema)` to create a new message.
  */
 export const MeResponseSchema: GenMessage<MeResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 8);
+  messageDesc(file_bff_v1_auth, 9);
+
+/**
+ * @generated from message bff.v1.ListSessionsRequest
+ */
+export type ListSessionsRequest = Message<"bff.v1.ListSessionsRequest"> & {
+};
+
+/**
+ * Describes the message bff.v1.ListSessionsRequest.
+ * Use `create(ListSessionsRequestSchema)` to create a new message.
+ */
+export const ListSessionsRequestSchema: GenMessage<ListSessionsRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 10);
+
+/**
+ * @generated from message bff.v1.ListSessionsResponse
+ */
+export type ListSessionsResponse = Message<"bff.v1.ListSessionsResponse"> & {
+  /**
+   * @generated from field: repeated bff.v1.Session sessions = 1;
+   */
+  sessions: Session[];
+};
+
+/**
+ * Describes the message bff.v1.ListSessionsResponse.
+ * Use `create(ListSessionsResponseSchema)` to create a new message.
+ */
+export const ListSessionsResponseSchema: GenMessage<ListSessionsResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 11);
+
+/**
+ * @generated from message bff.v1.RevokeSessionRequest
+ */
+export type RevokeSessionRequest = Message<"bff.v1.RevokeSessionRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message bff.v1.RevokeSessionRequest.
+ * Use `create(RevokeSessionRequestSchema)` to create a new message.
+ */
+export const RevokeSessionRequestSchema: GenMessage<RevokeSessionRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 12);
+
+/**
+ * @generated from message bff.v1.RevokeSessionResponse
+ */
+export type RevokeSessionResponse = Message<"bff.v1.RevokeSessionResponse"> & {
+};
+
+/**
+ * Describes the message bff.v1.RevokeSessionResponse.
+ * Use `create(RevokeSessionResponseSchema)` to create a new message.
+ */
+export const RevokeSessionResponseSchema: GenMessage<RevokeSessionResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 13);
 
 /**
  * @generated from message bff.v1.IssueCSRFTokenRequest
@@ -217,7 +316,7 @@ export type IssueCSRFTokenRequest = Message<"bff.v1.IssueCSRFTokenRequest"> & {
  * Use `create(IssueCSRFTokenRequestSchema)` to create a new message.
  */
 export const IssueCSRFTokenRequestSchema: GenMessage<IssueCSRFTokenRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 9);
+  messageDesc(file_bff_v1_auth, 14);
 
 /**
  * @generated from message bff.v1.IssueCSRFTokenResponse
@@ -234,7 +333,7 @@ export type IssueCSRFTokenResponse = Message<"bff.v1.IssueCSRFTokenResponse"> & 
  * Use `create(IssueCSRFTokenResponseSchema)` to create a new message.
  */
 export const IssueCSRFTokenResponseSchema: GenMessage<IssueCSRFTokenResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 10);
+  messageDesc(file_bff_v1_auth, 15);
 
 /**
  * @generated from message bff.v1.OAuthProvider
@@ -256,7 +355,7 @@ export type OAuthProvider = Message<"bff.v1.OAuthProvider"> & {
  * Use `create(OAuthProviderSchema)` to create a new message.
  */
 export const OAuthProviderSchema: GenMessage<OAuthProvider> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 11);
+  messageDesc(file_bff_v1_auth, 16);
 
 /**
  * @generated from message bff.v1.ListOAuthProvidersRequest
@@ -269,7 +368,7 @@ export type ListOAuthProvidersRequest = Message<"bff.v1.ListOAuthProvidersReques
  * Use `create(ListOAuthProvidersRequestSchema)` to create a new message.
  */
 export const ListOAuthProvidersRequestSchema: GenMessage<ListOAuthProvidersRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 12);
+  messageDesc(file_bff_v1_auth, 17);
 
 /**
  * @generated from message bff.v1.ListOAuthProvidersResponse
@@ -286,7 +385,7 @@ export type ListOAuthProvidersResponse = Message<"bff.v1.ListOAuthProvidersRespo
  * Use `create(ListOAuthProvidersResponseSchema)` to create a new message.
  */
 export const ListOAuthProvidersResponseSchema: GenMessage<ListOAuthProvidersResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 13);
+  messageDesc(file_bff_v1_auth, 18);
 
 /**
  * @generated from message bff.v1.BeginOAuthFlowRequest
@@ -303,7 +402,7 @@ export type BeginOAuthFlowRequest = Message<"bff.v1.BeginOAuthFlowRequest"> & {
  * Use `create(BeginOAuthFlowRequestSchema)` to create a new message.
  */
 export const BeginOAuthFlowRequestSchema: GenMessage<BeginOAuthFlowRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 14);
+  messageDesc(file_bff_v1_auth, 19);
 
 /**
  * @generated from message bff.v1.BeginOAuthFlowResponse
@@ -325,7 +424,7 @@ export type BeginOAuthFlowResponse = Message<"bff.v1.BeginOAuthFlowResponse"> & 
  * Use `create(BeginOAuthFlowResponseSchema)` to create a new message.
  */
 export const BeginOAuthFlowResponseSchema: GenMessage<BeginOAuthFlowResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 15);
+  messageDesc(file_bff_v1_auth, 20);
 
 /**
  * @generated from message bff.v1.CompleteOAuthFlowRequest
@@ -352,7 +451,7 @@ export type CompleteOAuthFlowRequest = Message<"bff.v1.CompleteOAuthFlowRequest"
  * Use `create(CompleteOAuthFlowRequestSchema)` to create a new message.
  */
 export const CompleteOAuthFlowRequestSchema: GenMessage<CompleteOAuthFlowRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 16);
+  messageDesc(file_bff_v1_auth, 21);
 
 /**
  * @generated from message bff.v1.CompleteOAuthFlowResponse
@@ -374,7 +473,7 @@ export type CompleteOAuthFlowResponse = Message<"bff.v1.CompleteOAuthFlowRespons
  * Use `create(CompleteOAuthFlowResponseSchema)` to create a new message.
  */
 export const CompleteOAuthFlowResponseSchema: GenMessage<CompleteOAuthFlowResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 17);
+  messageDesc(file_bff_v1_auth, 22);
 
 /**
  * AuthService handles password accounts and browser sessions (HttpOnly Cookie).
@@ -414,6 +513,26 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof MeRequestSchema;
     output: typeof MeResponseSchema;
+  },
+  /**
+   * ListSessions lists the caller's active browser sessions in BFF storage.
+   *
+   * @generated from rpc bff.v1.AuthService.ListSessions
+   */
+  listSessions: {
+    methodKind: "unary";
+    input: typeof ListSessionsRequestSchema;
+    output: typeof ListSessionsResponseSchema;
+  },
+  /**
+   * RevokeSession revokes one of the caller's own sessions.
+   *
+   * @generated from rpc bff.v1.AuthService.RevokeSession
+   */
+  revokeSession: {
+    methodKind: "unary";
+    input: typeof RevokeSessionRequestSchema;
+    output: typeof RevokeSessionResponseSchema;
   },
   /**
    * IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.

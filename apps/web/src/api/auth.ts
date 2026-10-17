@@ -55,10 +55,17 @@ export const authApi = {
   },
   me: async () => toUser((await client().me({})).user),
   listSessions: async () => {
-    throw new Error("listSessions not migrated to bff.v1 yet");
+    const res = await client().listSessions({});
+    return (res.sessions ?? []).map((s) => ({
+      id: s.id,
+      current: s.current,
+      createdAt: s.createdAt ? timestampDate(s.createdAt) : null,
+      lastUsedAt: s.lastUsedAt ? timestampDate(s.lastUsedAt) : null,
+    }));
   },
-  revokeSession: (_id: string) => {
-    throw new Error("revokeSession not migrated to bff.v1 yet");
+  revokeSession: async (id: string) => {
+    await refreshCSRF();
+    await client().revokeSession({ id });
   },
   listProviders: async (): Promise<ProviderInfo[]> => {
     const res = await client().listOAuthProviders({});

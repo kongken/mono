@@ -9,7 +9,7 @@
 **当前已实现**
 
 - `bff.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
-- `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`IssueCSRFToken`，以及 OAuth `ListOAuthProviders`、`BeginOAuthFlow`、`CompleteOAuthFlow`（#32）；账号、OAuth 绑定与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`），OAuth state 在 BFF Redis（10 分钟、单次使用、绑定 provider/PKCE）。会话 Cookie：`shanhai_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `shanhai_csrf` + 请求头 `X-CSRF-Token`；写操作校验 Origin。响应不返回会话令牌。
+- `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`ListSessions`、`RevokeSession`、`IssueCSRFToken`，以及 OAuth `ListOAuthProviders`、`BeginOAuthFlow`、`CompleteOAuthFlow`（#31–#32）；账号、OAuth 绑定与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`），OAuth state 在 BFF Redis（10 分钟、单次使用、绑定 provider/PKCE）。会话 Cookie：`shanhai_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `shanhai_csrf` + 请求头 `X-CSRF-Token`；写操作（含 `RevokeSession`）校验 Origin。响应不返回会话令牌；会话列表与撤销只读写 BFF 存储，不向 tripmap 下传浏览器会话 ID。
 - OAuth 提供方在 `config.bff.yaml` 的 `auth.oauth_providers`（GitHub、Google、Logto；Logto 带 PKCE），与旧 tripmap `auth.oauth_providers` 字段含义相同，配置迁到 BFF。
 - `bff.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
 - `bff.v1.NotificationService`（全部提醒设置 RPC）→ tripmap gRPC `NotificationService`；浏览器经 Cookie 会话，业务仍只认 BFF 签发的内部凭证与用户 ID。
@@ -22,9 +22,9 @@
 
 **当前限制**
 
-- ListSessions、快照、媒体、协作等仍经透明网关 `tripmap.v1` + Bearer（#31、#34–#44）。
+- 快照、媒体、协作等仍经透明网关 `tripmap.v1` + Bearer（#34–#44）；`tripmap.v1.AuthService/ListSessions` 与 `RevokeSession` 的 Connect 路径已返回 `unimplemented`（#31）。
 - tripmap HTTP 已不再挂载 `FootprintService` Connect；BFF 透明网关上的 `/api/tripmap.v1.FootprintService/*` 仍代理至 tripmap 直至 #44 移除整包转发。
-- 前端 auth（含 OAuth）、足迹与提醒设置 API 已调用 `bff.v1`。
+- 前端 auth（含 OAuth 与会话管理）、足迹与提醒设置 API 已调用 `bff.v1`。
 - 真实 GitHub/Google/Logto 端到端授权验收仍依赖部署凭据，CI 使用受控 fake 提供方与 `internal/e2e/oauth_chain_test.go`。
 
 ```
@@ -126,7 +126,7 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 - `internal/bff/auth`：注册/登录/会话/CSRF（需 `TRIPMAP_TEST_*`）。
 - `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与 TLS gRPC 信任。
-- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、A/B 足迹隔离、`SyncChanges` 幂等与 revision 冲突、提醒设置、公开退订 HTTP、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。
+- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、`ListSessions`/`RevokeSession`（跨设备撤销与 CSRF）、A/B 足迹隔离、`SyncChanges` 幂等与 revision 冲突、提醒设置、公开退订 HTTP、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。
 - **Playwright 真实栈**（默认跳过）：`apps/web/tests/bff-cookie-real.spec.ts`；先 `make dev`（或等价 BFF+tripmap），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @trip-map/web -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
 - 其余 UI：Playwright 模拟后端覆盖登录骨架与业务场景。
 
@@ -136,4 +136,4 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 ## 待实现
 
-OAuth、会话管理、其余业务 RPC 经 `bff.v1` 迁移、移除透明网关与 tripmap Bearer（#31–#44）。
+OAuth、其余业务 RPC 经 `bff.v1` 迁移、移除透明网关与 tripmap Bearer（#32–#44）。

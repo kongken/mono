@@ -23,6 +23,8 @@ const (
 	AuthService_Login_FullMethodName              = "/bff.v1.AuthService/Login"
 	AuthService_Logout_FullMethodName             = "/bff.v1.AuthService/Logout"
 	AuthService_Me_FullMethodName                 = "/bff.v1.AuthService/Me"
+	AuthService_ListSessions_FullMethodName       = "/bff.v1.AuthService/ListSessions"
+	AuthService_RevokeSession_FullMethodName      = "/bff.v1.AuthService/RevokeSession"
 	AuthService_IssueCSRFToken_FullMethodName     = "/bff.v1.AuthService/IssueCSRFToken"
 	AuthService_ListOAuthProviders_FullMethodName = "/bff.v1.AuthService/ListOAuthProviders"
 	AuthService_BeginOAuthFlow_FullMethodName     = "/bff.v1.AuthService/BeginOAuthFlow"
@@ -40,6 +42,10 @@ type AuthServiceClient interface {
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
 	Me(ctx context.Context, in *MeRequest, opts ...grpc.CallOption) (*MeResponse, error)
+	// ListSessions lists the caller's active browser sessions in BFF storage.
+	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
+	// RevokeSession revokes one of the caller's own sessions.
+	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*RevokeSessionResponse, error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(ctx context.Context, in *IssueCSRFTokenRequest, opts ...grpc.CallOption) (*IssueCSRFTokenResponse, error)
 	ListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest, opts ...grpc.CallOption) (*ListOAuthProvidersResponse, error)
@@ -89,6 +95,26 @@ func (c *authServiceClient) Me(ctx context.Context, in *MeRequest, opts ...grpc.
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(MeResponse)
 	err := c.cc.Invoke(ctx, AuthService_Me_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSessionsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*RevokeSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeSessionResponse)
+	err := c.cc.Invoke(ctx, AuthService_RevokeSession_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -146,6 +172,10 @@ type AuthServiceServer interface {
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
 	Me(context.Context, *MeRequest) (*MeResponse, error)
+	// ListSessions lists the caller's active browser sessions in BFF storage.
+	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
+	// RevokeSession revokes one of the caller's own sessions.
+	RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error)
 	ListOAuthProviders(context.Context, *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error)
@@ -172,6 +202,12 @@ func (UnimplementedAuthServiceServer) Logout(context.Context, *LogoutRequest) (*
 }
 func (UnimplementedAuthServiceServer) Me(context.Context, *MeRequest) (*MeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Me not implemented")
+}
+func (UnimplementedAuthServiceServer) ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSessions not implemented")
+}
+func (UnimplementedAuthServiceServer) RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeSession not implemented")
 }
 func (UnimplementedAuthServiceServer) IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IssueCSRFToken not implemented")
@@ -278,6 +314,42 @@ func _AuthService_Me_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSessions(ctx, req.(*ListSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_RevokeSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).RevokeSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_RevokeSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).RevokeSession(ctx, req.(*RevokeSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_IssueCSRFToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(IssueCSRFTokenRequest)
 	if err := dec(in); err != nil {
@@ -372,6 +444,14 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Me",
 			Handler:    _AuthService_Me_Handler,
+		},
+		{
+			MethodName: "ListSessions",
+			Handler:    _AuthService_ListSessions_Handler,
+		},
+		{
+			MethodName: "RevokeSession",
+			Handler:    _AuthService_RevokeSession_Handler,
 		},
 		{
 			MethodName: "IssueCSRFToken",

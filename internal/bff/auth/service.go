@@ -252,6 +252,39 @@ func (s *Service) Logout(ctx context.Context, sessionID string) error {
 	return nil
 }
 
+func (s *Service) ListSessions(ctx context.Context, userID, currentSessionID string) (*bffv1.ListSessionsResponse, error) {
+	rows, err := s.db.Session.Query().
+		Where(entsession.UserID(userID), entsession.Revoked(false), entsession.ExpiresAtGT(time.Now().UTC())).
+		Order(ent.Desc(entsession.FieldCreatedAt)).All(ctx)
+	if err != nil {
+		return nil, internal(err)
+	}
+	out := &bffv1.ListSessionsResponse{}
+	for _, r := range rows {
+		item := &bffv1.Session{
+			Id: r.ID, CreatedAt: timestamppb.New(r.CreatedAt), ExpiresAt: timestamppb.New(r.ExpiresAt),
+			Current: r.ID == currentSessionID,
+		}
+		if r.LastUsedAt != nil {
+			item.LastUsedAt = timestamppb.New(*r.LastUsedAt)
+		}
+		out.Sessions = append(out.Sessions, item)
+	}
+	return out, nil
+}
+
+func (s *Service) RevokeSession(ctx context.Context, userID, sessionID string) error {
+	n, err := s.db.Session.Update().
+		Where(entsession.ID(sessionID), entsession.UserID(userID)).SetRevoked(true).Save(ctx)
+	if err != nil {
+		return internal(err)
+	}
+	if n == 0 {
+		return connect.NewError(connect.CodeNotFound, errors.New("session not found"))
+	}
+	return nil
+}
+
 func (s *Service) IssueCSRF() (string, error) { return session.NewCSRF() }
 
 // ResolveSession validates the browser session cookie and returns the session facts.

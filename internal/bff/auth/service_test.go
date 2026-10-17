@@ -9,6 +9,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/bff/auth"
 	"github.com/kongken/mono/internal/bff/config"
+	entsession "github.com/kongken/mono/internal/bff/ent/session"
 	"github.com/kongken/mono/internal/bff/ratelimit"
 	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/bff/testutil"
@@ -45,6 +46,68 @@ func TestRegisterLoginMeLogout(t *testing.T) {
 	if _, err = h.Authenticate(ctx, hdr); err == nil {
 		t.Fatal("expected revoked session to fail")
 	}
+}
+
+func TestListAndRevokeSessions(t *testing.T) {
+	db, rdb, prefix := testutil.Backing(t)
+	cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode}
+	svc := auth.NewService(&config.AuthConfig{SessionTTL: time.Hour}, cookies, db, ratelimit.New(rdb, prefix), nil)
+	ctx := context.Background()
+
+	reg, _, tok1, err := svc.Register(ctx, "127.0.0.1", &bffv1.RegisterRequest{Username: "erin", Password: "password1", DisplayName: "Erin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, tok2, err := svc.Login(ctx, "127.0.0.1", &bffv1.LoginRequest{Username: "erin", Password: "password1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := auth.NewHandler(svc, nil, time.Hour)
+	hdr1 := http.Header{}
+	hdr1.Set("Cookie", session.CookieName+"="+tok1)
+	bs1, err := h.Authenticate(ctx, hdr1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := svc.ListSessions(ctx, bs1.UserID, bs1.SessionID)
+	if err != nil || len(list.Sessions) != 2 {
+		t.Fatalf("list: %+v err=%v", list, err)
+	}
+	var otherID string
+	for _, s := range list.Sessions {
+		if !s.Current {
+			otherID = s.Id
+		}
+	}
+	if otherID == "" {
+		t.Fatal("expected non-current session")
+	}
+	stranger, _, _, err := svc.Register(ctx, "127.0.0.1", &bffv1.RegisterRequest{Username: "mallory", Password: "password1", DisplayName: "M"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.RevokeSession(ctx, stranger.User.Id, otherID); err == nil || connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("stranger revoke: %v", err)
+	}
+	hdr2 := http.Header{}
+	hdr2.Set("Cookie", session.CookieName+"="+tok2)
+	bs2, err := h.Authenticate(ctx, hdr2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.RevokeSession(ctx, bs2.UserID, otherID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = h.Authenticate(ctx, hdr2); err == nil {
+		t.Fatal("revoked session should fail auth")
+	}
+	if _, err = h.Authenticate(ctx, hdr1); err != nil {
+		t.Fatal("current session should stay valid")
+	}
+	if n, _ := db.Session.Query().Where(entsession.Revoked(false)).Count(ctx); n != 2 {
+		t.Fatalf("active sessions = %d", n)
+	}
+	_ = reg
 }
 
 func TestCSRFRejectsLogin(t *testing.T) {
