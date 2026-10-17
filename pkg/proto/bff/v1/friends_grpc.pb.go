@@ -32,7 +32,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // FriendService exposes friendships, privacy settings and friend footprint comparison via the BFF.
-// Shared-trip mutations remain on tripmap.v1 until a follow-up slice; overview may list shared trips read-only.
+// Shared-trip mutations use bff.v1.SharedTripService; overview lists shared trips read-only here.
 type FriendServiceClient interface {
 	GetCollaborationOverview(ctx context.Context, in *GetCollaborationOverviewRequest, opts ...grpc.CallOption) (*GetCollaborationOverviewResponse, error)
 	UpdateFriendSettings(ctx context.Context, in *UpdateFriendSettingsRequest, opts ...grpc.CallOption) (*UpdateFriendSettingsResponse, error)
@@ -115,7 +115,7 @@ func (c *friendServiceClient) GetFriendFootprints(ctx context.Context, in *GetFr
 // for forward compatibility.
 //
 // FriendService exposes friendships, privacy settings and friend footprint comparison via the BFF.
-// Shared-trip mutations remain on tripmap.v1 until a follow-up slice; overview may list shared trips read-only.
+// Shared-trip mutations use bff.v1.SharedTripService; overview lists shared trips read-only here.
 type FriendServiceServer interface {
 	GetCollaborationOverview(context.Context, *GetCollaborationOverviewRequest) (*GetCollaborationOverviewResponse, error)
 	UpdateFriendSettings(context.Context, *UpdateFriendSettingsRequest) (*UpdateFriendSettingsResponse, error)

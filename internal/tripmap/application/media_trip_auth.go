@@ -11,8 +11,8 @@ import (
 )
 
 // AuthorizeTripMediaWrite decides whether uid may attach new media to tripID in
-// region. Personal rows are still scoped by user_id elsewhere; shared-trip
-// collaboration rules (#38) extend read/list on top of this write gate.
+// region. Shared-trip active editors and owners pass via checkSharedTripWriteAllowed;
+// viewers receive permission_denied. List/read for members uses CollaborationService.
 func AuthorizeTripMediaWrite(ctx context.Context, tx *ent.Tx, uid, region, tripID string) error {
 	return requireTrip(ctx, tx, uid, region, tripID)
 }

@@ -7,16 +7,15 @@ import {
   type SharedTripInfo as BffSharedTripInfo,
 } from "@trip-map/api-client/bff/v1/friends_pb";
 import {
-  CollaborationService,
-  type SharedTripInfo,
-  type SharedTripMediaInfo,
-} from "@trip-map/api-client/tripmap/v1/collaboration_pb";
+  SharedTripService,
+  type SharedTripMediaInfo as BffSharedTripMediaInfo,
+} from "@trip-map/api-client/bff/v1/shared_trip_pb";
 import { parseShareContent, type ShareContent } from "@/lib/share";
 import { normalizeFriendSettings, type FriendPrivacySettings } from "@/lib/collaboration";
 import { transport } from "./transport";
 
 const friendRaw = transport ? createClient(FriendService, transport) : null;
-const sharedTripRaw = transport ? createClient(CollaborationService, transport) : null;
+const sharedTripRaw = transport ? createClient(SharedTripService, transport) : null;
 
 const friendClient = () => {
   if (!friendRaw) throw new Error("backend not configured");
@@ -31,7 +30,8 @@ const sharedTripClient = () => {
 export type FriendshipInfo = BffFriendshipInfo;
 export type FriendUser = BffFriendUser;
 export type FriendComparison = BffFriendComparison;
-export type { SharedTripInfo, SharedTripMediaInfo };
+export type SharedTripInfo = BffSharedTripInfo;
+export type SharedTripMediaInfo = BffSharedTripMediaInfo;
 
 export type CollaborationOverview = {
   myFriendCode: string;

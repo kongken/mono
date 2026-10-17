@@ -383,7 +383,7 @@ export function fakeBackend(
             return send(regionsPb.ApplyRegionUpgradeResponseSchema, { version: body.version, revision: BigInt(saved.revision), changedCount: saved.changed, snapshotId: saved.snapshotId });
           }
           case "GetFootprints":
-            return send(bffFootprint.GetFootprintsResponseSchema, {
+            return send(footprint.GetFootprintsResponseSchema, {
               revision: BigInt(state.revision),
               visits: [...state.visits.values()].map((v) => ({ ...v, date: "", note: "", updatedAt: ts() })),
               trips: [...state.trips.values()].map(wireBffTrip),

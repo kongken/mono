@@ -336,7 +336,7 @@ function fakeCollaboration(page: Page, { backend }: FakeCollabOptions) {
         await handleFriendRpc(route, method, body);
       });
 
-      await page.route("**/api/tripmap.v1.CollaborationService/**", async (route) => {
+      await page.route("**/api/bff.v1.SharedTripService/**", async (route) => {
         const method = route.request().url().split("/").pop();
         const body = route.request().postDataJSON?.() ?? {};
         const ok = (json: unknown) => route.fulfill({ status: 200, json });
