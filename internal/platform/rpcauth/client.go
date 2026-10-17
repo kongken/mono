@@ -26,6 +26,12 @@ func UnaryClientInterceptor(signer *servicetoken.Signer, audience string) grpc.U
 		if ip := validIP(call.ClientIP); ip != "" {
 			md.Set(MetadataClientIP, ip)
 		}
+		if call.TripmapSchema != "" {
+			md.Set(MetadataTripmapSchema, call.TripmapSchema)
+		}
+		if call.TripmapRegions != "" {
+			md.Set(MetadataTripmapRegions, call.TripmapRegions)
+		}
 		propagation.TraceContext{}.Inject(ctx, mdCarrier(md))
 		if len(md.Get(MetadataTraceparent)) == 0 {
 			md.Set(MetadataTraceparent, newTraceparent())

@@ -13,6 +13,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/platform/httpx"
+	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/auth/provider"
 	"github.com/kongken/mono/internal/tripmap/config"
@@ -227,11 +228,13 @@ func (s *AuthService) Login(ctx context.Context, req *connect.Request[tripmapv1.
 }
 
 func principal(ctx context.Context) (auth.Principal, error) {
-	p, ok := auth.PrincipalFrom(ctx)
-	if !ok {
-		return p, errUnauthenticated
+	if p, ok := auth.PrincipalFrom(ctx); ok {
+		return p, nil
 	}
-	return p, nil
+	if id, ok := rpcauth.UserIDFrom(ctx); ok {
+		return auth.Principal{UserID: id}, nil
+	}
+	return auth.Principal{}, errUnauthenticated
 }
 
 func (s *AuthService) Logout(ctx context.Context, _ *connect.Request[tripmapv1.LogoutRequest]) (*connect.Response[tripmapv1.LogoutResponse], error) {

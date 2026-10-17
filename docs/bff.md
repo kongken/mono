@@ -4,18 +4,23 @@
 
 ## 当前状态
 
-目标架构见 [Issue #26](https://github.com/kongken/mono/issues/26)：浏览器 →（Connect over HTTPS）→ BFF →（原生 gRPC over TLS）→ 业务服务。它按纵向切片落地，**当前只迁移了一条链路**：匿名状态查询（[Issue #29](https://github.com/kongken/mono/issues/29)）。
+目标架构见 [Issue #26](https://github.com/kongken/mono/issues/26)。[Issue #29](https://github.com/kongken/mono/issues/29) 迁移匿名状态；[Issue #30](https://github.com/kongken/mono/issues/30) 迁移密码账号、Cookie 会话与 `GetFootprints` 私有读。
 
 **当前已实现**
 
-- `bff.v1.StatusService/GetStatus`：匿名的公网 Connect 入口，BFF 以生成的 grpc-go 客户端调用 `tripmap.v1.SystemService/GetStatus`（见下文“公网 Connect 入口”“内部 gRPC 与凭证”）。前端 `/status` 页面和 `getBackendStatus()` 使用它。
-- tripmap 自管 TLS gRPC 监听（`grpc.listen`），只提供 `SystemService`；每个调用必须带 BFF 签发的 60 秒 Ed25519 凭证。tripmap 的 Connect 版 `SystemService` 已移除，`/api/tripmap.v1.SystemService/GetStatus` 不再有任何服务应答。
+- `bff.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
+- `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`IssueCSRFToken`；账号与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`）。会话 Cookie：`shanhai_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `shanhai_csrf` + 请求头 `X-CSRF-Token`；写操作校验 Origin。响应不返回会话令牌。
+- `bff.v1.FootprintService/GetFootprints` → tripmap gRPC `FootprintService/GetFootprints`；注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
+- 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
-**当前限制（尚未迁移的部分）**
+**开发数据保留（#30）**
 
-- 其他业务路径仍走透明网关：BFF 原样转发 HTTP（含 Connect 过程 `/api/tripmap.v1.*`），tripmap 的 Connect 处理器仍由原 Bearer 会话拦截器保护；账号、会话与 OAuth 仍在 tripmap 数据库。这是尚未迁移的现状，不是兼容能力，会随后续切片逐个改为 `bff.v1` + 内部 gRPC，最后移除通用转发。
-- BFF 还没有会话认证：`bff.v1` 的受保护方法目前对所有调用者返回 `UNAUTHENTICATED`（受保护是默认）。公网只有匿名的 `GetStatus`。
-- 没有 CSRF/Origin 校验、Cookie 会话和边缘限流（均属待实现）。
+不默认删除 tripmap 既有数据。新注册在 BFF 建账号 ID 并同步 tripmap。已有 tripmap 密码账号保留同一 ID 需一次性导入 BFF `auth_users`（运维/脚本，非应用内双写）；未导入者需重新注册或等待迁移。
+
+**当前限制**
+
+- OAuth、ListSessions、足迹写/sync、快照、媒体等仍经透明网关 `tripmap.v1` + Bearer（#31–#44）。
+- 前端除 auth 与 GetFootprints 外仍调用 `tripmap.v1` Connect；OAuth UI 在 #32 前不可用。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）
@@ -70,7 +75,7 @@ BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法�
 
 - **校验**：服务端检查签名、`kid`、`iss`、`aud`、`mth`、时间窗口和必需字段；允许的时钟偏差默认 10 秒（`internal_auth.clock_skew` 可调，0–1 分钟）。所有失败返回同一个 `UNAUTHENTICATED`，不说明失败原因。
 - **匿名与受保护**：匿名方法同样要求有效 BFF 凭证；不含 `sub` 的凭证打不开受保护方法。业务只能从拦截器放入 context 的类型化信息（`rpcauth.CallFrom` / `UserIDFrom`）取得用户 ID，不读取裸 metadata。
-- **metadata 白名单**：BFF 每次调用都重建出站 metadata，只写入 `authorization`、`x-request-id`、`traceparent`、`x-bff-client-ip`；服务端只读取这四项，其中请求 ID 与客户端地址在凭证验证通过后才采信，地址不是合法 IP 时丢弃。其他头（如伪造的 `x-user-id`）不会被读取。`traceparent` 取自当前追踪上下文，未启用追踪时由 BFF 生成。
+- **metadata 白名单**：BFF 每次调用都重建出站 metadata，写入 `authorization`、`x-request-id`、`traceparent`、`x-bff-client-ip`，以及浏览器声明的 `x-tripmap-schema`、`x-tripmap-regions`（足迹读/sync 需要）；服务端只读取白名单项。
 - **私钥与公钥**：私钥（PKCS#8 PEM）只在 BFF；服务只持受信公钥（PKIX PEM）。不依赖网络位置认证，不使用 mTLS。
 - **密钥轮换**：在服务的 `internal_auth.trusted_keys` 加入新公钥（`kid` 不同，新旧并存）→ 把 BFF 的 `internal_auth.kid` 与 `private_key_file` 切到新密钥 → 等旧凭证的有效窗口与允许偏差过去（约 70 秒）后撤下旧公钥。仍用已撤销密钥签名的 BFF 会被拒绝，浏览器看到 `INTERNAL`。
 - **日志**：凭证、Cookie、CSRF 令牌等不进入日志；上游错误只记录服务名和 gRPC 码。
@@ -88,7 +93,7 @@ BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法�
 | 路径 | 行为 |
 | --- | --- |
 | `GET /ping` | BFF 存活，返回 `{"message":"pong"}` |
-| `GET /readyz` | 并发请求每个服务的 `/readyz`（各 2 秒超时）：全部 200 时返回 200，否则 503；`dependencies` 按服务名列出 `ready` |
+| `GET /readyz` | 并发请求每个服务的 `/readyz`（各 2 秒超时）：全部 200 时返回 200，否则 503；`dependencies` 按服务名列出 `ready`；配置 BFF 库时还检查 `bff_postgres` |
 
 BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
@@ -96,58 +101,30 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 复制 `config.bff.example.yaml` 为 `config.bff.yaml`（已被 Git 忽略）。与 tripmap 一样由 Butterfly 文件模式读取，`${VAR}` 不展开。
 
-- `upstreams.<服务>`：路由表中每个服务的内网基础地址，如 `http://tripmap:18081`，用于 `/readyz` 探测和尚未迁移的 HTTP 路由。缺少某个服务、写了路由表中没有的服务名，或地址不是不带路径、查询和账号的 http(s) 地址时，BFF 拒绝启动。
-- `grpc.ca_file`、`grpc.services.<服务>.address`（可选 `server_name`，证书名称与地址主机不同时使用）、`grpc.max_message_bytes`（默认 20 MiB）：路由表中标记 `GRPC: true` 的服务必须配置；缺失、写了未标记的服务名或证书文件无效时拒绝启动。
-- `internal_auth.issuer`、`kid`、`private_key_file`：内部凭证的签发设置（见上文），三项必填。
-- `client_ip_header`：BFF 前面可信反向代理写入的客户端地址头。位于前端镜像 Nginx 之后设为 `X-Real-IP`，位于 Cloudflare 之后设为 `CF-Connecting-IP`；客户端可直连 BFF 时不要设置。
-- `cors_allowed_origins`：允许跨站调用 API 的浏览器来源，规则与 tripmap 原有配置相同；同源部署无需配置。
+- `db_store` / `redis_store` / `key_prefix` / `auto_migrate`：BFF 认证库与 Redis 限流（见 example 内 `store` 段）。
+- `auth.session_ttl`、`auth.cookie_secure`、`auth.registration_disabled`、`auth.csrf_token_ttl`。
+- `upstreams.<服务>`、`grpc.*`、`internal_auth.*`、`client_ip_header`、`cors_allowed_origins`：同前。
 
 ## 本地开发与部署
 
-首次运行 `make dev-secrets` 生成本地证书与密钥。`make dev` 同时启动 BFF（`18081`，Vite 代理目标不变）和 tripmap（`18082` 为 HTTP，`18083` 为 gRPC over TLS）；也可分别运行 `make dev-bff` 和 `make dev-tripmap`。
-
-镜像 `ghcr.io/kongken/trip-map-bff` 由 `deploy/bff/Dockerfile` 构建，容器内端口 18081，配置挂载在 `/config/config.yaml`，证书与密钥作为 Secret 挂载。tripmap 镜像额外监听 gRPC 端口 18083，只在内网开放；部署时为 tripmap 提供 `grpc.cert_file`/`key_file` 与 BFF 公钥，为 BFF 提供签发私钥与 `grpc.ca_file`。从“前端直连 tripmap”切换到 BFF 的顺序：
-
-1. 部署 BFF，`upstreams.tripmap` 指向 tripmap 的内网地址；把 tripmap 原来的 `auth.client_ip_header` 和 `auth.cors_allowed_origins` 分别移到 BFF 的 `client_ip_header` 和 `cors_allowed_origins`。
-2. tripmap 设置 `auth.client_ip_header: X-Real-IP`，并只在内网暴露。
-3. 前端容器的 `BACKEND_UPSTREAM` 改为 BFF 地址。
-
-回退时把 `BACKEND_UPSTREAM` 改回 tripmap 即可：前端 Nginx 同样会写 `X-Real-IP`，tripmap 自己的跨域处理也仍然保留。
+首次运行 `make dev-secrets` 生成本地证书与密钥。创建 PostgreSQL 库 `bff`（与 tripmap 同实例）。`make dev` 启动 BFF（`18081`）与 tripmap（`18082` HTTP、`18083` gRPC）。Vite 将 `/api` 代理到 BFF。
 
 ## 新增业务
 
-1. 新建 `proto/<业务>/v1/`、`cmd/<业务>/`、`internal/<业务>/`，需要数据库时使用 `migrations/<业务>/`。服务提供 `/ping` 与 `/readyz`，只在内网监听；业务 RPC 用 `grpcx` + `rpcauth` 提供 gRPC over TLS（参考 `internal/tripmap/app/grpc.go`），匿名方法在 proto 中用 `platform.v1.anonymous` 声明。
-2. 在 `internal/bff/gateway/services.go` 登记服务（`GRPC: true`），并在 BFF 增加对应的 `bff.v1` 契约和适配；仍走 HTTP 的路径登记 `Packages`、`Routes`、`Headers`，路径或查询串带凭据时填写 `Trace`。
-3. 在每份 BFF 配置的 `upstreams` 和 `grpc.services` 中加上服务地址（缺少时 BFF 拒绝启动），并给服务配置 `internal_auth`。
-4. 新增 `deploy/<业务>/Dockerfile`，只复制本服务与 `internal/platform`，并在 `.github/workflows/docker-publish.yml` 的矩阵中登记。
-
-各服务镜像只复制本服务与 `internal/platform` 的代码，因此业务之间互相 import，或 `internal/platform` 依赖某个业务时，对应镜像会构建失败。
+（同前，略）
 
 ## 验证
 
-- `internal/bff/ingress`：Connect-only 门禁、匿名/受保护默认、期限上限与客户端更短期限、请求 ID 与客户端地址规则。
-- `internal/bff/app`：BFF → 真实 TLS gRPC（受凭证拦截器保护的 tripmap 替身）：下传的 metadata、期限、取消、无自动重试、错误脱敏、协议与路径限制、跨域。
-- `internal/e2e`（仅测试包，是唯一同时 import 两个服务的地方）：真实 BFF → TLS gRPC → 真实 tripmap，覆盖状态与依赖故障，以及直连 gRPC 的无凭证、坏签名、未知 `kid`、错误 `iss`/`aud`/方法、过期与未生效凭证、匿名凭证打不开受保护方法、伪造 metadata 无效、不受信 TLS 身份和公钥轮换。设置 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR`（`make test-integration`）时，依赖探针使用随机 PostgreSQL schema 与 Redis key 前缀，测试结束自动清理；未设置时使用内存探针，此时数据库与 Redis 的实际连通不在验证范围内。
-- 浏览器：`apps/web/tests/status.spec.ts` 在桌面与手机尺寸验证 `/status` 页面（模拟 BFF 应答，不能代替上述真实链路）。
+- `internal/bff/auth`：注册/登录/会话/CSRF（需 `TRIPMAP_TEST_*`）。
+- `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与 TLS gRPC 信任。
+- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、A/B `GetFootprints` 隔离、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -run Chain`。
+- **Playwright 真实栈**（默认跳过）：`apps/web/tests/bff-cookie-real.spec.ts`；先 `make dev`（或等价 BFF+tripmap），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @trip-map/web -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
+- 其余 UI：Playwright 模拟后端覆盖登录骨架与业务场景。
 
 ## 当前限制
 
-- 认证与账号仍在 tripmap（见上文）。
-- 没有聚合接口：一个页面需要多个业务的数据时，前端分别调用。
-- BFF 自身没有限流，限流仍由各服务完成。
-- Butterfly 把指标端口固定为 `:2223`。本地 `make dev` 在同一台机器上运行两个进程时，后启动的进程会记录一条 `error serving metrics` 后继续运行，但没有指标；容器部署各有独立端口，不受影响。
+- 见上文「当前限制」；Butterfly 指标端口 `:2223` 本地双进程冲突同前。
 
 ## 待实现
 
-以下为已确定方向，尚未实现。
-
-**认证迁入 BFF**
-
-- 账号、密码哈希、OAuth 绑定、会话和注销凭据迁入 BFF 自己的数据库（同一 PostgreSQL 实例中的独立库）。用户 ID 保持不变；是否保留开发数据另行决定，不默认清空。
-- 账号、会话与 OAuth 改由 BFF 以 `bff.v1` 契约提供，会话使用同源 HttpOnly Cookie 并校验 Origin 与 CSRF Token；服务尚未上线，不保留旧过程名（`tripmap.v1.AuthService/*`）、Bearer 认证或旧前端兼容。
-- BFF 校验会话后，把用户 ID 放入内部凭证的 `sub`（已实现的凭证机制，见上文）；默认不下传会话 ID。无有效会话的调用只能访问 proto 声明为匿名的方法。
-- tripmap 保留 `users` 作为业务档案：revision、schema_version、好友字段，以及用户名、昵称、头像的副本，按身份声明补建或更新；现有级联删除继续在 tripmap 内部生效。
-
-**注销编排**
-
-由 BFF 标记注销，再逐个调用业务服务的内部接口 `DeleteUserData`（可重复调用，不经 BFF 对外暴露），最后删除账号与会话；完成后移除 tripmap 中的密码哈希等身份字段。
+OAuth、会话管理、其余业务 RPC 经 `bff.v1` 迁移、移除透明网关与 tripmap Bearer（#31–#44）。

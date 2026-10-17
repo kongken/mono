@@ -51,7 +51,12 @@ func authenticate(ctx context.Context, v *servicetoken.Verifier, fullMethod stri
 	if claims.Subject == "" && !Anonymous(fullMethod) {
 		return nil, errUnauthenticated
 	}
-	call := Call{UserID: claims.Subject, RequestID: NormalizeRequestID(first(md, MetadataRequestID))}
+	call := Call{
+		UserID:         claims.Subject,
+		RequestID:      NormalizeRequestID(first(md, MetadataRequestID)),
+		TripmapSchema:  strings.TrimSpace(first(md, MetadataTripmapSchema)),
+		TripmapRegions: strings.TrimSpace(first(md, MetadataTripmapRegions)),
+	}
 	call.ClientIP = validIP(first(md, MetadataClientIP))
 	if tp := first(md, MetadataTraceparent); traceparentPattern.MatchString(tp) {
 		call.TraceParent = tp

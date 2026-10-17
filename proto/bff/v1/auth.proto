@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package bff.v1;
+
+import "google/protobuf/timestamp.proto";
+import "platform/v1/options.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
+
+// AuthService handles password accounts and browser sessions (HttpOnly Cookie).
+// Register, Login and IssueCSRFToken are anonymous; Me and Logout require a session.
+service AuthService {
+  rpc Register(RegisterRequest) returns (RegisterResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  rpc Login(LoginRequest) returns (LoginResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  rpc Me(MeRequest) returns (MeResponse);
+  // IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
+  rpc IssueCSRFToken(IssueCSRFTokenRequest) returns (IssueCSRFTokenResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+}
+
+message User {
+  string id = 1;
+  string username = 2;
+  string display_name = 3;
+  string avatar_url = 4;
+  google.protobuf.Timestamp created_at = 5;
+  bool deletion_pending = 6;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+  string display_name = 3;
+}
+
+message RegisterResponse {
+  User user = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  User user = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message LogoutRequest {}
+
+message LogoutResponse {}
+
+message MeRequest {}
+
+message MeResponse {
+  User user = 1;
+}
+
+message IssueCSRFTokenRequest {}
+
+message IssueCSRFTokenResponse {
+  string token = 1;
+}

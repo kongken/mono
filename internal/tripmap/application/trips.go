@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"connectrpc.com/connect"
+	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
@@ -56,6 +57,18 @@ type (
 
 // withSchemas records what the caller declared and the schema its account had when
 // the session was authenticated. Writes re-check under the user's row lock.
+func withSchemasFromRPC(ctx context.Context, account int) context.Context {
+	call := rpcauth.CallFrom(ctx)
+	h := http.Header{}
+	if call.TripmapSchema != "" {
+		h.Set(clientSchemaHeader, call.TripmapSchema)
+	}
+	if call.TripmapRegions != "" {
+		h.Set(regionVersionHeader, call.TripmapRegions)
+	}
+	return withSchemas(ctx, h, account)
+}
+
 func withSchemas(ctx context.Context, header http.Header, account int) context.Context {
 	client := schemaLegacy
 	if n, err := strconv.Atoi(header.Get(clientSchemaHeader)); err == nil && n >= schemaTrips {

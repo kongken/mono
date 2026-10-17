@@ -3,8 +3,11 @@ import { createIncrementalReader } from "@/lib/delta";
 import {
   FootprintMutationSchema,
   type FootprintMutation,
-  type GetFootprintsResponse,
 } from "@trip-map/api-client/tripmap/v1/footprint_pb";
+import {
+  FootprintService as BffFootprintService,
+  type GetFootprintsResponse,
+} from "@trip-map/api-client/bff/v1/footprint_pb";
 import type { CloudSnapshot } from "@/lib/sync";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { FootprintService } from "@trip-map/api-client/tripmap/v1/footprint_pb";
@@ -17,6 +20,7 @@ import { projectRegionOps } from "@/lib/region-operations";
 import { getBackendStatus } from "./system";
 
 const raw = transport ? createClient(FootprintService, transport) : null;
+const bffFoot = transport ? createClient(BffFootprintService, transport) : null;
 // Only reachable once a session exists, which requires a configured backend.
 const client = () => {
   if (!raw) throw new Error("backend not configured");
@@ -55,8 +59,10 @@ function toSnapshot(r: GetFootprintsResponse): CloudSnapshot {
   if (r.schemaVersion < 2) throw new BackendNotUpgraded();
   assertRegionVersion(r.regionVersion);
   const trips = new Map<string, Trip[]>();
-  for (const t of r.trips)
-    trips.set(t.regionCode, [...(trips.get(t.regionCode) ?? []), { id: t.id, date: t.date, note: t.note }]);
+  for (const t of r.trips) {
+    const city = "city" in t && t.city ? t.city : (t as { regionCode?: string }).regionCode ?? "";
+    trips.set(city, [...(trips.get(city) ?? []), { id: t.id, date: t.date, note: t.note }]);
+  }
   return {
     revision: Number(r.revision),
     saved: {
@@ -192,7 +198,8 @@ const fullApi: FootprintApi = {
   ready: ensureBackendUpgraded,
   project: projectRegionOps,
   async get() {
-    return toSnapshot(await client().getFootprints({}));
+    if (!bffFoot) throw new Error("backend not configured");
+    return toSnapshot(await bffFoot.getFootprints({}));
   },
   apply: (op, revision) => send([op], revision, crypto.randomUUID()),
 };

@@ -3,8 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { authApi, type ProviderInfo } from "@/api/auth";
 import { detachThisDevice } from "@/api/notification";
 import { footprintApi, createFootprintApi } from "@/api/footprints";
-import { setToken } from "@/api/token";
 import { backendEnabled } from "@/api/transport";
+import { refreshCSRF } from "@/api/csrf";
 import { describeApiError, isUnauthenticated } from "@/lib/errors";
 import { consumePending, parseOAuthCallback, savePending } from "@/lib/oauth";
 import {
@@ -115,7 +115,6 @@ export function useCloud(options: Options) {
 
   const setSession = (next: StoredSession | null) => {
     sessionRef.current = next;
-    setToken(next?.token ?? null);
     setSessionState(next);
   };
 
@@ -141,7 +140,6 @@ export function useCloud(options: Options) {
     setPending(false);
     setDeletionBlocked(false);
     sessionRef.current = null;
-    setToken(null);
     setSessionState(null);
     setLoaded("pending");
     setLoadError("");
@@ -177,7 +175,7 @@ export function useCloud(options: Options) {
       snapshot,
       {
         onStatus: (status) => {
-          if (sessionRef.current?.token !== s.token) return;
+          if (sessionRef.current?.user.id !== s.user.id) return;
           setSync(status);
           if (status === "syncing") sawSync.current = true;
           else if (status === "idle" && sawSync.current) setFresh(true);
@@ -189,7 +187,7 @@ export function useCloud(options: Options) {
           }
         },
         onChange: (cache) => {
-          if (sessionRef.current?.token !== s.token) return;
+          if (sessionRef.current?.user.id !== s.user.id) return;
           setCacheFailed(
             !saveCloudCache(localStorage, s.user.id, cache, legacyDigest.current),
           );
@@ -201,7 +199,7 @@ export function useCloud(options: Options) {
         },
         onBeforeSend: (cache) => {
           if (
-            sessionRef.current?.token !== s.token ||
+            sessionRef.current?.user.id !== s.user.id ||
             !saveCloudCache(localStorage, s.user.id, cache, legacyDigest.current)
           ) {
             setCacheFailed(true);
@@ -210,7 +208,7 @@ export function useCloud(options: Options) {
           setCacheFailed(false);
         },
         onError: (error) => {
-          if (sessionRef.current?.token !== s.token) return;
+          if (sessionRef.current?.user.id !== s.user.id) return;
           if (isUnauthenticated(error)) {
             // Do not clear unsent edits automatically when a session expires.
             setLoadError(
@@ -258,7 +256,7 @@ export function useCloud(options: Options) {
     try {
       fetched = await footprintApi.get();
     } catch (error) {
-      if (sessionRef.current?.token !== s.token) return;
+      if (sessionRef.current?.user.id !== s.user.id) return;
       if (isUnauthenticated(error)) {
         setLoadError("登录已过期，请先导出未同步修改，再退出并重新登录");
         setLoaded("failed");
@@ -275,14 +273,14 @@ export function useCloud(options: Options) {
         saved: opts.current.validate(fetched.saved),
       };
     } catch {
-      if (sessionRef.current?.token === s.token) {
+      if (sessionRef.current?.user.id === s.user.id) {
         setLoaded("failed");
         setLoadError(SERVER_DATA_ERROR);
       }
       return;
     }
     // Drop the result if the account changed or an edit happened meanwhile.
-    if (sessionRef.current?.token !== s.token || editSeq.current !== seq)
+    if (sessionRef.current?.user.id !== s.user.id || editSeq.current !== seq)
       return;
     adopt(s, snapshot);
     setFresh(true);
@@ -349,7 +347,7 @@ export function useCloud(options: Options) {
   useEffect(() => {
     const s = sessionRef.current;
     const cache = opts.current.boot.cache;
-    setToken(s?.token ?? null);
+    if (backendEnabled) void refreshCSRF().catch(() => {});
     if (s?.user.deletionPending) {
       setHasData(true);
       setLoaded("failed");

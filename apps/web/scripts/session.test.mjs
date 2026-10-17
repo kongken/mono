@@ -37,7 +37,7 @@ const empty = { version: 2, visits: [], provinces: {} };
 
 test("session round trips and expires", () => {
   const s = memory();
-  assert.ok(saveSession(s, { token: "tm_x", expiresAt: 2000, user }));
+  assert.ok(saveSession(s, { expiresAt: 2000, user }));
   assert.equal(loadSession(s, 1000)?.user.id, "u1");
   assert.equal(loadSession(s, 2000), null);
   assert.equal(s.getItem(SESSION_KEY), null, "expired session is removed");
@@ -47,8 +47,8 @@ test("malformed session is dropped", () => {
   for (const raw of [
     "{",
     "null",
-    '{"token":"","expiresAt":9e15,"user":{"id":"u"}}',
-    '{"token":"t","expiresAt":9e15}',
+    '{"expiresAt":9e15,"user":{"id":""}}',
+    '{"user":{}}',
   ]) {
     const s = memory({ [SESSION_KEY]: raw });
     assert.equal(loadSession(s, 0), null);
