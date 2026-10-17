@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"html/template"
 	"io"
 	"log/slog"
@@ -13,6 +14,9 @@ import (
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationsetting"
 	"github.com/kongken/mono/internal/tripmap/notification"
+	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const unsubscribeRate = 30
@@ -74,56 +78,78 @@ func scopeLabel(kind string) string {
 	return "“" + notification.Kind(kind).Label() + "”邮件"
 }
 
-// Unsubscribe handles both verbs of the unsubscribe route.
+type emailUnsubscribeOutcome struct {
+	Status     tripmapv1.EmailUnsubscribeStatus
+	ScopeLabel string
+}
+
+func (p *NotificationPublic) processEmailUnsubscribe(ctx context.Context, clientIP, token string, confirm bool) (emailUnsubscribeOutcome, error) {
+	if p.notifier == nil || p.notifier.Config.Secret == "" {
+		return emailUnsubscribeOutcome{}, unavailableUnsubscribe()
+	}
+	st := p.src.Store()
+	if st == nil {
+		return emailUnsubscribeOutcome{}, unavailableUnsubscribe()
+	}
+	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, "unsubscribe:"+clientIP, unsubscribeRate, time.Minute)
+	if err != nil {
+		slog.Error("unsubscribe rate limiter unavailable", "error", err)
+		return emailUnsubscribeOutcome{}, unavailableUnsubscribe()
+	}
+	if !ok {
+		return emailUnsubscribeOutcome{}, status.Error(codes.ResourceExhausted, "too many requests")
+	}
+	target, err := notification.VerifyUnsubscribe(p.notifier.Config.Secret, token)
+	if err != nil {
+		return emailUnsubscribeOutcome{Status: tripmapv1.EmailUnsubscribeStatus_EMAIL_UNSUBSCRIBE_STATUS_INVALID}, nil
+	}
+	label := scopeLabel(target.Kind)
+	if !confirm {
+		return emailUnsubscribeOutcome{Status: tripmapv1.EmailUnsubscribeStatus_EMAIL_UNSUBSCRIBE_STATUS_PREVIEW, ScopeLabel: label}, nil
+	}
+	q := st.DB.NotificationSetting.Update().Where(notificationsetting.UserID(target.UserID), notificationsetting.ChannelEQ(notificationsetting.ChannelEmail))
+	if target.Kind != notification.AllKinds {
+		q = q.Where(notificationsetting.KindEQ(notificationsetting.Kind(target.Kind)))
+	}
+	if _, err = q.SetEnabled(false).Save(ctx); err != nil {
+		slog.Error("unsubscribe failed", "error", err)
+		return emailUnsubscribeOutcome{}, status.Error(codes.Internal, "unsubscribe failed")
+	}
+	return emailUnsubscribeOutcome{Status: tripmapv1.EmailUnsubscribeStatus_EMAIL_UNSUBSCRIBE_STATUS_COMPLETED, ScopeLabel: label}, nil
+}
+
+// Unsubscribe handles both verbs of the unsubscribe route (application tests).
 func (p *NotificationPublic) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodPost {
 		w.Header().Set("Allow", "GET, HEAD, POST")
 		plain(w, http.StatusMethodNotAllowed, false)
 		return
 	}
-	if p.notifier == nil || p.notifier.Config.Secret == "" {
-		p.invalid(w)
-		return
-	}
-	st := p.src.Store()
-	if st == nil {
-		plain(w, http.StatusServiceUnavailable, false)
-		return
-	}
 	ip := httpx.ClientAddr(p.cfg.Auth.ClientIPHeader, r.Header, r.RemoteAddr)
-	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(r.Context(), "unsubscribe:"+ip, unsubscribeRate, time.Minute)
+	token := r.URL.Query().Get("t")
+	confirm := r.Method == http.MethodPost
+	if confirm {
+		_, _ = io.Copy(io.Discard, io.LimitReader(r.Body, 4096))
+	}
+	out, err := p.processEmailUnsubscribe(r.Context(), ip, token, confirm)
 	if err != nil {
-		slog.Error("unsubscribe rate limiter unavailable", "error", err)
+		if status.Code(err) == codes.ResourceExhausted {
+			plain(w, http.StatusTooManyRequests, true)
+			return
+		}
 		plain(w, http.StatusServiceUnavailable, false)
 		return
 	}
-	if !ok {
-		plain(w, http.StatusTooManyRequests, true)
-		return
-	}
-	token := r.URL.Query().Get("t")
-	target, err := notification.VerifyUnsubscribe(p.notifier.Config.Secret, token)
-	if err != nil {
+	switch out.Status {
+	case tripmapv1.EmailUnsubscribeStatus_EMAIL_UNSUBSCRIBE_STATUS_INVALID:
 		p.invalid(w)
-		return
-	}
-	if r.Method != http.MethodPost {
+	case tripmapv1.EmailUnsubscribeStatus_EMAIL_UNSUBSCRIBE_STATUS_PREVIEW:
 		p.page(w, http.StatusOK, unsubscribePage{
 			Title:   "退订提醒邮件",
-			Message: "确认后将不再向你的邮箱发送" + scopeLabel(target.Kind) + "。之后可随时在山海足迹的“提醒与通知”中重新开启。",
+			Message: "确认后将不再向你的邮箱发送" + out.ScopeLabel + "。之后可随时在山海足迹的“提醒与通知”中重新开启。",
 			Action:  template.URL("?t=" + url.QueryEscape(token)),
 		})
-		return
+	case tripmapv1.EmailUnsubscribeStatus_EMAIL_UNSUBSCRIBE_STATUS_COMPLETED:
+		p.page(w, http.StatusOK, unsubscribePage{Title: "已退订", Message: "已停止发送" + out.ScopeLabel + "。如果想再次接收，可在山海足迹的“提醒与通知”中开启。"})
 	}
-	_, _ = io.Copy(io.Discard, io.LimitReader(r.Body, 4096))
-	q := st.DB.NotificationSetting.Update().Where(notificationsetting.UserID(target.UserID), notificationsetting.ChannelEQ(notificationsetting.ChannelEmail))
-	if target.Kind != notification.AllKinds {
-		q = q.Where(notificationsetting.KindEQ(notificationsetting.Kind(target.Kind)))
-	}
-	if _, err = q.SetEnabled(false).Save(r.Context()); err != nil {
-		slog.Error("unsubscribe failed", "error", err)
-		plain(w, http.StatusInternalServerError, false)
-		return
-	}
-	p.page(w, http.StatusOK, unsubscribePage{Title: "已退订", Message: "已停止发送" + scopeLabel(target.Kind) + "。如果想再次接收，可在山海足迹的“提醒与通知”中开启。"})
 }

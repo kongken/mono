@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package tripmap.v1;
+
+import "platform/v1/options.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/tripmap/v1;tripmapv1";
+
+// NotificationPublicService validates signed email-unsubscribe tokens and applies
+// opt-outs. The BFF serves the public HTTP page and calls these methods over
+// internal gRPC; every call still requires a valid BFF credential.
+service NotificationPublicService {
+  rpc ProcessEmailUnsubscribe(ProcessEmailUnsubscribeRequest) returns (ProcessEmailUnsubscribeResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+}
+
+message ProcessEmailUnsubscribeRequest {
+  string token = 1;
+  // When false, only validates the token and returns preview text; when true,
+  // disables the matching email notification kinds.
+  bool confirm = 2;
+}
+
+enum EmailUnsubscribeStatus {
+  EMAIL_UNSUBSCRIBE_STATUS_UNSPECIFIED = 0;
+  EMAIL_UNSUBSCRIBE_STATUS_INVALID = 1;
+  EMAIL_UNSUBSCRIBE_STATUS_PREVIEW = 2;
+  EMAIL_UNSUBSCRIBE_STATUS_COMPLETED = 3;
+}
+
+message ProcessEmailUnsubscribeResponse {
+  EmailUnsubscribeStatus status = 1;
+  // Localised scope label for confirmation pages, for example "全部提醒邮件".
+  string scope_label = 2;
+}

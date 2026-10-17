@@ -260,11 +260,5 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	mount(path, handler)
 	path, handler = tripmapv1connect.NewItineraryServiceHandler(application.NewItineraryService(h, index), opts, connect.WithReadMaxBytes(256*1024))
 	mount(path, handler)
-	path, handler = tripmapv1connect.NewNotificationServiceHandler(application.NewNotificationService(h, h.notifier), opts, connect.WithReadMaxBytes(16*1024))
-	mount(path, handler)
 	mountShare(r, api, application.NewSharePublic(h.cfg, h))
-	notifications := application.NewNotificationPublic(h.cfg, h, h.notifier)
-	api.Match([]string{http.MethodGet, http.MethodHead, http.MethodPost}, "/notifications/unsubscribe", httpx.RedactTrace("/api/notifications/unsubscribe"), func(c *gin.Context) {
-		notifications.Unsubscribe(c.Writer, c.Request)
-	})
 }

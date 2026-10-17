@@ -25,6 +25,8 @@ import (
 	"github.com/kongken/mono/internal/bff/footprint"
 	"github.com/kongken/mono/internal/bff/gateway"
 	"github.com/kongken/mono/internal/bff/ingress"
+	bffnotification "github.com/kongken/mono/internal/bff/notification"
+	"github.com/kongken/mono/internal/bff/publichttp"
 	"github.com/kongken/mono/internal/bff/ratelimit"
 	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/bff/status"
@@ -168,9 +170,35 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 			mux.Handle(route, ingress.ConnectOnly(handler))
 			route, handler = bffv1connect.NewFootprintServiceHandler(footprint.New(tripmapv1.NewFootprintServiceClient(conn)), opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
+			route, handler = bffv1connect.NewNotificationServiceHandler(bffnotification.New(tripmapv1.NewNotificationServiceClient(conn)), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
 		}
 	}
 	return http.StripPrefix("/api", mux)
+}
+
+func (h *Handlers) mountPublicHTTP(r *gin.Engine) {
+	clients := h.upstreams.Load()
+	if clients == nil {
+		return
+	}
+	conn := clients.Conn("tripmap")
+	if conn == nil {
+		return
+	}
+	var limiter *ratelimit.Limiter
+	if res := h.resources.Load(); res != nil {
+		limiter = ratelimit.New(res.Redis, res.KeyPrefix)
+	}
+	reg := publichttp.New(limiter, h.cfg.ClientIPHeader)
+	unsub := bffnotification.NewUnsubscribeHTTP(tripmapv1.NewNotificationPublicServiceClient(conn), h.cfg.ClientIPHeader)
+	reg.Mount(r, publichttp.Route{
+		Methods:      []string{http.MethodGet, http.MethodHead, http.MethodPost},
+		Path:         "/api/notifications/unsubscribe",
+		TracePattern: "/api/notifications/unsubscribe",
+		Limit:        &publichttp.Limit{KeyPrefix: "unsubscribe:", Max: 30, Window: time.Minute},
+		Handler:      unsub,
+	})
 }
 
 func (h *Handlers) Shutdown() error {
@@ -205,6 +233,7 @@ func (h *Handlers) Routes(r *gin.Engine) {
 		}
 		c.JSON(code, gin.H{"ready": health.Ready(statuses), "dependencies": statuses})
 	})
+	h.mountPublicHTTP(r)
 	r.NoRoute(func(c *gin.Context) {
 		gw := h.gateway.Load()
 		if gw == nil {

@@ -32,6 +32,9 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 			foot := application.NewFootprintService(h.cfg, h, idx)
 			tripmapv1.RegisterFootprintServiceServer(r, application.FootprintGRPC(foot))
 			tripmapv1.RegisterProfileServiceServer(r, application.NewProfileService(h))
+			notif := application.NewNotificationService(h, h.notifier)
+			tripmapv1.RegisterNotificationServiceServer(r, application.NotificationGRPC(notif))
+			tripmapv1.RegisterNotificationPublicServiceServer(r, application.NotificationPublicGRPC(application.NewNotificationPublic(h.cfg, h, h.notifier)))
 		}
 		for _, register := range extra {
 			register(r)

@@ -1,6 +1,6 @@
 import { createClient } from "@connectrpc/connect";
 import { timestampMs } from "@bufbuild/protobuf/wkt";
-import { NotificationService, type NotificationSettings as WireSettings } from "@trip-map/api-client/tripmap/v1/notification_pb";
+import { NotificationService, type NotificationSettings as WireSettings } from "@trip-map/api-client/bff/v1/notification_pb";
 import {
   DEFAULT_TIMEZONE,
   NOTIFICATION_CHANNELS,
