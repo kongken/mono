@@ -18,7 +18,7 @@ import (
 func TestRegisterLoginMeLogout(t *testing.T) {
 	db, rdb, prefix := testutil.Backing(t)
 	cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode}
-	svc := auth.NewService(&config.AuthConfig{SessionTTL: time.Hour}, cookies, db, ratelimit.New(rdb, prefix), nil)
+	svc := auth.NewService(&config.AuthConfig{SessionTTL: time.Hour}, cookies, db, ratelimit.New(rdb, prefix), nil, nil)
 	h := auth.NewHandler(svc, nil, time.Hour)
 	ctx := context.Background()
 

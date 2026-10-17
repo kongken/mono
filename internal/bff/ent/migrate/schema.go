@@ -9,6 +9,25 @@ import (
 )
 
 var (
+	// AccountDeletionReceiptsColumns holds the columns for the "account_deletion_receipts" table.
+	AccountDeletionReceiptsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "token_hash", Type: field.TypeString, Unique: true},
+		{Name: "expires_at", Type: field.TypeTime},
+	}
+	// AccountDeletionReceiptsTable holds the schema information for the "account_deletion_receipts" table.
+	AccountDeletionReceiptsTable = &schema.Table{
+		Name:       "account_deletion_receipts",
+		Columns:    AccountDeletionReceiptsColumns,
+		PrimaryKey: []*schema.Column{AccountDeletionReceiptsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "accountdeletionreceipt_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{AccountDeletionReceiptsColumns[2]},
+			},
+		},
+	}
 	// AuthSessionsColumns holds the columns for the "auth_sessions" table.
 	AuthSessionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -77,6 +96,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AccountDeletionReceiptsTable,
 		AuthSessionsTable,
 		AuthUsersTable,
 	}

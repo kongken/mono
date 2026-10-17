@@ -32,6 +32,7 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 			foot := application.NewFootprintService(h.cfg, h, idx)
 			tripmapv1.RegisterFootprintServiceServer(r, application.FootprintGRPC(foot))
 			tripmapv1.RegisterProfileServiceServer(r, application.NewProfileService(h))
+			tripmapv1.RegisterAccountCleanupServiceServer(r, application.NewAccountCleanupService(h))
 		}
 		for _, register := range extra {
 			register(r)

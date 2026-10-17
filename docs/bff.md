@@ -117,7 +117,7 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 - `internal/bff/auth`：注册/登录/会话/CSRF（需 `TRIPMAP_TEST_*`）。
 - `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与 TLS gRPC 信任。
-- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、A/B `GetFootprints` 隔离、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -run Chain`。
+- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、A/B `GetFootprints` 隔离、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、**#43** 注销重试/S3 故障/完成回执/跨用户隔离（`TestChainAccountDeletionRetryReceiptAndIsolation`）、响应体不含会话令牌；`go test ./internal/e2e/ -run Chain`。浏览器注销 UI 仍用 Playwright 模拟 RPC（`apps/web/tests/account-deletion.spec.ts`），真实 Cookie 链路以 e2e 为准。
 - **Playwright 真实栈**（默认跳过）：`apps/web/tests/bff-cookie-real.spec.ts`；先 `make dev`（或等价 BFF+tripmap），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @trip-map/web -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
 - 其余 UI：Playwright 模拟后端覆盖登录骨架与业务场景。
 
@@ -127,4 +127,4 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 ## 待实现
 
-OAuth、会话管理、其余业务 RPC 经 `bff.v1` 迁移、移除透明网关与 tripmap Bearer（#31–#44）。
+OAuth、会话管理、其余业务 RPC 经 `bff.v1` 迁移、移除透明网关与 tripmap Bearer（#31–#42、#44）。**#43 已交付：** BFF 编排注销与内部 `AccountCleanupService`。

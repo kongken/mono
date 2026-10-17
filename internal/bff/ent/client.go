@@ -15,6 +15,7 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/kongken/mono/internal/bff/ent/accountdeletionreceipt"
 	"github.com/kongken/mono/internal/bff/ent/session"
 	"github.com/kongken/mono/internal/bff/ent/user"
 )
@@ -24,6 +25,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// AccountDeletionReceipt is the client for interacting with the AccountDeletionReceipt builders.
+	AccountDeletionReceipt *AccountDeletionReceiptClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
 	// User is the client for interacting with the User builders.
@@ -39,6 +42,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.AccountDeletionReceipt = NewAccountDeletionReceiptClient(c.config)
 	c.Session = NewSessionClient(c.config)
 	c.User = NewUserClient(c.config)
 }
@@ -131,10 +135,11 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:     ctx,
-		config:  cfg,
-		Session: NewSessionClient(cfg),
-		User:    NewUserClient(cfg),
+		ctx:                    ctx,
+		config:                 cfg,
+		AccountDeletionReceipt: NewAccountDeletionReceiptClient(cfg),
+		Session:                NewSessionClient(cfg),
+		User:                   NewUserClient(cfg),
 	}, nil
 }
 
@@ -152,17 +157,18 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:     ctx,
-		config:  cfg,
-		Session: NewSessionClient(cfg),
-		User:    NewUserClient(cfg),
+		ctx:                    ctx,
+		config:                 cfg,
+		AccountDeletionReceipt: NewAccountDeletionReceiptClient(cfg),
+		Session:                NewSessionClient(cfg),
+		User:                   NewUserClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Session.
+//		AccountDeletionReceipt.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -184,6 +190,7 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.AccountDeletionReceipt.Use(hooks...)
 	c.Session.Use(hooks...)
 	c.User.Use(hooks...)
 }
@@ -191,6 +198,7 @@ func (c *Client) Use(hooks ...Hook) {
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.AccountDeletionReceipt.Intercept(interceptors...)
 	c.Session.Intercept(interceptors...)
 	c.User.Intercept(interceptors...)
 }
@@ -198,12 +206,147 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *AccountDeletionReceiptMutation:
+		return c.AccountDeletionReceipt.mutate(ctx, m)
 	case *SessionMutation:
 		return c.Session.mutate(ctx, m)
 	case *UserMutation:
 		return c.User.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// AccountDeletionReceiptClient is a client for the AccountDeletionReceipt schema.
+type AccountDeletionReceiptClient struct {
+	config
+}
+
+// NewAccountDeletionReceiptClient returns a client for the AccountDeletionReceipt from the given config.
+func NewAccountDeletionReceiptClient(c config) *AccountDeletionReceiptClient {
+	return &AccountDeletionReceiptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `accountdeletionreceipt.Hooks(f(g(h())))`.
+func (c *AccountDeletionReceiptClient) Use(hooks ...Hook) {
+	c.hooks.AccountDeletionReceipt = append(c.hooks.AccountDeletionReceipt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `accountdeletionreceipt.Intercept(f(g(h())))`.
+func (c *AccountDeletionReceiptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AccountDeletionReceipt = append(c.inters.AccountDeletionReceipt, interceptors...)
+}
+
+// Create returns a builder for creating a AccountDeletionReceipt entity.
+func (c *AccountDeletionReceiptClient) Create() *AccountDeletionReceiptCreate {
+	mutation := newAccountDeletionReceiptMutation(c.config, OpCreate)
+	return &AccountDeletionReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AccountDeletionReceipt entities.
+func (c *AccountDeletionReceiptClient) CreateBulk(builders ...*AccountDeletionReceiptCreate) *AccountDeletionReceiptCreateBulk {
+	return &AccountDeletionReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AccountDeletionReceiptClient) MapCreateBulk(slice any, setFunc func(*AccountDeletionReceiptCreate, int)) *AccountDeletionReceiptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AccountDeletionReceiptCreateBulk{err: fmt.Errorf("calling to AccountDeletionReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AccountDeletionReceiptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AccountDeletionReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AccountDeletionReceipt.
+func (c *AccountDeletionReceiptClient) Update() *AccountDeletionReceiptUpdate {
+	mutation := newAccountDeletionReceiptMutation(c.config, OpUpdate)
+	return &AccountDeletionReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AccountDeletionReceiptClient) UpdateOne(_m *AccountDeletionReceipt) *AccountDeletionReceiptUpdateOne {
+	mutation := newAccountDeletionReceiptMutation(c.config, OpUpdateOne, withAccountDeletionReceipt(_m))
+	return &AccountDeletionReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AccountDeletionReceiptClient) UpdateOneID(id string) *AccountDeletionReceiptUpdateOne {
+	mutation := newAccountDeletionReceiptMutation(c.config, OpUpdateOne, withAccountDeletionReceiptID(id))
+	return &AccountDeletionReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AccountDeletionReceipt.
+func (c *AccountDeletionReceiptClient) Delete() *AccountDeletionReceiptDelete {
+	mutation := newAccountDeletionReceiptMutation(c.config, OpDelete)
+	return &AccountDeletionReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AccountDeletionReceiptClient) DeleteOne(_m *AccountDeletionReceipt) *AccountDeletionReceiptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AccountDeletionReceiptClient) DeleteOneID(id string) *AccountDeletionReceiptDeleteOne {
+	builder := c.Delete().Where(accountdeletionreceipt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AccountDeletionReceiptDeleteOne{builder}
+}
+
+// Query returns a query builder for AccountDeletionReceipt.
+func (c *AccountDeletionReceiptClient) Query() *AccountDeletionReceiptQuery {
+	return &AccountDeletionReceiptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAccountDeletionReceipt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AccountDeletionReceipt entity by its id.
+func (c *AccountDeletionReceiptClient) Get(ctx context.Context, id string) (*AccountDeletionReceipt, error) {
+	return c.Query().Where(accountdeletionreceipt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AccountDeletionReceiptClient) GetX(ctx context.Context, id string) *AccountDeletionReceipt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *AccountDeletionReceiptClient) Hooks() []Hook {
+	return c.hooks.AccountDeletionReceipt
+}
+
+// Interceptors returns the client interceptors.
+func (c *AccountDeletionReceiptClient) Interceptors() []Interceptor {
+	return c.inters.AccountDeletionReceipt
+}
+
+func (c *AccountDeletionReceiptClient) mutate(ctx context.Context, m *AccountDeletionReceiptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AccountDeletionReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AccountDeletionReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AccountDeletionReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AccountDeletionReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AccountDeletionReceipt mutation op: %q", m.Op())
 	}
 }
 
@@ -508,9 +651,9 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Session, User []ent.Hook
+		AccountDeletionReceipt, Session, User []ent.Hook
 	}
 	inters struct {
-		Session, User []ent.Interceptor
+		AccountDeletionReceipt, Session, User []ent.Interceptor
 	}
 )

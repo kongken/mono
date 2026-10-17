@@ -346,13 +346,14 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tri
 	}
 	// Access is already revoked, even if S3 is unavailable. Retain metadata for
 	// the maintenance job and explicit retry until every key is removed.
-	if err = deleteMediaKeys(ctx, st, m); err != nil {
+	if err = DeleteMediaKeys(ctx, st, m); err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("access revoked; object cleanup pending, retry deletion"))
 	}
 	return connect.NewResponse(&tripmapv1.DeleteMediaResponse{}), nil
 }
 
-func deleteMediaKeys(ctx context.Context, st *Store, m *ent.MediaObject) error {
+// DeleteMediaKeys removes every stored key for a media row.
+func DeleteMediaKeys(ctx context.Context, st *Store, m *ent.MediaObject) error {
 	for _, key := range []string{m.ObjectKey, m.ThumbnailKey, m.UploadKey} {
 		if key != "" {
 			if err := st.Blobs.Delete(ctx, key); err != nil {

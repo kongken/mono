@@ -30,7 +30,7 @@ import (
 	"github.com/kongken/mono/internal/bff/status"
 	"github.com/kongken/mono/internal/bff/upstream"
 	"github.com/kongken/mono/internal/platform/health"
-	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
+	bffv1connect "github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
@@ -143,10 +143,13 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 	policy := ingress.Policy{ClientIPHeader: h.cfg.ClientIPHeader}
 	if r := h.resources.Load(); r != nil && conn != nil {
 		cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode, Secure: h.cfg.Auth.CookieSecure}
-		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix), tripmapv1.NewProfileServiceClient(conn))
+		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix),
+			tripmapv1.NewProfileServiceClient(conn), tripmapv1.NewAccountCleanupServiceClient(conn))
 		authHandler := bffauth.NewHandler(svc, h.cfg.CORSAllowedOrigins, h.cfg.Auth.CSRFTokenTTL)
 		h.auth.Store(authHandler)
 		policy.Authenticate = authHandler.Authenticate
+		policy.DeletionReceiptValid = svc.CompletionReceiptValid
+		policy.Heavy = map[string]bool{bffv1connect.AuthServiceDeleteAccountProcedure: true}
 	}
 	opts := []connect.HandlerOption{
 		connect.WithInterceptors(ingress.Interceptor(policy)),

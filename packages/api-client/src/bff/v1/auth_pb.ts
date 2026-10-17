@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file bff/v1/auth.proto.
  */
 export const file_bff_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChFiZmYvdjEvYXV0aC5wcm90bxIGYmZmLnYxIpgBCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRISCgphdmF0YXJfdXJsGAQgASgJEi4KCmNyZWF0ZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhgKEGRlbGV0aW9uX3BlbmRpbmcYBiABKAgiSwoPUmVnaXN0ZXJSZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCSJeChBSZWdpc3RlclJlc3BvbnNlEhoKBHVzZXIYASABKAsyDC5iZmYudjEuVXNlchIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIyCgxMb2dpblJlcXVlc3QSEAoIdXNlcm5hbWUYASABKAkSEAoIcGFzc3dvcmQYAiABKAkiWwoNTG9naW5SZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSILCglNZVJlcXVlc3QiKAoKTWVSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXIiFwoVSXNzdWVDU1JGVG9rZW5SZXF1ZXN0IicKFklzc3VlQ1NSRlRva2VuUmVzcG9uc2USDQoFdG9rZW4YASABKAkyywIKC0F1dGhTZXJ2aWNlEkMKCFJlZ2lzdGVyEhcuYmZmLnYxLlJlZ2lzdGVyUmVxdWVzdBoYLmJmZi52MS5SZWdpc3RlclJlc3BvbnNlIgSguxgBEjoKBUxvZ2luEhQuYmZmLnYxLkxvZ2luUmVxdWVzdBoVLmJmZi52MS5Mb2dpblJlc3BvbnNlIgSguxgBEjcKBkxvZ291dBIVLmJmZi52MS5Mb2dvdXRSZXF1ZXN0GhYuYmZmLnYxLkxvZ291dFJlc3BvbnNlEisKAk1lEhEuYmZmLnYxLk1lUmVxdWVzdBoSLmJmZi52MS5NZVJlc3BvbnNlElUKDklzc3VlQ1NSRlRva2VuEh0uYmZmLnYxLklzc3VlQ1NSRlRva2VuUmVxdWVzdBoeLmJmZi52MS5Jc3N1ZUNTUkZUb2tlblJlc3BvbnNlIgSguxgBQjBaLmdpdGh1Yi5jb20va29uZ2tlbi9tb25vL3BrZy9wcm90by9iZmYvdjE7YmZmdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_platform_v1_options]);
+  fileDesc("ChFiZmYvdjEvYXV0aC5wcm90bxIGYmZmLnYxIpgBCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRISCgphdmF0YXJfdXJsGAQgASgJEi4KCmNyZWF0ZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhgKEGRlbGV0aW9uX3BlbmRpbmcYBiABKAgiSwoPUmVnaXN0ZXJSZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCSJeChBSZWdpc3RlclJlc3BvbnNlEhoKBHVzZXIYASABKAsyDC5iZmYudjEuVXNlchIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIyCgxMb2dpblJlcXVlc3QSEAoIdXNlcm5hbWUYASABKAkSEAoIcGFzc3dvcmQYAiABKAkiWwoNTG9naW5SZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSILCglNZVJlcXVlc3QiKAoKTWVSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXIiPgoURGVsZXRlQWNjb3VudFJlcXVlc3QSFAoMY29uZmlybWF0aW9uGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSIXChVJc3N1ZUNTUkZUb2tlblJlcXVlc3QiJwoWSXNzdWVDU1JGVG9rZW5SZXNwb25zZRINCgV0b2tlbhgBIAEoCTKZAwoLQXV0aFNlcnZpY2USQwoIUmVnaXN0ZXISFy5iZmYudjEuUmVnaXN0ZXJSZXF1ZXN0GhguYmZmLnYxLlJlZ2lzdGVyUmVzcG9uc2UiBKC7GAESOgoFTG9naW4SFC5iZmYudjEuTG9naW5SZXF1ZXN0GhUuYmZmLnYxLkxvZ2luUmVzcG9uc2UiBKC7GAESNwoGTG9nb3V0EhUuYmZmLnYxLkxvZ291dFJlcXVlc3QaFi5iZmYudjEuTG9nb3V0UmVzcG9uc2USKwoCTWUSES5iZmYudjEuTWVSZXF1ZXN0GhIuYmZmLnYxLk1lUmVzcG9uc2USTAoNRGVsZXRlQWNjb3VudBIcLmJmZi52MS5EZWxldGVBY2NvdW50UmVxdWVzdBodLmJmZi52MS5EZWxldGVBY2NvdW50UmVzcG9uc2USVQoOSXNzdWVDU1JGVG9rZW4SHS5iZmYudjEuSXNzdWVDU1JGVG9rZW5SZXF1ZXN0Gh4uYmZmLnYxLklzc3VlQ1NSRlRva2VuUmVzcG9uc2UiBKC7GAFCMFouZ2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL2JmZi92MTtiZmZ2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_platform_v1_options]);
 
 /**
  * @generated from message bff.v1.User
@@ -207,6 +207,45 @@ export const MeResponseSchema: GenMessage<MeResponse> = /*@__PURE__*/
   messageDesc(file_bff_v1_auth, 8);
 
 /**
+ * @generated from message bff.v1.DeleteAccountRequest
+ */
+export type DeleteAccountRequest = Message<"bff.v1.DeleteAccountRequest"> & {
+  /**
+   * Must be exactly "DELETE".
+   *
+   * @generated from field: string confirmation = 1;
+   */
+  confirmation: string;
+
+  /**
+   * Required for password accounts; ignored for OAuth-only accounts.
+   *
+   * @generated from field: string password = 2;
+   */
+  password: string;
+};
+
+/**
+ * Describes the message bff.v1.DeleteAccountRequest.
+ * Use `create(DeleteAccountRequestSchema)` to create a new message.
+ */
+export const DeleteAccountRequestSchema: GenMessage<DeleteAccountRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 9);
+
+/**
+ * @generated from message bff.v1.DeleteAccountResponse
+ */
+export type DeleteAccountResponse = Message<"bff.v1.DeleteAccountResponse"> & {
+};
+
+/**
+ * Describes the message bff.v1.DeleteAccountResponse.
+ * Use `create(DeleteAccountResponseSchema)` to create a new message.
+ */
+export const DeleteAccountResponseSchema: GenMessage<DeleteAccountResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 10);
+
+/**
  * @generated from message bff.v1.IssueCSRFTokenRequest
  */
 export type IssueCSRFTokenRequest = Message<"bff.v1.IssueCSRFTokenRequest"> & {
@@ -217,7 +256,7 @@ export type IssueCSRFTokenRequest = Message<"bff.v1.IssueCSRFTokenRequest"> & {
  * Use `create(IssueCSRFTokenRequestSchema)` to create a new message.
  */
 export const IssueCSRFTokenRequestSchema: GenMessage<IssueCSRFTokenRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 9);
+  messageDesc(file_bff_v1_auth, 11);
 
 /**
  * @generated from message bff.v1.IssueCSRFTokenResponse
@@ -234,7 +273,7 @@ export type IssueCSRFTokenResponse = Message<"bff.v1.IssueCSRFTokenResponse"> & 
  * Use `create(IssueCSRFTokenResponseSchema)` to create a new message.
  */
 export const IssueCSRFTokenResponseSchema: GenMessage<IssueCSRFTokenResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 10);
+  messageDesc(file_bff_v1_auth, 12);
 
 /**
  * AuthService handles password accounts and browser sessions (HttpOnly Cookie).
@@ -274,6 +313,16 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof MeRequestSchema;
     output: typeof MeResponseSchema;
+  },
+  /**
+   * DeleteAccount starts or retries account deletion for the signed-in session.
+   *
+   * @generated from rpc bff.v1.AuthService.DeleteAccount
+   */
+  deleteAccount: {
+    methodKind: "unary";
+    input: typeof DeleteAccountRequestSchema;
+    output: typeof DeleteAccountResponseSchema;
   },
   /**
    * IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.

@@ -49,10 +49,11 @@ type Service struct {
 	db       *ent.Client
 	limit    *ratelimit.Limiter
 	profiles tripmapv1.ProfileServiceClient
+	cleanup  tripmapv1.AccountCleanupServiceClient
 }
 
-func NewService(cfg *config.AuthConfig, cookies session.CookieConfig, db *ent.Client, limit *ratelimit.Limiter, profiles tripmapv1.ProfileServiceClient) *Service {
-	return &Service{cfg: cfg, cookies: cookies, db: db, limit: limit, profiles: profiles}
+func NewService(cfg *config.AuthConfig, cookies session.CookieConfig, db *ent.Client, limit *ratelimit.Limiter, profiles tripmapv1.ProfileServiceClient, cleanup tripmapv1.AccountCleanupServiceClient) *Service {
+	return &Service{cfg: cfg, cookies: cookies, db: db, limit: limit, profiles: profiles, cleanup: cleanup}
 }
 
 var (
@@ -273,7 +274,10 @@ func (s *Service) ResolveSession(ctx context.Context, token string) (session.Bro
 			slog.Warn("touch session", "error", err)
 		}
 	}
-	return session.BrowserSession{UserID: sess.UserID, SessionID: sess.ID}, nil
+	return session.BrowserSession{
+		UserID: sess.UserID, SessionID: sess.ID,
+		DeletionPending: u.DeletionRequestedAt != nil,
+	}, nil
 }
 
 var errUnauth = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))

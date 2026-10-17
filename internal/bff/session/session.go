@@ -23,8 +23,9 @@ type browserKey struct{}
 
 // BrowserSession is the authenticated browser caller on a protected RPC.
 type BrowserSession struct {
-	UserID    string
-	SessionID string
+	UserID          string
+	SessionID       string
+	DeletionPending bool
 }
 
 func WithBrowser(ctx context.Context, s BrowserSession) context.Context {

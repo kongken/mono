@@ -18,6 +18,8 @@ service AuthService {
   }
   rpc Logout(LogoutRequest) returns (LogoutResponse);
   rpc Me(MeRequest) returns (MeResponse);
+  // DeleteAccount starts or retries account deletion for the signed-in session.
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
   // IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
   rpc IssueCSRFToken(IssueCSRFTokenRequest) returns (IssueCSRFTokenResponse) {
     option (platform.v1.anonymous) = true;
@@ -63,6 +65,15 @@ message MeRequest {}
 message MeResponse {
   User user = 1;
 }
+
+message DeleteAccountRequest {
+  // Must be exactly "DELETE".
+  string confirmation = 1;
+  // Required for password accounts; ignored for OAuth-only accounts.
+  string password = 2;
+}
+
+message DeleteAccountResponse {}
 
 message IssueCSRFTokenRequest {}
 

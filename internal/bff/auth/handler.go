@@ -67,6 +67,28 @@ func (h *Handler) Logout(ctx context.Context, req *connect.Request[bffv1.LogoutR
 	return res, nil
 }
 
+func (h *Handler) DeleteAccount(ctx context.Context, req *connect.Request[bffv1.DeleteAccountRequest]) (*connect.Response[bffv1.DeleteAccountResponse], error) {
+	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
+	}
+	token := session.TokenFromRequest(req.Header())
+	if h.svc.CompletionReceiptValid(ctx, token) {
+		res := connect.NewResponse(&bffv1.DeleteAccountResponse{})
+		session.ClearSessionCookie(res.Header(), h.svc.cookies)
+		return res, nil
+	}
+	bs, ok := session.FromBrowser(ctx)
+	if !ok {
+		return nil, errUnauth
+	}
+	if err := h.svc.DeleteAccount(ctx, bs, req.Msg); err != nil {
+		return nil, err
+	}
+	res := connect.NewResponse(&bffv1.DeleteAccountResponse{})
+	session.ClearSessionCookie(res.Header(), h.svc.cookies)
+	return res, nil
+}
+
 func (h *Handler) Me(ctx context.Context, _ *connect.Request[bffv1.MeRequest]) (*connect.Response[bffv1.MeResponse], error) {
 	bs, ok := session.FromBrowser(ctx)
 	if !ok {

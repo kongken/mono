@@ -36,6 +36,7 @@ import (
 	tripmapapp "github.com/kongken/mono/internal/tripmap/app"
 	tripmapconfig "github.com/kongken/mono/internal/tripmap/config"
 	tripmapent "github.com/kongken/mono/internal/tripmap/ent"
+	"github.com/kongken/mono/internal/tripmap/blobstore"
 	"github.com/kongken/mono/internal/tripmap/regions"
 	"github.com/kongken/mono/internal/tripmap/testutil"
 	"github.com/kongken/mono/pkg/proto/bff/v1"
@@ -68,7 +69,7 @@ type Browser struct {
 }
 
 // NewChainHarness builds the full stack or skips when storage env is unset.
-func NewChainHarness(t *testing.T) *ChainHarness {
+func NewChainHarness(t *testing.T, blobs ...blobstore.Store) *ChainHarness {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	idx, err := regions.Default()
@@ -90,9 +91,13 @@ func NewChainHarness(t *testing.T) *ChainHarness {
 		GRPC:         grpcx.ServerConfig{Listen: "127.0.0.1:0", CertFile: tls.CertFile, KeyFile: tls.KeyFile},
 		InternalAuth: servicetoken.VerifyConfig{Issuer: issuer, Audience: audience, TrustedKeys: []servicetoken.TrustedKey{{KID: "k1", PublicKeyFile: keys.PublicFile}}},
 	}
+	blob := blobstore.Store(noopBlobs{})
+	if len(blobs) > 0 && blobs[0] != nil {
+		blob = blobs[0]
+	}
 	h.Tripmap = tripmapapp.New(tripCfg)
 	h.Tripmap.SetResources(&tripmapapp.Resources{
-		DB: tripDB, Redis: tripRedis, Blobs: noopBlobs{}, KeyPrefix: tripPrefix,
+		DB: tripDB, Redis: tripRedis, Blobs: blob, KeyPrefix: tripPrefix,
 		Health: health.New(
 			health.Probe{Name: "postgres", Check: func(ctx context.Context) error { _, err := tripDB.User.Query().Exist(ctx); return err }},
 			health.Probe{Name: "redis", Check: func(ctx context.Context) error { return tripRedis.Ping(ctx).Err() }},

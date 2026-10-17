@@ -14,6 +14,7 @@ import (
 	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/internal/platform/rpcauth"
+	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 )
 
 // ConnectOnly lets only Connect unary requests through. connect-go's handler also
@@ -56,9 +57,20 @@ type Policy struct {
 	ClientIPHeader string
 	// Authenticate resolves the browser session cookie for protected procedures.
 	Authenticate func(ctx context.Context, header http.Header) (session.BrowserSession, error)
+	// DeletionReceiptValid allows AuthService/DeleteAccount when the session cookie
+	// matches a stored completion receipt (24h replay after auth rows are gone).
+	DeletionReceiptValid func(ctx context.Context, sessionToken string) bool
 }
 
-var errUnauthenticated = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
+var (
+	errUnauthenticated     = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
+	errDeletionInProgress  = connect.NewError(connect.CodeFailedPrecondition, errors.New("account deletion in progress"))
+	deletionAllowedMethods = map[string]bool{
+		bffv1connect.AuthServiceMeProcedure:           true,
+		bffv1connect.AuthServiceLogoutProcedure:       true,
+		bffv1connect.AuthServiceDeleteAccountProcedure: true,
+	}
+)
 
 // Interceptor applies, to every unary procedure and independently of the service
 // behind it: the anonymous policy declared in proto (default protected), the
@@ -86,9 +98,16 @@ func Interceptor(p Policy) connect.Interceptor {
 				var err error
 				browser, err = p.Authenticate(ctx, req.Header())
 				if err != nil || browser.UserID == "" {
-					return nil, withID(errUnauthenticated)
+					token := session.TokenFromRequest(req.Header())
+					if procedure != bffv1connect.AuthServiceDeleteAccountProcedure ||
+						p.DeletionReceiptValid == nil || !p.DeletionReceiptValid(ctx, token) {
+						return nil, withID(errUnauthenticated)
+					}
 				}
 				call.UserID = browser.UserID
+				if browser.DeletionPending && !deletionAllowedMethods[procedure] {
+					return nil, withID(errDeletionInProgress)
+				}
 			}
 			ctx = rpcauth.WithCall(ctx, call)
 			if browser.UserID != "" {
