@@ -1,5 +1,10 @@
 import { execSync } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { defineConfig } from "@playwright/test";
+
+const portStamp = join(tmpdir(), "trip-map-playwright-port");
 
 const realBff = process.env.E2E_REAL_BFF === "1";
 const backend = process.env.TRIPMAP_DEV_BACKEND ?? "http://127.0.0.1:18081";
@@ -20,8 +25,15 @@ function pickPort(preferred = 4174, attempts = 32): number {
   throw new Error(`no free port in ${preferred}..${preferred + attempts - 1}`);
 }
 
-// Pin default port so config reloads in the runner and worker agree; scan upward only when busy.
-const port = Number(process.env.E2E_PORT) || pickPort(4174);
+// Runner and workers each reload this file; share one picked port via stamp (or E2E_PORT).
+function resolvePort(): number {
+  if (process.env.E2E_PORT) return Number(process.env.E2E_PORT);
+  if (existsSync(portStamp)) return Number(readFileSync(portStamp, "utf8"));
+  const chosen = pickPort(4174);
+  writeFileSync(portStamp, String(chosen));
+  return chosen;
+}
+const port = resolvePort();
 const host = "127.0.0.1";
 const baseURL = `http://${host}:${port}`;
 const preview = `npm run preview -w @trip-map/web -- --host ${host} --port ${port}`;
