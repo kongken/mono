@@ -46,3 +46,17 @@
 - 用户交互改变后，在浏览器验证对应功能场景；布局改变后检查桌面及手机尺寸，清理自行创建的测试足迹。
 - 仅文档变更时检查路径、链接和描述与实现是否一致，无需为此重新构建应用。
 - 完成时说明功能与文档的变化、验证结果及仍存在的限制。
+
+## Agent skills
+
+### Issue tracker
+
+需求、任务和规格使用 GitHub Issues；操作前阅读 [Issue tracker](docs/agents/issue-tracker.md)。
+
+### Triage labels
+
+分流使用五类标准标签；操作前阅读 [Triage labels](docs/agents/triage-labels.md)。
+
+### Domain docs
+
+采用 single-context。探索代码、命名领域概念或调整架构前，阅读 [Domain docs](docs/agents/domain.md)。

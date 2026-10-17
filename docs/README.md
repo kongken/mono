@@ -13,6 +13,9 @@
 | [后端初始化](backend.md) | 已确定的技术栈、开发环境、健康接口、数据库模型、版本化数据库迁移（`migrations/tripmap/`）和验证方式 | 后端基础设施、接口、schema 或迁移文件变化时 |
 | [后端功能调研](backend-research.md) | 引入后端后可扩展的功能、数据模型与接口草案、同步与迁移、技术选型倾向、分阶段交付和待决问题（待实现，非当前行为） | 后端方向的决策或范围发生变化时 |
 | [项目协作说明](../AGENTS.md) | 开发约定、文档同步和验证要求 | 协作流程发生变化时 |
+| [Issue tracker](agents/issue-tracker.md) | GitHub Issues 操作、父子任务和依赖约定 | 任务跟踪方式变化时 |
+| [Triage labels](agents/triage-labels.md) | 五类标准分流角色与 GitHub 标签映射 | 标签词汇变化时 |
+| [Domain docs](agents/domain.md) | single-context 领域词汇表与 ADR 的布局和读取规则 | 领域文档组织方式变化时 |
 | [项目运行说明](../README.md) | 安装、开发、构建和地图维护命令 | 项目启动方式发生变化时 |
 
 ## 维护方式
