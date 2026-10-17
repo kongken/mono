@@ -15,7 +15,7 @@
     "prepare:map-colors": "node scripts/prepare-province-neighbors.mjs",
     "prepare:share-geometry": "node scripts/prepare-share-geometry.mjs",
     "test": "node --test scripts/*.test.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "E2E_PORT=4174 playwright test"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.16.0",

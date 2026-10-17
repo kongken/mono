@@ -35,6 +35,6 @@ test.describe("account sessions list", () => {
     await page.getByRole("button", { name: "账号", exact: true }).click();
     await expect(page.getByText("已登录的设备")).toBeVisible();
     await expect(page.getByText("当前设备")).toBeVisible();
-    await expect(page.getByText("其他设备")).toBeVisible();
+    await expect(page.locator(".account-sessions li").filter({ hasText: "其他设备" })).toBeVisible();
   });
 });
