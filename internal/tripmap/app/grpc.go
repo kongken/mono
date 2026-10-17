@@ -35,6 +35,8 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 			notif := application.NewNotificationService(h, h.notifier)
 			tripmapv1.RegisterNotificationServiceServer(r, application.NotificationGRPC(notif))
 			tripmapv1.RegisterNotificationPublicServiceServer(r, application.NotificationPublicGRPC(application.NewNotificationPublic(h.cfg, h, h.notifier)))
+			collab := application.NewCollaborationService(h, idx)
+			tripmapv1.RegisterCollaborationServiceServer(r, application.CollaborationGRPC(collab))
 		}
 		for _, register := range extra {
 			register(r)

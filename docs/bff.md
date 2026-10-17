@@ -14,6 +14,7 @@
 - `bff.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
 - `bff.v1.NotificationService`（全部提醒设置 RPC）→ tripmap gRPC `NotificationService`；浏览器经 Cookie 会话，业务仍只认 BFF 签发的内部凭证与用户 ID。
 - 公开 HTTP：`GET/HEAD/POST /api/notifications/unsubscribe` 在 BFF 显式注册（`internal/bff/publichttp`），边缘限流与追踪路径模板 `/api/notifications/unsubscribe`（不含查询令牌），再调用 tripmap gRPC `NotificationPublicService/ProcessEmailUnsubscribe`（匿名内部凭证 + 退订签名令牌）；不使用 Cookie CSRF。
+- `bff.v1.FriendService`（#37）：好友概览、隐私设置、请求/解除与好友足迹对比 → tripmap gRPC `CollaborationService` 同名方法；好友码与展示字段在 tripmap 业务档案，不查 BFF 认证库。写操作校验 CSRF。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
 **开发数据保留（#30）**
@@ -22,9 +23,9 @@
 
 **当前限制**
 
-- 快照、媒体、协作等仍经透明网关 `tripmap.v1` + Bearer（#34–#44）；`tripmap.v1.AuthService/ListSessions` 与 `RevokeSession` 的 Connect 路径已返回 `unimplemented`（#31）。
+- 快照、媒体、**共同旅行写操作**等仍经透明网关 `tripmap.v1` + Bearer（#34、#41 等）；`tripmap.v1.AuthService/ListSessions` 与 `RevokeSession` 的 Connect 路径已返回 `unimplemented`（#31）。
 - tripmap HTTP 已不再挂载 `FootprintService` Connect；BFF 透明网关上的 `/api/tripmap.v1.FootprintService/*` 仍代理至 tripmap 直至 #44 移除整包转发。
-- 前端 auth（含 OAuth 与会话管理）、足迹与提醒设置 API 已调用 `bff.v1`。
+- 前端 auth（含 OAuth 与会话管理）、足迹、提醒与好友 API 已调用 `bff.v1`。
 - 真实 GitHub/Google/Logto 端到端授权验收仍依赖部署凭据，CI 使用受控 fake 提供方与 `internal/e2e/oauth_chain_test.go`。
 
 ```
@@ -58,7 +59,7 @@
 - **期限与取消**：普通过程上限 10 秒；上传等重任务上限 25 秒，需在 `ingress.Policy.Heavy` 中显式登记（已登记 `FootprintService/SyncChanges`）。实际期限取客户端剩余期限（`Connect-Timeout-Ms`）与上限的较小值，在 BFF 设置一次并通过 gRPC 期限传给业务服务；客户端取消会传播到服务，服务端处理随之停止。不做任何自动重试。
 - **请求 ID**：读取 `X-Request-Id`，仅当匹配 `^[A-Za-z0-9._-]{1,64}$` 时沿用，否则替换为随机 32 位十六进制；响应（含错误）回写该头，并作为内部 metadata 下传。
 - **客户端地址**：与透明网关相同，按 `client_ip_header`（受信反向代理写入的头）解析，未设置时用 TCP 对端；客户端自带的 `X-Bff-Client-Ip` 之类的头不会被读取。
-- **错误**：业务服务的错误消息不原样返回；`UNAVAILABLE`、`DEADLINE_EXCEEDED`、`CANCELED` 映射为同名 Connect 码，BFF 凭证被拒（`UNAUTHENTICATED`）、`INTERNAL` 等服务端故障统一为 `INTERNAL: internal error`。tripmap 不可达时返回 `UNAVAILABLE`，不会返回过期或伪造的状态。
+- **错误**：业务服务的错误消息不原样返回；`NOT_FOUND`、`PERMISSION_DENIED`、`INVALID_ARGUMENT`、`RESOURCE_EXHAUSTED` 等用户可见域错误按同名 Connect 码返回；`UNAVAILABLE`、`DEADLINE_EXCEEDED`、`CANCELED` 同理。BFF 凭证被拒（tripmap 返回的 `UNAUTHENTICATED`）与 `INTERNAL` 等服务端故障统一为 `INTERNAL: internal error`。tripmap 不可达时返回 `UNAVAILABLE`。
 - **跨域**：与 `/api/` 其他路径一样由 BFF 按 `cors_allowed_origins` 应答。
 
 ## 内部 gRPC 与凭证

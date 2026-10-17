@@ -23,7 +23,7 @@ func ToConnect(service string, err error) error {
 	}
 	code := status.Code(err)
 	switch code {
-	case codes.Unauthenticated, codes.PermissionDenied, codes.Unknown, codes.DataLoss, codes.Internal:
+	case codes.Unauthenticated, codes.Unknown, codes.DataLoss, codes.Internal:
 		slog.Error("service refused the BFF call", "service", service, "code", code.String())
 		return connect.NewError(connect.CodeInternal, errors.New("internal error"))
 	case codes.Unavailable:

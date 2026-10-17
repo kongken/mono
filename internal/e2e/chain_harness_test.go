@@ -63,6 +63,7 @@ type Browser struct {
 	HTTP   *http.Client
 	Auth   bffv1connect.AuthServiceClient
 	Foot   bffv1connect.FootprintServiceClient
+	Friends bffv1connect.FriendServiceClient
 	APIURL string
 	Origin string
 	Region string
@@ -165,7 +166,28 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 		t: h.T, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
 		Auth: bffv1connect.NewAuthServiceClient(hc, api),
 		Foot: bffv1connect.NewFootprintServiceClient(hc, api),
+		Friends: bffv1connect.NewFriendServiceClient(hc, api),
 	}
+}
+
+func (b *Browser) GetCollaborationOverview(ctx context.Context) (*bffv1.GetCollaborationOverviewResponse, error) {
+	req := connect.NewRequest(&bffv1.GetCollaborationOverviewRequest{})
+	b.withTripmapHeaders(req)
+	res, err := b.Friends.GetCollaborationOverview(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+func (b *Browser) GetFriendFootprints(ctx context.Context, friendUserID string) (*bffv1.GetFriendFootprintsResponse, error) {
+	req := connect.NewRequest(&bffv1.GetFriendFootprintsRequest{FriendUserId: friendUserID})
+	b.withTripmapHeaders(req)
+	res, err := b.Friends.GetFriendFootprints(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
 }
 
 func (b *Browser) withTripmapHeaders(req connect.AnyRequest) {

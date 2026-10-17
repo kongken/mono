@@ -269,9 +269,11 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 **生成。** 修改 `proto/` 后 `make buf`（同时生成 Connect、grpc-go 与 TypeScript 代码），修改 `internal/tripmap/ent/schema/` 后 `make ent`，迁移文件用 `make migration NAME=… DEV_DSN=…` 生成；生成文件不手改。
 
-## F7 共同旅行与好友（`tripmap.v1.CollaborationService`）
+## F7 共同旅行与好友
 
-所有方法均要求登录，用户身份取自会话。用户可见规则与验收场景见 [功能描述](features.md#共同旅行与好友f7)。
+**公网（#37）：** 浏览器经 BFF `bff.v1.FriendService` 调用好友相关 RPC（`internal/bff/friends/` → tripmap gRPC `CollaborationService`）。**内网：** 完整 `CollaborationService` 在 tripmap gRPC 注册（`CollaborationGRPC`）；公网 Connect 上好友方法返回 `Unimplemented`（`CollaborationConnectSharedOnly`），共同旅行写操作仍走 Connect 代理直至后续切片。
+
+所有方法均要求登录；gRPC 路径从 BFF 签发的内部凭证取得用户 ID（`rpcauth.UserIDFrom`），Connect 代理路径仍用 Bearer 会话。用户可见规则与验收场景见 [功能描述](features.md#共同旅行与好友f7)。
 
 | 方法 | 行为 |
 | --- | --- |

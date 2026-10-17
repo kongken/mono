@@ -187,11 +187,12 @@ function fakeCollaboration(page: Page, { backend }: FakeCollabOptions) {
         return route.fulfill({ status: 200, json: {} });
       });
 
-      await page.route("**/api/tripmap.v1.CollaborationService/**", async (route) => {
-        const method = route.request().url().split("/").pop();
-        const body = route.request().postDataJSON?.() ?? {};
+      const handleFriendRpc = async (
+        route: import("@playwright/test").Route,
+        method: string | undefined,
+        body: Record<string, unknown>,
+      ) => {
         const ok = (json: unknown) => route.fulfill({ status: 200, json });
-
         switch (method) {
           case "GetCollaborationOverview":
             return ok({
@@ -200,9 +201,8 @@ function fakeCollaboration(page: Page, { backend }: FakeCollabOptions) {
               friends: state.friends,
               sharedTrips: state.sharedTrips,
             });
-
           case "UpdateFriendSettings": {
-            const s = body.settings ?? {};
+            const s = (body.settings ?? {}) as Record<string, unknown>;
             const showCities = Boolean(s.showCities);
             state.friendSettings = {
               showCities,
@@ -211,7 +211,6 @@ function fakeCollaboration(page: Page, { backend }: FakeCollabOptions) {
             };
             return ok({ settings: state.friendSettings });
           }
-
           case "SendFriendRequest": {
             const target = String(body.target ?? "").trim();
             if (target === "bob_traveler" || target === "fc_bob_001") {
@@ -230,7 +229,6 @@ function fakeCollaboration(page: Page, { backend }: FakeCollabOptions) {
               json: { code: "not_found", message: "user not found" },
             });
           }
-
           case "RespondFriendRequest": {
             const idx = state.friends.findIndex((f) => f.id === body.friendshipId);
             if (idx < 0) {
@@ -243,13 +241,11 @@ function fakeCollaboration(page: Page, { backend }: FakeCollabOptions) {
             state.friends.splice(idx, 1);
             return ok({});
           }
-
           case "RemoveFriend": {
             const idx = state.friends.findIndex((f) => f.id === body.friendshipId);
             if (idx >= 0) state.friends.splice(idx, 1);
             return ok({});
           }
-
           case "GetFriendFootprints": {
             const friendEntry = state.friends.find(
               (f) => f.friend.id === body.friendUserId && f.status === "accepted",
@@ -329,7 +325,23 @@ function fakeCollaboration(page: Page, { backend }: FakeCollabOptions) {
               },
             });
           }
+          default:
+            return route.fulfill({ status: 501, json: { code: "unimplemented", message: method } });
+        }
+      };
 
+      await page.route("**/api/bff.v1.FriendService/**", async (route) => {
+        const method = route.request().url().split("/").pop();
+        const body = route.request().postDataJSON?.() ?? {};
+        await handleFriendRpc(route, method, body);
+      });
+
+      await page.route("**/api/tripmap.v1.CollaborationService/**", async (route) => {
+        const method = route.request().url().split("/").pop();
+        const body = route.request().postDataJSON?.() ?? {};
+        const ok = (json: unknown) => route.fulfill({ status: 200, json });
+
+        switch (method) {
           case "InviteToSharedTrip": {
             const friendEntry = state.friends.find(
               (f) => f.friend.id === body.friendUserId && f.status === "accepted",

@@ -86,14 +86,14 @@ func grpcError(err error) error {
 			return status.Error(codes.Aborted, ce.Message())
 		case connect.CodeAlreadyExists:
 			return status.Error(codes.AlreadyExists, ce.Message())
+		case connect.CodeNotFound:
+			return status.Error(codes.NotFound, ce.Message())
+		case connect.CodePermissionDenied:
+			return status.Error(codes.PermissionDenied, ce.Message())
 		case connect.CodeResourceExhausted:
 			return status.Error(codes.ResourceExhausted, ce.Message())
 		case connect.CodeUnavailable:
 			return status.Error(codes.Unavailable, ce.Message())
-		case connect.CodePermissionDenied:
-			return status.Error(codes.PermissionDenied, ce.Message())
-		case connect.CodeNotFound:
-			return status.Error(codes.NotFound, ce.Message())
 		default:
 			return status.Error(codes.Internal, "internal error")
 		}

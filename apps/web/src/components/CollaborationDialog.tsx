@@ -12,7 +12,6 @@ import {
   collaborationApi,
   type CollaborationOverview,
   type FriendFootprintView,
-  type SharedTripInfo,
   type SharedTripMediaInfo,
 } from "@/api/collaboration";
 import { mediaApi } from "@/api/media";
@@ -297,14 +296,16 @@ export default function CollaborationDialog({
     });
   };
 
-  const handleLoadSharedMedia = (st: SharedTripInfo) => {
+  type SharedTripRow = CollaborationOverview["sharedTrips"][number];
+
+  const handleLoadSharedMedia = (st: SharedTripRow) => {
     void run(async () => {
       const list = await collaborationApi.listSharedTripMedia(st.id);
       setSharedMediaByTrip((prev) => ({ ...prev, [st.id]: list }));
     });
   };
 
-  const handleUploadSharedPhoto = (st: SharedTripInfo, file: File) => {
+  const handleUploadSharedPhoto = (st: SharedTripRow, file: File) => {
     void run(async () => {
       const uploadId = crypto.randomUUID();
       const prep = await mediaApi.prepare(st.regionCode, file, uploadId, st.tripId);
