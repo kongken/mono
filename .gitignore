@@ -25,7 +25,7 @@ dist-ssr
 
 # Backend local configuration and build output
 .env
-config.yaml
+config.tripmap.yaml
 config.bff.yaml
 bin/
 coverage.out

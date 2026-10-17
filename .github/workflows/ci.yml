@@ -59,7 +59,7 @@ jobs:
         run: |
           python3 - <<'PYCODE'
           from pathlib import Path
-          s=Path('config.example.yaml').read_text().replace('tripmap-local-secret','tripmap-ci-secret').replace('tripmap-local','tripmap-ci').replace('127.0.0.1:19000','127.0.0.1:9000')
+          s=Path('config.tripmap.example.yaml').read_text().replace('tripmap-local-secret','tripmap-ci-secret').replace('tripmap-local','tripmap-ci').replace('127.0.0.1:19000','127.0.0.1:9000')
           Path('/tmp/tripmap-ci.yaml').write_text(s)
           PYCODE
           go run ./cmd/storage-init -config /tmp/tripmap-ci.yaml
@@ -92,4 +92,4 @@ jobs:
       - name: Browser acceptance (mocked RPC, no real OAuth)
         run: |
           npx playwright install --with-deps chromium
-          npm run test:e2e
+          npm run test:e2e:trip-map

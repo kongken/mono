@@ -1,5 +1,5 @@
 // Package report computes travel statistics, annual reports and achievements
-// (F8) with the exact same definitions as apps/web/src/lib/report.ts.
+// (F8) with the exact same definitions as apps/trip-map/src/lib/report.ts.
 package report
 
 import (
@@ -445,7 +445,7 @@ func buildAnnualReport(
 		if firstRegionYear[code] == year {
 			newRegions = append(newRegions, &ReportRecordRef{
 				Kind:         "city",
-				TripId:        nc.earliestTrip,
+				TripId:       nc.earliestTrip,
 				RegionCode:   code,
 				RegionName:   nc.name,
 				ProvinceCode: nc.provinceCode,

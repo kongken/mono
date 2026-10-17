@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
 )
 
 func TestAnonymousBrowserReadsRealTripmapStatus(t *testing.T) {
 	s := newStack(t)
-	res, err := s.status.GetStatus(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{}))
+	res, err := s.status.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestAnonymousBrowserReadsRealTripmapStatus(t *testing.T) {
 func TestDependencyFailuresAreReportedThroughTheChain(t *testing.T) {
 	s := newStack(t)
 	s.failing["redis"].Store(true)
-	res, err := s.status.GetStatus(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{}))
+	res, err := s.status.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,13 +44,13 @@ func TestDependencyFailuresAreReportedThroughTheChain(t *testing.T) {
 		t.Fatalf("one dependency down: ready=%v deps=%v", res.Msg.Ready, ready)
 	}
 	s.failing["redis"].Store(false)
-	if res, err = s.status.GetStatus(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{})); err != nil || !res.Msg.Ready {
+	if res, err = s.status.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{})); err != nil || !res.Msg.Ready {
 		t.Fatalf("recovered: %v %v", res, err)
 	}
 
 	// With tripmap itself gone the browser gets a clean UNAVAILABLE, not a stale status.
 	s.tripmap.StopGRPC()
-	_, err = s.status.GetStatus(context.Background(), connect.NewRequest(&bffv1.GetStatusRequest{}))
+	_, err = s.status.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 	if connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("tripmap stopped: %v", err)
 	}

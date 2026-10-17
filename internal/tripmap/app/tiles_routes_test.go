@@ -202,7 +202,7 @@ func TestAnonymousTileIsFetchedWithServerSideToken(t *testing.T) {
 	env := newTileEnv(t, okMapbox(t), nil)
 	rec := env.get("/api/tiles/3/5/2.png", func(r *http.Request) {
 		r.Header.Set("Authorization", "Bearer client-secret")
-		r.Header.Set("Cookie", "shanhai_sid=session-secret")
+		r.Header.Set("Cookie", "kongken_sid=session-secret")
 		r.Header.Set("X-Tripmap-Schema", "3")
 		r.Header.Set("Origin", "https://trip.example.com")
 		r.Header.Set("Referer", "https://trip.example.com/map")

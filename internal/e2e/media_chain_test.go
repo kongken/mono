@@ -9,7 +9,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
 )
 
 func TestChainMediaLifecycleAndIsolation(t *testing.T) {
@@ -22,11 +22,11 @@ func TestChainMediaLifecycleAndIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	csrf := a.refreshCSRF(ctx)
-	syncReq := connect.NewRequest(&bffv1.SyncChangesRequest{
+	syncReq := connect.NewRequest(&bfftripmapv1.SyncChangesRequest{
 		MutationId: "m1", BaseRevision: 0,
-		Mutations: []*bffv1.FootprintMutation{{
-			Operation: &bffv1.FootprintMutation_UpsertCity{
-				UpsertCity: &bffv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
+		Mutations: []*bfftripmapv1.FootprintMutation{{
+			Operation: &bfftripmapv1.FootprintMutation_UpsertCity{
+				UpsertCity: &bfftripmapv1.Visit{Code: "330100", Name: "杭州市", Province: "330000", Color: "#4b937d"},
 			},
 		}},
 	})
@@ -37,7 +37,7 @@ func TestChainMediaLifecycleAndIsolation(t *testing.T) {
 
 	data := photoPNG(t)
 	uploadID := uuid.NewString()
-	prep, err := a.PrepareUpload(ctx, &bffv1.PrepareUploadRequest{
+	prep, err := a.PrepareUpload(ctx, &bfftripmapv1.PrepareUploadRequest{
 		RegionCode: "330100", Filename: "西湖.png", ContentType: "image/png",
 		SizeBytes: int64(len(data)), UploadId: uploadID,
 	})
@@ -89,7 +89,7 @@ func photoPNG(t *testing.T) []byte {
 	return b.Bytes()
 }
 
-func (b *Browser) PrepareUpload(ctx context.Context, msg *bffv1.PrepareUploadRequest) (*bffv1.PrepareUploadResponse, error) {
+func (b *Browser) PrepareUpload(ctx context.Context, msg *bfftripmapv1.PrepareUploadRequest) (*bfftripmapv1.PrepareUploadResponse, error) {
 	csrf := b.refreshCSRF(ctx)
 	req := connect.NewRequest(msg)
 	b.writeHeaders(req, csrf, b.Origin)
@@ -100,9 +100,9 @@ func (b *Browser) PrepareUpload(ctx context.Context, msg *bffv1.PrepareUploadReq
 	return res.Msg, nil
 }
 
-func (b *Browser) CompleteUpload(ctx context.Context, id string) (*bffv1.MediaInfo, error) {
+func (b *Browser) CompleteUpload(ctx context.Context, id string) (*bfftripmapv1.MediaInfo, error) {
 	csrf := b.refreshCSRF(ctx)
-	req := connect.NewRequest(&bffv1.CompleteUploadRequest{Id: id})
+	req := connect.NewRequest(&bfftripmapv1.CompleteUploadRequest{Id: id})
 	b.writeHeaders(req, csrf, b.Origin)
 	res, err := b.Media().CompleteUpload(ctx, req)
 	if err != nil {
@@ -111,8 +111,8 @@ func (b *Browser) CompleteUpload(ctx context.Context, id string) (*bffv1.MediaIn
 	return res.Msg.GetMedia(), nil
 }
 
-func (b *Browser) ListMedia(ctx context.Context, region, trip string) (*bffv1.ListMediaResponse, error) {
-	req := connect.NewRequest(&bffv1.ListMediaRequest{RegionCode: region, TripId: trip})
+func (b *Browser) ListMedia(ctx context.Context, region, trip string) (*bfftripmapv1.ListMediaResponse, error) {
+	req := connect.NewRequest(&bfftripmapv1.ListMediaRequest{RegionCode: region, TripId: trip})
 	b.withTripmapHeaders(req)
 	res, err := b.Media().ListMedia(ctx, req)
 	if err != nil {
@@ -121,8 +121,8 @@ func (b *Browser) ListMedia(ctx context.Context, region, trip string) (*bffv1.Li
 	return res.Msg, nil
 }
 
-func (b *Browser) ReadMedia(ctx context.Context, id string, thumb bool) (*bffv1.ReadMediaResponse, error) {
-	req := connect.NewRequest(&bffv1.ReadMediaRequest{Id: id, Thumbnail: thumb})
+func (b *Browser) ReadMedia(ctx context.Context, id string, thumb bool) (*bfftripmapv1.ReadMediaResponse, error) {
+	req := connect.NewRequest(&bfftripmapv1.ReadMediaRequest{Id: id, Thumbnail: thumb})
 	b.withTripmapHeaders(req)
 	res, err := b.Media().ReadMedia(ctx, req)
 	if err != nil {
@@ -133,7 +133,7 @@ func (b *Browser) ReadMedia(ctx context.Context, id string, thumb bool) (*bffv1.
 
 func (b *Browser) DeleteMedia(ctx context.Context, id string) error {
 	csrf := b.refreshCSRF(ctx)
-	req := connect.NewRequest(&bffv1.DeleteMediaRequest{Id: id})
+	req := connect.NewRequest(&bfftripmapv1.DeleteMediaRequest{Id: id})
 	b.writeHeaders(req, csrf, b.Origin)
 	_, err := b.Media().DeleteMedia(ctx, req)
 	return err

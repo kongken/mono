@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
 )
 
 func TestChainRegionUpgradeIslandMigrationAndIsolation(t *testing.T) {
@@ -49,7 +49,7 @@ func TestChainRegionUpgradeIslandMigrationAndIsolation(t *testing.T) {
 		t.Fatalf("preview bob: %v %+v", err, bobPreview)
 	}
 
-	req := connect.NewRequest(&bffv1.ApplyRegionUpgradeRequest{
+	req := connect.NewRequest(&bfftripmapv1.ApplyRegionUpgradeRequest{
 		Version: preview.GetVersion(), BaseRevision: preview.GetRevision(), MutationId: "chain-island",
 	})
 	alice.withTripmapHeaders(req)

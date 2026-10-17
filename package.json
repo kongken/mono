@@ -1,24 +1,26 @@
 {
-  "name": "trip-map",
+  "name": "mono",
   "private": true,
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @trip-map/web",
-    "build": "npm run build -w @trip-map/web",
+    "dev:trip-map": "npm run dev -w @kongken/trip-map",
+    "build": "npm run build --workspaces --if-present",
+    "build:trip-map": "npm run build -w @kongken/trip-map",
     "lint": "oxlint",
-    "preview": "npm run preview -w @trip-map/web",
-    "test": "npm test -w @trip-map/web",
-    "test:e2e": "npm run test:e2e -w @trip-map/web",
-    "check:maps": "npm run check:maps -w @trip-map/web",
-    "download:maps": "npm run download:maps -w @trip-map/web",
-    "prepare:regions": "npm run prepare:regions -w @trip-map/web",
-    "prepare:coords": "npm run prepare:coords -w @trip-map/web",
-    "prepare:search": "npm run prepare:search -w @trip-map/web",
-    "prepare:map-colors": "npm run prepare:map-colors -w @trip-map/web",
-    "prepare:share-geometry": "npm run prepare:share-geometry -w @trip-map/web"
+    "preview:trip-map": "npm run preview -w @kongken/trip-map",
+    "test": "npm test --workspaces --if-present",
+    "test:trip-map": "npm test -w @kongken/trip-map",
+    "test:e2e:trip-map": "npm run test:e2e -w @kongken/trip-map",
+    "check:maps": "npm run check:maps -w @kongken/trip-map",
+    "download:maps": "npm run download:maps -w @kongken/trip-map",
+    "prepare:regions": "npm run prepare:regions -w @kongken/trip-map",
+    "prepare:coords": "npm run prepare:coords -w @kongken/trip-map",
+    "prepare:search": "npm run prepare:search -w @kongken/trip-map",
+    "prepare:map-colors": "npm run prepare:map-colors -w @kongken/trip-map",
+    "prepare:share-geometry": "npm run prepare:share-geometry -w @kongken/trip-map"
   },
   "devDependencies": {
     "oxlint": "^1.81.0",

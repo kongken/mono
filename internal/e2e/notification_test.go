@@ -11,8 +11,8 @@ import (
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/notification"
-	"github.com/kongken/mono/pkg/proto/bff/v1"
-	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
+	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 )
 
 func TestNotificationSettingsViaBFFChain(t *testing.T) {
@@ -22,8 +22,8 @@ func TestNotificationSettingsViaBFFChain(t *testing.T) {
 	if _, err := b.Register(ctx, "notify_user", "password1", "Notify"); err != nil {
 		t.Fatal(err)
 	}
-	notify := bffv1connect.NewNotificationServiceClient(b.HTTP, b.APIURL)
-	req := connect.NewRequest(&bffv1.GetNotificationSettingsRequest{})
+	notify := bfftripmapv1connect.NewNotificationServiceClient(b.HTTP, b.APIURL)
+	req := connect.NewRequest(&bfftripmapv1.GetNotificationSettingsRequest{})
 	b.withTripmapHeaders(req)
 	res, err := notify.GetNotificationSettings(ctx, req)
 	if err != nil {

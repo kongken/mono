@@ -713,8 +713,8 @@ func TestUpgradeBackfillIsExactForTheStoredLegacyColumns(t *testing.T) {
 	}
 }
 
-// The frontend (apps/web/src/lib/trips.ts isRealDate) is checked against the same file in
-// apps/web/scripts/trips.test.mjs: both sides must accept and reject exactly the same dates.
+// The frontend (apps/trip-map/src/lib/trips.ts isRealDate) is checked against the same file in
+// apps/trip-map/scripts/trips.test.mjs: both sides must accept and reject exactly the same dates.
 func TestTripDatesMatchTheSharedFrontendFixtures(t *testing.T) {
 	raw, err := os.ReadFile("../../../packages/fixtures/trip-dates.json")
 	if err != nil {

@@ -1,5 +1,5 @@
-# Example production-style stack: front (Nginx) + BFF + tripmap + dependencies.
-# Copy configs from config.example.yaml / config.bff.example.yaml; run `make dev-secrets`
+# Example production-style stack: trip-map-web (Nginx) + BFF + tripmap + dependencies.
+# Copy configs from config.tripmap.example.yaml / config.bff.example.yaml; run `make dev-secrets`
 # once locally or mount real TLS/signing Secrets (see docs/deployment.md).
 # tripmap HTTP/gRPC must NOT be published to the public internet.
 
@@ -34,9 +34,9 @@ services:
     networks: [internal]
 
   tripmap:
-    image: ghcr.io/kongken/trip-map:main
+    image: ghcr.io/kongken/mono-tripmap:main
     volumes:
-      - ./config.yaml:/config/config.yaml:ro
+      - ./config.tripmap.yaml:/config/config.yaml:ro
       - ./secrets/tripmap.pem:/secrets/tripmap.pem:ro
       - ./secrets/tripmap.key:/secrets/tripmap.key:ro
       - ./secrets/bff.pub:/secrets/bff.pub:ro
@@ -51,7 +51,7 @@ services:
     networks: [internal]
 
   bff:
-    image: ghcr.io/kongken/trip-map-bff:main
+    image: ghcr.io/kongken/mono-bff:main
     volumes:
       - ./config.bff.yaml:/config/config.yaml:ro
       - ./secrets/bff.key:/secrets/bff.key:ro
@@ -64,8 +64,8 @@ services:
     depends_on: [tripmap, postgres, redis]
     networks: [internal]
 
-  front:
-    image: ghcr.io/kongken/trip-map-front:main
+  trip-map-web:
+    image: ghcr.io/kongken/mono-trip-map-web:main
     ports: ["443:443", "80:80"]
     environment:
       BACKEND_UPSTREAM: bff:18081

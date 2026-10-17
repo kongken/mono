@@ -82,7 +82,7 @@ func New(cfg *config.Config, services []Service) (*Gateway, error) {
 	return g, nil
 }
 
-// CORS is the cross-origin handler for /api/bff.v1.* Connect paths.
+// CORS is the cross-origin handler for /api/bff.* Connect paths.
 func (g *Gateway) CORS() gin.HandlerFunc { return g.cors }
 
 // Probes checks each service's /readyz, which every service provides.

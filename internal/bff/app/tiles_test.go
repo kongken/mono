@@ -59,7 +59,7 @@ func TestTilePathIsForwardedToTripmapWithoutCredentials(t *testing.T) {
 	req.Header.Set("X-Forwarded-Client", "198.51.100.7")
 	req.Header.Set("X-Real-IP", "6.6.6.6")
 	req.Header.Set("Authorization", "Bearer browser-secret")
-	req.Header.Set("Cookie", "shanhai_sid=session-secret; shanhai_csrf=csrf-secret")
+	req.Header.Set("Cookie", "kongken_sid=session-secret; kongken_csrf=csrf-secret")
 	req.Header.Set("X-CSRF-Token", "csrf-secret")
 	req.Header.Set("Origin", "https://trip.example.com")
 	req.Header.Set("Accept", "image/png")
@@ -150,7 +150,7 @@ func TestTileValidatorsAndStatusesAreForwardedBothWays(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/tiles/3/5/2.png?v=2026-10", nil)
 	req.Header.Set("If-None-Match", `"tile-1"`)
 	req.Header.Set("If-Modified-Since", "Sat, 17 Oct 2026 10:00:00 GMT")
-	req.Header.Set("Cookie", "shanhai_sid=session-secret")
+	req.Header.Set("Cookie", "kongken_sid=session-secret")
 	rec := serve(r, req)
 
 	if rec.Code != http.StatusNotModified || rec.Body.Len() != 0 {

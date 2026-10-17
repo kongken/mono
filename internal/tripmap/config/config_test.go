@@ -68,9 +68,9 @@ func TestAuthConfigValidation(t *testing.T) {
 }
 
 func TestExampleConfigParses(t *testing.T) {
-	raw, err := os.ReadFile("../../../config.example.yaml")
+	raw, err := os.ReadFile("../../../config.tripmap.example.yaml")
 	if err != nil {
-		t.Skip("config.example.yaml is not part of this build context")
+		t.Skip("config.tripmap.example.yaml is not part of this build context")
 	}
 	var cfg AppConfig
 	if err := yaml.Unmarshal(raw, &cfg); err != nil {

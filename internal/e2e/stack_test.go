@@ -28,7 +28,7 @@ import (
 	tripmapapp "github.com/kongken/mono/internal/tripmap/app"
 	tripmapconfig "github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/testutil"
-	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
+	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 	"google.golang.org/grpc"
 )
 
@@ -44,7 +44,7 @@ type stack struct {
 	keys    testkit.Keys // the BFF signing key, kid "k1"
 	tripmap *tripmapapp.Handlers
 	bff     *httptest.Server
-	status  bffv1connect.StatusServiceClient
+	status  bfftripmapv1connect.StatusServiceClient
 	// failing makes the named dependency probe report not ready.
 	failing map[string]*atomic.Bool
 }
@@ -106,7 +106,7 @@ func newStack(t *testing.T, mutate ...func(*options, *stack)) *stack {
 	b.Routes(router)
 	s.bff = httptest.NewServer(router)
 	t.Cleanup(s.bff.Close)
-	s.status = bffv1connect.NewStatusServiceClient(s.bff.Client(), s.bff.URL+"/api")
+	s.status = bfftripmapv1connect.NewStatusServiceClient(s.bff.Client(), s.bff.URL+"/api")
 	return s
 }
 

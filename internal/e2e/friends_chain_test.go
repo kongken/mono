@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
+	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
 )
 
 func TestChainFriendLifecycleAndFootprintVisibility(t *testing.T) {
@@ -33,7 +33,7 @@ func TestChainFriendLifecycleAndFootprintVisibility(t *testing.T) {
 	}
 
 	csrf := a.refreshCSRF(ctx)
-	sendReq := connect.NewRequest(&bffv1.SendFriendRequestRequest{Target: "friend_bob"})
+	sendReq := connect.NewRequest(&bfftripmapv1.SendFriendRequestRequest{Target: "friend_bob"})
 	a.writeHeaders(sendReq, csrf, a.Origin)
 	sendRes, err := a.Friends.SendFriendRequest(ctx, sendReq)
 	if err != nil {
@@ -50,14 +50,14 @@ func TestChainFriendLifecycleAndFootprintVisibility(t *testing.T) {
 	}
 
 	csrfB := b.refreshCSRF(ctx)
-	declineReq := connect.NewRequest(&bffv1.RespondFriendRequestRequest{FriendshipId: frID, Accept: false})
+	declineReq := connect.NewRequest(&bfftripmapv1.RespondFriendRequestRequest{FriendshipId: frID, Accept: false})
 	b.writeHeaders(declineReq, csrfB, b.Origin)
 	if _, err = b.Friends.RespondFriendRequest(ctx, declineReq); err != nil {
 		t.Fatal(err)
 	}
 
 	csrf = a.refreshCSRF(ctx)
-	sendReq = connect.NewRequest(&bffv1.SendFriendRequestRequest{Target: ovB.GetMyFriendCode()})
+	sendReq = connect.NewRequest(&bfftripmapv1.SendFriendRequestRequest{Target: ovB.GetMyFriendCode()})
 	a.writeHeaders(sendReq, csrf, a.Origin)
 	sendRes, err = a.Friends.SendFriendRequest(ctx, sendReq)
 	if err != nil {
@@ -66,7 +66,7 @@ func TestChainFriendLifecycleAndFootprintVisibility(t *testing.T) {
 	frID = sendRes.Msg.GetFriendship().GetId()
 
 	csrfB = b.refreshCSRF(ctx)
-	acceptReq := connect.NewRequest(&bffv1.RespondFriendRequestRequest{FriendshipId: frID, Accept: true})
+	acceptReq := connect.NewRequest(&bfftripmapv1.RespondFriendRequestRequest{FriendshipId: frID, Accept: true})
 	b.writeHeaders(acceptReq, csrfB, b.Origin)
 	if _, err = b.Friends.RespondFriendRequest(ctx, acceptReq); err != nil {
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func TestChainFriendLifecycleAndFootprintVisibility(t *testing.T) {
 	}
 
 	csrf = a.refreshCSRF(ctx)
-	rmReq := connect.NewRequest(&bffv1.RemoveFriendRequest{FriendshipId: frID})
+	rmReq := connect.NewRequest(&bfftripmapv1.RemoveFriendRequest{FriendshipId: frID})
 	a.writeHeaders(rmReq, csrf, a.Origin)
 	if _, err = a.Friends.RemoveFriend(ctx, rmReq); err != nil {
 		t.Fatal(err)

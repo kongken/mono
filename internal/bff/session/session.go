@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	CookieName     = "shanhai_sid"
-	CSRFCookieName = "shanhai_csrf"
+	CookieName     = "kongken_sid"
+	CSRFCookieName = "kongken_csrf"
 	CSRFHeader     = "X-CSRF-Token"
 	tokenPrefix    = "bf_"
 )
