@@ -1,0 +1,82 @@
+# Example production-style stack: front (Nginx) + BFF + tripmap + dependencies.
+# Copy configs from config.example.yaml / config.bff.example.yaml; run `make dev-secrets`
+# once locally or mount real TLS/signing Secrets (see docs/deployment.md).
+# tripmap HTTP/gRPC must NOT be published to the public internet.
+
+name: trip-map-stack
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: tripmap
+      POSTGRES_PASSWORD: change-me
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tripmap"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "change-me"]
+    networks: [internal]
+
+  s3:
+    image: rustfs/rustfs:1.0.1
+    command: ["/data"]
+    environment:
+      RUSTFS_ACCESS_KEY: tripmap
+      RUSTFS_SECRET_KEY: change-me-secret
+      RUSTFS_ADDRESS: ":9000"
+    volumes: [s3-data:/data]
+    networks: [internal]
+
+  tripmap:
+    image: ghcr.io/kongken/trip-map:main
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+      - ./secrets/tripmap.pem:/secrets/tripmap.pem:ro
+      - ./secrets/tripmap.key:/secrets/tripmap.key:ro
+      - ./secrets/bff.pub:/secrets/bff.pub:ro
+      - ./secrets/ca.pem:/secrets/ca.pem:ro
+    environment:
+      BUTTERFLY_CONFIG_TYPE: file
+      BUTTERFLY_CONFIG_FILE_PATH: /config/config.yaml
+      PORT: "18082"
+    expose: ["18082", "18083"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [internal]
+
+  bff:
+    image: ghcr.io/kongken/trip-map-bff:main
+    volumes:
+      - ./config.bff.yaml:/config/config.yaml:ro
+      - ./secrets/bff.key:/secrets/bff.key:ro
+      - ./secrets/ca.pem:/secrets/ca.pem:ro
+    environment:
+      BUTTERFLY_CONFIG_TYPE: file
+      BUTTERFLY_CONFIG_FILE_PATH: /config/config.yaml
+      PORT: "18081"
+    expose: ["18081"]
+    depends_on: [tripmap, postgres, redis]
+    networks: [internal]
+
+  front:
+    image: ghcr.io/kongken/trip-map-front:main
+    ports: ["443:443", "80:80"]
+    environment:
+      BACKEND_UPSTREAM: bff:18081
+    depends_on: [bff]
+    networks: [internal, edge]
+
+networks:
+  internal:
+    internal: true
+  edge:
+
+volumes:
+  postgres-data:
+  s3-data:

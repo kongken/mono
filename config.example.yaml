@@ -13,9 +13,7 @@ storage:
   s3_store: main
   key_prefix: tripmap
 
-# Business RPCs are served only here, as gRPC over TLS, to the BFF. HTTP (PORT) keeps
-# /ping and /readyz plus the routes not migrated yet. `make dev-secrets` writes the
-# local certificate and keys under dev-secrets/ (ignored by Git).
+# Business RPCs on gRPC/TLS only; HTTP is /ping and /readyz (internal). Do not expose 18082/18083 publicly.
 grpc:
   listen: 127.0.0.1:18083
   cert_file: dev-secrets/tripmap.pem
