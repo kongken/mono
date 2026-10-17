@@ -16,10 +16,13 @@ package e2e_test
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -42,6 +45,8 @@ import (
 	"github.com/kongken/mono/internal/tripmap/testutil"
 	"github.com/kongken/mono/pkg/proto/bff/v1"
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // ChainHarness is a live BFF → TLS gRPC → tripmap stack with real auth and business DBs.
@@ -56,6 +61,9 @@ type ChainHarness struct {
 	TripmapDB *tripmapent.Client
 
 	regionVersion string
+	caFile        string
+	serverName    string
+	signer        *servicetoken.Signer
 }
 
 // Browser is a cookie-aware Connect client for bff.v1 (CSRF + schema headers).
@@ -83,6 +91,7 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	t.Helper()
 	var oauthReg *provider.Registry
 	var mutate []func(*tripmapconfig.AppConfig)
+	var tripUnary []grpc.UnaryServerInterceptor
 	blob := blobstore.Store(noopBlobs{})
 	for _, e := range extras {
 		switch v := e.(type) {
@@ -94,6 +103,8 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 			if v != nil {
 				blob = v
 			}
+		case []grpc.UnaryServerInterceptor:
+			tripUnary = v
 		default:
 			t.Fatalf("NewChainHarness: unsupported option %T", e)
 		}
@@ -108,6 +119,9 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	ca := testkit.NewCA(t)
 	keys := testkit.NewKeys(t)
 	tls := ca.Issue(t, "tripmap.internal")
+	h.caFile = ca.CAFile
+	h.serverName = "tripmap.internal"
+	h.signer = &servicetoken.Signer{Issuer: issuer, KID: "k1", Key: keys.Private}
 
 	tripDB, tripRedis, tripPrefix := testutil.Backing(t)
 	bffDB, bffRedis, bffPrefix := bfftestutil.Backing(t)
@@ -122,6 +136,9 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 		m(tripCfg)
 	}
 	h.Tripmap = tripmapapp.New(tripCfg)
+	if len(tripUnary) > 0 {
+		h.Tripmap.SetGRPCTestUnaryInterceptors(tripUnary...)
+	}
 	h.Tripmap.SetResources(&tripmapapp.Resources{
 		DB: tripDB, Redis: tripRedis, Blobs: blob, KeyPrefix: tripPrefix,
 		Health: health.New(
@@ -164,6 +181,24 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	t.Cleanup(bffSrv.Close)
 	h.BFFURL = bffSrv.URL
 	return h
+}
+
+func (h *ChainHarness) DirectTripmapGRPC() *grpc.ClientConn {
+	h.T.Helper()
+	pem, err := os.ReadFile(h.caFile)
+	if err != nil {
+		h.T.Fatal(err)
+	}
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(pem)
+	conn, err := grpc.NewClient(h.Tripmap.GRPCAddr(), grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+		RootCAs: pool, ServerName: h.serverName, MinVersion: tls.VersionTLS13,
+	})))
+	if err != nil {
+		h.T.Fatal(err)
+	}
+	h.T.Cleanup(func() { _ = conn.Close() })
+	return conn
 }
 
 // FreshBrowser returns a new isolated cookie jar for another user/session.

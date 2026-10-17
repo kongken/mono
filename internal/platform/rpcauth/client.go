@@ -32,9 +32,13 @@ func UnaryClientInterceptor(signer *servicetoken.Signer, audience string) grpc.U
 		if call.TripmapRegions != "" {
 			md.Set(MetadataTripmapRegions, call.TripmapRegions)
 		}
-		propagation.TraceContext{}.Inject(ctx, mdCarrier(md))
-		if len(md.Get(MetadataTraceparent)) == 0 {
-			md.Set(MetadataTraceparent, newTraceparent())
+		if tp := NormalizeTraceparent(call.TraceParent); tp != "" {
+			md.Set(MetadataTraceparent, tp)
+		} else {
+			propagation.TraceContext{}.Inject(ctx, mdCarrier(md))
+			if len(md.Get(MetadataTraceparent)) == 0 {
+				md.Set(MetadataTraceparent, newTraceparent())
+			}
 		}
 		return invoker(metadata.NewOutgoingContext(ctx, md), method, req, reply, cc, opts...)
 	}

@@ -124,6 +124,14 @@ func validIP(s string) string {
 
 var traceparentPattern = regexp.MustCompile(`^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`)
 
+func NormalizeTraceparent(tp string) string {
+	tp = strings.TrimSpace(tp)
+	if traceparentPattern.MatchString(tp) {
+		return tp
+	}
+	return ""
+}
+
 // newTraceparent starts a trace when no tracing is configured, so a call can
 // still be correlated across the BFF and the service logs.
 func newTraceparent() string {
