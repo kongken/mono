@@ -78,3 +78,39 @@ func (r *Registry) Mount(engine *gin.Engine, routes ...Route) {
 		}
 	}
 }
+
+// MountParam registers a Gin path with a wildcard parameter (for example /s/*rest).
+// paramName is the Gin param without the colon, usually "rest".
+func (r *Registry) MountParam(engine *gin.Engine, route Route, ginPath, paramName string, fn func(http.ResponseWriter, *http.Request, string)) {
+	rt := route
+	serve := func(c *gin.Context) {
+		if rt.TracePattern != "" {
+			httpx.RedactSpan(c.Request, rt.TracePattern)
+		}
+		fn(c.Writer, c.Request, c.Param(paramName))
+	}
+	h := gin.HandlerFunc(serve)
+	if rt.Limit != nil && r.limiter != nil {
+		prev := h
+		lim := *rt.Limit
+		h = func(c *gin.Context) {
+			ip := httpx.ClientAddr(r.clientIPHeader, c.Request.Header, c.Request.RemoteAddr)
+			ok, err := r.limiter.Allow(c.Request.Context(), lim.KeyPrefix+ip, lim.Max, lim.Window)
+			if err != nil {
+				slog.Error("public route rate limiter unavailable", "path", ginPath, "error", err)
+				c.Status(http.StatusServiceUnavailable)
+				return
+			}
+			if !ok {
+				c.Header("Retry-After", "60")
+				c.Status(http.StatusTooManyRequests)
+				return
+			}
+			prev(c)
+		}
+	}
+	engine.Handle(rt.Methods[0], ginPath, h)
+	for _, m := range rt.Methods[1:] {
+		engine.Handle(m, ginPath, h)
+	}
+}

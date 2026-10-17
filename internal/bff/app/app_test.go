@@ -66,7 +66,6 @@ var testServices = []gateway.Service{
 	{
 		Name:     "tripmap",
 		Packages: []string{"tripmap.v1"},
-		Routes:   []gateway.Route{{Path: "/s", Trace: "/s"}, {Path: "/s/", Trace: "/s/{token}"}, {Path: "/api/share/", Trace: "/api/share/{token}"}},
 		Headers:  []string{"X-Tripmap-Schema"},
 	},
 	{Name: "other", Packages: []string{"other.v1"}, Routes: []gateway.Route{{Path: "/api/share/special/"}}},
@@ -115,9 +114,6 @@ func TestRoutesByProtoPackageAndPath(t *testing.T) {
 	for path, want := range map[string]string{
 		"/api/tripmap.v1.FootprintService/GetFootprints": "tripmap",
 		"/api/other.v1.ThingService/List":                "other",
-		"/s":                                             "tripmap",
-		"/s/token/og.png":                                "tripmap",
-		"/api/share/token/data":                          "tripmap",
 		"/api/share/special/x":                           "other", // the longest path wins
 	} {
 		if got := serve(r, httptest.NewRequest(http.MethodPost, path, nil)); got.Code != http.StatusOK || got.Body.String() != want {
@@ -158,14 +154,6 @@ func TestForwardsTheRequestAndOverwritesTheClientAddress(t *testing.T) {
 		t.Fatalf("client address = %q, want the TCP peer 192.0.2.1", got)
 	}
 
-	// Behind a trusted proxy the configured header is the address.
-	r = newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL}, ClientIPHeader: "CF-Connecting-IP"}, nil)
-	req = httptest.NewRequest(http.MethodGet, "/s/token", nil)
-	req.Header.Set("CF-Connecting-IP", "203.0.113.7")
-	serve(r, req)
-	if seen, _ := trip.seen(); seen.Header.Get(gateway.ClientIPHeader) != "203.0.113.7" {
-		t.Fatalf("client address = %q, want 203.0.113.7", seen.Header.Get(gateway.ClientIPHeader))
-	}
 }
 
 func TestTheBFFOwnsCORS(t *testing.T) {
@@ -235,10 +223,8 @@ func TestReadyzReportsEveryService(t *testing.T) {
 func TestRouteTableServesTripmap(t *testing.T) {
 	trip := newFake(t, "tripmap")
 	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL}}, nil)
-	for _, path := range []string{"/api/tripmap.v1.AuthService/Login", "/s/token", "/s", "/api/share/token/data"} {
-		if got := serve(r, httptest.NewRequest(http.MethodGet, path, nil)); got.Code != http.StatusOK || got.Body.String() != "tripmap" {
-			t.Errorf("%s: got %d %q", path, got.Code, got.Body.String())
-		}
+	if got := serve(r, httptest.NewRequest(http.MethodPost, "/api/tripmap.v1.AuthService/Login", nil)); got.Code != http.StatusOK || got.Body.String() != "tripmap" {
+		t.Errorf("login proxy: got %d %q", got.Code, got.Body.String())
 	}
 }
 

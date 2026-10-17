@@ -68,7 +68,7 @@ function fakeShare(page: Page) {
   return {
     state,
     install: () =>
-      page.route("**/api/tripmap.v1.ShareService/**", async (route) => {
+      page.route("**/api/bff.v1.ShareService/**", async (route) => {
         const method = route.request().url().split("/").pop();
         // JSON omits zero values; read them back as the server would.
         const raw = route.request().postDataJSON();

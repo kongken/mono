@@ -22,9 +22,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/kongken/mono/internal/platform/health"
+	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/internal/tripmap/app"
 	"github.com/kongken/mono/internal/tripmap/application"
 	"github.com/kongken/mono/internal/tripmap/config"
+	"github.com/kongken/mono/internal/tripmap/regions"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	entshare "github.com/kongken/mono/internal/tripmap/ent/share"
@@ -84,8 +86,16 @@ func newShareEnv(t *testing.T, mutate ...func(*config.AppConfig)) *shareEnv {
 	se.handlers = app.New(se.cfg)
 	se.handlers.SetResources(se.resources)
 	gin.SetMode(gin.TestMode)
+	index, err := regions.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
 	router := gin.New()
-	se.handlers.Routes(router)
+	opts := connect.WithInterceptors(application.NewAuthInterceptor(se.handlers))
+	api := router.Group("/api", httpx.CORS(func() []string { return se.cfg.Auth.CORSAllowedOrigins }, "X-Tripmap-Schema", "X-Tripmap-Regions"))
+	path, handler := tripmapv1connect.NewShareServiceHandler(application.NewShareService(se.cfg, se.handlers, index), opts)
+	api.Any(path+"*path", gin.WrapH(http.StripPrefix("/api", handler)))
+	app.MountShare(router, api, application.NewSharePublic(se.cfg, se.handlers))
 	se.server = httptest.NewServer(router)
 	t.Cleanup(se.server.Close)
 	se.share = tripmapv1connect.NewShareServiceClient(se.server.Client(), se.server.URL+"/api")
