@@ -6,6 +6,7 @@ export const TILES = resolveTileConfig({
   VITE_OSM_TILE_MAX_ZOOM: import.meta.env.VITE_OSM_TILE_MAX_ZOOM,
   VITE_OSM_TILE_ATTRIBUTION: import.meta.env.VITE_OSM_TILE_ATTRIBUTION,
   VITE_OSM_TILE_PROVIDER: import.meta.env.VITE_OSM_TILE_PROVIDER,
+  VITE_OSM_TILE_VERSION: import.meta.env.VITE_OSM_TILE_VERSION,
 });
 
 export const TILE_SOURCE = describeTileSource(TILES);

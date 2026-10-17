@@ -219,11 +219,14 @@ func TestAnonymousTileIsFetchedWithServerSideToken(t *testing.T) {
 	}
 	for k, want := range map[string]string{
 		"Cache-Control": "max-age=43200, s-maxage=43200", "Expires": "Sat, 17 Oct 2026 22:00:00 GMT",
-		"ETag": `"abc123"`, "Last-Modified": "Sat, 17 Oct 2026 10:00:00 GMT",
+		"Last-Modified": "Sat, 17 Oct 2026 10:00:00 GMT",
 	} {
 		if got := rec.Header().Get(k); got != want {
 			t.Errorf("%s = %q, want %q", k, got, want)
 		}
+	}
+	if etag := rec.Header().Get("ETag"); !strings.HasPrefix(etag, `"`) || !strings.HasSuffix(etag, `-abc123"`) {
+		t.Errorf("ETag = %q, want the upstream validator scoped to the style", etag)
 	}
 	for _, k := range []string{"Set-Cookie", "Access-Control-Allow-Origin", "X-Mapbox-Debug"} {
 		if v := rec.Header().Get(k); v != "" {
@@ -567,3 +570,408 @@ func TestTileTracesNeverRecordTheToken(t *testing.T) {
 		}
 	}
 }
+
+// validatedMapbox is a Mapbox that honours conditional requests the way the real
+// one does: the current ETag and Last-Modified identify the tile's content.
+type validatedMapbox struct {
+	mu            sync.Mutex
+	etag          string
+	lastModified  string
+	cacheControl  string
+	omitETagOn304 bool
+}
+
+func (m *validatedMapbox) set(etag, lastModified string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.etag, m.lastModified = etag, lastModified
+}
+
+func (m *validatedMapbox) handler(t testing.TB) http.HandlerFunc {
+	body := tilePNG(t, 256)
+	return func(w http.ResponseWriter, r *http.Request) {
+		m.mu.Lock()
+		etag, modified, cc, omit := m.etag, m.lastModified, m.cacheControl, m.omitETagOn304
+		m.mu.Unlock()
+		h := w.Header()
+		h.Set("Cache-Control", cc)
+		h.Set("Expires", "Sat, 17 Oct 2026 22:00:00 GMT")
+		h.Set("Last-Modified", modified)
+		h.Set("Set-Cookie", "mapbox=1")
+		matched := false
+		if inm := r.Header.Get("If-None-Match"); inm != "" {
+			for _, candidate := range strings.Split(inm, ",") {
+				if strings.TrimPrefix(strings.TrimSpace(candidate), "W/") == etag {
+					matched = true
+				}
+			}
+		} else if ims := r.Header.Get("If-Modified-Since"); ims != "" {
+			if since, err := http.ParseTime(ims); err == nil {
+				if last, err := http.ParseTime(modified); err == nil && !last.After(since) {
+					matched = true
+				}
+			}
+		}
+		if matched {
+			if !omit {
+				h.Set("ETag", etag)
+			}
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		h.Set("ETag", etag)
+		h.Set("Content-Type", "image/png")
+		_, _ = w.Write(body)
+	}
+}
+
+func newValidatedMapbox() *validatedMapbox {
+	return &validatedMapbox{etag: `"v1"`, lastModified: "Sat, 17 Oct 2026 10:00:00 GMT", cacheControl: "max-age=43200, s-maxage=43200"}
+}
+
+func upstreamHeader(t *testing.T, env *tileEnv, name string) []string {
+	t.Helper()
+	hits := env.hits()
+	if len(hits) == 0 {
+		t.Fatal("Mapbox was not contacted")
+	}
+	return hits[len(hits)-1].Header.Values(name)
+}
+
+func TestTileValidatorsAreForwardedAndNotModifiedIsRelayed(t *testing.T) {
+	mock := newValidatedMapbox()
+	env := newTileEnv(t, mock.handler(t), nil)
+	const target = "/api/tiles/3/5/2.png"
+
+	first := env.get(target)
+	if first.Code != http.StatusOK {
+		t.Fatalf("first request: %d", first.Code)
+	}
+	etag := first.Header().Get("ETag")
+	if etag == "" || etag == `"v1"` {
+		t.Fatalf("ETag %q must be set and scoped to the style", etag)
+	}
+	if got := upstreamHeader(t, env, "If-None-Match"); len(got) != 0 {
+		t.Errorf("an unconditional request sent If-None-Match %v upstream", got)
+	}
+
+	// The browser revalidates with the ETag it was given: Mapbox sees its own validator.
+	hit := env.get(target, func(r *http.Request) { r.Header.Set("If-None-Match", etag) })
+	if hit.Code != http.StatusNotModified {
+		t.Fatalf("conditional request: %d, want 304", hit.Code)
+	}
+	if got := upstreamHeader(t, env, "If-None-Match"); len(got) != 1 || got[0] != `"v1"` {
+		t.Errorf("Mapbox saw If-None-Match %v, want its own validator", got)
+	}
+	if hit.Body.Len() != 0 || hit.Header().Get("Content-Type") != "" || hit.Header().Get("Content-Length") != "" {
+		t.Errorf("304 carries a body or entity headers: %q %v", hit.Body.String(), hit.Header())
+	}
+	for _, k := range []string{"Cache-Control", "Expires", "ETag", "Last-Modified"} {
+		if hit.Header().Get(k) != first.Header().Get(k) {
+			t.Errorf("%s: 304 has %q, 200 has %q", k, hit.Header().Get(k), first.Header().Get(k))
+		}
+	}
+	if v := hit.Header().Get("Set-Cookie"); v != "" {
+		t.Errorf("upstream Set-Cookie leaked on 304: %q", v)
+	}
+	assertNoSecrets(t, hit)
+
+	// A weak comparison and a list of validators both match.
+	for _, inm := range []string{"W/" + etag, `"unrelated", ` + etag} {
+		if rec := env.get(target, func(r *http.Request) { r.Header.Set("If-None-Match", inm) }); rec.Code != http.StatusNotModified {
+			t.Errorf("If-None-Match %q: %d, want 304", inm, rec.Code)
+		}
+	}
+
+	// The tile changes: the old validator no longer matches and the full tile returns.
+	mock.set(`"v2"`, "Sat, 17 Oct 2026 12:00:00 GMT")
+	changed := env.get(target, func(r *http.Request) { r.Header.Set("If-None-Match", etag) })
+	if changed.Code != http.StatusOK || changed.Body.Len() == 0 {
+		t.Fatalf("after a content change: %d with %d bytes, want a full 200", changed.Code, changed.Body.Len())
+	}
+	if changed.Header().Get("ETag") == etag {
+		t.Error("the new tile kept the old ETag")
+	}
+}
+
+func TestTileIfModifiedSinceIsForwardedWhenThereIsNoETag(t *testing.T) {
+	mock := newValidatedMapbox()
+	env := newTileEnv(t, mock.handler(t), nil)
+	const target = "/api/tiles/3/5/2.png"
+	const lastModified = "Sat, 17 Oct 2026 10:00:00 GMT"
+
+	rec := env.get(target, func(r *http.Request) { r.Header.Set("If-Modified-Since", lastModified) })
+	if rec.Code != http.StatusNotModified {
+		t.Fatalf("If-Modified-Since: %d, want 304", rec.Code)
+	}
+	if got := upstreamHeader(t, env, "If-Modified-Since"); len(got) != 1 || got[0] != lastModified {
+		t.Errorf("Mapbox saw If-Modified-Since %v", got)
+	}
+	if rec.Header().Get("Last-Modified") != lastModified || rec.Header().Get("Cache-Control") == "" {
+		t.Errorf("304 headers %v", rec.Header())
+	}
+
+	// An older date than the tile's own gets the full tile.
+	if rec := env.get(target, func(r *http.Request) { r.Header.Set("If-Modified-Since", "Fri, 16 Oct 2026 10:00:00 GMT") }); rec.Code != http.StatusOK {
+		t.Errorf("older If-Modified-Since: %d, want 200", rec.Code)
+	}
+
+	// An unparseable date is ignored rather than forwarded.
+	before := len(env.hits())
+	if rec := env.get(target, func(r *http.Request) { r.Header.Set("If-Modified-Since", "yesterday-ish\r") }); rec.Code != http.StatusOK {
+		t.Errorf("garbage If-Modified-Since: %d, want 200", rec.Code)
+	}
+	if got := env.hits()[before].Header.Values("If-Modified-Since"); len(got) != 0 {
+		t.Errorf("garbage date forwarded: %v", got)
+	}
+
+	// If-None-Match takes precedence: with an ETag in play the date is not sent.
+	etag := env.get(target).Header().Get("ETag")
+	env.get(target, func(r *http.Request) {
+		r.Header.Set("If-None-Match", etag)
+		r.Header.Set("If-Modified-Since", lastModified)
+	})
+	if got := upstreamHeader(t, env, "If-Modified-Since"); len(got) != 0 {
+		t.Errorf("If-Modified-Since sent alongside If-None-Match: %v", got)
+	}
+}
+
+func TestTileNotModifiedWithoutUpstreamETagKeepsTheClientsValidator(t *testing.T) {
+	mock := newValidatedMapbox()
+	mock.omitETagOn304 = true
+	env := newTileEnv(t, mock.handler(t), nil)
+	etag := env.get("/api/tiles/3/5/2.png").Header().Get("ETag")
+	rec := env.get("/api/tiles/3/5/2.png", func(r *http.Request) { r.Header.Set("If-None-Match", etag) })
+	if rec.Code != http.StatusNotModified || rec.Header().Get("ETag") != etag {
+		t.Fatalf("got %d with ETag %q, want 304 with %q", rec.Code, rec.Header().Get("ETag"), etag)
+	}
+}
+
+func TestTileValidatorsDoNotCrossStyles(t *testing.T) {
+	mock := newValidatedMapbox()
+	a := newTileEnv(t, mock.handler(t), nil)
+	b := newTileEnv(t, mock.handler(t), func(c *tiles.Config) { c.StyleID = "another-style" })
+	c := newTileEnv(t, mock.handler(t), func(c *tiles.Config) { c.Username = "another-user" })
+	d := newTileEnv(t, mock.handler(t), func(c *tiles.Config) { c.StyleVersion = "2" })
+
+	const target = "/api/tiles/3/5/2.png"
+	etags := map[string]string{}
+	for name, env := range map[string]*tileEnv{"a": a, "b": b, "c": c, "d": d} {
+		target := target
+		if name == "d" {
+			target += "?v=2"
+		}
+		etags[name] = env.get(target).Header().Get("ETag")
+	}
+	seen := map[string]string{}
+	for name, etag := range etags {
+		if other, dup := seen[etag]; dup {
+			t.Errorf("styles %s and %s share ETag %q", name, other, etag)
+		}
+		seen[etag] = name
+	}
+
+	// A validator from style A never reaches Mapbox when asked of the others, even
+	// though this Mapbox would have answered 304 for the same underlying content.
+	for name, env := range map[string]*tileEnv{"b": b, "c": c, "d": d} {
+		target := target
+		if name == "d" {
+			target += "?v=2"
+		}
+		before := len(env.hits())
+		rec := env.get(target, func(r *http.Request) { r.Header.Set("If-None-Match", etags["a"]) })
+		if rec.Code != http.StatusOK || rec.Body.Len() == 0 {
+			t.Errorf("style %s: a foreign validator got %d, want a full 200", name, rec.Code)
+		}
+		if got := env.hits()[before].Header.Values("If-None-Match"); len(got) != 0 {
+			t.Errorf("style %s forwarded a foreign validator: %v", name, got)
+		}
+	}
+	// Its own validator still works.
+	if rec := b.get(target, func(r *http.Request) { r.Header.Set("If-None-Match", etags["b"]) }); rec.Code != http.StatusNotModified {
+		t.Errorf("own validator: %d, want 304", rec.Code)
+	}
+}
+
+func TestTileStyleVersionInTheURL(t *testing.T) {
+	mock := newValidatedMapbox()
+	env := newTileEnv(t, mock.handler(t), func(c *tiles.Config) { c.StyleVersion = "2026-10" })
+
+	rec := env.get("/api/tiles/3/5/2.png?v=2026-10")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("versioned URL: %d", rec.Code)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "max-age=43200, s-maxage=43200" {
+		t.Errorf("versioned Cache-Control = %q: the freshness Mapbox allows must be kept, not extended", got)
+	}
+	if u := env.rt.requested()[0]; u.Query().Get("v") != "" || len(u.Query()) != 1 {
+		t.Errorf("the version reached Mapbox: %s", u.RawQuery)
+	}
+
+	// The legacy URL (an older front end build) still works but must always revalidate,
+	// so a style switch is never hidden behind a fresh cached copy.
+	legacy := env.get("/api/tiles/3/5/2.png")
+	if legacy.Code != http.StatusOK {
+		t.Fatalf("unversioned URL: %d", legacy.Code)
+	}
+	if got := legacy.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("unversioned Cache-Control = %q, want no-cache", got)
+	}
+	if legacy.Header().Get("Expires") != "" {
+		t.Errorf("unversioned response keeps Expires %q", legacy.Header().Get("Expires"))
+	}
+	if rec := env.get("/api/tiles/3/5/2.png", func(r *http.Request) { r.Header.Set("If-None-Match", legacy.Header().Get("ETag")) }); rec.Code != http.StatusNotModified || rec.Header().Get("Cache-Control") != "no-cache" {
+		t.Errorf("unversioned revalidation: %d %q", rec.Code, rec.Header().Get("Cache-Control"))
+	}
+
+	before := len(env.hits())
+	for _, target := range []string{
+		"/api/tiles/3/5/2.png?v=2026-11",
+		"/api/tiles/3/5/2.png?v=",
+		"/api/tiles/3/5/2.png?v",
+		"/api/tiles/3/5/2.png?v=2026-10&v=2026-10",
+		"/api/tiles/3/5/2.png?v=2026-10&access_token=x",
+		"/api/tiles/3/5/2.png?access_token=x&v=2026-10",
+		"/api/tiles/3/5/2.png?V=2026-10",
+		"/api/tiles/3/5/2.png?v=2026%2D10",
+		"/api/tiles/3/5/2.png?style=other",
+		"/api/tiles/3/5/2.png?",
+	} {
+		rec := env.get(target, func(r *http.Request) { r.Header.Set("If-None-Match", legacy.Header().Get("ETag")) })
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: %d, want 400", target, rec.Code)
+		}
+		assertNoStore(t, rec)
+	}
+	if n := len(env.hits()); n != before {
+		t.Errorf("%d rejected requests reached Mapbox", n-before)
+	}
+}
+
+func TestTileVersionIsRefusedWhenNoneIsConfigured(t *testing.T) {
+	env := newTileEnv(t, okMapbox(t), nil)
+	for _, target := range []string{"/api/tiles/3/5/2.png?v=1", "/api/tiles/3/5/2.png?v="} {
+		rec := env.get(target)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: %d, want 400", target, rec.Code)
+		}
+		assertNoStore(t, rec)
+	}
+	if n := len(env.hits()); n != 0 {
+		t.Errorf("%d requests reached Mapbox", n)
+	}
+	// Without a configured version nothing is added to the lifetime Mapbox allows.
+	rec := env.get("/api/tiles/3/5/2.png")
+	if got := rec.Header().Get("Cache-Control"); got != "max-age=43200, s-maxage=43200" {
+		t.Errorf("Cache-Control = %q", got)
+	}
+}
+
+func TestTileConditionalRequestsKeepEveryGuard(t *testing.T) {
+	mock := newValidatedMapbox()
+	env := newTileEnv(t, mock.handler(t), nil)
+	etag := env.get("/api/tiles/3/5/2.png").Header().Get("ETag")
+	conditional := func(r *http.Request) {
+		r.Header.Set("If-None-Match", etag)
+		r.Header.Set("If-Modified-Since", "Sat, 17 Oct 2026 10:00:00 GMT")
+	}
+	before := len(env.hits())
+
+	for _, tc := range []struct {
+		method, target string
+		status         int
+	}{
+		{"GET", "/api/tiles/3/8/2.png", http.StatusBadRequest},
+		{"GET", "/api/tiles/3/5/2.png?access_token=x", http.StatusBadRequest},
+		{"GET", "/api/tiles/3/5/2.jpg", http.StatusNotFound},
+		{"POST", "/api/tiles/3/5/2.png", http.StatusMethodNotAllowed},
+	} {
+		rec := env.do(tc.method, tc.target, conditional)
+		if rec.Code != tc.status {
+			t.Errorf("%s %s: %d, want %d", tc.method, tc.target, rec.Code, tc.status)
+		}
+		assertNoStore(t, rec)
+	}
+
+	env.limiter.allow = false
+	rec := env.get("/api/tiles/3/5/2.png", conditional)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("limited conditional request: %d", rec.Code)
+	}
+	assertNoStore(t, rec)
+	env.limiter.allow = true
+	if n := len(env.hits()); n != before {
+		t.Fatalf("%d guarded conditional requests reached Mapbox", n-before)
+	}
+
+	disabled := newTileEnv(t, mock.handler(t), func(c *tiles.Config) { *c = tiles.Config{} })
+	if rec := disabled.get("/api/tiles/3/5/2.png", conditional); rec.Code != http.StatusNotFound {
+		t.Errorf("disabled proxy: %d, want 404", rec.Code)
+	} else {
+		assertNoStore(t, rec)
+	}
+
+	// Conditional requests still reach Mapbox with nothing but the validators added.
+	env.get("/api/tiles/3/5/2.png", conditional)
+	sent := env.hits()[before]
+	allowed := map[string]bool{"Accept": true, "User-Agent": true, "Accept-Encoding": true, "If-None-Match": true}
+	for k := range sent.Header {
+		if !allowed[k] {
+			t.Errorf("header %s was sent to Mapbox with a conditional request", k)
+		}
+	}
+}
+
+func TestTileUnexpectedNotModifiedIsAnError(t *testing.T) {
+	logs := captureLogs(t)
+	env := newTileEnv(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "max-age=43200")
+		w.Header().Set("ETag", `"v1"`)
+		w.WriteHeader(http.StatusNotModified)
+	}, nil)
+	// No validator was sent, so there is no cached copy a 304 could refer to.
+	rec := env.get("/api/tiles/3/5/2.png")
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("unconditional request answered 304 upstream: %d, want 502", rec.Code)
+	}
+	assertNoStore(t, rec)
+	assertNoSecrets(t, rec)
+	// A foreign validator is not forwarded, so a 304 for it is just as unexpected.
+	rec = env.get("/api/tiles/3/5/2.png", func(r *http.Request) { r.Header.Set("If-None-Match", `"someone-elses"`) })
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("foreign validator: %d, want 502", rec.Code)
+	}
+	if out := logs.String(); strings.Contains(out, testToken) || strings.Contains(out, "access_token") {
+		t.Errorf("log leaks the credential: %s", out)
+	}
+}
+
+func TestTileErrorsAreNeverCachedOnConditionalRequests(t *testing.T) {
+	var status atomicStatus
+	env := newTileEnv(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "max-age=43200")
+		w.Header().Set("ETag", `"v1"`)
+		w.WriteHeader(status.get())
+		_, _ = io.WriteString(w, "Invalid token "+testToken)
+	}, nil)
+	for _, code := range []int{http.StatusUnauthorized, http.StatusNotFound, http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusPreconditionFailed} {
+		status.set(code)
+		rec := env.get("/api/tiles/3/5/2.png", func(r *http.Request) { r.Header.Set("If-None-Match", `"v1"`) })
+		if rec.Code != http.StatusBadGateway {
+			t.Errorf("upstream %d: %d, want 502", code, rec.Code)
+		}
+		assertNoStore(t, rec)
+		assertNoSecrets(t, rec)
+		if rec.Header().Get("ETag") != "" || rec.Header().Get("Last-Modified") != "" {
+			t.Errorf("upstream %d: error carries validators %v", code, rec.Header())
+		}
+	}
+}
+
+type atomicStatus struct {
+	mu sync.Mutex
+	v  int
+}
+
+func (s *atomicStatus) set(v int) { s.mu.Lock(); s.v = v; s.mu.Unlock() }
+func (s *atomicStatus) get() int  { s.mu.Lock(); defer s.mu.Unlock(); return s.v }

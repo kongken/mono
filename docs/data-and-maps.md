@@ -182,6 +182,7 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 - `VITE_OSM_TILE_URL`：同源部署用相对地址 `/api/tiles/{z}/{x}/{y}.png`；前端与 BFF 跨源部署用 BFF 的绝对地址，如 `https://api.example.com/api/tiles/{z}/{x}/{y}.png`，并确认 BFF 的 `cors_allowed_origins` 与边缘转发都包含该路径（Leaflet 以图片方式加载瓦片，默认不要求 CORS）。
 - `VITE_OSM_TILE_PROVIDER=mapbox`：声明上述地址是本站的 Mapbox 代理，随之显示 Mapbox 标识和署名，并更新开关文字与提示。仅当同时配置了有效的瓦片地址才生效；缺少地址、地址含 `access_token` 或值不是 `mapbox` 时回落到 OSM 默认，避免在 OSM 瓦片上标注 Mapbox，也避免 token 进入前端。
 - `VITE_OSM_TILE_MAX_ZOOM`：不应大于服务端 `mapbox_tiles.max_zoom`（默认 18；自定义地址的前端默认值同为 18）；超过服务端上限的层级会得到 400 并触发底图失败提示。
+- `VITE_OSM_TILE_VERSION`：可选，仅 Mapbox 代理模式生效，须与服务端 `mapbox_tiles.style_version` 相同（1–32 位字母、数字、`-`、`_`）。设置后每个瓦片地址追加 `?v=<版本>`；值不合法、地址已带查询串或不是 Mapbox 代理时忽略。它是公开的版本标签，与 token 无关。切换样式时同时改服务端 `style_id`/`style_version` 与此变量并重新构建，见 [后端初始化](backend.md#mapbox-瓦片代理可选)。
 - `VITE_OSM_TILE_ATTRIBUTION`：附加署名；使用 Mapbox 卫星类样式时应在此补充 `© Maxar` 链接。
 
 署名：按 [Mapbox 署名要求](https://docs.mapbox.com/help/dive-deeper/attribution/)（2026-10 核对），地图左下角显示 Mapbox 标识（链接 `https://www.mapbox.com/`，不改色），其上方显示 “© Mapbox”（`https://www.mapbox.com/about/maps/`）、“© OpenStreetMap contributors”（`https://www.openstreetmap.org/copyright`）和 “Improve this map”（`https://apps.mapbox.com/feedback/#/{经度}/{纬度}/{缩放}`，随地图移动更新）。栅格瓦片没有 Mapbox SDK 的遥测，不需要额外的遥测退出入口。Mapbox 日后调整要求时，以官方文档为准并更新此处与 `apps/web/src/lib/tiles.ts`。
@@ -190,7 +191,7 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 
 - 需要联网，且由 tripmap 所在环境访问 `api.mapbox.com`；断网、token 失效、额度耗尽或限流时底图失败，页面提示可关闭底图，不会自动改用 OSM 公共瓦片。
 - 瓦片请求量和费用仍受 Mapbox 条款与定价约束；256 像素瓦片的请求数是 512 像素的 4 倍（官方定价按请求计费），代理的限流只保护服务，不替代 Mapbox 账号的用量告警。
-- 浏览器缓存遵循 Mapbox 返回的 `Cache-Control`、`Expires`、`ETag`、`Last-Modified`；服务端没有瓦片缓存，也不处理条件请求（`If-None-Match` 等不会下传，浏览器重新验证时得到完整 200）。条件请求与按样式切换的缓存生命周期尚未实现。
+- 浏览器缓存遵循 Mapbox 返回的 `Cache-Control`、`Expires`、`Last-Modified` 与按样式限定范围的 `ETag`，条件请求（`If-None-Match`、`If-Modified-Since`）会下传，Mapbox 确认未变化时返回 304；服务端没有瓦片缓存、持久瓦片库或预取，也不延长新鲜期。Mapbox 的样式改动最长约 12 小时才在其侧生效，这一延迟无法由代理缩短；切换到不同的样式 ID 或账号则用版本化地址（`style_version` 与 `VITE_OSM_TILE_VERSION`）让浏览器立即换用新地址。没有版本的旧地址在配置了 `style_version` 后改为每次重新验证。
 - 全国 SVG 视图、分享图片和备份不使用 Mapbox 瓦片。
 
 ## 绘制与维护

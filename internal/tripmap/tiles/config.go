@@ -36,6 +36,8 @@ var (
 	tokenPattern = regexp.MustCompile(`^pk\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$`)
 	// Usernames and style IDs become URL path segments, so only safe characters pass.
 	namePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+	// The style version appears in the browser-visible URL, so it is short and plain.
+	versionPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}$`)
 )
 
 // Config is the optional Mapbox proxy. It is off by default; deployments that do
@@ -52,6 +54,12 @@ type Config struct {
 	// "light-v11"). Both are required when the proxy is enabled.
 	Username string `yaml:"username"`
 	StyleID  string `yaml:"style_id"`
+	// StyleVersion is an optional label for the effective style, such as "2026-10".
+	// When set, the browser-visible tile URL carries it as "?v=<label>" and only that
+	// exact value is accepted, so changing it (together with the front end's
+	// VITE_OSM_TILE_VERSION) gives every tile a new URL and a style switch never hides
+	// behind a cached copy. It is never sent to Mapbox and is not a secret.
+	StyleVersion string `yaml:"style_version"`
 	// MaxZoom is the highest zoom served, 1 to 22; zero keeps the default 18.
 	MaxZoom int `yaml:"max_zoom"`
 	// RatePerMinute limits requests per client address; zero keeps the default.
@@ -119,6 +127,9 @@ func (c Config) Validate() error {
 	}
 	if !namePattern.MatchString(c.StyleID) {
 		return fmt.Errorf("mapbox_tiles.style_id must be 1-64 letters, digits, '-' or '_'")
+	}
+	if c.StyleVersion != "" && !versionPattern.MatchString(c.StyleVersion) {
+		return fmt.Errorf("mapbox_tiles.style_version must be 1-32 letters, digits, '-' or '_'")
 	}
 	if c.MaxZoom < 0 || c.MaxZoom > hardMaxZoom {
 		return fmt.Errorf("mapbox_tiles.max_zoom must be between 0 and %d", hardMaxZoom)

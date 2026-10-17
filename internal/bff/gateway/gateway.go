@@ -29,7 +29,9 @@ import (
 const ClientIPHeader = "X-Real-IP"
 
 // anonymousRequestHeaders are the only client headers an Anonymous route forwards.
-var anonymousRequestHeaders = []string{"Accept", "User-Agent"}
+// The cache validators let browsers revalidate without credentials; the service
+// checks them against what it issued.
+var anonymousRequestHeaders = []string{"Accept", "User-Agent", "If-None-Match", "If-Modified-Since"}
 
 type upstream struct {
 	name string

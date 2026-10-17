@@ -193,6 +193,11 @@ func TestMapboxTilesConfigValidation(t *testing.T) {
 	if err := enabled().Validate(); err != nil {
 		t.Fatalf("enabled with defaults: %v", err)
 	}
+	versioned := enabled()
+	versioned.MapboxTiles.StyleVersion = "2026-10_a"
+	if err := versioned.Validate(); err != nil {
+		t.Fatalf("enabled with a style version: %v", err)
+	}
 	for name, mutate := range map[string]func(*tiles.Config){
 		"no token":            func(c *tiles.Config) { c.Token = "" },
 		"no username":         func(c *tiles.Config) { c.Username = "" },
@@ -205,6 +210,9 @@ func TestMapboxTilesConfigValidation(t *testing.T) {
 		"username with dots":  func(c *tiles.Config) { c.Username = ".." },
 		"style with query":    func(c *tiles.Config) { c.StyleID = "x?y=1" },
 		"style with space":    func(c *tiles.Config) { c.StyleID = "my style" },
+		"version with dot":    func(c *tiles.Config) { c.StyleVersion = "1.0" },
+		"version with query":  func(c *tiles.Config) { c.StyleVersion = "a&b=1" },
+		"version too long":    func(c *tiles.Config) { c.StyleVersion = strings.Repeat("v", 33) },
 		"zoom above mapbox":   func(c *tiles.Config) { c.MaxZoom = 23 },
 		"negative zoom":       func(c *tiles.Config) { c.MaxZoom = -1 },
 		"negative rate":       func(c *tiles.Config) { c.RatePerMinute = -1 },
@@ -239,11 +247,11 @@ func TestMapboxTilesConfigDoesNotPrintTheToken(t *testing.T) {
 
 func TestMapboxTilesConfigReadsYAML(t *testing.T) {
 	var cfg AppConfig
-	raw := "mapbox_tiles:\n  enabled: true\n  token: " + mapboxTestToken + "\n  username: mapbox\n  style_id: light-v11\n  max_zoom: 16\n  rate_per_minute: 120\n  upstream_timeout: 3s\n  max_response_bytes: 262144\n"
+	raw := "mapbox_tiles:\n  enabled: true\n  token: " + mapboxTestToken + "\n  username: mapbox\n  style_id: light-v11\n  style_version: 2026-10\n  max_zoom: 16\n  rate_per_minute: 120\n  upstream_timeout: 3s\n  max_response_bytes: 262144\n"
 	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
 		t.Fatal(err)
 	}
-	want := tiles.Config{Enabled: true, Token: mapboxTestToken, Username: "mapbox", StyleID: "light-v11", MaxZoom: 16, RatePerMinute: 120, UpstreamTimeout: 3 * time.Second, MaxResponseBytes: 262144}
+	want := tiles.Config{Enabled: true, Token: mapboxTestToken, Username: "mapbox", StyleID: "light-v11", StyleVersion: "2026-10", MaxZoom: 16, RatePerMinute: 120, UpstreamTimeout: 3 * time.Second, MaxResponseBytes: 262144}
 	if cfg.MapboxTiles != want {
 		t.Fatalf("parsed %+v", cfg.MapboxTiles)
 	}
