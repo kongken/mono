@@ -483,7 +483,7 @@ F1 代码范围已覆盖注销与增量同步；F1 总项仍保留真实 OAuth �
 
 **回滚。** 账号升级是单向的：一旦某账号升到版本 2，旧后端只认识 `city_visits` 里冻结的日期与备注，会看不到升级之后新增的旅行，也看不到对已有旅行的修改，因此回滚到旧后端前必须备份数据库，并接受升级后旅行相关修改丢失；不要在升级过账号的数据库上回滚后继续让旧客户端写入：旧后端对 `city_visits` 的修改不会回流到 `city_trips`，账号的 `schema_version` 仍为 2。需要重新升级时，应从升级前的数据库备份恢复，而不是依赖自动回填。
 
-**请求体与限流。** 一个满批（2000 项、每项备注 1000 个字符）按 JSON 最坏估计约 6–12 MB。Footprint 处理器读取上限为 16 MiB；前端镜像的 Nginx `/api` 转发默认 1 MB，已加 `client_max_body_size 16m`（`deploy/frontend/default.conf.template`）；自行部署的其他反向代理需调到不低于 16 MB。批量限流按项计（每用户每分钟 6000 项），单条写入仍为每分钟 600 次。
+**请求体与限流。** 一个满批（2000 项、每项备注 1000 个字符）按 JSON 最坏估计约 6–12 MB。Footprint 处理器 Connect 读上限为 16 MiB；前端镜像 Nginx `/api` 为 `client_max_body_size 20m`（`deploy/frontend/default.conf.template`，含 framing 余量）；自行部署的边缘代理应 ≥20 MiB，见 [部署与发布](deployment.md#请求体大小)。批量限流按项计（每用户每分钟 6000 项），单条写入仍为每分钟 600 次。
 
 **验证。** `make test` 在没有数据库连接时跳过存储相关测试；F5 的 Go 测试需要 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR`（媒体测试使用内存对象存储，不需要 S3；真实 S3 测试另需 `make test-integration` 的环境）。
 
