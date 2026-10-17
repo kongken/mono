@@ -43,7 +43,7 @@ func oauthSvc(t *testing.T, reg *provider.Registry, cfg *config.AuthConfig) (*au
 	}
 	cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode}
 	state := oauth.NewStateStore(rdb, prefix)
-	svc := auth.NewService(cfg, cookies, db, ratelimit.New(rdb, prefix), nil, auth.OAuthDeps{State: state, Registry: reg})
+	svc := auth.NewService(cfg, cookies, db, ratelimit.New(rdb, prefix), nil, nil, auth.OAuthDeps{State: state, Registry: reg})
 	return svc, auth.NewHandler(svc, nil, time.Hour)
 }
 

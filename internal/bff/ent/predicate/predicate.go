@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// AccountDeletionReceipt is the predicate function for accountdeletionreceipt builders.
+type AccountDeletionReceipt func(*sql.Selector)
+
 // Session is the predicate function for session builders.
 type Session func(*sql.Selector)
 

@@ -22,6 +22,8 @@ service AuthService {
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
   // RevokeSession revokes one of the caller's own sessions.
   rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+  // DeleteAccount starts or retries account deletion for the signed-in session.
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
   // IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
   rpc IssueCSRFToken(IssueCSRFTokenRequest) returns (IssueCSRFTokenResponse) {
     option (platform.v1.anonymous) = true;
@@ -97,6 +99,15 @@ message RevokeSessionRequest {
 }
 
 message RevokeSessionResponse {}
+
+message DeleteAccountRequest {
+  // Must be exactly "DELETE".
+  string confirmation = 1;
+  // Required for password accounts; ignored for OAuth-only accounts.
+  string password = 2;
+}
+
+message DeleteAccountResponse {}
 
 message IssueCSRFTokenRequest {}
 

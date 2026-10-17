@@ -37,7 +37,7 @@ import (
 	"github.com/kongken/mono/internal/bff/upstream"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
-	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
+	bffv1connect "github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
@@ -155,6 +155,7 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 		ClientIPHeader: h.cfg.ClientIPHeader,
 		Heavy: map[string]bool{
 			bffv1connect.FootprintServiceSyncChangesProcedure: true,
+			bffv1connect.AuthServiceDeleteAccountProcedure:  true,
 		},
 	}
 	if r := h.resources.Load(); r != nil && conn != nil {
@@ -165,10 +166,12 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 			reg = custom
 		}
 		oauthDeps := bffauth.OAuthDeps{State: oauthState, Registry: reg}
-		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix), tripmapv1.NewProfileServiceClient(conn), oauthDeps)
+		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix),
+			tripmapv1.NewProfileServiceClient(conn), tripmapv1.NewAccountCleanupServiceClient(conn), oauthDeps)
 		authHandler := bffauth.NewHandler(svc, h.cfg.CORSAllowedOrigins, h.cfg.Auth.CSRFTokenTTL)
 		h.auth.Store(authHandler)
 		policy.Authenticate = authHandler.Authenticate
+		policy.DeletionReceiptValid = svc.CompletionReceiptValid
 	}
 	opts := []connect.HandlerOption{
 		connect.WithInterceptors(ingress.Interceptor(policy)),

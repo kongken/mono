@@ -6,15 +6,10 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/kongken/mono/internal/tripmap/accountcleanup"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/accountdeletionreceipt"
-	"github.com/kongken/mono/internal/tripmap/ent/friendship"
-	entitinerary "github.com/kongken/mono/internal/tripmap/ent/itinerary"
-	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	"github.com/kongken/mono/internal/tripmap/ent/session"
-	entshare "github.com/kongken/mono/internal/tripmap/ent/share"
-	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
-	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	"golang.org/x/crypto/bcrypt"
@@ -68,8 +63,6 @@ func (s *AuthService) DeleteAccount(ctx context.Context, req *connect.Request[tr
 			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("sign in again before deleting an OAuth account"))
 		}
 	}
-	// Disable first. Only deletion retry, Me and Logout remain available. Other
-	// sessions are revoked; the current session can retry after an S3 failure.
 	if u.DeletionRequestedAt == nil {
 		if err = tx.User.UpdateOneID(u.ID).SetDisabled(true).SetDeletionRequestedAt(time.Now().UTC()).Exec(ctx); err != nil {
 			return nil, internalError(err)
@@ -78,40 +71,16 @@ func (s *AuthService) DeleteAccount(ctx context.Context, req *connect.Request[tr
 	if _, err = tx.Session.Update().Where(session.UserID(u.ID), session.IDNEQ(p.SessionID)).SetRevoked(true).Save(ctx); err != nil {
 		return nil, internalError(err)
 	}
-	// Public access ends with the first transaction, before any slow object cleanup
-	// can fail: the share row is removed (its link and snapshot with it) and public
-	// reads also require an enabled account, so nothing stays reachable meanwhile.
-	if _, err = tx.Share.Delete().Where(entshare.UserID(u.ID)).Exec(ctx); err != nil {
-		return nil, internalError(err)
-	}
-	if _, err = tx.Friendship.Delete().Where(friendship.Or(friendship.RequesterIDEQ(u.ID), friendship.AddresseeIDEQ(u.ID))).Exec(ctx); err != nil {
-		return nil, internalError(err)
-	}
-	if _, err = tx.TripMember.Delete().Where(tripmember.UserIDEQ(u.ID)).Exec(ctx); err != nil {
-		return nil, internalError(err)
-	}
-	if _, err = tx.SharedTrip.Delete().Where(sharedtrip.OwnerIDEQ(u.ID)).Exec(ctx); err != nil {
-		return nil, internalError(err)
-	}
-	if _, err = tx.Itinerary.Delete().Where(entitinerary.UserIDEQ(u.ID)).Exec(ctx); err != nil {
-		return nil, internalError(err)
-	}
 	if err = tx.Commit(); err != nil {
 		return nil, internalError(err)
 	}
-	objects, err := st.DB.MediaObject.Query().Where(mediaobject.UserID(u.ID)).All(ctx)
-	if err != nil {
-		return nil, internalError(err)
-	}
-	if len(objects) > 0 && st.Blobs == nil {
-		return nil, connect.NewError(connect.CodeUnavailable, errors.New("object cleanup unavailable; retry account deletion"))
-	}
-	for _, object := range objects {
-		if err = deleteMediaKeys(ctx, st, object); err != nil {
-			return nil, connect.NewError(connect.CodeUnavailable, errors.New("object cleanup incomplete; retry account deletion"))
+	if err := accountcleanup.Run(ctx, &accountcleanup.Store{DB: st.DB, Blobs: st.Blobs}, u.ID); err != nil {
+		msg := "object cleanup incomplete; retry account deletion"
+		if errors.Is(err, accountcleanup.ErrObjectStorageUnavailable) {
+			msg = "object cleanup unavailable; retry account deletion"
 		}
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New(msg))
 	}
-
 	final, err := st.DB.Tx(ctx)
 	if err != nil {
 		return nil, internalError(err)

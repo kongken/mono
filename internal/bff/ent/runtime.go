@@ -5,6 +5,7 @@ package ent
 import (
 	"time"
 
+	"github.com/kongken/mono/internal/bff/ent/accountdeletionreceipt"
 	"github.com/kongken/mono/internal/bff/ent/schema"
 	"github.com/kongken/mono/internal/bff/ent/session"
 	"github.com/kongken/mono/internal/bff/ent/user"
@@ -14,6 +15,12 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	accountdeletionreceiptFields := schema.AccountDeletionReceipt{}.Fields()
+	_ = accountdeletionreceiptFields
+	// accountdeletionreceiptDescID is the schema descriptor for id field.
+	accountdeletionreceiptDescID := accountdeletionreceiptFields[0].Descriptor()
+	// accountdeletionreceipt.DefaultID holds the default value on creation for the id field.
+	accountdeletionreceipt.DefaultID = accountdeletionreceiptDescID.Default.(func() string)
 	sessionFields := schema.Session{}.Fields()
 	_ = sessionFields
 	// sessionDescTokenHash is the schema descriptor for token_hash field.

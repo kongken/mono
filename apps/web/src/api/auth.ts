@@ -50,8 +50,9 @@ export const authApi = {
     await refreshCSRF();
     await client().logout({});
   },
-  deleteAccount: (_password: string) => {
-    throw new Error("deleteAccount not migrated to bff.v1 yet");
+  deleteAccount: async (password: string) => {
+    await refreshCSRF();
+    await client().deleteAccount({ confirmation: "DELETE", password });
   },
   me: async () => toUser((await client().me({})).user),
   listSessions: async () => {

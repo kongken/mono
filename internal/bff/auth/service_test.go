@@ -19,7 +19,7 @@ import (
 func TestRegisterLoginMeLogout(t *testing.T) {
 	db, rdb, prefix := testutil.Backing(t)
 	cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode}
-	svc := auth.NewService(&config.AuthConfig{SessionTTL: time.Hour}, cookies, db, ratelimit.New(rdb, prefix), nil, auth.OAuthDeps{})
+	svc := auth.NewService(&config.AuthConfig{SessionTTL: time.Hour}, cookies, db, ratelimit.New(rdb, prefix), nil, nil, auth.OAuthDeps{})
 	h := auth.NewHandler(svc, nil, time.Hour)
 	ctx := context.Background()
 
@@ -51,7 +51,7 @@ func TestRegisterLoginMeLogout(t *testing.T) {
 func TestListAndRevokeSessions(t *testing.T) {
 	db, rdb, prefix := testutil.Backing(t)
 	cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode}
-	svc := auth.NewService(&config.AuthConfig{SessionTTL: time.Hour}, cookies, db, ratelimit.New(rdb, prefix), nil, auth.OAuthDeps{})
+	svc := auth.NewService(&config.AuthConfig{SessionTTL: time.Hour}, cookies, db, ratelimit.New(rdb, prefix), nil, nil, auth.OAuthDeps{})
 	ctx := context.Background()
 
 	reg, _, tok1, err := svc.Register(ctx, "127.0.0.1", &bffv1.RegisterRequest{Username: "erin", Password: "password1", DisplayName: "Erin"})

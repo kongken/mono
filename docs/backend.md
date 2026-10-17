@@ -469,7 +469,8 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 
 ## F1 新接口与部署
 
-- `AuthService.DeleteAccount`：请求 `confirmation: "DELETE"` 与密码账号的 `password`。OAuth 账号要求最近 15 分钟内创建的会话。暂停账号后其他业务 RPC 拒绝，当前会话可重试清理；重新登录返回 `User.deletion_pending`，只开放 Me、Logout 和注销重试。完成后原注销令牌可在 24 小时内得到完成回执，其余接口仍未授权。
+- **浏览器注销（#43，BFF）：** `bff.v1.AuthService/DeleteAccount` 请求 `confirmation: "DELETE"` 与密码账号的 `password`；OAuth 账号要求最近 15 分钟内创建的 BFF 会话。BFF 暂停账号、撤销其他会话后调用内部 gRPC `tripmap.v1.AccountCleanupService/CleanupUserData`（不暴露为浏览器方法）清理 S3 与 tripmap 元数据，再删除 BFF 认证行与 `account_deletion_receipts` 完成回执（24h）。注销中 BFF 仅允许 Me、Logout、DeleteAccount；`User.deletion_pending` 在 Me 中返回。完成回执凭 Cookie 令牌哈希重试，不依赖已删除的会话行。
+- **tripmap 旧 Connect `AuthService.DeleteAccount`：** 仍供 `internal/tripmap/application` 集成测试与透明网关上的 Bearer 客户端；目标架构下浏览器改走 BFF（#44 移除 tripmap 公网 Auth 与 Bearer）。
 - `FootprintService.GetChanges`：参数 `since_revision` / `limit`，返回有序 `changes`、`next_revision`、`current_revision`、`has_more` 与 `resync_required`。
 - `FootprintService.SyncChanges`：参数 `mutation_id`、`base_revision` 和 1–2000 条 oneof 变更（F5 前为 600；上限容纳一次完整迁移：497 个城市、每城市多次旅行与 34 个省份标记，更大的改动由客户端拆成连续批次）。变更为旧版 `upsert_visit`（城市加 `legacy-<区域 ID>` 旅行）、`delete_visit`（连同旅行）、`upsert_mark`、`delete_mark` 以及 F5 新增的 `upsert_city`（只改城市字段）、`upsert_trip`（城市必须已存在，在账号中或在同一批次更早的位置）、`delete_trip`。旅行的所属城市不可更改。全批原子处理，冲突返回 ABORTED；同一 ID 相同内容返回原结果，复用 ID 提交不同内容返回 ALREADY_EXISTS。日志、revision、回执与记录在同一事务提交。
 

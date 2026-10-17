@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { create, toBinary, toJsonString, fromBinary } from "@bufbuild/protobuf";
-import * as auth from "@trip-map/api-client/tripmap/v1/auth_pb";
+import * as auth from "@trip-map/api-client/bff/v1/auth_pb";
 import * as footprint from "@trip-map/api-client/bff/v1/footprint_pb";
 import * as statusPb from "@trip-map/api-client/bff/v1/status_pb";
 import { REGION_VERSION } from "../src/lib/region-catalog";
@@ -20,10 +20,13 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
     let schema: any,
       data: any = {};
     switch (method) {
+      case "IssueCSRFToken":
+        schema = auth.IssueCSRFTokenResponseSchema;
+        data = { token: "ci-csrf" };
+        break;
       case "Login":
         schema = auth.LoginResponseSchema;
         data = {
-          token: "ci-delete-token",
           user: {
             id: "ci-account",
             username: "ci_user",

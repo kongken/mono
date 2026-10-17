@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file bff/v1/auth.proto.
  */
 export const file_bff_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChFiZmYvdjEvYXV0aC5wcm90bxIGYmZmLnYxIrgBCgdTZXNzaW9uEgoKAmlkGAEgASgJEi4KCmNyZWF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3RfdXNlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHY3VycmVudBgFIAEoCCKYAQoEVXNlchIKCgJpZBgBIAEoCRIQCgh1c2VybmFtZRgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSEgoKYXZhdGFyX3VybBgEIAEoCRIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIYChBkZWxldGlvbl9wZW5kaW5nGAYgASgIIksKD1JlZ2lzdGVyUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkiXgoQUmVnaXN0ZXJSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiMgoMTG9naW5SZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIlsKDUxvZ2luUmVzcG9uc2USGgoEdXNlchgBIAEoCzIMLmJmZi52MS5Vc2VyEi4KCmV4cGlyZXNfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIg8KDUxvZ291dFJlcXVlc3QiEAoOTG9nb3V0UmVzcG9uc2UiCwoJTWVSZXF1ZXN0IigKCk1lUmVzcG9uc2USGgoEdXNlchgBIAEoCzIMLmJmZi52MS5Vc2VyIhUKE0xpc3RTZXNzaW9uc1JlcXVlc3QiOQoUTGlzdFNlc3Npb25zUmVzcG9uc2USIQoIc2Vzc2lvbnMYASADKAsyDy5iZmYudjEuU2Vzc2lvbiIiChRSZXZva2VTZXNzaW9uUmVxdWVzdBIKCgJpZBgBIAEoCSIXChVSZXZva2VTZXNzaW9uUmVzcG9uc2UiFwoVSXNzdWVDU1JGVG9rZW5SZXF1ZXN0IicKFklzc3VlQ1NSRlRva2VuUmVzcG9uc2USDQoFdG9rZW4YASABKAkiMwoNT0F1dGhQcm92aWRlchIMCgRuYW1lGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgCIAEoCSIbChlMaXN0T0F1dGhQcm92aWRlcnNSZXF1ZXN0IkYKGkxpc3RPQXV0aFByb3ZpZGVyc1Jlc3BvbnNlEigKCXByb3ZpZGVycxgBIAMoCzIVLmJmZi52MS5PQXV0aFByb3ZpZGVyIikKFUJlZ2luT0F1dGhGbG93UmVxdWVzdBIQCghwcm92aWRlchgBIAEoCSI+ChZCZWdpbk9BdXRoRmxvd1Jlc3BvbnNlEhUKDWF1dGhvcml6ZV91cmwYASABKAkSDQoFc3RhdGUYAiABKAkiSQoYQ29tcGxldGVPQXV0aEZsb3dSZXF1ZXN0EhAKCHByb3ZpZGVyGAEgASgJEgwKBGNvZGUYAiABKAkSDQoFc3RhdGUYAyABKAkiZwoZQ29tcGxldGVPQXV0aEZsb3dSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAy/gUKC0F1dGhTZXJ2aWNlEkMKCFJlZ2lzdGVyEhcuYmZmLnYxLlJlZ2lzdGVyUmVxdWVzdBoYLmJmZi52MS5SZWdpc3RlclJlc3BvbnNlIgSguxgBEjoKBUxvZ2luEhQuYmZmLnYxLkxvZ2luUmVxdWVzdBoVLmJmZi52MS5Mb2dpblJlc3BvbnNlIgSguxgBEjcKBkxvZ291dBIVLmJmZi52MS5Mb2dvdXRSZXF1ZXN0GhYuYmZmLnYxLkxvZ291dFJlc3BvbnNlEisKAk1lEhEuYmZmLnYxLk1lUmVxdWVzdBoSLmJmZi52MS5NZVJlc3BvbnNlEkkKDExpc3RTZXNzaW9ucxIbLmJmZi52MS5MaXN0U2Vzc2lvbnNSZXF1ZXN0GhwuYmZmLnYxLkxpc3RTZXNzaW9uc1Jlc3BvbnNlEkwKDVJldm9rZVNlc3Npb24SHC5iZmYudjEuUmV2b2tlU2Vzc2lvblJlcXVlc3QaHS5iZmYudjEuUmV2b2tlU2Vzc2lvblJlc3BvbnNlElUKDklzc3VlQ1NSRlRva2VuEh0uYmZmLnYxLklzc3VlQ1NSRlRva2VuUmVxdWVzdBoeLmJmZi52MS5Jc3N1ZUNTUkZUb2tlblJlc3BvbnNlIgSguxgBEmEKEkxpc3RPQXV0aFByb3ZpZGVycxIhLmJmZi52MS5MaXN0T0F1dGhQcm92aWRlcnNSZXF1ZXN0GiIuYmZmLnYxLkxpc3RPQXV0aFByb3ZpZGVyc1Jlc3BvbnNlIgSguxgBElUKDkJlZ2luT0F1dGhGbG93Eh0uYmZmLnYxLkJlZ2luT0F1dGhGbG93UmVxdWVzdBoeLmJmZi52MS5CZWdpbk9BdXRoRmxvd1Jlc3BvbnNlIgSguxgBEl4KEUNvbXBsZXRlT0F1dGhGbG93EiAuYmZmLnYxLkNvbXBsZXRlT0F1dGhGbG93UmVxdWVzdBohLmJmZi52MS5Db21wbGV0ZU9BdXRoRmxvd1Jlc3BvbnNlIgSguxgBQjBaLmdpdGh1Yi5jb20va29uZ2tlbi9tb25vL3BrZy9wcm90by9iZmYvdjE7YmZmdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_platform_v1_options]);
+  fileDesc("ChFiZmYvdjEvYXV0aC5wcm90bxIGYmZmLnYxIrgBCgdTZXNzaW9uEgoKAmlkGAEgASgJEi4KCmNyZWF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3RfdXNlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHY3VycmVudBgFIAEoCCKYAQoEVXNlchIKCgJpZBgBIAEoCRIQCgh1c2VybmFtZRgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSEgoKYXZhdGFyX3VybBgEIAEoCRIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIYChBkZWxldGlvbl9wZW5kaW5nGAYgASgIIksKD1JlZ2lzdGVyUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkiXgoQUmVnaXN0ZXJSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiMgoMTG9naW5SZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIlsKDUxvZ2luUmVzcG9uc2USGgoEdXNlchgBIAEoCzIMLmJmZi52MS5Vc2VyEi4KCmV4cGlyZXNfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIg8KDUxvZ291dFJlcXVlc3QiEAoOTG9nb3V0UmVzcG9uc2UiCwoJTWVSZXF1ZXN0IigKCk1lUmVzcG9uc2USGgoEdXNlchgBIAEoCzIMLmJmZi52MS5Vc2VyIhUKE0xpc3RTZXNzaW9uc1JlcXVlc3QiOQoUTGlzdFNlc3Npb25zUmVzcG9uc2USIQoIc2Vzc2lvbnMYASADKAsyDy5iZmYudjEuU2Vzc2lvbiIiChRSZXZva2VTZXNzaW9uUmVxdWVzdBIKCgJpZBgBIAEoCSIXChVSZXZva2VTZXNzaW9uUmVzcG9uc2UiPgoURGVsZXRlQWNjb3VudFJlcXVlc3QSFAoMY29uZmlybWF0aW9uGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSIXChVJc3N1ZUNTUkZUb2tlblJlcXVlc3QiJwoWSXNzdWVDU1JGVG9rZW5SZXNwb25zZRINCgV0b2tlbhgBIAEoCSIzCg1PQXV0aFByb3ZpZGVyEgwKBG5hbWUYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJIhsKGUxpc3RPQXV0aFByb3ZpZGVyc1JlcXVlc3QiRgoaTGlzdE9BdXRoUHJvdmlkZXJzUmVzcG9uc2USKAoJcHJvdmlkZXJzGAEgAygLMhUuYmZmLnYxLk9BdXRoUHJvdmlkZXIiKQoVQmVnaW5PQXV0aEZsb3dSZXF1ZXN0EhAKCHByb3ZpZGVyGAEgASgJIj4KFkJlZ2luT0F1dGhGbG93UmVzcG9uc2USFQoNYXV0aG9yaXplX3VybBgBIAEoCRINCgVzdGF0ZRgCIAEoCSJJChhDb21wbGV0ZU9BdXRoRmxvd1JlcXVlc3QSEAoIcHJvdmlkZXIYASABKAkSDAoEY29kZRgCIAEoCRINCgVzdGF0ZRgDIAEoCSJnChlDb21wbGV0ZU9BdXRoRmxvd1Jlc3BvbnNlEhoKBHVzZXIYASABKAsyDC5iZmYudjEuVXNlchIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcDLMBgoLQXV0aFNlcnZpY2USQwoIUmVnaXN0ZXISFy5iZmYudjEuUmVnaXN0ZXJSZXF1ZXN0GhguYmZmLnYxLlJlZ2lzdGVyUmVzcG9uc2UiBKC7GAESOgoFTG9naW4SFC5iZmYudjEuTG9naW5SZXF1ZXN0GhUuYmZmLnYxLkxvZ2luUmVzcG9uc2UiBKC7GAESNwoGTG9nb3V0EhUuYmZmLnYxLkxvZ291dFJlcXVlc3QaFi5iZmYudjEuTG9nb3V0UmVzcG9uc2USKwoCTWUSES5iZmYudjEuTWVSZXF1ZXN0GhIuYmZmLnYxLk1lUmVzcG9uc2USSQoMTGlzdFNlc3Npb25zEhsuYmZmLnYxLkxpc3RTZXNzaW9uc1JlcXVlc3QaHC5iZmYudjEuTGlzdFNlc3Npb25zUmVzcG9uc2USTAoNUmV2b2tlU2Vzc2lvbhIcLmJmZi52MS5SZXZva2VTZXNzaW9uUmVxdWVzdBodLmJmZi52MS5SZXZva2VTZXNzaW9uUmVzcG9uc2USTAoNRGVsZXRlQWNjb3VudBIcLmJmZi52MS5EZWxldGVBY2NvdW50UmVxdWVzdBodLmJmZi52MS5EZWxldGVBY2NvdW50UmVzcG9uc2USVQoOSXNzdWVDU1JGVG9rZW4SHS5iZmYudjEuSXNzdWVDU1JGVG9rZW5SZXF1ZXN0Gh4uYmZmLnYxLklzc3VlQ1NSRlRva2VuUmVzcG9uc2UiBKC7GAESYQoSTGlzdE9BdXRoUHJvdmlkZXJzEiEuYmZmLnYxLkxpc3RPQXV0aFByb3ZpZGVyc1JlcXVlc3QaIi5iZmYudjEuTGlzdE9BdXRoUHJvdmlkZXJzUmVzcG9uc2UiBKC7GAESVQoOQmVnaW5PQXV0aEZsb3cSHS5iZmYudjEuQmVnaW5PQXV0aEZsb3dSZXF1ZXN0Gh4uYmZmLnYxLkJlZ2luT0F1dGhGbG93UmVzcG9uc2UiBKC7GAESXgoRQ29tcGxldGVPQXV0aEZsb3cSIC5iZmYudjEuQ29tcGxldGVPQXV0aEZsb3dSZXF1ZXN0GiEuYmZmLnYxLkNvbXBsZXRlT0F1dGhGbG93UmVzcG9uc2UiBKC7GAFCMFouZ2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL2JmZi92MTtiZmZ2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_platform_v1_options]);
 
 /**
  * @generated from message bff.v1.Session
@@ -306,6 +306,45 @@ export const RevokeSessionResponseSchema: GenMessage<RevokeSessionResponse> = /*
   messageDesc(file_bff_v1_auth, 13);
 
 /**
+ * @generated from message bff.v1.DeleteAccountRequest
+ */
+export type DeleteAccountRequest = Message<"bff.v1.DeleteAccountRequest"> & {
+  /**
+   * Must be exactly "DELETE".
+   *
+   * @generated from field: string confirmation = 1;
+   */
+  confirmation: string;
+
+  /**
+   * Required for password accounts; ignored for OAuth-only accounts.
+   *
+   * @generated from field: string password = 2;
+   */
+  password: string;
+};
+
+/**
+ * Describes the message bff.v1.DeleteAccountRequest.
+ * Use `create(DeleteAccountRequestSchema)` to create a new message.
+ */
+export const DeleteAccountRequestSchema: GenMessage<DeleteAccountRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 14);
+
+/**
+ * @generated from message bff.v1.DeleteAccountResponse
+ */
+export type DeleteAccountResponse = Message<"bff.v1.DeleteAccountResponse"> & {
+};
+
+/**
+ * Describes the message bff.v1.DeleteAccountResponse.
+ * Use `create(DeleteAccountResponseSchema)` to create a new message.
+ */
+export const DeleteAccountResponseSchema: GenMessage<DeleteAccountResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 15);
+
+/**
  * @generated from message bff.v1.IssueCSRFTokenRequest
  */
 export type IssueCSRFTokenRequest = Message<"bff.v1.IssueCSRFTokenRequest"> & {
@@ -316,7 +355,7 @@ export type IssueCSRFTokenRequest = Message<"bff.v1.IssueCSRFTokenRequest"> & {
  * Use `create(IssueCSRFTokenRequestSchema)` to create a new message.
  */
 export const IssueCSRFTokenRequestSchema: GenMessage<IssueCSRFTokenRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 14);
+  messageDesc(file_bff_v1_auth, 16);
 
 /**
  * @generated from message bff.v1.IssueCSRFTokenResponse
@@ -333,7 +372,7 @@ export type IssueCSRFTokenResponse = Message<"bff.v1.IssueCSRFTokenResponse"> & 
  * Use `create(IssueCSRFTokenResponseSchema)` to create a new message.
  */
 export const IssueCSRFTokenResponseSchema: GenMessage<IssueCSRFTokenResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 15);
+  messageDesc(file_bff_v1_auth, 17);
 
 /**
  * @generated from message bff.v1.OAuthProvider
@@ -355,7 +394,7 @@ export type OAuthProvider = Message<"bff.v1.OAuthProvider"> & {
  * Use `create(OAuthProviderSchema)` to create a new message.
  */
 export const OAuthProviderSchema: GenMessage<OAuthProvider> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 16);
+  messageDesc(file_bff_v1_auth, 18);
 
 /**
  * @generated from message bff.v1.ListOAuthProvidersRequest
@@ -368,7 +407,7 @@ export type ListOAuthProvidersRequest = Message<"bff.v1.ListOAuthProvidersReques
  * Use `create(ListOAuthProvidersRequestSchema)` to create a new message.
  */
 export const ListOAuthProvidersRequestSchema: GenMessage<ListOAuthProvidersRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 17);
+  messageDesc(file_bff_v1_auth, 19);
 
 /**
  * @generated from message bff.v1.ListOAuthProvidersResponse
@@ -385,7 +424,7 @@ export type ListOAuthProvidersResponse = Message<"bff.v1.ListOAuthProvidersRespo
  * Use `create(ListOAuthProvidersResponseSchema)` to create a new message.
  */
 export const ListOAuthProvidersResponseSchema: GenMessage<ListOAuthProvidersResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 18);
+  messageDesc(file_bff_v1_auth, 20);
 
 /**
  * @generated from message bff.v1.BeginOAuthFlowRequest
@@ -402,7 +441,7 @@ export type BeginOAuthFlowRequest = Message<"bff.v1.BeginOAuthFlowRequest"> & {
  * Use `create(BeginOAuthFlowRequestSchema)` to create a new message.
  */
 export const BeginOAuthFlowRequestSchema: GenMessage<BeginOAuthFlowRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 19);
+  messageDesc(file_bff_v1_auth, 21);
 
 /**
  * @generated from message bff.v1.BeginOAuthFlowResponse
@@ -424,7 +463,7 @@ export type BeginOAuthFlowResponse = Message<"bff.v1.BeginOAuthFlowResponse"> & 
  * Use `create(BeginOAuthFlowResponseSchema)` to create a new message.
  */
 export const BeginOAuthFlowResponseSchema: GenMessage<BeginOAuthFlowResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 20);
+  messageDesc(file_bff_v1_auth, 22);
 
 /**
  * @generated from message bff.v1.CompleteOAuthFlowRequest
@@ -451,7 +490,7 @@ export type CompleteOAuthFlowRequest = Message<"bff.v1.CompleteOAuthFlowRequest"
  * Use `create(CompleteOAuthFlowRequestSchema)` to create a new message.
  */
 export const CompleteOAuthFlowRequestSchema: GenMessage<CompleteOAuthFlowRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 21);
+  messageDesc(file_bff_v1_auth, 23);
 
 /**
  * @generated from message bff.v1.CompleteOAuthFlowResponse
@@ -473,7 +512,7 @@ export type CompleteOAuthFlowResponse = Message<"bff.v1.CompleteOAuthFlowRespons
  * Use `create(CompleteOAuthFlowResponseSchema)` to create a new message.
  */
 export const CompleteOAuthFlowResponseSchema: GenMessage<CompleteOAuthFlowResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 22);
+  messageDesc(file_bff_v1_auth, 24);
 
 /**
  * AuthService handles password accounts and browser sessions (HttpOnly Cookie).
@@ -533,6 +572,16 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof RevokeSessionRequestSchema;
     output: typeof RevokeSessionResponseSchema;
+  },
+  /**
+   * DeleteAccount starts or retries account deletion for the signed-in session.
+   *
+   * @generated from rpc bff.v1.AuthService.DeleteAccount
+   */
+  deleteAccount: {
+    methodKind: "unary";
+    input: typeof DeleteAccountRequestSchema;
+    output: typeof DeleteAccountResponseSchema;
   },
   /**
    * IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.

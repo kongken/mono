@@ -42,7 +42,7 @@ func RunMediaMaintenance(ctx context.Context, st *Store, now time.Time) error {
 		if err != nil {
 			return err
 		}
-		if err = deleteMediaKeys(ctx, st, current); err != nil {
+		if err = DeleteMediaKeys(ctx, st, current); err != nil {
 			return err
 		}
 		// The independent queue still guards late staging PUTs after this row is removed.

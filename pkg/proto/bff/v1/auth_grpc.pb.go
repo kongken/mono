@@ -25,6 +25,7 @@ const (
 	AuthService_Me_FullMethodName                 = "/bff.v1.AuthService/Me"
 	AuthService_ListSessions_FullMethodName       = "/bff.v1.AuthService/ListSessions"
 	AuthService_RevokeSession_FullMethodName      = "/bff.v1.AuthService/RevokeSession"
+	AuthService_DeleteAccount_FullMethodName      = "/bff.v1.AuthService/DeleteAccount"
 	AuthService_IssueCSRFToken_FullMethodName     = "/bff.v1.AuthService/IssueCSRFToken"
 	AuthService_ListOAuthProviders_FullMethodName = "/bff.v1.AuthService/ListOAuthProviders"
 	AuthService_BeginOAuthFlow_FullMethodName     = "/bff.v1.AuthService/BeginOAuthFlow"
@@ -46,6 +47,8 @@ type AuthServiceClient interface {
 	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
 	// RevokeSession revokes one of the caller's own sessions.
 	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*RevokeSessionResponse, error)
+	// DeleteAccount starts or retries account deletion for the signed-in session.
+	DeleteAccount(ctx context.Context, in *DeleteAccountRequest, opts ...grpc.CallOption) (*DeleteAccountResponse, error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(ctx context.Context, in *IssueCSRFTokenRequest, opts ...grpc.CallOption) (*IssueCSRFTokenResponse, error)
 	ListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest, opts ...grpc.CallOption) (*ListOAuthProvidersResponse, error)
@@ -121,6 +124,16 @@ func (c *authServiceClient) RevokeSession(ctx context.Context, in *RevokeSession
 	return out, nil
 }
 
+func (c *authServiceClient) DeleteAccount(ctx context.Context, in *DeleteAccountRequest, opts ...grpc.CallOption) (*DeleteAccountResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteAccountResponse)
+	err := c.cc.Invoke(ctx, AuthService_DeleteAccount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) IssueCSRFToken(ctx context.Context, in *IssueCSRFTokenRequest, opts ...grpc.CallOption) (*IssueCSRFTokenResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(IssueCSRFTokenResponse)
@@ -176,6 +189,8 @@ type AuthServiceServer interface {
 	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
 	// RevokeSession revokes one of the caller's own sessions.
 	RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error)
+	// DeleteAccount starts or retries account deletion for the signed-in session.
+	DeleteAccount(context.Context, *DeleteAccountRequest) (*DeleteAccountResponse, error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error)
 	ListOAuthProviders(context.Context, *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error)
@@ -208,6 +223,9 @@ func (UnimplementedAuthServiceServer) ListSessions(context.Context, *ListSession
 }
 func (UnimplementedAuthServiceServer) RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RevokeSession not implemented")
+}
+func (UnimplementedAuthServiceServer) DeleteAccount(context.Context, *DeleteAccountRequest) (*DeleteAccountResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccount not implemented")
 }
 func (UnimplementedAuthServiceServer) IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IssueCSRFToken not implemented")
@@ -350,6 +368,24 @@ func _AuthService_RevokeSession_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_DeleteAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAccountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteAccount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_DeleteAccount_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteAccount(ctx, req.(*DeleteAccountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_IssueCSRFToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(IssueCSRFTokenRequest)
 	if err := dec(in); err != nil {
@@ -452,6 +488,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RevokeSession",
 			Handler:    _AuthService_RevokeSession_Handler,
+		},
+		{
+			MethodName: "DeleteAccount",
+			Handler:    _AuthService_DeleteAccount_Handler,
 		},
 		{
 			MethodName: "IssueCSRFToken",

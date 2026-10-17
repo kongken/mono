@@ -47,6 +47,9 @@ const (
 	// AuthServiceRevokeSessionProcedure is the fully-qualified name of the AuthService's RevokeSession
 	// RPC.
 	AuthServiceRevokeSessionProcedure = "/bff.v1.AuthService/RevokeSession"
+	// AuthServiceDeleteAccountProcedure is the fully-qualified name of the AuthService's DeleteAccount
+	// RPC.
+	AuthServiceDeleteAccountProcedure = "/bff.v1.AuthService/DeleteAccount"
 	// AuthServiceIssueCSRFTokenProcedure is the fully-qualified name of the AuthService's
 	// IssueCSRFToken RPC.
 	AuthServiceIssueCSRFTokenProcedure = "/bff.v1.AuthService/IssueCSRFToken"
@@ -71,6 +74,8 @@ type AuthServiceClient interface {
 	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
 	// RevokeSession revokes one of the caller's own sessions.
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
+	// DeleteAccount starts or retries account deletion for the signed-in session.
+	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
 	ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error)
@@ -125,6 +130,12 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("RevokeSession")),
 			connect.WithClientOptions(opts...),
 		),
+		deleteAccount: connect.NewClient[v1.DeleteAccountRequest, v1.DeleteAccountResponse](
+			httpClient,
+			baseURL+AuthServiceDeleteAccountProcedure,
+			connect.WithSchema(authServiceMethods.ByName("DeleteAccount")),
+			connect.WithClientOptions(opts...),
+		),
 		issueCSRFToken: connect.NewClient[v1.IssueCSRFTokenRequest, v1.IssueCSRFTokenResponse](
 			httpClient,
 			baseURL+AuthServiceIssueCSRFTokenProcedure,
@@ -160,6 +171,7 @@ type authServiceClient struct {
 	me                 *connect.Client[v1.MeRequest, v1.MeResponse]
 	listSessions       *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
 	revokeSession      *connect.Client[v1.RevokeSessionRequest, v1.RevokeSessionResponse]
+	deleteAccount      *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
 	issueCSRFToken     *connect.Client[v1.IssueCSRFTokenRequest, v1.IssueCSRFTokenResponse]
 	listOAuthProviders *connect.Client[v1.ListOAuthProvidersRequest, v1.ListOAuthProvidersResponse]
 	beginOAuthFlow     *connect.Client[v1.BeginOAuthFlowRequest, v1.BeginOAuthFlowResponse]
@@ -196,6 +208,11 @@ func (c *authServiceClient) RevokeSession(ctx context.Context, req *connect.Requ
 	return c.revokeSession.CallUnary(ctx, req)
 }
 
+// DeleteAccount calls bff.v1.AuthService.DeleteAccount.
+func (c *authServiceClient) DeleteAccount(ctx context.Context, req *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error) {
+	return c.deleteAccount.CallUnary(ctx, req)
+}
+
 // IssueCSRFToken calls bff.v1.AuthService.IssueCSRFToken.
 func (c *authServiceClient) IssueCSRFToken(ctx context.Context, req *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {
 	return c.issueCSRFToken.CallUnary(ctx, req)
@@ -226,6 +243,8 @@ type AuthServiceHandler interface {
 	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
 	// RevokeSession revokes one of the caller's own sessions.
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
+	// DeleteAccount starts or retries account deletion for the signed-in session.
+	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
 	ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error)
@@ -276,6 +295,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("RevokeSession")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceDeleteAccountHandler := connect.NewUnaryHandler(
+		AuthServiceDeleteAccountProcedure,
+		svc.DeleteAccount,
+		connect.WithSchema(authServiceMethods.ByName("DeleteAccount")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceIssueCSRFTokenHandler := connect.NewUnaryHandler(
 		AuthServiceIssueCSRFTokenProcedure,
 		svc.IssueCSRFToken,
@@ -314,6 +339,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceListSessionsHandler.ServeHTTP(w, r)
 		case AuthServiceRevokeSessionProcedure:
 			authServiceRevokeSessionHandler.ServeHTTP(w, r)
+		case AuthServiceDeleteAccountProcedure:
+			authServiceDeleteAccountHandler.ServeHTTP(w, r)
 		case AuthServiceIssueCSRFTokenProcedure:
 			authServiceIssueCSRFTokenHandler.ServeHTTP(w, r)
 		case AuthServiceListOAuthProvidersProcedure:
@@ -353,6 +380,10 @@ func (UnimplementedAuthServiceHandler) ListSessions(context.Context, *connect.Re
 
 func (UnimplementedAuthServiceHandler) RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.RevokeSession is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.DeleteAccount is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {
