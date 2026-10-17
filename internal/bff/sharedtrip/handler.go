@@ -2,30 +2,19 @@ package sharedtrip
 
 import (
 	"context"
-	"errors"
-	"net/http"
 
 	"connectrpc.com/connect"
-	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/bff/upstream"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 type Handler struct {
-	client         tripmapv1.CollaborationServiceClient
-	allowedOrigins []string
+	client tripmapv1.CollaborationServiceClient
 }
 
-func New(client tripmapv1.CollaborationServiceClient, allowedOrigins []string) *Handler {
-	return &Handler{client: client, allowedOrigins: allowedOrigins}
-}
-
-func (h *Handler) checkWrite(header http.Header) error {
-	if err := session.CheckWrite(header, h.allowedOrigins, header.Get("Host")); err != nil {
-		return connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	}
-	return nil
+func New(client tripmapv1.CollaborationServiceClient) *Handler {
+	return &Handler{client: client}
 }
 
 func (h *Handler) tripmap(ctx context.Context, req connect.AnyRequest) context.Context {
@@ -33,9 +22,6 @@ func (h *Handler) tripmap(ctx context.Context, req connect.AnyRequest) context.C
 }
 
 func (h *Handler) InviteToSharedTrip(ctx context.Context, req *connect.Request[bffv1.InviteToSharedTripRequest]) (*connect.Response[bffv1.InviteToSharedTripResponse], error) {
-	if err := h.checkWrite(req.Header()); err != nil {
-		return nil, err
-	}
 	in := req.Msg
 	out, err := h.client.InviteToSharedTrip(h.tripmap(ctx, req), &tripmapv1.InviteToSharedTripRequest{
 		RegionCode: in.GetRegionCode(), TripId: in.GetTripId(), FriendUserId: in.GetFriendUserId(), Role: in.GetRole(),
@@ -47,9 +33,6 @@ func (h *Handler) InviteToSharedTrip(ctx context.Context, req *connect.Request[b
 }
 
 func (h *Handler) RespondSharedTripInvite(ctx context.Context, req *connect.Request[bffv1.RespondSharedTripInviteRequest]) (*connect.Response[bffv1.RespondSharedTripInviteResponse], error) {
-	if err := h.checkWrite(req.Header()); err != nil {
-		return nil, err
-	}
 	out, err := h.client.RespondSharedTripInvite(h.tripmap(ctx, req), &tripmapv1.RespondSharedTripInviteRequest{
 		SharedTripId: req.Msg.GetSharedTripId(), Accept: req.Msg.GetAccept(),
 	})
@@ -62,9 +45,6 @@ func (h *Handler) RespondSharedTripInvite(ctx context.Context, req *connect.Requ
 }
 
 func (h *Handler) UpdateSharedTrip(ctx context.Context, req *connect.Request[bffv1.UpdateSharedTripRequest]) (*connect.Response[bffv1.UpdateSharedTripResponse], error) {
-	if err := h.checkWrite(req.Header()); err != nil {
-		return nil, err
-	}
 	in := req.Msg
 	out, err := h.client.UpdateSharedTrip(h.tripmap(ctx, req), &tripmapv1.UpdateSharedTripRequest{
 		SharedTripId: in.GetSharedTripId(), Date: in.GetDate(), Note: in.GetNote(), MutationId: in.GetMutationId(),
@@ -78,9 +58,6 @@ func (h *Handler) UpdateSharedTrip(ctx context.Context, req *connect.Request[bff
 }
 
 func (h *Handler) SetSharedTripMemberRole(ctx context.Context, req *connect.Request[bffv1.SetSharedTripMemberRoleRequest]) (*connect.Response[bffv1.SetSharedTripMemberRoleResponse], error) {
-	if err := h.checkWrite(req.Header()); err != nil {
-		return nil, err
-	}
 	in := req.Msg
 	out, err := h.client.SetSharedTripMemberRole(h.tripmap(ctx, req), &tripmapv1.SetSharedTripMemberRoleRequest{
 		SharedTripId: in.GetSharedTripId(), MemberUserId: in.GetMemberUserId(), Role: in.GetRole(),
@@ -92,9 +69,6 @@ func (h *Handler) SetSharedTripMemberRole(ctx context.Context, req *connect.Requ
 }
 
 func (h *Handler) RemoveSharedTripMember(ctx context.Context, req *connect.Request[bffv1.RemoveSharedTripMemberRequest]) (*connect.Response[bffv1.RemoveSharedTripMemberResponse], error) {
-	if err := h.checkWrite(req.Header()); err != nil {
-		return nil, err
-	}
 	in := req.Msg
 	out, err := h.client.RemoveSharedTripMember(h.tripmap(ctx, req), &tripmapv1.RemoveSharedTripMemberRequest{
 		SharedTripId: in.GetSharedTripId(), MemberUserId: in.GetMemberUserId(),
@@ -106,9 +80,6 @@ func (h *Handler) RemoveSharedTripMember(ctx context.Context, req *connect.Reque
 }
 
 func (h *Handler) LeaveSharedTrip(ctx context.Context, req *connect.Request[bffv1.LeaveSharedTripRequest]) (*connect.Response[bffv1.LeaveSharedTripResponse], error) {
-	if err := h.checkWrite(req.Header()); err != nil {
-		return nil, err
-	}
 	out, err := h.client.LeaveSharedTrip(h.tripmap(ctx, req), &tripmapv1.LeaveSharedTripRequest{SharedTripId: req.Msg.GetSharedTripId()})
 	if err != nil {
 		return nil, upstream.ToConnect("tripmap", err)
@@ -117,9 +88,6 @@ func (h *Handler) LeaveSharedTrip(ctx context.Context, req *connect.Request[bffv
 }
 
 func (h *Handler) DeleteSharedTrip(ctx context.Context, req *connect.Request[bffv1.DeleteSharedTripRequest]) (*connect.Response[bffv1.DeleteSharedTripResponse], error) {
-	if err := h.checkWrite(req.Header()); err != nil {
-		return nil, err
-	}
 	if _, err := h.client.DeleteSharedTrip(h.tripmap(ctx, req), &tripmapv1.DeleteSharedTripRequest{SharedTripId: req.Msg.GetSharedTripId()}); err != nil {
 		return nil, upstream.ToConnect("tripmap", err)
 	}

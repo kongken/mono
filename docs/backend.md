@@ -19,8 +19,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
 | `internal/tripmap/application/` | 内部 gRPC 与测试用 Connect harness：`FootprintService`、`SnapshotService`、`MediaService`、`CollaborationService`、`ReportService`、`SearchService`、`NotificationService`、`AccountCleanupService` 等；HTTP 仅 `/ping`、`/readyz`（分享/退订公开页在 BFF） |
-| `internal/bff/auth/`、`internal/bff/oauth/` | BFF 会话、凭据与 OAuth（GitHub、Google、Logto/PKCE） |
-| `internal/bff/oauth/` | BFF OAuth state（Redis）与 `provider/`（GitHub、Google、Logto/PKCE） |
+| `internal/bff/auth/`、`internal/bff/oauth/` | BFF 会话、凭据与 OAuth state（Redis）及 `provider/`（GitHub、Google、Logto/PKCE） |
 | `internal/tripmap/share/` | F6：公开内容白名单与快照构建、统计、预览图渲染（纯 Go）、HTML 元数据注入、受信任 index.html 获取；`assets/` 含预览几何和 Noto Sans SC 子集 |
 | `internal/tripmap/report/` | F8：统计总览、按时区计算的年度报告、8 项旅行成就及可追溯记录引用计算（与前端 `apps/web/src/lib/report.ts` 共用 `packages/fixtures/report-stats.json` 测试夹具） |
 | `internal/tripmap/notification/` | F12：提醒内容规则（回忆匹配、年度窗口、文案）、退订令牌签名、SMTP 发送、Web Push 发送与 SSRF 防护（纯 Go，可单独测试） |
@@ -219,12 +218,19 @@ curl --fail http://127.0.0.1:18081/api/bff.v1.StatusService/GetStatus \
 **保留与定时（默认值，常量在 `internal/tripmap/application/snapshot_service.go`）。** 保留 30 天、始终保留最新 10 个、每账号最多 50 个，每次保存快照时对该账号执行，恢复期间不会清理正在恢复的快照；快照间隔 24 小时。`app.go` 的每小时维护任务在 Redis 锁 `tripmap:snapshot-maintenance`（50 分钟）保护下调用 `RunSnapshotMaintenance`：为“有足迹、自最新快照后有改动、且 24 小时内没有任何快照”的账号保存 `scheduled` 快照（在用户行锁内再次判断，多实例或重复运行不会产生重复），并对不再变化账号的过期快照执行保留规则。账号注销通过外键级联删除全部快照。
 
 ```bash
-# 用 curl 体验（令牌来自 Register 或 Login 的响应）
-curl -s http://127.0.0.1:18081/api/tripmap.v1.AuthService/Register \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"demo","password":"correct horse battery"}'
-curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
-  -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" -d '{}'
+# 用 curl 体验 BFF Cookie + CSRF（需 Cookie 罐；写操作还要 Origin 或 Sec-Fetch-Site: same-origin）
+JAR=$(mktemp)
+ORIGIN=http://127.0.0.1:18081
+curl -s -c "$JAR" -b "$JAR" "$ORIGIN/api/bff.v1.AuthService/IssueCSRFToken" \
+  -H 'Content-Type: application/json' -H 'Connect-Protocol-Version: 1' -d '{}'
+CSRF=$(grep shanhai_csrf "$JAR" | awk '{print $7}')
+curl -s -c "$JAR" -b "$JAR" "$ORIGIN/api/bff.v1.AuthService/Register" \
+  -H 'Content-Type: application/json' -H 'Connect-Protocol-Version: 1' \
+  -H "Origin: $ORIGIN" -H "X-CSRF-Token: $CSRF" \
+  -d '{"username":"demo","password":"correcthorse","displayName":"Demo"}'
+curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
+  -H 'Content-Type: application/json' -H 'Connect-Protocol-Version: 1' \
+  -H 'X-Tripmap-Schema: 2' -d '{}'
 ```
 
 ## F6 公开分享（`bff.v1.ShareService` / `tripmap.v1.ShareService` gRPC）
@@ -261,7 +267,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 **公网（#37–#38）：** 浏览器经 BFF `bff.v1.FriendService` 调用好友 RPC、`bff.v1.SharedTripService` 调用共同旅行与共享媒体 RPC（`internal/bff/friends/`、`internal/bff/sharedtrip/` → tripmap gRPC `CollaborationService`）。**内网：** 完整 `CollaborationService` 仅在 tripmap gRPC 注册（`CollaborationGRPC`）；tripmap HTTP 不再挂载 `CollaborationService` Connect。
 
-所有方法均要求登录；gRPC 路径从 BFF 签发的内部凭证取得用户 ID（`rpcauth.UserIDFrom`），Connect 代理路径仍用 Bearer 会话。用户可见规则与验收场景见 [功能描述](features.md#共同旅行与好友f7)。
+所有方法均要求登录；tripmap 仅从 BFF 签发的内部凭证取得用户 ID（`rpcauth.UserIDFrom`）。浏览器经 BFF Cookie 会话调用 `bff.v1.FriendService` / `bff.v1.SharedTripService`。用户可见规则与验收场景见 [功能描述](features.md#共同旅行与好友f7)。
 
 | 方法 | 行为 |
 | --- | --- |
@@ -461,7 +467,7 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 ## F1 新接口与部署
 
 - **浏览器注销（#43，BFF）：** `bff.v1.AuthService/DeleteAccount` 请求 `confirmation: "DELETE"` 与密码账号的 `password`；OAuth 账号要求最近 15 分钟内创建的 BFF 会话。BFF 暂停账号、撤销其他会话后调用内部 gRPC `tripmap.v1.AccountCleanupService/CleanupUserData`（不暴露为浏览器方法）清理 S3 与 tripmap 元数据，再删除 BFF 认证行与 `account_deletion_receipts` 完成回执（24h）。注销中 BFF 仅允许 Me、Logout、DeleteAccount；`User.deletion_pending` 在 Me 中返回。完成回执凭 Cookie 令牌哈希重试，不依赖已删除的会话行。
-- **tripmap 旧 Connect `AuthService.DeleteAccount`：** 仍供 `internal/tripmap/application` 集成测试与透明网关上的 Bearer 客户端；目标架构下浏览器改走 BFF（#44 移除 tripmap 公网 Auth 与 Bearer）。
+- **浏览器账号与注销** 仅经 BFF `bff.v1.AuthService`；tripmap 不提供公网 Auth Connect，内部 `AccountCleanupService` 供 BFF 注销编排调用。
 - `FootprintService.GetChanges`：参数 `since_revision` / `limit`，返回有序 `changes`、`next_revision`、`current_revision`、`has_more` 与 `resync_required`。
 - `FootprintService.SyncChanges`：参数 `mutation_id`、`base_revision` 和 1–2000 条 oneof 变更（F5 前为 600；上限容纳一次完整迁移：497 个城市、每城市多次旅行与 34 个省份标记，更大的改动由客户端拆成连续批次）。变更为旧版 `upsert_visit`（城市加 `legacy-<区域 ID>` 旅行）、`delete_visit`（连同旅行）、`upsert_mark`、`delete_mark` 以及 F5 新增的 `upsert_city`（只改城市字段）、`upsert_trip`（城市必须已存在，在账号中或在同一批次更早的位置）、`delete_trip`。旅行的所属城市不可更改。全批原子处理，冲突返回 ABORTED；同一 ID 相同内容返回原结果，复用 ID 提交不同内容返回 ALREADY_EXISTS。日志、revision、回执与记录在同一事务提交。
 

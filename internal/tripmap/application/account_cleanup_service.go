@@ -23,12 +23,11 @@ func NewAccountCleanupService(src StoreSource) *AccountCleanupService {
 }
 
 func (s *AccountCleanupService) CleanupUserData(ctx context.Context, req *tripmapv1.CleanupUserDataRequest) (*tripmapv1.CleanupUserDataResponse, error) {
-	userID := strings.TrimSpace(req.GetUserId())
-	if userID == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id required")
+	userID, ok := rpcauth.UserIDFrom(ctx)
+	if !ok || userID == "" {
+		return nil, status.Error(codes.Unauthenticated, "sign in required")
 	}
-	caller, ok := rpcauth.UserIDFrom(ctx)
-	if !ok || caller != userID {
+	if other := strings.TrimSpace(req.GetUserId()); other != "" && other != userID {
 		return nil, status.Error(codes.PermissionDenied, "user mismatch")
 	}
 	st, err := storeFrom(s.src)

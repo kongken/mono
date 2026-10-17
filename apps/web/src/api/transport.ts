@@ -17,6 +17,9 @@ const schemaHeaders: Interceptor = (next) => (req) => {
   req.header.set(REGION_HEADER, REGION_VERSION);
   const csrf = csrfHeader();
   if (csrf) req.header.set("X-CSRF-Token", csrf);
+  if (typeof window !== "undefined") {
+    req.header.set("Origin", window.location.origin);
+  }
   return next(req);
 };
 

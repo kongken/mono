@@ -44,7 +44,8 @@ func TestSharePublishAndPublicPageViaBFFChain(t *testing.T) {
 		MutationId: "pub-1", Settings: &bffv1.ShareSettings{Visibility: "link"},
 		RefreshContent: true, PreviewRevision: prev.Msg.GetFootprintRevision(),
 	})
-	b.withTripmapHeaders(saveReq)
+	csrf := b.refreshCSRF(ctx)
+	b.writeHeaders(saveReq, csrf, b.Origin)
 	saved, err := share.SaveShare(ctx, saveReq)
 	if err != nil || !saved.Msg.GetShare().GetPublished() || saved.Msg.GetShare().GetUrl() == "" {
 		t.Fatalf("save share: err=%v published=%v url=%q", err, saved.Msg.GetShare().GetPublished(), saved.Msg.GetShare().GetUrl())
@@ -70,7 +71,8 @@ func TestSharePublishAndPublicPageViaBFFChain(t *testing.T) {
 		t.Fatalf("public data: %d %s", data.StatusCode, dataBody)
 	}
 	revReq := connect.NewRequest(&bffv1.RevokeShareRequest{MutationId: "rev-1"})
-	b.withTripmapHeaders(revReq)
+	csrf = b.refreshCSRF(ctx)
+	b.writeHeaders(revReq, csrf, b.Origin)
 	if _, err := share.RevokeShare(ctx, revReq); err != nil {
 		t.Fatal(err)
 	}

@@ -42,18 +42,16 @@
 
 ## 路由
 
-路由表在 `internal/bff/gateway/services.go`，每个业务登记三类信息：
+`internal/bff/gateway/services.go` 只登记**上游业务服务名**与是否经 gRPC 调用（当前 tripmap：`GRPC: true`），供 `upstreams` 健康探测与 `grpc.services` 配置对齐；**不再**按 proto 包名透明转发 HTTP。
 
-| 字段 | 含义 | tripmap |
+| 入口 | 登记位置 | 说明 |
 | --- | --- | --- |
-| `GRPC` | 该服务的已迁移过程经内部 gRPC 调用，需要 `grpc.services` 与 `internal_auth` 配置 | `true` |
-| `Packages` | Connect 过程 `/api/<包名>.<服务>/<方法>` 按包名转发 | `tripmap.v1` |
-| `Routes` | 其他 HTTP 路径：精确匹配，或以 `/` 结尾时按前缀匹配，最长者优先；携带凭据的路径填写 `Trace` | 分享与退订由 BFF `publichttp` 登记，不经透明网关 |
-| `Headers` | 浏览器客户端额外发送、需要跨域放行的请求头 | `X-Tripmap-Schema`、`X-Tripmap-Regions` |
+| `/ping`、`/readyz` | `internal/bff/app/app.go` | BFF 自身与依赖就绪 |
+| `/api/bff.v1.<Service>/<Method>` | `app.go` `publicAPI` + `bffv1connect.New*Handler` | 浏览器 Connect RPC；`NoRoute` 下前缀 `/api/bff.v1.` 进入此 mux |
+| `/s/…`、`/api/share/…`、`/api/notifications/unsubscribe` | `app.go` `mountPublicHTTP` + `internal/bff/publichttp` | 分享页/数据/预览图、邮件退订；凭分享或退订令牌，不用 Cookie CSRF |
+| 其他路径 | `NoRoute` | **404**（含旧 `/api/tripmap.v1.*`） |
 
-- 未登记的路径和不规范路径（含 `..`、`//`）返回 404，不转发。
-- 转发保留方法、路径、查询串、请求体（流式，不缓冲）、`Host` 及其余请求头；`Forwarded` / `X-Forwarded-*` 原样传递。
-- 服务不可达返回 502。日志只记录服务名和连接错误，不记录可能含令牌的 URL。
+- 不规范路径（含 `..`、`//`）在 BFF 层拒绝或 404。
 - BFF Connect 读上限 16 MiB；边缘 Nginx 20 MiB；内部 gRPC 默认 20 MiB（见 [部署与发布](deployment.md#请求体大小)）。
 
 ## 公网 Connect 入口（`bff.v1`）
@@ -63,9 +61,10 @@
 - **只接受 Connect**：仅 `POST`，`Content-Type` 必须是 `application/json` 或 `application/proto`（可带 charset），否则返回 405 / 415（`Accept-Post` 列出可用类型）。gRPC、gRPC-Web 与 Connect 流式帧都在到达处理器前被拒绝。处理器还要求 `Connect-Protocol-Version: 1`，缺失或不是 `1` 返回 400。
 - **路径**：未知方法或服务、多余路径段、含 `..` 或 `//` 的路径一律 404，不会落入通用转发。
 - **匿名策略**：由 proto 方法选项 `platform.v1.anonymous` 声明（`proto/platform/v1/options.proto`）；**默认受保护**，未知过程也受保护。BFF 的拦截器和 tripmap 的拦截器各自独立执行同一规则。匿名方法不使用浏览器会话，调用内部服务时不带用户 ID。
+- **写操作防护**：除 `internal/bff/ingress/write_policy.go` 列出的只读 RPC 外，所有 `bff.v1` 过程在 ingress 统一校验 CSRF 双提交与同源（`Origin`、配置的 `cors_allowed_origins`、或与 `Host` 匹配的 Origin，或在缺少 `Origin` 时浏览器的 `Sec-Fetch-Site: same-origin`）。`IssueCSRFToken` 与各类 GET 式读 RPC 豁免；公开 HTTP 路由使用领域令牌而非 CSRF。
 - **期限与取消**：普通过程上限 10 秒；上传等重任务上限 25 秒，需在 `ingress.Policy.Heavy` 中显式登记（已登记 `FootprintService/SyncChanges`）。实际期限取客户端剩余期限（`Connect-Timeout-Ms`）与上限的较小值，在 BFF 设置一次并通过 gRPC 期限传给业务服务；客户端取消会传播到服务，服务端处理随之停止。不做任何自动重试。
 - **请求 ID**：读取 `X-Request-Id`，仅当匹配 `^[A-Za-z0-9._-]{1,64}$` 时沿用，否则替换为随机 32 位十六进制；响应（含错误）回写该头，并作为内部 metadata 下传。
-- **客户端地址**：与透明网关相同，按 `client_ip_header`（受信反向代理写入的头）解析，未设置时用 TCP 对端；客户端自带的 `X-Bff-Client-Ip` 之类的头不会被读取。
+- **客户端地址**：按 `client_ip_header`（受信反向代理写入的头）解析，未设置时用 TCP 对端；客户端自带的 `X-Bff-Client-Ip` 之类的头不会被读取。
 - **错误**：业务服务的错误消息不原样返回；`NOT_FOUND`、`PERMISSION_DENIED`、`INVALID_ARGUMENT`、`RESOURCE_EXHAUSTED` 等用户可见域错误按同名 Connect 码返回；`UNAVAILABLE`、`DEADLINE_EXCEEDED`、`CANCELED` 同理。BFF 凭证被拒（tripmap 返回的 `UNAUTHENTICATED`）与 `INTERNAL` 等服务端故障统一为 `INTERNAL: internal error`。tripmap 不可达时返回 `UNAVAILABLE`。
 - **跨域**：与 `/api/` 其他路径一样由 BFF 按 `cors_allowed_origins` 应答。
 

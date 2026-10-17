@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"time"
 
@@ -26,9 +25,6 @@ func NewHandler(svc *Service, allowedOrigins []string, csrfTTL time.Duration) *H
 }
 
 func (h *Handler) Register(ctx context.Context, req *connect.Request[bffv1.RegisterRequest]) (*connect.Response[bffv1.RegisterResponse], error) {
-	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	}
 	msg, expires, token, err := h.svc.Register(ctx, httpx.ClientAddr("", req.Header(), req.Peer().Addr), req.Msg)
 	if err != nil {
 		return nil, err
@@ -39,9 +35,6 @@ func (h *Handler) Register(ctx context.Context, req *connect.Request[bffv1.Regis
 }
 
 func (h *Handler) Login(ctx context.Context, req *connect.Request[bffv1.LoginRequest]) (*connect.Response[bffv1.LoginResponse], error) {
-	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	}
 	msg, expires, token, err := h.svc.Login(ctx, httpx.ClientAddr("", req.Header(), req.Peer().Addr), req.Msg)
 	if err != nil {
 		return nil, err
@@ -52,9 +45,6 @@ func (h *Handler) Login(ctx context.Context, req *connect.Request[bffv1.LoginReq
 }
 
 func (h *Handler) Logout(ctx context.Context, req *connect.Request[bffv1.LogoutRequest]) (*connect.Response[bffv1.LogoutResponse], error) {
-	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	}
 	bs, ok := session.FromBrowser(ctx)
 	if !ok {
 		return nil, errUnauth
@@ -68,9 +58,6 @@ func (h *Handler) Logout(ctx context.Context, req *connect.Request[bffv1.LogoutR
 }
 
 func (h *Handler) DeleteAccount(ctx context.Context, req *connect.Request[bffv1.DeleteAccountRequest]) (*connect.Response[bffv1.DeleteAccountResponse], error) {
-	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	}
 	token := session.TokenFromRequest(req.Header())
 	if h.svc.CompletionReceiptValid(ctx, token) {
 		res := connect.NewResponse(&bffv1.DeleteAccountResponse{})
@@ -114,9 +101,6 @@ func (h *Handler) ListSessions(ctx context.Context, _ *connect.Request[bffv1.Lis
 }
 
 func (h *Handler) RevokeSession(ctx context.Context, req *connect.Request[bffv1.RevokeSessionRequest]) (*connect.Response[bffv1.RevokeSessionResponse], error) {
-	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	}
 	bs, ok := session.FromBrowser(ctx)
 	if !ok {
 		return nil, errUnauth
@@ -136,9 +120,6 @@ func (h *Handler) ListOAuthProviders(ctx context.Context, _ *connect.Request[bff
 }
 
 func (h *Handler) BeginOAuthFlow(ctx context.Context, req *connect.Request[bffv1.BeginOAuthFlowRequest]) (*connect.Response[bffv1.BeginOAuthFlowResponse], error) {
-	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	}
 	msg, err := h.svc.BeginOAuthFlow(ctx, httpx.ClientAddr("", req.Header(), req.Peer().Addr), req.Msg)
 	if err != nil {
 		return nil, err
@@ -147,9 +128,6 @@ func (h *Handler) BeginOAuthFlow(ctx context.Context, req *connect.Request[bffv1
 }
 
 func (h *Handler) CompleteOAuthFlow(ctx context.Context, req *connect.Request[bffv1.CompleteOAuthFlowRequest]) (*connect.Response[bffv1.CompleteOAuthFlowResponse], error) {
-	if err := session.CheckWrite(req.Header(), h.allowedOrigins, req.Header().Get("Host")); err != nil {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	}
 	msg, expires, token, err := h.svc.CompleteOAuthFlow(ctx, httpx.ClientAddr("", req.Header(), req.Peer().Addr), req.Msg)
 	if err != nil {
 		return nil, err

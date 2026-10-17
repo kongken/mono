@@ -2,30 +2,19 @@ package friends
 
 import (
 	"context"
-	"errors"
-	"net/http"
 
 	"connectrpc.com/connect"
-	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/bff/upstream"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 type Handler struct {
-	client         tripmapv1.CollaborationServiceClient
-	allowedOrigins []string
+	client tripmapv1.CollaborationServiceClient
 }
 
-func New(client tripmapv1.CollaborationServiceClient, allowedOrigins []string) *Handler {
-	return &Handler{client: client, allowedOrigins: allowedOrigins}
-}
-
-func (h *Handler) checkWrite(header http.Header) error {
-	if err := session.CheckWrite(header, h.allowedOrigins, header.Get("Host")); err != nil {
-		return connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	}
-	return nil
+func New(client tripmapv1.CollaborationServiceClient) *Handler {
+	return &Handler{client: client}
 }
 
 func (h *Handler) GetCollaborationOverview(ctx context.Context, req *connect.Request[bffv1.GetCollaborationOverviewRequest]) (*connect.Response[bffv1.GetCollaborationOverviewResponse], error) {
@@ -38,9 +27,6 @@ func (h *Handler) GetCollaborationOverview(ctx context.Context, req *connect.Req
 }
 
 func (h *Handler) UpdateFriendSettings(ctx context.Context, req *connect.Request[bffv1.UpdateFriendSettingsRequest]) (*connect.Response[bffv1.UpdateFriendSettingsResponse], error) {
-	if err := h.checkWrite(req.Header()); err != nil {
-		return nil, err
-	}
 	ctx = upstream.WithTripmapHeaders(ctx, req.Header())
 	in := req.Msg.GetSettings()
 	out, err := h.client.UpdateFriendSettings(ctx, &tripmapv1.UpdateFriendSettingsRequest{
@@ -55,9 +41,6 @@ func (h *Handler) UpdateFriendSettings(ctx context.Context, req *connect.Request
 }
 
 func (h *Handler) SendFriendRequest(ctx context.Context, req *connect.Request[bffv1.SendFriendRequestRequest]) (*connect.Response[bffv1.SendFriendRequestResponse], error) {
-	if err := h.checkWrite(req.Header()); err != nil {
-		return nil, err
-	}
 	ctx = upstream.WithTripmapHeaders(ctx, req.Header())
 	out, err := h.client.SendFriendRequest(ctx, &tripmapv1.SendFriendRequestRequest{Target: req.Msg.GetTarget()})
 	if err != nil {
@@ -67,9 +50,6 @@ func (h *Handler) SendFriendRequest(ctx context.Context, req *connect.Request[bf
 }
 
 func (h *Handler) RespondFriendRequest(ctx context.Context, req *connect.Request[bffv1.RespondFriendRequestRequest]) (*connect.Response[bffv1.RespondFriendRequestResponse], error) {
-	if err := h.checkWrite(req.Header()); err != nil {
-		return nil, err
-	}
 	ctx = upstream.WithTripmapHeaders(ctx, req.Header())
 	out, err := h.client.RespondFriendRequest(ctx, &tripmapv1.RespondFriendRequestRequest{
 		FriendshipId: req.Msg.GetFriendshipId(), Accept: req.Msg.GetAccept(),
@@ -81,9 +61,6 @@ func (h *Handler) RespondFriendRequest(ctx context.Context, req *connect.Request
 }
 
 func (h *Handler) RemoveFriend(ctx context.Context, req *connect.Request[bffv1.RemoveFriendRequest]) (*connect.Response[bffv1.RemoveFriendResponse], error) {
-	if err := h.checkWrite(req.Header()); err != nil {
-		return nil, err
-	}
 	ctx = upstream.WithTripmapHeaders(ctx, req.Header())
 	if _, err := h.client.RemoveFriend(ctx, &tripmapv1.RemoveFriendRequest{FriendshipId: req.Msg.GetFriendshipId()}); err != nil {
 		return nil, upstream.ToConnect("tripmap", err)
@@ -99,6 +76,8 @@ func (h *Handler) GetFriendFootprints(ctx context.Context, req *connect.Request[
 	}
 	return connect.NewResponse(mapFriendFootprints(out)), nil
 }
+
+// map helpers unchanged below
 
 func mapOverview(in *tripmapv1.GetCollaborationOverviewResponse) *bffv1.GetCollaborationOverviewResponse {
 	out := &bffv1.GetCollaborationOverviewResponse{

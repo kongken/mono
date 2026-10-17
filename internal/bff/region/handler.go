@@ -2,30 +2,19 @@ package region
 
 import (
 	"context"
-	"errors"
-	"net/http"
 
 	"connectrpc.com/connect"
-	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/bff/upstream"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
 type Handler struct {
-	client         tripmapv1.RegionServiceClient
-	allowedOrigins []string
+	client tripmapv1.RegionServiceClient
 }
 
-func New(client tripmapv1.RegionServiceClient, allowedOrigins []string) *Handler {
-	return &Handler{client: client, allowedOrigins: allowedOrigins}
-}
-
-func (h *Handler) checkWrite(header http.Header) error {
-	if err := session.CheckWrite(header, h.allowedOrigins, header.Get("Host")); err != nil {
-		return connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	}
-	return nil
+func New(client tripmapv1.RegionServiceClient) *Handler {
+	return &Handler{client: client}
 }
 
 func (h *Handler) GetRegionIndex(ctx context.Context, req *connect.Request[bffv1.GetRegionIndexRequest]) (*connect.Response[bffv1.GetRegionIndexResponse], error) {
@@ -47,9 +36,6 @@ func (h *Handler) PreviewRegionUpgrade(ctx context.Context, req *connect.Request
 }
 
 func (h *Handler) ApplyRegionUpgrade(ctx context.Context, req *connect.Request[bffv1.ApplyRegionUpgradeRequest]) (*connect.Response[bffv1.ApplyRegionUpgradeResponse], error) {
-	if err := h.checkWrite(req.Header()); err != nil {
-		return nil, err
-	}
 	ctx = upstream.WithTripmapHeaders(ctx, req.Header())
 	in := req.Msg
 	out, err := h.client.ApplyRegionUpgrade(ctx, &tripmapv1.ApplyRegionUpgradeRequest{

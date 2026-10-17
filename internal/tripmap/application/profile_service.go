@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	"google.golang.org/grpc/codes"
@@ -21,9 +22,12 @@ type ProfileService struct {
 func NewProfileService(src StoreSource) *ProfileService { return &ProfileService{src: src} }
 
 func (s *ProfileService) EnsureProfile(ctx context.Context, req *tripmapv1.EnsureProfileRequest) (*tripmapv1.EnsureProfileResponse, error) {
-	userID := strings.TrimSpace(req.GetUserId())
-	if userID == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id required")
+	userID, ok := rpcauth.UserIDFrom(ctx)
+	if !ok || userID == "" {
+		return nil, status.Error(codes.Unauthenticated, "sign in required")
+	}
+	if other := strings.TrimSpace(req.GetUserId()); other != "" && other != userID {
+		return nil, status.Error(codes.PermissionDenied, "user mismatch")
 	}
 	st, err := storeFrom(s.src)
 	if err != nil {

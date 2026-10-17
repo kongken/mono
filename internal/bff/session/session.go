@@ -113,23 +113,30 @@ func CSRFValid(h http.Header) bool {
 
 var ErrCSRF = errors.New("invalid or missing csrf token")
 
-// CheckWrite validates Origin (when present) and CSRF for state-changing calls.
+// CheckWrite validates CSRF and that the call looks same-origin (Origin header,
+// configured allowlist, Host match, or Sec-Fetch-Site: same-origin from browsers).
 func CheckWrite(h http.Header, allowedOrigins []string, host string) error {
 	if !CSRFValid(h) {
 		return ErrCSRF
 	}
-	origin := strings.TrimSpace(h.Get("Origin"))
-	if origin == "" {
-		return nil
-	}
-	for _, o := range allowedOrigins {
-		if o == origin {
-			return nil
-		}
-	}
-	// Same-origin Connect calls from the dev proxy often omit Origin; allow when Host matches.
-	if host != "" && (strings.HasPrefix(origin, "http://"+host) || strings.HasPrefix(origin, "https://"+host)) {
+	if originAllowed(h, allowedOrigins, host) {
 		return nil
 	}
 	return errors.New("origin not allowed")
+}
+
+func originAllowed(h http.Header, allowedOrigins []string, host string) bool {
+	origin := strings.TrimSpace(h.Get("Origin"))
+	if origin != "" {
+		for _, o := range allowedOrigins {
+			if o == origin {
+				return true
+			}
+		}
+		if host != "" && (strings.HasPrefix(origin, "http://"+host) || strings.HasPrefix(origin, "https://"+host)) {
+			return true
+		}
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(h.Get("Sec-Fetch-Site")), "same-origin")
 }
