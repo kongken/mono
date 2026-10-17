@@ -42,6 +42,7 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 			collab := application.NewCollaborationService(h, idx)
 			tripmapv1.RegisterCollaborationServiceServer(r, application.CollaborationGRPC(collab))
 			tripmapv1.RegisterMediaServiceServer(r, application.MediaGRPC(application.NewMediaService(h, idx)))
+			tripmapv1.RegisterRegionServiceServer(r, application.RegionGRPC(application.NewRegionService(h, idx)))
 			tripmapv1.RegisterAccountCleanupServiceServer(r, application.NewAccountCleanupService(h))
 			tripmapv1.RegisterSnapshotServiceServer(r, application.SnapshotGRPC(application.NewSnapshotService(h.cfg, h, idx)))
 			report := application.NewReportService(h, idx)

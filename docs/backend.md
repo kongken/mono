@@ -313,9 +313,9 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 区域拼音搜索由 `packages/geo-data/data/search-index.json` 在前端离线完成，不调用后端。部署新增 RPC 时先升级后端再部署前端；旧后端没有接口时备注搜索会提示并回退本机缓存。
 
-## F10 区域数据服务（`tripmap.v1.RegionService`）
+## F10 区域数据服务（`bff.v1.RegionService` → `tripmap.v1.RegionService`）
 
-所有方法须认证，只迁移当前会话用户的数据，区域索引本身不含私有足迹。使用与足迹校验同一 `internal/tripmap/regions.Index`，版本和映射由前后端共用生成流程维护，详见 [数据与地图说明](data-and-maps.md#区域索引版本与维护f10)。不新增表、列或数据库迁移。
+浏览器经 BFF 调用 `proto/bff/v1/region.proto`；BFF 适配 tripmap 内部 gRPC（`internal/bff/region/` → `internal/tripmap/application/region_grpc.go`）。业务契约仍为 `proto/tripmap/v1/regions.proto`，实现在 `internal/tripmap/application/region_service.go`。所有方法须认证（BFF Cookie + 内部凭证），只迁移当前会话用户的数据，区域索引本身不含私有足迹。使用与足迹校验同一 `internal/tripmap/regions.Index`，版本和映射由前后端共用生成流程维护，详见 [数据与地图说明](data-and-maps.md#区域索引版本与维护f10)。不新增表、列或数据库迁移。
 
 | 方法 | 行为 |
 | --- | --- |
@@ -457,7 +457,7 @@ make test-integration
 
 PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除，以及版本化迁移的升级校验（见上文“版本化数据库迁移”）。
 
-`internal/e2e/` 提供 **`ChainHarness`**（`chain_harness_test.go`）：在设置 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 时启动真实 BFF（独立 schema + Redis 前缀）→ TLS gRPC → 真实 tripmap（独立 schema），经 httptest 暴露 BFF 公网 URL。`FreshBrowser()` 返回带 cookie jar 的 **`Browser`**，自动处理 CSRF（`IssueCSRFToken` + `X-CSRF-Token`）与足迹读所需的 `X-Tripmap-Schema` / `X-Tripmap-Regions`；`Register` / `Login` / `Me` / `Logout` / 足迹读与 sync（`GetFootprints`、`GetChanges`、`SyncChanges`）走 Connect 公共客户端；`sessions_chain_test.go` 覆盖 `ListSessions`/`RevokeSession`；`notification_test.go` 覆盖 `bff.v1.NotificationService` 与 BFF 公开退订 HTTP；`snapshot_chain_test.go` 覆盖快照创建、去重、恢复、幂等重放与用户隔离；`media_chain_test.go` 覆盖 `bff.v1.MediaService` 预留/确认/读/删与用户隔离（内存 blob，非真实 S3）；`report_chain_test.go` 覆盖 `bff.v1.ReportService` / `SearchService` 与用户隔离。后续 ticket 只追加场景测试，复用该 harness。运行：`go test ./internal/e2e/ -count=1`（与 `make test-integration` 同一套 PG/Redis 环境；无需 S3，默认 noop blob，媒体场景可注入 `chainMediaBlobs`）。
+`internal/e2e/` 提供 **`ChainHarness`**（`chain_harness_test.go`）：在设置 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 时启动真实 BFF（独立 schema + Redis 前缀）→ TLS gRPC → 真实 tripmap（独立 schema），经 httptest 暴露 BFF 公网 URL。`FreshBrowser()` 返回带 cookie jar 的 **`Browser`**，自动处理 CSRF（`IssueCSRFToken` + `X-CSRF-Token`）与足迹读所需的 `X-Tripmap-Schema` / `X-Tripmap-Regions`；`Register` / `Login` / `Me` / `Logout` / 足迹读与 sync（`GetFootprints`、`GetChanges`、`SyncChanges`）走 Connect 公共客户端；`region_chain_test.go` 覆盖 `bff.v1.RegionService` 金门迁移、阻止项与 CSRF；`sessions_chain_test.go` 覆盖 `ListSessions`/`RevokeSession`；`notification_test.go` 覆盖 `bff.v1.NotificationService` 与 BFF 公开退订 HTTP；`snapshot_chain_test.go` 覆盖快照创建、去重、恢复、幂等重放与用户隔离；`media_chain_test.go` 覆盖 `bff.v1.MediaService` 预留/确认/读/删与用户隔离（内存 blob，非真实 S3）；`report_chain_test.go` 覆盖 `bff.v1.ReportService` / `SearchService` 与用户隔离。后续 ticket 只追加场景测试，复用该 harness。运行：`go test ./internal/e2e/ -count=1`（与 `make test-integration` 同一套 PG/Redis 环境；无需 S3，默认 noop blob，媒体场景可注入 `chainMediaBlobs`）。
 
 `internal/tripmap/application` 的测试通过 HTTP 调用真实的处理器和拦截器，使用同样的隔离方式（随机 schema 与 Redis key 前缀），未设置 `TRIPMAP_TEST_POSTGRES_DSN` 和 `TRIPMAP_TEST_REDIS_ADDR` 时跳过。覆盖：快照的保存与去重、恢复的差异/撤销/revision 条件/幂等重放/原子性、用户隔离、保留与定时任务、注销清除快照；令牌与密码只存哈希、注册/登录校验与限流、会话过期/撤销/禁用、他人会话不可见、OAuth state 单次使用与注册关闭、用户 A/B 足迹隔离、非法数据、幂等、revision 冲突、省份标记与城市足迹互不影响，以及并发写入不丢失；F5 的账号升级幂等与冻结列、旧客户端被拒绝（所有 RPC）、旅行增删改与级联、旅行校验、用户隔离、变更日志内容、旧批次回执重放、批次原子性与 2000 项上限、新旧客户端并发、旧快照读取与恢复（载荷不变）、恢复时旅行换城市、定时快照、媒体与旅行的关联及隔离、注销清除旅行。`.github/workflows/ci.yml` 在 PostgreSQL 与 Redis 服务容器中运行 `go vet`、`go test -race ./...` 和前端测试、地图检查、构建。
 

@@ -29,6 +29,7 @@ import (
 	"github.com/kongken/mono/internal/bff/friends"
 	bffitinerary "github.com/kongken/mono/internal/bff/itinerary"
 	bffmedia "github.com/kongken/mono/internal/bff/media"
+	bffregion "github.com/kongken/mono/internal/bff/region"
 	bffreport "github.com/kongken/mono/internal/bff/report"
 	bffsearch "github.com/kongken/mono/internal/bff/search"
 	"github.com/kongken/mono/internal/bff/gateway"
@@ -213,6 +214,9 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 			route, handler = bffv1connect.NewReportServiceHandler(bffreport.New(tripmapv1.NewReportServiceClient(conn)), opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
 			route, handler = bffv1connect.NewSearchServiceHandler(bffsearch.New(tripmapv1.NewSearchServiceClient(conn)), append(opts, connect.WithReadMaxBytes(4096))...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			regions := bffregion.New(tripmapv1.NewRegionServiceClient(conn), h.cfg.CORSAllowedOrigins)
+			route, handler = bffv1connect.NewRegionServiceHandler(regions, opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
 		}
 	}

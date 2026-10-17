@@ -1,5 +1,5 @@
 import { createClient } from "@connectrpc/connect";
-import { RegionService } from "@trip-map/api-client/tripmap/v1/regions_pb";
+import { RegionService } from "@trip-map/api-client/bff/v1/region_pb";
 import { REGION_VERSION, RegionCompatibilityError } from "@/lib/region-catalog";
 import { transport } from "./transport";
 
@@ -10,7 +10,6 @@ const assertVersion = (version: string) => {
 };
 export const regionApi = {
   preview: async () => {
-    // Conditional catalog reads never replace the bundle or fetch map geometry.
     const index = await client().getRegionIndex({ knownVersion: REGION_VERSION });
     assertVersion(index.version);
     const p = await client().previewRegionUpgrade({});
