@@ -17,6 +17,7 @@ import (
 	"github.com/kongken/mono/internal/bff/ent/user"
 	"github.com/kongken/mono/internal/bff/ratelimit"
 	"github.com/kongken/mono/internal/bff/session"
+	"github.com/kongken/mono/internal/platform/rpcauth"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	"golang.org/x/crypto/bcrypt"
@@ -135,7 +136,8 @@ func (s *Service) syncProfile(ctx context.Context, u *ent.User) {
 	if u.Username != nil {
 		userName = *u.Username
 	}
-	_, err := s.profiles.EnsureProfile(ctx, &tripmapv1.EnsureProfileRequest{
+	callCtx := rpcauth.WithCall(ctx, rpcauth.Call{UserID: u.ID})
+	_, err := s.profiles.EnsureProfile(callCtx, &tripmapv1.EnsureProfileRequest{
 		UserId: u.ID, Username: userName, DisplayName: name, AvatarUrl: u.AvatarURL,
 	})
 	if err != nil {
