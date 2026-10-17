@@ -64,6 +64,7 @@ type Browser struct {
 	HTTP   *http.Client
 	Auth   bffv1connect.AuthServiceClient
 	Foot    bffv1connect.FootprintServiceClient
+	Snap    bffv1connect.SnapshotServiceClient
 	Friends bffv1connect.FriendServiceClient
 	Itin    bffv1connect.ItineraryServiceClient
 	media   bffv1connect.MediaServiceClient
@@ -174,6 +175,7 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 		t: h.T, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
 		Auth: bffv1connect.NewAuthServiceClient(hc, api),
 		Foot:    bffv1connect.NewFootprintServiceClient(hc, api),
+		Snap:    bffv1connect.NewSnapshotServiceClient(hc, api),
 		Friends: bffv1connect.NewFriendServiceClient(hc, api),
 		Itin:    bffv1connect.NewItineraryServiceClient(hc, api),
 		media:   bffv1connect.NewMediaServiceClient(hc, api),
