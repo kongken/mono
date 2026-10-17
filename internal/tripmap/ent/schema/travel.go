@@ -34,6 +34,14 @@ func (User) Fields() []ent.Field {
 		field.String("username").Optional().Nillable().Unique(),
 		field.String("display_name").Default(""),
 		field.String("avatar_url").Default(""),
+		// Legacy credential columns remain until bff-import-legacy-accounts and the
+		// optional post-import SQL cleanup; tripmap application code never writes them.
+		field.String("email").Optional().Nillable().Immutable(),
+		field.String("provider").Default("").Immutable(),
+		field.String("external_id").Default("").Immutable(),
+		field.String("password_hash").Default("").Sensitive().Immutable(),
+		field.Bool("disabled").Default(false).Immutable(),
+		field.Time("deletion_requested_at").Optional().Nillable().Immutable(),
 		field.Int64("revision").Default(0).NonNegative(),
 		// 1 = date/note live on city_visits (frozen once upgraded); 2 = trips live in
 		// city_trips. Upgraded in place by the first write from a schema 2 client.
@@ -45,6 +53,12 @@ func (User) Fields() []ent.Field {
 		field.Bool("friend_show_dates").Default(false),
 		field.Bool("friend_show_notes").Default(false),
 	}, timestamps()...)
+}
+func (User) Indexes() []ent.Index {
+	return []ent.Index{
+		index.Fields("provider", "external_id").Unique().Annotations(entsql.IndexWhere("external_id <> ''")),
+		index.Fields("email").Unique(),
+	}
 }
 func (User) Edges() []ent.Edge {
 	return []ent.Edge{

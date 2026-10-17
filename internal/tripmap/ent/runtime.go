@@ -644,36 +644,52 @@ func init() {
 	userDescAvatarURL := userFields[3].Descriptor()
 	// user.DefaultAvatarURL holds the default value on creation for the avatar_url field.
 	user.DefaultAvatarURL = userDescAvatarURL.Default.(string)
+	// userDescProvider is the schema descriptor for provider field.
+	userDescProvider := userFields[5].Descriptor()
+	// user.DefaultProvider holds the default value on creation for the provider field.
+	user.DefaultProvider = userDescProvider.Default.(string)
+	// userDescExternalID is the schema descriptor for external_id field.
+	userDescExternalID := userFields[6].Descriptor()
+	// user.DefaultExternalID holds the default value on creation for the external_id field.
+	user.DefaultExternalID = userDescExternalID.Default.(string)
+	// userDescPasswordHash is the schema descriptor for password_hash field.
+	userDescPasswordHash := userFields[7].Descriptor()
+	// user.DefaultPasswordHash holds the default value on creation for the password_hash field.
+	user.DefaultPasswordHash = userDescPasswordHash.Default.(string)
+	// userDescDisabled is the schema descriptor for disabled field.
+	userDescDisabled := userFields[8].Descriptor()
+	// user.DefaultDisabled holds the default value on creation for the disabled field.
+	user.DefaultDisabled = userDescDisabled.Default.(bool)
 	// userDescRevision is the schema descriptor for revision field.
-	userDescRevision := userFields[4].Descriptor()
+	userDescRevision := userFields[10].Descriptor()
 	// user.DefaultRevision holds the default value on creation for the revision field.
 	user.DefaultRevision = userDescRevision.Default.(int64)
 	// user.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
 	user.RevisionValidator = userDescRevision.Validators[0].(func(int64) error)
 	// userDescSchemaVersion is the schema descriptor for schema_version field.
-	userDescSchemaVersion := userFields[5].Descriptor()
+	userDescSchemaVersion := userFields[11].Descriptor()
 	// user.DefaultSchemaVersion holds the default value on creation for the schema_version field.
 	user.DefaultSchemaVersion = userDescSchemaVersion.Default.(int)
 	// user.SchemaVersionValidator is a validator for the "schema_version" field. It is called by the builders before save.
 	user.SchemaVersionValidator = userDescSchemaVersion.Validators[0].(func(int) error)
 	// userDescFriendShowCities is the schema descriptor for friend_show_cities field.
-	userDescFriendShowCities := userFields[7].Descriptor()
+	userDescFriendShowCities := userFields[13].Descriptor()
 	// user.DefaultFriendShowCities holds the default value on creation for the friend_show_cities field.
 	user.DefaultFriendShowCities = userDescFriendShowCities.Default.(bool)
 	// userDescFriendShowDates is the schema descriptor for friend_show_dates field.
-	userDescFriendShowDates := userFields[8].Descriptor()
+	userDescFriendShowDates := userFields[14].Descriptor()
 	// user.DefaultFriendShowDates holds the default value on creation for the friend_show_dates field.
 	user.DefaultFriendShowDates = userDescFriendShowDates.Default.(bool)
 	// userDescFriendShowNotes is the schema descriptor for friend_show_notes field.
-	userDescFriendShowNotes := userFields[9].Descriptor()
+	userDescFriendShowNotes := userFields[15].Descriptor()
 	// user.DefaultFriendShowNotes holds the default value on creation for the friend_show_notes field.
 	user.DefaultFriendShowNotes = userDescFriendShowNotes.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[10].Descriptor()
+	userDescCreatedAt := userFields[16].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[11].Descriptor()
+	userDescUpdatedAt := userFields[17].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

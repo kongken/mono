@@ -25,14 +25,14 @@
 - `bff.v1.RegionService`（#40：`GetRegionIndex`、`PreviewRegionUpgrade`、`ApplyRegionUpgrade`）→ tripmap gRPC `RegionService` 同名方法；`ApplyRegionUpgrade` 校验 Origin/CSRF；`X-Tripmap-Regions` 白名单下传。tripmap 公网 Connect 上的 `RegionService` 已移除。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
-**开发数据保留（#30）**
+**开发数据保留（#30 / #44）**
 
-不默认删除 tripmap 既有数据。新注册在 BFF 建账号 ID 并同步 tripmap。已有 tripmap 密码账号保留同一 ID 需一次性导入 BFF `auth_users`（运维/脚本，非应用内双写）；未导入者需重新注册或等待迁移。
+不默认删除 tripmap 既有数据。`migrations/tripmap/20261017180000_retire_tripmap_sessions.sql` 只删除 tripmap 侧会话表；`users` 上的 legacy 凭据列保留到运维确认导入之后。顺序：**(1)** 应用 tripmap + BFF 版本化迁移；**(2)** `bin/bff-import-legacy-accounts -tripmap-dsn … -bff-dsn …`（先 `--dry-run` 看报告）；**(3)** 抽查同一 `user_id` 可登录；**(4)** 可选手动执行 `deploy/sql/tripmap/post_import_drop_legacy_auth_columns.sql`（不在 atlas 中）。新注册仍在 BFF 建 `auth_users` 并 `EnsureProfile` 同步 tripmap 业务列。
 
 **当前限制**
 
 - 浏览器业务 RPC 仅 `/api/bff.v1.*`；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz`（分享/unsubscribe 由 BFF `publichttp` 提供）。
-- 前端（含分享 API）与 OAuth/会话管理均使用 `bff.v1`；账号凭据在 BFF 独立库，tripmap `users` 仅保留业务档案列（见 `migrations/tripmap/20261017180000_drop_auth_storage.sql`）。
+- 前端（含分享 API）与 OAuth/会话管理均使用 `bff.v1`；账号凭据在 BFF 独立库；tripmap `users` 仍可能含 legacy 凭据列直至 post-import 清理（Ent 不写入这些列）。
 - 真实 GitHub/Google/Logto 端到端授权验收仍依赖部署凭据，CI 使用受控 fake 提供方与 `internal/e2e/oauth_chain_test.go`。
 
 ```
