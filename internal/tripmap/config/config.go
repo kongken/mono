@@ -6,7 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/httpx"
+	"github.com/kongken/mono/internal/platform/servicetoken"
 )
 
 // AppConfig shares the YAML file with Butterfly's store.db/redis/s3 definitions.
@@ -17,6 +19,10 @@ type AppConfig struct {
 	Storage     StorageConfig `yaml:"storage"`
 	Auth        AuthConfig    `yaml:"auth"`
 	Share       ShareConfig   `yaml:"share"`
+	// GRPC is the TLS listener the BFF calls; business RPCs are served only here.
+	GRPC grpcx.ServerConfig `yaml:"grpc"`
+	// InternalAuth lists the BFF public keys that may call this service.
+	InternalAuth servicetoken.VerifyConfig `yaml:"internal_auth"`
 	// Notification configures F12 reminders; every channel is off until configured.
 	Notification NotificationConfig `yaml:"notification"`
 }
@@ -138,6 +144,12 @@ func (c *AppConfig) Print() {}
 func (c *AppConfig) Validate() error {
 	if c.DBStore == "" || c.RedisStore == "" || c.Storage.S3Store == "" {
 		return fmt.Errorf("db_store, redis_store and storage.s3_store are required")
+	}
+	if err := c.GRPC.Validate(); err != nil {
+		return err
+	}
+	if c.InternalAuth.Issuer == "" || c.InternalAuth.Audience == "" || len(c.InternalAuth.TrustedKeys) == 0 {
+		return fmt.Errorf("internal_auth requires issuer, audience and at least one trusted_keys entry")
 	}
 	if c.Auth.SessionTTL < 0 {
 		return fmt.Errorf("auth.session_ttl must not be negative")

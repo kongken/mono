@@ -22,6 +22,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.35.0
 	golang.org/x/crypto v0.57.0
 	golang.org/x/image v0.47.0
+	google.golang.org/grpc v1.71.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -137,7 +138,6 @@ require (
 	golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
-	google.golang.org/grpc v1.71.0 // indirect
 )
 
 tool entgo.io/ent/cmd/ent

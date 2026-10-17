@@ -13,6 +13,25 @@ storage:
   s3_store: main
   key_prefix: tripmap
 
+# Business RPCs are served only here, as gRPC over TLS, to the BFF. HTTP (PORT) keeps
+# /ping and /readyz plus the routes not migrated yet. `make dev-secrets` writes the
+# local certificate and keys under dev-secrets/ (ignored by Git).
+grpc:
+  listen: 127.0.0.1:18083
+  cert_file: dev-secrets/tripmap.pem
+  key_file: dev-secrets/tripmap.key
+  # max_message_bytes: 20971520   # default 20 MiB; the largest legitimate request is 16 MiB
+
+# Only calls carrying a credential signed by one of these BFF keys are accepted.
+# During rotation list the old and the new key together.
+internal_auth:
+  issuer: tripmap-bff
+  audience: tripmap
+  trusted_keys:
+    - kid: dev-1
+      public_key_file: dev-secrets/bff.pub
+  # clock_skew: 10s
+
 auth:
   session_ttl: 168h
   # registration_disabled: true

@@ -17,7 +17,7 @@ func main() {
 	if namespace == "" {
 		namespace = "apps"
 	}
-	service := core.New(&butterflyapp.Config{Service: "bff", Namespace: namespace, Config: cfg, Router: handlers.Routes, InitFunc: []func() error{handlers.Bootstrap}})
+	service := core.New(&butterflyapp.Config{Service: "bff", Namespace: namespace, Config: cfg, Router: handlers.Routes, InitFunc: []func() error{handlers.Bootstrap}, TeardownFunc: []func() error{handlers.Shutdown}})
 	slog.Info("starting bff", "namespace", namespace)
 	service.Run()
 }

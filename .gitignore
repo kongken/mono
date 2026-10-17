@@ -33,3 +33,4 @@ coverage.out
 # CI browser test output
 playwright-report/
 test-results/
+/dev-secrets/

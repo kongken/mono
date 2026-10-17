@@ -1,4 +1,4 @@
-.PHONY: build test ent buf dev dev-bff dev-tripmap deps-up deps-down storage-init migration vapid-keys
+.PHONY: build test ent buf dev dev-bff dev-tripmap dev-secrets deps-up deps-down storage-init migration vapid-keys
 
 build:
 	go build -o bin/bff ./cmd/bff
@@ -19,8 +19,15 @@ buf:
 migration:
 	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations/tripmap
 
+# Writes dev-secrets/: a local CA, tripmap's TLS certificate and the BFF's Ed25519 signing
+# key (kid dev-1) that the example configs refer to. Refuses to overwrite; add -force via
+# `go run ./cmd/dev-secrets -force` to rotate them.
+dev-secrets:
+	go run ./cmd/dev-secrets
+
 # Configs are ignored locally, so make dev can safely use them for credentials.
-# The BFF is the entry on 18081 (the Vite proxy target); tripmap listens on 18082 behind it.
+# The BFF is the entry on 18081 (the Vite proxy target); tripmap listens on 18082 (HTTP) and
+# 18083 (gRPC over TLS, config grpc.listen) behind it. Run `make dev-secrets` once first.
 dev:
 	$(MAKE) -j2 dev-bff dev-tripmap
 
@@ -51,4 +58,4 @@ test-integration:
 	TRIPMAP_TEST_REDIS_ADDR=127.0.0.1:16379 TRIPMAP_TEST_REDIS_PASSWORD=tripmap-local \
 	TRIPMAP_TEST_S3_ENDPOINT=http://127.0.0.1:19000 TRIPMAP_TEST_S3_ACCESS_KEY=tripmap-local \
 	TRIPMAP_TEST_S3_SECRET_KEY=tripmap-local-secret TRIPMAP_TEST_S3_BUCKET=tripmap \
-	go test -v ./internal/tripmap/integration ./internal/tripmap/application
+	go test -v ./internal/tripmap/integration ./internal/tripmap/application ./internal/e2e

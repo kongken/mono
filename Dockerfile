@@ -19,5 +19,5 @@ RUN CGO_ENABLED=0 go build -trimpath -o /tripmap ./cmd/tripmap
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /tripmap /tripmap
 ENV PORT=18081 BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=/config/config.yaml
-EXPOSE 18081
+EXPOSE 18081 18083
 ENTRYPOINT ["/tripmap"]

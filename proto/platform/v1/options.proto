@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package platform.v1;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/platform/v1;platformv1";
+
+extend google.protobuf.MethodOptions {
+  // Marks a method that may be called without a signed-in user. Every method is
+  // protected unless it carries this option. The BFF and each business service
+  // enforce it independently; an anonymous call still needs a valid BFF credential.
+  bool anonymous = 50100;
+}

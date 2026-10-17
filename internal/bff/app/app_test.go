@@ -18,6 +18,7 @@ import (
 	"github.com/kongken/mono/internal/bff/app"
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/gateway"
+	"github.com/kongken/mono/internal/platform/testkit"
 	"gopkg.in/yaml.v3"
 )
 
@@ -71,9 +72,21 @@ var testServices = []gateway.Service{
 	{Name: "other", Packages: []string{"other.v1"}, Routes: []gateway.Route{{Path: "/api/share/special/"}}},
 }
 
+// withInternalTransport points the configuration at an unused gRPC endpoint with
+// real keys and a CA: the tests below exercise HTTP routing and never call it.
+func withInternalTransport(t *testing.T, cfg *config.Config) {
+	t.Helper()
+	keys, ca := testkit.NewKeys(t), testkit.NewCA(t)
+	cfg.InternalAuth = config.InternalAuth{Issuer: "bff", KID: "k1", PrivateKeyFile: keys.PrivateFile}
+	cfg.GRPC = config.GRPCConfig{CAFile: ca.CAFile, Services: map[string]config.GRPCService{"tripmap": {Address: "127.0.0.1:1"}}}
+}
+
 func newBFF(t *testing.T, cfg *config.Config, services []gateway.Service) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
+	if services == nil {
+		withInternalTransport(t, cfg)
+	}
 	h := app.New(cfg)
 	if services != nil {
 		h.SetServices(services)
@@ -253,12 +266,17 @@ func TestExampleConfigCoversTheRouteTable(t *testing.T) {
 	if err := cfg.Validate(gateway.Names(gateway.Services)); err != nil {
 		t.Fatal(err)
 	}
+	if err := cfg.ValidateInternal(gateway.GRPCNames(gateway.Services)); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestCredentialPathsStayOutOfTraces(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	trip := newFake(t, "tripmap")
-	h := app.New(&config.Config{Upstreams: map[string]string{"tripmap": trip.URL}})
+	cfg := &config.Config{Upstreams: map[string]string{"tripmap": trip.URL}}
+	withInternalTransport(t, cfg)
+	h := app.New(cfg)
 	if err := h.Bootstrap(); err != nil {
 		t.Fatal(err)
 	}

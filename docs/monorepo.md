@@ -9,7 +9,7 @@ apps/
   web/                  前端应用“山海足迹”：Vite + React，自己的 index.html、vite.config.ts、tsconfig、public/、tests/（Playwright）、scripts/
 packages/
   ui/                   shadcn 组件与 cn()：@trip-map/ui/button、dialog、input、utils
-  api-client/           buf 生成的 ConnectRPC TypeScript 契约：@trip-map/api-client/tripmap/v1/<文件>_pb
+  api-client/           buf 生成的 ConnectRPC TypeScript 契约：@trip-map/api-client/<包>/v1/<文件>_pb（`bff/v1` 为浏览器契约，`tripmap/v1` 为业务契约，`platform/v1` 为共享选项）
   geo-data/             区域索引、城市坐标、区域目录、搜索索引、省份邻接表：@trip-map/geo-data/<名称>.json（文件在 data/）
   fixtures/             前端与 Go 后端共同验证的 JSON 夹具
 cmd/ internal/ pkg/ proto/ migrations/   Go 后端，规则见 AGENTS.md 与 backend.md、bff.md

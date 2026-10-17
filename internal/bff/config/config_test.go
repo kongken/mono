@@ -26,3 +26,33 @@ func TestValidate(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateInternal(t *testing.T) {
+	ok := func() Config {
+		return Config{
+			InternalAuth: InternalAuth{Issuer: "bff", KID: "k1", PrivateKeyFile: "bff.key"},
+			GRPC:         GRPCConfig{CAFile: "ca.pem", Services: map[string]GRPCService{"tripmap": {Address: "tripmap:18083"}}},
+		}
+	}
+	if c := ok(); c.ValidateInternal([]string{"tripmap"}) != nil {
+		t.Fatal(c.ValidateInternal([]string{"tripmap"}))
+	}
+	if c := (Config{}); c.ValidateInternal(nil) != nil {
+		t.Fatal("a route table without gRPC services needs no internal settings")
+	}
+	for name, mutate := range map[string]func(*Config){
+		"no issuer":       func(c *Config) { c.InternalAuth.Issuer = "" },
+		"no kid":          func(c *Config) { c.InternalAuth.KID = "" },
+		"no private key":  func(c *Config) { c.InternalAuth.PrivateKeyFile = "" },
+		"no CA":           func(c *Config) { c.GRPC.CAFile = "" },
+		"no address":      func(c *Config) { c.GRPC.Services["tripmap"] = GRPCService{} },
+		"unknown service": func(c *Config) { c.GRPC.Services["tirpmap"] = GRPCService{Address: "x:1"} },
+		"negative limit":  func(c *Config) { c.GRPC.MaxMessageBytes = -1 },
+	} {
+		c := ok()
+		mutate(&c)
+		if c.ValidateInternal([]string{"tripmap"}) == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}

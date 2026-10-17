@@ -167,6 +167,10 @@ func (g *Gateway) Handle(c *gin.Context) {
 	up.proxy.ServeHTTP(c.Writer, c.Request)
 }
 
+// CORS is the cross-origin handler for /api/ paths, including the BFF's own
+// Connect procedures.
+func (g *Gateway) CORS() gin.HandlerFunc { return g.cors }
+
 // Probes checks each service's /readyz, which every service provides.
 func (g *Gateway) Probes() []health.Probe {
 	probes := make([]health.Probe, len(g.upstreams))

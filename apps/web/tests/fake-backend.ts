@@ -20,7 +20,7 @@ import areas from "@trip-map/geo-data/regions.json" with { type: "json" };
 import { regionCatalog, REGION_VERSION } from "../src/lib/region-catalog";
 import * as searchPb from "@trip-map/api-client/tripmap/v1/search_pb";
 import * as snapshotPb from "@trip-map/api-client/tripmap/v1/snapshot_pb";
-import * as system from "@trip-map/api-client/tripmap/v1/system_pb";
+import * as statusPb from "@trip-map/api-client/bff/v1/status_pb";
 import { buildReport } from "../src/lib/report";
 import { searchNotes } from "../src/lib/search";
 
@@ -274,7 +274,8 @@ export function fakeBackend(
             body: binary ? Buffer.from(toBinary(schema, message)) : toJsonString(schema, message),
           });
         };
-        state.regionHeaders.add(req.headers()["x-tripmap-regions"] ?? "");
+        // The anonymous status query (bff.v1) carries no client capability headers.
+        if (method !== "GetStatus") state.regionHeaders.add(req.headers()["x-tripmap-regions"] ?? "");
         const gated = ["GetFootprints", "GetChanges", "SyncChanges", "CreateSnapshot", "ListSnapshots", "GetSnapshot", "RestoreSnapshot"];
         if (gated.includes(method)) {
           const header = req.headers()["x-tripmap-schema"] ?? "";
@@ -288,7 +289,7 @@ export function fakeBackend(
         }
         switch (method) {
           case "GetStatus":
-            return send(system.GetStatusResponseSchema, { footprintSchema: state.footprintSchema, shareEnabled: options.shareEnabled ?? false, regionVersion: state.regionVersion });
+            return send(statusPb.GetStatusResponseSchema, { footprintSchema: state.footprintSchema, shareEnabled: options.shareEnabled ?? false, regionVersion: state.regionVersion });
           case "Login":
             return send(auth.LoginResponseSchema, {
               token: "ci-token",

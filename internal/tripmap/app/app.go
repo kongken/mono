@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/stdlib"
 	redisclient "github.com/redis/go-redis/v9"
+	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
 	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/internal/tripmap/application"
@@ -41,6 +42,7 @@ type Resources struct {
 type Handlers struct {
 	cfg       *config.AppConfig
 	resources atomic.Pointer[Resources]
+	grpc      atomic.Pointer[grpcx.Server]
 	notifier  *application.Notifier
 }
 
@@ -134,6 +136,10 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 		}
 	}()
 	h.resources.Store(&Resources{DB: client, Redis: cache, Blobs: blobs, Health: probes, stop: stop})
+	if err := h.StartGRPC(); err != nil {
+		_ = h.Shutdown()
+		return err
+	}
 	return nil
 }
 
@@ -183,6 +189,8 @@ func runNotificationMaintenance(ctx context.Context, st *application.Store, inde
 }
 
 func (h *Handlers) Shutdown() error {
+	// Drain RPCs before the stores they use go away.
+	h.StopGRPC()
 	r := h.resources.Swap(nil)
 	if r == nil {
 		return nil
@@ -190,7 +198,14 @@ func (h *Handlers) Shutdown() error {
 	if r.stop != nil {
 		r.stop()
 	}
-	return errors.Join(r.DB.Close(), r.Redis.Close())
+	var errs []error
+	if r.DB != nil {
+		errs = append(errs, r.DB.Close())
+	}
+	if r.Redis != nil {
+		errs = append(errs, r.Redis.Close())
+	}
+	return errors.Join(errs...)
 }
 
 // SetResources installs already connected services instead of bootstrapping them.
@@ -227,9 +242,7 @@ func (h *Handlers) Routes(r *gin.Engine) {
 	mount := func(path string, handler http.Handler) {
 		api.Any(path+"*path", gin.WrapH(http.StripPrefix("/api", handler)))
 	}
-	path, handler := tripmapv1connect.NewSystemServiceHandler(application.NewSystemService(h, func() bool { return h.cfg.Share.Enabled() }), opts)
-	mount(path, handler)
-	path, handler = tripmapv1connect.NewAuthServiceHandler(application.NewAuthService(h.cfg, h), opts)
+	path, handler := tripmapv1connect.NewAuthServiceHandler(application.NewAuthService(h.cfg, h), opts)
 	mount(path, handler)
 	path, handler = tripmapv1connect.NewFootprintServiceHandler(application.NewFootprintService(h.cfg, h, index), opts, connect.WithReadMaxBytes(16*1024*1024))
 	mount(path, handler)

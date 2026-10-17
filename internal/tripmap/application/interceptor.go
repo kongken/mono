@@ -17,7 +17,6 @@ import (
 
 // PublicProcedures can be called without a session.
 var PublicProcedures = map[string]bool{
-	tripmapv1connect.SystemServiceGetStatusProcedure:        true,
 	tripmapv1connect.AuthServiceRegisterProcedure:           true,
 	tripmapv1connect.AuthServiceLoginProcedure:              true,
 	tripmapv1connect.AuthServiceListOAuthProvidersProcedure: true,

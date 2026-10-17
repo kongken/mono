@@ -4,6 +4,10 @@ package gateway
 // entry here and its address under upstreams in the BFF configuration.
 type Service struct {
 	Name string
+	// GRPC marks a service the BFF calls over internal gRPC; it needs a
+	// grpc.services entry in the configuration. Its upstreams entry stays for the
+	// health probe and for the routes not migrated yet.
+	GRPC bool
 	// Packages are the proto packages it serves as Connect procedures at
 	// /api/<package>.<Service>/<Method>.
 	Packages []string
@@ -26,6 +30,7 @@ type Route struct {
 // Services is the route table.
 var Services = []Service{{
 	Name:     "tripmap",
+	GRPC:     true,
 	Packages: []string{"tripmap.v1"},
 	Routes: []Route{
 		// Public share pages, preview images and data; the token is the credential.
@@ -43,6 +48,17 @@ func Names(services []Service) []string {
 	names := make([]string, len(services))
 	for i, s := range services {
 		names[i] = s.Name
+	}
+	return names
+}
+
+// GRPCNames lists the services called over gRPC.
+func GRPCNames(services []Service) []string {
+	var names []string
+	for _, s := range services {
+		if s.GRPC {
+			names = append(names, s.Name)
+		}
 	}
 	return names
 }
