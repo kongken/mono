@@ -65,10 +65,11 @@ type Browser struct {
 	Auth   bffv1connect.AuthServiceClient
 	Foot    bffv1connect.FootprintServiceClient
 	Friends bffv1connect.FriendServiceClient
-	Itin    bffv1connect.ItineraryServiceClient
-	APIURL  string
-	Origin string
-	Region string
+	Itin       bffv1connect.ItineraryServiceClient
+	RegionSvc  bffv1connect.RegionServiceClient
+	APIURL     string
+	Origin     string
+	Region     string
 }
 
 // NewChainHarness builds the full stack or skips when storage env is unset.
@@ -174,8 +175,42 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 		Auth: bffv1connect.NewAuthServiceClient(hc, api),
 		Foot:    bffv1connect.NewFootprintServiceClient(hc, api),
 		Friends: bffv1connect.NewFriendServiceClient(hc, api),
-		Itin:    bffv1connect.NewItineraryServiceClient(hc, api),
+		Itin:      bffv1connect.NewItineraryServiceClient(hc, api),
+		RegionSvc: bffv1connect.NewRegionServiceClient(hc, api),
 	}
+}
+
+func (b *Browser) GetRegionIndex(ctx context.Context) (*bffv1.GetRegionIndexResponse, error) {
+	req := connect.NewRequest(&bffv1.GetRegionIndexRequest{KnownVersion: b.Region})
+	b.withTripmapHeaders(req)
+	res, err := b.RegionSvc.GetRegionIndex(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+func (b *Browser) PreviewRegionUpgrade(ctx context.Context) (*bffv1.PreviewRegionUpgradeResponse, error) {
+	req := connect.NewRequest(&bffv1.PreviewRegionUpgradeRequest{})
+	b.withTripmapHeaders(req)
+	res, err := b.RegionSvc.PreviewRegionUpgrade(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+func (b *Browser) ApplyRegionUpgrade(ctx context.Context, version string, baseRevision int64, mutationID string) (*bffv1.ApplyRegionUpgradeResponse, error) {
+	csrf := b.refreshCSRF(ctx)
+	req := connect.NewRequest(&bffv1.ApplyRegionUpgradeRequest{
+		Version: version, BaseRevision: baseRevision, MutationId: mutationID,
+	})
+	b.writeHeaders(req, csrf, b.Origin)
+	res, err := b.RegionSvc.ApplyRegionUpgrade(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
 }
 
 func (b *Browser) Itinerary() bffv1connect.ItineraryServiceClient { return b.Itin }
