@@ -239,7 +239,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
   -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" -d '{}'
 ```
 
-## F6 公开分享（`tripmap.v1.ShareService`）
+## F6 公开分享（`bff.v1.ShareService` / `tripmap.v1.ShareService` gRPC）
 
 用户可见规则见 [功能描述](features.md#公开分享页与预览图f6)，行为细节、部署与限制见 [公开分享页与预览图](sharing.md)。
 
@@ -254,7 +254,7 @@ curl -s http://127.0.0.1:18081/api/tripmap.v1.FootprintService/GetFootprints \
 
 保存在单个事务内取得用户行的最小更新锁，与足迹同步、账号注销串行。快照 gzip 后上限 4 MiB，超过返回 `failed_precondition`（不截断）。`shares` 的变化不影响 OAuth、会话、快照或云同步。
 
-**公开路由（无认证，Gin 直接挂载）：** `GET|HEAD /s/<token>`、`/s/<token>/og.png`、`/api/share/<token>/data`、`/api/share/<token>/photos/<句柄>`（见 [公开接口](sharing.md#公开接口)）。路由在 `internal/tripmap/app/share_routes.go`，处理在 `internal/tripmap/application/share_public.go`。
+**公开路由（无浏览器会话，分享令牌为凭证）：** `GET|HEAD /s/<token>`、`/s/<token>/og.png`、`/api/share/<token>/data`、`/api/share/<token>/photos/<句柄>`（见 [公开接口](sharing.md#公开接口)）由 **BFF** 终止 HTTP 并调用 `tripmap.v1.SharePublicService`；领域逻辑在 `internal/tripmap/application/share_public.go`。tripmap HTTP 不再挂载 `/s/` 与 `/api/share/`（#36）。
 
 **配置。**
 

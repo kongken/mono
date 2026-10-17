@@ -32,12 +32,6 @@ var Services = []Service{{
 	Name:     "tripmap",
 	GRPC:     true,
 	Packages: []string{"tripmap.v1"},
-	Routes: []Route{
-		// Public share pages, preview images and data; the token is the credential.
-		{Path: "/s", Trace: "/s"},
-		{Path: "/s/", Trace: "/s/{token}"},
-		{Path: "/api/share/", Trace: "/api/share/{token}"},
-	},
 	Headers: []string{"X-Tripmap-Schema", "X-Tripmap-Regions"},
 }}
 

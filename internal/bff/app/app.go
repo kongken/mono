@@ -32,6 +32,7 @@ import (
 	bffnotification "github.com/kongken/mono/internal/bff/notification"
 	"github.com/kongken/mono/internal/bff/publichttp"
 	"github.com/kongken/mono/internal/bff/ratelimit"
+	bffshare "github.com/kongken/mono/internal/bff/share"
 	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/bff/status"
 	"github.com/kongken/mono/internal/bff/upstream"
@@ -195,6 +196,8 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 			itin := bffitinerary.New(tripmapv1.NewItineraryServiceClient(conn), h.cfg.CORSAllowedOrigins)
 			route, handler = bffv1connect.NewItineraryServiceHandler(itin, opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
+			route, handler = bffv1connect.NewShareServiceHandler(bffshare.New(tripmapv1.NewShareServiceClient(conn)), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
 		}
 	}
 	return http.StripPrefix("/api", mux)
@@ -222,6 +225,20 @@ func (h *Handlers) mountPublicHTTP(r *gin.Engine) {
 		Limit:        &publichttp.Limit{KeyPrefix: "unsubscribe:", Max: 30, Window: time.Minute},
 		Handler:      unsub,
 	})
+	sharePub := bffshare.NewPublicHTTP(tripmapv1.NewSharePublicServiceClient(conn), h.cfg.ClientIPHeader)
+	shareLimit := func(prefix string, max int64) *publichttp.Limit {
+		return &publichttp.Limit{KeyPrefix: prefix, Max: max, Window: time.Minute}
+	}
+	reg.Mount(r, publichttp.Route{
+		Methods: sharePub.Methods(), Path: "/s", TracePattern: "/s", Limit: shareLimit("share-page:", 120),
+		Handler: http.HandlerFunc(sharePub.ServeRoot),
+	})
+	reg.MountParam(r, publichttp.Route{
+		Methods: sharePub.Methods(), TracePattern: "/s/{token}", Limit: shareLimit("share-page:", 120),
+	}, "/s/*rest", "rest", sharePub.ServeSharePath)
+	reg.MountParam(r, publichttp.Route{
+		Methods: sharePub.Methods(), TracePattern: "/api/share/{token}", Limit: shareLimit("share-page:", 120),
+	}, "/api/share/*rest", "rest", sharePub.ServeAPIPath)
 }
 
 func (h *Handlers) Shutdown() error {

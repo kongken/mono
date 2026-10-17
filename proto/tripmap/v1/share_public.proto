@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package tripmap.v1;
+
+import "platform/v1/options.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/tripmap/v1;tripmapv1";
+
+// SharePublicService validates share tokens and returns the HTTP response the
+// BFF should send. Public routes terminate at the BFF; every call still
+// requires a valid BFF credential.
+service SharePublicService {
+  rpc GetSharePage(GetSharePageRequest) returns (GetSharePageResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  rpc GetShareData(GetShareDataRequest) returns (GetShareDataResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  rpc GetSharePreviewImage(GetSharePreviewImageRequest) returns (GetSharePreviewImageResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  rpc GetSharePhoto(GetSharePhotoRequest) returns (GetSharePhotoResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+}
+
+message SharePublicHTTPBody {
+  int32 status = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+}
+
+message GetSharePageRequest {
+  string token = 1;
+}
+
+message GetShareDataRequest {
+  string token = 1;
+}
+
+message GetSharePreviewImageRequest {
+  string token = 1;
+}
+
+message GetSharePhotoRequest {
+  string token = 1;
+  string handle = 2;
+  // "thumb" or "full"; empty means thumb.
+  string size = 3;
+}
+
+message GetSharePageResponse {
+  SharePublicHTTPBody http = 1;
+}
+
+message GetShareDataResponse {
+  SharePublicHTTPBody http = 1;
+}
+
+message GetSharePreviewImageResponse {
+  SharePublicHTTPBody http = 1;
+}
+
+message GetSharePhotoResponse {
+  SharePublicHTTPBody http = 1;
+}
