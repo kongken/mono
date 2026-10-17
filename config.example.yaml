@@ -45,6 +45,21 @@ auth:
 #   # Vite's development server needs inline scripts; leave empty in production.
 #   # html_csp: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws:"
 
+# Optional Mapbox basemap proxy: GET /api/tiles/{z}/{x}/{y}.png, reached through the BFF.
+# Off by default; while off the route answers 404 and never contacts Mapbox. The token
+# stays here (never in the front end); rotate it by editing it and restarting tripmap.
+# Use a token limited to the styles:tiles scope. Mapbox bills 256 px tiles as four requests
+# each, and the front end must set VITE_OSM_TILE_URL and VITE_OSM_TILE_PROVIDER=mapbox.
+# mapbox_tiles:
+#   enabled: true
+#   token: pk.replace-with-your-token.replace-with-your-token
+#   username: mapbox        # the account that owns the style
+#   style_id: light-v11
+#   # max_zoom: 18              # 1-22, default 18
+#   # rate_per_minute: 600      # per client address, default 600
+#   # upstream_timeout: 5s      # default 5s, at most 30s
+#   # max_response_bytes: 524288  # default 512 KiB
+
 # Reminders and notifications (F12). Every channel is off until configured.
 # notification:
 #   # The site address people use. Email links and tapped push notifications are built

@@ -1,6 +1,6 @@
 # 山海足迹
 
-使用 React、Vite、TypeScript、Tailwind CSS 和 shadcn/ui 开发的中国旅行地图，后端使用 Go、Butterfly、Gin、ConnectRPC、Ent 与 PostgreSQL/Redis/S3。地图使用 d3-geo 渲染本地 GeoJSON，无需地图 API Key；省内地图可选开启 OpenStreetMap 底图（Leaflet，默认关闭）。
+使用 React、Vite、TypeScript、Tailwind CSS 和 shadcn/ui 开发的中国旅行地图，后端使用 Go、Butterfly、Gin、ConnectRPC、Ent 与 PostgreSQL/Redis/S3。地图使用 d3-geo 渲染本地 GeoJSON，无需地图 API Key；省内与全国地图可选开启联网底图（Leaflet，默认关闭，默认 OpenStreetMap；部署者也可经服务端代理启用 Mapbox，见 `docs/data-and-maps.md`）。
 
 ## 仓库结构
 

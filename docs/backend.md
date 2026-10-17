@@ -18,7 +18,8 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
-| `internal/tripmap/application/` | 内部 gRPC 与测试用 Connect harness：`FootprintService`、`SnapshotService`、`MediaService`、`CollaborationService`、`ReportService`、`SearchService`、`NotificationService`、`AccountCleanupService` 等；HTTP 仅 `/ping`、`/readyz`（分享/退订公开页在 BFF） |
+| `internal/tripmap/tiles/` | 可选的 Mapbox 瓦片代理：`GET /api/tiles/{z}/{x}/{y}.png` 的配置校验、请求校验、限流与上游访问（[说明](#mapbox-瓦片代理可选)） |
+| `internal/tripmap/application/` | 内部 gRPC 与测试用 Connect harness：`FootprintService`、`SnapshotService`、`MediaService`、`CollaborationService`、`ReportService`、`SearchService`、`NotificationService`、`AccountCleanupService` 等；HTTP 仅 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/退订公开页在 BFF） |
 | `internal/bff/auth/`、`internal/bff/oauth/` | BFF 会话、凭据与 OAuth state（Redis）及 `provider/`（GitHub、Google、Logto/PKCE） |
 | `internal/tripmap/share/` | F6：公开内容白名单与快照构建、统计、预览图渲染（纯 Go）、HTML 元数据注入、受信任 index.html 获取；`assets/` 含预览几何和 Noto Sans SC 子集 |
 | `internal/tripmap/report/` | F8：统计总览、按时区计算的年度报告、8 项旅行成就及可追溯记录引用计算（与前端 `apps/web/src/lib/report.ts` 共用 `packages/fixtures/report-stats.json` 测试夹具） |
@@ -139,6 +140,7 @@ Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CON
 - **OAuth（#32 已迁至 BFF）**：在 `config.bff.yaml` 的 `auth.oauth_providers.<github|google|logto>` 配置（字段含义与旧 tripmap 相同：`client_id`、`client_secret`、`redirect_url`、可选 `scopes` 与 `display_name`；Logto 另需 `issuer_url`）。tripmap `config.yaml` 中的 `auth.oauth_providers` 不再用于浏览器登录。
 - `grpc.listen`、`grpc.cert_file`、`grpc.key_file` 必填：tripmap 自管的 gRPC over TLS 监听（业务 RPC 只在这里提供，BFF 调用）；`grpc.max_message_bytes` 默认 20 MiB。
 - `internal_auth.issuer`、`audience`、`trusted_keys[]`（`kid` + `public_key_file`）必填，可选 `clock_skew`（默认 10 秒）：只接受这些 BFF 公钥签名的内部凭证，规则见 [内部 gRPC 与凭证](bff.md#内部-grpc-与凭证)。缺失时启动失败；本地用 `make dev-secrets` 生成文件。
+- `mapbox_tiles.enabled` 开启 Mapbox 瓦片代理（默认关闭），`token`、`username`、`style_id` 等见下文“Mapbox 瓦片代理（可选）”。
 - `share.public_base_url` 开启公开分享（为空即关闭）；`share.app_index_url`、`share.html_csp` 与限流项见下文 F6 一节。
 - `auto_migrate: true` 在启动时通过 Ent 创建或补充表结构。本地示例开启；生产环境应设为 `false`，改由下文“版本化数据库迁移”中评审过的 SQL 文件升级，再启动新版本后端。
 
@@ -375,6 +377,46 @@ curl -s -b "$JAR" "$ORIGIN/api/bff.v1.FootprintService/GetFootprints" \
 **数据与部署。** 新表 `notification_profiles`（每用户一行：时区、发送小时、是否显示地点、已验证邮箱、待验证邮箱及验证码哈希/过期时间/尝试次数）、`notification_settings`（`user_id + kind + channel` 唯一，缺失即关闭）、`push_subscriptions`（`endpoint_hash` 唯一）、`notification_deliveries`；均通过 `users` 外键级联删除，账号注销一并清除。迁移 `migrations/tripmap/20261014165138_f12_notifications.sql` 为纯新增。**部署顺序：** 先执行该迁移，再升级后端，最后部署前端；未配置 `notification` 时不发送任何内容。
 
 **验证与限制。** `internal/tripmap/notification` 的测试覆盖文案、令牌、SMTP（本地假服务器）、Web Push（本地 TLS 假推送服务和 SSRF 拒绝）；`internal/tripmap/application` 的集成测试（需要 PostgreSQL 与 Redis）覆盖设置、邮箱验证、订阅转移、发送时区与幂等、重试、退订、用户隔离和注销清理；前端有单元测试与桌面/手机 Playwright 验收。没有对真实 SMTP 服务商和真实浏览器推送服务做验证；投递语义为最多一次，没有送达回执；每小时一次的检查使实际发送可能晚最多约 1 小时。
+
+## Mapbox 瓦片代理（可选）
+
+规则与验收见 [功能描述](features.md#全国与省内地图)，前端启用方式与署名见 [数据与地图说明](data-and-maps.md#mapbox-代理底图可选)，部署见 [部署与发布](deployment.md#mapbox-底图可选)。实现在 `internal/tripmap/tiles/`，由 `internal/tripmap/app/app.go` 挂载到 tripmap 的内部 HTTP 端口；BFF 在 `internal/bff/gateway/services.go` 登记 `/api/tiles/` 并透明转发（见 [BFF](bff.md#路由)），BFF 不持有 Mapbox 配置。不新增 proto、数据库表、迁移或足迹字段。
+
+**配置**（`mapbox_tiles`，示例见 `config.example.yaml`；真实 token 只放在被忽略的 `config.yaml` 或挂载 Secret 中）：
+
+| 字段 | 说明 |
+| --- | --- |
+| `enabled` | 默认 `false`。关闭时 `/api/tiles/…` 对任何请求返回不缓存的 404，不访问 Mapbox、不使用 Redis；未配置此段的部署行为与之前完全相同 |
+| `token` | Mapbox 访问令牌（`pk.` 或 `sk.` 开头）。只在服务端使用，不进入响应、日志、错误和追踪；更换后重启 tripmap 即生效，前端无需重建 |
+| `username`、`style_id` | 样式所属账号与样式 ID，1–64 位字母、数字、`-`、`_`；启用时三者都必填 |
+| `max_zoom` | 1–22，默认 18；超过的层级返回 400 |
+| `rate_per_minute` | 每个客户端地址每分钟请求数，默认 600，最大 100000 |
+| `upstream_timeout` | 单次 Mapbox 请求（含读取响应）的上限，默认 5 秒，最大 30 秒 |
+| `max_response_bytes` | 单个瓦片大小上限，默认 512 KiB，范围 1 KiB–4 MiB |
+
+启用但配置不合法（缺字段、token 格式错误、名称含特殊字符、数值越界）时 tripmap 启动校验失败；错误信息只写字段名，不含 token。上游地址固定为 `https://api.mapbox.com` 的 Static Tiles API（`/styles/v1/{username}/{style_id}/tiles/256/{z}/{x}/{y}.png`），配置里没有可改的上游，客户端也不能指定 token、样式或上游。
+
+**token 与账号建议**：只授予 `styles:tiles` 读取范围，不使用高权限 secret token；在 Mapbox 账号设置用量告警。若 token 配了 URL 限制，tripmap 的服务端请求不带 `Referer`，可能被 Mapbox 以 403 拒绝——应改用不带 URL 限制的最小权限 token，**不要**通过伪造来源头绕过。
+
+**请求规则**（任何一项不满足都不会访问 Mapbox，且响应都带 `Cache-Control: no-store`）：
+
+| 条件 | 响应 |
+| --- | --- |
+| 代理未启用 | 404 |
+| 方法不是 `GET`（含 `HEAD`） | 405，`Allow: GET` |
+| 路径不是规范的 `/api/tiles/{z}/{x}/{y}.png`（多余段、`//`、`..`、编码斜杠、结尾 `/`、扩展名不是小写 `.png`） | 404 |
+| 坐标不是无符号十进制整数（含前导零、正负号、小数）、`z` 超过 `max_zoom`、`x` 或 `y` 不小于 2^z | 400 |
+| 带任何查询参数（包括 `access_token`） | 400 |
+| 超过 `rate_per_minute`（计数键含客户端地址，复用 Redis 固定窗口限流，键前缀 `tiles:`） | 429，`Retry-After: 60` |
+| 限流存储不可用或尚未连接 | 502（不放行，避免无限制地消耗 Mapbox 额度） |
+
+客户端地址按 `auth.client_ip_header`（生产 `X-Real-IP`，由 BFF 覆盖写入）解析；未设置时使用 TCP 对端。限流只复用现有 Redis 固定窗口操作，没有新增 Redis 命令。
+
+**上游访问**：只发送 `Accept`、`User-Agent` 与 `Accept-Encoding: identity`，不转发客户端的 `Authorization`、`Cookie`、`Referer`、`Origin` 或内部身份声明；不跟随重定向（任何 3xx 视为无效响应）；请求使用独立的 HTTP 传输，不经过会记录 URL 的出站追踪。成功须是 HTTP 200、不超过 `max_response_bytes`、PNG 且为 256×256 像素；其他情况一律为脱敏的 502（正文固定为 `Bad Gateway`，不透传上游状态码或错误正文，日志只记录原因类别且不含 token 或带凭据的 URL），超时为 504，浏览器已断开时终止上游请求且不再写响应。上游返回 429、401、403、404、5xx 对浏览器都是 502。
+
+**响应**：成功返回 `image/png`，并只保留 Mapbox 的 `Cache-Control`、`Expires`、`ETag`、`Last-Modified`（上游没给缓存头时用 `Cache-Control: no-cache`）；不透传 `Set-Cookie`、CORS 或其他上游头。没有服务端瓦片缓存、持久瓦片库或预取；不处理条件请求，也不按样式区分缓存生命周期（后续任务）。
+
+**验证**：`internal/tripmap/app/tiles_routes_test.go` 通过真实 tripmap 路由和本地模拟 Mapbox（替换 HTTP 客户端的网络）覆盖成功、关闭、无效输入、限流、超时、过大和无效响应、重定向、取消、凭据隔离与日志脱敏；`internal/tripmap/config/config_test.go` 覆盖配置校验及 token 不出现在错误和打印里；BFF 转发见 `internal/bff/app/tiles_test.go`。自动化测试不使用真实 token，也不产生 Mapbox 请求。使用真实 token 的验收在独立环境完成。
 
 ## 数据库模型
 

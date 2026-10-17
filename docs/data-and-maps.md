@@ -136,7 +136,9 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 | `apps/web/scripts/prepare-province-neighbors.mjs` | 从本地全国地图的共享边界线段生成邻接表 |
 | `apps/web/src/lib/cityMaps.ts` | 全国“按城市”着色时一次性加载全部省内地图；任一文件失败则整体失败，不显示不完整地图 |
 | `apps/web/src/lib/maps.ts` | GeoJSON 多边形方向归一化，适配 d3 的球面绘制 |
-| `apps/web/src/lib/tiles.ts` | 解析瓦片源环境变量并提供默认值 |
+| `apps/web/src/lib/tiles.ts` | 解析瓦片源环境变量、Mapbox 代理署名与开关提示文案 |
+| `apps/web/src/lib/tileConfig.ts` | 把构建时环境变量解析为全站共用的瓦片源 |
+| `apps/web/src/assets/mapbox-logo.svg` | Mapbox 官方标识（取自 Mapbox 署名文档，未改动；仅代理底图模式显示） |
 | `apps/web/src/lib/coords.ts` | GCJ-02 与 WGS-84 坐标转换，用于把边界叠加到 OSM 底图 |
 | `apps/web/src/components/OsmProvinceMap.tsx` | 省内与全国可选 OSM 底图（Leaflet），按需加载 |
 | `apps/web/scripts/download-maps.mjs` | 根据现有全国地图下载省内地图并重建索引 |
@@ -167,7 +169,29 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 - 瓦片通过 CSS 滤镜降低饱和度与对比度，使叠加的区域颜色和标签更清晰。评估过 Carto Positron 公共瓦片，目前需要 API Key，不可直接使用；更浅的底图建议改用自托管瓦片。
 - 瓦片源可在构建时通过环境变量配置，未设置或格式无效时回落到上述 OSM 公共瓦片：`VITE_OSM_TILE_URL`（必须包含 `{z}`、`{x}`、`{y}`）、`VITE_OSM_TILE_MAX_ZOOM`（1–22 的整数；自定义地址默认 18，默认地址为 19）、`VITE_OSM_TILE_ATTRIBUTION`（附加署名，作为 HTML 显示，仅用于受信任的构建配置；OpenStreetMap 署名始终保留）。变量在构建时写入，修改后需重新构建；Docker 镜像通过 `--build-arg` 传入，当前 CI 工作流尚未传递这些参数。源码见 `apps/web/src/lib/tiles.ts`。
 - 全国地图的 SVG 视图使用圆锥投影并包含南海附图；开启 OSM 时改用 Leaflet 的 Web 墨卡托，不绘制南海附图，南海诸岛按原始坐标出现在底图上（三沙岛屿可拖动查看），海南主体视图范围固定为 `apps/web/src/App.tsx` 中的 `NATIONAL_VIEW`。全国 OSM 的省份边界取自 `100000.json`，按城市着色复用各省内文件（首次开启时才加载，约 4 MB），并叠加省份边界线。对 GCJ-02 的转换与省内一致，台湾、香港、澳门及其下级区域不转换。
+- **Mapbox 代理底图（可选）**：见下一节。未设置 `VITE_OSM_TILE_PROVIDER=mapbox` 时一切保持上述行为。
 - 当前限制：开发阶段直接使用 OSM 公共瓦片，其[使用政策](https://operations.osmfoundation.org/policies/tiles/)不适合大流量生产场景，正式上线前需改为自托管瓦片或商业服务；香港、澳门边界未做坐标转换，台湾边界精度以数据源为准；边界与底图的行政区域线可能存在差异和偏移。
+
+
+## Mapbox 代理底图（可选）
+
+部署者已有 Mapbox token 时，可让浏览器从本站取 Mapbox 栅格底图，token 只存在于 tripmap 配置。链路：浏览器 → BFF（`GET /api/tiles/{z}/{x}/{y}.png`，透明转发）→ tripmap（匿名、限流、校验）→ `https://api.mapbox.com` 的 Static Tiles API（固定 256 像素、`.png`）。后端配置、错误码和部署见 [后端初始化](backend.md#mapbox-瓦片代理可选) 与 [部署与发布](deployment.md#mapbox-底图可选)。不新增 proto、数据库表或足迹字段；足迹、区域 ID、坐标转换（仍按 OSM/WGS-84 处理）、偏好 `shanhai-basemap-v1` 与 SVG 地图不变。
+
+前端启用方式（构建时变量，修改后需重新构建）：
+
+- `VITE_OSM_TILE_URL`：同源部署用相对地址 `/api/tiles/{z}/{x}/{y}.png`；前端与 BFF 跨源部署用 BFF 的绝对地址，如 `https://api.example.com/api/tiles/{z}/{x}/{y}.png`，并确认 BFF 的 `cors_allowed_origins` 与边缘转发都包含该路径（Leaflet 以图片方式加载瓦片，默认不要求 CORS）。
+- `VITE_OSM_TILE_PROVIDER=mapbox`：声明上述地址是本站的 Mapbox 代理，随之显示 Mapbox 标识和署名，并更新开关文字与提示。仅当同时配置了有效的瓦片地址才生效；缺少地址、地址含 `access_token` 或值不是 `mapbox` 时回落到 OSM 默认，避免在 OSM 瓦片上标注 Mapbox，也避免 token 进入前端。
+- `VITE_OSM_TILE_MAX_ZOOM`：不应大于服务端 `mapbox_tiles.max_zoom`（默认 18；自定义地址的前端默认值同为 18）；超过服务端上限的层级会得到 400 并触发底图失败提示。
+- `VITE_OSM_TILE_ATTRIBUTION`：附加署名；使用 Mapbox 卫星类样式时应在此补充 `© Maxar` 链接。
+
+署名：按 [Mapbox 署名要求](https://docs.mapbox.com/help/dive-deeper/attribution/)（2026-10 核对），地图左下角显示 Mapbox 标识（链接 `https://www.mapbox.com/`，不改色），其上方显示 “© Mapbox”（`https://www.mapbox.com/about/maps/`）、“© OpenStreetMap contributors”（`https://www.openstreetmap.org/copyright`）和 “Improve this map”（`https://apps.mapbox.com/feedback/#/{经度}/{纬度}/{缩放}`，随地图移动更新）。栅格瓦片没有 Mapbox SDK 的遥测，不需要额外的遥测退出入口。Mapbox 日后调整要求时，以官方文档为准并更新此处与 `apps/web/src/lib/tiles.ts`。
+
+当前限制：
+
+- 需要联网，且由 tripmap 所在环境访问 `api.mapbox.com`；断网、token 失效、额度耗尽或限流时底图失败，页面提示可关闭底图，不会自动改用 OSM 公共瓦片。
+- 瓦片请求量和费用仍受 Mapbox 条款与定价约束；256 像素瓦片的请求数是 512 像素的 4 倍（官方定价按请求计费），代理的限流只保护服务，不替代 Mapbox 账号的用量告警。
+- 浏览器缓存遵循 Mapbox 返回的 `Cache-Control`、`Expires`、`ETag`、`Last-Modified`；服务端没有瓦片缓存，也不处理条件请求（`If-None-Match` 等不会下传，浏览器重新验证时得到完整 200）。条件请求与按样式切换的缓存生命周期尚未实现。
+- 全国 SVG 视图、分享图片和备份不使用 Mapbox 瓦片。
 
 ## 绘制与维护
 

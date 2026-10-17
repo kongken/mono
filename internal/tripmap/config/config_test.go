@@ -1,11 +1,15 @@
 package config
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/servicetoken"
+	"github.com/kongken/mono/internal/tripmap/tiles"
 	"gopkg.in/yaml.v3"
 )
 
@@ -168,5 +172,78 @@ func TestNotificationConfigValidation(t *testing.T) {
 	cfg.Notification = NotificationConfig{PublicBaseURL: "http://localhost:5173", WebPush: WebPushConfig{VAPIDPublicKey: "pub", VAPIDPrivateKey: "priv", Subject: "mailto:dev@example.com"}}
 	if err := cfg.Validate(); err != nil || cfg.Notification.EmailEnabled() || !cfg.Notification.PushEnabled() {
 		t.Fatalf("local push: %v", err)
+	}
+}
+
+const mapboxTestToken = "pk.eyJ1IjoidGVzdC11c2VyIiwiYSI6InRlc3QifQ.c2lnbmF0dXJlLXZhbHVl"
+
+func TestMapboxTilesConfigValidation(t *testing.T) {
+	cfg := valid()
+	if cfg.MapboxTiles.Enabled {
+		t.Fatal("the Mapbox proxy must be off by default")
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("disabled proxy: %v", err)
+	}
+	enabled := func() *AppConfig {
+		c := valid()
+		c.MapboxTiles = tiles.Config{Enabled: true, Token: mapboxTestToken, Username: "mapbox", StyleID: "light-v11"}
+		return c
+	}
+	if err := enabled().Validate(); err != nil {
+		t.Fatalf("enabled with defaults: %v", err)
+	}
+	for name, mutate := range map[string]func(*tiles.Config){
+		"no token":            func(c *tiles.Config) { c.Token = "" },
+		"no username":         func(c *tiles.Config) { c.Username = "" },
+		"no style":            func(c *tiles.Config) { c.StyleID = "" },
+		"not a mapbox token":  func(c *tiles.Config) { c.Token = "not-a-token-" + mapboxTestToken },
+		"token with newline":  func(c *tiles.Config) { c.Token += "\nX-Evil: 1" },
+		"token with query":    func(c *tiles.Config) { c.Token += "&x=1" },
+		"username with slash": func(c *tiles.Config) { c.Username = "a/b" },
+		"username with dots":  func(c *tiles.Config) { c.Username = ".." },
+		"style with query":    func(c *tiles.Config) { c.StyleID = "x?y=1" },
+		"style with space":    func(c *tiles.Config) { c.StyleID = "my style" },
+		"zoom above mapbox":   func(c *tiles.Config) { c.MaxZoom = 23 },
+		"negative zoom":       func(c *tiles.Config) { c.MaxZoom = -1 },
+		"negative rate":       func(c *tiles.Config) { c.RatePerMinute = -1 },
+		"absurd rate":         func(c *tiles.Config) { c.RatePerMinute = 10_000_000 },
+		"negative timeout":    func(c *tiles.Config) { c.UpstreamTimeout = -time.Second },
+		"unbounded timeout":   func(c *tiles.Config) { c.UpstreamTimeout = time.Hour },
+		"tiny response cap":   func(c *tiles.Config) { c.MaxResponseBytes = 10 },
+		"huge response cap":   func(c *tiles.Config) { c.MaxResponseBytes = 1 << 30 },
+	} {
+		cfg := enabled()
+		mutate(&cfg.MapboxTiles)
+		err := cfg.Validate()
+		if err == nil {
+			t.Errorf("%s accepted", name)
+			continue
+		}
+		// The startup error is what operators paste into tickets: no credential in it.
+		if strings.Contains(err.Error(), mapboxTestToken) || strings.Contains(err.Error(), "eyJ1") {
+			t.Errorf("%s: error leaks the token: %v", name, err)
+		}
+	}
+}
+
+func TestMapboxTilesConfigDoesNotPrintTheToken(t *testing.T) {
+	cfg := tiles.Config{Enabled: true, Token: mapboxTestToken, Username: "mapbox", StyleID: "light-v11"}
+	for _, out := range []string{fmt.Sprint(cfg), fmt.Sprintf("%v", cfg), fmt.Sprintf("%+v", cfg), fmt.Sprintf("%#v", cfg), fmt.Sprint(&cfg)} {
+		if strings.Contains(out, "eyJ1") {
+			t.Errorf("configuration prints the token: %s", out)
+		}
+	}
+}
+
+func TestMapboxTilesConfigReadsYAML(t *testing.T) {
+	var cfg AppConfig
+	raw := "mapbox_tiles:\n  enabled: true\n  token: " + mapboxTestToken + "\n  username: mapbox\n  style_id: light-v11\n  max_zoom: 16\n  rate_per_minute: 120\n  upstream_timeout: 3s\n  max_response_bytes: 262144\n"
+	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	want := tiles.Config{Enabled: true, Token: mapboxTestToken, Username: "mapbox", StyleID: "light-v11", MaxZoom: 16, RatePerMinute: 120, UpstreamTimeout: 3 * time.Second, MaxResponseBytes: 262144}
+	if cfg.MapboxTiles != want {
+		t.Fatalf("parsed %+v", cfg.MapboxTiles)
 	}
 }

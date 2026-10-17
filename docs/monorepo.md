@@ -46,7 +46,7 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 | Install command | 默认（`npm ci` 或 `npm install`，在根目录执行） |
 | `NODE_VERSION` | `24` |
 
-构建时变量沿用原有名称：`VITE_API_BASE_URL`、`VITE_OSM_TILE_URL`、`VITE_OSM_TILE_MAX_ZOOM`、`VITE_OSM_TILE_ATTRIBUTION`。Pages 不会运行前端镜像的 Nginx，因此 `/api/`、`/s/` 的同源转发不会自动存在：纯本地模式无需处理；启用后端时，`VITE_API_BASE_URL` 填 BFF 的绝对地址（BFF 负责跨域），分享链接的 OG 标签需要另行把 `/s/` 转发到 BFF（当前仓库没有提供 Pages 的转发配置）。
+构建时变量沿用原有名称：`VITE_API_BASE_URL`、`VITE_OSM_TILE_URL`、`VITE_OSM_TILE_MAX_ZOOM`、`VITE_OSM_TILE_ATTRIBUTION`、`VITE_OSM_TILE_PROVIDER`。Pages 不会运行前端镜像的 Nginx，因此 `/api/`、`/s/` 的同源转发不会自动存在：纯本地模式无需处理；启用后端时，`VITE_API_BASE_URL` 填 BFF 的绝对地址（BFF 负责跨域），分享链接的 OG 标签需要另行把 `/s/` 转发到 BFF（当前仓库没有提供 Pages 的转发配置）。
 
 ## 当前限制
 
