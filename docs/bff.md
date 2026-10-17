@@ -9,7 +9,8 @@
 **当前已实现**
 
 - `bff.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
-- `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`IssueCSRFToken`；账号与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`）。会话 Cookie：`shanhai_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `shanhai_csrf` + 请求头 `X-CSRF-Token`；写操作校验 Origin。响应不返回会话令牌。
+- `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`IssueCSRFToken`，以及 OAuth `ListOAuthProviders`、`BeginOAuthFlow`、`CompleteOAuthFlow`（#32）；账号、OAuth 绑定与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`），OAuth state 在 BFF Redis（10 分钟、单次使用、绑定 provider/PKCE）。会话 Cookie：`shanhai_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `shanhai_csrf` + 请求头 `X-CSRF-Token`；写操作校验 Origin。响应不返回会话令牌。
+- OAuth 提供方在 `config.bff.yaml` 的 `auth.oauth_providers`（GitHub、Google、Logto；Logto 带 PKCE），与旧 tripmap `auth.oauth_providers` 字段含义相同，配置迁到 BFF。
 - `bff.v1.FootprintService/GetFootprints` → tripmap gRPC `FootprintService/GetFootprints`；注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
@@ -19,8 +20,9 @@
 
 **当前限制**
 
-- OAuth、ListSessions、足迹写/sync、快照、媒体等仍经透明网关 `tripmap.v1` + Bearer（#31–#44）。
-- 前端除 auth 与 GetFootprints 外仍调用 `tripmap.v1` Connect；OAuth UI 在 #32 前不可用。
+- ListSessions、足迹写/sync、快照、媒体等仍经透明网关 `tripmap.v1` + Bearer（#31、#33–#44）。
+- 前端除 auth（含 OAuth）与 GetFootprints 外仍调用 `tripmap.v1` Connect。
+- 真实 GitHub/Google/Logto 端到端授权验收仍依赖部署凭据，CI 使用受控 fake 提供方与 `internal/e2e/oauth_chain_test.go`。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）

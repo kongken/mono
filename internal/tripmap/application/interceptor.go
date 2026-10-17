@@ -19,9 +19,6 @@ import (
 var PublicProcedures = map[string]bool{
 	tripmapv1connect.AuthServiceRegisterProcedure:           true,
 	tripmapv1connect.AuthServiceLoginProcedure:              true,
-	tripmapv1connect.AuthServiceListOAuthProvidersProcedure: true,
-	tripmapv1connect.AuthServiceBeginOAuthFlowProcedure:     true,
-	tripmapv1connect.AuthServiceCompleteOAuthFlowProcedure:  true,
 }
 
 // touchInterval limits how often last_used_at is written.

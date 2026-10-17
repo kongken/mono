@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file bff/v1/auth.proto.
  */
 export const file_bff_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChFiZmYvdjEvYXV0aC5wcm90bxIGYmZmLnYxIpgBCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRISCgphdmF0YXJfdXJsGAQgASgJEi4KCmNyZWF0ZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhgKEGRlbGV0aW9uX3BlbmRpbmcYBiABKAgiSwoPUmVnaXN0ZXJSZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCSJeChBSZWdpc3RlclJlc3BvbnNlEhoKBHVzZXIYASABKAsyDC5iZmYudjEuVXNlchIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIyCgxMb2dpblJlcXVlc3QSEAoIdXNlcm5hbWUYASABKAkSEAoIcGFzc3dvcmQYAiABKAkiWwoNTG9naW5SZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSILCglNZVJlcXVlc3QiKAoKTWVSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXIiFwoVSXNzdWVDU1JGVG9rZW5SZXF1ZXN0IicKFklzc3VlQ1NSRlRva2VuUmVzcG9uc2USDQoFdG9rZW4YASABKAkyywIKC0F1dGhTZXJ2aWNlEkMKCFJlZ2lzdGVyEhcuYmZmLnYxLlJlZ2lzdGVyUmVxdWVzdBoYLmJmZi52MS5SZWdpc3RlclJlc3BvbnNlIgSguxgBEjoKBUxvZ2luEhQuYmZmLnYxLkxvZ2luUmVxdWVzdBoVLmJmZi52MS5Mb2dpblJlc3BvbnNlIgSguxgBEjcKBkxvZ291dBIVLmJmZi52MS5Mb2dvdXRSZXF1ZXN0GhYuYmZmLnYxLkxvZ291dFJlc3BvbnNlEisKAk1lEhEuYmZmLnYxLk1lUmVxdWVzdBoSLmJmZi52MS5NZVJlc3BvbnNlElUKDklzc3VlQ1NSRlRva2VuEh0uYmZmLnYxLklzc3VlQ1NSRlRva2VuUmVxdWVzdBoeLmJmZi52MS5Jc3N1ZUNTUkZUb2tlblJlc3BvbnNlIgSguxgBQjBaLmdpdGh1Yi5jb20va29uZ2tlbi9tb25vL3BrZy9wcm90by9iZmYvdjE7YmZmdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_platform_v1_options]);
+  fileDesc("ChFiZmYvdjEvYXV0aC5wcm90bxIGYmZmLnYxIpgBCgRVc2VyEgoKAmlkGAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRISCgphdmF0YXJfdXJsGAQgASgJEi4KCmNyZWF0ZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhgKEGRlbGV0aW9uX3BlbmRpbmcYBiABKAgiSwoPUmVnaXN0ZXJSZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCSJeChBSZWdpc3RlclJlc3BvbnNlEhoKBHVzZXIYASABKAsyDC5iZmYudjEuVXNlchIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIyCgxMb2dpblJlcXVlc3QSEAoIdXNlcm5hbWUYASABKAkSEAoIcGFzc3dvcmQYAiABKAkiWwoNTG9naW5SZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiDwoNTG9nb3V0UmVxdWVzdCIQCg5Mb2dvdXRSZXNwb25zZSILCglNZVJlcXVlc3QiKAoKTWVSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXIiFwoVSXNzdWVDU1JGVG9rZW5SZXF1ZXN0IicKFklzc3VlQ1NSRlRva2VuUmVzcG9uc2USDQoFdG9rZW4YASABKAkiMwoNT0F1dGhQcm92aWRlchIMCgRuYW1lGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgCIAEoCSIbChlMaXN0T0F1dGhQcm92aWRlcnNSZXF1ZXN0IkYKGkxpc3RPQXV0aFByb3ZpZGVyc1Jlc3BvbnNlEigKCXByb3ZpZGVycxgBIAMoCzIVLmJmZi52MS5PQXV0aFByb3ZpZGVyIikKFUJlZ2luT0F1dGhGbG93UmVxdWVzdBIQCghwcm92aWRlchgBIAEoCSI+ChZCZWdpbk9BdXRoRmxvd1Jlc3BvbnNlEhUKDWF1dGhvcml6ZV91cmwYASABKAkSDQoFc3RhdGUYAiABKAkiSQoYQ29tcGxldGVPQXV0aEZsb3dSZXF1ZXN0EhAKCHByb3ZpZGVyGAEgASgJEgwKBGNvZGUYAiABKAkSDQoFc3RhdGUYAyABKAkiZwoZQ29tcGxldGVPQXV0aEZsb3dSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAy5QQKC0F1dGhTZXJ2aWNlEkMKCFJlZ2lzdGVyEhcuYmZmLnYxLlJlZ2lzdGVyUmVxdWVzdBoYLmJmZi52MS5SZWdpc3RlclJlc3BvbnNlIgSguxgBEjoKBUxvZ2luEhQuYmZmLnYxLkxvZ2luUmVxdWVzdBoVLmJmZi52MS5Mb2dpblJlc3BvbnNlIgSguxgBEjcKBkxvZ291dBIVLmJmZi52MS5Mb2dvdXRSZXF1ZXN0GhYuYmZmLnYxLkxvZ291dFJlc3BvbnNlEisKAk1lEhEuYmZmLnYxLk1lUmVxdWVzdBoSLmJmZi52MS5NZVJlc3BvbnNlElUKDklzc3VlQ1NSRlRva2VuEh0uYmZmLnYxLklzc3VlQ1NSRlRva2VuUmVxdWVzdBoeLmJmZi52MS5Jc3N1ZUNTUkZUb2tlblJlc3BvbnNlIgSguxgBEmEKEkxpc3RPQXV0aFByb3ZpZGVycxIhLmJmZi52MS5MaXN0T0F1dGhQcm92aWRlcnNSZXF1ZXN0GiIuYmZmLnYxLkxpc3RPQXV0aFByb3ZpZGVyc1Jlc3BvbnNlIgSguxgBElUKDkJlZ2luT0F1dGhGbG93Eh0uYmZmLnYxLkJlZ2luT0F1dGhGbG93UmVxdWVzdBoeLmJmZi52MS5CZWdpbk9BdXRoRmxvd1Jlc3BvbnNlIgSguxgBEl4KEUNvbXBsZXRlT0F1dGhGbG93EiAuYmZmLnYxLkNvbXBsZXRlT0F1dGhGbG93UmVxdWVzdBohLmJmZi52MS5Db21wbGV0ZU9BdXRoRmxvd1Jlc3BvbnNlIgSguxgBQjBaLmdpdGh1Yi5jb20va29uZ2tlbi9tb25vL3BrZy9wcm90by9iZmYvdjE7YmZmdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_platform_v1_options]);
 
 /**
  * @generated from message bff.v1.User
@@ -237,6 +237,146 @@ export const IssueCSRFTokenResponseSchema: GenMessage<IssueCSRFTokenResponse> = 
   messageDesc(file_bff_v1_auth, 10);
 
 /**
+ * @generated from message bff.v1.OAuthProvider
+ */
+export type OAuthProvider = Message<"bff.v1.OAuthProvider"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string display_name = 2;
+   */
+  displayName: string;
+};
+
+/**
+ * Describes the message bff.v1.OAuthProvider.
+ * Use `create(OAuthProviderSchema)` to create a new message.
+ */
+export const OAuthProviderSchema: GenMessage<OAuthProvider> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 11);
+
+/**
+ * @generated from message bff.v1.ListOAuthProvidersRequest
+ */
+export type ListOAuthProvidersRequest = Message<"bff.v1.ListOAuthProvidersRequest"> & {
+};
+
+/**
+ * Describes the message bff.v1.ListOAuthProvidersRequest.
+ * Use `create(ListOAuthProvidersRequestSchema)` to create a new message.
+ */
+export const ListOAuthProvidersRequestSchema: GenMessage<ListOAuthProvidersRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 12);
+
+/**
+ * @generated from message bff.v1.ListOAuthProvidersResponse
+ */
+export type ListOAuthProvidersResponse = Message<"bff.v1.ListOAuthProvidersResponse"> & {
+  /**
+   * @generated from field: repeated bff.v1.OAuthProvider providers = 1;
+   */
+  providers: OAuthProvider[];
+};
+
+/**
+ * Describes the message bff.v1.ListOAuthProvidersResponse.
+ * Use `create(ListOAuthProvidersResponseSchema)` to create a new message.
+ */
+export const ListOAuthProvidersResponseSchema: GenMessage<ListOAuthProvidersResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 13);
+
+/**
+ * @generated from message bff.v1.BeginOAuthFlowRequest
+ */
+export type BeginOAuthFlowRequest = Message<"bff.v1.BeginOAuthFlowRequest"> & {
+  /**
+   * @generated from field: string provider = 1;
+   */
+  provider: string;
+};
+
+/**
+ * Describes the message bff.v1.BeginOAuthFlowRequest.
+ * Use `create(BeginOAuthFlowRequestSchema)` to create a new message.
+ */
+export const BeginOAuthFlowRequestSchema: GenMessage<BeginOAuthFlowRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 14);
+
+/**
+ * @generated from message bff.v1.BeginOAuthFlowResponse
+ */
+export type BeginOAuthFlowResponse = Message<"bff.v1.BeginOAuthFlowResponse"> & {
+  /**
+   * @generated from field: string authorize_url = 1;
+   */
+  authorizeUrl: string;
+
+  /**
+   * @generated from field: string state = 2;
+   */
+  state: string;
+};
+
+/**
+ * Describes the message bff.v1.BeginOAuthFlowResponse.
+ * Use `create(BeginOAuthFlowResponseSchema)` to create a new message.
+ */
+export const BeginOAuthFlowResponseSchema: GenMessage<BeginOAuthFlowResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 15);
+
+/**
+ * @generated from message bff.v1.CompleteOAuthFlowRequest
+ */
+export type CompleteOAuthFlowRequest = Message<"bff.v1.CompleteOAuthFlowRequest"> & {
+  /**
+   * @generated from field: string provider = 1;
+   */
+  provider: string;
+
+  /**
+   * @generated from field: string code = 2;
+   */
+  code: string;
+
+  /**
+   * @generated from field: string state = 3;
+   */
+  state: string;
+};
+
+/**
+ * Describes the message bff.v1.CompleteOAuthFlowRequest.
+ * Use `create(CompleteOAuthFlowRequestSchema)` to create a new message.
+ */
+export const CompleteOAuthFlowRequestSchema: GenMessage<CompleteOAuthFlowRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 16);
+
+/**
+ * @generated from message bff.v1.CompleteOAuthFlowResponse
+ */
+export type CompleteOAuthFlowResponse = Message<"bff.v1.CompleteOAuthFlowResponse"> & {
+  /**
+   * @generated from field: bff.v1.User user = 1;
+   */
+  user?: User;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 2;
+   */
+  expiresAt?: Timestamp;
+};
+
+/**
+ * Describes the message bff.v1.CompleteOAuthFlowResponse.
+ * Use `create(CompleteOAuthFlowResponseSchema)` to create a new message.
+ */
+export const CompleteOAuthFlowResponseSchema: GenMessage<CompleteOAuthFlowResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 17);
+
+/**
  * AuthService handles password accounts and browser sessions (HttpOnly Cookie).
  * Register, Login and IssueCSRFToken are anonymous; Me and Logout require a session.
  *
@@ -284,6 +424,30 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof IssueCSRFTokenRequestSchema;
     output: typeof IssueCSRFTokenResponseSchema;
+  },
+  /**
+   * @generated from rpc bff.v1.AuthService.ListOAuthProviders
+   */
+  listOAuthProviders: {
+    methodKind: "unary";
+    input: typeof ListOAuthProvidersRequestSchema;
+    output: typeof ListOAuthProvidersResponseSchema;
+  },
+  /**
+   * @generated from rpc bff.v1.AuthService.BeginOAuthFlow
+   */
+  beginOAuthFlow: {
+    methodKind: "unary";
+    input: typeof BeginOAuthFlowRequestSchema;
+    output: typeof BeginOAuthFlowResponseSchema;
+  },
+  /**
+   * @generated from rpc bff.v1.AuthService.CompleteOAuthFlow
+   */
+  completeOAuthFlow: {
+    methodKind: "unary";
+    input: typeof CompleteOAuthFlowRequestSchema;
+    output: typeof CompleteOAuthFlowResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_v1_auth, 0);

@@ -44,6 +44,15 @@ const (
 	// AuthServiceIssueCSRFTokenProcedure is the fully-qualified name of the AuthService's
 	// IssueCSRFToken RPC.
 	AuthServiceIssueCSRFTokenProcedure = "/bff.v1.AuthService/IssueCSRFToken"
+	// AuthServiceListOAuthProvidersProcedure is the fully-qualified name of the AuthService's
+	// ListOAuthProviders RPC.
+	AuthServiceListOAuthProvidersProcedure = "/bff.v1.AuthService/ListOAuthProviders"
+	// AuthServiceBeginOAuthFlowProcedure is the fully-qualified name of the AuthService's
+	// BeginOAuthFlow RPC.
+	AuthServiceBeginOAuthFlowProcedure = "/bff.v1.AuthService/BeginOAuthFlow"
+	// AuthServiceCompleteOAuthFlowProcedure is the fully-qualified name of the AuthService's
+	// CompleteOAuthFlow RPC.
+	AuthServiceCompleteOAuthFlowProcedure = "/bff.v1.AuthService/CompleteOAuthFlow"
 )
 
 // AuthServiceClient is a client for the bff.v1.AuthService service.
@@ -54,6 +63,9 @@ type AuthServiceClient interface {
 	Me(context.Context, *connect.Request[v1.MeRequest]) (*connect.Response[v1.MeResponse], error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
+	ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error)
+	BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error)
+	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error)
 }
 
 // NewAuthServiceClient constructs a client for the bff.v1.AuthService service. By default, it uses
@@ -97,16 +109,37 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("IssueCSRFToken")),
 			connect.WithClientOptions(opts...),
 		),
+		listOAuthProviders: connect.NewClient[v1.ListOAuthProvidersRequest, v1.ListOAuthProvidersResponse](
+			httpClient,
+			baseURL+AuthServiceListOAuthProvidersProcedure,
+			connect.WithSchema(authServiceMethods.ByName("ListOAuthProviders")),
+			connect.WithClientOptions(opts...),
+		),
+		beginOAuthFlow: connect.NewClient[v1.BeginOAuthFlowRequest, v1.BeginOAuthFlowResponse](
+			httpClient,
+			baseURL+AuthServiceBeginOAuthFlowProcedure,
+			connect.WithSchema(authServiceMethods.ByName("BeginOAuthFlow")),
+			connect.WithClientOptions(opts...),
+		),
+		completeOAuthFlow: connect.NewClient[v1.CompleteOAuthFlowRequest, v1.CompleteOAuthFlowResponse](
+			httpClient,
+			baseURL+AuthServiceCompleteOAuthFlowProcedure,
+			connect.WithSchema(authServiceMethods.ByName("CompleteOAuthFlow")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // authServiceClient implements AuthServiceClient.
 type authServiceClient struct {
-	register       *connect.Client[v1.RegisterRequest, v1.RegisterResponse]
-	login          *connect.Client[v1.LoginRequest, v1.LoginResponse]
-	logout         *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
-	me             *connect.Client[v1.MeRequest, v1.MeResponse]
-	issueCSRFToken *connect.Client[v1.IssueCSRFTokenRequest, v1.IssueCSRFTokenResponse]
+	register           *connect.Client[v1.RegisterRequest, v1.RegisterResponse]
+	login              *connect.Client[v1.LoginRequest, v1.LoginResponse]
+	logout             *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
+	me                 *connect.Client[v1.MeRequest, v1.MeResponse]
+	issueCSRFToken     *connect.Client[v1.IssueCSRFTokenRequest, v1.IssueCSRFTokenResponse]
+	listOAuthProviders *connect.Client[v1.ListOAuthProvidersRequest, v1.ListOAuthProvidersResponse]
+	beginOAuthFlow     *connect.Client[v1.BeginOAuthFlowRequest, v1.BeginOAuthFlowResponse]
+	completeOAuthFlow  *connect.Client[v1.CompleteOAuthFlowRequest, v1.CompleteOAuthFlowResponse]
 }
 
 // Register calls bff.v1.AuthService.Register.
@@ -134,6 +167,21 @@ func (c *authServiceClient) IssueCSRFToken(ctx context.Context, req *connect.Req
 	return c.issueCSRFToken.CallUnary(ctx, req)
 }
 
+// ListOAuthProviders calls bff.v1.AuthService.ListOAuthProviders.
+func (c *authServiceClient) ListOAuthProviders(ctx context.Context, req *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error) {
+	return c.listOAuthProviders.CallUnary(ctx, req)
+}
+
+// BeginOAuthFlow calls bff.v1.AuthService.BeginOAuthFlow.
+func (c *authServiceClient) BeginOAuthFlow(ctx context.Context, req *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error) {
+	return c.beginOAuthFlow.CallUnary(ctx, req)
+}
+
+// CompleteOAuthFlow calls bff.v1.AuthService.CompleteOAuthFlow.
+func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, req *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error) {
+	return c.completeOAuthFlow.CallUnary(ctx, req)
+}
+
 // AuthServiceHandler is an implementation of the bff.v1.AuthService service.
 type AuthServiceHandler interface {
 	Register(context.Context, *connect.Request[v1.RegisterRequest]) (*connect.Response[v1.RegisterResponse], error)
@@ -142,6 +190,9 @@ type AuthServiceHandler interface {
 	Me(context.Context, *connect.Request[v1.MeRequest]) (*connect.Response[v1.MeResponse], error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
+	ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error)
+	BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error)
+	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error)
 }
 
 // NewAuthServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -181,6 +232,24 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("IssueCSRFToken")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceListOAuthProvidersHandler := connect.NewUnaryHandler(
+		AuthServiceListOAuthProvidersProcedure,
+		svc.ListOAuthProviders,
+		connect.WithSchema(authServiceMethods.ByName("ListOAuthProviders")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceBeginOAuthFlowHandler := connect.NewUnaryHandler(
+		AuthServiceBeginOAuthFlowProcedure,
+		svc.BeginOAuthFlow,
+		connect.WithSchema(authServiceMethods.ByName("BeginOAuthFlow")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceCompleteOAuthFlowHandler := connect.NewUnaryHandler(
+		AuthServiceCompleteOAuthFlowProcedure,
+		svc.CompleteOAuthFlow,
+		connect.WithSchema(authServiceMethods.ByName("CompleteOAuthFlow")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/bff.v1.AuthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AuthServiceRegisterProcedure:
@@ -193,6 +262,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceMeHandler.ServeHTTP(w, r)
 		case AuthServiceIssueCSRFTokenProcedure:
 			authServiceIssueCSRFTokenHandler.ServeHTTP(w, r)
+		case AuthServiceListOAuthProvidersProcedure:
+			authServiceListOAuthProvidersHandler.ServeHTTP(w, r)
+		case AuthServiceBeginOAuthFlowProcedure:
+			authServiceBeginOAuthFlowHandler.ServeHTTP(w, r)
+		case AuthServiceCompleteOAuthFlowProcedure:
+			authServiceCompleteOAuthFlowHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -220,4 +295,16 @@ func (UnimplementedAuthServiceHandler) Me(context.Context, *connect.Request[v1.M
 
 func (UnimplementedAuthServiceHandler) IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.IssueCSRFToken is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.ListOAuthProviders is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.BeginOAuthFlow is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.CompleteOAuthFlow is not implemented"))
 }

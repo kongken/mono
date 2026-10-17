@@ -26,6 +26,7 @@ import (
 	"github.com/gin-gonic/gin"
 	bffapp "github.com/kongken/mono/internal/bff/app"
 	bffconfig "github.com/kongken/mono/internal/bff/config"
+	"github.com/kongken/mono/internal/bff/oauth/provider"
 	bffent "github.com/kongken/mono/internal/bff/ent"
 	bfftestutil "github.com/kongken/mono/internal/bff/testutil"
 	"github.com/kongken/mono/internal/bff/session"
@@ -68,7 +69,8 @@ type Browser struct {
 }
 
 // NewChainHarness builds the full stack or skips when storage env is unset.
-func NewChainHarness(t *testing.T) *ChainHarness {
+// Optional oauthReg overrides BFF OAuth providers (chain OAuth tests).
+func NewChainHarness(t *testing.T, oauthReg ...*provider.Registry) *ChainHarness {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	idx, err := regions.Default()
@@ -118,6 +120,9 @@ func NewChainHarness(t *testing.T) *ChainHarness {
 		Auth: bffconfig.AuthConfig{CookieSecure: false},
 	}
 	h.BFF = bffapp.New(bffCfg)
+	if len(oauthReg) > 0 && oauthReg[0] != nil {
+		h.BFF.SetOAuthRegistry(oauthReg[0])
+	}
 	h.BFF.SetResources(&bffapp.Resources{DB: bffDB, Redis: bffRedis, KeyPrefix: bffPrefix})
 	if err := h.BFF.Bootstrap(); err != nil {
 		t.Fatal(err)

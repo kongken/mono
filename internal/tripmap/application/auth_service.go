@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +14,6 @@ import (
 	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/tripmap/auth"
-	"github.com/kongken/mono/internal/tripmap/auth/provider"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/session"
@@ -43,8 +41,6 @@ const (
 	loginPerIP        = 40
 	registerWindow    = time.Hour
 	registerPerIP     = 10
-	oauthWindow       = 15 * time.Minute
-	oauthPerIP        = 60
 	invalidCredential = "invalid username or password"
 )
 
@@ -53,23 +49,10 @@ type AuthService struct {
 	cfg *config.AppConfig
 	src StoreSource
 
-	providersOnce sync.Once
-	providers     *provider.Registry
 }
 
 func NewAuthService(cfg *config.AppConfig, src StoreSource) *AuthService {
 	return &AuthService{cfg: cfg, src: src}
-}
-
-// SetProviders overrides the OAuth registry (used by tests).
-func (s *AuthService) SetProviders(r *provider.Registry) {
-	s.providersOnce.Do(func() {})
-	s.providers = r
-}
-
-func (s *AuthService) registry() *provider.Registry {
-	s.providersOnce.Do(func() { s.providers = provider.BuildRegistry(s.cfg.Auth) })
-	return s.providers
 }
 
 var (
@@ -319,137 +302,13 @@ func (s *AuthService) RevokeSession(ctx context.Context, req *connect.Request[tr
 }
 
 func (s *AuthService) ListOAuthProviders(context.Context, *connect.Request[tripmapv1.ListOAuthProvidersRequest]) (*connect.Response[tripmapv1.ListOAuthProvidersResponse], error) {
-	list := s.registry().List()
-	sort.Slice(list, func(i, j int) bool { return list[i].Name() < list[j].Name() })
-	out := &tripmapv1.ListOAuthProvidersResponse{}
-	for _, p := range list {
-		out.Providers = append(out.Providers, &tripmapv1.OAuthProvider{Name: p.Name(), DisplayName: p.DisplayName()})
-	}
-	return connect.NewResponse(out), nil
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("use bff.v1.AuthService"))
 }
 
-func (s *AuthService) BeginOAuthFlow(ctx context.Context, req *connect.Request[tripmapv1.BeginOAuthFlowRequest]) (*connect.Response[tripmapv1.BeginOAuthFlowResponse], error) {
-	st, err := storeFrom(s.src)
-	if err != nil {
-		return nil, err
-	}
-	p, err := s.registry().Get(strings.TrimSpace(req.Msg.GetProvider()))
-	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("unknown oauth provider"))
-	}
-	if err = s.allow(ctx, st, "oauth:ip:"+s.clientIP(req), oauthPerIP, oauthWindow); err != nil {
-		return nil, err
-	}
-	pk, usesPKCE := p.(provider.PKCEProvider)
-	var verifier, challenge string
-	if usesPKCE {
-		if verifier, challenge, err = provider.NewPKCE(); err != nil {
-			slog.Error("create pkce verifier", "error", err)
-			return nil, internalError(err)
-		}
-	}
-	state, err := auth.NewStateStore(st.Redis, st.prefix()).Create(ctx, p.Name(), verifier)
-	if err != nil {
-		slog.Error("create oauth state", "error", err)
-		return nil, internalError(err)
-	}
-	authorizeURL := ""
-	if usesPKCE {
-		authorizeURL = pk.AuthorizePKCEURL(state, challenge)
-	} else {
-		authorizeURL = p.AuthorizeURL(state)
-	}
-	return connect.NewResponse(&tripmapv1.BeginOAuthFlowResponse{AuthorizeUrl: authorizeURL, State: state}), nil
+func (s *AuthService) BeginOAuthFlow(context.Context, *connect.Request[tripmapv1.BeginOAuthFlowRequest]) (*connect.Response[tripmapv1.BeginOAuthFlowResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("use bff.v1.AuthService"))
 }
 
-func (s *AuthService) CompleteOAuthFlow(ctx context.Context, req *connect.Request[tripmapv1.CompleteOAuthFlowRequest]) (*connect.Response[tripmapv1.CompleteOAuthFlowResponse], error) {
-	st, err := storeFrom(s.src)
-	if err != nil {
-		return nil, err
-	}
-	name, code, state := strings.TrimSpace(req.Msg.GetProvider()), strings.TrimSpace(req.Msg.GetCode()), strings.TrimSpace(req.Msg.GetState())
-	if name == "" || code == "" || state == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("provider, code and state are required"))
-	}
-	if err = s.allow(ctx, st, "oauth:ip:"+s.clientIP(req), oauthPerIP, oauthWindow); err != nil {
-		return nil, err
-	}
-	attempt, err := auth.NewStateStore(st.Redis, st.prefix()).Consume(ctx, state)
-	if errors.Is(err, auth.ErrStateNotFound) || (err == nil && attempt.Provider != name) {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("invalid or expired state"))
-	}
-	if err != nil {
-		slog.Error("consume oauth state", "error", err)
-		return nil, internalError(err)
-	}
-	p, err := s.registry().Get(name)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("unknown oauth provider"))
-	}
-	var claims *provider.Claims
-	if pk, ok := p.(provider.PKCEProvider); ok {
-		claims, err = pk.ExchangePKCE(ctx, code, attempt.CodeVerifier)
-	} else {
-		claims, err = p.Exchange(ctx, code)
-	}
-	if err != nil || claims == nil || claims.ExternalID == "" {
-		slog.Warn("oauth exchange failed", "provider", name, "error", err)
-		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("oauth sign-in failed"))
-	}
-	u, err := s.oauthUser(ctx, st, name, claims)
-	if err != nil {
-		return nil, err
-	}
-	if u.Disabled && u.DeletionRequestedAt == nil {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("account is disabled"))
-	}
-	token, expires, err := s.issueSession(ctx, st, u.ID)
-	if err != nil {
-		return nil, err
-	}
-	return connect.NewResponse(&tripmapv1.CompleteOAuthFlowResponse{Token: token, User: toUser(u), ExpiresAt: timestamppb.New(expires)}), nil
-}
-
-// oauthUser finds the account for a provider identity, creating it when
-// registration is open. Accounts are never linked by email address.
-func (s *AuthService) oauthUser(ctx context.Context, st *Store, providerName string, claims *provider.Claims) (*ent.User, error) {
-	find := func() (*ent.User, error) {
-		return st.DB.User.Query().Where(user.Provider(providerName), user.ExternalID(claims.ExternalID)).Only(ctx)
-	}
-	u, err := find()
-	if err == nil {
-		return u, nil
-	}
-	if !ent.IsNotFound(err) {
-		return nil, internalError(err)
-	}
-	if s.cfg.Auth.RegistrationDisabled {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("registration is closed"))
-	}
-	display := strings.TrimSpace(claims.Name)
-	if display == "" {
-		display = strings.TrimSpace(claims.Login)
-	}
-	if display == "" {
-		display = "旅行者"
-	}
-	if r := []rune(display); len(r) > maxDisplayRunes {
-		display = string(r[:maxDisplayRunes])
-	}
-	avatar := claims.AvatarURL
-	if len(avatar) > maxAvatarURLBytes || !(strings.HasPrefix(avatar, "https://") || strings.HasPrefix(avatar, "http://")) {
-		avatar = ""
-	}
-	u, err = st.DB.User.Create().SetProvider(providerName).SetExternalID(claims.ExternalID).SetDisplayName(display).SetAvatarURL(avatar).Save(ctx)
-	if ent.IsConstraintError(err) { // a concurrent first sign-in created it
-		if u, err = find(); err != nil {
-			return nil, internalError(err)
-		}
-		return u, nil
-	}
-	if err != nil {
-		slog.Error("create oauth user", "error", err)
-		return nil, internalError(err)
-	}
-	return u, nil
+func (s *AuthService) CompleteOAuthFlow(context.Context, *connect.Request[tripmapv1.CompleteOAuthFlowRequest]) (*connect.Response[tripmapv1.CompleteOAuthFlowResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("use bff.v1.AuthService"))
 }

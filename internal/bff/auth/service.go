@@ -15,6 +15,8 @@ import (
 	"github.com/kongken/mono/internal/bff/ent"
 	entsession "github.com/kongken/mono/internal/bff/ent/session"
 	"github.com/kongken/mono/internal/bff/ent/user"
+	"github.com/kongken/mono/internal/bff/oauth"
+	"github.com/kongken/mono/internal/bff/oauth/provider"
 	"github.com/kongken/mono/internal/bff/ratelimit"
 	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/platform/rpcauth"
@@ -44,15 +46,19 @@ const (
 )
 
 type Service struct {
-	cfg      *config.AuthConfig
-	cookies  session.CookieConfig
-	db       *ent.Client
-	limit    *ratelimit.Limiter
-	profiles tripmapv1.ProfileServiceClient
+	cfg        *config.AuthConfig
+	cookies    session.CookieConfig
+	db         *ent.Client
+	limit      *ratelimit.Limiter
+	profiles   tripmapv1.ProfileServiceClient
+	oauthState *oauth.StateStore
+	oauthReg   *provider.Registry
 }
 
-func NewService(cfg *config.AuthConfig, cookies session.CookieConfig, db *ent.Client, limit *ratelimit.Limiter, profiles tripmapv1.ProfileServiceClient) *Service {
-	return &Service{cfg: cfg, cookies: cookies, db: db, limit: limit, profiles: profiles}
+func NewService(cfg *config.AuthConfig, cookies session.CookieConfig, db *ent.Client, limit *ratelimit.Limiter, profiles tripmapv1.ProfileServiceClient, oauth OAuthDeps) *Service {
+	s := &Service{cfg: cfg, cookies: cookies, db: db, limit: limit, profiles: profiles}
+	applyOAuthDeps(s, oauth)
+	return s
 }
 
 var (

@@ -19,11 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthService_Register_FullMethodName       = "/bff.v1.AuthService/Register"
-	AuthService_Login_FullMethodName          = "/bff.v1.AuthService/Login"
-	AuthService_Logout_FullMethodName         = "/bff.v1.AuthService/Logout"
-	AuthService_Me_FullMethodName             = "/bff.v1.AuthService/Me"
-	AuthService_IssueCSRFToken_FullMethodName = "/bff.v1.AuthService/IssueCSRFToken"
+	AuthService_Register_FullMethodName           = "/bff.v1.AuthService/Register"
+	AuthService_Login_FullMethodName              = "/bff.v1.AuthService/Login"
+	AuthService_Logout_FullMethodName             = "/bff.v1.AuthService/Logout"
+	AuthService_Me_FullMethodName                 = "/bff.v1.AuthService/Me"
+	AuthService_IssueCSRFToken_FullMethodName     = "/bff.v1.AuthService/IssueCSRFToken"
+	AuthService_ListOAuthProviders_FullMethodName = "/bff.v1.AuthService/ListOAuthProviders"
+	AuthService_BeginOAuthFlow_FullMethodName     = "/bff.v1.AuthService/BeginOAuthFlow"
+	AuthService_CompleteOAuthFlow_FullMethodName  = "/bff.v1.AuthService/CompleteOAuthFlow"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -39,6 +42,9 @@ type AuthServiceClient interface {
 	Me(ctx context.Context, in *MeRequest, opts ...grpc.CallOption) (*MeResponse, error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(ctx context.Context, in *IssueCSRFTokenRequest, opts ...grpc.CallOption) (*IssueCSRFTokenResponse, error)
+	ListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest, opts ...grpc.CallOption) (*ListOAuthProvidersResponse, error)
+	BeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest, opts ...grpc.CallOption) (*BeginOAuthFlowResponse, error)
+	CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest, opts ...grpc.CallOption) (*CompleteOAuthFlowResponse, error)
 }
 
 type authServiceClient struct {
@@ -99,6 +105,36 @@ func (c *authServiceClient) IssueCSRFToken(ctx context.Context, in *IssueCSRFTok
 	return out, nil
 }
 
+func (c *authServiceClient) ListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest, opts ...grpc.CallOption) (*ListOAuthProvidersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOAuthProvidersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListOAuthProviders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) BeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest, opts ...grpc.CallOption) (*BeginOAuthFlowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BeginOAuthFlowResponse)
+	err := c.cc.Invoke(ctx, AuthService_BeginOAuthFlow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest, opts ...grpc.CallOption) (*CompleteOAuthFlowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteOAuthFlowResponse)
+	err := c.cc.Invoke(ctx, AuthService_CompleteOAuthFlow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -112,6 +148,9 @@ type AuthServiceServer interface {
 	Me(context.Context, *MeRequest) (*MeResponse, error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error)
+	ListOAuthProviders(context.Context, *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error)
+	BeginOAuthFlow(context.Context, *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error)
+	CompleteOAuthFlow(context.Context, *CompleteOAuthFlowRequest) (*CompleteOAuthFlowResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -136,6 +175,15 @@ func (UnimplementedAuthServiceServer) Me(context.Context, *MeRequest) (*MeRespon
 }
 func (UnimplementedAuthServiceServer) IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IssueCSRFToken not implemented")
+}
+func (UnimplementedAuthServiceServer) ListOAuthProviders(context.Context, *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListOAuthProviders not implemented")
+}
+func (UnimplementedAuthServiceServer) BeginOAuthFlow(context.Context, *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BeginOAuthFlow not implemented")
+}
+func (UnimplementedAuthServiceServer) CompleteOAuthFlow(context.Context, *CompleteOAuthFlowRequest) (*CompleteOAuthFlowResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CompleteOAuthFlow not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
@@ -248,6 +296,60 @@ func _AuthService_IssueCSRFToken_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListOAuthProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOAuthProvidersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListOAuthProviders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListOAuthProviders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListOAuthProviders(ctx, req.(*ListOAuthProvidersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_BeginOAuthFlow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BeginOAuthFlowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).BeginOAuthFlow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_BeginOAuthFlow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).BeginOAuthFlow(ctx, req.(*BeginOAuthFlowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CompleteOAuthFlow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteOAuthFlowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CompleteOAuthFlow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_CompleteOAuthFlow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CompleteOAuthFlow(ctx, req.(*CompleteOAuthFlowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -274,6 +376,18 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "IssueCSRFToken",
 			Handler:    _AuthService_IssueCSRFToken_Handler,
+		},
+		{
+			MethodName: "ListOAuthProviders",
+			Handler:    _AuthService_ListOAuthProviders_Handler,
+		},
+		{
+			MethodName: "BeginOAuthFlow",
+			Handler:    _AuthService_BeginOAuthFlow_Handler,
+		},
+		{
+			MethodName: "CompleteOAuthFlow",
+			Handler:    _AuthService_CompleteOAuthFlow_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

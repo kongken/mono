@@ -28,6 +28,10 @@ auth:
   session_ttl: 168h
   cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP
   # registration_disabled: true
+  # oauth_providers.github:
+  #   client_id: ...
+  #   client_secret: ...
+  #   redirect_url: http://localhost:5173/auth/callback/github
 
 # client_ip_header: X-Real-IP
 # cors_allowed_origins: ["http://localhost:5173"]
