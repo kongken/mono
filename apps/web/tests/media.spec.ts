@@ -16,10 +16,9 @@ test("private media uploads, retries confirmation, downloads and deletes on desk
     putBearer = route.request().headers().authorization;
     await route.fulfill({ status: 200, body: "" });
   });
-  await page.route("**/api/tripmap.v1.MediaService/**", async (route) => {
+  await page.route("**/api/bff.v1.MediaService/**", async (route) => {
     const method = route.request().url().split("/").pop(),
       body = route.request().postDataJSON();
-    expect(route.request().headers().authorization).toBeTruthy();
     let result: unknown = {};
     if (method === "ListMedia")
       result = {

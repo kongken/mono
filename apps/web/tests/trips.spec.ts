@@ -397,7 +397,7 @@ test("photos link to one trip, survive deleting that trip and cancelling the cit
   const files: Record<string, unknown>[] = [];
   const prepared: { regionCode: string; tripId: string }[] = [];
   let deletes = 0;
-  await page.route("**/api/tripmap.v1.MediaService/**", async (route) => {
+  await page.route("**/api/bff.v1.MediaService/**", async (route) => {
     const method = route.request().url().split("/").pop();
     const body = route.request().postDataJSON() ?? {};
     let result: unknown = {};

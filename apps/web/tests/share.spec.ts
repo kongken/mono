@@ -144,7 +144,7 @@ async function ownerPage(page: Page, shareEnabled = true) {
   await backend.install();
   const share = fakeShare(page);
   await share.install();
-  await page.route("**/api/tripmap.v1.MediaService/ListMedia", (route) => route.fulfill({ json: { media } }));
+  await page.route("**/api/bff.v1.MediaService/ListMedia", (route) => route.fulfill({ json: { media } }));
   await login(page);
   return share;
 }

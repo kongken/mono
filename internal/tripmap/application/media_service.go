@@ -18,7 +18,6 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
-	"github.com/kongken/mono/internal/tripmap/ent/trip"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
 	"github.com/kongken/mono/internal/tripmap/regions"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
@@ -157,7 +156,7 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 			}
 		}
 		if r.TripId != "" {
-			if err = requireTrip(ctx, tx, p.UserID, r.RegionCode, r.TripId); err != nil {
+			if err = AuthorizeTripMediaWrite(ctx, tx, p.UserID, r.RegionCode, r.TripId); err != nil {
 				return nil, err
 			}
 		}
@@ -364,35 +363,3 @@ func DeleteMediaKeys(ctx context.Context, st *Store, m *ent.MediaObject) error {
 	return nil
 }
 
-// requireTrip checks that the trip exists for this user in this city. The link
-// is a soft reference: deleting the trip or the city later leaves the media in
-// place, reachable from the city's attachments. A schema 1 account has no trip
-// rows yet; its city is read as one legacy trip, so that ID is accepted too.
-func requireTrip(ctx context.Context, tx *ent.Tx, uid, region, tripID string) error {
-	if _, err := checkSharedTripWriteAllowed(ctx, tx, uid, tripID); err != nil {
-		return err
-	}
-	ok, err := tx.Trip.Query().Where(trip.UserID(uid), trip.TripID(tripID), trip.RegionCode(region)).Exist(ctx)
-	if err != nil {
-		return internalError(err)
-	}
-	if ok {
-		return nil
-	}
-	if tripID == legacyTripID(region) {
-		u, err := tx.User.Get(ctx, uid)
-		if err != nil {
-			return internalError(err)
-		}
-		if u.SchemaVersion < schemaTrips {
-			ok, err = tx.CityVisit.Query().Where(cityvisit.UserID(uid), cityvisit.RegionCode(region)).Exist(ctx)
-			if err != nil {
-				return internalError(err)
-			}
-			if ok {
-				return nil
-			}
-		}
-	}
-	return connect.NewError(connect.CodeFailedPrecondition, errors.New("trip not found: sync the trip before attaching files"))
-}

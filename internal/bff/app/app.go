@@ -27,6 +27,7 @@ import (
 	"github.com/kongken/mono/internal/bff/footprint"
 	"github.com/kongken/mono/internal/bff/friends"
 	bffitinerary "github.com/kongken/mono/internal/bff/itinerary"
+	bffmedia "github.com/kongken/mono/internal/bff/media"
 	"github.com/kongken/mono/internal/bff/gateway"
 	"github.com/kongken/mono/internal/bff/ingress"
 	bffnotification "github.com/kongken/mono/internal/bff/notification"
@@ -154,8 +155,10 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 	policy := ingress.Policy{
 		ClientIPHeader: h.cfg.ClientIPHeader,
 		Heavy: map[string]bool{
-			bffv1connect.FootprintServiceSyncChangesProcedure: true,
-			bffv1connect.AuthServiceDeleteAccountProcedure:  true,
+			bffv1connect.FootprintServiceSyncChangesProcedure:   true,
+			bffv1connect.AuthServiceDeleteAccountProcedure:      true,
+			bffv1connect.MediaServicePrepareUploadProcedure:     true,
+			bffv1connect.MediaServiceCompleteUploadProcedure:    true,
 		},
 	}
 	if r := h.resources.Load(); r != nil && conn != nil {
@@ -194,6 +197,9 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 			mux.Handle(route, ingress.ConnectOnly(handler))
 			itin := bffitinerary.New(tripmapv1.NewItineraryServiceClient(conn), h.cfg.CORSAllowedOrigins)
 			route, handler = bffv1connect.NewItineraryServiceHandler(itin, opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+			media := bffmedia.New(tripmapv1.NewMediaServiceClient(conn), h.cfg.CORSAllowedOrigins)
+			route, handler = bffv1connect.NewMediaServiceHandler(media, opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
 		}
 	}
