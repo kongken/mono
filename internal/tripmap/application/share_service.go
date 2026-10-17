@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
@@ -110,7 +109,7 @@ func (s *ShareService) info(row *ent.Share, revision int64) *tripmapv1.ShareInfo
 }
 
 func (s *ShareService) allow(ctx context.Context, st *Store, key string, limit int64, window time.Duration) error {
-	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, key, limit, window)
+	ok, err := NewLimiter(st.Redis, st.prefix()).Allow(ctx, key, limit, window)
 	if err != nil {
 		slog.Error("rate limiter unavailable", "error", err)
 		return connect.NewError(connect.CodeUnavailable, errors.New("service temporarily unavailable"))
@@ -204,9 +203,6 @@ func (s *ShareService) GetShare(ctx context.Context, _ *connect.Request[tripmapv
 		}
 		return nil, internalError(err)
 	}
-	if u.Disabled {
-		return nil, errUnauthenticated
-	}
 	row, err := st.DB.Share.Query().Where(entshare.UserID(p.UserID)).Only(ctx)
 	if err != nil && !ent.IsNotFound(err) {
 		return nil, internalError(err)
@@ -253,9 +249,6 @@ func (s *ShareService) PreviewShare(ctx context.Context, req *connect.Request[tr
 			return nil, errUnauthenticated
 		}
 		return nil, internalError(err)
-	}
-	if u.Disabled {
-		return nil, errUnauthenticated
 	}
 	src, err := loadShareSource(ctx, tx, u, set.PhotoIDs)
 	if err != nil {

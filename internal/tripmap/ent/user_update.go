@@ -22,7 +22,6 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/predicate"
 	"github.com/kongken/mono/internal/tripmap/ent/provincemark"
 	"github.com/kongken/mono/internal/tripmap/ent/pushsubscription"
-	"github.com/kongken/mono/internal/tripmap/ent/session"
 	"github.com/kongken/mono/internal/tripmap/ent/share"
 	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
 	"github.com/kongken/mono/internal/tripmap/ent/snapshot"
@@ -42,26 +41,6 @@ type UserUpdate struct {
 // Where appends a list predicates to the UserUpdate builder.
 func (_u *UserUpdate) Where(ps ...predicate.User) *UserUpdate {
 	_u.mutation.Where(ps...)
-	return _u
-}
-
-// SetEmail sets the "email" field.
-func (_u *UserUpdate) SetEmail(v string) *UserUpdate {
-	_u.mutation.SetEmail(v)
-	return _u
-}
-
-// SetNillableEmail sets the "email" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableEmail(v *string) *UserUpdate {
-	if v != nil {
-		_u.SetEmail(*v)
-	}
-	return _u
-}
-
-// ClearEmail clears the value of the "email" field.
-func (_u *UserUpdate) ClearEmail() *UserUpdate {
-	_u.mutation.ClearEmail()
 	return _u
 }
 
@@ -110,82 +89,6 @@ func (_u *UserUpdate) SetNillableAvatarURL(v *string) *UserUpdate {
 	if v != nil {
 		_u.SetAvatarURL(*v)
 	}
-	return _u
-}
-
-// SetProvider sets the "provider" field.
-func (_u *UserUpdate) SetProvider(v string) *UserUpdate {
-	_u.mutation.SetProvider(v)
-	return _u
-}
-
-// SetNillableProvider sets the "provider" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableProvider(v *string) *UserUpdate {
-	if v != nil {
-		_u.SetProvider(*v)
-	}
-	return _u
-}
-
-// SetExternalID sets the "external_id" field.
-func (_u *UserUpdate) SetExternalID(v string) *UserUpdate {
-	_u.mutation.SetExternalID(v)
-	return _u
-}
-
-// SetNillableExternalID sets the "external_id" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableExternalID(v *string) *UserUpdate {
-	if v != nil {
-		_u.SetExternalID(*v)
-	}
-	return _u
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (_u *UserUpdate) SetPasswordHash(v string) *UserUpdate {
-	_u.mutation.SetPasswordHash(v)
-	return _u
-}
-
-// SetNillablePasswordHash sets the "password_hash" field if the given value is not nil.
-func (_u *UserUpdate) SetNillablePasswordHash(v *string) *UserUpdate {
-	if v != nil {
-		_u.SetPasswordHash(*v)
-	}
-	return _u
-}
-
-// SetDisabled sets the "disabled" field.
-func (_u *UserUpdate) SetDisabled(v bool) *UserUpdate {
-	_u.mutation.SetDisabled(v)
-	return _u
-}
-
-// SetNillableDisabled sets the "disabled" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableDisabled(v *bool) *UserUpdate {
-	if v != nil {
-		_u.SetDisabled(*v)
-	}
-	return _u
-}
-
-// SetDeletionRequestedAt sets the "deletion_requested_at" field.
-func (_u *UserUpdate) SetDeletionRequestedAt(v time.Time) *UserUpdate {
-	_u.mutation.SetDeletionRequestedAt(v)
-	return _u
-}
-
-// SetNillableDeletionRequestedAt sets the "deletion_requested_at" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableDeletionRequestedAt(v *time.Time) *UserUpdate {
-	if v != nil {
-		_u.SetDeletionRequestedAt(*v)
-	}
-	return _u
-}
-
-// ClearDeletionRequestedAt clears the value of the "deletion_requested_at" field.
-func (_u *UserUpdate) ClearDeletionRequestedAt() *UserUpdate {
-	_u.mutation.ClearDeletionRequestedAt()
 	return _u
 }
 
@@ -357,21 +260,6 @@ func (_u *UserUpdate) AddMediaObjects(v ...*MediaObject) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.AddMediaObjectIDs(ids...)
-}
-
-// AddSessionIDs adds the "sessions" edge to the Session entity by IDs.
-func (_u *UserUpdate) AddSessionIDs(ids ...string) *UserUpdate {
-	_u.mutation.AddSessionIDs(ids...)
-	return _u
-}
-
-// AddSessions adds the "sessions" edges to the Session entity.
-func (_u *UserUpdate) AddSessions(v ...*Session) *UserUpdate {
-	ids := make([]string, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddSessionIDs(ids...)
 }
 
 // AddFootprintChangeIDs adds the "footprint_changes" edge to the FootprintChange entity by IDs.
@@ -664,27 +552,6 @@ func (_u *UserUpdate) RemoveMediaObjects(v ...*MediaObject) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveMediaObjectIDs(ids...)
-}
-
-// ClearSessions clears all "sessions" edges to the Session entity.
-func (_u *UserUpdate) ClearSessions() *UserUpdate {
-	_u.mutation.ClearSessions()
-	return _u
-}
-
-// RemoveSessionIDs removes the "sessions" edge to Session entities by IDs.
-func (_u *UserUpdate) RemoveSessionIDs(ids ...string) *UserUpdate {
-	_u.mutation.RemoveSessionIDs(ids...)
-	return _u
-}
-
-// RemoveSessions removes "sessions" edges to Session entities.
-func (_u *UserUpdate) RemoveSessions(v ...*Session) *UserUpdate {
-	ids := make([]string, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemoveSessionIDs(ids...)
 }
 
 // ClearFootprintChanges clears all "footprint_changes" edges to the FootprintChange entity.
@@ -993,12 +860,6 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			}
 		}
 	}
-	if value, ok := _u.mutation.Email(); ok {
-		_spec.SetField(user.FieldEmail, field.TypeString, value)
-	}
-	if _u.mutation.EmailCleared() {
-		_spec.ClearField(user.FieldEmail, field.TypeString)
-	}
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
 	}
@@ -1010,24 +871,6 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AvatarURL(); ok {
 		_spec.SetField(user.FieldAvatarURL, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.Provider(); ok {
-		_spec.SetField(user.FieldProvider, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.ExternalID(); ok {
-		_spec.SetField(user.FieldExternalID, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.PasswordHash(); ok {
-		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.Disabled(); ok {
-		_spec.SetField(user.FieldDisabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.DeletionRequestedAt(); ok {
-		_spec.SetField(user.FieldDeletionRequestedAt, field.TypeTime, value)
-	}
-	if _u.mutation.DeletionRequestedAtCleared() {
-		_spec.ClearField(user.FieldDeletionRequestedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.Revision(); ok {
 		_spec.SetField(user.FieldRevision, field.TypeInt64, value)
@@ -1232,51 +1075,6 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(mediaobject.FieldID, field.TypeString),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.SessionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.SessionsTable,
-			Columns: []string{user.SessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(session.FieldID, field.TypeString),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedSessionsIDs(); len(nodes) > 0 && !_u.mutation.SessionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.SessionsTable,
-			Columns: []string{user.SessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(session.FieldID, field.TypeString),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.SessionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.SessionsTable,
-			Columns: []string{user.SessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(session.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -1857,26 +1655,6 @@ type UserUpdateOne struct {
 	mutation *UserMutation
 }
 
-// SetEmail sets the "email" field.
-func (_u *UserUpdateOne) SetEmail(v string) *UserUpdateOne {
-	_u.mutation.SetEmail(v)
-	return _u
-}
-
-// SetNillableEmail sets the "email" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableEmail(v *string) *UserUpdateOne {
-	if v != nil {
-		_u.SetEmail(*v)
-	}
-	return _u
-}
-
-// ClearEmail clears the value of the "email" field.
-func (_u *UserUpdateOne) ClearEmail() *UserUpdateOne {
-	_u.mutation.ClearEmail()
-	return _u
-}
-
 // SetUsername sets the "username" field.
 func (_u *UserUpdateOne) SetUsername(v string) *UserUpdateOne {
 	_u.mutation.SetUsername(v)
@@ -1922,82 +1700,6 @@ func (_u *UserUpdateOne) SetNillableAvatarURL(v *string) *UserUpdateOne {
 	if v != nil {
 		_u.SetAvatarURL(*v)
 	}
-	return _u
-}
-
-// SetProvider sets the "provider" field.
-func (_u *UserUpdateOne) SetProvider(v string) *UserUpdateOne {
-	_u.mutation.SetProvider(v)
-	return _u
-}
-
-// SetNillableProvider sets the "provider" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableProvider(v *string) *UserUpdateOne {
-	if v != nil {
-		_u.SetProvider(*v)
-	}
-	return _u
-}
-
-// SetExternalID sets the "external_id" field.
-func (_u *UserUpdateOne) SetExternalID(v string) *UserUpdateOne {
-	_u.mutation.SetExternalID(v)
-	return _u
-}
-
-// SetNillableExternalID sets the "external_id" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableExternalID(v *string) *UserUpdateOne {
-	if v != nil {
-		_u.SetExternalID(*v)
-	}
-	return _u
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (_u *UserUpdateOne) SetPasswordHash(v string) *UserUpdateOne {
-	_u.mutation.SetPasswordHash(v)
-	return _u
-}
-
-// SetNillablePasswordHash sets the "password_hash" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillablePasswordHash(v *string) *UserUpdateOne {
-	if v != nil {
-		_u.SetPasswordHash(*v)
-	}
-	return _u
-}
-
-// SetDisabled sets the "disabled" field.
-func (_u *UserUpdateOne) SetDisabled(v bool) *UserUpdateOne {
-	_u.mutation.SetDisabled(v)
-	return _u
-}
-
-// SetNillableDisabled sets the "disabled" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableDisabled(v *bool) *UserUpdateOne {
-	if v != nil {
-		_u.SetDisabled(*v)
-	}
-	return _u
-}
-
-// SetDeletionRequestedAt sets the "deletion_requested_at" field.
-func (_u *UserUpdateOne) SetDeletionRequestedAt(v time.Time) *UserUpdateOne {
-	_u.mutation.SetDeletionRequestedAt(v)
-	return _u
-}
-
-// SetNillableDeletionRequestedAt sets the "deletion_requested_at" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableDeletionRequestedAt(v *time.Time) *UserUpdateOne {
-	if v != nil {
-		_u.SetDeletionRequestedAt(*v)
-	}
-	return _u
-}
-
-// ClearDeletionRequestedAt clears the value of the "deletion_requested_at" field.
-func (_u *UserUpdateOne) ClearDeletionRequestedAt() *UserUpdateOne {
-	_u.mutation.ClearDeletionRequestedAt()
 	return _u
 }
 
@@ -2169,21 +1871,6 @@ func (_u *UserUpdateOne) AddMediaObjects(v ...*MediaObject) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.AddMediaObjectIDs(ids...)
-}
-
-// AddSessionIDs adds the "sessions" edge to the Session entity by IDs.
-func (_u *UserUpdateOne) AddSessionIDs(ids ...string) *UserUpdateOne {
-	_u.mutation.AddSessionIDs(ids...)
-	return _u
-}
-
-// AddSessions adds the "sessions" edges to the Session entity.
-func (_u *UserUpdateOne) AddSessions(v ...*Session) *UserUpdateOne {
-	ids := make([]string, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddSessionIDs(ids...)
 }
 
 // AddFootprintChangeIDs adds the "footprint_changes" edge to the FootprintChange entity by IDs.
@@ -2476,27 +2163,6 @@ func (_u *UserUpdateOne) RemoveMediaObjects(v ...*MediaObject) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveMediaObjectIDs(ids...)
-}
-
-// ClearSessions clears all "sessions" edges to the Session entity.
-func (_u *UserUpdateOne) ClearSessions() *UserUpdateOne {
-	_u.mutation.ClearSessions()
-	return _u
-}
-
-// RemoveSessionIDs removes the "sessions" edge to Session entities by IDs.
-func (_u *UserUpdateOne) RemoveSessionIDs(ids ...string) *UserUpdateOne {
-	_u.mutation.RemoveSessionIDs(ids...)
-	return _u
-}
-
-// RemoveSessions removes "sessions" edges to Session entities.
-func (_u *UserUpdateOne) RemoveSessions(v ...*Session) *UserUpdateOne {
-	ids := make([]string, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemoveSessionIDs(ids...)
 }
 
 // ClearFootprintChanges clears all "footprint_changes" edges to the FootprintChange entity.
@@ -2835,12 +2501,6 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			}
 		}
 	}
-	if value, ok := _u.mutation.Email(); ok {
-		_spec.SetField(user.FieldEmail, field.TypeString, value)
-	}
-	if _u.mutation.EmailCleared() {
-		_spec.ClearField(user.FieldEmail, field.TypeString)
-	}
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
 	}
@@ -2852,24 +2512,6 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AvatarURL(); ok {
 		_spec.SetField(user.FieldAvatarURL, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.Provider(); ok {
-		_spec.SetField(user.FieldProvider, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.ExternalID(); ok {
-		_spec.SetField(user.FieldExternalID, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.PasswordHash(); ok {
-		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.Disabled(); ok {
-		_spec.SetField(user.FieldDisabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.DeletionRequestedAt(); ok {
-		_spec.SetField(user.FieldDeletionRequestedAt, field.TypeTime, value)
-	}
-	if _u.mutation.DeletionRequestedAtCleared() {
-		_spec.ClearField(user.FieldDeletionRequestedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.Revision(); ok {
 		_spec.SetField(user.FieldRevision, field.TypeInt64, value)
@@ -3074,51 +2716,6 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(mediaobject.FieldID, field.TypeString),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.SessionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.SessionsTable,
-			Columns: []string{user.SessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(session.FieldID, field.TypeString),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedSessionsIDs(); len(nodes) > 0 && !_u.mutation.SessionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.SessionsTable,
-			Columns: []string{user.SessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(session.FieldID, field.TypeString),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.SessionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.SessionsTable,
-			Columns: []string{user.SessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(session.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

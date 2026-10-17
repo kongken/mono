@@ -27,12 +27,11 @@ type Route struct {
 	Trace string
 }
 
-// Services is the route table.
+// Services is the route table. Business RPCs are served as bff.v1 Connect on the
+// BFF; upstream entries remain for health probes and internal gRPC only.
 var Services = []Service{{
-	Name:     "tripmap",
-	GRPC:     true,
-	Packages: []string{"tripmap.v1"},
-	Headers: []string{"X-Tripmap-Schema", "X-Tripmap-Regions"},
+	Name: "tripmap",
+	GRPC: true,
 }}
 
 // Names lists the services in the route table.

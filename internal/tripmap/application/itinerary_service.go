@@ -12,7 +12,6 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	entitinerary "github.com/kongken/mono/internal/tripmap/ent/itinerary"
 	"github.com/kongken/mono/internal/tripmap/ent/schema"
@@ -47,7 +46,7 @@ func NewItineraryService(src StoreSource, idx *regions.Index) *ItineraryService 
 }
 
 func (s *ItineraryService) allow(ctx context.Context, st *Store, key string, limit int64, window time.Duration) error {
-	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, key, limit, window)
+	ok, err := NewLimiter(st.Redis, st.prefix()).Allow(ctx, key, limit, window)
 	if err != nil {
 		return connect.NewError(connect.CodeUnavailable, errors.New("itinerary service temporarily unavailable"))
 	}

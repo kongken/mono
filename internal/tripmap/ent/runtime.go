@@ -5,7 +5,6 @@ package ent
 import (
 	"time"
 
-	"github.com/kongken/mono/internal/tripmap/ent/accountdeletionreceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
 	"github.com/kongken/mono/internal/tripmap/ent/footprintchange"
 	"github.com/kongken/mono/internal/tripmap/ent/friendship"
@@ -18,7 +17,6 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/provincemark"
 	"github.com/kongken/mono/internal/tripmap/ent/pushsubscription"
 	"github.com/kongken/mono/internal/tripmap/ent/schema"
-	"github.com/kongken/mono/internal/tripmap/ent/session"
 	"github.com/kongken/mono/internal/tripmap/ent/share"
 	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
 	"github.com/kongken/mono/internal/tripmap/ent/snapshot"
@@ -32,16 +30,6 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
-	accountdeletionreceiptFields := schema.AccountDeletionReceipt{}.Fields()
-	_ = accountdeletionreceiptFields
-	// accountdeletionreceiptDescTokenHash is the schema descriptor for token_hash field.
-	accountdeletionreceiptDescTokenHash := accountdeletionreceiptFields[1].Descriptor()
-	// accountdeletionreceipt.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
-	accountdeletionreceipt.TokenHashValidator = accountdeletionreceiptDescTokenHash.Validators[0].(func(string) error)
-	// accountdeletionreceiptDescID is the schema descriptor for id field.
-	accountdeletionreceiptDescID := accountdeletionreceiptFields[0].Descriptor()
-	// accountdeletionreceipt.DefaultID holds the default value on creation for the id field.
-	accountdeletionreceipt.DefaultID = accountdeletionreceiptDescID.Default.(func() string)
 	cityvisitFields := schema.CityVisit{}.Fields()
 	_ = cityvisitFields
 	// cityvisitDescRegionCode is the schema descriptor for region_code field.
@@ -438,24 +426,6 @@ func init() {
 	pushsubscriptionDescID := pushsubscriptionFields[0].Descriptor()
 	// pushsubscription.DefaultID holds the default value on creation for the id field.
 	pushsubscription.DefaultID = pushsubscriptionDescID.Default.(func() string)
-	sessionFields := schema.Session{}.Fields()
-	_ = sessionFields
-	// sessionDescTokenHash is the schema descriptor for token_hash field.
-	sessionDescTokenHash := sessionFields[2].Descriptor()
-	// session.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
-	session.TokenHashValidator = sessionDescTokenHash.Validators[0].(func(string) error)
-	// sessionDescCreatedAt is the schema descriptor for created_at field.
-	sessionDescCreatedAt := sessionFields[3].Descriptor()
-	// session.DefaultCreatedAt holds the default value on creation for the created_at field.
-	session.DefaultCreatedAt = sessionDescCreatedAt.Default.(func() time.Time)
-	// sessionDescRevoked is the schema descriptor for revoked field.
-	sessionDescRevoked := sessionFields[6].Descriptor()
-	// session.DefaultRevoked holds the default value on creation for the revoked field.
-	session.DefaultRevoked = sessionDescRevoked.Default.(bool)
-	// sessionDescID is the schema descriptor for id field.
-	sessionDescID := sessionFields[0].Descriptor()
-	// session.DefaultID holds the default value on creation for the id field.
-	session.DefaultID = sessionDescID.Default.(func() string)
 	shareFields := schema.Share{}.Fields()
 	_ = shareFields
 	// shareDescShowCities is the schema descriptor for show_cities field.
@@ -667,59 +637,43 @@ func init() {
 	userFields := schema.User{}.Fields()
 	_ = userFields
 	// userDescDisplayName is the schema descriptor for display_name field.
-	userDescDisplayName := userFields[3].Descriptor()
+	userDescDisplayName := userFields[2].Descriptor()
 	// user.DefaultDisplayName holds the default value on creation for the display_name field.
 	user.DefaultDisplayName = userDescDisplayName.Default.(string)
 	// userDescAvatarURL is the schema descriptor for avatar_url field.
-	userDescAvatarURL := userFields[4].Descriptor()
+	userDescAvatarURL := userFields[3].Descriptor()
 	// user.DefaultAvatarURL holds the default value on creation for the avatar_url field.
 	user.DefaultAvatarURL = userDescAvatarURL.Default.(string)
-	// userDescProvider is the schema descriptor for provider field.
-	userDescProvider := userFields[5].Descriptor()
-	// user.DefaultProvider holds the default value on creation for the provider field.
-	user.DefaultProvider = userDescProvider.Default.(string)
-	// userDescExternalID is the schema descriptor for external_id field.
-	userDescExternalID := userFields[6].Descriptor()
-	// user.DefaultExternalID holds the default value on creation for the external_id field.
-	user.DefaultExternalID = userDescExternalID.Default.(string)
-	// userDescPasswordHash is the schema descriptor for password_hash field.
-	userDescPasswordHash := userFields[7].Descriptor()
-	// user.DefaultPasswordHash holds the default value on creation for the password_hash field.
-	user.DefaultPasswordHash = userDescPasswordHash.Default.(string)
-	// userDescDisabled is the schema descriptor for disabled field.
-	userDescDisabled := userFields[8].Descriptor()
-	// user.DefaultDisabled holds the default value on creation for the disabled field.
-	user.DefaultDisabled = userDescDisabled.Default.(bool)
 	// userDescRevision is the schema descriptor for revision field.
-	userDescRevision := userFields[10].Descriptor()
+	userDescRevision := userFields[4].Descriptor()
 	// user.DefaultRevision holds the default value on creation for the revision field.
 	user.DefaultRevision = userDescRevision.Default.(int64)
 	// user.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
 	user.RevisionValidator = userDescRevision.Validators[0].(func(int64) error)
 	// userDescSchemaVersion is the schema descriptor for schema_version field.
-	userDescSchemaVersion := userFields[11].Descriptor()
+	userDescSchemaVersion := userFields[5].Descriptor()
 	// user.DefaultSchemaVersion holds the default value on creation for the schema_version field.
 	user.DefaultSchemaVersion = userDescSchemaVersion.Default.(int)
 	// user.SchemaVersionValidator is a validator for the "schema_version" field. It is called by the builders before save.
 	user.SchemaVersionValidator = userDescSchemaVersion.Validators[0].(func(int) error)
 	// userDescFriendShowCities is the schema descriptor for friend_show_cities field.
-	userDescFriendShowCities := userFields[13].Descriptor()
+	userDescFriendShowCities := userFields[7].Descriptor()
 	// user.DefaultFriendShowCities holds the default value on creation for the friend_show_cities field.
 	user.DefaultFriendShowCities = userDescFriendShowCities.Default.(bool)
 	// userDescFriendShowDates is the schema descriptor for friend_show_dates field.
-	userDescFriendShowDates := userFields[14].Descriptor()
+	userDescFriendShowDates := userFields[8].Descriptor()
 	// user.DefaultFriendShowDates holds the default value on creation for the friend_show_dates field.
 	user.DefaultFriendShowDates = userDescFriendShowDates.Default.(bool)
 	// userDescFriendShowNotes is the schema descriptor for friend_show_notes field.
-	userDescFriendShowNotes := userFields[15].Descriptor()
+	userDescFriendShowNotes := userFields[9].Descriptor()
 	// user.DefaultFriendShowNotes holds the default value on creation for the friend_show_notes field.
 	user.DefaultFriendShowNotes = userDescFriendShowNotes.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[16].Descriptor()
+	userDescCreatedAt := userFields[10].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[17].Descriptor()
+	userDescUpdatedAt := userFields[11].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

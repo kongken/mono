@@ -9,25 +9,6 @@ import (
 )
 
 var (
-	// AccountDeletionReceiptsColumns holds the columns for the "account_deletion_receipts" table.
-	AccountDeletionReceiptsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeString},
-		{Name: "token_hash", Type: field.TypeString, Unique: true},
-		{Name: "expires_at", Type: field.TypeTime},
-	}
-	// AccountDeletionReceiptsTable holds the schema information for the "account_deletion_receipts" table.
-	AccountDeletionReceiptsTable = &schema.Table{
-		Name:       "account_deletion_receipts",
-		Columns:    AccountDeletionReceiptsColumns,
-		PrimaryKey: []*schema.Column{AccountDeletionReceiptsColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "accountdeletionreceipt_expires_at",
-				Unique:  false,
-				Columns: []*schema.Column{AccountDeletionReceiptsColumns[2]},
-			},
-		},
-	}
 	// CityVisitsColumns holds the columns for the "city_visits" table.
 	CityVisitsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -425,42 +406,6 @@ var (
 			},
 		},
 	}
-	// AuthSessionsColumns holds the columns for the "auth_sessions" table.
-	AuthSessionsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeString},
-		{Name: "token_hash", Type: field.TypeString, Unique: true},
-		{Name: "created_at", Type: field.TypeTime},
-		{Name: "expires_at", Type: field.TypeTime},
-		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
-		{Name: "revoked", Type: field.TypeBool, Default: false},
-		{Name: "user_id", Type: field.TypeString},
-	}
-	// AuthSessionsTable holds the schema information for the "auth_sessions" table.
-	AuthSessionsTable = &schema.Table{
-		Name:       "auth_sessions",
-		Columns:    AuthSessionsColumns,
-		PrimaryKey: []*schema.Column{AuthSessionsColumns[0]},
-		ForeignKeys: []*schema.ForeignKey{
-			{
-				Symbol:     "auth_sessions_users_sessions",
-				Columns:    []*schema.Column{AuthSessionsColumns[6]},
-				RefColumns: []*schema.Column{UsersColumns[0]},
-				OnDelete:   schema.Cascade,
-			},
-		},
-		Indexes: []*schema.Index{
-			{
-				Name:    "session_user_id",
-				Unique:  false,
-				Columns: []*schema.Column{AuthSessionsColumns[6]},
-			},
-			{
-				Name:    "session_expires_at",
-				Unique:  false,
-				Columns: []*schema.Column{AuthSessionsColumns[3]},
-			},
-		},
-	}
 	// SharesColumns holds the columns for the "shares" table.
 	SharesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -703,15 +648,9 @@ var (
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
-		{Name: "email", Type: field.TypeString, Unique: true, Nullable: true},
 		{Name: "username", Type: field.TypeString, Unique: true, Nullable: true},
 		{Name: "display_name", Type: field.TypeString, Default: ""},
 		{Name: "avatar_url", Type: field.TypeString, Default: ""},
-		{Name: "provider", Type: field.TypeString, Default: ""},
-		{Name: "external_id", Type: field.TypeString, Default: ""},
-		{Name: "password_hash", Type: field.TypeString, Default: ""},
-		{Name: "disabled", Type: field.TypeBool, Default: false},
-		{Name: "deletion_requested_at", Type: field.TypeTime, Nullable: true},
 		{Name: "revision", Type: field.TypeInt64, Default: 0},
 		{Name: "schema_version", Type: field.TypeInt, Default: 1},
 		{Name: "friend_code", Type: field.TypeString, Unique: true, Nullable: true},
@@ -726,20 +665,9 @@ var (
 		Name:       "users",
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "user_provider_external_id",
-				Unique:  true,
-				Columns: []*schema.Column{UsersColumns[5], UsersColumns[6]},
-				Annotation: &entsql.IndexAnnotation{
-					Where: "external_id <> ''",
-				},
-			},
-		},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
-		AccountDeletionReceiptsTable,
 		CityVisitsTable,
 		FootprintChangesTable,
 		FriendshipsTable,
@@ -751,7 +679,6 @@ var (
 		NotificationSettingsTable,
 		ProvinceMarksTable,
 		PushSubscriptionsTable,
-		AuthSessionsTable,
 		SharesTable,
 		SharedTripsTable,
 		SnapshotsTable,
@@ -800,10 +727,6 @@ func init() {
 	PushSubscriptionsTable.ForeignKeys[0].RefTable = UsersTable
 	PushSubscriptionsTable.Annotation = &entsql.Annotation{
 		Table: "push_subscriptions",
-	}
-	AuthSessionsTable.ForeignKeys[0].RefTable = UsersTable
-	AuthSessionsTable.Annotation = &entsql.Annotation{
-		Table: "auth_sessions",
 	}
 	SharesTable.ForeignKeys[0].RefTable = UsersTable
 	SharesTable.Annotation = &entsql.Annotation{

@@ -21,9 +21,8 @@ func timestamps() []ent.Field {
 	return []ent.Field{field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now)}
 }
 
-// User owns cloud records. Password accounts have a username and password hash;
-// OAuth accounts are identified by (provider, external_id) and have neither.
-// Provider email addresses are intentionally not stored.
+// User is the business profile row keyed by the BFF account ID. Credentials and
+// session state live in the BFF database; this table holds footprint-related fields only.
 type User struct{ ent.Schema }
 
 func (User) Annotations() []schema.Annotation {
@@ -32,15 +31,9 @@ func (User) Annotations() []schema.Annotation {
 func (User) Fields() []ent.Field {
 	return append([]ent.Field{
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(),
-		field.String("email").Optional().Nillable().Unique(),
 		field.String("username").Optional().Nillable().Unique(),
 		field.String("display_name").Default(""),
 		field.String("avatar_url").Default(""),
-		field.String("provider").Default(""),
-		field.String("external_id").Default(""),
-		field.String("password_hash").Default("").Sensitive(),
-		field.Bool("disabled").Default(false),
-		field.Time("deletion_requested_at").Optional().Nillable(),
 		field.Int64("revision").Default(0).NonNegative(),
 		// 1 = date/note live on city_visits (frozen once upgraded); 2 = trips live in
 		// city_trips. Upgraded in place by the first write from a schema 2 client.
@@ -53,13 +46,9 @@ func (User) Fields() []ent.Field {
 		field.Bool("friend_show_notes").Default(false),
 	}, timestamps()...)
 }
-func (User) Indexes() []ent.Index {
-	return []ent.Index{index.Fields("provider", "external_id").Unique().Annotations(entsql.IndexWhere("external_id <> ''"))}
-}
 func (User) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("visits", CityVisit.Type).Annotations(entsql.OnDelete(entsql.Cascade)), edge.To("trips", Trip.Type).Annotations(entsql.OnDelete(entsql.Cascade)), edge.To("province_marks", ProvinceMark.Type).Annotations(entsql.OnDelete(entsql.Cascade)), edge.To("media_objects", MediaObject.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
-		edge.To("sessions", Session.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("footprint_changes", FootprintChange.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("sync_receipts", SyncReceipt.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("snapshots", Snapshot.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
@@ -74,27 +63,6 @@ func (User) Edges() []ent.Edge {
 		edge.To("push_subscriptions", PushSubscription.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("notification_deliveries", NotificationDelivery.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
-}
-
-// Session is a bearer session. Only the SHA-256 of the token is stored.
-type Session struct{ ent.Schema }
-
-func (Session) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "auth_sessions"}}
-}
-func (Session) Fields() []ent.Field {
-	return []ent.Field{
-		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").Immutable(),
-		field.String("token_hash").NotEmpty().Unique().Immutable().Sensitive(),
-		field.Time("created_at").Default(now).Immutable(), field.Time("expires_at"),
-		field.Time("last_used_at").Optional().Nillable(), field.Bool("revoked").Default(false),
-	}
-}
-func (Session) Edges() []ent.Edge {
-	return []ent.Edge{edge.From("user", User.Type).Ref("sessions").Field("user_id").Unique().Required().Immutable()}
-}
-func (Session) Indexes() []ent.Index {
-	return []ent.Index{index.Fields("user_id"), index.Fields("expires_at")}
 }
 
 type CityVisit struct{ ent.Schema }
@@ -274,17 +242,6 @@ func (SyncReceipt) Edges() []ent.Edge {
 func (SyncReceipt) Indexes() []ent.Index {
 	return []ent.Index{index.Fields("user_id", "mutation_id").Unique()}
 }
-
-// AccountDeletionReceipt contains no account identity or footprints. It proves
-// completion to the deleting session after a lost response, for at most 24h.
-type AccountDeletionReceipt struct{ ent.Schema }
-
-func (AccountDeletionReceipt) Fields() []ent.Field {
-	return []ent.Field{
-		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("token_hash").NotEmpty().Unique().Sensitive().Immutable(), field.Time("expires_at").Immutable(),
-	}
-}
-func (AccountDeletionReceipt) Indexes() []ent.Index { return []ent.Index{index.Fields("expires_at")} }
 
 // Snapshot is an immutable copy of a user's footprints at one revision. The
 // payload is a gzip-compressed tripmap.v1.SnapshotData. Snapshots are removed

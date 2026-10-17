@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
@@ -244,14 +243,11 @@ func lockUser(ctx context.Context, tx *ent.Tx, uid string) (*ent.User, error) {
 	if err != nil {
 		return nil, internalError(err)
 	}
-	if u.Disabled {
-		return nil, errUnauthenticated
-	}
 	return u, nil
 }
 
 func (s *SnapshotService) allow(ctx context.Context, st *Store, key string, limit int64, window time.Duration) error {
-	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, key, limit, window)
+	ok, err := NewLimiter(st.Redis, st.prefix()).Allow(ctx, key, limit, window)
 	if err != nil {
 		slog.Error("rate limiter unavailable", "error", err)
 		return connect.NewError(connect.CodeUnavailable, errors.New("service temporarily unavailable"))
@@ -271,7 +267,15 @@ func (s *SnapshotService) ListSnapshots(ctx context.Context, _ *connect.Request[
 	if err != nil {
 		return nil, err
 	}
-	if err = gateRead(ctx, accountSchemaFromCtx(ctx)); err != nil {
+	owner, err := st.DB.User.Get(ctx, p.UserID)
+	if ent.IsNotFound(err) {
+		return nil, errUnauthenticated
+	}
+	if err != nil {
+		return nil, internalError(err)
+	}
+	ctx = withSchemasFromRPC(ctx, owner.SchemaVersion)
+	if err = gateRead(ctx, owner.SchemaVersion); err != nil {
 		return nil, err
 	}
 	// Payloads are not loaded: the list only needs the metadata columns.
@@ -317,6 +321,7 @@ func (s *SnapshotService) CreateSnapshot(ctx context.Context, req *connect.Reque
 	if err != nil {
 		return nil, err
 	}
+	ctx = withSchemasFromRPC(ctx, u.SchemaVersion)
 	schema, err := gateWrite(ctx, tx, u)
 	if err != nil {
 		return nil, err
@@ -348,7 +353,15 @@ func (s *SnapshotService) GetSnapshot(ctx context.Context, req *connect.Request[
 	if req.Msg.GetId() == "" {
 		return nil, invalid("snapshot id is required")
 	}
-	if err = gateRead(ctx, accountSchemaFromCtx(ctx)); err != nil {
+	owner, err := st.DB.User.Get(ctx, p.UserID)
+	if ent.IsNotFound(err) {
+		return nil, errUnauthenticated
+	}
+	if err != nil {
+		return nil, internalError(err)
+	}
+	ctx = withSchemasFromRPC(ctx, owner.SchemaVersion)
+	if err = gateRead(ctx, owner.SchemaVersion); err != nil {
 		return nil, err
 	}
 	row, err := st.DB.Snapshot.Query().Where(snapshot.ID(req.Msg.GetId()), snapshot.UserID(p.UserID)).Only(ctx)
@@ -615,6 +628,7 @@ func (s *SnapshotService) RestoreSnapshot(ctx context.Context, req *connect.Requ
 	if err := requireCurrentRegionIDs(ctx, tx.CityVisit.Query().Where(cityvisit.UserID(u.ID)), s.fp.regions); err != nil {
 		return nil, err
 	}
+	ctx = withSchemasFromRPC(ctx, u.SchemaVersion)
 	schema, err := gateWrite(ctx, tx, u)
 	if err != nil {
 		return nil, err

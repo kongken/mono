@@ -9,7 +9,6 @@ import (
 	"regexp"
 
 	"connectrpc.com/connect"
-	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
 	"github.com/kongken/mono/internal/tripmap/ent/footprintchange"
@@ -285,6 +284,10 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, err
 	}
+	ctx, err = ctxWithAccountSchema(ctx, st, p.UserID)
+	if err != nil {
+		return nil, err
+	}
 	if !mutationIDPattern.MatchString(req.Msg.MutationId) || req.Msg.BaseRevision < 0 || len(req.Msg.Mutations) < 1 || len(req.Msg.Mutations) > maxSyncMutations {
 		return nil, invalid("mutation_id, non-negative revision and 1-2000 mutations are required")
 	}
@@ -317,7 +320,7 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 	}
 	// A batch is charged per operation in one step, from a budget of its own so a
 	// full migration batch never competes with single writes.
-	ok, err := auth.NewLimiter(st.Redis, st.prefix()).AllowN(ctx, "sync:"+p.UserID, int64(len(normalized.Mutations)), syncOpsPerWindow, writeWindow)
+	ok, err := NewLimiter(st.Redis, st.prefix()).AllowN(ctx, "sync:"+p.UserID, int64(len(normalized.Mutations)), syncOpsPerWindow, writeWindow)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("service temporarily unavailable"))
 	}
@@ -345,9 +348,6 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, internalError(err)
 	}
-	if u.Disabled {
-		return nil, errUnauthenticated
-	}
 	receipt, err := tx.SyncReceipt.Query().Where(syncreceipt.UserID(p.UserID), syncreceipt.MutationIDEQ(normalized.MutationId)).Only(ctx)
 	if err == nil {
 		if receipt.RequestHash != hash {
@@ -361,6 +361,7 @@ func (s *FootprintService) SyncChanges(ctx context.Context, req *connect.Request
 	if err := requireCurrentRegionIDs(ctx, tx.CityVisit.Query().Where(cityvisit.UserID(u.ID)), s.regions); err != nil {
 		return nil, err
 	}
+	ctx = withSchemasFromRPC(ctx, u.SchemaVersion)
 	schema, err := gateWrite(ctx, tx, u)
 	if err != nil {
 		return nil, err
@@ -411,6 +412,10 @@ func (s *FootprintService) GetChanges(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, err
 	}
+	ctx, err = ctxWithAccountSchema(ctx, st, p.UserID)
+	if err != nil {
+		return nil, err
+	}
 	since := req.Msg.SinceRevision
 	limit := int(req.Msg.Limit)
 	if since < 0 || limit < 0 || limit > 500 {
@@ -430,9 +435,6 @@ func (s *FootprintService) GetChanges(ctx context.Context, req *connect.Request[
 	}
 	if err != nil {
 		return nil, internalError(err)
-	}
-	if u.Disabled {
-		return nil, errUnauthenticated
 	}
 	if err = gateRead(ctx, u.SchemaVersion); err != nil {
 		return nil, err

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/kongken/mono/internal/platform/httpx"
-	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationsetting"
 	"github.com/kongken/mono/internal/tripmap/notification"
@@ -85,13 +84,13 @@ type emailUnsubscribeOutcome struct {
 
 func (p *NotificationPublic) processEmailUnsubscribe(ctx context.Context, clientIP, token string, confirm bool) (emailUnsubscribeOutcome, error) {
 	if p.notifier == nil || p.notifier.Config.Secret == "" {
-		return emailUnsubscribeOutcome{}, unavailableUnsubscribe()
+		return emailUnsubscribeOutcome{Status: tripmapv1.EmailUnsubscribeStatus_EMAIL_UNSUBSCRIBE_STATUS_INVALID}, nil
 	}
 	st := p.src.Store()
 	if st == nil {
 		return emailUnsubscribeOutcome{}, unavailableUnsubscribe()
 	}
-	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, "unsubscribe:"+clientIP, unsubscribeRate, time.Minute)
+	ok, err := NewLimiter(st.Redis, st.prefix()).Allow(ctx, "unsubscribe:"+clientIP, unsubscribeRate, time.Minute)
 	if err != nil {
 		slog.Error("unsubscribe rate limiter unavailable", "error", err)
 		return emailUnsubscribeOutcome{}, unavailableUnsubscribe()

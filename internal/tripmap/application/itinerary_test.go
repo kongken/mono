@@ -209,13 +209,7 @@ func TestItineraryHistoricalRegionUpgradeAndAccountDeletion(t *testing.T) {
 	}
 
 	// Deleting the account removes all itineraries for this user.
-	_, err = e.auth.DeleteAccount(ctx, bearer(token, &tripmapv1.DeleteAccountRequest{
-		Confirmation: "DELETE",
-		Password:     "correct horse battery",
-	}))
-	if err != nil {
-		t.Fatalf("DeleteAccount: %v", err)
-	}
+	e.mustCleanupAccount(ctx, token)
 	remaining, err := e.store.DB.Itinerary.Query().Where(itinerary.UserID(u.ID)).Count(ctx)
 	if err != nil || remaining != 0 {
 		t.Fatalf("expected 0 itineraries after account deletion, got %d (err=%v)", remaining, err)

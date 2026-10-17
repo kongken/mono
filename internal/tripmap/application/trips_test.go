@@ -33,6 +33,11 @@ func upCity(code, name, province, color string) *tripmapv1.FootprintMutation {
 	return &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_UpsertCity{UpsertCity: &tripmapv1.Visit{Code: code, Name: name, Province: province, Color: color}}}
 }
 
+func putCity(code, name string) *tripmapv1.FootprintMutation {
+	province := code[:2] + "0000"
+	return &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_UpsertVisit{UpsertVisit: &tripmapv1.Visit{Code: code, Name: name, Province: province, Color: "#4b937d", Date: "2026-10-13"}}}
+}
+
 func upTrip(code, id, date, note string) *tripmapv1.FootprintMutation {
 	return &tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_UpsertTrip{UpsertTrip: &tripmapv1.Trip{Id: id, RegionCode: code, Date: date, Note: note}}}
 }
@@ -685,9 +690,7 @@ func TestAccountDeletionRemovesTripsOfThatAccountOnly(t *testing.T) {
 	a, b := e.register("tripdel_a"), e.register("tripdel_b")
 	e.mustSync2(a, "d1", 0, upCity("330100", "杭州市", "330000", "#4b937d"), upTrip("330100", "t-1", "", ""), upTrip("330100", "t-2", "", ""))
 	e.mustSync2(b, "d2", 0, upCity("330100", "杭州市", "330000", "#4b937d"), upTrip("330100", "t-1", "", ""))
-	if _, err := e.auth.DeleteAccount(ctx, bearer(a, &tripmapv1.DeleteAccountRequest{Confirmation: "DELETE", Password: "correct horse battery"})); err != nil {
-		t.Fatal(err)
-	}
+	e.mustCleanupAccount(ctx, a)
 	if n := e.store.DB.Trip.Query().CountX(ctx); n != 1 {
 		t.Fatalf("%d trips remain, want only the other account's", n)
 	}

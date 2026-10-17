@@ -31,9 +31,8 @@
 
 **当前限制**
 
-- **共同旅行写操作**等仍经透明网关 `tripmap.v1` + Bearer（#38 等）；`tripmap.v1.AuthService/ListSessions` 与 `RevokeSession` 的 Connect 路径已返回 `unimplemented`（#31）。
-- tripmap HTTP 已不再挂载 `FootprintService` / `ItineraryService` / `ReportService` / `SearchService` / `RegionService` Connect；BFF 透明网关上的 `/api/tripmap.v1.*` 仍代理其余未迁移过程直至 #44 移除整包转发。
-- 前端 auth（含 OAuth 与会话管理）、足迹、快照、提醒、好友、行程、媒体、统计报告、备注搜索与区域迁移 API 已调用 `bff.v1`。
+- 浏览器业务 RPC 仅 `/api/bff.v1.*`；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz`（分享/unsubscribe 由 BFF `publichttp` 提供）。
+- 前端（含分享 API）与 OAuth/会话管理均使用 `bff.v1`；账号凭据在 BFF 独立库，tripmap `users` 仅保留业务档案列（见 `migrations/tripmap/20261017180000_drop_auth_storage.sql`）。
 - 真实 GitHub/Google/Logto 端到端授权验收仍依赖部署凭据，CI 使用受控 fake 提供方与 `internal/e2e/oauth_chain_test.go`。
 
 ```

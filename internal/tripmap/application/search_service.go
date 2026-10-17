@@ -10,7 +10,6 @@ import (
 	"unicode/utf8"
 
 	"connectrpc.com/connect"
-	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
@@ -66,7 +65,7 @@ func (s *SearchService) SearchNotes(ctx context.Context, req *connect.Request[tr
 	if err != nil {
 		return nil, err
 	}
-	allowed, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, "note-search:"+p.UserID, 60, time.Minute)
+	allowed, err := NewLimiter(st.Redis, st.prefix()).Allow(ctx, "note-search:"+p.UserID, 60, time.Minute)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("search temporarily unavailable"))
 	}
@@ -86,9 +85,6 @@ func (s *SearchService) SearchNotes(ctx context.Context, req *connect.Request[tr
 	}
 	if err != nil {
 		return nil, internalError(err)
-	}
-	if u.Disabled {
-		return nil, errUnauthenticated
 	}
 	if req.Msg.ExpectedRevision != nil && *req.Msg.ExpectedRevision != u.Revision {
 		return nil, connect.NewError(connect.CodeAborted, errors.New("footprints changed; restart search"))

@@ -12,7 +12,6 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/platform/rpcauth"
-	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
 	entitinerary "github.com/kongken/mono/internal/tripmap/ent/itinerary"
@@ -200,7 +199,7 @@ func (s *RegionService) PreviewRegionUpgrade(ctx context.Context, _ *connect.Req
 	if err != nil {
 		return nil, err
 	}
-	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, "region-preview:"+p.UserID, 60, time.Minute)
+	ok, err := NewLimiter(st.Redis, st.prefix()).Allow(ctx, "region-preview:"+p.UserID, 60, time.Minute)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("region preview temporarily unavailable"))
 	}
@@ -220,9 +219,6 @@ func (s *RegionService) PreviewRegionUpgrade(ctx context.Context, _ *connect.Req
 	}
 	if err != nil {
 		return nil, internalError(err)
-	}
-	if u.Disabled {
-		return nil, errUnauthenticated
 	}
 	plan, err := s.plan(ctx, tx, u)
 	if err != nil {
@@ -267,7 +263,7 @@ func (s *RegionService) ApplyRegionUpgrade(ctx context.Context, req *connect.Req
 	} else if !ent.IsNotFound(err) {
 		return nil, internalError(err)
 	}
-	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, "region-upgrade:"+principal.UserID, 6, time.Minute)
+	ok, err := NewLimiter(st.Redis, st.prefix()).Allow(ctx, "region-upgrade:"+principal.UserID, 6, time.Minute)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("region upgrade temporarily unavailable"))
 	}
@@ -283,6 +279,7 @@ func (s *RegionService) ApplyRegionUpgrade(ctx context.Context, req *connect.Req
 	if err != nil {
 		return nil, err
 	}
+	ctx = withSchemasFromRPC(ctx, u.SchemaVersion)
 	if receipt, err := tx.SyncReceipt.Query().Where(syncreceipt.UserID(u.ID), syncreceipt.MutationIDEQ(m.MutationId)).Only(ctx); err == nil {
 		return replay(receipt)
 	} else if !ent.IsNotFound(err) {

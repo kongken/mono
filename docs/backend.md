@@ -4,7 +4,7 @@
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
-当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端，以及 F1：账号与会话（`AuthService`）、足迹读写（`FootprintService`，含服务端校验、用户隔离、revision 与限流），前端登录与云端读写闭环也已接入（配置 `VITE_API_BASE_URL` 后出现登录入口，见 [功能描述](features.md)）。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号注销、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；F4 照片与附件已实现；F6 公开分享页与预览图已实现（默认关闭，见 [公开分享页与预览图](sharing.md)）；F12 提醒与通知已实现（邮件与浏览器推送默认关闭，见下文 F12）；真实 OAuth 授权验收与真实社交平台抓取验证待部署。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
+当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端。浏览器账号与会话在 BFF（`bff.v1.AuthService`，Cookie/CSRF）；tripmap 仅保留业务 profile 与内部 gRPC，不再挂载浏览器 Connect 或本地 auth 表（迁移见 `migrations/tripmap/20261017180000_drop_auth_storage.sql`）。足迹读写经 `bff.v1.FootprintService` → tripmap gRPC（服务端校验、用户隔离、revision 与限流），见 [功能描述](features.md) 与 [BFF](bff.md)。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号注销、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；F4 照片与附件已实现；F6 公开分享页与预览图已实现（默认关闭，见 [公开分享页与预览图](sharing.md)）；F12 提醒与通知已实现（邮件与浏览器推送默认关闭，见下文 F12）；真实 OAuth 授权验收与真实社交平台抓取验证待部署。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
 
 Redis 客户端已接入，后续用于会话、缓存或限流；本次没有把城市足迹存入 Redis。对象内容使用 S3，PostgreSQL 只存业务记录和媒体元数据。
 
@@ -14,12 +14,12 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 
 | 路径 | 职责 |
 | --- | --- |
-| `cmd/bff/`、`internal/bff/`（含 `footprint/`、`report/`、`search/` 等领域适配） | BFF：公网 `bff.v1` Connect、Cookie/CSRF，未迁移过程经路由表转发（[说明](bff.md)） |
+| `cmd/bff/`、`internal/bff/`（含 `footprint/`、`report/`、`search/` 等领域适配） | BFF：公网唯一浏览器 RPC（`bff.v1` Connect、Cookie/CSRF），经 TLS gRPC 调 tripmap（[说明](bff.md)） |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
-| `internal/tripmap/application/` | 服务实现：`SystemService` 与完整 `FootprintService`（gRPC，供 BFF；#33 起浏览器经 `bff.v1.FootprintService`）、完整 `SnapshotService`（gRPC，供 BFF；#34 起浏览器经 `bff.v1.SnapshotService`，含定时快照与保留维护）、ConnectRPC 的 `AuthService`、`ShareService`、`CollaborationService`、`ReportService`（含 Redis 汇总缓存与定时预热维护）、`SearchService`（私有备注分页检索）、`NotificationService`（F12 提醒设置与每小时发送维护）、公开分享路由处理（`share_public.go`）及认证拦截器 |
-| `internal/tripmap/auth/` | 会话令牌与 Redis 限流（Connect Bearer 路径，待 #44 移除）；OAuth 已迁至 BFF（`internal/bff/oauth/`） |
+| `internal/tripmap/application/` | 内部 gRPC 与测试用 Connect harness：`FootprintService`、`SnapshotService`、`MediaService`、`CollaborationService`、`ReportService`、`SearchService`、`NotificationService`、`AccountCleanupService` 等；HTTP 仅 `/ping`、`/readyz`（分享/退订公开页在 BFF） |
+| `internal/bff/auth/`、`internal/bff/oauth/` | BFF 会话、凭据与 OAuth（GitHub、Google、Logto/PKCE） |
 | `internal/bff/oauth/` | BFF OAuth state（Redis）与 `provider/`（GitHub、Google、Logto/PKCE） |
 | `internal/tripmap/share/` | F6：公开内容白名单与快照构建、统计、预览图渲染（纯 Go）、HTML 元数据注入、受信任 index.html 获取；`assets/` 含预览几何和 Noto Sans SC 子集 |
 | `internal/tripmap/report/` | F8：统计总览、按时区计算的年度报告、8 项旅行成就及可追溯记录引用计算（与前端 `apps/web/src/lib/report.ts` 共用 `packages/fixtures/report-stats.json` 测试夹具） |

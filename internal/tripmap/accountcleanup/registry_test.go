@@ -37,10 +37,10 @@ func TestUserEdgeRegistry(t *testing.T) {
 		"share": true, "sent_friendships": true, "received_friendships": true,
 		"owned_shared_trips": true, "trip_memberships": true, "itineraries": true,
 	}
-	// MediaCleanup is not a User edge; purgeMediaCleanupQueue handles staging keys.
+	// MediaCleanup is not a User edge; staging keys are purged by media maintenance.
 	wantTypes := map[string]bool{
 		"CityVisit": true, "Trip": true, "ProvinceMark": true, "MediaObject": true,
-		"Session": true, "FootprintChange": true, "SyncReceipt": true, "Snapshot": true,
+		"FootprintChange": true, "SyncReceipt": true, "Snapshot": true,
 		"Share": true, "Friendship": true, "SharedTrip": true, "TripMember": true,
 		"Itinerary": true, "NotificationProfile": true, "NotificationSetting": true,
 		"PushSubscription": true, "NotificationDelivery": true,

@@ -308,7 +308,7 @@ func (h *Handlers) Routes(r *gin.Engine) {
 			h.servePublic(gw, c)
 			return
 		}
-		gw.Handle(c)
+		c.AbortWithStatus(http.StatusNotFound)
 	})
 }
 

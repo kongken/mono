@@ -5,9 +5,6 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
-	"github.com/kongken/mono/internal/tripmap/auth"
-	"github.com/kongken/mono/internal/tripmap/ent/session"
-	"github.com/kongken/mono/internal/tripmap/ent/user"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
@@ -109,13 +106,4 @@ func TestNoteSearchValidationRevocationAndRateLimit(t *testing.T) {
 	}
 	_, err := e.search.SearchNotes(ctx, bearer(a, &tripmapv1.SearchNotesRequest{Query: "不存在"}))
 	wantCode(t, err, connect.CodeResourceExhausted)
-	sess, err := e.store.DB.Session.Query().Where(session.TokenHash(auth.HashToken(a))).Only(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := e.store.DB.User.Update().Where(user.ID(sess.UserID)).SetDisabled(true).Exec(ctx); err != nil {
-		t.Fatal(err)
-	}
-	_, err = e.search.SearchNotes(ctx, bearer(a, &tripmapv1.SearchNotesRequest{Query: "西湖"}))
-	wantCode(t, err, connect.CodeUnauthenticated)
 }
