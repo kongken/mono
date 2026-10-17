@@ -115,6 +115,14 @@ func (h *Handlers) Bootstrap() error {
 			_, err := r.DB.User.Query().Exist(ctx)
 			return err
 		}})
+		if r.Redis != nil {
+			probes = append(probes, health.Probe{Name: "bff_redis", Check: func(ctx context.Context) error {
+				return r.Redis.Ping(ctx).Err()
+			}})
+		}
+	}
+	if clients != nil {
+		probes = append(probes, upstream.GRPCProbes(clients, grpcServices)...)
 	}
 	h.gateway.Store(gw)
 	h.health.Store(health.New(probes...))

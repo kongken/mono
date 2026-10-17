@@ -54,7 +54,7 @@
 - 未登记的路径和不规范路径（含 `..`、`//`）返回 404，不转发。
 - 转发保留方法、路径、查询串、请求体（流式，不缓冲）、`Host` 及其余请求头；`Forwarded` / `X-Forwarded-*` 原样传递。
 - 服务不可达返回 502。日志只记录服务名和连接错误，不记录可能含令牌的 URL。
-- BFF 不设请求体上限：前端 Nginx 限制为 16 MiB，各服务按接口自行限制。
+- BFF Connect 读上限 16 MiB；边缘 Nginx 20 MiB；内部 gRPC 默认 20 MiB（见 [部署与发布](deployment.md#请求体大小)）。
 
 ## 公网 Connect 入口（`bff.v1`）
 
@@ -110,7 +110,7 @@ BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法�
 | 路径 | 行为 |
 | --- | --- |
 | `GET /ping` | BFF 存活，返回 `{"message":"pong"}` |
-| `GET /readyz` | 并发请求每个服务的 `/readyz`（各 2 秒超时）：全部 200 时返回 200，否则 503；`dependencies` 按服务名列出 `ready`；配置 BFF 库时还检查 `bff_postgres` |
+| `GET /readyz` | upstream HTTP `/readyz`、`bff_postgres`、`bff_redis`、各 `{name}_grpc`（TLS + 签名 `GetStatus`）；2 秒超时，全部就绪 200，否则 503 |
 
 BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
@@ -124,7 +124,7 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 ## 本地开发与部署
 
-首次运行 `make dev-secrets` 生成本地证书与密钥。创建 PostgreSQL 库 `bff`（与 tripmap 同实例）。`make dev` 启动 BFF（`18081`）与 tripmap（`18082` HTTP、`18083` gRPC）。Vite 将 `/api` 代理到 BFF。
+首次 `make dev-secrets`；创建库 `bff`。`make dev` 启动 BFF（18081）与 tripmap（18082/18083 内网）。生产见 [部署与发布](deployment.md)。
 
 ## 新增业务
 
@@ -144,4 +144,4 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 ## 待实现
 
-媒体等其余业务 RPC 经 `bff.v1` 迁移、移除透明网关与 tripmap Bearer（#35–#44）。**#34 已交付：** 云端快照经 `bff.v1.SnapshotService`。**#43 已交付：** BFF 编排注销与内部 `AccountCleanupService`。
+真实 OAuth/SMTP/Web Push/生产 S3 端到端验收依赖部署环境；Playwright 真实 Cookie 栈见「验证」，默认跳过。

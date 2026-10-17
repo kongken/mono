@@ -136,10 +136,7 @@ Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CON
 - `redis_store` 指向 `store.redis` 的命名连接。
 - `storage.s3_store` 指向 `store.s3` 的命名客户端，必须配置 bucket。
 - `storage.key_prefix` 设置对象 key 前缀，示例为 `tripmap`。
-- `auth.session_ttl` 会话有效期，默认 `168h`（7 天）。
-- `auth.registration_disabled` 为 `true` 时关闭注册（密码与 OAuth 新账号都被拒绝），默认开放注册。
-- `auth.client_ip_header` 指向可信反向代理写入的客户端地址头，用于登录与分享限流；不设置则使用 TCP 对端地址。位于 BFF 之后设为 `X-Real-IP`（BFF 总是覆盖写入该头，示例配置已设置）。直接暴露在公网时不要设置，否则客户端可伪造该头绕过限流。
-- `auth.cors_allowed_origins` 允许跨站调用 API 的浏览器来源（精确匹配，如 `https://trip.example.com`，不支持通配符）。同源部署（前端镜像的 Nginx 转发 `/api`）无需配置。位于 BFF 之后改在 BFF 的 `cors_allowed_origins` 配置，BFF 会去掉 tripmap 返回的跨域头。
+- `auth.client_ip_header` 用于分享/退订限流；生产在 BFF 之后设为 `X-Real-IP`。账号会话/OAuth/CSRF 在 `config.bff.yaml`（[BFF 配置](bff.md#配置)）。
 - **OAuth（#32 已迁至 BFF）**：在 `config.bff.yaml` 的 `auth.oauth_providers.<github|google|logto>` 配置（字段含义与旧 tripmap 相同：`client_id`、`client_secret`、`redirect_url`、可选 `scopes` 与 `display_name`；Logto 另需 `issuer_url`）。tripmap `config.yaml` 中的 `auth.oauth_providers` 不再用于浏览器登录。
 - `grpc.listen`、`grpc.cert_file`、`grpc.key_file` 必填：tripmap 自管的 gRPC over TLS 监听（业务 RPC 只在这里提供，BFF 调用）；`grpc.max_message_bytes` 默认 20 MiB。
 - `internal_auth.issuer`、`audience`、`trusted_keys[]`（`kid` + `public_key_file`）必填，可选 `clock_skew`（默认 10 秒）：只接受这些 BFF 公钥签名的内部凭证，规则见 [内部 gRPC 与凭证](bff.md#内部-grpc-与凭证)。缺失时启动失败；本地用 `make dev-secrets` 生成文件。
@@ -152,7 +149,7 @@ S3 兼容服务可设置 endpoint 和 `use_path_style: true`；AWS S3 可省略 
 
 ## 已实现接口
 
-下表是 tripmap 服务自身的接口。经 BFF（`18081`）访问时，`/api/` 下的接口原样转发，`/ping` 与 `/readyz` 由 BFF 应答：`/readyz` 汇总各业务服务的就绪状态，见 [BFF 健康检查](bff.md#健康检查)。
+下表是 tripmap 自身接口。BFF `/readyz` 含 `bff_postgres`、`bff_redis`、`tripmap_grpc` 等，见 [BFF 健康检查](bff.md#健康检查)与 [部署与发布](deployment.md#健康检查)。
 
 | 接口 | 行为 |
 | --- | --- |
@@ -175,20 +172,11 @@ curl --fail http://127.0.0.1:18081/api/bff.v1.StatusService/GetStatus \
 
 状态接口无用户数据，无需登录。前端 `getBackendStatus()` 使用独立的匿名客户端（不带 Authorization 与 Cookie）：同步前的能力检查（`footprint_schema`、`region_version`）、账号面板的分享入口和公开的 `/status` 页面都使用它；没有配置 `VITE_API_BASE_URL` 时前端根本不会发请求。
 
-### 账号与会话（浏览器：`bff.v1.AuthService`；遗留：`tripmap.v1.AuthService`）
+### 账号与会话（浏览器：`bff.v1.AuthService`）
 
-浏览器经 BFF Connect 使用 `bff.v1.AuthService`（Cookie `shanhai_sid`、CSRF，见 [BFF](bff.md)）。密码与 OAuth 的 `Register`/`Login`/`ListOAuthProviders`/`BeginOAuthFlow`/`CompleteOAuthFlow` 已在 BFF 实现；OAuth 完成登录后只设置 Cookie，响应不含会话令牌。OAuth 账号按 `(provider, external_id)` 识别，不按邮箱合并；不保存提供方邮箱。Logto 使用 PKCE（`code_verifier` 与 state 同存 BFF Redis，10 分钟、单次使用）。
+浏览器经 BFF 使用 `bff.v1.AuthService`（Cookie `shanhai_sid`、CSRF，见 [BFF](bff.md)）。认证/会话/注销均在 BFF；tripmap 无浏览器 Connect 认证。Legacy 导入见 [部署与发布](deployment.md#legacy-账号导入-44)。
 
-tripmap Connect 上的 `tripmap.v1.AuthService` 仍挂载但 OAuth 三方法返回 `unimplemented`；其余方法仍用 Bearer `tm_` 令牌（透明网关路径，待 #44 移除）。除公共方法外，所有 RPC 都要求 Bearer，由 ConnectRPC 拦截器统一校验。
-
-| 方法 | 公共 | 行为 |
-| --- | --- | --- |
-| `Register` / `Login`（tripmap） | 是 | 遗留 Bearer 路径；新前端使用 BFF |
-| `Logout` / `Me` | 否 | 撤销当前会话 / 返回当前用户 |
-| `ListSessions` / `RevokeSession` | 否 | **Connect 已关闭（#31）**，返回 `unimplemented`；浏览器使用 BFF `bff.v1.AuthService` 同名方法（BFF 存储，标记 `current`，撤销写操作需 CSRF；他人或不存在的会话撤销返回 `not_found`） |
-| OAuth 三方法（tripmap） | — | 已拒绝，请使用 `bff.v1`（#32） |
-
-- BFF 会话令牌为 `bf_` 前缀；tripmap 遗留为 `tm_` 加 32 字节随机十六进制；数据库只保存 SHA-256，密码使用 bcrypt。
+- BFF 会话令牌 `bf_` 前缀；库内 SHA-256，密码 bcrypt。
 - OAuth 登录成功后 BFF 签发 Cookie 会话；业务档案经 `ProfileService/EnsureProfile` 同步（与密码账号相同 `user_id`）。
 - PKCE：`code_verifier` 随 state 存入 Redis（同样 10 分钟、单次消费），只在后端换取令牌时使用，不返回给浏览器；换取失败后 state 已被消耗，需重新发起登录。Logto 令牌端点使用 `client_secret_basic` 认证，用户信息取自 `<issuer_url>/me`，不校验 ID Token。同一用户在 Logto 与 GitHub/Google 之间不会自动合并账号。state 存储格式升级后，升级前尚未完成的授权仍可完成（旧格式只含提供方名）。
 - `state` 只能防止服务端重放；客户端必须在发起前保存 `state` 并在回调时比对，否则存在登录 CSRF。前端已实现：发起前把 provider 与 state 存入 `sessionStorage`，回调时比对并立即消耗，不一致则不调用 `CompleteOAuthFlow`。
@@ -498,3 +486,28 @@ F1 代码范围已覆盖注销与增量同步；F1 总项仍保留真实 OAuth �
 **请求体与限流。** 一个满批（2000 项、每项备注 1000 个字符）按 JSON 最坏估计约 6–12 MB。Footprint 处理器读取上限为 16 MiB；前端镜像的 Nginx `/api` 转发默认 1 MB，已加 `client_max_body_size 16m`（`deploy/frontend/default.conf.template`）；自行部署的其他反向代理需调到不低于 16 MB。批量限流按项计（每用户每分钟 6000 项），单条写入仍为每分钟 600 次。
 
 **验证。** `make test` 在没有数据库连接时跳过存储相关测试；F5 的 Go 测试需要 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR`（媒体测试使用内存对象存储，不需要 S3；真实 S3 测试另需 `make test-integration` 的环境）。
+
+## 跨功能加固测试覆盖
+
+以下用例在 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 已配置时运行真实 Connect → BFF → TLS gRPC → tripmap 链（`internal/e2e/chain_harness_test.go`），未配置则跳过。
+
+| 测试 | 规格要点 |
+| --- | --- |
+| `TestChainMaxLegitimateSyncBatchPersists` | 接近满批迁移同步成功并持久化；重任务下游期限约 25s（需 `Connect-Timeout-Ms`） |
+| `TestChainSyncBatchCountOverLimitRejected` | 超过 2000 项批量返回 `invalid_argument`，无写入 |
+| `TestChainConnectBodyOverReadMaxRejected` | 超过 Connect 16 MiB 读上限被拒绝，不挂起 |
+| `TestChainGrpcOversizedMessageRejected` | 超过内部 gRPC 默认 20 MiB 消息被拒绝 |
+| `TestLegitimatePayloadLimitsAreConsistent` | 公网 16 MiB、内部 20 MiB、Nginx `client_max_body_size` 一致 |
+| `TestChainDeadlineBudgets` | 普通 10s / 重任务 25s 上限、更短 `Connect-Timeout-Ms`、不可抬高上限 |
+| `TestChainClientCancellationPropagates` | 取消 Connect 请求后下游 gRPC 上下文取消 |
+| `TestChainNoAutomaticRetryOnUnavailable` | 下游 `Unavailable` 仅调用一次 |
+| `TestChainRequestIDAndTraceparent` | 非法 request-id 替换、有效 traceparent 下传 |
+| `TestChainSensitiveValuesStayOutOfLogsAndResponses` | 会话/CSRF 等不出现在响应与捕获日志 |
+| `TestChainConnectProtocolVersionRequired` / `TestChainRejectsGRPCAndGRPCWeb` | 仅 Connect；拒绝 gRPC/gRPC-Web |
+| `TestChainAnonymousFootprintDenied` | 匿名默认拒绝受保护读 |
+| `TestChainForgedClientIPIgnored` | 伪造客户端地址 metadata 不被采信 |
+| `TestForgedMetadataChangesNothing`（`trust_test.go`） | 伪造身份 metadata 无效 |
+| `TestTripmapRejectsEveryCallWithoutAValidBFFCredential`（`trust_test.go`） | 无凭证/匿名凭证不能访问受保护方法 |
+| `TestPublicKeyRotation` / `TestTripmapOnlyTalksTLSToATrustedIdentity`（`trust_test.go`） | 密钥轮换与 TLS 身份 |
+| `TestPublicEntryIsConnectOnlyAndUnknownPathsAreNotForwarded`（`bff/app/status_test.go`） | 公网协议与路由 |
+| `TestCredentialPathsStayOutOfTraces`（`bff/app/app_test.go`） | 分享/退订路径 span 脱敏 |

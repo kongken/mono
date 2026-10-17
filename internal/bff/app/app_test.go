@@ -138,7 +138,11 @@ func TestTheBFFOwnsCORS(t *testing.T) {
 
 func TestReadyzReportsEveryService(t *testing.T) {
 	trip, other := newFake(t, "tripmap"), newFake(t, "other")
-	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL, "other": other.URL}}, testServices)
+	services := []gateway.Service{
+		{Name: "tripmap"},
+		{Name: "other", Packages: []string{"other.v1"}, Routes: []gateway.Route{{Path: "/api/share/special/"}}},
+	}
+	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL, "other": other.URL}}, services)
 	other.setReady(http.StatusServiceUnavailable)
 	readyz := func() (int, map[string]bool) {
 		rec := serve(r, httptest.NewRequest(http.MethodGet, "/readyz", nil))

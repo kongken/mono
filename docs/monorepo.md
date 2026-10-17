@@ -13,7 +13,7 @@ packages/
   geo-data/             区域索引、城市坐标、区域目录、搜索索引、省份邻接表：@trip-map/geo-data/<名称>.json（文件在 data/）
   fixtures/             前端与 Go 后端共同验证的 JSON 夹具
 cmd/ internal/ pkg/ proto/ migrations/   Go 后端，规则见 AGENTS.md 与 backend.md、bff.md
-deploy/                 各镜像的 Dockerfile 与 Nginx 配置
+deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deployment.md）
 ```
 
 ## 规则

@@ -1,4 +1,4 @@
-.PHONY: build test ent buf dev dev-bff dev-tripmap dev-secrets deps-up deps-down storage-init migration vapid-keys
+.PHONY: build test ent buf dev dev-bff dev-tripmap dev-secrets deps-up deps-down storage-init migration vapid-keys check-import-boundaries check-docs
 
 build:
 	go build -o bin/bff ./cmd/bff
@@ -7,6 +7,12 @@ build:
 
 test:
 	go test ./...
+
+check-import-boundaries:
+	go test ./internal/platform/moduleboundary/ -count=1
+
+check-docs:
+	./scripts/check-doc-links.sh
 
 ent:
 	go generate ./internal/tripmap/ent
