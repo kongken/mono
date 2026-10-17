@@ -10,7 +10,6 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/platform/rpcauth"
-	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
@@ -86,9 +85,12 @@ func toMark(m *ent.ProvinceMark) *tripmapv1.ProvinceMark {
 	return &tripmapv1.ProvinceMark{Province: m.ProvinceCode, Color: m.Color, UpdatedAt: timestamppb.New(m.UpdatedAt)}
 }
 
-func (s *FootprintService) GetFootprints(ctx context.Context, _ *connect.Request[tripmapv1.GetFootprintsRequest]) (*connect.Response[tripmapv1.GetFootprintsResponse], error) {
+func (s *FootprintService) GetFootprints(ctx context.Context, req *connect.Request[tripmapv1.GetFootprintsRequest]) (*connect.Response[tripmapv1.GetFootprintsResponse], error) {
 	p, err := principal(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkRegionVersion(regionVersionFrom(ctx, req.Header())); err != nil {
 		return nil, err
 	}
 	out, err := s.snapshotFootprints(ctx, p.UserID, false)
@@ -128,8 +130,8 @@ func (s *FootprintService) snapshotFootprints(ctx context.Context, userID string
 		if err := checkRegionVersion(rpcauth.CallFrom(ctx).TripmapRegions); err != nil {
 			return nil, err
 		}
-		ctx = withSchemasFromRPC(ctx, u.SchemaVersion)
 	}
+	ctx = withSchemasFromRPC(ctx, u.SchemaVersion)
 	visits, err := tx.CityVisit.Query().Where(cityvisit.UserID(userID)).Order(ent.Asc(cityvisit.FieldRegionCode)).All(ctx)
 	if err != nil {
 		return nil, internalError(err)
@@ -188,7 +190,7 @@ func (s *FootprintService) write(ctx context.Context, base int64, requireRevisio
 	if base < 0 {
 		return 0, false, invalid("base_revision must not be negative")
 	}
-	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, "write:"+p.UserID, writesPerWindow, writeWindow)
+	ok, err := NewLimiter(st.Redis, st.prefix()).Allow(ctx, "write:"+p.UserID, writesPerWindow, writeWindow)
 	if err != nil {
 		slog.Error("rate limiter unavailable", "error", err)
 		return 0, false, connect.NewError(connect.CodeUnavailable, errors.New("service temporarily unavailable"))
@@ -208,9 +210,7 @@ func (s *FootprintService) write(ctx context.Context, base int64, requireRevisio
 		}
 		return 0, false, internalError(err)
 	}
-	if u.Disabled {
-		return 0, false, errUnauthenticated
-	}
+	ctx = withSchemasFromRPC(ctx, u.SchemaVersion)
 	if err := requireCurrentRegionIDs(ctx, tx.CityVisit.Query().Where(cityvisit.UserID(u.ID)), s.regions); err != nil {
 		return 0, false, err
 	}

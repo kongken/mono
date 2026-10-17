@@ -747,22 +747,21 @@ func TestRemindersSkipUnusableChannelsAndDisabledAccounts(t *testing.T) {
 	gone := e.remindable("gone_user", false, "Asia/Shanghai", 9, kMemory)
 	e.mustSync2(gone, "s", 0, upCity("330100", "杭州市", "330000", "#4b937d"), upTrip("330100", "t", "2025-10-15", ""))
 	gid := e.store.DB.User.Query().Where(user.Username("gone_user")).OnlyX(ctx).ID
-	e.store.DB.User.UpdateOneID(gid).SetDisabled(true).ExecX(ctx)
+	e.mustCleanupAccount(ctx, gid)
 	e.pusher.reset()
 	e.mailer.reset()
 	e.clock.set(time.Date(2027, 10, 15, 2, 0, 0, 0, time.UTC))
 	e.runReminders()
 	for _, p := range e.pusher.all() {
 		if strings.HasSuffix(p.endpoint, "gone_user") {
-			t.Fatal("disabled account was notified")
+			t.Fatal("deleted account was notified")
 		}
 	}
 	for _, m := range e.mailer.all() {
 		if m.To == "gone_user@example.com" {
-			t.Fatal("disabled account was emailed")
+			t.Fatal("deleted account was emailed")
 		}
 	}
-	e.store.DB.User.DeleteOneID(gid).ExecX(ctx)
 	if e.store.DB.NotificationProfile.Query().Where(notificationprofile.UserID(gid)).ExistX(ctx) ||
 		e.store.DB.NotificationSetting.Query().Where(notificationsetting.UserID(gid)).ExistX(ctx) ||
 		e.store.DB.PushSubscription.Query().Where(pushsubscription.UserID(gid)).ExistX(ctx) ||

@@ -86,7 +86,7 @@ type dueKind struct {
 
 func (n *Notifier) remindUser(ctx context.Context, st *Store, idx *regions.Index, userID string, now time.Time) error {
 	u, err := st.DB.User.Get(ctx, userID)
-	if ent.IsNotFound(err) || (err == nil && u.Disabled) {
+	if ent.IsNotFound(err) || (false) {
 		return nil
 	}
 	if err != nil {

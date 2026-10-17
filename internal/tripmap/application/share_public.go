@@ -11,13 +11,11 @@ import (
 	"time"
 
 	"github.com/kongken/mono/internal/platform/httpx"
-	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/blobstore"
 	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	entshare "github.com/kongken/mono/internal/tripmap/ent/share"
-	"github.com/kongken/mono/internal/tripmap/ent/user"
 	"github.com/kongken/mono/internal/tripmap/share"
 )
 
@@ -95,7 +93,7 @@ func plain(w http.ResponseWriter, code int, retryAfter bool) {
 // It returns false after writing the response. A Redis failure closes the route.
 func (p *SharePublic) gate(w http.ResponseWriter, r *http.Request, st *Store, bucket string, limit int64) bool {
 	ip := httpx.ClientAddr(p.cfg.Auth.ClientIPHeader, r.Header, r.RemoteAddr)
-	limiter := auth.NewLimiter(st.Redis, st.prefix())
+	limiter := NewLimiter(st.Redis, st.prefix())
 	misses, err := limiter.Count(r.Context(), "share-miss:"+ip)
 	if err != nil {
 		slog.Error("share rate limiter unavailable", "error", err)
@@ -122,7 +120,7 @@ func (p *SharePublic) gate(w http.ResponseWriter, r *http.Request, st *Store, bu
 // miss records a failed lookup against the client address and answers 404.
 func (p *SharePublic) miss(w http.ResponseWriter, r *http.Request, st *Store) {
 	ip := httpx.ClientAddr(p.cfg.Auth.ClientIPHeader, r.Header, r.RemoteAddr)
-	if _, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(r.Context(), "share-miss:"+ip, 1<<30, shareRateWindow); err != nil {
+	if _, err := NewLimiter(st.Redis, st.prefix()).Allow(r.Context(), "share-miss:"+ip, 1<<30, shareRateWindow); err != nil {
 		slog.Error("share rate limiter unavailable", "error", err)
 		plain(w, http.StatusServiceUnavailable, false)
 		return
@@ -137,8 +135,7 @@ func (p *SharePublic) lookup(ctx context.Context, st *Store, token string) (*ent
 	if !share.ValidToken(token) {
 		return nil, nil, false, nil
 	}
-	row, err := st.DB.Share.Query().Where(entshare.Token(token), entshare.VisibilityIn(entshare.VisibilityLink, entshare.VisibilityPublic),
-		entshare.HasUserWith(user.Disabled(false))).Only(ctx)
+	row, err := st.DB.Share.Query().Where(entshare.Token(token), entshare.VisibilityIn(entshare.VisibilityLink, entshare.VisibilityPublic)).Only(ctx)
 	if ent.IsNotFound(err) {
 		return nil, nil, false, nil
 	}

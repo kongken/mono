@@ -97,9 +97,6 @@ func (s *ReportService) GetReport(ctx context.Context, req *connect.Request[trip
 		}
 		return nil, internalError(err)
 	}
-	if u.Disabled {
-		return nil, errUnauthenticated
-	}
 
 	key := reportCacheKey(st, u.ID, u.Revision, tzName, localDate, s.regions.Version())
 	if raw, rerr := st.Redis.Get(ctx, key).Bytes(); rerr == nil && len(raw) > 0 {
@@ -138,7 +135,6 @@ func RunReportMaintenance(ctx context.Context, st *Store, idx *regions.Index, no
 	localDate := now.In(loc).Format("2006-01-02")
 
 	users, err := st.DB.User.Query().
-		Where(user.DisabledEQ(false)).
 		Order(ent.Desc(user.FieldUpdatedAt)).
 		Limit(reportMaintenanceBatch).
 		All(ctx)
@@ -158,7 +154,7 @@ func RunReportMaintenance(ctx context.Context, st *Store, idx *regions.Index, no
 			continue
 		}
 		u, err := tx.User.Get(ctx, candidate.ID)
-		if err != nil || u.Disabled {
+		if err != nil {
 			_ = tx.Rollback()
 			continue
 		}

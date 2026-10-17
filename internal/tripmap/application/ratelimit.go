@@ -1,4 +1,4 @@
-package auth
+package application
 
 import (
 	"context"
@@ -22,8 +22,7 @@ if count == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
 return count`)
 
 // Allow counts one event for key and reports whether it is within limit for
-// the current window. A Redis error is returned to the caller, who decides
-// whether to fail open or closed.
+// the current window.
 func (l *Limiter) Allow(ctx context.Context, key string, limit int64, window time.Duration) (bool, error) {
 	count, err := incrWindow.Run(ctx, l.rdb, []string{l.prefix + "rl:" + key}, window.Milliseconds()).Int64()
 	if err != nil {
@@ -37,9 +36,7 @@ local count = redis.call('INCRBY', KEYS[1], ARGV[2])
 if count == tonumber(ARGV[2]) then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
 return count`)
 
-// AllowN counts n events at once, so a batch is charged in a single round trip.
-// It reports whether the whole batch fits in the current window; a batch larger
-// than limit is never allowed.
+// AllowN counts n events at once.
 func (l *Limiter) AllowN(ctx context.Context, key string, n, limit int64, window time.Duration) (bool, error) {
 	count, err := incrByWindow.Run(ctx, l.rdb, []string{l.prefix + "rl:" + key}, window.Milliseconds(), n).Int64()
 	if err != nil {
@@ -48,8 +45,7 @@ func (l *Limiter) AllowN(ctx context.Context, key string, n, limit int64, window
 	return count <= limit, nil
 }
 
-// Count returns how many events key has recorded in the current window without
-// counting a new one.
+// Count returns how many events key has recorded in the current window.
 func (l *Limiter) Count(ctx context.Context, key string) (int64, error) {
 	n, err := l.rdb.Get(ctx, l.prefix+"rl:"+key).Int64()
 	if errors.Is(err, redis.Nil) {

@@ -12,8 +12,6 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
-	// AccountDeletionReceipt is the client for interacting with the AccountDeletionReceipt builders.
-	AccountDeletionReceipt *AccountDeletionReceiptClient
 	// CityVisit is the client for interacting with the CityVisit builders.
 	CityVisit *CityVisitClient
 	// FootprintChange is the client for interacting with the FootprintChange builders.
@@ -36,8 +34,6 @@ type Tx struct {
 	ProvinceMark *ProvinceMarkClient
 	// PushSubscription is the client for interacting with the PushSubscription builders.
 	PushSubscription *PushSubscriptionClient
-	// Session is the client for interacting with the Session builders.
-	Session *SessionClient
 	// Share is the client for interacting with the Share builders.
 	Share *ShareClient
 	// SharedTrip is the client for interacting with the SharedTrip builders.
@@ -183,7 +179,6 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
-	tx.AccountDeletionReceipt = NewAccountDeletionReceiptClient(tx.config)
 	tx.CityVisit = NewCityVisitClient(tx.config)
 	tx.FootprintChange = NewFootprintChangeClient(tx.config)
 	tx.Friendship = NewFriendshipClient(tx.config)
@@ -195,7 +190,6 @@ func (tx *Tx) init() {
 	tx.NotificationSetting = NewNotificationSettingClient(tx.config)
 	tx.ProvinceMark = NewProvinceMarkClient(tx.config)
 	tx.PushSubscription = NewPushSubscriptionClient(tx.config)
-	tx.Session = NewSessionClient(tx.config)
 	tx.Share = NewShareClient(tx.config)
 	tx.SharedTrip = NewSharedTripClient(tx.config)
 	tx.Snapshot = NewSnapshotClient(tx.config)
@@ -212,7 +206,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: AccountDeletionReceipt.QueryXXX(), the query will be executed
+// applies a query, for example: CityVisit.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

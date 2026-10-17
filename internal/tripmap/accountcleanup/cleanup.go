@@ -12,7 +12,6 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/friendship"
 	entitinerary "github.com/kongken/mono/internal/tripmap/ent/itinerary"
-	"github.com/kongken/mono/internal/tripmap/ent/mediacleanup"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	entshare "github.com/kongken/mono/internal/tripmap/ent/share"
 	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
@@ -89,18 +88,13 @@ func purgeObjectStorage(ctx context.Context, st *Store, userID string) error {
 	if st.Blobs == nil {
 		return ErrObjectStorageUnavailable
 	}
-	keys := map[string]struct{}{}
 	for _, object := range objects {
-		for _, key := range []string{object.ObjectKey, object.ThumbnailKey, object.UploadKey} {
-			if key != "" {
-				keys[key] = struct{}{}
-			}
-		}
 		if err := deleteMediaKeys(ctx, st.Blobs, object); err != nil {
 			return err
 		}
 	}
-	return purgeMediaCleanupQueue(ctx, st, keys)
+	// MediaCleanup rows are independent of users and survive account deletion.
+	return nil
 }
 
 func deleteMediaKeys(ctx context.Context, blobs blobstore.Store, m *ent.MediaObject) error {
@@ -109,29 +103,6 @@ func deleteMediaKeys(ctx context.Context, blobs blobstore.Store, m *ent.MediaObj
 			if err := blobs.Delete(ctx, key); err != nil {
 				return err
 			}
-		}
-	}
-	return nil
-}
-
-func purgeMediaCleanupQueue(ctx context.Context, st *Store, keys map[string]struct{}) error {
-	if len(keys) == 0 {
-		return nil
-	}
-	keyList := make([]string, 0, len(keys))
-	for k := range keys {
-		keyList = append(keyList, k)
-	}
-	rows, err := st.DB.MediaCleanup.Query().Where(mediacleanup.ObjectKeyIn(keyList...)).All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, row := range rows {
-		if err := st.Blobs.Delete(ctx, row.ObjectKey); err != nil {
-			return err
-		}
-		if err := st.DB.MediaCleanup.DeleteOneID(row.ID).Exec(ctx); err != nil && !ent.IsNotFound(err) {
-			return err
 		}
 	}
 	return nil

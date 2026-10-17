@@ -5,7 +5,7 @@ import { timestampMs } from "@bufbuild/protobuf/wkt";
 import {
   ShareService,
   type ShareInfo,
-} from "@trip-map/api-client/tripmap/v1/share_pb";
+} from "@trip-map/api-client/bff/v1/share_pb";
 import { parseShareContent, type ShareContent } from "@/lib/share";
 import { apiConfig } from "./transport";
 import { csrfHeader } from "./csrf";
@@ -13,9 +13,6 @@ import { REGION_HEADER, REGION_VERSION } from "@/lib/region-catalog";
 
 const withCredentials = (input: RequestInfo | URL, init?: RequestInit) =>
   fetch(input, { ...init, credentials: "include" });
-
-const bffSharePath: Interceptor = (next) => (req) =>
-  next({ ...req, url: req.url.replace("/tripmap.v1.ShareService/", "/bff.v1.ShareService/") });
 
 const schemaHeaders: Interceptor = (next) => (req) => {
   req.header.set("X-Tripmap-Schema", "2");
@@ -29,7 +26,7 @@ const shareTransport = !apiConfig.enabled
   ? null
   : createConnectTransport({
       baseUrl: apiConfig.baseUrl,
-      interceptors: [schemaHeaders, bffSharePath],
+      interceptors: [schemaHeaders],
       fetch: withCredentials,
     });
 

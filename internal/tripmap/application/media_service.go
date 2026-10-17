@@ -13,7 +13,6 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/blobstore"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
@@ -38,7 +37,7 @@ func mediaInfo(m *ent.MediaObject) *tripmapv1.MediaInfo {
 	return &tripmapv1.MediaInfo{Id: m.ID, RegionCode: m.RegionCode, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Width: int32(m.Width), Height: int32(m.Height), Status: string(m.Status), CreatedAt: timestamppb.New(m.CreatedAt), TripId: m.TripID}
 }
 
-func mediaStore(ctx context.Context, src StoreSource) (*Store, auth.Principal, error) {
+func mediaStore(ctx context.Context, src StoreSource) (*Store, Caller, error) {
 	p, err := principal(ctx)
 	if err != nil {
 		return nil, p, err
@@ -60,10 +59,9 @@ func mediaTx(ctx context.Context, st *Store, uid string) (*ent.Tx, error) {
 	if err != nil {
 		return nil, internalError(err)
 	}
-	u, err := tx.User.Query().Where(user.ID(uid)).ForUpdate().Only(ctx)
-	if err != nil || u.Disabled {
+	if _, err := tx.User.Query().Where(user.ID(uid)).ForUpdate().Only(ctx); err != nil {
 		_ = tx.Rollback()
-		if err != nil && !ent.IsNotFound(err) {
+		if !ent.IsNotFound(err) {
 			return nil, internalError(err)
 		}
 		return nil, errUnauthenticated
@@ -107,7 +105,7 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("upload signing unavailable"))
 	}
-	allowed, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, "media:"+p.UserID, 60, time.Hour)
+	allowed, err := NewLimiter(st.Redis, st.prefix()).Allow(ctx, "media:"+p.UserID, 60, time.Hour)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("media rate limiter unavailable"))
 	}

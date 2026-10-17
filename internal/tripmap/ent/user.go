@@ -19,14 +19,14 @@ type User struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID string `json:"id,omitempty"`
-	// Email holds the value of the "email" field.
-	Email *string `json:"email,omitempty"`
 	// Username holds the value of the "username" field.
 	Username *string `json:"username,omitempty"`
 	// DisplayName holds the value of the "display_name" field.
 	DisplayName string `json:"display_name,omitempty"`
 	// AvatarURL holds the value of the "avatar_url" field.
 	AvatarURL string `json:"avatar_url,omitempty"`
+	// Email holds the value of the "email" field.
+	Email *string `json:"email,omitempty"`
 	// Provider holds the value of the "provider" field.
 	Provider string `json:"provider,omitempty"`
 	// ExternalID holds the value of the "external_id" field.
@@ -69,8 +69,6 @@ type UserEdges struct {
 	ProvinceMarks []*ProvinceMark `json:"province_marks,omitempty"`
 	// MediaObjects holds the value of the media_objects edge.
 	MediaObjects []*MediaObject `json:"media_objects,omitempty"`
-	// Sessions holds the value of the sessions edge.
-	Sessions []*Session `json:"sessions,omitempty"`
 	// FootprintChanges holds the value of the footprint_changes edge.
 	FootprintChanges []*FootprintChange `json:"footprint_changes,omitempty"`
 	// SyncReceipts holds the value of the sync_receipts edge.
@@ -99,7 +97,7 @@ type UserEdges struct {
 	NotificationDeliveries []*NotificationDelivery `json:"notification_deliveries,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [18]bool
+	loadedTypes [17]bool
 }
 
 // VisitsOrErr returns the Visits value or an error if the edge
@@ -138,19 +136,10 @@ func (e UserEdges) MediaObjectsOrErr() ([]*MediaObject, error) {
 	return nil, &NotLoadedError{edge: "media_objects"}
 }
 
-// SessionsOrErr returns the Sessions value or an error if the edge
-// was not loaded in eager-loading.
-func (e UserEdges) SessionsOrErr() ([]*Session, error) {
-	if e.loadedTypes[4] {
-		return e.Sessions, nil
-	}
-	return nil, &NotLoadedError{edge: "sessions"}
-}
-
 // FootprintChangesOrErr returns the FootprintChanges value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) FootprintChangesOrErr() ([]*FootprintChange, error) {
-	if e.loadedTypes[5] {
+	if e.loadedTypes[4] {
 		return e.FootprintChanges, nil
 	}
 	return nil, &NotLoadedError{edge: "footprint_changes"}
@@ -159,7 +148,7 @@ func (e UserEdges) FootprintChangesOrErr() ([]*FootprintChange, error) {
 // SyncReceiptsOrErr returns the SyncReceipts value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) SyncReceiptsOrErr() ([]*SyncReceipt, error) {
-	if e.loadedTypes[6] {
+	if e.loadedTypes[5] {
 		return e.SyncReceipts, nil
 	}
 	return nil, &NotLoadedError{edge: "sync_receipts"}
@@ -168,7 +157,7 @@ func (e UserEdges) SyncReceiptsOrErr() ([]*SyncReceipt, error) {
 // SnapshotsOrErr returns the Snapshots value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) SnapshotsOrErr() ([]*Snapshot, error) {
-	if e.loadedTypes[7] {
+	if e.loadedTypes[6] {
 		return e.Snapshots, nil
 	}
 	return nil, &NotLoadedError{edge: "snapshots"}
@@ -179,7 +168,7 @@ func (e UserEdges) SnapshotsOrErr() ([]*Snapshot, error) {
 func (e UserEdges) ShareOrErr() (*Share, error) {
 	if e.Share != nil {
 		return e.Share, nil
-	} else if e.loadedTypes[8] {
+	} else if e.loadedTypes[7] {
 		return nil, &NotFoundError{label: share.Label}
 	}
 	return nil, &NotLoadedError{edge: "share"}
@@ -188,7 +177,7 @@ func (e UserEdges) ShareOrErr() (*Share, error) {
 // SentFriendshipsOrErr returns the SentFriendships value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) SentFriendshipsOrErr() ([]*Friendship, error) {
-	if e.loadedTypes[9] {
+	if e.loadedTypes[8] {
 		return e.SentFriendships, nil
 	}
 	return nil, &NotLoadedError{edge: "sent_friendships"}
@@ -197,7 +186,7 @@ func (e UserEdges) SentFriendshipsOrErr() ([]*Friendship, error) {
 // ReceivedFriendshipsOrErr returns the ReceivedFriendships value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) ReceivedFriendshipsOrErr() ([]*Friendship, error) {
-	if e.loadedTypes[10] {
+	if e.loadedTypes[9] {
 		return e.ReceivedFriendships, nil
 	}
 	return nil, &NotLoadedError{edge: "received_friendships"}
@@ -206,7 +195,7 @@ func (e UserEdges) ReceivedFriendshipsOrErr() ([]*Friendship, error) {
 // OwnedSharedTripsOrErr returns the OwnedSharedTrips value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) OwnedSharedTripsOrErr() ([]*SharedTrip, error) {
-	if e.loadedTypes[11] {
+	if e.loadedTypes[10] {
 		return e.OwnedSharedTrips, nil
 	}
 	return nil, &NotLoadedError{edge: "owned_shared_trips"}
@@ -215,7 +204,7 @@ func (e UserEdges) OwnedSharedTripsOrErr() ([]*SharedTrip, error) {
 // TripMembershipsOrErr returns the TripMemberships value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) TripMembershipsOrErr() ([]*TripMember, error) {
-	if e.loadedTypes[12] {
+	if e.loadedTypes[11] {
 		return e.TripMemberships, nil
 	}
 	return nil, &NotLoadedError{edge: "trip_memberships"}
@@ -224,7 +213,7 @@ func (e UserEdges) TripMembershipsOrErr() ([]*TripMember, error) {
 // ItinerariesOrErr returns the Itineraries value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) ItinerariesOrErr() ([]*Itinerary, error) {
-	if e.loadedTypes[13] {
+	if e.loadedTypes[12] {
 		return e.Itineraries, nil
 	}
 	return nil, &NotLoadedError{edge: "itineraries"}
@@ -235,7 +224,7 @@ func (e UserEdges) ItinerariesOrErr() ([]*Itinerary, error) {
 func (e UserEdges) NotificationProfileOrErr() (*NotificationProfile, error) {
 	if e.NotificationProfile != nil {
 		return e.NotificationProfile, nil
-	} else if e.loadedTypes[14] {
+	} else if e.loadedTypes[13] {
 		return nil, &NotFoundError{label: notificationprofile.Label}
 	}
 	return nil, &NotLoadedError{edge: "notification_profile"}
@@ -244,7 +233,7 @@ func (e UserEdges) NotificationProfileOrErr() (*NotificationProfile, error) {
 // NotificationSettingsOrErr returns the NotificationSettings value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) NotificationSettingsOrErr() ([]*NotificationSetting, error) {
-	if e.loadedTypes[15] {
+	if e.loadedTypes[14] {
 		return e.NotificationSettings, nil
 	}
 	return nil, &NotLoadedError{edge: "notification_settings"}
@@ -253,7 +242,7 @@ func (e UserEdges) NotificationSettingsOrErr() ([]*NotificationSetting, error) {
 // PushSubscriptionsOrErr returns the PushSubscriptions value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) PushSubscriptionsOrErr() ([]*PushSubscription, error) {
-	if e.loadedTypes[16] {
+	if e.loadedTypes[15] {
 		return e.PushSubscriptions, nil
 	}
 	return nil, &NotLoadedError{edge: "push_subscriptions"}
@@ -262,7 +251,7 @@ func (e UserEdges) PushSubscriptionsOrErr() ([]*PushSubscription, error) {
 // NotificationDeliveriesOrErr returns the NotificationDeliveries value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) NotificationDeliveriesOrErr() ([]*NotificationDelivery, error) {
-	if e.loadedTypes[17] {
+	if e.loadedTypes[16] {
 		return e.NotificationDeliveries, nil
 	}
 	return nil, &NotLoadedError{edge: "notification_deliveries"}
@@ -277,7 +266,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case user.FieldRevision, user.FieldSchemaVersion:
 			values[i] = new(sql.NullInt64)
-		case user.FieldID, user.FieldEmail, user.FieldUsername, user.FieldDisplayName, user.FieldAvatarURL, user.FieldProvider, user.FieldExternalID, user.FieldPasswordHash, user.FieldFriendCode:
+		case user.FieldID, user.FieldUsername, user.FieldDisplayName, user.FieldAvatarURL, user.FieldEmail, user.FieldProvider, user.FieldExternalID, user.FieldPasswordHash, user.FieldFriendCode:
 			values[i] = new(sql.NullString)
 		case user.FieldDeletionRequestedAt, user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -302,13 +291,6 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ID = value.String
 			}
-		case user.FieldEmail:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field email", values[i])
-			} else if value.Valid {
-				_m.Email = new(string)
-				*_m.Email = value.String
-			}
 		case user.FieldUsername:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field username", values[i])
@@ -327,6 +309,13 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field avatar_url", values[i])
 			} else if value.Valid {
 				_m.AvatarURL = value.String
+			}
+		case user.FieldEmail:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field email", values[i])
+			} else if value.Valid {
+				_m.Email = new(string)
+				*_m.Email = value.String
 			}
 		case user.FieldProvider:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -441,11 +430,6 @@ func (_m *User) QueryMediaObjects() *MediaObjectQuery {
 	return NewUserClient(_m.config).QueryMediaObjects(_m)
 }
 
-// QuerySessions queries the "sessions" edge of the User entity.
-func (_m *User) QuerySessions() *SessionQuery {
-	return NewUserClient(_m.config).QuerySessions(_m)
-}
-
 // QueryFootprintChanges queries the "footprint_changes" edge of the User entity.
 func (_m *User) QueryFootprintChanges() *FootprintChangeQuery {
 	return NewUserClient(_m.config).QueryFootprintChanges(_m)
@@ -534,11 +518,6 @@ func (_m *User) String() string {
 	var builder strings.Builder
 	builder.WriteString("User(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
-	if v := _m.Email; v != nil {
-		builder.WriteString("email=")
-		builder.WriteString(*v)
-	}
-	builder.WriteString(", ")
 	if v := _m.Username; v != nil {
 		builder.WriteString("username=")
 		builder.WriteString(*v)
@@ -549,6 +528,11 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("avatar_url=")
 	builder.WriteString(_m.AvatarURL)
+	builder.WriteString(", ")
+	if v := _m.Email; v != nil {
+		builder.WriteString("email=")
+		builder.WriteString(*v)
+	}
 	builder.WriteString(", ")
 	builder.WriteString("provider=")
 	builder.WriteString(_m.Provider)

@@ -22,7 +22,6 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/notificationsetting"
 	"github.com/kongken/mono/internal/tripmap/ent/provincemark"
 	"github.com/kongken/mono/internal/tripmap/ent/pushsubscription"
-	"github.com/kongken/mono/internal/tripmap/ent/session"
 	"github.com/kongken/mono/internal/tripmap/ent/share"
 	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
 	"github.com/kongken/mono/internal/tripmap/ent/snapshot"
@@ -38,20 +37,6 @@ type UserCreate struct {
 	mutation *UserMutation
 	hooks    []Hook
 	conflict []sql.ConflictOption
-}
-
-// SetEmail sets the "email" field.
-func (_c *UserCreate) SetEmail(v string) *UserCreate {
-	_c.mutation.SetEmail(v)
-	return _c
-}
-
-// SetNillableEmail sets the "email" field if the given value is not nil.
-func (_c *UserCreate) SetNillableEmail(v *string) *UserCreate {
-	if v != nil {
-		_c.SetEmail(*v)
-	}
-	return _c
 }
 
 // SetUsername sets the "username" field.
@@ -92,6 +77,20 @@ func (_c *UserCreate) SetAvatarURL(v string) *UserCreate {
 func (_c *UserCreate) SetNillableAvatarURL(v *string) *UserCreate {
 	if v != nil {
 		_c.SetAvatarURL(*v)
+	}
+	return _c
+}
+
+// SetEmail sets the "email" field.
+func (_c *UserCreate) SetEmail(v string) *UserCreate {
+	_c.mutation.SetEmail(v)
+	return _c
+}
+
+// SetNillableEmail sets the "email" field if the given value is not nil.
+func (_c *UserCreate) SetNillableEmail(v *string) *UserCreate {
+	if v != nil {
+		_c.SetEmail(*v)
 	}
 	return _c
 }
@@ -350,21 +349,6 @@ func (_c *UserCreate) AddMediaObjects(v ...*MediaObject) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddMediaObjectIDs(ids...)
-}
-
-// AddSessionIDs adds the "sessions" edge to the Session entity by IDs.
-func (_c *UserCreate) AddSessionIDs(ids ...string) *UserCreate {
-	_c.mutation.AddSessionIDs(ids...)
-	return _c
-}
-
-// AddSessions adds the "sessions" edges to the Session entity.
-func (_c *UserCreate) AddSessions(v ...*Session) *UserCreate {
-	ids := make([]string, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _c.AddSessionIDs(ids...)
 }
 
 // AddFootprintChangeIDs adds the "footprint_changes" edge to the FootprintChange entity by IDs.
@@ -750,10 +734,6 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
-	if value, ok := _c.mutation.Email(); ok {
-		_spec.SetField(user.FieldEmail, field.TypeString, value)
-		_node.Email = &value
-	}
 	if value, ok := _c.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
 		_node.Username = &value
@@ -765,6 +745,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AvatarURL(); ok {
 		_spec.SetField(user.FieldAvatarURL, field.TypeString, value)
 		_node.AvatarURL = value
+	}
+	if value, ok := _c.mutation.Email(); ok {
+		_spec.SetField(user.FieldEmail, field.TypeString, value)
+		_node.Email = &value
 	}
 	if value, ok := _c.mutation.Provider(); ok {
 		_spec.SetField(user.FieldProvider, field.TypeString, value)
@@ -875,22 +859,6 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(mediaobject.FieldID, field.TypeString),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
-	}
-	if nodes := _c.mutation.SessionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.SessionsTable,
-			Columns: []string{user.SessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(session.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -1113,7 +1081,7 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 // of the `INSERT` statement. For example:
 //
 //	client.User.Create().
-//		SetEmail(v).
+//		SetUsername(v).
 //		OnConflict(
 //			// Update the row with the new values
 //			// the was proposed for insertion.
@@ -1122,7 +1090,7 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.UserUpsert) {
-//			SetEmail(v+v).
+//			SetUsername(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *UserCreate) OnConflict(opts ...sql.ConflictOption) *UserUpsertOne {
@@ -1157,24 +1125,6 @@ type (
 		*sql.UpdateSet
 	}
 )
-
-// SetEmail sets the "email" field.
-func (u *UserUpsert) SetEmail(v string) *UserUpsert {
-	u.Set(user.FieldEmail, v)
-	return u
-}
-
-// UpdateEmail sets the "email" field to the value that was provided on create.
-func (u *UserUpsert) UpdateEmail() *UserUpsert {
-	u.SetExcluded(user.FieldEmail)
-	return u
-}
-
-// ClearEmail clears the value of the "email" field.
-func (u *UserUpsert) ClearEmail() *UserUpsert {
-	u.SetNull(user.FieldEmail)
-	return u
-}
 
 // SetUsername sets the "username" field.
 func (u *UserUpsert) SetUsername(v string) *UserUpsert {
@@ -1215,72 +1165,6 @@ func (u *UserUpsert) SetAvatarURL(v string) *UserUpsert {
 // UpdateAvatarURL sets the "avatar_url" field to the value that was provided on create.
 func (u *UserUpsert) UpdateAvatarURL() *UserUpsert {
 	u.SetExcluded(user.FieldAvatarURL)
-	return u
-}
-
-// SetProvider sets the "provider" field.
-func (u *UserUpsert) SetProvider(v string) *UserUpsert {
-	u.Set(user.FieldProvider, v)
-	return u
-}
-
-// UpdateProvider sets the "provider" field to the value that was provided on create.
-func (u *UserUpsert) UpdateProvider() *UserUpsert {
-	u.SetExcluded(user.FieldProvider)
-	return u
-}
-
-// SetExternalID sets the "external_id" field.
-func (u *UserUpsert) SetExternalID(v string) *UserUpsert {
-	u.Set(user.FieldExternalID, v)
-	return u
-}
-
-// UpdateExternalID sets the "external_id" field to the value that was provided on create.
-func (u *UserUpsert) UpdateExternalID() *UserUpsert {
-	u.SetExcluded(user.FieldExternalID)
-	return u
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (u *UserUpsert) SetPasswordHash(v string) *UserUpsert {
-	u.Set(user.FieldPasswordHash, v)
-	return u
-}
-
-// UpdatePasswordHash sets the "password_hash" field to the value that was provided on create.
-func (u *UserUpsert) UpdatePasswordHash() *UserUpsert {
-	u.SetExcluded(user.FieldPasswordHash)
-	return u
-}
-
-// SetDisabled sets the "disabled" field.
-func (u *UserUpsert) SetDisabled(v bool) *UserUpsert {
-	u.Set(user.FieldDisabled, v)
-	return u
-}
-
-// UpdateDisabled sets the "disabled" field to the value that was provided on create.
-func (u *UserUpsert) UpdateDisabled() *UserUpsert {
-	u.SetExcluded(user.FieldDisabled)
-	return u
-}
-
-// SetDeletionRequestedAt sets the "deletion_requested_at" field.
-func (u *UserUpsert) SetDeletionRequestedAt(v time.Time) *UserUpsert {
-	u.Set(user.FieldDeletionRequestedAt, v)
-	return u
-}
-
-// UpdateDeletionRequestedAt sets the "deletion_requested_at" field to the value that was provided on create.
-func (u *UserUpsert) UpdateDeletionRequestedAt() *UserUpsert {
-	u.SetExcluded(user.FieldDeletionRequestedAt)
-	return u
-}
-
-// ClearDeletionRequestedAt clears the value of the "deletion_requested_at" field.
-func (u *UserUpsert) ClearDeletionRequestedAt() *UserUpsert {
-	u.SetNull(user.FieldDeletionRequestedAt)
 	return u
 }
 
@@ -1403,6 +1287,24 @@ func (u *UserUpsertOne) UpdateNewValues() *UserUpsertOne {
 		if _, exists := u.create.mutation.ID(); exists {
 			s.SetIgnore(user.FieldID)
 		}
+		if _, exists := u.create.mutation.Email(); exists {
+			s.SetIgnore(user.FieldEmail)
+		}
+		if _, exists := u.create.mutation.Provider(); exists {
+			s.SetIgnore(user.FieldProvider)
+		}
+		if _, exists := u.create.mutation.ExternalID(); exists {
+			s.SetIgnore(user.FieldExternalID)
+		}
+		if _, exists := u.create.mutation.PasswordHash(); exists {
+			s.SetIgnore(user.FieldPasswordHash)
+		}
+		if _, exists := u.create.mutation.Disabled(); exists {
+			s.SetIgnore(user.FieldDisabled)
+		}
+		if _, exists := u.create.mutation.DeletionRequestedAt(); exists {
+			s.SetIgnore(user.FieldDeletionRequestedAt)
+		}
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(user.FieldCreatedAt)
 		}
@@ -1435,27 +1337,6 @@ func (u *UserUpsertOne) Update(set func(*UserUpsert)) *UserUpsertOne {
 		set(&UserUpsert{UpdateSet: update})
 	}))
 	return u
-}
-
-// SetEmail sets the "email" field.
-func (u *UserUpsertOne) SetEmail(v string) *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.SetEmail(v)
-	})
-}
-
-// UpdateEmail sets the "email" field to the value that was provided on create.
-func (u *UserUpsertOne) UpdateEmail() *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateEmail()
-	})
-}
-
-// ClearEmail clears the value of the "email" field.
-func (u *UserUpsertOne) ClearEmail() *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.ClearEmail()
-	})
 }
 
 // SetUsername sets the "username" field.
@@ -1504,83 +1385,6 @@ func (u *UserUpsertOne) SetAvatarURL(v string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateAvatarURL() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateAvatarURL()
-	})
-}
-
-// SetProvider sets the "provider" field.
-func (u *UserUpsertOne) SetProvider(v string) *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.SetProvider(v)
-	})
-}
-
-// UpdateProvider sets the "provider" field to the value that was provided on create.
-func (u *UserUpsertOne) UpdateProvider() *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateProvider()
-	})
-}
-
-// SetExternalID sets the "external_id" field.
-func (u *UserUpsertOne) SetExternalID(v string) *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.SetExternalID(v)
-	})
-}
-
-// UpdateExternalID sets the "external_id" field to the value that was provided on create.
-func (u *UserUpsertOne) UpdateExternalID() *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateExternalID()
-	})
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (u *UserUpsertOne) SetPasswordHash(v string) *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.SetPasswordHash(v)
-	})
-}
-
-// UpdatePasswordHash sets the "password_hash" field to the value that was provided on create.
-func (u *UserUpsertOne) UpdatePasswordHash() *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdatePasswordHash()
-	})
-}
-
-// SetDisabled sets the "disabled" field.
-func (u *UserUpsertOne) SetDisabled(v bool) *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.SetDisabled(v)
-	})
-}
-
-// UpdateDisabled sets the "disabled" field to the value that was provided on create.
-func (u *UserUpsertOne) UpdateDisabled() *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateDisabled()
-	})
-}
-
-// SetDeletionRequestedAt sets the "deletion_requested_at" field.
-func (u *UserUpsertOne) SetDeletionRequestedAt(v time.Time) *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.SetDeletionRequestedAt(v)
-	})
-}
-
-// UpdateDeletionRequestedAt sets the "deletion_requested_at" field to the value that was provided on create.
-func (u *UserUpsertOne) UpdateDeletionRequestedAt() *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateDeletionRequestedAt()
-	})
-}
-
-// ClearDeletionRequestedAt clears the value of the "deletion_requested_at" field.
-func (u *UserUpsertOne) ClearDeletionRequestedAt() *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.ClearDeletionRequestedAt()
 	})
 }
 
@@ -1839,7 +1643,7 @@ func (_c *UserCreateBulk) ExecX(ctx context.Context) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.UserUpsert) {
-//			SetEmail(v+v).
+//			SetUsername(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *UserCreateBulk) OnConflict(opts ...sql.ConflictOption) *UserUpsertBulk {
@@ -1886,6 +1690,24 @@ func (u *UserUpsertBulk) UpdateNewValues() *UserUpsertBulk {
 			if _, exists := b.mutation.ID(); exists {
 				s.SetIgnore(user.FieldID)
 			}
+			if _, exists := b.mutation.Email(); exists {
+				s.SetIgnore(user.FieldEmail)
+			}
+			if _, exists := b.mutation.Provider(); exists {
+				s.SetIgnore(user.FieldProvider)
+			}
+			if _, exists := b.mutation.ExternalID(); exists {
+				s.SetIgnore(user.FieldExternalID)
+			}
+			if _, exists := b.mutation.PasswordHash(); exists {
+				s.SetIgnore(user.FieldPasswordHash)
+			}
+			if _, exists := b.mutation.Disabled(); exists {
+				s.SetIgnore(user.FieldDisabled)
+			}
+			if _, exists := b.mutation.DeletionRequestedAt(); exists {
+				s.SetIgnore(user.FieldDeletionRequestedAt)
+			}
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(user.FieldCreatedAt)
 			}
@@ -1919,27 +1741,6 @@ func (u *UserUpsertBulk) Update(set func(*UserUpsert)) *UserUpsertBulk {
 		set(&UserUpsert{UpdateSet: update})
 	}))
 	return u
-}
-
-// SetEmail sets the "email" field.
-func (u *UserUpsertBulk) SetEmail(v string) *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.SetEmail(v)
-	})
-}
-
-// UpdateEmail sets the "email" field to the value that was provided on create.
-func (u *UserUpsertBulk) UpdateEmail() *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateEmail()
-	})
-}
-
-// ClearEmail clears the value of the "email" field.
-func (u *UserUpsertBulk) ClearEmail() *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.ClearEmail()
-	})
 }
 
 // SetUsername sets the "username" field.
@@ -1988,83 +1789,6 @@ func (u *UserUpsertBulk) SetAvatarURL(v string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateAvatarURL() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateAvatarURL()
-	})
-}
-
-// SetProvider sets the "provider" field.
-func (u *UserUpsertBulk) SetProvider(v string) *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.SetProvider(v)
-	})
-}
-
-// UpdateProvider sets the "provider" field to the value that was provided on create.
-func (u *UserUpsertBulk) UpdateProvider() *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateProvider()
-	})
-}
-
-// SetExternalID sets the "external_id" field.
-func (u *UserUpsertBulk) SetExternalID(v string) *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.SetExternalID(v)
-	})
-}
-
-// UpdateExternalID sets the "external_id" field to the value that was provided on create.
-func (u *UserUpsertBulk) UpdateExternalID() *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateExternalID()
-	})
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (u *UserUpsertBulk) SetPasswordHash(v string) *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.SetPasswordHash(v)
-	})
-}
-
-// UpdatePasswordHash sets the "password_hash" field to the value that was provided on create.
-func (u *UserUpsertBulk) UpdatePasswordHash() *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdatePasswordHash()
-	})
-}
-
-// SetDisabled sets the "disabled" field.
-func (u *UserUpsertBulk) SetDisabled(v bool) *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.SetDisabled(v)
-	})
-}
-
-// UpdateDisabled sets the "disabled" field to the value that was provided on create.
-func (u *UserUpsertBulk) UpdateDisabled() *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateDisabled()
-	})
-}
-
-// SetDeletionRequestedAt sets the "deletion_requested_at" field.
-func (u *UserUpsertBulk) SetDeletionRequestedAt(v time.Time) *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.SetDeletionRequestedAt(v)
-	})
-}
-
-// UpdateDeletionRequestedAt sets the "deletion_requested_at" field to the value that was provided on create.
-func (u *UserUpsertBulk) UpdateDeletionRequestedAt() *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateDeletionRequestedAt()
-	})
-}
-
-// ClearDeletionRequestedAt clears the value of the "deletion_requested_at" field.
-func (u *UserUpsertBulk) ClearDeletionRequestedAt() *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.ClearDeletionRequestedAt()
 	})
 }
 

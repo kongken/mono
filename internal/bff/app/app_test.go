@@ -63,11 +63,11 @@ func (f *fake) setReady(code int) {
 }
 
 var testServices = []gateway.Service{
-	{
-		Name:     "tripmap",
-		Packages: []string{"tripmap.v1"},
-		Headers:  []string{"X-Tripmap-Schema"},
-	},
+	{Name: "tripmap", GRPC: true},
+	{Name: "other", Packages: []string{"other.v1"}, Routes: []gateway.Route{{Path: "/api/share/special/"}}},
+}
+
+var proxyOnlyServices = []gateway.Service{
 	{Name: "other", Packages: []string{"other.v1"}, Routes: []gateway.Route{{Path: "/api/share/special/"}}},
 }
 
@@ -84,6 +84,9 @@ func newBFF(t *testing.T, cfg *config.Config, services []gateway.Service) *gin.E
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	if services == nil {
+		services = gateway.Services
+	}
+	if len(gateway.GRPCNames(services)) > 0 {
 		withInternalTransport(t, cfg)
 	}
 	h := app.New(cfg)
@@ -108,58 +111,10 @@ func serve(r http.Handler, req *http.Request) *httptest.ResponseRecorder {
 	return rec
 }
 
-func TestRoutesByProtoPackageAndPath(t *testing.T) {
-	trip, other := newFake(t, "tripmap"), newFake(t, "other")
-	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL, "other": other.URL}}, testServices)
-	for path, want := range map[string]string{
-		"/api/tripmap.v1.FootprintService/GetFootprints": "tripmap",
-		"/api/other.v1.ThingService/List":                "other",
-		"/api/share/special/x":                           "other", // the longest path wins
-	} {
-		if got := serve(r, httptest.NewRequest(http.MethodPost, path, nil)); got.Code != http.StatusOK || got.Body.String() != want {
-			t.Errorf("%s: got %d %q, want %s", path, got.Code, got.Body.String(), want)
-		}
-	}
-	for _, path := range []string{
-		"/", "/sx", "/nothing", "/api/unknown.v1.ThingService/List", "/api/tripmap.v1.FootprintService",
-		"/api/tripmap.v1.FootprintService/A/B", "/api/NoPackage/Method", "/api/share",
-		"/api/share/../other.v1.ThingService/List", "/api//tripmap.v1.FootprintService/GetFootprints",
-	} {
-		if got := serve(r, httptest.NewRequest(http.MethodPost, path, nil)); got.Code != http.StatusNotFound {
-			t.Errorf("%s: got %d, want 404", path, got.Code)
-		}
-	}
-}
-
-func TestForwardsTheRequestAndOverwritesTheClientAddress(t *testing.T) {
-	trip := newFake(t, "tripmap")
-	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL}}, nil)
-	req := httptest.NewRequest(http.MethodPost, "/api/tripmap.v1.FootprintService/GetFootprints?x=1", strings.NewReader(`{"a":1}`))
-	req.Host = "trip.example.com"
-	req.Header.Set("Authorization", "Bearer tm_secret")
-	req.Header.Set("X-Tripmap-Schema", "2")
-	req.Header.Set("X-Forwarded-For", "203.0.113.9")
-	req.Header.Set("X-Real-IP", "198.51.100.1") // a client choosing its own address
-	if got := serve(r, req); got.Code != http.StatusOK {
-		t.Fatalf("status %d", got.Code)
-	}
-	seen, body := trip.seen()
-	if seen.Method != http.MethodPost || seen.URL.RequestURI() != "/api/tripmap.v1.FootprintService/GetFootprints?x=1" || body != `{"a":1}` || seen.Host != "trip.example.com" {
-		t.Fatalf("request changed on the way: %s %s host=%s body=%s", seen.Method, seen.URL.RequestURI(), seen.Host, body)
-	}
-	if seen.Header.Get("Authorization") != "Bearer tm_secret" || seen.Header.Get("X-Tripmap-Schema") != "2" || seen.Header.Get("X-Forwarded-For") != "203.0.113.9" {
-		t.Fatalf("headers lost: %v", seen.Header)
-	}
-	if got := seen.Header.Get(gateway.ClientIPHeader); got != "192.0.2.1" {
-		t.Fatalf("client address = %q, want the TCP peer 192.0.2.1", got)
-	}
-
-}
-
 func TestTheBFFOwnsCORS(t *testing.T) {
 	trip := newFake(t, "tripmap")
-	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL}, CORSAllowedOrigins: []string{"https://trip.example.com"}}, testServices[:1])
-	preflight := httptest.NewRequest(http.MethodOptions, "/api/tripmap.v1.FootprintService/GetFootprints", nil)
+	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL, "other": "http://127.0.0.1:1"}, CORSAllowedOrigins: []string{"https://trip.example.com"}}, testServices)
+	preflight := httptest.NewRequest(http.MethodOptions, "/api/bff.v1.FootprintService/GetFootprints", nil)
 	preflight.Header.Set("Origin", "https://trip.example.com")
 	got := serve(r, preflight)
 	if got.Code != http.StatusNoContent || got.Header().Get("Access-Control-Allow-Origin") != "https://trip.example.com" ||
@@ -169,24 +124,15 @@ func TestTheBFFOwnsCORS(t *testing.T) {
 	if seen, _ := trip.seen(); seen != nil {
 		t.Fatal("preflight reached the service")
 	}
-	post := httptest.NewRequest(http.MethodPost, "/api/tripmap.v1.FootprintService/GetFootprints", nil)
+	post := httptest.NewRequest(http.MethodPost, "/api/bff.v1.FootprintService/GetFootprints", nil)
 	post.Header.Set("Origin", "https://trip.example.com")
 	if got := serve(r, post).Header().Values("Access-Control-Allow-Origin"); len(got) != 1 || got[0] != "https://trip.example.com" {
 		t.Fatalf("Access-Control-Allow-Origin = %v, want only the BFF's", got)
 	}
-	post = httptest.NewRequest(http.MethodPost, "/api/tripmap.v1.FootprintService/GetFootprints", nil)
+	post = httptest.NewRequest(http.MethodPost, "/api/bff.v1.FootprintService/GetFootprints", nil)
 	post.Header.Set("Origin", "https://evil.example.com")
 	if got := serve(r, post).Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("unlisted origin got %q", got)
-	}
-}
-
-func TestUnavailableServiceAnswersBadGateway(t *testing.T) {
-	trip := newFake(t, "tripmap")
-	trip.Close()
-	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL}}, nil)
-	if got := serve(r, httptest.NewRequest(http.MethodPost, "/api/tripmap.v1.SystemService/GetStatus", nil)); got.Code != http.StatusBadGateway {
-		t.Fatalf("status %d, want 502", got.Code)
 	}
 }
 
@@ -220,11 +166,13 @@ func TestReadyzReportsEveryService(t *testing.T) {
 	}
 }
 
-func TestRouteTableServesTripmap(t *testing.T) {
+func TestLegacyTripmapConnectPathsAreNotProxied(t *testing.T) {
 	trip := newFake(t, "tripmap")
-	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL}}, nil)
-	if got := serve(r, httptest.NewRequest(http.MethodPost, "/api/tripmap.v1.AuthService/Login", nil)); got.Code != http.StatusOK || got.Body.String() != "tripmap" {
-		t.Errorf("login proxy: got %d %q", got.Code, got.Body.String())
+	cfg := &config.Config{Upstreams: map[string]string{"tripmap": trip.URL}}
+	withInternalTransport(t, cfg)
+	r := newBFF(t, cfg, testServices[:1])
+	if got := serve(r, httptest.NewRequest(http.MethodPost, "/api/tripmap.v1.AuthService/Login", nil)); got.Code != http.StatusNotFound {
+		t.Errorf("legacy login proxy: got %d, want 404", got.Code)
 	}
 }
 
@@ -233,7 +181,7 @@ func TestRoutesBeforeBootstrap(t *testing.T) {
 	r := gin.New()
 	app.New(&config.Config{}).Routes(r)
 	if got := serve(r, httptest.NewRequest(http.MethodPost, "/api/tripmap.v1.SystemService/GetStatus", nil)); got.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status %d, want 503", got.Code)
+		t.Fatalf("before bootstrap legacy tripmap path %d, want 503", got.Code)
 	}
 	if got := serve(r, httptest.NewRequest(http.MethodGet, "/readyz", nil)); got.Code != http.StatusServiceUnavailable {
 		t.Fatalf("readyz %d, want 503", got.Code)

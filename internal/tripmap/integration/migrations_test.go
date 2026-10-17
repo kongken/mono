@@ -206,6 +206,24 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 	if got, want := pendingChanges(t, ctx, client), pendingChanges(t, ctx, reference); got != want {
 		t.Fatalf("migrations differ from the Ent schema.\nmigrated database wants:\n%s\nEnt-created database wants:\n%s", got, want)
 	}
+	// New accounts after migration only touch business profile columns; legacy auth columns keep defaults.
+	if _, err := client.User.Create().SetID("u-new").SetUsername("fresh_user").SetDisplayName("新用户").Save(ctx); err != nil {
+		t.Fatalf("ent create profile-only user: %v", err)
+	}
+}
+
+func TestMigrationDirectoryListsPostImportCleanupSeparately(t *testing.T) {
+	t.Helper()
+	body, err := os.ReadFile("../../../deploy/sql/tripmap/post_import_drop_legacy_auth_columns.sql")
+	if err != nil || !strings.Contains(string(body), "DROP COLUMN") {
+		t.Fatal("post-import cleanup script missing or empty")
+	}
+	files, _ := filepath.Glob(filepath.Join(migrationsDir, "*.sql"))
+	for _, f := range files {
+		if strings.Contains(filepath.Base(f), "drop_legacy") {
+			t.Fatal("destructive cleanup must not live in atlas migrations")
+		}
+	}
 }
 
 func pendingChanges(t *testing.T, ctx context.Context, c *ent.Client) string {

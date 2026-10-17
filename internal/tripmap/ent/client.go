@@ -15,7 +15,6 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"github.com/kongken/mono/internal/tripmap/ent/accountdeletionreceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
 	"github.com/kongken/mono/internal/tripmap/ent/footprintchange"
 	"github.com/kongken/mono/internal/tripmap/ent/friendship"
@@ -27,7 +26,6 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/notificationsetting"
 	"github.com/kongken/mono/internal/tripmap/ent/provincemark"
 	"github.com/kongken/mono/internal/tripmap/ent/pushsubscription"
-	"github.com/kongken/mono/internal/tripmap/ent/session"
 	"github.com/kongken/mono/internal/tripmap/ent/share"
 	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
 	"github.com/kongken/mono/internal/tripmap/ent/snapshot"
@@ -42,8 +40,6 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
-	// AccountDeletionReceipt is the client for interacting with the AccountDeletionReceipt builders.
-	AccountDeletionReceipt *AccountDeletionReceiptClient
 	// CityVisit is the client for interacting with the CityVisit builders.
 	CityVisit *CityVisitClient
 	// FootprintChange is the client for interacting with the FootprintChange builders.
@@ -66,8 +62,6 @@ type Client struct {
 	ProvinceMark *ProvinceMarkClient
 	// PushSubscription is the client for interacting with the PushSubscription builders.
 	PushSubscription *PushSubscriptionClient
-	// Session is the client for interacting with the Session builders.
-	Session *SessionClient
 	// Share is the client for interacting with the Share builders.
 	Share *ShareClient
 	// SharedTrip is the client for interacting with the SharedTrip builders.
@@ -93,7 +87,6 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
-	c.AccountDeletionReceipt = NewAccountDeletionReceiptClient(c.config)
 	c.CityVisit = NewCityVisitClient(c.config)
 	c.FootprintChange = NewFootprintChangeClient(c.config)
 	c.Friendship = NewFriendshipClient(c.config)
@@ -105,7 +98,6 @@ func (c *Client) init() {
 	c.NotificationSetting = NewNotificationSettingClient(c.config)
 	c.ProvinceMark = NewProvinceMarkClient(c.config)
 	c.PushSubscription = NewPushSubscriptionClient(c.config)
-	c.Session = NewSessionClient(c.config)
 	c.Share = NewShareClient(c.config)
 	c.SharedTrip = NewSharedTripClient(c.config)
 	c.Snapshot = NewSnapshotClient(c.config)
@@ -203,28 +195,26 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:                    ctx,
-		config:                 cfg,
-		AccountDeletionReceipt: NewAccountDeletionReceiptClient(cfg),
-		CityVisit:              NewCityVisitClient(cfg),
-		FootprintChange:        NewFootprintChangeClient(cfg),
-		Friendship:             NewFriendshipClient(cfg),
-		Itinerary:              NewItineraryClient(cfg),
-		MediaCleanup:           NewMediaCleanupClient(cfg),
-		MediaObject:            NewMediaObjectClient(cfg),
-		NotificationDelivery:   NewNotificationDeliveryClient(cfg),
-		NotificationProfile:    NewNotificationProfileClient(cfg),
-		NotificationSetting:    NewNotificationSettingClient(cfg),
-		ProvinceMark:           NewProvinceMarkClient(cfg),
-		PushSubscription:       NewPushSubscriptionClient(cfg),
-		Session:                NewSessionClient(cfg),
-		Share:                  NewShareClient(cfg),
-		SharedTrip:             NewSharedTripClient(cfg),
-		Snapshot:               NewSnapshotClient(cfg),
-		SyncReceipt:            NewSyncReceiptClient(cfg),
-		Trip:                   NewTripClient(cfg),
-		TripMember:             NewTripMemberClient(cfg),
-		User:                   NewUserClient(cfg),
+		ctx:                  ctx,
+		config:               cfg,
+		CityVisit:            NewCityVisitClient(cfg),
+		FootprintChange:      NewFootprintChangeClient(cfg),
+		Friendship:           NewFriendshipClient(cfg),
+		Itinerary:            NewItineraryClient(cfg),
+		MediaCleanup:         NewMediaCleanupClient(cfg),
+		MediaObject:          NewMediaObjectClient(cfg),
+		NotificationDelivery: NewNotificationDeliveryClient(cfg),
+		NotificationProfile:  NewNotificationProfileClient(cfg),
+		NotificationSetting:  NewNotificationSettingClient(cfg),
+		ProvinceMark:         NewProvinceMarkClient(cfg),
+		PushSubscription:     NewPushSubscriptionClient(cfg),
+		Share:                NewShareClient(cfg),
+		SharedTrip:           NewSharedTripClient(cfg),
+		Snapshot:             NewSnapshotClient(cfg),
+		SyncReceipt:          NewSyncReceiptClient(cfg),
+		Trip:                 NewTripClient(cfg),
+		TripMember:           NewTripMemberClient(cfg),
+		User:                 NewUserClient(cfg),
 	}, nil
 }
 
@@ -242,35 +232,33 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:                    ctx,
-		config:                 cfg,
-		AccountDeletionReceipt: NewAccountDeletionReceiptClient(cfg),
-		CityVisit:              NewCityVisitClient(cfg),
-		FootprintChange:        NewFootprintChangeClient(cfg),
-		Friendship:             NewFriendshipClient(cfg),
-		Itinerary:              NewItineraryClient(cfg),
-		MediaCleanup:           NewMediaCleanupClient(cfg),
-		MediaObject:            NewMediaObjectClient(cfg),
-		NotificationDelivery:   NewNotificationDeliveryClient(cfg),
-		NotificationProfile:    NewNotificationProfileClient(cfg),
-		NotificationSetting:    NewNotificationSettingClient(cfg),
-		ProvinceMark:           NewProvinceMarkClient(cfg),
-		PushSubscription:       NewPushSubscriptionClient(cfg),
-		Session:                NewSessionClient(cfg),
-		Share:                  NewShareClient(cfg),
-		SharedTrip:             NewSharedTripClient(cfg),
-		Snapshot:               NewSnapshotClient(cfg),
-		SyncReceipt:            NewSyncReceiptClient(cfg),
-		Trip:                   NewTripClient(cfg),
-		TripMember:             NewTripMemberClient(cfg),
-		User:                   NewUserClient(cfg),
+		ctx:                  ctx,
+		config:               cfg,
+		CityVisit:            NewCityVisitClient(cfg),
+		FootprintChange:      NewFootprintChangeClient(cfg),
+		Friendship:           NewFriendshipClient(cfg),
+		Itinerary:            NewItineraryClient(cfg),
+		MediaCleanup:         NewMediaCleanupClient(cfg),
+		MediaObject:          NewMediaObjectClient(cfg),
+		NotificationDelivery: NewNotificationDeliveryClient(cfg),
+		NotificationProfile:  NewNotificationProfileClient(cfg),
+		NotificationSetting:  NewNotificationSettingClient(cfg),
+		ProvinceMark:         NewProvinceMarkClient(cfg),
+		PushSubscription:     NewPushSubscriptionClient(cfg),
+		Share:                NewShareClient(cfg),
+		SharedTrip:           NewSharedTripClient(cfg),
+		Snapshot:             NewSnapshotClient(cfg),
+		SyncReceipt:          NewSyncReceiptClient(cfg),
+		Trip:                 NewTripClient(cfg),
+		TripMember:           NewTripMemberClient(cfg),
+		User:                 NewUserClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		AccountDeletionReceipt.
+//		CityVisit.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -293,11 +281,10 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.Friendship,
-		c.Itinerary, c.MediaCleanup, c.MediaObject, c.NotificationDelivery,
-		c.NotificationProfile, c.NotificationSetting, c.ProvinceMark,
-		c.PushSubscription, c.Session, c.Share, c.SharedTrip, c.Snapshot,
-		c.SyncReceipt, c.Trip, c.TripMember, c.User,
+		c.CityVisit, c.FootprintChange, c.Friendship, c.Itinerary, c.MediaCleanup,
+		c.MediaObject, c.NotificationDelivery, c.NotificationProfile,
+		c.NotificationSetting, c.ProvinceMark, c.PushSubscription, c.Share,
+		c.SharedTrip, c.Snapshot, c.SyncReceipt, c.Trip, c.TripMember, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -307,11 +294,10 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AccountDeletionReceipt, c.CityVisit, c.FootprintChange, c.Friendship,
-		c.Itinerary, c.MediaCleanup, c.MediaObject, c.NotificationDelivery,
-		c.NotificationProfile, c.NotificationSetting, c.ProvinceMark,
-		c.PushSubscription, c.Session, c.Share, c.SharedTrip, c.Snapshot,
-		c.SyncReceipt, c.Trip, c.TripMember, c.User,
+		c.CityVisit, c.FootprintChange, c.Friendship, c.Itinerary, c.MediaCleanup,
+		c.MediaObject, c.NotificationDelivery, c.NotificationProfile,
+		c.NotificationSetting, c.ProvinceMark, c.PushSubscription, c.Share,
+		c.SharedTrip, c.Snapshot, c.SyncReceipt, c.Trip, c.TripMember, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -320,8 +306,6 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
-	case *AccountDeletionReceiptMutation:
-		return c.AccountDeletionReceipt.mutate(ctx, m)
 	case *CityVisitMutation:
 		return c.CityVisit.mutate(ctx, m)
 	case *FootprintChangeMutation:
@@ -344,8 +328,6 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ProvinceMark.mutate(ctx, m)
 	case *PushSubscriptionMutation:
 		return c.PushSubscription.mutate(ctx, m)
-	case *SessionMutation:
-		return c.Session.mutate(ctx, m)
 	case *ShareMutation:
 		return c.Share.mutate(ctx, m)
 	case *SharedTripMutation:
@@ -362,139 +344,6 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.User.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
-	}
-}
-
-// AccountDeletionReceiptClient is a client for the AccountDeletionReceipt schema.
-type AccountDeletionReceiptClient struct {
-	config
-}
-
-// NewAccountDeletionReceiptClient returns a client for the AccountDeletionReceipt from the given config.
-func NewAccountDeletionReceiptClient(c config) *AccountDeletionReceiptClient {
-	return &AccountDeletionReceiptClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `accountdeletionreceipt.Hooks(f(g(h())))`.
-func (c *AccountDeletionReceiptClient) Use(hooks ...Hook) {
-	c.hooks.AccountDeletionReceipt = append(c.hooks.AccountDeletionReceipt, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `accountdeletionreceipt.Intercept(f(g(h())))`.
-func (c *AccountDeletionReceiptClient) Intercept(interceptors ...Interceptor) {
-	c.inters.AccountDeletionReceipt = append(c.inters.AccountDeletionReceipt, interceptors...)
-}
-
-// Create returns a builder for creating a AccountDeletionReceipt entity.
-func (c *AccountDeletionReceiptClient) Create() *AccountDeletionReceiptCreate {
-	mutation := newAccountDeletionReceiptMutation(c.config, OpCreate)
-	return &AccountDeletionReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of AccountDeletionReceipt entities.
-func (c *AccountDeletionReceiptClient) CreateBulk(builders ...*AccountDeletionReceiptCreate) *AccountDeletionReceiptCreateBulk {
-	return &AccountDeletionReceiptCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *AccountDeletionReceiptClient) MapCreateBulk(slice any, setFunc func(*AccountDeletionReceiptCreate, int)) *AccountDeletionReceiptCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &AccountDeletionReceiptCreateBulk{err: fmt.Errorf("calling to AccountDeletionReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*AccountDeletionReceiptCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &AccountDeletionReceiptCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for AccountDeletionReceipt.
-func (c *AccountDeletionReceiptClient) Update() *AccountDeletionReceiptUpdate {
-	mutation := newAccountDeletionReceiptMutation(c.config, OpUpdate)
-	return &AccountDeletionReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *AccountDeletionReceiptClient) UpdateOne(_m *AccountDeletionReceipt) *AccountDeletionReceiptUpdateOne {
-	mutation := newAccountDeletionReceiptMutation(c.config, OpUpdateOne, withAccountDeletionReceipt(_m))
-	return &AccountDeletionReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *AccountDeletionReceiptClient) UpdateOneID(id string) *AccountDeletionReceiptUpdateOne {
-	mutation := newAccountDeletionReceiptMutation(c.config, OpUpdateOne, withAccountDeletionReceiptID(id))
-	return &AccountDeletionReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for AccountDeletionReceipt.
-func (c *AccountDeletionReceiptClient) Delete() *AccountDeletionReceiptDelete {
-	mutation := newAccountDeletionReceiptMutation(c.config, OpDelete)
-	return &AccountDeletionReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *AccountDeletionReceiptClient) DeleteOne(_m *AccountDeletionReceipt) *AccountDeletionReceiptDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *AccountDeletionReceiptClient) DeleteOneID(id string) *AccountDeletionReceiptDeleteOne {
-	builder := c.Delete().Where(accountdeletionreceipt.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &AccountDeletionReceiptDeleteOne{builder}
-}
-
-// Query returns a query builder for AccountDeletionReceipt.
-func (c *AccountDeletionReceiptClient) Query() *AccountDeletionReceiptQuery {
-	return &AccountDeletionReceiptQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeAccountDeletionReceipt},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a AccountDeletionReceipt entity by its id.
-func (c *AccountDeletionReceiptClient) Get(ctx context.Context, id string) (*AccountDeletionReceipt, error) {
-	return c.Query().Where(accountdeletionreceipt.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *AccountDeletionReceiptClient) GetX(ctx context.Context, id string) *AccountDeletionReceipt {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *AccountDeletionReceiptClient) Hooks() []Hook {
-	return c.hooks.AccountDeletionReceipt
-}
-
-// Interceptors returns the client interceptors.
-func (c *AccountDeletionReceiptClient) Interceptors() []Interceptor {
-	return c.inters.AccountDeletionReceipt
-}
-
-func (c *AccountDeletionReceiptClient) mutate(ctx context.Context, m *AccountDeletionReceiptMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&AccountDeletionReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&AccountDeletionReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&AccountDeletionReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&AccountDeletionReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown AccountDeletionReceipt mutation op: %q", m.Op())
 	}
 }
 
@@ -2153,155 +2002,6 @@ func (c *PushSubscriptionClient) mutate(ctx context.Context, m *PushSubscription
 	}
 }
 
-// SessionClient is a client for the Session schema.
-type SessionClient struct {
-	config
-}
-
-// NewSessionClient returns a client for the Session from the given config.
-func NewSessionClient(c config) *SessionClient {
-	return &SessionClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `session.Hooks(f(g(h())))`.
-func (c *SessionClient) Use(hooks ...Hook) {
-	c.hooks.Session = append(c.hooks.Session, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `session.Intercept(f(g(h())))`.
-func (c *SessionClient) Intercept(interceptors ...Interceptor) {
-	c.inters.Session = append(c.inters.Session, interceptors...)
-}
-
-// Create returns a builder for creating a Session entity.
-func (c *SessionClient) Create() *SessionCreate {
-	mutation := newSessionMutation(c.config, OpCreate)
-	return &SessionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of Session entities.
-func (c *SessionClient) CreateBulk(builders ...*SessionCreate) *SessionCreateBulk {
-	return &SessionCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *SessionClient) MapCreateBulk(slice any, setFunc func(*SessionCreate, int)) *SessionCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &SessionCreateBulk{err: fmt.Errorf("calling to SessionClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*SessionCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &SessionCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for Session.
-func (c *SessionClient) Update() *SessionUpdate {
-	mutation := newSessionMutation(c.config, OpUpdate)
-	return &SessionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *SessionClient) UpdateOne(_m *Session) *SessionUpdateOne {
-	mutation := newSessionMutation(c.config, OpUpdateOne, withSession(_m))
-	return &SessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *SessionClient) UpdateOneID(id string) *SessionUpdateOne {
-	mutation := newSessionMutation(c.config, OpUpdateOne, withSessionID(id))
-	return &SessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for Session.
-func (c *SessionClient) Delete() *SessionDelete {
-	mutation := newSessionMutation(c.config, OpDelete)
-	return &SessionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *SessionClient) DeleteOne(_m *Session) *SessionDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *SessionClient) DeleteOneID(id string) *SessionDeleteOne {
-	builder := c.Delete().Where(session.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &SessionDeleteOne{builder}
-}
-
-// Query returns a query builder for Session.
-func (c *SessionClient) Query() *SessionQuery {
-	return &SessionQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeSession},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a Session entity by its id.
-func (c *SessionClient) Get(ctx context.Context, id string) (*Session, error) {
-	return c.Query().Where(session.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *SessionClient) GetX(ctx context.Context, id string) *Session {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// QueryUser queries the user edge of a Session.
-func (c *SessionClient) QueryUser(_m *Session) *UserQuery {
-	query := (&UserClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(session.Table, session.FieldID, id),
-			sqlgraph.To(user.Table, user.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, session.UserTable, session.UserColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
-// Hooks returns the client hooks.
-func (c *SessionClient) Hooks() []Hook {
-	return c.hooks.Session
-}
-
-// Interceptors returns the client interceptors.
-func (c *SessionClient) Interceptors() []Interceptor {
-	return c.inters.Session
-}
-
-func (c *SessionClient) mutate(ctx context.Context, m *SessionMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&SessionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&SessionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&SessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&SessionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown Session mutation op: %q", m.Op())
-	}
-}
-
 // ShareClient is a client for the Share schema.
 type ShareClient struct {
 	config
@@ -3416,22 +3116,6 @@ func (c *UserClient) QueryMediaObjects(_m *User) *MediaObjectQuery {
 	return query
 }
 
-// QuerySessions queries the sessions edge of a User.
-func (c *UserClient) QuerySessions(_m *User) *SessionQuery {
-	query := (&SessionClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(user.Table, user.FieldID, id),
-			sqlgraph.To(session.Table, session.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, user.SessionsTable, user.SessionsColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
 // QueryFootprintChanges queries the footprint_changes edge of a User.
 func (c *UserClient) QueryFootprintChanges(_m *User) *FootprintChangeQuery {
 	query := (&FootprintChangeClient{config: c.config}).Query()
@@ -3668,15 +3352,15 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AccountDeletionReceipt, CityVisit, FootprintChange, Friendship, Itinerary,
-		MediaCleanup, MediaObject, NotificationDelivery, NotificationProfile,
-		NotificationSetting, ProvinceMark, PushSubscription, Session, Share,
-		SharedTrip, Snapshot, SyncReceipt, Trip, TripMember, User []ent.Hook
+		CityVisit, FootprintChange, Friendship, Itinerary, MediaCleanup, MediaObject,
+		NotificationDelivery, NotificationProfile, NotificationSetting, ProvinceMark,
+		PushSubscription, Share, SharedTrip, Snapshot, SyncReceipt, Trip, TripMember,
+		User []ent.Hook
 	}
 	inters struct {
-		AccountDeletionReceipt, CityVisit, FootprintChange, Friendship, Itinerary,
-		MediaCleanup, MediaObject, NotificationDelivery, NotificationProfile,
-		NotificationSetting, ProvinceMark, PushSubscription, Session, Share,
-		SharedTrip, Snapshot, SyncReceipt, Trip, TripMember, User []ent.Interceptor
+		CityVisit, FootprintChange, Friendship, Itinerary, MediaCleanup, MediaObject,
+		NotificationDelivery, NotificationProfile, NotificationSetting, ProvinceMark,
+		PushSubscription, Share, SharedTrip, Snapshot, SyncReceipt, Trip, TripMember,
+		User []ent.Interceptor
 	}
 )

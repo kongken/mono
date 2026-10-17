@@ -48,7 +48,7 @@ func RunSnapshotMaintenance(ctx context.Context, db *ent.Client, now time.Time) 
 	last := ""
 	for ctx.Err() == nil {
 		users, err := db.User.Query().
-			Where(user.IDGT(last), user.Disabled(false), user.RevisionGT(0), needsScheduledSnapshot(now.Add(-snapshotInterval))).
+			Where(user.IDGT(last), user.RevisionGT(0), needsScheduledSnapshot(now.Add(-snapshotInterval))).
 			Order(ent.Asc(user.FieldID)).Limit(maintenancePage).Select(user.FieldID).All(ctx)
 		if err != nil {
 			remember(err)
@@ -106,7 +106,7 @@ func scheduledSnapshot(ctx context.Context, db *ent.Client, uid string, now time
 	if err != nil {
 		return err
 	}
-	if u.Disabled || u.Revision == 0 {
+	if u.Revision == 0 {
 		return nil
 	}
 	recent, err := tx.Snapshot.Query().Where(snapshot.UserID(uid), snapshot.Or(

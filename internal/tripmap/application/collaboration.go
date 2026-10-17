@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/kongken/mono/internal/tripmap/auth"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
 	"github.com/kongken/mono/internal/tripmap/ent/friendship"
@@ -50,7 +49,7 @@ func NewCollaborationService(src StoreSource, idx *regions.Index) *Collaboration
 }
 
 func (s *CollaborationService) allow(ctx context.Context, st *Store, key string, limit int64, window time.Duration) error {
-	ok, err := auth.NewLimiter(st.Redis, st.prefix()).Allow(ctx, key, limit, window)
+	ok, err := NewLimiter(st.Redis, st.prefix()).Allow(ctx, key, limit, window)
 	if err != nil {
 		return connect.NewError(connect.CodeUnavailable, errors.New("service temporarily unavailable"))
 	}
@@ -87,9 +86,6 @@ func lockUsers(ctx context.Context, tx *ent.Tx, ids ...string) (map[string]*ent.
 				return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
 			}
 			return nil, internalError(err)
-		}
-		if u.Disabled {
-			return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
 		}
 		out[id] = u
 	}
@@ -233,7 +229,7 @@ func (s *CollaborationService) buildSharedTripInfo(ctx context.Context, tx *ent.
 	}
 	for _, m := range members {
 		u := byID[m.UserID]
-		if u == nil || u.Disabled {
+		if u == nil {
 			continue
 		}
 		if m.UserID == callerID {
@@ -299,7 +295,7 @@ func (s *CollaborationService) GetCollaborationOverview(ctx context.Context, _ *
 			otherIDs = append(otherIDs, r.RequesterID)
 		}
 	}
-	others, err := tx.User.Query().Where(user.IDIn(otherIDs...), user.DisabledEQ(false)).All(ctx)
+	others, err := tx.User.Query().Where(user.IDIn(otherIDs...)).All(ctx)
 	if err != nil {
 		return nil, internalError(err)
 	}
@@ -420,7 +416,7 @@ func (s *CollaborationService) SendFriendRequest(ctx context.Context, req *conne
 	}
 	lower := strings.ToLower(target)
 	targetUser, err := st.DB.User.Query().Where(
-		user.DisabledEQ(false),
+		
 		user.Or(
 			user.FriendCodeEQ(lower),
 			user.UsernameEqualFold(target),
@@ -679,11 +675,11 @@ func (s *CollaborationService) GetFriendFootprints(ctx context.Context, req *con
 		return nil, errCollabForbidden
 	}
 	me, err := tx.User.Get(ctx, p.UserID)
-	if err != nil || me.Disabled {
+	if err != nil {
 		return nil, errUnauthenticated
 	}
 	friend, err := tx.User.Get(ctx, friendID)
-	if err != nil || friend.Disabled {
+	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("friend not found"))
 	}
 
@@ -1515,7 +1511,7 @@ func (s *CollaborationService) ListSharedTripMedia(ctx context.Context, req *con
 	if !callerActive {
 		return nil, errCollabForbidden
 	}
-	users, err := st.DB.User.Query().Where(user.IDIn(userIDs...), user.DisabledEQ(false)).All(ctx)
+	users, err := st.DB.User.Query().Where(user.IDIn(userIDs...)).All(ctx)
 	if err != nil {
 		return nil, internalError(err)
 	}
@@ -1608,11 +1604,6 @@ func (s *CollaborationService) ReadSharedTripMedia(ctx context.Context, req *con
 	if !allowedUploader || mRow.TripID != expectedTripID {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("media not found"))
 	}
-	uploader, err := st.DB.User.Get(ctx, mRow.UserID)
-	if err != nil || uploader.Disabled {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("media not found"))
-	}
-
 	key, mime := mRow.ObjectKey, mRow.ContentType
 	if req.Msg.GetThumbnail() {
 		if mRow.Width == 0 {
@@ -1705,7 +1696,7 @@ func propagateSharedTripUpsert(ctx context.Context, tx *ent.Tx, idx *regions.Ind
 			continue
 		}
 		peer, err := tx.User.Get(ctx, m.UserID)
-		if err != nil || peer.Disabled {
+		if err != nil {
 			continue
 		}
 		memberTripID := m.MemberTripID

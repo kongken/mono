@@ -12,7 +12,6 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"github.com/kongken/mono/internal/tripmap/ent/accountdeletionreceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
 	"github.com/kongken/mono/internal/tripmap/ent/footprintchange"
 	"github.com/kongken/mono/internal/tripmap/ent/friendship"
@@ -24,7 +23,6 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/notificationsetting"
 	"github.com/kongken/mono/internal/tripmap/ent/provincemark"
 	"github.com/kongken/mono/internal/tripmap/ent/pushsubscription"
-	"github.com/kongken/mono/internal/tripmap/ent/session"
 	"github.com/kongken/mono/internal/tripmap/ent/share"
 	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
 	"github.com/kongken/mono/internal/tripmap/ent/snapshot"
@@ -92,26 +90,24 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			accountdeletionreceipt.Table: accountdeletionreceipt.ValidColumn,
-			cityvisit.Table:              cityvisit.ValidColumn,
-			footprintchange.Table:        footprintchange.ValidColumn,
-			friendship.Table:             friendship.ValidColumn,
-			itinerary.Table:              itinerary.ValidColumn,
-			mediacleanup.Table:           mediacleanup.ValidColumn,
-			mediaobject.Table:            mediaobject.ValidColumn,
-			notificationdelivery.Table:   notificationdelivery.ValidColumn,
-			notificationprofile.Table:    notificationprofile.ValidColumn,
-			notificationsetting.Table:    notificationsetting.ValidColumn,
-			provincemark.Table:           provincemark.ValidColumn,
-			pushsubscription.Table:       pushsubscription.ValidColumn,
-			session.Table:                session.ValidColumn,
-			share.Table:                  share.ValidColumn,
-			sharedtrip.Table:             sharedtrip.ValidColumn,
-			snapshot.Table:               snapshot.ValidColumn,
-			syncreceipt.Table:            syncreceipt.ValidColumn,
-			trip.Table:                   trip.ValidColumn,
-			tripmember.Table:             tripmember.ValidColumn,
-			user.Table:                   user.ValidColumn,
+			cityvisit.Table:            cityvisit.ValidColumn,
+			footprintchange.Table:      footprintchange.ValidColumn,
+			friendship.Table:           friendship.ValidColumn,
+			itinerary.Table:            itinerary.ValidColumn,
+			mediacleanup.Table:         mediacleanup.ValidColumn,
+			mediaobject.Table:          mediaobject.ValidColumn,
+			notificationdelivery.Table: notificationdelivery.ValidColumn,
+			notificationprofile.Table:  notificationprofile.ValidColumn,
+			notificationsetting.Table:  notificationsetting.ValidColumn,
+			provincemark.Table:         provincemark.ValidColumn,
+			pushsubscription.Table:     pushsubscription.ValidColumn,
+			share.Table:                share.ValidColumn,
+			sharedtrip.Table:           sharedtrip.ValidColumn,
+			snapshot.Table:             snapshot.ValidColumn,
+			syncreceipt.Table:          syncreceipt.ValidColumn,
+			trip.Table:                 trip.ValidColumn,
+			tripmember.Table:           tripmember.ValidColumn,
+			user.Table:                 user.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)
