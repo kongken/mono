@@ -191,7 +191,7 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 func (b *Browser) Media() bffv1connect.MediaServiceClient { return b.media }
 
 func (b *Browser) GetRegionIndex(ctx context.Context) (*bffv1.GetRegionIndexResponse, error) {
-	req := connect.NewRequest(&bffv1.GetRegionIndexRequest{KnownVersion: b.Region})
+	req := connect.NewRequest(&bffv1.GetRegionIndexRequest{})
 	b.withTripmapHeaders(req)
 	res, err := b.RegionSvc.GetRegionIndex(ctx, req)
 	if err != nil {

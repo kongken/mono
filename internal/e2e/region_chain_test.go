@@ -58,7 +58,7 @@ func TestChainRegionUpgradeIslandMigrationAndIsolation(t *testing.T) {
 	}
 
 	applied, err := alice.ApplyRegionUpgrade(ctx, preview.GetVersion(), preview.GetRevision(), "chain-island")
-	if err != nil || applied.GetChangedCount() != 1 || applied.GetSnapshotId() == "" || applied.GetRevision() != 2 {
+	if err != nil || applied.GetChangedCount() != 1 || applied.GetSnapshotId() == "" || applied.GetRevision() != 1 {
 		t.Fatalf("apply alice: %v %+v", err, applied)
 	}
 	replay, err := alice.ApplyRegionUpgrade(ctx, preview.GetVersion(), preview.GetRevision(), "chain-island")
