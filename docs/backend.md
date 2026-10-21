@@ -109,7 +109,7 @@ npm install
 npm run dev:trip-map
 ```
 
-联调后端时在 `.env.local` 设置 `VITE_API_BASE_URL=/api` 并重启 Vite；不设置则前端保持纯本地模式。开发代理默认转发到 BFF `http://127.0.0.1:18081`，BFF 在其他端口时用环境变量 `TRIPMAP_DEV_BACKEND=http://127.0.0.1:端口` 启动 Vite。OAuth 登录需要在提供方登记的回调地址与 `config.tripmap.yaml` 的 `redirect_url` 一致，形如 `http://localhost:5173/auth/callback/github`，该路径由前端页面处理（Vite 开发服务器与前端镜像的 Nginx 都回退到 `index.html`）。
+联调后端时在 `.env.local` 设置 `VITE_API_BASE_URL=/api` 并重启 Vite；不设置则前端保持纯本地模式。开发代理默认转发到 BFF `http://127.0.0.1:18081`，BFF 在其他端口时用环境变量 `TRIPMAP_DEV_BACKEND=http://127.0.0.1:端口` 启动 Vite。OAuth 登录由 BFF HTTP 入口持有：提供方登记的 callback 与 `config.bff.yaml` 的 `redirect_url` 一致，形如 `http://localhost:5173/auth/callback/logto`（本地 Vite `/auth/` 代理到 BFF；必须显式 `auth.oauth_development: true`）。生产使用固定 HTTPS BFF callback、受控 `oauth_apps` 与精确 CORS origins，配置与迁移见 [多 Web App 登录](bff.md#多-web-app-登录与迁移54)。前端不再接收授权码或执行 CompleteOAuthFlow。
 
 Compose 只启动本项目的开发依赖，使用命名卷保存数据。S3 开发实例使用 [RustFS 官方容器](https://docs.rustfs.com/en/installation/container/docker)，提供持久化 S3 兼容接口；生产环境可配置 AWS S3 或其他兼容供应方，服务代码无需更换。
 

@@ -41,58 +41,7 @@ func (s *Service) ListOAuthProviders(context.Context) (*bffv1.ListOAuthProviders
 	return out, nil
 }
 
-func (s *Service) BeginOAuthFlow(ctx context.Context, clientIP string, req *bffv1.BeginOAuthFlowRequest) (*bffv1.BeginOAuthFlowResponse, error) {
-	if s.oauthState == nil {
-		return nil, internal(errors.New("oauth state store unavailable"))
-	}
-	p, err := s.oauthRegistry().Get(strings.TrimSpace(req.GetProvider()))
-	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, errors.New("unknown oauth provider"))
-	}
-	if err = s.allow(ctx, "oauth:ip:"+clientIP, oauthPerIP, oauthWindow); err != nil {
-		return nil, err
-	}
-	pk, usesPKCE := p.(provider.PKCEProvider)
-	var verifier, challenge string
-	if usesPKCE {
-		if verifier, challenge, err = provider.NewPKCE(); err != nil {
-			slog.Error("create pkce verifier", "error", err)
-			return nil, internal(err)
-		}
-	}
-	state, err := s.oauthState.Create(ctx, p.Name(), verifier)
-	if err != nil {
-		slog.Error("create oauth state", "error", err)
-		return nil, internal(err)
-	}
-	authorizeURL := ""
-	if usesPKCE {
-		authorizeURL = pk.AuthorizePKCEURL(state, challenge)
-	} else {
-		authorizeURL = p.AuthorizeURL(state)
-	}
-	return &bffv1.BeginOAuthFlowResponse{AuthorizeUrl: authorizeURL, State: state}, nil
-}
-
-func (s *Service) CompleteOAuthFlow(ctx context.Context, clientIP string, req *bffv1.CompleteOAuthFlowRequest) (*bffv1.CompleteOAuthFlowResponse, time.Time, string, error) {
-	if s.oauthState == nil {
-		return nil, time.Time{}, "", internal(errors.New("oauth state store unavailable"))
-	}
-	name, code, state := strings.TrimSpace(req.GetProvider()), strings.TrimSpace(req.GetCode()), strings.TrimSpace(req.GetState())
-	if name == "" || code == "" || state == "" {
-		return nil, time.Time{}, "", connect.NewError(connect.CodeInvalidArgument, errors.New("provider, code and state are required"))
-	}
-	if err := s.allow(ctx, "oauth:ip:"+clientIP, oauthPerIP, oauthWindow); err != nil {
-		return nil, time.Time{}, "", err
-	}
-	attempt, err := s.oauthState.Consume(ctx, state)
-	if errors.Is(err, oauth.ErrStateNotFound) || (err == nil && attempt.Provider != name) {
-		return nil, time.Time{}, "", connect.NewError(connect.CodePermissionDenied, errors.New("invalid or expired state"))
-	}
-	if err != nil {
-		slog.Error("consume oauth state", "error", err)
-		return nil, time.Time{}, "", internal(err)
-	}
+func (s *Service) finishOAuth(ctx context.Context, name, code string, attempt oauth.OAuthState) (*bffv1.CompleteOAuthFlowResponse, time.Time, string, error) {
 	p, err := s.oauthRegistry().Get(name)
 	if err != nil {
 		return nil, time.Time{}, "", connect.NewError(connect.CodeNotFound, errors.New("unknown oauth provider"))
@@ -104,7 +53,7 @@ func (s *Service) CompleteOAuthFlow(ctx context.Context, clientIP string, req *b
 		claims, err = p.Exchange(ctx, code)
 	}
 	if err != nil || claims == nil || claims.ExternalID == "" {
-		slog.Warn("oauth exchange failed", "provider", name, "error", err)
+		slog.Warn("oauth exchange failed", "provider", name)
 		return nil, time.Time{}, "", connect.NewError(connect.CodeUnauthenticated, errors.New("oauth sign-in failed"))
 	}
 	u, err := s.oauthUser(ctx, name, claims)
@@ -174,4 +123,3 @@ func applyOAuthDeps(s *Service, deps OAuthDeps) {
 	s.oauthState = deps.State
 	s.oauthReg = deps.Registry
 }
-

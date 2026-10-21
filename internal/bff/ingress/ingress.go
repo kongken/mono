@@ -69,8 +69,8 @@ var (
 	errWriteRejected       = connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
 	errDeletionInProgress  = connect.NewError(connect.CodeFailedPrecondition, errors.New("account deletion in progress"))
 	deletionAllowedMethods = map[string]bool{
-		bffv1connect.AuthServiceMeProcedure:           true,
-		bffv1connect.AuthServiceLogoutProcedure:       true,
+		bffv1connect.AuthServiceMeProcedure:            true,
+		bffv1connect.AuthServiceLogoutProcedure:        true,
 		bffv1connect.AuthServiceDeleteAccountProcedure: true,
 	}
 )
@@ -115,6 +115,13 @@ func Interceptor(p Policy) connect.Interceptor {
 						p.DeletionReceiptValid == nil || !p.DeletionReceiptValid(ctx, token) {
 						return nil, withID(errUnauthenticated)
 					}
+				}
+				// This header only narrows the authenticated Cookie identity; it
+				// never authenticates or selects an account on its own.
+				// A validated deletion completion receipt is an idempotent
+				// acknowledgement after the session/user no longer exist.
+				if expected := req.Header().Get("X-Kongken-User"); browser.UserID != "" && expected != "" && expected != browser.UserID {
+					return nil, withID(errUnauthenticated)
 				}
 				call.UserID = browser.UserID
 				if browser.DeletionPending && !deletionAllowedMethods[procedure] {

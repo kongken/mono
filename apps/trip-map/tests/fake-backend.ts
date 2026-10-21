@@ -75,6 +75,7 @@ export function fakeBackend(
     ...(initial.trips ?? []),
   ];
   const state = {
+    authenticated: undefined as boolean | undefined,
     revision: initial.visits.length + seededTrips.length + Object.keys(initial.marks ?? {}).length,
     visits: new Map<string, City>(initial.visits.map((v) => [v.code, cityOf(v)])),
     trips: new Map<string, StoredTrip>(seededTrips.map((t) => [t.id, t])),
@@ -306,31 +307,31 @@ export function fakeBackend(
           case "IssueCSRFToken":
             return send(bffAuth.IssueCSRFTokenResponseSchema, { token: csrfToken });
           case "Register":
+            state.authenticated = true;
             return send(bffAuth.RegisterResponseSchema, {
               user: bffUser(),
               expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
             });
           case "Login":
+            state.authenticated = true;
             return send(bffAuth.LoginResponseSchema, {
               user: bffUser(),
               expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
             });
           case "Logout":
+            state.authenticated = false;
             return send(bffAuth.LogoutResponseSchema, {});
           case "ListOAuthProviders":
             return send(bffAuth.ListOAuthProvidersResponseSchema, {});
           case "BeginOAuthFlow":
-            return send(bffAuth.BeginOAuthFlowResponseSchema, {
-              authorizeUrl: "https://example.test/oauth?state=ci-state",
-              state: "ci-state",
-            });
           case "CompleteOAuthFlow":
-            return send(bffAuth.CompleteOAuthFlowResponseSchema, {
-              user: bffUser(),
-              expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
-            });
-          case "Me":
+            return route.fulfill(failure("unimplemented", "use BFF HTTP login", 501));
+          case "Me": {
+            if (state.authenticated === undefined)
+              state.authenticated = !!(await page.evaluate(() => localStorage.getItem("shanhai-session-v1")));
+            if (!state.authenticated) return route.fulfill(failure("unauthenticated", "sign-in required", 401));
             return send(bffAuth.MeResponseSchema, { user: bffUser() });
+          }
           case "ListSessions":
             return send(bffAuth.ListSessionsResponseSchema, {});
           case "RevokeSession":

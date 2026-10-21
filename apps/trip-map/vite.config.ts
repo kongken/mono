@@ -8,6 +8,7 @@ const backend = process.env.TRIPMAP_DEV_BACKEND ?? "http://127.0.0.1:18081";
 
 const proxy = {
   "/api": backend,
+  "/auth/": backend,
   "/ping": backend,
   "/readyz": backend,
 };

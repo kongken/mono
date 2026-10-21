@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -12,16 +13,15 @@ import (
 )
 
 type Handler struct {
-	svc             *Service
-	allowedOrigins  []string
-	csrfCookieTTL   time.Duration
+	svc           *Service
+	csrfCookieTTL time.Duration
 }
 
-func NewHandler(svc *Service, allowedOrigins []string, csrfTTL time.Duration) *Handler {
+func NewHandler(svc *Service, _ []string, csrfTTL time.Duration) *Handler {
 	if csrfTTL <= 0 {
 		csrfTTL = 24 * time.Hour
 	}
-	return &Handler{svc: svc, allowedOrigins: allowedOrigins, csrfCookieTTL: csrfTTL}
+	return &Handler{svc: svc, csrfCookieTTL: csrfTTL}
 }
 
 func (h *Handler) Register(ctx context.Context, req *connect.Request[bffv1.RegisterRequest]) (*connect.Response[bffv1.RegisterResponse], error) {
@@ -120,21 +120,11 @@ func (h *Handler) ListOAuthProviders(ctx context.Context, _ *connect.Request[bff
 }
 
 func (h *Handler) BeginOAuthFlow(ctx context.Context, req *connect.Request[bffv1.BeginOAuthFlowRequest]) (*connect.Response[bffv1.BeginOAuthFlowResponse], error) {
-	msg, err := h.svc.BeginOAuthFlow(ctx, httpx.ClientAddr("", req.Header(), req.Peer().Addr), req.Msg)
-	if err != nil {
-		return nil, err
-	}
-	return connect.NewResponse(msg), nil
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("use GET /auth/login"))
 }
 
 func (h *Handler) CompleteOAuthFlow(ctx context.Context, req *connect.Request[bffv1.CompleteOAuthFlowRequest]) (*connect.Response[bffv1.CompleteOAuthFlowResponse], error) {
-	msg, expires, token, err := h.svc.CompleteOAuthFlow(ctx, httpx.ClientAddr("", req.Header(), req.Peer().Addr), req.Msg)
-	if err != nil {
-		return nil, err
-	}
-	res := connect.NewResponse(msg)
-	session.SetSessionCookie(res.Header(), h.svc.cookies, token, expires)
-	return res, nil
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("use BFF HTTP callback"))
 }
 
 func (h *Handler) IssueCSRFToken(_ context.Context, req *connect.Request[bffv1.IssueCSRFTokenRequest]) (*connect.Response[bffv1.IssueCSRFTokenResponse], error) {
@@ -145,17 +135,6 @@ func (h *Handler) IssueCSRFToken(_ context.Context, req *connect.Request[bffv1.I
 	expires := time.Now().UTC().Add(h.csrfCookieTTL)
 	res := connect.NewResponse(&bffv1.IssueCSRFTokenResponse{Token: token})
 	session.SetCSRFCookie(res.Header(), h.svc.cookies, token, expires)
-	// Allow subsequent cross-origin POSTs when configured.
-	res.Header().Set("Vary", "Origin")
-	if origin := req.Header().Get("Origin"); origin != "" {
-		for _, o := range h.allowedOrigins {
-			if o == origin {
-				res.Header().Set("Access-Control-Allow-Origin", origin)
-				res.Header().Set("Access-Control-Allow-Credentials", "true")
-				break
-			}
-		}
-	}
 	return res, nil
 }
 

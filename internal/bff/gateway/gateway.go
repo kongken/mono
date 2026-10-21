@@ -59,7 +59,7 @@ func New(cfg *config.Config, services []Service) (*Gateway, error) {
 	g := &Gateway{client: &http.Client{Timeout: 5 * time.Second}}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.DialContext = (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext
-	var headers []string
+	headers := BrowserHeaders()
 	for _, s := range services {
 		base, err := url.Parse(cfg.Upstreams[s.Name])
 		if err != nil || base.Host == "" {

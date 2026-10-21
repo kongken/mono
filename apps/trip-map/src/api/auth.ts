@@ -75,17 +75,7 @@ export const authApi = {
       displayName: p.displayName,
     }));
   },
-  beginOAuth: async (provider: string) => {
-    await refreshCSRF();
-    const res = await client().beginOAuthFlow({ provider });
-    return { authorizeUrl: res.authorizeUrl, state: res.state };
-  },
-  completeOAuth: async (provider: string, code: string, state: string) => {
-    await refreshCSRF();
-    return toStoredSession(
-      await client().completeOAuthFlow({ provider, code, state }),
-    );
-  },
+
 };
 
 export type SessionInfo = {

@@ -168,7 +168,7 @@ function operation(m?: FootprintMutation): Op {
   }
 }
 
-async function send(ops: Op[], revision: number, id: string): Promise<number> {
+async function send(ops: Op[], revision: number, id: string, expectedUserId?: string): Promise<number> {
   try {
     return Number(
       (
@@ -176,7 +176,7 @@ async function send(ops: Op[], revision: number, id: string): Promise<number> {
           mutationId: id,
           baseRevision: BigInt(revision),
           mutations: ops.map(mutation),
-        })
+        }, accountOptions(expectedUserId))
       ).revision,
     );
   } catch (error) {
@@ -199,17 +199,21 @@ const fullApi: FootprintApi = {
 };
 
 /** A private cursor per account/engine avoids cross-account delta contamination. */
-export function createFootprintApi(seed?: CloudSnapshot): FootprintApi {
+function accountOptions(userId?: string) {
+  return userId ? { headers: { "X-Kongken-User": userId } } : undefined;
+}
+
+export function createFootprintApi(seed?: CloudSnapshot, expectedUserId?: string): FootprintApi {
   const reader = createIncrementalReader(
     {
-      full: fullApi.get,
+      full: async () => toSnapshot(await api().getFootprints({}, accountOptions(expectedUserId))),
       project: projectRegionOps,
       delta: async (revision) => {
         try {
           const page = await api().getChanges({
             sinceRevision: BigInt(revision),
             limit: 500,
-          });
+          }, accountOptions(expectedUserId));
           // No schema version means a backend that predates trips: its change
           // log cannot be interpreted, so fall back to a full read, which refuses it.
           if (page.schemaVersion < 2)
@@ -253,8 +257,8 @@ export function createFootprintApi(seed?: CloudSnapshot): FootprintApi {
     ready: ensureBackendUpgraded,
     project: projectRegionOps,
     get: reader.get,
-    apply: fullApi.apply,
-    applyBatch: send,
+    apply: (op, revision) => send([op], revision, crypto.randomUUID(), expectedUserId),
+    applyBatch: (ops, revision, id) => send(ops, revision, id, expectedUserId),
   };
 }
 // Bootstrap always fetches a fresh full snapshot; incremental cursors live in engines.

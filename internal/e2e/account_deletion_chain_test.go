@@ -44,7 +44,7 @@ func TestChainAccountDeletionRetryReceiptAndIsolation(t *testing.T) {
 	}
 
 	req := &bffv1.DeleteAccountRequest{Confirmation: "DELETE", Password: "password1"}
-	if err = a.DeleteAccount(ctx, req); err == nil || connect.CodeOf(err) != connect.CodeUnavailable {
+	if err = a.DeleteAccount(ctx, req, aID); err == nil || connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("expected unavailable on S3 failure: %v", err)
 	}
 	me, err := a.Me(ctx)
@@ -56,7 +56,7 @@ func TestChainAccountDeletionRetryReceiptAndIsolation(t *testing.T) {
 	}
 	blobs.fail = false
 	sidToken := a.SessionCookie()
-	if err = a.DeleteAccount(ctx, req); err != nil {
+	if err = a.DeleteAccount(ctx, req, aID); err != nil {
 		t.Fatal(err)
 	}
 	if len(blobs.keys) < 1 {
@@ -65,7 +65,7 @@ func TestChainAccountDeletionRetryReceiptAndIsolation(t *testing.T) {
 	// Simulate a lost success response: same session cookie, receipt already stored.
 	u, _ := url.Parse(a.Origin)
 	a.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: session.CookieName, Value: sidToken, Path: "/"}})
-	if err = a.DeleteAccount(ctx, req); err != nil {
+	if err = a.DeleteAccount(ctx, req, aID); err != nil {
 		t.Fatal("receipt retry", err)
 	}
 	if _, err = a.Me(ctx); err == nil || connect.CodeOf(err) != connect.CodeUnauthenticated {
@@ -82,10 +82,13 @@ func TestChainAccountDeletionRetryReceiptAndIsolation(t *testing.T) {
 	}
 }
 
-func (b *Browser) DeleteAccount(ctx context.Context, msg *bffv1.DeleteAccountRequest) error {
+func (b *Browser) DeleteAccount(ctx context.Context, msg *bffv1.DeleteAccountRequest, expected ...string) error {
 	csrf := b.refreshCSRF(ctx)
 	req := connect.NewRequest(msg)
 	b.writeHeaders(req, csrf, b.Origin)
+	if len(expected) > 0 {
+		req.Header().Set("X-Kongken-User", expected[0])
+	}
 	_, err := b.Auth.DeleteAccount(ctx, req)
 	return err
 }

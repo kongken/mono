@@ -31,26 +31,28 @@ type Config struct {
 	InternalAuth InternalAuth `yaml:"internal_auth"`
 	// GRPC says where each business service's gRPC listener is and which
 	// certificate authority vouches for it.
-	GRPC GRPCConfig `yaml:"grpc"`
-	DBStore        string `yaml:"db_store"`
-	RedisStore     string `yaml:"redis_store"`
-	KeyPrefix      string `yaml:"key_prefix"`
-	AutoMigrate    bool   `yaml:"auto_migrate"`
-	Auth           AuthConfig `yaml:"auth"`
+	GRPC        GRPCConfig `yaml:"grpc"`
+	DBStore     string     `yaml:"db_store"`
+	RedisStore  string     `yaml:"redis_store"`
+	KeyPrefix   string     `yaml:"key_prefix"`
+	AutoMigrate bool       `yaml:"auto_migrate"`
+	Auth        AuthConfig `yaml:"auth"`
 }
 
 // AuthConfig controls browser sessions and registration.
 type AuthConfig struct {
-	SessionTTL           time.Duration `yaml:"session_ttl"`
-	RegistrationDisabled bool          `yaml:"registration_disabled"`
-	CookieSecure         bool          `yaml:"cookie_secure"`
-	CSRFTokenTTL         time.Duration `yaml:"csrf_token_ttl"`
+	SessionTTL           time.Duration            `yaml:"session_ttl"`
+	RegistrationDisabled bool                     `yaml:"registration_disabled"`
+	CookieSecure         bool                     `yaml:"cookie_secure"`
+	CSRFTokenTTL         time.Duration            `yaml:"csrf_token_ttl"`
+	OAuthApps            map[string]OAuthApp      `yaml:"oauth_apps"`
+	OAuthDevelopment     bool                     `yaml:"oauth_development"`
 	OAuthProviders       map[string]OAuthProvider `yaml:"oauth_providers"`
 }
 
 // OAuthProvider configures one sign-in provider. It is offered only when both
-// ClientID and ClientSecret are set. RedirectURL must be the frontend callback
-// page registered with the OAuth app.
+// ClientID and ClientSecret are set. RedirectURL must be the BFF callback
+// endpoint registered with the OAuth app.
 type OAuthProvider struct {
 	IssuerURL    string   `yaml:"issuer_url"`
 	ClientID     string   `yaml:"client_id"`
@@ -63,21 +65,38 @@ type OAuthProvider struct {
 func (p OAuthProvider) Enabled() bool { return p.ClientID != "" && p.ClientSecret != "" }
 
 func (a *AuthConfig) validateOAuth() error {
+	if len(a.OAuthApps) > 0 && !a.CookieSecure && !a.OAuthDevelopment {
+		return fmt.Errorf("oauth apps require cookie_secure outside explicit development mode")
+	}
+	for name, app := range a.OAuthApps {
+		u, _ := url.Parse(app.Origin)
+		if !oauthName.MatchString(name) || !validOAuthOrigin(app.Origin, a.OAuthDevelopment) || !a.CookieSecure && (u == nil || !loopbackHost(u.Hostname())) {
+			return fmt.Errorf("invalid oauth app %q origin", name)
+		}
+		if _, err := app.ReturnURL(app.DefaultPath); err != nil {
+			return fmt.Errorf("oauth app %s default path: %w", name, err)
+		}
+		for _, path := range app.AllowedPaths {
+			if !validReturnPath(path) {
+				return fmt.Errorf("oauth app %s has invalid allowed path", name)
+			}
+		}
+	}
+
 	for name, p := range a.OAuthProviders {
-		if p.Enabled() && p.RedirectURL == "" {
-			return fmt.Errorf("auth.oauth_providers.%s.redirect_url is required", name)
+		callback, _ := url.Parse(p.RedirectURL)
+		if p.Enabled() && (!a.CookieSecure && (callback == nil || !loopbackHost(callback.Hostname())) || !oauthName.MatchString(name) || !validCallback(p.RedirectURL, name, a.OAuthDevelopment) || len(a.OAuthApps) == 0) {
+			return fmt.Errorf("auth.oauth_providers.%s requires oauth_apps and an exact BFF /auth/callback/%s URL", name, name)
 		}
 		if name == "logto" && p.Enabled() {
 			if p.IssuerURL == "" {
 				return fmt.Errorf("auth.oauth_providers.logto.issuer_url is required")
 			}
 			u, err := url.Parse(p.IssuerURL)
-			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.Fragment != "" {
-				return fmt.Errorf("auth.oauth_providers.logto.issuer_url: %q must be an http(s) URL without credentials or fragment", p.IssuerURL)
+			if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "https" && !(a.OAuthDevelopment && u.Scheme == "http" && loopbackHost(u.Hostname()))) {
+				return fmt.Errorf("auth.oauth_providers.logto.issuer_url must use HTTPS (or explicit loopback development)")
 			}
-			if u, err := url.Parse(p.RedirectURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Fragment != "" {
-				return fmt.Errorf("auth.oauth_providers.logto.redirect_url: %q must be an http(s) URL without fragment", p.RedirectURL)
-			}
+
 		}
 	}
 	return nil

@@ -12,8 +12,14 @@ export const backendEnabled = apiConfig.enabled;
 const withCredentials = (input: RequestInfo | URL, init?: RequestInit) =>
   fetch(input, { ...init, credentials: "include" });
 
+let expectedAccount: string | undefined;
+/** Guard requests against another application's replacement of the shared Cookie. */
+export function setTransportAccount(userId?: string) { expectedAccount = userId; }
+
 const schemaHeaders: Interceptor = (next) => (req) => {
   req.header.set("X-Tripmap-Schema", "2");
+  if (expectedAccount && !req.url.endsWith("/Me") && !req.header.has("X-Kongken-User"))
+    req.header.set("X-Kongken-User", expectedAccount);
   req.header.set(REGION_HEADER, REGION_VERSION);
   const csrf = csrfHeader();
   if (csrf) req.header.set("X-CSRF-Token", csrf);

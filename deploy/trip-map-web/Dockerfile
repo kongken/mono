@@ -24,6 +24,7 @@ COPY internal/tripmap/regions/regions.json internal/tripmap/regions/regions.json
 COPY internal/tripmap/regions/catalog.json internal/tripmap/regions/catalog.json
 # Optional backend address; empty keeps the static site standalone (local-only).
 ARG VITE_API_BASE_URL
+ARG VITE_OAUTH_APP_ID=trip-map
 # Optional OSM raster tile source, baked in at build time (see docs/trip-map/data-and-maps.md).
 ARG VITE_OSM_TILE_URL
 ARG VITE_OSM_TILE_MAX_ZOOM
