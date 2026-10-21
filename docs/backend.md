@@ -40,9 +40,9 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `internal/platform/httpx/` | 跨服务共享：客户端地址、跨域应答、来源校验与追踪脱敏 |
 | `internal/platform/servicetoken/` | 跨服务共享：BFF 与业务服务之间 60 秒 Ed25519 内部凭证的签发、校验与密钥加载 |
 | `internal/platform/rpcauth/` | 跨服务共享：gRPC 客户端/服务端拦截器、proto 匿名选项读取、metadata 白名单与类型化调用者信息 |
-| `internal/platform/grpcx/` | 跨服务共享：自管 TLS gRPC 监听、消息大小限制与优雅关闭 |
+| `internal/platform/grpcx/` | 跨服务共享：自管 gRPC 监听（默认 TLS，显式 h2c）、消息大小限制与优雅关闭 |
 | `internal/platform/testkit/` | 跨服务共享：测试用临时 CA、证书与签名密钥 |
-| `internal/e2e/` | 仅测试：真实 BFF → TLS gRPC → 真实 tripmap 的端到端测试（[说明](bff.md#验证)） |
+| `internal/e2e/` | 仅测试：真实 BFF → 内部 gRPC（TLS 与 h2c）→ 真实 tripmap 的端到端测试（[说明](bff.md#验证)） |
 | `cmd/dev-secrets/` | `make dev-secrets`：生成本地开发用 CA、证书与签名密钥 |
 
 ## 媒体接口（F4，`bff.tripmap.v1.MediaService` → `tripmap.v1.MediaService`）
@@ -138,7 +138,7 @@ Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CON
 - `storage.key_prefix` 设置对象 key 前缀，示例为 `tripmap`。
 - `auth.client_ip_header` 用于分享/退订限流；生产在 BFF 之后设为 `X-Real-IP`。账号会话/OAuth/CSRF 在 `config.bff.yaml`（[BFF 配置](bff.md#配置)）。
 - **OAuth（#32 已迁至 BFF）**：在 `config.bff.yaml` 的 `auth.oauth_providers.<github|google|logto>` 配置（字段含义与旧 tripmap 相同：`client_id`、`client_secret`、`redirect_url`、可选 `scopes` 与 `display_name`；Logto 另需 `issuer_url`）。tripmap `config.tripmap.yaml` 中的 `auth.oauth_providers` 不再用于浏览器登录。
-- `grpc.listen`、`grpc.cert_file`、`grpc.key_file` 必填：tripmap 自管的 gRPC over TLS 监听（业务 RPC 只在这里提供，BFF 调用）；`grpc.max_message_bytes` 默认 20 MiB。
+- `grpc.listen` 必填，`grpc.transport` 为 `tls`（默认）或 `h2c`：tripmap 自管的原生 gRPC 监听（业务 RPC 只在这里提供，BFF 调用）。`tls` 要求 `grpc.cert_file`、`grpc.key_file`；`h2c`（明文 HTTP/2，仅限经批准的可信内网）不加载证书，仍配置 cert/key 则启动失败；未知值启动失败，也不会按证书缺失推测为 h2c。`grpc.max_message_bytes` 默认 20 MiB。`internal_auth`（下一条）在两种模式下都必填，风险与切换见 [BFF 内部 gRPC 与凭证](bff.md#内部-grpc-与凭证)。
 - `internal_auth.issuer`、`audience`、`trusted_keys[]`（`kid` + `public_key_file`）必填，可选 `clock_skew`（默认 10 秒）：只接受这些 BFF 公钥签名的内部凭证，规则见 [内部 gRPC 与凭证](bff.md#内部-grpc-与凭证)。缺失时启动失败；本地用 `make dev-secrets` 生成文件。
 - `mapbox_tiles.enabled` 开启 Mapbox 瓦片代理（默认关闭），`token`、`username`、`style_id` 等见下文“Mapbox 瓦片代理（可选）”。
 - `share.public_base_url` 开启公开分享（为空即关闭）；`share.app_index_url`、`share.html_csp` 与限流项见下文 F6 一节。
@@ -505,7 +505,7 @@ make test-integration
 
 PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除，以及版本化迁移的升级校验（见上文“版本化数据库迁移”）。
 
-`internal/e2e/` 提供 **`ChainHarness`**（`chain_harness_test.go`）：在设置 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 时启动真实 BFF（独立 schema + Redis 前缀）→ TLS gRPC → 真实 tripmap（独立 schema），经 httptest 暴露 BFF 公网 URL。`FreshBrowser()` 返回带 cookie jar 的 **`Browser`**，自动处理 CSRF（`IssueCSRFToken` + `X-CSRF-Token`）与足迹读所需的 `X-Tripmap-Schema` / `X-Tripmap-Regions`；`Register` / `Login` / `Me` / `Logout` / 足迹读与 sync（`GetFootprints`、`GetChanges`、`SyncChanges`）走 Connect 公共客户端；`region_chain_test.go` 覆盖 `bff.tripmap.v1.RegionService` 金门迁移、阻止项与 CSRF；`sessions_chain_test.go` 覆盖 `ListSessions`/`RevokeSession`；`notification_test.go` 覆盖 `bff.tripmap.v1.NotificationService` 与 BFF 公开退订 HTTP；`snapshot_chain_test.go` 覆盖快照创建、去重、恢复、幂等重放与用户隔离；`media_chain_test.go` 覆盖 `bff.tripmap.v1.MediaService` 预留/确认/读/删与用户隔离（内存 blob，非真实 S3）；`report_chain_test.go` 覆盖 `bff.tripmap.v1.ReportService` / `SearchService` 与用户隔离；`shared_trip_chain_test.go` 覆盖 `bff.tripmap.v1.SharedTripService` 邀请/viewer 写入拒绝、editor 足迹 sync、共享媒体与解除好友撤销。后续 ticket 只追加场景测试，复用该 harness。运行：`go test ./internal/e2e/ -count=1`（与 `make test-integration` 同一套 PG/Redis 环境；无需 S3，默认 noop blob，媒体场景可注入 `chainMediaBlobs`）。
+`internal/e2e/` 提供 **`ChainHarness`**（`chain_harness_test.go`）：在设置 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 时启动真实 BFF（独立 schema + Redis 前缀）→ 内部 gRPC（默认 TLS，可选 h2c）→ 真实 tripmap（独立 schema），经 httptest 暴露 BFF 公网 URL。`FreshBrowser()` 返回带 cookie jar 的 **`Browser`**，自动处理 CSRF（`IssueCSRFToken` + `X-CSRF-Token`）与足迹读所需的 `X-Tripmap-Schema` / `X-Tripmap-Regions`；`Register` / `Login` / `Me` / `Logout` / 足迹读与 sync（`GetFootprints`、`GetChanges`、`SyncChanges`）走 Connect 公共客户端；`region_chain_test.go` 覆盖 `bff.tripmap.v1.RegionService` 金门迁移、阻止项与 CSRF；`sessions_chain_test.go` 覆盖 `ListSessions`/`RevokeSession`；`notification_test.go` 覆盖 `bff.tripmap.v1.NotificationService` 与 BFF 公开退订 HTTP；`snapshot_chain_test.go` 覆盖快照创建、去重、恢复、幂等重放与用户隔离；`media_chain_test.go` 覆盖 `bff.tripmap.v1.MediaService` 预留/确认/读/删与用户隔离（内存 blob，非真实 S3）；`report_chain_test.go` 覆盖 `bff.tripmap.v1.ReportService` / `SearchService` 与用户隔离；`shared_trip_chain_test.go` 覆盖 `bff.tripmap.v1.SharedTripService` 邀请/viewer 写入拒绝、editor 足迹 sync、共享媒体与解除好友撤销。后续 ticket 只追加场景测试，复用该 harness。运行：`go test ./internal/e2e/ -count=1`（与 `make test-integration` 同一套 PG/Redis 环境；无需 S3，默认 noop blob，媒体场景可注入 `chainMediaBlobs`）。
 
 `internal/tripmap/application` 的测试通过 HTTP 调用真实的处理器和拦截器，使用同样的隔离方式（随机 schema 与 Redis key 前缀），未设置 `TRIPMAP_TEST_POSTGRES_DSN` 和 `TRIPMAP_TEST_REDIS_ADDR` 时跳过。覆盖：快照的保存与去重、恢复的差异/撤销/revision 条件/幂等重放/原子性、用户隔离、保留与定时任务、注销清除快照；令牌与密码只存哈希、注册/登录校验与限流、会话过期/撤销/禁用、他人会话不可见、OAuth state 单次使用与注册关闭、用户 A/B 足迹隔离、非法数据、幂等、revision 冲突、省份标记与城市足迹互不影响，以及并发写入不丢失；F5 的账号升级幂等与冻结列、旧客户端被拒绝（所有 RPC）、旅行增删改与级联、旅行校验、用户隔离、变更日志内容、旧批次回执重放、批次原子性与 2000 项上限、新旧客户端并发、旧快照读取与恢复（载荷不变）、恢复时旅行换城市、定时快照、媒体与旅行的关联及隔离、注销清除旅行。`.github/workflows/ci.yml` 在 PostgreSQL 与 Redis 服务容器中运行 `go vet`、`go test -race ./...` 和前端测试、地图检查、构建。
 
@@ -566,5 +566,7 @@ F1 代码范围已覆盖注销与增量同步；F1 总项仍保留真实 OAuth �
 | `TestForgedMetadataChangesNothing`（`trust_test.go`） | 伪造身份 metadata 无效 |
 | `TestTripmapRejectsEveryCallWithoutAValidBFFCredential`（`trust_test.go`） | 无凭证/匿名凭证不能访问受保护方法 |
 | `TestPublicKeyRotation` / `TestTripmapOnlyTalksTLSToATrustedIdentity`（`trust_test.go`） | 密钥轮换与 TLS 身份 |
+| `TestChainOverH2C`（`transport_chain_test.go`） | 同一条真实链路在 h2c 上复跑隔离、匿名拒绝、消息上限、期限、取消、不重试与伪造地址用例；设置 `TRIPMAP_TEST_GRPC_TRANSPORT=h2c` 可让整个链路套件在 h2c 上运行 |
+| `TestH2CListenerIsNotReachableOverTLS` / `TestMismatchedTransportsFailInsteadOfFallingBack` / `TestBFFReadinessFollowsTheGRPCTransport`（`transport_test.go`） | h2c 不接受 TLS 客户端且仍需签名、两端模式不一致时失败而不回退、BFF `/readyz` 随传输做真实签名调用；`TestTripmapRejectsEveryCall…`、`TestForgedMetadataChangesNothing`、`TestPublicKeyRotation`、状态与依赖用例在 tls 与 h2c 上参数化 |
 | `TestPublicEntryIsConnectOnlyAndUnknownPathsAreNotForwarded`（`bff/app/status_test.go`） | 公网协议与路由 |
 | `TestCredentialPathsStayOutOfTraces`（`bff/app/app_test.go`） | 分享/退订路径 span 脱敏 |

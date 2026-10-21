@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/httpx"
 )
 
@@ -113,8 +114,9 @@ type InternalAuth struct {
 }
 
 type GRPCConfig struct {
-	// CAFile holds the PEM certificate authorities trusted for service
-	// certificates. There is no insecure fallback.
+	// CAFile holds the PEM certificate authorities trusted for the certificates
+	// of tls services. It is required when any service uses tls and is not read
+	// when every service uses h2c. There is no insecure fallback.
 	CAFile string `yaml:"ca_file"`
 	// Services maps a business service name to its gRPC endpoint.
 	Services map[string]GRPCService `yaml:"services"`
@@ -123,10 +125,14 @@ type GRPCConfig struct {
 }
 
 type GRPCService struct {
-	// Address is host:port of the TLS gRPC listener.
+	// Address is host:port of the gRPC listener.
 	Address string `yaml:"address"`
-	// ServerName overrides the name checked against the certificate; by default
-	// it is the host of Address.
+	// Transport is "tls" (default) or "h2c" and must match the service's own
+	// grpc.transport. h2c is unencrypted HTTP/2 for an explicitly approved
+	// trusted internal network; it is never chosen automatically.
+	Transport string `yaml:"transport"`
+	// ServerName overrides the name checked against the certificate of a tls
+	// service; by default it is the host of Address. Not allowed with h2c.
 	ServerName string `yaml:"server_name"`
 }
 
@@ -140,16 +146,26 @@ func (c *Config) ValidateInternal(grpcServices []string) error {
 	if c.InternalAuth.Issuer == "" || c.InternalAuth.KID == "" || c.InternalAuth.PrivateKeyFile == "" {
 		return fmt.Errorf("internal_auth requires issuer, kid and private_key_file")
 	}
-	if c.GRPC.CAFile == "" {
-		return fmt.Errorf("grpc.ca_file is required")
-	}
 	if c.GRPC.MaxMessageBytes < 0 {
 		return fmt.Errorf("grpc.max_message_bytes must not be negative")
 	}
+	needsCA := false
 	for _, name := range grpcServices {
-		if c.GRPC.Services[name].Address == "" {
+		svc := c.GRPC.Services[name]
+		if svc.Address == "" {
 			return fmt.Errorf("grpc.services.%s.address is required", name)
 		}
+		transport, err := grpcx.NormalizeTransport(svc.Transport)
+		if err != nil {
+			return fmt.Errorf("grpc.services.%s.transport: %w", name, err)
+		}
+		if transport == grpcx.TransportH2C && svc.ServerName != "" {
+			return fmt.Errorf("grpc.services.%s.server_name does not apply to h2c", name)
+		}
+		needsCA = needsCA || transport == grpcx.TransportTLS
+	}
+	if needsCA && c.GRPC.CAFile == "" {
+		return fmt.Errorf("grpc.ca_file is required for tls services")
 	}
 	for name := range c.GRPC.Services {
 		if !slices.Contains(grpcServices, name) {

@@ -37,6 +37,38 @@ func TestInternalTransportIsRequired(t *testing.T) {
 	}
 }
 
+func TestInternalTransportChoice(t *testing.T) {
+	for name, mutate := range map[string]func(*AppConfig){
+		"explicit tls":      func(c *AppConfig) { c.GRPC.Transport = "tls" },
+		"h2c without certs": func(c *AppConfig) { c.GRPC = grpcx.ServerConfig{Transport: "h2c", Listen: ":18083"} },
+	} {
+		cfg := valid()
+		mutate(cfg)
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	for name, mutate := range map[string]func(*AppConfig){
+		"unknown transport": func(c *AppConfig) { c.GRPC.Transport = "plaintext" },
+		"h2c keeping certs": func(c *AppConfig) { c.GRPC.Transport = "h2c" },
+		// h2c never removes the application-layer credential.
+		"h2c without trusted keys": func(c *AppConfig) {
+			c.GRPC = grpcx.ServerConfig{Transport: "h2c", Listen: ":18083"}
+			c.InternalAuth.TrustedKeys = nil
+		},
+	} {
+		cfg := valid()
+		mutate(cfg)
+		if cfg.Validate() == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	var parsed AppConfig
+	if err := yaml.Unmarshal([]byte("grpc:\n  transport: h2c\n  listen: 0.0.0.0:18083\n"), &parsed); err != nil || parsed.GRPC.Transport != "h2c" {
+		t.Fatalf("yaml: %+v %v", parsed.GRPC, err)
+	}
+}
+
 func TestRequiredStores(t *testing.T) {
 	if (&AppConfig{}).Validate() == nil {
 		t.Fatal("empty configuration accepted")

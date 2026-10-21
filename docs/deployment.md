@@ -40,10 +40,20 @@
 
 | 材料 | 归属 | 用途 |
 | --- | --- | --- |
-| `tripmap.pem` / `tripmap.key` | tripmap Pod/容器 | gRPC TLS 服务端证书（`grpc.cert_file` / `grpc.key_file`） |
-| `ca.pem` | BFF | 校验 tripmap 证书（`grpc.ca_file`） |
+| `tripmap.pem` / `tripmap.key` | tripmap Pod/容器 | gRPC TLS 服务端证书（`grpc.cert_file` / `grpc.key_file`）；仅 `tls` 模式需要，`h2c` 不挂载 |
+| `ca.pem` | BFF | 校验 tripmap 证书（`grpc.ca_file`）；仅存在 `tls` 上游时需要，全 `h2c` 可不挂载 |
 | `bff.key`（Ed25519 PKCS#8） | **仅 BFF** | 签发内部 JWS（`internal_auth.private_key_file`） |
 | `bff.pub`（PKIX） | tripmap（及轮换期多副本） | `internal_auth.trusted_keys[].public_key_file` |
+
+`bff.key` / `bff.pub` 在 `tls` 与 `h2c` 两种内部传输下**都必需**：h2c 只去掉传输层的证书 / CA，不去掉应用层签名。
+
+### 内部 gRPC 传输（tls / h2c）
+
+默认且推荐 `tls`（TLS 1.3 单向，BFF 校验服务证书；不是 mTLS）。可信内网可在业务服务设置 `grpc.transport: h2c`、BFF 对应上游设置 `grpc.services.<名称>.transport: h2c` 以免证书依赖；配置示例、两端必须一致与 TLS → h2c 手动切换步骤见 [BFF 内部 gRPC 与凭证](bff.md#内部-grpc-与凭证)和[配置](bff.md#配置)。
+
+- h2c 没有加密、服务端身份验证和完整性保护，被动监听、内容篡改与 60 秒窗口内的凭证重放仍可能发生，**不与 TLS 等价**；只用于经显式批准的可信内部网络，是否需要网络隔离或由代理 / 网格承担加密由部署方评估。
+- 业务 gRPC 端口（tripmap `18083`）不得通过公网 Ingress、NodePort 或 LoadBalancer 暴露；本项目不自动修改集群网络策略，也不会因升级而改变现有部署的传输（未配置即 `tls`）。
+- 两端模式不一致时，BFF `/readyz` 的 `{name}_grpc` 为未就绪，浏览器看到 `UNAVAILABLE`；不会自动回退到另一种传输。
 
 本地开发：`make dev-secrets` 写入被 Git 忽略的 `dev-secrets/`（`kid` 为 `dev-1`，与示例 YAML 一致）。生产用 CA 签发 tripmap 证书（SAN 含服务 DNS 名），私钥与公钥分 Secret 挂载；示例键名见 `deploy/k8s/secrets.layout.example.yaml`。
 
@@ -76,7 +86,7 @@
 | --- | --- | --- |
 | `GET /ping` | BFF、tripmap | 进程存活 |
 | `GET /readyz` | tripmap | `postgres`、`redis`、`s3`（各 2 秒超时） |
-| `GET /readyz` | BFF | 各 upstream HTTP `/readyz`（如 `tripmap`）、`bff_postgres`、`bff_redis`、各服务 **`{name}_grpc`**（经 TLS + 签名凭证调用 `SystemService/GetStatus`） |
+| `GET /readyz` | BFF | 各 upstream HTTP `/readyz`（如 `tripmap`）、`bff_postgres`、`bff_redis`、各服务 **`{name}_grpc`**（按该上游的传输 tls / h2c，用签名凭证调用 `SystemService/GetStatus`） |
 
 BFF 启动**不要求** tripmap 已就绪；编排系统应使用 BFF `/readyz` 作为对外就绪门。前端 `/healthz` 仅表示静态文件服务。
 

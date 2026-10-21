@@ -1,4 +1,4 @@
-// Package e2e runs the real BFF in front of the real tripmap gRPC server over TLS.
+// Package e2e runs the real BFF in front of the real tripmap gRPC server over TLS or h2c.
 //
 // ChainHarness starts both services with isolated PostgreSQL schemas and Redis
 // key prefixes (requires TRIPMAP_TEST_POSTGRES_DSN and TRIPMAP_TEST_REDIS_ADDR,
@@ -51,9 +51,10 @@ import (
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-// ChainHarness is a live BFF → TLS gRPC → tripmap stack with real auth and business DBs.
+// ChainHarness is a live BFF → internal gRPC (TLS or h2c) → tripmap stack with real auth and business DBs.
 type ChainHarness struct {
 	T *testing.T
 
@@ -65,9 +66,11 @@ type ChainHarness struct {
 	TripmapDB *tripmapent.Client
 
 	regionVersion string
-	caFile        string
-	serverName    string
-	signer        *servicetoken.Signer
+	// transport is the internal gRPC transport in use: "tls" or "h2c".
+	transport  string
+	caFile     string
+	serverName string
+	signer     *servicetoken.Signer
 }
 
 // Browser is a cookie-aware Connect client for bff.v1 (CSRF + schema headers).
@@ -97,19 +100,28 @@ type ChainHTTPOptions struct {
 	Configure func(*bffconfig.Config, string)
 }
 
+// ChainTransport selects the internal gRPC transport of a harness ("tls" or
+// "h2c"). Without it the harness uses TRIPMAP_TEST_GRPC_TRANSPORT, then tls, so
+// the whole suite can be rerun over h2c.
+type ChainTransport string
+
 // NewChainHarness builds the full stack or skips when storage env is unset.
-// Optional extras: *provider.Registry, func(*tripmapconfig.AppConfig), blobstore.Store.
+// Optional extras: *provider.Registry, func(*tripmapconfig.AppConfig), blobstore.Store,
+// ChainHTTPOptions, ChainTransport, []grpc.UnaryServerInterceptor.
 func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	t.Helper()
 	var oauthReg *provider.Registry
 	var httpOptions ChainHTTPOptions
 	var mutate []func(*tripmapconfig.AppConfig)
 	var tripUnary []grpc.UnaryServerInterceptor
+	transport := os.Getenv("TRIPMAP_TEST_GRPC_TRANSPORT")
 	blob := blobstore.Store(noopBlobs{})
 	for _, e := range extras {
 		switch v := e.(type) {
 		case ChainHTTPOptions:
 			httpOptions = v
+		case ChainTransport:
+			transport = string(v)
 		case *provider.Registry:
 			oauthReg = v
 		case func(*tripmapconfig.AppConfig):
@@ -133,7 +145,15 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 
 	ca := testkit.NewCA(t)
 	keys := testkit.NewKeys(t)
-	tls := ca.Issue(t, "tripmap.internal")
+	if transport == "" {
+		transport = "tls"
+	}
+	h.transport = transport
+	grpcCfg := grpcx.ServerConfig{Transport: transport, Listen: "127.0.0.1:0"}
+	if transport == "tls" { // h2c needs no certificate
+		tls := ca.Issue(t, "tripmap.internal")
+		grpcCfg.CertFile, grpcCfg.KeyFile = tls.CertFile, tls.KeyFile
+	}
 	h.caFile = ca.CAFile
 	h.serverName = "tripmap.internal"
 	h.signer = &servicetoken.Signer{Issuer: issuer, KID: "k1", Key: keys.Private}
@@ -144,7 +164,7 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	h.BFFDB = bffDB
 
 	tripCfg := &tripmapconfig.AppConfig{
-		GRPC:         grpcx.ServerConfig{Listen: "127.0.0.1:0", CertFile: tls.CertFile, KeyFile: tls.KeyFile},
+		GRPC:         grpcCfg,
 		InternalAuth: servicetoken.VerifyConfig{Issuer: issuer, Audience: audience, TrustedKeys: []servicetoken.TrustedKey{{KID: "k1", PublicKeyFile: keys.PublicFile}}},
 	}
 	for _, m := range mutate {
@@ -179,6 +199,11 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 			"tripmap": {Address: h.Tripmap.GRPCAddr(), ServerName: "tripmap.internal"},
 		}},
 		Auth: bffconfig.AuthConfig{CookieSecure: false},
+	}
+	if transport == "h2c" {
+		bffCfg.GRPC = bffconfig.GRPCConfig{Services: map[string]bffconfig.GRPCService{
+			"tripmap": {Address: h.Tripmap.GRPCAddr(), Transport: "h2c"},
+		}}
 	}
 	bffRouter := gin.New()
 	bffSrv := httptest.NewUnstartedServer(bffRouter)
@@ -216,6 +241,14 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 
 func (h *ChainHarness) DirectTripmapGRPC() *grpc.ClientConn {
 	h.T.Helper()
+	if h.transport == "h2c" {
+		conn, err := grpc.NewClient(h.Tripmap.GRPCAddr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			h.T.Fatal(err)
+		}
+		h.T.Cleanup(func() { _ = conn.Close() })
+		return conn
+	}
 	pem, err := os.ReadFile(h.caFile)
 	if err != nil {
 		h.T.Fatal(err)

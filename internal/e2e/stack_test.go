@@ -39,12 +39,14 @@ const (
 
 // stack is a BFF → TLS gRPC → tripmap chain.
 type stack struct {
-	t       *testing.T
-	ca      *testkit.CA
-	keys    testkit.Keys // the BFF signing key, kid "k1"
-	tripmap *tripmapapp.Handlers
-	bff     *httptest.Server
-	status  bfftripmapv1connect.StatusServiceClient
+	t  *testing.T
+	ca *testkit.CA
+	// transport is what tripmap's gRPC listener serves: "tls" or "h2c".
+	transport string
+	keys      testkit.Keys // the BFF signing key, kid "k1"
+	tripmap   *tripmapapp.Handlers
+	bff       *httptest.Server
+	status    bfftripmapv1connect.StatusServiceClient
 	// failing makes the named dependency probe report not ready.
 	failing map[string]*atomic.Bool
 }
@@ -56,6 +58,29 @@ type options struct {
 	// signing is the key and kid the BFF signs with; defaults to the stack's k1.
 	signing    *testkit.Keys
 	signingKID string
+	// transport is tripmap's gRPC transport ("tls" default); bffTransport is what
+	// the BFF is configured to use for tripmap and defaults to transport. Setting
+	// them differently builds a deliberately mismatched deployment.
+	transport, bffTransport string
+}
+
+// withTransport makes tripmap's gRPC listener and the BFF's upstream both use tr.
+func withTransport(tr string) func(*options, *stack) {
+	return func(o *options, _ *stack) { o.transport = tr }
+}
+
+// withMismatchedTransports configures tripmap and the BFF with different transports.
+func withMismatchedTransports(server, bff string) func(*options, *stack) {
+	return func(o *options, _ *stack) { o.transport, o.bffTransport = server, bff }
+}
+
+// transports are the internal gRPC transports every trust property must hold on.
+var transports = []string{"tls", "h2c"}
+
+func eachTransport(t *testing.T, fn func(t *testing.T, transport string)) {
+	for _, tr := range transports {
+		t.Run(tr, func(t *testing.T) { fn(t, tr) })
+	}
 }
 
 func newStack(t *testing.T, mutate ...func(*options, *stack)) *stack {
@@ -70,9 +95,21 @@ func newStack(t *testing.T, mutate ...func(*options, *stack)) *stack {
 		opts.trusted = []servicetoken.TrustedKey{{KID: "k1", PublicKeyFile: s.keys.PublicFile}}
 	}
 
-	tls := s.ca.Issue(t, "tripmap.internal")
+	if opts.transport == "" {
+		opts.transport = "tls"
+	}
+	if opts.bffTransport == "" {
+		opts.bffTransport = opts.transport
+	}
+	s.transport = opts.transport
+	// h2c needs no certificate at all; tls uses a CA-issued one.
+	grpcCfg := grpcx.ServerConfig{Transport: opts.transport, Listen: "127.0.0.1:0"}
+	if opts.transport == "tls" {
+		tls := s.ca.Issue(t, "tripmap.internal")
+		grpcCfg.CertFile, grpcCfg.KeyFile = tls.CertFile, tls.KeyFile
+	}
 	cfg := &tripmapconfig.AppConfig{
-		GRPC:         grpcx.ServerConfig{Listen: "127.0.0.1:0", CertFile: tls.CertFile, KeyFile: tls.KeyFile},
+		GRPC:         grpcCfg,
 		InternalAuth: servicetoken.VerifyConfig{Issuer: issuer, Audience: audience, TrustedKeys: opts.trusted},
 	}
 	s.tripmap = tripmapapp.New(cfg)
@@ -96,6 +133,12 @@ func newStack(t *testing.T, mutate ...func(*options, *stack)) *stack {
 		GRPC: bffconfig.GRPCConfig{CAFile: s.ca.CAFile, Services: map[string]bffconfig.GRPCService{
 			"tripmap": {Address: s.tripmap.GRPCAddr(), ServerName: "tripmap.internal"},
 		}},
+	}
+	if opts.bffTransport == "h2c" {
+		// No CA and no server name: an all-h2c BFF has no TLS material at all.
+		bffCfg.GRPC = bffconfig.GRPCConfig{Services: map[string]bffconfig.GRPCService{
+			"tripmap": {Address: s.tripmap.GRPCAddr(), Transport: "h2c"},
+		}}
 	}
 	b := bffapp.New(bffCfg)
 	if err := b.Bootstrap(); err != nil {

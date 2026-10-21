@@ -16,7 +16,8 @@ import (
 // grpcShutdownTimeout is how long running calls get to finish on shutdown.
 const grpcShutdownTimeout = 10 * time.Second
 
-// StartGRPC starts the TLS gRPC listener the BFF calls. Every call must carry a
+// StartGRPC starts the gRPC listener the BFF calls (TLS unless grpc.transport is
+// h2c). Every call, in either transport, must carry a
 // credential from a trusted BFF key (rpcauth interceptors run before any
 // handler). extra registers further services before serving starts; tests use it
 // for probes, production services are listed here as they migrate.
@@ -59,7 +60,7 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 		return fmt.Errorf("start grpc: %w", err)
 	}
 	h.grpc.Store(srv)
-	slog.Info("tripmap grpc listening", "addr", srv.Addr())
+	slog.Info("tripmap grpc listening", "addr", srv.Addr(), "transport", srv.Transport())
 	return nil
 }
 
