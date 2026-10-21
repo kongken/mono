@@ -567,6 +567,6 @@ F1 代码范围已覆盖注销与增量同步；F1 总项仍保留真实 OAuth �
 | `TestTripmapRejectsEveryCallWithoutAValidBFFCredential`（`trust_test.go`） | 无凭证/匿名凭证不能访问受保护方法 |
 | `TestPublicKeyRotation` / `TestTripmapOnlyTalksTLSToATrustedIdentity`（`trust_test.go`） | 密钥轮换与 TLS 身份 |
 | `TestChainOverH2C`（`transport_chain_test.go`） | 同一条真实链路在 h2c 上复跑隔离、匿名拒绝、消息上限、期限、取消、不重试与伪造地址用例；设置 `TRIPMAP_TEST_GRPC_TRANSPORT=h2c` 可让整个链路套件在 h2c 上运行 |
-| `TestH2CListenerIsNotReachableOverTLS` / `TestMismatchedTransportsFailInsteadOfFallingBack` / `TestBFFReadinessFollowsTheGRPCTransport`（`transport_test.go`） | h2c 不接受 TLS 客户端且仍需签名、两端模式不一致时失败而不回退、BFF `/readyz` 随传输做真实签名调用；`TestTripmapRejectsEveryCall…`、`TestForgedMetadataChangesNothing`、状态与依赖用例在 tls 与 h2c 上参数化 |
+| `TestH2CListenerIsNotReachableOverTLS` / `TestMismatchedTransportsFailInsteadOfFallingBack` / `TestBFFReadinessFollowsTheGRPCTransport`（`transport_test.go`） | h2c 不接受 TLS 客户端且仍需签名、两端模式不一致时失败而不回退、BFF `/readyz` 随传输做真实签名调用；`TestTripmapRejectsEveryCall…`、`TestForgedMetadataChangesNothing`、`TestPublicKeyRotation`、状态与依赖用例在 tls 与 h2c 上参数化 |
 | `TestPublicEntryIsConnectOnlyAndUnknownPathsAreNotForwarded`（`bff/app/status_test.go`） | 公网协议与路由 |
 | `TestCredentialPathsStayOutOfTraces`（`bff/app/app_test.go`） | 分享/退订路径 span 脱敏 |

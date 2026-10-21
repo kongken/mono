@@ -226,10 +226,12 @@ func TestTripmapOnlyTalksTLSToATrustedIdentity(t *testing.T) {
 	codeIs(t, "plaintext", invoke(plain, statusMethod, auth), codes.Unavailable)
 }
 
-func TestPublicKeyRotation(t *testing.T) {
+func TestPublicKeyRotation(t *testing.T) { eachTransport(t, testPublicKeyRotation) }
+
+func testPublicKeyRotation(t *testing.T, transport string) {
 	oldKeys, newKeys := testkit.NewKeys(t), testkit.NewKeys(t)
 	trust := func(entries ...servicetoken.TrustedKey) func(*options, *stack) {
-		return func(o *options, _ *stack) { o.trusted = entries }
+		return func(o *options, _ *stack) { o.trusted, o.transport = entries, transport }
 	}
 	oldKey := servicetoken.TrustedKey{KID: "2026-10", PublicKeyFile: oldKeys.PublicFile}
 	newKey := servicetoken.TrustedKey{KID: "2026-11", PublicKeyFile: newKeys.PublicFile}
