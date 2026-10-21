@@ -38,6 +38,15 @@ example.com {
 		}
 	}
 
+	# Keep OAuth query strings out of access/error logging at every edge.
+	handle /auth/* {
+		reverse_proxy bff:18081 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up Referer ""
+		}
+	}
+
 	# BFF Connect, health and probes (do not strip Connect or CSRF headers).
 	handle /api/* {
 		request_body {

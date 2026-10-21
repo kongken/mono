@@ -61,3 +61,15 @@ func GRPCNames(services []Service) []string {
 	}
 	return names
 }
+
+// BFFOwnedRoutes inventories credential-bearing HTTP routes handled by the BFF
+// itself. They are mounted locally, never forwarded to a business upstream.
+var BFFOwnedRoutes = []Route{
+	{Path: "/auth/login", Trace: "/auth/login"},
+	{Path: "/auth/callback/:provider", Trace: "/auth/callback/:provider"},
+}
+
+// BrowserHeaders supplements the shared Connect headers for BFF clients.
+func BrowserHeaders() []string {
+	return []string{"X-CSRF-Token", "X-Kongken-User", "X-Tripmap-Schema", "X-Tripmap-Regions"}
+}

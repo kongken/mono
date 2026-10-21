@@ -2,11 +2,11 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authApi, type ProviderInfo } from "@/api/auth";
 import { detachThisDevice } from "@/api/notification";
-import { footprintApi, createFootprintApi } from "@/api/footprints";
-import { backendEnabled } from "@/api/transport";
+import { createFootprintApi } from "@/api/footprints";
+import { apiConfig, backendEnabled, setTransportAccount } from "@/api/transport";
 import { refreshCSRF } from "@/api/csrf";
 import { describeApiError, isUnauthenticated } from "@/lib/errors";
-import { consumePending, parseOAuthCallback, savePending } from "@/lib/oauth";
+import { oauthLoginURL } from "@/lib/oauth";
 import {
   acknowledgeLegacyCache,
   clearAccountData,
@@ -44,6 +44,7 @@ export type LegacyCacheNotice = { raw: string; saved: Saved | null; digest: stri
 export function readBoot(validate: (data: unknown) => Saved): CloudBoot {
   if (!backendEnabled) return { session: null, cache: null };
   const session = loadSession(localStorage);
+  setTransportAccount(session?.user.id);
   try {
     return {
       session,
@@ -114,6 +115,7 @@ export function useCloud(options: Options) {
   const callbackHandled = useRef(false);
 
   const setSession = (next: StoredSession | null) => {
+    setTransportAccount(next?.user.id);
     sessionRef.current = next;
     setSessionState(next);
   };
@@ -139,6 +141,7 @@ export function useCloud(options: Options) {
     setConflictRecords([]);
     setPending(false);
     setDeletionBlocked(false);
+    setTransportAccount();
     sessionRef.current = null;
     setSessionState(null);
     setLoaded("pending");
@@ -159,7 +162,7 @@ export function useCloud(options: Options) {
     atomic = false,
   ) => {
     engineRef.current?.stop();
-    const scopedApi = createFootprintApi(snapshot);
+    const scopedApi = createFootprintApi(snapshot, s.user.id);
     const api = {
       ...scopedApi,
       get: async () => {
@@ -254,7 +257,7 @@ export function useCloud(options: Options) {
     const seq = editSeq.current;
     let fetched: CloudSnapshot;
     try {
-      fetched = await footprintApi.get();
+      fetched = await createFootprintApi(undefined, s.user.id).get();
     } catch (error) {
       if (sessionRef.current?.user.id !== s.user.id) return;
       if (isUnauthenticated(error)) {
@@ -413,40 +416,25 @@ export function useCloud(options: Options) {
     };
   }, [session, refresh]);
 
-  // Finish an OAuth round trip when this page is the provider callback.
+  // The BFF callback sets its host-only session cookie. Restore from Me;
+  // authorization codes and state never enter the SPA or browser storage.
   useEffect(() => {
     if (!backendEnabled || callbackHandled.current) return;
-    const callback = parseOAuthCallback(
-      location.pathname,
-      location.search,
-      import.meta.env.BASE_URL,
-    );
-    if (!callback) return;
     callbackHandled.current = true;
-    // Remove the one-time code from the address bar and history right away.
-    history.replaceState(null, "", import.meta.env.BASE_URL);
-    if ("error" in callback) {
-      consumePending(sessionStorage, callback);
-      opts.current.notify(
-        callback.error === "access_denied"
-          ? "你已取消授权，未登录"
-          : "第三方登录未完成，请重试",
-      );
+    // Discard material left by a pre-migration SPA without accepting its callback.
+    sessionStorage.removeItem("shanhai-oauth-pending-v1");
+    if (location.pathname.includes("/auth/callback/")) {
+      history.replaceState(null, "", import.meta.env.BASE_URL);
+      opts.current.notify("登录入口已更新，请重新发起登录");
       return;
     }
-    if (!consumePending(sessionStorage, callback)) {
-      opts.current.notify("登录请求无效或已过期，请重新发起登录");
-      return;
-    }
-    setBusy("正在完成登录…");
-    authApi
-      .completeOAuth(callback.provider, callback.code, callback.state)
-      .then((s) => {
-        enter(s);
-        opts.current.notify(`已登录：${s.user.displayName || s.user.username}`);
-      })
-      .catch((error) => opts.current.notify(describeApiError(error)))
-      .finally(() => setBusy(""));
+    setBusy("正在恢复登录…");
+    authApi.me().then((user) => {
+      if (sessionRef.current?.user.id !== user.id) enter({ user });
+    }).catch((error) => {
+      if (!isUnauthenticated(error) && !sessionRef.current)
+        opts.current.notify(describeApiError(error));
+    }).finally(() => setBusy(""));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const signIn = async (action: () => Promise<StoredSession>) => {
@@ -585,12 +573,13 @@ export function useCloud(options: Options) {
       signIn(() => authApi.register(username, password, displayName)),
     loadProviders,
     startOAuth: async (provider: string) => {
-      const r = await authApi.beginOAuth(provider);
-      const url = new URL(r.authorizeUrl);
-      if (url.protocol !== "https:" && url.protocol !== "http:")
-        throw new Error("invalid authorize url");
-      savePending(sessionStorage, provider, r.state);
-      location.assign(url.toString());
+      if (!apiConfig.enabled) throw new Error("backend not configured");
+      location.assign(oauthLoginURL(
+        apiConfig.baseUrl,
+        location.origin,
+        import.meta.env.VITE_OAUTH_APP_ID || "trip-map",
+        provider,
+      ));
     },
     deleteAccount: async (password: string) => {
       const s = sessionRef.current;

@@ -13,10 +13,7 @@ import {
   saveSession,
 } from "../src/lib/session.ts";
 import {
-  PENDING_KEY,
-  consumePending,
-  parseOAuthCallback,
-  savePending,
+  oauthLoginURL,
 } from "../src/lib/oauth.ts";
 
 function memory(initial = {}) {
@@ -95,57 +92,11 @@ test("switching accounts keeps only the new user's cache", () => {
   assert.deepEqual([...s.data.keys()].sort(), [cacheKey("u2"), legacyCacheSeenKey("u2")].sort());
 });
 
-test("OAuth callback parsing", () => {
-  assert.deepEqual(
-    parseOAuthCallback("/auth/callback/github", "?code=c&state=s"),
-    { provider: "github", code: "c", state: "s" },
-  );
-  assert.deepEqual(
-    parseOAuthCallback(
-      "/app/auth/callback/google/",
-      "?code=c&state=s",
-      "/app/",
-    ),
-    { provider: "google", code: "c", state: "s" },
-  );
-  assert.deepEqual(
-    parseOAuthCallback("/auth/callback/github", "?error=access_denied"),
-    { provider: "github", error: "access_denied" },
-  );
-  assert.deepEqual(parseOAuthCallback("/auth/callback/github", "?code=c"), {
-    provider: "github",
-    error: "missing_code",
-  });
-  assert.equal(parseOAuthCallback("/", "?code=c&state=s"), null);
-  assert.equal(
-    parseOAuthCallback("/auth/callback/Bad..", "?code=c&state=s"),
-    null,
-  );
-  assert.equal(parseOAuthCallback("/auth/callback/", "?code=c&state=s"), null);
+test("OAuth navigation uses BFF host and an app identifier", () => {
+  assert.equal(oauthLoginURL("https://api.example.com/api", "https://a.example.com", "trip-map", "logto"), "https://api.example.com/auth/login?app=trip-map&provider=logto");
+  assert.equal(oauthLoginURL("/api", "http://localhost:5173", "trip-map", "github"), "http://localhost:5173/auth/login?app=trip-map&provider=github");
 });
 
-test("OAuth state must match the attempt this browser began, once", () => {
-  const s = memory();
-  savePending(s, "github", "abc");
-  assert.equal(consumePending(s, { provider: "github", state: "abc" }), true);
-  assert.equal(
-    consumePending(s, { provider: "github", state: "abc" }),
-    false,
-    "single use",
-  );
-  savePending(s, "github", "abc");
-  assert.equal(
-    consumePending(s, { provider: "github", state: "other" }),
-    false,
-  );
-  assert.equal(s.getItem(PENDING_KEY), null, "consumed even on mismatch");
-  savePending(s, "github", "abc");
-  assert.equal(consumePending(s, { provider: "google", state: "abc" }), false);
-  assert.equal(
-    consumePending(memory(), { provider: "github", state: "" }),
-    false,
-  );
-});
 
 import { Code, ConnectError } from "@connectrpc/connect";
 import { describeApiError, isUnauthenticated } from "../src/lib/errors.ts";

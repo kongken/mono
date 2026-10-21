@@ -31,6 +31,7 @@ import (
 	"github.com/kongken/mono/internal/bff/upstream"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
+	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	redisclient "github.com/redis/go-redis/v9"
@@ -249,6 +250,15 @@ func (h *Handlers) Routes(r *gin.Engine) {
 		}
 		c.JSON(code, gin.H{"ready": health.Ready(statuses), "dependencies": statuses})
 	})
+	for _, route := range gateway.BFFOwnedRoutes {
+		r.GET(route.Path, httpx.RedactTrace(route.Trace), func(c *gin.Context) {
+			if auth := h.auth.Load(); auth != nil {
+				auth.ServeOAuthHTTP(c.Writer, c.Request, h.cfg.ClientIPHeader)
+			} else {
+				c.AbortWithStatus(http.StatusServiceUnavailable)
+			}
+		})
+	}
 	h.mountPublicHTTP(r)
 	r.NoRoute(func(c *gin.Context) {
 		gw := h.gateway.Load()
@@ -292,5 +302,5 @@ func (h *Handlers) AuthHandler() *bffauth.Handler {
 
 // CORSHeaders returns extra allowed headers for bff browser clients.
 func CORSHeaders() []string {
-	return []string{"X-CSRF-Token", "X-Tripmap-Schema", "X-Tripmap-Regions"}
+	return gateway.BrowserHeaders()
 }

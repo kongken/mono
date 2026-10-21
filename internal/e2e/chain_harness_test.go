@@ -18,6 +18,8 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -87,16 +89,27 @@ type Browser struct {
 	Region     string
 }
 
+// ChainHTTPOptions configures browser tests before Bootstrap, using the actual
+// listener URL so the provider's fixed redirect URI matches the HTTP callback.
+type ChainHTTPOptions struct {
+	Observe   func(*http.Request, http.Header, int)
+	TLS       bool
+	Configure func(*bffconfig.Config, string)
+}
+
 // NewChainHarness builds the full stack or skips when storage env is unset.
 // Optional extras: *provider.Registry, func(*tripmapconfig.AppConfig), blobstore.Store.
 func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	t.Helper()
 	var oauthReg *provider.Registry
+	var httpOptions ChainHTTPOptions
 	var mutate []func(*tripmapconfig.AppConfig)
 	var tripUnary []grpc.UnaryServerInterceptor
 	blob := blobstore.Store(noopBlobs{})
 	for _, e := range extras {
 		switch v := e.(type) {
+		case ChainHTTPOptions:
+			httpOptions = v
 		case *provider.Registry:
 			oauthReg = v
 		case func(*tripmapconfig.AppConfig):
@@ -167,6 +180,16 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 		}},
 		Auth: bffconfig.AuthConfig{CookieSecure: false},
 	}
+	bffRouter := gin.New()
+	bffSrv := httptest.NewUnstartedServer(bffRouter)
+	scheme := "http"
+	if httpOptions.TLS {
+		scheme = "https"
+	}
+	baseURL := fmt.Sprintf("%s://localhost:%d", scheme, bffSrv.Listener.Addr().(*net.TCPAddr).Port)
+	if httpOptions.Configure != nil {
+		httpOptions.Configure(bffCfg, baseURL)
+	}
 	h.BFF = bffapp.New(bffCfg)
 	if oauthReg != nil {
 		h.BFF.SetOAuthRegistry(oauthReg)
@@ -177,11 +200,17 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	}
 	t.Cleanup(func() { _ = h.BFF.Shutdown() })
 
-	bffRouter := gin.New()
+	if httpOptions.Observe != nil {
+		bffRouter.Use(func(c *gin.Context) { c.Next(); httpOptions.Observe(c.Request, c.Writer.Header(), c.Writer.Status()) })
+	}
 	h.BFF.Routes(bffRouter)
-	bffSrv := httptest.NewServer(bffRouter)
+	if httpOptions.TLS {
+		bffSrv.StartTLS()
+	} else {
+		bffSrv.Start()
+	}
 	t.Cleanup(bffSrv.Close)
-	h.BFFURL = bffSrv.URL
+	h.BFFURL = baseURL
 	return h
 }
 

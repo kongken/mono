@@ -133,7 +133,7 @@ func originAllowed(h http.Header, allowedOrigins []string, host string) bool {
 				return true
 			}
 		}
-		if host != "" && (strings.HasPrefix(origin, "http://"+host) || strings.HasPrefix(origin, "https://"+host)) {
+		if host != "" && (origin == "http://"+host || origin == "https://"+host) {
 			return true
 		}
 		return false

@@ -29,10 +29,33 @@ auth:
   csrf_token_ttl: 24h    # optional; default 24h when unset
   cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP
   # registration_disabled: true
-  # oauth_providers.github:
-  #   client_id: ...
-  #   client_secret: ...
-  #   redirect_url: http://localhost:5173/auth/callback/github
+  # Explicit loopback-only HTTP exception for local OAuth development.
+  # Production: remove oauth_development, set cookie_secure: true, use HTTPS.
+  oauth_development: true
+  oauth_apps:
+    trip-map:
+      origin: http://localhost:5173
+      default_path: /
+      allowed_paths: [/]
+    second-app:
+      origin: http://localhost:5174
+      default_path: /map
+      allowed_paths: [/map]
+  # oauth_providers:
+  #   logto:
+  #     issuer_url: https://tenant.logto.app/oidc
+  #     client_id: local-client
+  #     client_secret: replace-in-ignored-config
+  #     redirect_url: http://localhost:5173/auth/callback/logto
+  #   github:
+  #     client_id: local-client
+  #     client_secret: replace-in-ignored-config
+  #     redirect_url: http://localhost:5173/auth/callback/github
+
+# Exact origins for direct BFF access. Same-origin /api proxy needs none.
+cors_allowed_origins:
+  - http://localhost:5173
+  - http://localhost:5174
 
 client_ip_header: X-Real-IP
 

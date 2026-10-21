@@ -67,6 +67,17 @@ server {
         proxy_read_timeout 30s;
     }
 
+    # OAuth callback queries contain credentials; never log them.
+    location ^~ /auth/ {
+        access_log off;
+        error_log /dev/stderr crit;
+        proxy_pass http://$backend_upstream$request_uri;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Referer "";
+        proxy_read_timeout 15s;
+    }
+
     location ~ ^/(api/|ping$|readyz$) {
         # nginx's default is 1 MB. A full sync batch is up to 2000 operations; with
         # 1000-character notes that is 6-12 MB, so match the backend's 16 MiB read limit.

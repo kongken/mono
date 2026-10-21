@@ -1,13 +1,13 @@
 # 部署与发布
 
-本文描述**当前已实现**的同源 Web/BFF 拓扑、密钥与 TLS 布局、健康探针和运维轮换步骤。真实 GitHub/Google/Logto OAuth、SMTP、Web Push、生产 S3 策略与社交平台抓取在本仓库 CI 中**未**端到端验收；浏览器真实栈 Playwright 见 [BFF 验证](bff.md#验证)（默认跳过，需本地 `make dev` 与 `E2E_REAL_BFF=1`）。
+本文描述**当前已实现**的同源代理与 HTTPS 同站点多 Web App/BFF 拓扑、密钥与 TLS 布局、健康探针和运维轮换步骤。真实 GitHub/Google/Logto OAuth、SMTP、Web Push、生产 S3 策略与社交平台抓取在本仓库 CI 中**未**端到端验收；浏览器真实栈 Playwright 见 [BFF 验证](bff.md#验证)（默认跳过，需本地 `make dev` 与 `E2E_REAL_BFF=1`）。
 
 ## 拓扑
 
 ```
 浏览器 ──HTTPS──► 边缘（Nginx 前端镜像 / Caddy 等）
                       ├─ 静态 SPA（/、/assets、/maps）
-                      └─ /api（含 /api/tiles/）、/ping、/readyz、/s/、/api/share/、/api/notifications/ ──► BFF :18081
+                      └─ /auth/、/api（含 /api/tiles/）、/ping、/readyz、/s/、/api/share/、/api/notifications/ ──► BFF :18081
                                                                                               │
                                                                                               ├─ PostgreSQL（BFF 认证库）
                                                                                               ├─ Redis（限流、OAuth state、CSRF）
@@ -99,3 +99,11 @@ tripmap、BFF、前端为三个镜像（见 [Docker 镜像](docker-images.md)）
 - `make build`、`make test`、`make check-import-boundaries`、`buf lint`、`npm run build`。
 - 有隔离存储时 `make test-integration`。
 - 文档链接：`make check-docs`。
+
+## 多前端共用 BFF 的部署（#54）
+
+完整配置、回调迁移与验证命令见 [BFF 多 Web App 登录](bff.md#多-web-app-登录与迁移54)。公网 API 域名同时提供 `/api/bff.*`、`/auth/login` 与 `/auth/callback/*`；OAuth callback 只由 BFF 处理，不回退 SPA。所有网关禁止记录回调查询串；Nginx 示例已覆盖 `/auth/`。不更改 DNS、Ingress 或生产资源的自动配置。
+
+多个 HTTPS 同站点应用分别构建 `VITE_API_BASE_URL=https://api.example.com/api` 与自身 `VITE_OAUTH_APP_ID`；BFF 增加两个精确 app origin/落点和 CORS origins，生产 `cookie_secure: true`，关闭开发例外。Logto 登记固定 `https://api.example.com/auth/callback/logto`；新增 app 不改变该 URI。API 主机保存 host-only Cookie，应用用 credentials include 和 CSRF 响应体 token 调用；不要扩大 Domain。任意跨站点及第三方 Cookie 限制不属于支持承诺。
+
+同源 `/api` 模式仍须同时代理 `/auth/`，callback 和 API 的浏览器主机一致。独立前端代理会得到各自的 Cookie，不能与直连共享 BFF 主机会话混为一谈。`client_ip_header` 只信任已覆盖客户端同名头的网关；BFF 不按 Host/Referer 推导可信回调或落点。当前退出撤销 BFF 会话，不注销其他 Logto 应用。现有账号、业务数据和本地未同步记录不迁移或清空；OAuth 首登仍受 registration_disabled 控制。

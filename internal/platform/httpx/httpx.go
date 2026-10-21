@@ -52,6 +52,7 @@ func CORS(origins func() []string, headers ...string) gin.HandlerFunc {
 		}
 		header := c.Writer.Header()
 		header.Set("Access-Control-Allow-Origin", origin)
+		header.Set("Access-Control-Allow-Credentials", "true")
 		header.Set("Access-Control-Expose-Headers", "Connect-Protocol-Version, Content-Type, Grpc-Status, Grpc-Message, Grpc-Status-Details-Bin, Connect-Content-Encoding, Connect-Accept-Encoding")
 		if c.Request.Method == http.MethodOptions {
 			header.Set("Access-Control-Allow-Methods", "POST, OPTIONS")
@@ -67,7 +68,7 @@ func CORS(origins func() []string, headers ...string) gin.HandlerFunc {
 func CheckOrigins(field string, origins []string) error {
 	for _, origin := range origins {
 		u, err := url.Parse(origin)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Path != "" || strings.HasSuffix(origin, "/") {
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.Path != "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.ContainsAny(origin, "*\\?#") || strings.HasSuffix(origin, "/") {
 			return fmt.Errorf("%s: %q must be an origin like https://example.com", field, origin)
 		}
 	}

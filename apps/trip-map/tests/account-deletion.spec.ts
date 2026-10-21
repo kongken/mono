@@ -9,6 +9,7 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
   page,
 }) => {
   let attempts = 0;
+  let authenticated = false;
   const local = { version: 1, visits: [], provinces: { "330000": "#4b937d" } };
   await page.addInitScript(
     (data) => localStorage.setItem("shanhai-travel-v1", JSON.stringify(data)),
@@ -25,6 +26,7 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
         data = { token: "ci-csrf" };
         break;
       case "Login":
+        authenticated = true;
         schema = auth.LoginResponseSchema;
         data = {
           user: {
@@ -39,6 +41,10 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
         schema = auth.ListOAuthProvidersResponseSchema;
         break;
       case "Me":
+        if (!authenticated) {
+          await route.fulfill({status:401,contentType:"application/json",body:'{"code":"unauthenticated"}'});
+          return;
+        }
         schema = auth.MeResponseSchema;
         data = {
           user: {
@@ -64,6 +70,7 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
         data = { schemaVersion: 2, regionVersion: REGION_VERSION };
         break;
       case "DeleteAccount": {
+        expect(route.request().headers()["x-kongken-user"]).toBe("ci-account");
         const raw = route.request().postDataBuffer()!;
         const request = binary
           ? fromBinary(auth.DeleteAccountRequestSchema, raw)
@@ -82,6 +89,7 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
           });
           return;
         }
+        authenticated = false;
         schema = auth.DeleteAccountResponseSchema;
         break;
       }

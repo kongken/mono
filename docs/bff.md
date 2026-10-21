@@ -9,7 +9,7 @@
 **当前已实现**
 
 - `bff.tripmap.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
-- `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`ListSessions`、`RevokeSession`、`IssueCSRFToken`，以及 OAuth `ListOAuthProviders`、`BeginOAuthFlow`、`CompleteOAuthFlow`（#31–#32）；账号、OAuth 绑定与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`），OAuth state 在 BFF Redis（10 分钟、单次使用、绑定 provider/PKCE）。会话 Cookie：`kongken_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `kongken_csrf` + 请求头 `X-CSRF-Token`；写操作（含 `RevokeSession`）校验 Origin。响应不返回会话令牌；会话列表与撤销只读写 BFF 存储，不向 tripmap 下传浏览器会话 ID。
+- `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`ListSessions`、`RevokeSession`、`IssueCSRFToken`，以及 OAuth `ListOAuthProviders` 与 HTTP 登录/回调（#54；旧 Begin/Complete RPC 返回 unimplemented）；账号、OAuth 绑定与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`），OAuth state 在 BFF Redis（10 分钟、单次使用、绑定 provider/PKCE、app/落点、固定 redirect URI 和浏览器 Cookie 摘要）。会话 Cookie：`kongken_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `kongken_csrf` + 请求头 `X-CSRF-Token`；写操作（含 `RevokeSession`）校验 Origin。响应不返回会话令牌；会话列表与撤销只读写 BFF 存储，不向 tripmap 下传浏览器会话 ID。
 - OAuth 提供方在 `config.bff.yaml` 的 `auth.oauth_providers`（GitHub、Google、Logto；Logto 带 PKCE），与旧 tripmap `auth.oauth_providers` 字段含义相同，配置迁到 BFF。
 - `bff.tripmap.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
 - `bff.tripmap.v1.NotificationService`（全部提醒设置 RPC）→ tripmap gRPC `NotificationService`；浏览器经 Cookie 会话，业务仍只认 BFF 签发的内部凭证与用户 ID。
@@ -43,10 +43,11 @@
 
 ## 路由
 
-`internal/bff/gateway/services.go` 只登记**上游业务服务名**与是否经 gRPC 调用（当前 tripmap：`GRPC: true`），供 `upstreams` 健康探测与 `grpc.services` 配置对齐；**不再**按 proto 包名透明转发 HTTP；仅 `Service.Routes` 中显式登记的 HTTP 路径会转发（目前只有 `/api/tiles/`）。
+`internal/bff/gateway/services.go` 的 `Services` 登记**上游业务服务名**与是否经 gRPC 调用（当前 tripmap：`GRPC: true`），供 `upstreams` 健康探测与 `grpc.services` 配置对齐；**不再**按 proto 包名透明转发 HTTP；仅 `Service.Routes` 中显式登记的 HTTP 路径会转发（目前只有 `/api/tiles/`）。BFF 自有登录路径和凭据追踪模板另在同文件 `BFFOwnedRoutes` 登记，浏览器额外请求头由 `BrowserHeaders` 登记。
 
 | 入口 | 登记位置 | 说明 |
 | --- | --- | --- |
+| `GET /auth/login`、`GET /auth/callback/:provider` | `app.go` → `auth.ServeOAuthHTTP` | BFF 自有登录路由，回调查询串追踪脱敏，无业务上游转发 |
 | `/ping`、`/readyz` | `internal/bff/app/app.go` | BFF 自身与依赖就绪 |
 | `/api/bff.v1.<Service>/<Method>` | `app.go` `publicAPI` + `bffv1connect.New*Handler` | 共用的账号与会话 Connect RPC；`NoRoute` 下前缀 `/api/bff.` 进入此 mux |
 | `/api/bff.tripmap.v1.<Service>/<Method>` | `internal/bff/tripmap/tripmap.go` `MountStatus`、`MountRPC` | 山海足迹业务 Connect RPC，同一个 mux |
@@ -140,7 +141,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 ## 当前限制（多产品）
 
-- 会话与 CSRF Cookie（`kongken_sid`、`kongken_csrf`）是主机本地 Cookie，没有配置 `Domain`。约定：各产品的前端放在同一个域名下，经同一个入口反代到 BFF，共用这两个 Cookie 即单点登录。放在不同子域名或不同域名时，Cookie 不会共享，需要先增加 Cookie `Domain` 配置或另行设计跨域登录（待实现）。
+- 会话与 CSRF Cookie 是 BFF 的 host-only Cookie（无 `Domain`）。同一信任范围内的 HTTPS 同站点应用可以从各自 origin 直连同一个 BFF，使用 `credentials: include` 和精确 CORS 白名单；不承诺任意跨站点或第三方 Cookie 可用。各独立前端的 `/api` 代理会把 Cookie 留在各自前端主机，不能据此宣称共享会话。
 - `bff.tripmap.v1.StatusService` 的响应带有山海足迹专有字段（`footprint_schema`、`share_enabled`、`region_version`），是产品级状态，不是通用健康检查。
 
 ## 验证
@@ -158,3 +159,55 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 ## 待实现
 
 真实 OAuth/SMTP/Web Push/生产 S3 端到端验收依赖部署环境；Playwright 真实 Cookie 栈见「验证」，默认跳过。
+
+## 多 Web App 登录与迁移（#54）
+
+GitHub、Google、Logto 统一使用 BFF HTTP 回调；Logto 继续使用 S256 PKCE。浏览器顶层导航到 `/auth/login?app=trip-map&provider=logto`（provider 默认 logto），可选 `return_to` 只接受该 app 的精确允许路径。未知 app、绝对/协议相对地址、百分号编码、反斜线、非规范路径、查询串和片段均拒绝。客户端不能选择 issuer、callback 或 origin。
+
+每次尝试在 Redis 保存随机 192-bit state（10 分钟、GETDEL 单次消费）、app、完整返回地址、固定 redirect URI、PKCE verifier 和独立随机浏览器 Cookie 的 SHA-256 摘要。每个 state 有独立短期 HttpOnly、Secure、SameSite=Lax、host-only Cookie，生产使用 `__Host-` 前缀；标签页并发不会覆盖绑定。回调先消费 state，再校验 provider、绑定和配置中的 redirect URI/返回白名单；成功才建会话并 303 返回干净的应用地址，清除该次 Cookie。取消、缺参、过期、重放、上游失败只显示中文错误，要求重新发起，不建立新会话、不回显上游错误/授权码。未完成尝试的 Cookie 自行在 10 分钟后过期。
+
+生产示例（示意域名，secret 只放忽略配置或 Secret）：
+
+```yaml
+cors_allowed_origins: [https://app-a.example.com, https://app-b.example.com]
+auth:
+  cookie_secure: true
+  oauth_apps:
+    trip-map:
+      origin: https://app-a.example.com
+      default_path: /
+      allowed_paths: [/]
+    app-b:
+      origin: https://app-b.example.com
+      default_path: /map
+      allowed_paths: [/map, /]
+  oauth_providers:
+    logto:
+      issuer_url: https://tenant.logto.app/oidc
+      client_id: example-client
+      client_secret: replace-in-secret
+      redirect_url: https://api.example.com/auth/callback/logto
+```
+
+迁移步骤：
+
+1. 在 Logto Traditional web 应用登记唯一固定 BFF callback；GitHub/Google 同步登记各自 `/auth/callback/github`、`/auth/callback/google`。把 BFF 的 `redirect_url` 从 SPA 地址改到该入口，增加 `oauth_apps` 与精确 `cors_allowed_origins`。缺少 oauth_apps、或不符合路径/HTTPS 规则的旧配置在启动时拒绝；部署者仍须确认所填 callback URL 实际路由到 BFF（同源代理可保持前端主机地址）；不兼容升级前正在授权的 state，用户需重新点击登录。
+2. 公网网关将 `/auth/login` 和 `/auth/callback/*` 转发给 BFF；所有层的访问日志、错误日志、追踪/APM 均排除 OAuth 查询串。BFF 回调响应 `Cache-Control: no-store`、`Referrer-Policy: no-referrer`；随仓库的 Nginx 示例对 `/auth/` 禁止访问日志并限制错误日志。只允许受信网关访问 BFF；由网关覆盖 `X-Real-IP` 后才配置 `client_ip_header`，直连则留空；不依赖请求 Host/Referer 生成返回地址。
+3. 山海足迹构建 `VITE_API_BASE_URL=https://api.example.com/api`、`VITE_OAUTH_APP_ID=trip-map`（默认 trip-map）。其他应用使用各自 app ID，通过同一 BFF 顶层入口登录，返回后用 Me 恢复身份。前端不处理授权码、不持久化 state/token。旧 Begin/Complete RPC 保留契约占位但返回 unimplemented；不存在可用的平行认证链。旧 SPA 登录临时 sessionStorage 键在加载时清理。
+4. 同源模式仍可构建 `VITE_API_BASE_URL=/api`，通过同一个前端网关代理 `/api` 和 `/auth/`，callback 也登记这个网关地址，使登录与 API Cookie 在同一主机；Vite 和 Nginx 示例都已代理 `/auth/`。共享 BFF 多前端模式则让所有应用直连同一个 API 主机，不能混用独立代理的 Cookie。前端挂在子路径时把服务端默认落点和允许路径同步设为该路径。
+5. 本地开发可以显式设置 `auth.oauth_development: true`：仅为 loopback/localhost origin 和 callback 允许 HTTP，配合 `cookie_secure: false`。生产移除此开关并使用 HTTPS/Secure；配置错误在启动时拒绝。密码入口策略不变；`registration_disabled: true` 仍会阻止 OAuth 新用户创建，不能用于“仅 Logto”。
+
+CORS 由统一中间件应答：精确允许 Origin 的正常、错误与 OPTIONS 响应均带 Allow-Origin、Allow-Credentials 与 Vary，预检包含 Connect/CSRF/区域头及 X-Kongken-User；不允许 `*` 或任意回显。读取授权不会免除写入的 Origin/CSRF 验证。CSRF token 从 IssueCSRFToken 响应体取得，并在凭据请求中放入 X-CSRF-Token（不要求前端读取 BFF Cookie）。退出只撤销当前 BFF 会话，不调用 Logto 全局退出；其他设备会话按原规则保留。共享这个 BFF Cookie 的应用会在下一次请求观察到退出。
+
+受控真实栈验证：
+
+```bash
+# make deps-up 后，以下环境只指向独立本地开发依赖
+TRIPMAP_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
+TRIPMAP_TEST_REDIS_ADDR=127.0.0.1:16379 TRIPMAP_TEST_REDIS_PASSWORD=tripmap-local \
+E2E_OAUTH_BROWSER=1 go test -v ./internal/e2e -run TestOAuthHTTPSCrossOriginBrowser -count=1
+```
+
+需要 Node 和 Playwright Chromium（`npx playwright install chromium`）。测试创建独立 PostgreSQL schema、Redis 前缀和临时 HTTPS 监听器；Chromium 映射 `.example.test` 到 loopback，两个不同 app 子域名经同一 BFF 与固定 callback，真实跳转并校验 S256 verifier、Cookie/Me、凭据化预检、成功/错误响应、错误 CSRF、退出、未允许 Origin 和无浏览器 token。它不替代真实 Logto 验收：后者需已登记的 HTTPS callback、有效客户端凭据、受信代理/证书、两个同站点应用与允许 Origin，逐个完成登录、Me、写操作、退出与并发流程。
+
+共享 Cookie 换账号保护：页面为已确定身份的请求携带 `X-Kongken-User`，足迹引擎把该值绑定到自身账号。BFF 在同一请求内解析 Cookie 后比较预期 ID，不相符即 unauthenticated，旧缓存不会写入新账号。该头只能收窄会话身份，不能代替认证或选择其他账号；Me 恢复时不发送它。未升级客户端不发送该头仍按原会话认证，但不能获得这一并发账号切换保护，运营方应同步升级各共享 Cookie 的应用。
