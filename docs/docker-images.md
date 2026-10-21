@@ -6,7 +6,7 @@
 
 | 镜像 | Dockerfile | 运行内容 |
 | --- | --- | --- |
-| `ghcr.io/kongken/mono-tripmap` | `deploy/tripmap/Dockerfile` | tripmap 业务服务，18081（HTTP）与 18083（内部 gRPC over TLS）端口，运行时挂载配置、证书与 BFF 公钥，只在内网暴露 |
+| `ghcr.io/kongken/mono-tripmap` | `deploy/tripmap/Dockerfile` | tripmap 业务服务，18081（HTTP）与 18083（内部 gRPC，默认 TLS，可显式配置 h2c）端口，运行时挂载配置、证书与 BFF 公钥，只在内网暴露 |
 | `ghcr.io/kongken/mono-bff` | `deploy/bff/Dockerfile` | BFF 公网入口，18081 端口，运行时挂载配置、CA 与签名私钥（见 [BFF](bff.md)） |
 | `ghcr.io/kongken/mono-trip-map-web` | `deploy/trip-map-web/Dockerfile` | Nginx 提供 Vite 静态文件，80 端口，同源转发后端请求 |
 

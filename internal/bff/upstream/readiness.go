@@ -7,8 +7,8 @@ import (
 	"github.com/kongken/mono/internal/platform/health"
 )
 
-// GRPCProbes returns readiness checks that dial each configured service over TLS
-// gRPC with the same credentials used for business calls.
+// GRPCProbes returns readiness checks that call each configured service over its
+// own transport (tls or h2c) with the same signed credentials as business calls.
 func GRPCProbes(clients *Clients, serviceNames []string) []health.Probe {
 	if clients == nil {
 		return nil

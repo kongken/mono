@@ -75,7 +75,20 @@
 
 BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法调用业务服务，两层契约独立演进：`bff.v1`（账号）与 `bff.tripmap.v1`（山海足迹业务）给浏览器，`tripmap.v1` 只给 BFF。
 
-**传输**：业务服务用 `internal/platform/grpcx` 自管 TLS 监听（TLS 1.3，默认单消息上限 20 MiB，覆盖现有 16 MiB 合法请求并留出序列化开销；两端都显式设置，不依赖 grpc-go 的 4 MiB 默认值）、拦截器和优雅关闭（先排空进行中的调用，10 秒后强制停止）。BFF 以 `grpc.ca_file` 校验服务证书，没有明文或跳过校验的回退。业务服务的 HTTP 端口只保留 `/ping`、`/readyz` 以及尚未迁移的路由。
+**传输**：业务服务用 `internal/platform/grpcx` 自管原生 gRPC 监听，默认 TLS（TLS 1.3），默认单消息上限 20 MiB（覆盖现有 16 MiB 合法请求并留出序列化开销；两端都显式设置，不依赖 grpc-go 的 4 MiB 默认值）、拦截器和优雅关闭（先排空进行中的调用，10 秒后强制停止）。业务服务的 HTTP 端口只保留 `/ping`、`/readyz` 以及尚未迁移的路由。
+
+传输由配置显式选择，业务服务用 `grpc.transport`，BFF 对每个上游用 `grpc.services.<名称>.transport`，取值 `tls`（默认）或 `h2c`，其他值（含大小写不同）启动即失败；**不会**因证书缺失或握手失败而推测或降级：
+
+| 模式 | 服务端 | BFF 上游 |
+| --- | --- | --- |
+| `tls`（默认） | 必须有 `cert_file`、`key_file` | 以 `grpc.ca_file` 校验服务证书与 `server_name`（默认取地址主机）；证书、CA 或名称不符则调用失败，没有明文或跳过校验的回退 |
+| `h2c` | 不加载证书；仍配置 `cert_file`/`key_file` 视为冲突并拒绝启动 | 不读取 CA，不接受 `server_name`；配置了 `ca_file` 也不会加载 |
+
+- 两端模式必须一致：TLS 客户端连 h2c 监听、h2c 客户端连 TLS 监听都会失败（浏览器看到 `UNAVAILABLE`），不会换另一种传输重试。
+- 同一 BFF 可混用：每个上游独立选择；`grpc.ca_file` 仅在至少一个上游使用 `tls` 时必填并加载，全 `h2c` 时可省略。
+- h2c 是 gRPC 的 HTTP/2 prior knowledge（明文 TCP，无 HTTP/1.1 Upgrade），仍是同一个原生 gRPC 监听，不经过 Gin 的 HTTP 端口，也不是 gRPC-Web 或浏览器直连。消息上限、拦截器、期限与取消、不自动重试、优雅关闭在两种模式下相同。
+- **风险**：h2c 没有 TLS 的服务端身份验证、传输加密和完整性保护。同网络的被动监听可读取 RPC 内容，主动攻击者可以篡改，短期凭证在 60 秒窗口内可被重放（`jti` 不防重放）；Ed25519 凭证只证明调用来自持有 BFF 私钥者，不能替代这些能力，**不得**宣称与 TLS 等价。只在经显式批准的可信内部网络使用（网络隔离，或由其他层如服务网格 / 隧道提供加密，由部署方评估），业务 gRPC 端口不得经公网 Ingress、NodePort 或 LoadBalancer 暴露。项目不会自动修改集群网络策略，也不会自动把任何部署切到 h2c。
+- 启动日志记录所选传输（h2c 监听另有警告）；日志与错误不含凭证、用户数据或密钥。
 
 **凭证**（`internal/platform/servicetoken`）：紧凑 JWS，`alg=EdDSA`，header 带 `kid`。
 
@@ -91,7 +104,7 @@ BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法�
 - **校验**：服务端检查签名、`kid`、`iss`、`aud`、`mth`、时间窗口和必需字段；允许的时钟偏差默认 10 秒（`internal_auth.clock_skew` 可调，0–1 分钟）。所有失败返回同一个 `UNAUTHENTICATED`，不说明失败原因。
 - **匿名与受保护**：匿名方法同样要求有效 BFF 凭证；不含 `sub` 的凭证打不开受保护方法。业务只能从拦截器放入 context 的类型化信息（`rpcauth.CallFrom` / `UserIDFrom`）取得用户 ID，不读取裸 metadata。
 - **metadata 白名单**：BFF 每次调用都重建出站 metadata，写入 `authorization`、`x-request-id`、`traceparent`、`x-bff-client-ip`，以及浏览器声明的 `x-tripmap-schema`、`x-tripmap-regions`（足迹读/sync 需要）；服务端只读取白名单项。
-- **私钥与公钥**：私钥（PKCS#8 PEM）只在 BFF；服务只持受信公钥（PKIX PEM）。不依赖网络位置认证，不使用 mTLS。
+- **私钥与公钥**：私钥（PKCS#8 PEM）只在 BFF；服务只持受信公钥（PKIX PEM）。不依赖网络位置认证，不使用 mTLS（TLS 为单向，只由客户端校验服务端证书）。两种传输下都要求 BFF 凭证；h2c 只去掉传输层 TLS 材料，不去掉签名密钥。
 - **密钥轮换**：在服务的 `internal_auth.trusted_keys` 加入新公钥（`kid` 不同，新旧并存）→ 把 BFF 的 `internal_auth.kid` 与 `private_key_file` 切到新密钥 → 等旧凭证的有效窗口与允许偏差过去（约 70 秒）后撤下旧公钥。仍用已撤销密钥签名的 BFF 会被拒绝，浏览器看到 `INTERNAL`。
 - **日志**：凭证、Cookie、CSRF 令牌等不进入日志；上游错误只记录服务名和 gRPC 码。
 
@@ -112,7 +125,7 @@ BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法�
 | 路径 | 行为 |
 | --- | --- |
 | `GET /ping` | BFF 存活，返回 `{"message":"pong"}` |
-| `GET /readyz` | upstream HTTP `/readyz`、`bff_postgres`、`bff_redis`、各 `{name}_grpc`（TLS + 签名 `GetStatus`）；2 秒超时，全部就绪 200，否则 503 |
+| `GET /readyz` | upstream HTTP `/readyz`、`bff_postgres`、`bff_redis`、各 `{name}_grpc`（按该上游所选传输 tls / h2c，签名 `GetStatus`）；2 秒超时，全部就绪 200，否则 503 |
 
 BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
@@ -122,7 +135,31 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 - `db_store` / `redis_store` / `key_prefix` / `auto_migrate`：BFF 认证库与 Redis 限流（见 example 内 `store` 段）。
 - `auth.session_ttl`、`auth.cookie_secure`、`auth.registration_disabled`、`auth.csrf_token_ttl`。
-- `upstreams.<服务>`、`grpc.*`、`internal_auth.*`、`client_ip_header`、`cors_allowed_origins`：同前。
+- `upstreams.<服务>`、`grpc.*`、`internal_auth.*`、`client_ip_header`、`cors_allowed_origins`：同前。`grpc.services.<名称>.transport` 为 `tls`（默认）或 `h2c`，见 [内部 gRPC 与凭证](#内部-grpc-与凭证)。
+
+配置示例（`grpc.ca_file` 仅 TLS 上游需要；`internal_auth` 在所有模式下必填）：
+
+```yaml
+# TLS（默认，不写 transport 与此相同）
+grpc:
+  ca_file: /secrets/ca.pem
+  services:
+    tripmap: {address: tripmap:18083, server_name: tripmap.internal}
+---
+# 全部 h2c：不需要 CA 文件
+grpc:
+  services:
+    tripmap: {address: tripmap:18083, transport: h2c}
+---
+# 混合：每个上游独立；TLS 上游仍以 ca_file 校验
+grpc:
+  ca_file: /secrets/ca.pem
+  services:
+    tripmap: {address: tripmap:18083, transport: h2c}
+    other: {address: other:18083, server_name: other.internal}
+```
+
+从 TLS 手动切到 h2c：先在业务服务配置 `grpc.transport: h2c` 并去掉 `cert_file`/`key_file`，同时在 BFF 对应上游加 `transport: h2c` 并去掉 `server_name`，两端一起滚动（模式不一致期间该上游返回 `UNAVAILABLE`，不会回退）。升级应用本身不改变任何现有部署的传输。
 
 ## 本地开发与部署
 
@@ -146,7 +183,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 ## 验证
 
 - `internal/bff/auth`：注册/登录/会话/CSRF（需 `TRIPMAP_TEST_*`）。
-- `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与 TLS gRPC 信任。
+- `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与内部 gRPC（TLS 与 h2c）信任。
 - **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、`ListSessions`/`RevokeSession`（跨设备撤销与 CSRF）、A/B 足迹隔离、`SyncChanges` 幂等与 revision 冲突、行程增删改读、提醒设置、公开退订 HTTP、**#43** 注销重试/S3 故障/完成回执/跨用户隔离、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。浏览器注销 UI 仍用 Playwright 模拟 RPC（`apps/trip-map/tests/account-deletion.spec.ts`），真实 Cookie 链路以 e2e 为准。
 - **Playwright 真实栈**（默认跳过）：`apps/trip-map/tests/bff-cookie-real.spec.ts`；先 `make dev`（或等价 BFF+tripmap），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @kongken/trip-map -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
 - 其余 UI：Playwright 模拟后端覆盖登录骨架与业务场景。

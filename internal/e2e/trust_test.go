@@ -51,9 +51,13 @@ func (p *protectedProbe) calls() []rpcauth.Call {
 	return append([]rpcauth.Call(nil), p.seen...)
 }
 
-// direct dials tripmap's TLS gRPC port without the BFF.
+// direct dials tripmap's gRPC port without the BFF, with the transport tripmap
+// serves: TLS verified against caFile and serverName, or plain h2c.
 func (s *stack) direct(caFile, serverName string) *grpc.ClientConn {
 	s.t.Helper()
+	if s.transport == "h2c" {
+		return s.plain()
+	}
 	pem, err := os.ReadFile(caFile)
 	if err != nil {
 		s.t.Fatal(err)
@@ -61,6 +65,17 @@ func (s *stack) direct(caFile, serverName string) *grpc.ClientConn {
 	pool := x509.NewCertPool()
 	pool.AppendCertsFromPEM(pem)
 	conn, err := grpc.NewClient(s.tripmap.GRPCAddr(), grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{RootCAs: pool, ServerName: serverName, MinVersion: tls.VersionTLS13})))
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	s.t.Cleanup(func() { _ = conn.Close() })
+	return conn
+}
+
+// plain dials tripmap's gRPC port in cleartext without the BFF.
+func (s *stack) plain() *grpc.ClientConn {
+	s.t.Helper()
+	conn, err := grpc.NewClient(s.tripmap.GRPCAddr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		s.t.Fatal(err)
 	}
@@ -98,8 +113,12 @@ func withProbe(p *protectedProbe) func(*options, *stack) {
 }
 
 func TestTripmapRejectsEveryCallWithoutAValidBFFCredential(t *testing.T) {
+	eachTransport(t, testTripmapRejectsEveryCallWithoutAValidBFFCredential)
+}
+
+func testTripmapRejectsEveryCallWithoutAValidBFFCredential(t *testing.T, transport string) {
 	probe := &protectedProbe{}
-	s := newStack(t, withProbe(probe))
+	s := newStack(t, withProbe(probe), withTransport(transport))
 	conn := s.direct(s.ca.CAFile, "tripmap.internal")
 	now := time.Now()
 	signer := func(mutate func(*servicetoken.Signer)) *servicetoken.Signer {
@@ -152,8 +171,12 @@ func TestTripmapRejectsEveryCallWithoutAValidBFFCredential(t *testing.T) {
 }
 
 func TestForgedMetadataChangesNothing(t *testing.T) {
+	eachTransport(t, testForgedMetadataChangesNothing)
+}
+
+func testForgedMetadataChangesNothing(t *testing.T, transport string) {
 	probe := &protectedProbe{}
-	s := newStack(t, withProbe(probe))
+	s := newStack(t, withProbe(probe), withTransport(transport))
 	conn := s.direct(s.ca.CAFile, "tripmap.internal")
 	sg := &servicetoken.Signer{Issuer: issuer, KID: "k1", Key: s.keys.Private}
 	token := func(method, sub string) string {

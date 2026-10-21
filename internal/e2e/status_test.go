@@ -11,7 +11,11 @@ import (
 )
 
 func TestAnonymousBrowserReadsRealTripmapStatus(t *testing.T) {
-	s := newStack(t)
+	eachTransport(t, testAnonymousBrowserReadsRealTripmapStatus)
+}
+
+func testAnonymousBrowserReadsRealTripmapStatus(t *testing.T, transport string) {
+	s := newStack(t, withTransport(transport))
 	res, err := s.status.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +34,11 @@ func TestAnonymousBrowserReadsRealTripmapStatus(t *testing.T) {
 }
 
 func TestDependencyFailuresAreReportedThroughTheChain(t *testing.T) {
-	s := newStack(t)
+	eachTransport(t, testDependencyFailuresAreReportedThroughTheChain)
+}
+
+func testDependencyFailuresAreReportedThroughTheChain(t *testing.T, transport string) {
+	s := newStack(t, withTransport(transport))
 	s.failing["redis"].Store(true)
 	res, err := s.status.GetStatus(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
 	if err != nil {
