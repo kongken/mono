@@ -56,3 +56,36 @@ func TestValidateInternal(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateInternalTransports(t *testing.T) {
+	cfg := func(ca string, services map[string]GRPCService) Config {
+		return Config{
+			InternalAuth: InternalAuth{Issuer: "bff", KID: "k1", PrivateKeyFile: "bff.key"},
+			GRPC:         GRPCConfig{CAFile: ca, Services: services},
+		}
+	}
+	two := []string{"tripmap", "billing"}
+	for name, c := range map[string]Config{
+		"explicit tls":         cfg("ca.pem", map[string]GRPCService{"tripmap": {Address: "a:1", Transport: "tls"}, "billing": {Address: "b:1"}}),
+		"all h2c needs no CA":  cfg("", map[string]GRPCService{"tripmap": {Address: "a:1", Transport: "h2c"}, "billing": {Address: "b:1", Transport: "h2c"}}),
+		"all h2c ignores a CA": cfg("ca.pem", map[string]GRPCService{"tripmap": {Address: "a:1", Transport: "h2c"}, "billing": {Address: "b:1", Transport: "h2c"}}),
+		"mixed with a CA":      cfg("ca.pem", map[string]GRPCService{"tripmap": {Address: "a:1", Transport: "h2c"}, "billing": {Address: "b:1", ServerName: "billing.internal"}}),
+	} {
+		if err := c.ValidateInternal(two); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	for name, c := range map[string]Config{
+		"unknown transport":       cfg("ca.pem", map[string]GRPCService{"tripmap": {Address: "a:1", Transport: "insecure"}, "billing": {Address: "b:1"}}),
+		"transport is exact":      cfg("ca.pem", map[string]GRPCService{"tripmap": {Address: "a:1", Transport: "H2C"}, "billing": {Address: "b:1"}}),
+		"mixed needs the CA":      cfg("", map[string]GRPCService{"tripmap": {Address: "a:1", Transport: "h2c"}, "billing": {Address: "b:1"}}),
+		"unset transport is tls":  cfg("", map[string]GRPCService{"tripmap": {Address: "a:1"}, "billing": {Address: "b:1", Transport: "h2c"}}),
+		"h2c with a server name":  cfg("ca.pem", map[string]GRPCService{"tripmap": {Address: "a:1", Transport: "h2c", ServerName: "x"}, "billing": {Address: "b:1"}}),
+		"h2c without an address":  cfg("", map[string]GRPCService{"tripmap": {Transport: "h2c"}, "billing": {Address: "b:1", Transport: "h2c"}}),
+		"h2c typo in service key": cfg("", map[string]GRPCService{"tripmap": {Address: "a:1", Transport: "h2c"}, "billing": {Address: "b:1", Transport: "h2c"}, "tirpmap": {Address: "c:1", Transport: "h2c"}}),
+	} {
+		if c.ValidateInternal(two) == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}

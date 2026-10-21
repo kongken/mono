@@ -13,8 +13,12 @@ storage:
   s3_store: main
   key_prefix: tripmap
 
-# Business RPCs on gRPC/TLS only; HTTP is /ping and /readyz (internal). Do not expose 18082/18083 publicly.
+# Business RPCs on internal gRPC only (TLS by default); HTTP is /ping and /readyz (internal).
+# Do not expose 18082/18083 publicly.
 grpc:
+  # transport: tls   # default. Set "h2c" (and remove cert_file/key_file) only for an explicitly
+  #                  # approved trusted internal network: it has no encryption or server
+  #                  # authentication. internal_auth below is required in both modes.
   listen: 127.0.0.1:18083
   cert_file: dev-secrets/tripmap.pem
   key_file: dev-secrets/tripmap.key

@@ -14,10 +14,15 @@ upstreams:
   tripmap: http://127.0.0.1:18082
 
 grpc:
+  # ca_file verifies the certificate of every tls service (the default transport).
+  # It is not read when every service uses transport: h2c.
   ca_file: dev-secrets/ca.pem
   services:
     tripmap:
       address: 127.0.0.1:18083
+      # transport: tls   # default. "h2c" is unencrypted HTTP/2 for an explicitly approved,
+      #                  # trusted internal network only; it must match tripmap's grpc.transport,
+      #                  # and server_name must be omitted. The signed credential is still required.
 
 internal_auth:
   issuer: tripmap-bff
