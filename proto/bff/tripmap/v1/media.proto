@@ -63,6 +63,8 @@ message ReadMediaResponse {
   bytes data = 1;
   string content_type = 2;
   string filename = 3;
+  // Public CDN URL when configured; data is empty. Otherwise data contains the file.
+  string url = 4;
 }
 
 message DeleteMediaRequest { string id = 1; }

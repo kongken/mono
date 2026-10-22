@@ -288,3 +288,30 @@ func TestMapboxTilesConfigReadsYAML(t *testing.T) {
 		t.Fatalf("parsed %+v", cfg.MapboxTiles)
 	}
 }
+
+func TestCDNConfig(t *testing.T) {
+	for _, domain := range []string{"", "https://cdn.example.com", "https://cdn.example.com/", "http://localhost:19000"} {
+		cfg := valid()
+		cfg.Storage.CDNDomain = domain
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("%q: %v", domain, err)
+		}
+	}
+	for _, domain := range []string{"cdn.example.com", "https://:443", "//cdn.example.com", "ftp://cdn.example.com", "https://u:p@cdn.example.com", "https://cdn.example.com/files", "https://cdn.example.com/?x=1", "https://cdn.example.com/#x"} {
+		cfg := valid()
+		cfg.Storage.CDNDomain = domain
+		if cfg.Validate() == nil {
+			t.Errorf("accepted %q", domain)
+		}
+	}
+	for _, tc := range []struct{ domain, prefix, want string }{
+		{"", "tripmap", ""},
+		{"https://cdn.example.com/", "/tripmap/", "https://cdn.example.com/tripmap/media/files/a%20b%23%E6%97%85%E8%A1%8C"},
+		{"https://cdn.example.com", "", "https://cdn.example.com/media/files/a%20b%23%E6%97%85%E8%A1%8C"},
+	} {
+		cfg := StorageConfig{CDNDomain: tc.domain, KeyPrefix: tc.prefix}
+		if got := cfg.MediaURL("media/files/a b#旅行"); got != tc.want {
+			t.Errorf("URL = %q, want %q", got, tc.want)
+		}
+	}
+}

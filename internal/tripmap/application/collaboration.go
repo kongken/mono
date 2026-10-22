@@ -416,7 +416,7 @@ func (s *CollaborationService) SendFriendRequest(ctx context.Context, req *conne
 	}
 	lower := strings.ToLower(target)
 	targetUser, err := st.DB.User.Query().Where(
-		
+
 		user.Or(
 			user.FriendCodeEQ(lower),
 			user.UsernameEqualFold(target),
@@ -1611,6 +1611,12 @@ func (s *CollaborationService) ReadSharedTripMedia(ctx context.Context, req *con
 		}
 		key, mime = mRow.ThumbnailKey, "image/jpeg"
 	}
+	if url := st.Storage.MediaURL(key); url != "" {
+		res := connect.NewResponse(&tripmapv1.ReadSharedTripMediaResponse{Url: url, ContentType: mime, Filename: mRow.Filename})
+		res.Header().Set("Cache-Control", "no-store")
+		return res, nil
+	}
+
 	r, err := st.Blobs.Get(ctx, key)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("media unavailable"))
@@ -1742,4 +1748,3 @@ func handleSharedCityDelete(ctx context.Context, tx *ent.Tx, uid, regionCode str
 	}
 	return nil
 }
-

@@ -103,6 +103,26 @@ func (s ShareConfig) validate() error {
 type StorageConfig struct {
 	S3Store   string `yaml:"s3_store"`
 	KeyPrefix string `yaml:"key_prefix"`
+	// CDNDomain opts into public media URLs; empty keeps authenticated byte reads.
+	CDNDomain string `yaml:"cdn_domain"`
+}
+
+// MediaURL returns the public object URL, or empty when CDN reads are disabled.
+// The CDN origin must expose bucket-relative keys, including KeyPrefix.
+func (s StorageConfig) MediaURL(key string) string {
+	if s.CDNDomain == "" {
+		return ""
+	}
+	u, err := url.Parse(s.CDNDomain)
+	if err != nil {
+		return "" // Invalid configuration is rejected at startup.
+	}
+	u.Path = "/" + strings.Trim(s.KeyPrefix, "/")
+	if u.Path != "/" {
+		u.Path += "/"
+	}
+	u.Path += key
+	return u.String()
 }
 
 // AuthConfig holds tripmap settings for client address resolution on public HTTP
@@ -120,6 +140,15 @@ func (c *AppConfig) Print() {}
 func (c *AppConfig) Validate() error {
 	if c.DBStore == "" || c.RedisStore == "" || c.Storage.S3Store == "" {
 		return fmt.Errorf("db_store, redis_store and storage.s3_store are required")
+	}
+	if c.Storage.CDNDomain != "" {
+		if err := shareURL("storage.cdn_domain", c.Storage.CDNDomain, false); err != nil {
+			return err
+		}
+		u, _ := url.Parse(c.Storage.CDNDomain)
+		if u.Hostname() == "" {
+			return fmt.Errorf("storage.cdn_domain must include a hostname")
+		}
 	}
 	if err := c.GRPC.Validate(); err != nil {
 		return err

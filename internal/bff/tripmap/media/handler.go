@@ -61,9 +61,11 @@ func (h *Handler) ReadMedia(ctx context.Context, req *connect.Request[bfftripmap
 	if err != nil {
 		return nil, upstream.ToConnect("tripmap", err)
 	}
-	return connect.NewResponse(&bfftripmapv1.ReadMediaResponse{
-		Data: out.GetData(), ContentType: out.GetContentType(), Filename: out.GetFilename(),
-	}), nil
+	res := connect.NewResponse(&bfftripmapv1.ReadMediaResponse{
+		Data: out.GetData(), ContentType: out.GetContentType(), Filename: out.GetFilename(), Url: out.GetUrl(),
+	})
+	res.Header().Set("Cache-Control", "no-store")
+	return res, nil
 }
 
 func (h *Handler) DeleteMedia(ctx context.Context, req *connect.Request[bfftripmapv1.DeleteMediaRequest]) (*connect.Response[bfftripmapv1.DeleteMediaResponse], error) {

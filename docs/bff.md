@@ -72,6 +72,8 @@
 - **错误**：业务服务的错误消息不原样返回；`NOT_FOUND`、`PERMISSION_DENIED`、`INVALID_ARGUMENT`、`RESOURCE_EXHAUSTED` 等用户可见域错误按同名 Connect 码返回；`UNAVAILABLE`、`DEADLINE_EXCEEDED`、`CANCELED` 同理。BFF 凭证被拒（tripmap 返回的 `UNAUTHENTICATED`）与 `INTERNAL` 等服务端故障统一为 `INTERNAL: internal error`。tripmap 不可达时返回 `UNAVAILABLE`。
 - **跨域**：与 `/api/` 其他路径一样由 BFF 按 `cors_allowed_origins` 应答。
 
+媒体 `ReadMedia`、`ReadSharedTripMedia` 响应支持可选 `url` 字段：tripmap 配置 `storage.cdn_domain` 后，BFF 透传公开 CDN URL（`data` 为空），前端无凭据请求 CDN；默认仍透传文件 bytes。鉴权继续在 BFF 和业务服务执行。CDN 配置仅在 tripmap，BFF 不增加路由或配置；部署和公开链接限制见 [后端初始化](backend.md)。
+
 ## 内部 gRPC 与凭证
 
 BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法调用业务服务，两层契约独立演进：`bff.v1`（账号）与 `bff.tripmap.v1`（山海足迹业务）给浏览器，`tripmap.v1` 只给 BFF。
