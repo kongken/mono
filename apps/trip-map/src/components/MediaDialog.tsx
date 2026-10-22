@@ -250,7 +250,7 @@ export default function MediaDialog({
         <DialogHeader>
           <DialogTitle>照片与附件</DialogTitle>
           <DialogDescription>
-            云账号私有保存。取消城市打卡、恢复历史版本都保留媒体；删除媒体无法撤销。
+            云账号保存。取消城市打卡、恢复历史版本都保留媒体；删除媒体无法撤销。
           </DialogDescription>
         </DialogHeader>
         <label className="field-label">

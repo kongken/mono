@@ -3,7 +3,7 @@ package tripmap.v1;
 import "google/protobuf/timestamp.proto";
 option go_package = "github.com/kongken/mono/pkg/proto/tripmap/v1;tripmapv1";
 
-// Private city media. Originals never have public download URLs.
+// City media. Reads require authorization; optional CDN URLs are public.
 service MediaService {
   rpc PrepareUpload(PrepareUploadRequest) returns (PrepareUploadResponse);
   rpc CompleteUpload(CompleteUploadRequest) returns (CompleteUploadResponse);
@@ -58,6 +58,8 @@ message ReadMediaResponse {
   bytes data = 1;
   string content_type = 2;
   string filename = 3;
+  // Public CDN URL when configured; data is empty. Otherwise data contains the file.
+  string url = 4;
 }
 message DeleteMediaRequest { string id = 1; }
 message DeleteMediaResponse {}

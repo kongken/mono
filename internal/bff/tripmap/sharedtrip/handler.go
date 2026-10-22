@@ -110,7 +110,9 @@ func (h *Handler) ReadSharedTripMedia(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, upstream.ToConnect("tripmap", err)
 	}
-	return connect.NewResponse(&bfftripmapv1.ReadSharedTripMediaResponse{
-		Data: out.GetData(), ContentType: out.GetContentType(), Filename: out.GetFilename(),
-	}), nil
+	res := connect.NewResponse(&bfftripmapv1.ReadSharedTripMediaResponse{
+		Data: out.GetData(), ContentType: out.GetContentType(), Filename: out.GetFilename(), Url: out.GetUrl(),
+	})
+	res.Header().Set("Cache-Control", "no-store")
+	return res, nil
 }

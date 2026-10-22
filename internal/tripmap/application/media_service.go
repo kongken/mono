@@ -304,6 +304,12 @@ func (s *MediaService) ReadMedia(ctx context.Context, req *connect.Request[tripm
 		}
 		key, mime = m.ThumbnailKey, "image/jpeg"
 	}
+	if url := st.Storage.MediaURL(key); url != "" {
+		res := connect.NewResponse(&tripmapv1.ReadMediaResponse{Url: url, ContentType: mime, Filename: m.Filename})
+		res.Header().Set("Cache-Control", "no-store")
+		return res, nil
+	}
+
 	r, err := st.Blobs.Get(ctx, key)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("media unavailable"))
@@ -360,4 +366,3 @@ func DeleteMediaKeys(ctx context.Context, st *Store, m *ent.MediaObject) error {
 	}
 	return nil
 }
-

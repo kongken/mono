@@ -4,16 +4,18 @@ import (
 	"errors"
 
 	"connectrpc.com/connect"
-	"github.com/redis/go-redis/v9"
 	"github.com/kongken/mono/internal/tripmap/blobstore"
+	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent"
+	"github.com/redis/go-redis/v9"
 )
 
 // Store is the set of backing services business RPCs need.
 type Store struct {
-	DB    *ent.Client
-	Redis redis.Cmdable
-	Blobs blobstore.Store
+	DB      *ent.Client
+	Redis   redis.Cmdable
+	Blobs   blobstore.Store
+	Storage config.StorageConfig
 	// KeyPrefix namespaces Redis keys; empty means the default "tripmap:".
 	KeyPrefix string
 }

@@ -54,7 +54,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `PrepareUpload` | 接收区域、可选 `trip_id`、文件名、MIME、大小和 UUID `upload_id`；`trip_id` 非空时该旅行必须属于同一用户和该区域（版本 1 账号只接受 `legacy-<区域 ID>`），否则 `invalid_argument`；原子预留数量，返回媒体 ID、10 分钟上传 URL 与必须携带的头。相同 ID/内容重放返回原预留；内容不同返回 `already_exists`。已完成项不再签发上传 URL，过期预留需删除后重新创建 |
 | `CompleteUpload` | 读取临时对象，限量读取并校验实际大小/图片格式、尺寸、解码或 PDF 头尾，生成处理后文件与缩略图，再标记 `ready`；响应丢失可重复确认，失败仍可重试，超过 24 小时拒绝确认 |
 | `ListMedia` | 返回当前用户媒体元数据，可按区域和 `trip_id` 筛选，元数据含 `trip_id`；包括 `pending`，隐藏 `deleting`，不泄露对象 key |
-| `ReadMedia` | 只读取本人 `ready` 文件/缩略图，以 RPC bytes 返回，`Cache-Control: no-store`；他人、不存在或已删除项不提供内容，PDF 不提供缩略图 |
+| `ReadMedia` | 只读取本人 `ready` 文件/缩略图，默认以 RPC bytes 返回；配置 `storage.cdn_domain` 时返回公开 `url`（`data` 为空），`Cache-Control: no-store`；他人、不存在或已删除项不提供内容，PDF 不提供缩略图 |
 | `DeleteMedia` | 先关闭访问再清理三个对象 key，重复删除幂等；S3 失败返回 `unavailable`，保留清理任务供重试与维护任务处理 |
 
 默认 JPEG/PNG/WebP/PDF，10 MiB，20 个/城市（含待确认），签发 60 次/用户/小时；图片最多 24 MP、最长边 8000 px，缩略图最长边 480 px。照片重新编码 JPEG 不复制 EXIF/GPS；PDF 只校验头尾、供下载，不做内容解析或杀毒。上传/确认通过用户行锁串行，与账号注销互斥；服务端并发图像处理最多两个，并在像素解码前检查尺寸。确认最多 30 秒。`trip_id` 是软引用（无外键）：删除旅行、取消城市、快照恢复都不改写或删除媒体；媒体接口不受 F5 请求头门控，旧客户端仍可上传和读取。尚未支持 HEIC、媒体离线队列和分享。
@@ -64,6 +64,12 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 ### 直传部署配置
 
 先升级后端 schema（新增媒体字段和 `media_cleanups`），再部署前端。S3 endpoint 必须同时被后端和浏览器访问，正式站点使用 HTTPS；不可把容器内网地址签发给公网浏览器。Bucket 应为本项目私有、非版本化存储，不配置公共读取策略。
+
+可选 `storage.cdn_domain: https://cdn.example.com` 为媒体启用**公开 CDN 读取**，留空保持原有私有读取。填写带协议的 HTTP(S) origin（正式站点使用 HTTPS），不含路径、凭据、查询串或片段。个人 `ReadMedia` 和共同旅行 `ReadSharedTripMedia` 仍先校验权限和 `ready` 状态，再返回 `url`、MIME 和文件名；`data` 为空。前端无 Cookie、Authorization 或 Referer 地请求 CDN，失败显示下载错误，不回退读取源站。未配置时仍返回原 RPC bytes。
+
+URL 规则为 `<cdn_domain>/<storage.key_prefix>/<对象 key>`，前缀为空则省略，不自动添加 bucket 名。例如 `key_prefix: tripmap` 对应 `https://cdn.example.com/tripmap/media/files/<媒体ID>`，缩略图为 `tripmap/media/thumbnails/<媒体ID>`。CDN 需将此路径映射到 S3 bucket 内相同 key，可用私有源站授权，无需把整个 bucket 设为公开；仅开放处理后的 `media/files/` 和 `media/thumbnails/` 前缀，禁止公开 `media/staging/`。CDN 还需允许前端 origin 跨域 GET（CORS）；若部署配置了 CSP，需在 `connect-src` 允许 CDN origin。上传签名、确认、维护与删除仍使用 `store.s3` 客户端和原 endpoint。
+
+**启用后的隐私和缓存限制：** 持有 CDN URL 者无需登录即可读取，没有 URL 签名或到期时间；退出共同旅行、解除好友或关闭本配置，只阻止 API 再次提供 URL，不使已知链接失效。删除会清理 S3 对象，但已缓存内容需通过 CDN TTL 或运维刷新失效；服务不自动刷新 CDN。公开分享页继续使用原有令牌路由，不改写为 CDN 地址。应先部署支持 `url` 字段的新前端和 BFF，再启用本配置；旧客户端只读取 `data`，无法显示 CDN 模式的文件。不涉及数据库或对象 key 迁移。
 
 浏览器直传需要 S3 CORS（和 API 的 `auth.cors_allowed_origins` 分开配置）。`storage-init` 提供显式选项，保留其他规则，仅替换 ID 为 `tripmap-media-upload` / `tripmap-media-staging` 的规则；不会在服务启动时更改 bucket：
 

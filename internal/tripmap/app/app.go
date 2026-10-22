@@ -17,7 +17,6 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/stdlib"
-	redisclient "github.com/redis/go-redis/v9"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
 	"github.com/kongken/mono/internal/tripmap/application"
@@ -26,6 +25,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/regions"
 	"github.com/kongken/mono/internal/tripmap/tiles"
+	redisclient "github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 )
 
@@ -39,11 +39,11 @@ type Resources struct {
 	stop      context.CancelFunc
 }
 type Handlers struct {
-	cfg       *config.AppConfig
-	resources atomic.Pointer[Resources]
-	grpc      atomic.Pointer[grpcx.Server]
-	notifier  *application.Notifier
-	tiles     *tiles.Handler
+	cfg            *config.AppConfig
+	resources      atomic.Pointer[Resources]
+	grpc           atomic.Pointer[grpcx.Server]
+	notifier       *application.Notifier
+	tiles          *tiles.Handler
 	grpcUnaryExtra []grpc.UnaryServerInterceptor
 }
 
@@ -239,7 +239,7 @@ func (h *Handlers) Store() *application.Store {
 	if r == nil || r.DB == nil || r.Redis == nil {
 		return nil
 	}
-	return &application.Store{DB: r.DB, Redis: r.Redis, Blobs: r.Blobs, KeyPrefix: r.KeyPrefix}
+	return &application.Store{DB: r.DB, Redis: r.Redis, Blobs: r.Blobs, KeyPrefix: r.KeyPrefix, Storage: h.cfg.Storage}
 }
 func (h *Handlers) Routes(r *gin.Engine) {
 	_ = r.SetTrustedProxies(nil)

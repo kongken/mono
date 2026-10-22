@@ -30,7 +30,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// Private city media. Originals never have public download URLs.
+// City media. Reads require authorization; optional CDN URLs are public.
 type MediaServiceClient interface {
 	PrepareUpload(ctx context.Context, in *PrepareUploadRequest, opts ...grpc.CallOption) (*PrepareUploadResponse, error)
 	CompleteUpload(ctx context.Context, in *CompleteUploadRequest, opts ...grpc.CallOption) (*CompleteUploadResponse, error)
@@ -101,7 +101,7 @@ func (c *mediaServiceClient) DeleteMedia(ctx context.Context, in *DeleteMediaReq
 // All implementations must embed UnimplementedMediaServiceServer
 // for forward compatibility.
 //
-// Private city media. Originals never have public download URLs.
+// City media. Reads require authorization; optional CDN URLs are public.
 type MediaServiceServer interface {
 	PrepareUpload(context.Context, *PrepareUploadRequest) (*PrepareUploadResponse, error)
 	CompleteUpload(context.Context, *CompleteUploadRequest) (*CompleteUploadResponse, error)

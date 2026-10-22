@@ -12,6 +12,11 @@ auto_migrate: true
 storage:
   s3_store: main
   key_prefix: tripmap
+  # Optional public media origin (scheme + host). Empty keeps private RPC reads.
+  # CDN /tripmap/<key> must map to bucket key tripmap/<key>; no bucket name is added.
+  # Anyone with a URL can read it; cached copies may survive deletion/revocation.
+  # Allow browser GET via CDN CORS. Uploads still use store.s3.main.endpoint.
+  # cdn_domain: https://cdn.example.com
 
 # Business RPCs on internal gRPC only (TLS by default); HTTP is /ping and /readyz (internal).
 # Do not expose 18082/18083 publicly.

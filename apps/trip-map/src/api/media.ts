@@ -1,6 +1,7 @@
 import { createClient } from "@connectrpc/connect";
 import { MediaService, type MediaInfo } from "@kongken/api-client/bff/tripmap/v1/media_pb";
 import { transport } from "./transport";
+import { mediaBlob } from "./media-content";
 
 const raw = transport ? createClient(MediaService, transport) : null;
 const client = () => {
@@ -28,7 +29,7 @@ export const mediaApi = {
   read: async (id: string, thumbnail = false) => {
     const r = await client().readMedia({ id, thumbnail });
     return {
-      blob: new Blob([new Uint8Array(r.data)], { type: r.contentType }),
+      blob: await mediaBlob(r),
       filename: r.filename,
     };
   },

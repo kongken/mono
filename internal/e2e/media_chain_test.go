@@ -9,12 +9,21 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
+	tripmapconfig "github.com/kongken/mono/internal/tripmap/config"
 	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
 )
 
 func TestChainMediaLifecycleAndIsolation(t *testing.T) {
+	for _, cdn := range []string{"", "https://cdn.example.com"} {
+		t.Run("cdn="+cdn, func(t *testing.T) { testChainMediaLifecycle(t, cdn) })
+	}
+}
+
+func testChainMediaLifecycle(t *testing.T, cdn string) {
 	blobs := newChainMediaBlobs()
-	h := NewChainHarness(t, blobs)
+	h := NewChainHarness(t, blobs, func(cfg *tripmapconfig.AppConfig) {
+		cfg.Storage = tripmapconfig.StorageConfig{CDNDomain: cdn, KeyPrefix: "tripmap"}
+	})
 	ctx := context.Background()
 
 	a := h.FreshBrowser()
@@ -58,8 +67,21 @@ func TestChainMediaLifecycleAndIsolation(t *testing.T) {
 		t.Fatalf("list: %+v err=%v", list, err)
 	}
 	read, err := a.ReadMedia(ctx, id, false)
-	if err != nil || len(read.GetData()) == 0 {
+	if err != nil {
 		t.Fatalf("read: err=%v", err)
+	}
+
+	if cdn == "" {
+		if len(read.GetData()) == 0 || read.GetUrl() != "" {
+			t.Fatalf("private read: %+v", read)
+		}
+	} else if read.GetUrl() != cdn+"/tripmap/"+m.ObjectKey || len(read.GetData()) != 0 {
+		t.Fatalf("CDN read through BFF: %+v", read)
+	}
+
+	response, err := a.Media().ReadMedia(ctx, connect.NewRequest(&bfftripmapv1.ReadMediaRequest{Id: id}))
+	if err != nil || response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("media response must not be cached: %+v %v", response, err)
 	}
 
 	b := h.FreshBrowser()

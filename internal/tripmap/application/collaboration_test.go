@@ -8,6 +8,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
+	"github.com/kongken/mono/internal/tripmap/config"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 )
 
@@ -508,6 +509,15 @@ func TestSharedTripMediaOwnershipAndRevocation(t *testing.T) {
 		t.Fatalf("C read shared media mA: %v", err)
 	}
 
+	e.store.Storage = config.StorageConfig{CDNDomain: "https://cdn.example.com", KeyPrefix: "tripmap"}
+	cdnRead, err := e.collab.ReadSharedTripMedia(ctx, bearer(cID, &tripmapv1.ReadSharedTripMediaRequest{
+		SharedTripId: stID, MediaId: mA, Thumbnail: true,
+	}))
+	key := e.store.DB.MediaObject.GetX(ctx, mA).ThumbnailKey
+	if err != nil || cdnRead.Msg.Url != "https://cdn.example.com/tripmap/"+key || len(cdnRead.Msg.Data) != 0 {
+		t.Fatalf("shared CDN read: %+v %v", cdnRead, err)
+	}
+
 	// B cannot delete A's media via MediaService.DeleteMedia (mA remains intact for A).
 	_, _ = e.media.DeleteMedia(ctx, bearer(bID, &tripmapv1.DeleteMediaRequest{Id: mA}))
 	if _, err = e.media.ReadMedia(ctx, bearer(aID, &tripmapv1.ReadMediaRequest{Id: mA})); err != nil {
@@ -572,4 +582,3 @@ func TestRemoveFriendDetachesSharedTripsAndPreservesRecords(t *testing.T) {
 	gotB, _ := e.state2(bID)
 	wantLines(t, gotB, "city:330100:#4b937d", "trip:t-uf:330100:2026-09-01:好友旅行")
 }
-

@@ -13,6 +13,7 @@ import {
 import { parseShareContent, type ShareContent } from "@/lib/share";
 import { normalizeFriendSettings, type FriendPrivacySettings } from "@/lib/collaboration";
 import { transport } from "./transport";
+import { mediaBlob } from "./media-content";
 
 const friendRaw = transport ? createClient(FriendService, transport) : null;
 const sharedTripRaw = transport ? createClient(SharedTripService, transport) : null;
@@ -154,7 +155,7 @@ export const collaborationApi = {
   readSharedTripMedia: async (sharedTripId: string, mediaId: string, thumbnail = false) => {
     const r = await sharedTripClient().readSharedTripMedia({ sharedTripId, mediaId, thumbnail });
     return {
-      blob: new Blob([new Uint8Array(r.data)], { type: r.contentType }),
+      blob: await mediaBlob(r),
       filename: r.filename,
     };
   },

@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/tripmap/application"
 	"github.com/kongken/mono/internal/tripmap/blobstore"
+	"github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
@@ -266,4 +267,34 @@ func TestMediaRealS3SignedUploadAndPrivateRead(t *testing.T) {
 	if _, err = blobs.Get(ctx, m.ObjectKey); !errors.Is(err, blobstore.ErrNotFound) {
 		t.Fatal("object still accessible", err)
 	}
+}
+
+func TestMediaCDNReadsPreserveAuthorization(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	a, b := e.register("cdn_a"), e.register("cdn_b")
+	e.store.Blobs = &mediaMemory{files: map[string][]byte{}}
+	e.store.Storage = config.StorageConfig{CDNDomain: "https://cdn.example.com/", KeyPrefix: "/tripmap/"}
+	id := uploadTripPhoto(t, e, a, "330100", "", "西湖.png")
+	m := e.store.DB.MediaObject.GetX(ctx, id)
+	for _, thumbnail := range []bool{false, true} {
+		key := m.ObjectKey
+		if thumbnail {
+			key = m.ThumbnailKey
+		}
+		res, err := e.media.ReadMedia(ctx, bearer(a, &tripmapv1.ReadMediaRequest{Id: id, Thumbnail: thumbnail}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Msg.Url != "https://cdn.example.com/tripmap/"+key || len(res.Msg.Data) != 0 {
+			t.Fatalf("CDN read: %+v", res.Msg)
+		}
+		_, err = e.media.ReadMedia(ctx, bearer(b, &tripmapv1.ReadMediaRequest{Id: id, Thumbnail: thumbnail}))
+		wantCode(t, err, connect.CodeNotFound)
+	}
+	if _, err := e.media.DeleteMedia(ctx, bearer(a, &tripmapv1.DeleteMediaRequest{Id: id})); err != nil {
+		t.Fatal(err)
+	}
+	_, err := e.media.ReadMedia(ctx, bearer(a, &tripmapv1.ReadMediaRequest{Id: id}))
+	wantCode(t, err, connect.CodeNotFound)
 }
