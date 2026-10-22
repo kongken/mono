@@ -138,6 +138,38 @@ Compose 只启动本项目的开发依赖，使用命名卷保存数据。S3 开
 
 Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CONFIG_TYPE=file` 启用文件模式。与 `neo-box` 一致，YAML 中的 `${VAR}` 不会自动展开。`.env.example` 提供文件模式与端口示例；`make dev` 直接设置这些变量，无需自动加载 `.env`。
 
+### Consul 配置与路径前缀
+
+BFF 和 tripmap 均可通过 Consul KV 读取配置。下面的变量在进程启动前设置，不写入业务 YAML；`make dev` 会显式启用文件模式，使用 Consul 时直接运行已构建的服务或配置容器环境变量。
+
+| 环境变量 | 用途与默认行为 |
+| --- | --- |
+| `BUTTERFLY_CONFIG_TYPE` | `file` 读取本地文件；Consul 模式显式设为 `consul`。当前 Butterfly 对任何非 `file` 值都选择 Consul，因此应避免拼写错误 |
+| `BUTTERFLY_CONFIG_CONSUL_ADDRESS` | Consul HTTP API 地址，例如 `http://127.0.0.1:8500`；部署时填写服务进程可访问的地址 |
+| `BUTTERFLY_NAMESPACE` | 应用配置的 KV 路径前缀；未设置或空字符串时为 `apps`，首尾 `/` 会被去掉 |
+| `BUTTERFLY_CONFIG_CONSUL_NAMESPACE` | 可选，传给 Consul API 客户端的 Namespace；只在 Consul 部署支持并使用该能力时设置，与 KV 路径前缀独立 |
+
+配置 key 按 `<BUTTERFLY_NAMESPACE>/<服务名>` 拼接，服务名固定为 `tripmap` 和 `bff`，不添加 `.yaml` 后缀。默认 key 分别是 `apps/tripmap`、`apps/bff`；例如前缀设为 `kongken/prod` 时，读取 `kongken/prod/tripmap`、`kongken/prod/bff`。`BUTTERFLY_CONFIG_CONSUL_NAMESPACE` 不会拼进这些 key，不能用它替代路径前缀。
+
+每个 key 的 value 保存对应服务的**完整 YAML 内容**（业务配置及 `log`、`store` 等框架配置），结构与 `config.tripmap.example.yaml` 或 `config.bff.example.yaml` 一致；不将 YAML 字段拆成多个 KV key。Consul 模式不使用 `BUTTERFLY_CONFIG_FILE_PATH`，文件模式忽略 KV key；两种模式都不会展开 YAML 中的 `${VAR}`。
+
+例如先在 Consul 写入 `kongken/prod/tripmap` 的完整 YAML，再启动 tripmap：
+
+```bash
+export BUTTERFLY_CONFIG_TYPE=consul
+export BUTTERFLY_CONFIG_CONSUL_ADDRESS=http://127.0.0.1:8500
+export BUTTERFLY_NAMESPACE=kongken/prod
+# 仅在需要 Consul API Namespace 时另外设置：
+# export BUTTERFLY_CONFIG_CONSUL_NAMESPACE=team-a
+PORT=18082 ./bin/tripmap
+```
+
+BFF 设置相同环境变量，在其 `kongken/prod/bff` key 写入 BFF 配置后，于另一个终端启动 `PORT=18081 ./bin/bff`。示例假定已运行 `make build`；端口与监听仍遵循各服务配置。证书、公私钥等文件路径仍须在对应进程或容器内可读，Consul 不负责分发这些文件。
+
+现有 Docker 镜像和 `deploy/compose.stack.example.yaml` 默认 `BUTTERFLY_CONFIG_TYPE=file`；切换时必须覆盖为 `consul`，并提供地址和所需路径前缀。Consul 配置在启动时读取，当前没有热更新监听；修改后需重启对应服务。`storage-init` 是独立工具，仍从本地 YAML 读取配置，不随服务的 Consul 模式切换。
+
+### 业务配置与启动检查
+
 - `db_store` 指向 `store.db` 的命名连接，必须为 PostgreSQL。
 - `redis_store` 指向 `store.redis` 的命名连接。
 - `storage.s3_store` 指向 `store.s3` 的命名客户端，必须配置 bucket。
