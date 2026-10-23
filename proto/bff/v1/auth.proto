@@ -7,13 +7,15 @@ import "platform/v1/options.proto";
 
 option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
 
-// AuthService handles password accounts and browser sessions (HttpOnly Cookie).
-// Register, Login and IssueCSRFToken are anonymous; Me and Logout require a session.
+// AuthService handles Logto-backed browser sessions (HttpOnly Cookie).
+// Password and SPA OAuth RPCs are retired, unimplemented compatibility stubs.
 service AuthService {
   rpc Register(RegisterRequest) returns (RegisterResponse) {
+    option deprecated = true;
     option (platform.v1.anonymous) = true;
   }
   rpc Login(LoginRequest) returns (LoginResponse) {
+    option deprecated = true;
     option (platform.v1.anonymous) = true;
   }
   rpc Logout(LogoutRequest) returns (LogoutResponse);
@@ -22,7 +24,8 @@ service AuthService {
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
   // RevokeSession revokes one of the caller's own sessions.
   rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
-  // DeleteAccount starts or retries account deletion for the signed-in session.
+  // DeleteAccount deletes application cloud data, NOT the Logto account.
+  // Requires a BFF session issued within 15 minutes; cleanup retries are exempt.
   rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
   // IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
   rpc IssueCSRFToken(IssueCSRFTokenRequest) returns (IssueCSRFTokenResponse) {
@@ -32,9 +35,11 @@ service AuthService {
     option (platform.v1.anonymous) = true;
   }
   rpc BeginOAuthFlow(BeginOAuthFlowRequest) returns (BeginOAuthFlowResponse) {
+    option deprecated = true;
     option (platform.v1.anonymous) = true;
   }
   rpc CompleteOAuthFlow(CompleteOAuthFlowRequest) returns (CompleteOAuthFlowResponse) {
+    option deprecated = true;
     option (platform.v1.anonymous) = true;
   }
 }
@@ -103,8 +108,8 @@ message RevokeSessionResponse {}
 message DeleteAccountRequest {
   // Must be exactly "DELETE".
   string confirmation = 1;
-  // Required for password accounts; ignored for OAuth-only accounts.
-  string password = 2;
+  reserved 2;
+  reserved "password";
 }
 
 message DeleteAccountResponse {}

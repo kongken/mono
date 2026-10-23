@@ -32,11 +32,11 @@ func (f *chainFakeProvider) Exchange(_ context.Context, code string) (*provider.
 
 func TestChainOAuthCookieAndFootprints(t *testing.T) {
 	reg := provider.NewRegistry()
-	reg.Register(&chainFakeProvider{name: "fake", claims: &provider.Claims{ExternalID: "oauth-99", Name: "OAuth User"}})
+	reg.Register(&chainFakeProvider{name: "logto", claims: &provider.Claims{ExternalID: "oauth-99", Name: "OAuth User"}})
 	h := NewChainHarness(t, reg, ChainHTTPOptions{Configure: func(cfg *bffconfig.Config, base string) {
 		cfg.Auth.OAuthDevelopment = true
 		cfg.Auth.OAuthApps = map[string]bffconfig.OAuthApp{"a": {Origin: "http://localhost:5173", DefaultPath: "/", AllowedPaths: []string{"/"}}}
-		cfg.Auth.OAuthProviders = map[string]bffconfig.OAuthProvider{"fake": {RedirectURL: base + "/auth/callback/fake"}}
+		cfg.Auth.OAuthProviders = map[string]bffconfig.OAuthProvider{"logto": {IssuerURL: "https://identity.example/oidc", ClientID: "test", ClientSecret: "test", RedirectURL: base + "/auth/callback/logto"}}
 	}})
 	ctx := context.Background()
 	b := h.FreshBrowser()
@@ -48,14 +48,14 @@ func TestChainOAuthCookieAndFootprints(t *testing.T) {
 	}
 
 	b.HTTP.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	begin, err := b.HTTP.Get(h.BFFURL + "/auth/login?app=a&provider=fake")
+	begin, err := b.HTTP.Get(h.BFFURL + "/auth/login?app=a&provider=logto")
 	if err != nil {
 		t.Fatal(err)
 	}
 	begin.Body.Close()
 	authorize, _ := url.Parse(begin.Header.Get("Location"))
 	state := authorize.Query().Get("state")
-	callback := h.BFFURL + "/auth/callback/fake?code=good-code&state=" + state
+	callback := h.BFFURL + "/auth/callback/logto?code=good-code&state=" + state
 	complete, err := b.HTTP.Get(callback)
 	if err != nil {
 		t.Fatal(err)

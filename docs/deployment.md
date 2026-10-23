@@ -1,6 +1,6 @@
 # 部署与发布
 
-本文描述**当前已实现**的同源代理与 HTTPS 同站点多 Web App/BFF 拓扑、密钥与 TLS 布局、健康探针和运维轮换步骤。真实 GitHub/Google/Logto OAuth、SMTP、Web Push、生产 S3 策略与社交平台抓取在本仓库 CI 中**未**端到端验收；浏览器真实栈 Playwright 见 [BFF 验证](bff.md#验证)（默认跳过，需本地 `make dev` 与 `E2E_REAL_BFF=1`）。
+本文描述**当前已实现**的同源代理与 HTTPS 同站点多 Web App/BFF 拓扑、密钥与 TLS 布局、健康探针和运维轮换步骤。真实 Logto OAuth、SMTP、Web Push、生产 S3 策略与社交平台抓取在本仓库 CI 中**未**端到端验收；浏览器真实栈 Playwright 见 [BFF 验证](bff.md#验证)（默认跳过，需本地 `make dev` 与 `E2E_REAL_BFF=1`）。
 
 ## 拓扑
 
@@ -94,14 +94,18 @@ BFF 启动**不要求** tripmap 已就绪；编排系统应使用 BFF `/readyz` 
 
 tripmap、BFF、前端为三个镜像（见 [Docker 镜像](docker-images.md)）。Dockerfile 只 `COPY` 本服务业务目录与 `internal/platform/`；`go test ./internal/platform/moduleboundary`（`make check-import-boundaries`）断言 `cmd/bff` 不依赖 `internal/tripmap`、`cmd/tripmap` 不依赖 `internal/bff`。
 
-## Legacy 账号导入（#44）
+## Logto-only 身份迁移
 
-自 tripmap 迁出认证后，已有用户需导入 BFF 库（不默认删 tripmap 数据）：
+本项目不迁移旧密码账号或测试云端数据。备份数据库并暂停登录与业务写入后，按以下顺序操作；所有清理 SQL 均由运维手动执行，不由服务启动调用：
 
-1. 应用 `migrations/tripmap/` 与 `migrations/bff/` 版本化迁移（关闭生产 `auto_migrate`）。
-2. `bin/bff-import-legacy-accounts -tripmap-dsn … -bff-dsn … --dry-run`，确认报告后去掉 `--dry-run` 执行。
-3. 抽查同一 `user_id` 可密码/OAuth 登录，`EnsureProfile` 业务列完整。
-4. 可选：确认无遗留登录依赖后，DBA 执行 `deploy/sql/tripmap/post_import_drop_legacy_auth_columns.sql`（**不在** atlas 迁移中）。
+1. **BFF 数据库**：按版本顺序应用尚未执行的迁移，包括 `migrations/bff/20261023095053_logto_identity_mapping.sql`。它只新增 `auth_identities`、`auth_browser_sessions`，不复制旧账号或会话；旧 Cookie 会话失效。
+2. 部署所有 BFF、tripmap 与前端实例。移除旧 provider 配置及 `registration_disabled`，仅配置 Logto；确认没有旧版本副本后才清理列，旧 Ent 客户端依赖它们。
+3. **tripmap 业务数据库（可选，且必须在开放新登录前）**：若整库业务数据均可丢弃，手动执行 `deploy/sql/tripmap/reset_test_profiles.sql`，删除旧测试 profile 及其级联业务数据。它不会清理 S3 实体对象；如需物理删除，应在删除元数据之前单独核对、备份并清理测试对象，不能影响其他应用对象。开放新登录后不要运行此脚本，否则新用户数据也会删除。
+4. **tripmap 业务数据库**：手动执行 `deploy/sql/tripmap/post_import_drop_legacy_auth_columns.sql`，删除认证遗留列及旧用户名唯一索引。文件名仅为历史兼容，不需要账号导入。此步骤在开放新登录前完成，避免不同 Logto subject 的相同资料名发生冲突；保留业务 `users` 表及所有业务结构。
+5. 验证 Logto 登录、`Me`、业务读写、退出、会话撤销和删除云端数据后，**BFF 数据库**可手动执行 `deploy/sql/bff/retire_password_accounts.sql`，仅删除旧 `auth_sessions` / `auth_users`。保留新身份映射、浏览器会话及 `account_deletion_receipts`。
+6. 恢复流量。清理后不能直接回滚至旧版本；需要恢复数据库备份。以上操作不连接或修改 **Logto 数据库**，也不会删除 Logto 用户。
+
+退出仅撤销当前 BFF 会话，不执行 Logto 全局退出。Logto 远端禁用、删除账号或修改资料尚不会实时撤销/刷新既有 BFF 会话；资料在再次登录时刷新，会话依本地过期和撤销规则处理。最近 15 分钟的 BFF 会话不代表 Logto 强制重新输入凭据（SSO 可能直接完成登录）。
 
 ## 验证清单
 
@@ -116,4 +120,4 @@ tripmap、BFF、前端为三个镜像（见 [Docker 镜像](docker-images.md)）
 
 多个 HTTPS 同站点应用分别构建 `VITE_API_BASE_URL=https://api.example.com/api` 与自身 `VITE_OAUTH_APP_ID`；BFF 增加两个精确 app origin/落点和 CORS origins，生产 `cookie_secure: true`，关闭开发例外。Logto 登记固定 `https://api.example.com/auth/callback/logto`；新增 app 不改变该 URI。API 主机保存 host-only Cookie，应用用 credentials include 和 CSRF 响应体 token 调用；不要扩大 Domain。任意跨站点及第三方 Cookie 限制不属于支持承诺。
 
-同源 `/api` 模式仍须同时代理 `/auth/`，callback 和 API 的浏览器主机一致。独立前端代理会得到各自的 Cookie，不能与直连共享 BFF 主机会话混为一谈。`client_ip_header` 只信任已覆盖客户端同名头的网关；BFF 不按 Host/Referer 推导可信回调或落点。当前退出撤销 BFF 会话，不注销其他 Logto 应用。现有账号、业务数据和本地未同步记录不迁移或清空；OAuth 首登仍受 registration_disabled 控制。
+同源 `/api` 模式仍须同时代理 `/auth/`，callback 和 API 的浏览器主机一致。独立前端代理会得到各自的 Cookie，不能与直连共享 BFF 主机会话混为一谈。`client_ip_header` 只信任已覆盖客户端同名头的网关；BFF 不按 Host/Referer 推导可信回调或落点。当前退出撤销 BFF 会话，不注销 Logto；删除云端数据也不删除 Logto 账号。旧测试账号和业务数据按迁移说明处理，不自动导入或清空。

@@ -415,13 +415,21 @@ func (s *CollaborationService) SendFriendRequest(ctx context.Context, req *conne
 		return nil, invalid("username or friend code is required")
 	}
 	lower := strings.ToLower(target)
-	targetUser, err := st.DB.User.Query().Where(
-
-		user.Or(
-			user.FriendCodeEQ(lower),
-			user.UsernameEqualFold(target),
-		),
-	).First(ctx)
+	// Invite codes are unique; cached Logto usernames are not. Never pick an
+	// arbitrary identity when several subjects share a display login.
+	targetUser, err := st.DB.User.Query().Where(user.FriendCodeEQ(lower)).Only(ctx)
+	if ent.IsNotFound(err) {
+		matches, lookupErr := st.DB.User.Query().Where(user.UsernameEqualFold(target)).Limit(2).All(ctx)
+		if lookupErr != nil {
+			return nil, internalError(lookupErr)
+		}
+		if len(matches) > 1 {
+			return nil, invalid("ambiguous username; use a friend code")
+		}
+		if len(matches) == 1 {
+			targetUser, err = matches[0], nil
+		}
+	}
 	if ent.IsNotFound(err) {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
 	}

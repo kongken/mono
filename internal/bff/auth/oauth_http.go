@@ -49,6 +49,10 @@ func (h *Handler) ServeOAuthHTTP(w http.ResponseWriter, r *http.Request, clientI
 		return
 	}
 	name := strings.TrimPrefix(r.URL.Path, "/auth/callback/")
+	if name != "logto" {
+		fail(http.StatusNotFound)
+		return
+	}
 	q, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil || len(q["state"]) != 1 || !oauthStatePattern.MatchString(q.Get("state")) {
 		fail(http.StatusBadRequest)
@@ -104,6 +108,10 @@ func (h *Handler) beginHTTP(w http.ResponseWriter, r *http.Request) {
 	name := q.Get("provider")
 	if name == "" {
 		name = "logto"
+	}
+	if name != "logto" {
+		fail(http.StatusBadRequest)
+		return
 	}
 	p, err := h.svc.oauthRegistry().Get(name)
 	redirect := h.svc.cfg.OAuthProviders[name].RedirectURL

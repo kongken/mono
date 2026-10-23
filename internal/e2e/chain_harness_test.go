@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -212,6 +213,15 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 		scheme = "https"
 	}
 	baseURL := fmt.Sprintf("%s://localhost:%d", scheme, bffSrv.Listener.Addr().(*net.TCPAddr).Port)
+	// Business tests authenticate through the same HTTP callback as production,
+	// with only the remote Logto exchange replaced by a controlled test provider.
+	bffCfg.Auth.OAuthDevelopment = true
+	bffCfg.Auth.OAuthApps = map[string]bffconfig.OAuthApp{"test": {Origin: baseURL, DefaultPath: "/", AllowedPaths: []string{"/"}}}
+	bffCfg.Auth.OAuthProviders = map[string]bffconfig.OAuthProvider{"logto": {IssuerURL: "https://identity.example/oidc", ClientID: "test", ClientSecret: "test", RedirectURL: baseURL + "/auth/callback/logto"}}
+	if oauthReg == nil {
+		oauthReg = provider.NewRegistry()
+		oauthReg.Register(harnessLogto{})
+	}
 	if httpOptions.Configure != nil {
 		httpOptions.Configure(bffCfg, baseURL)
 	}
@@ -411,24 +421,72 @@ func (b *Browser) writeHeaders(req connect.AnyRequest, csrf string, origin strin
 	}
 }
 
-// Register creates a password account and leaves the session cookie in the jar.
-func (b *Browser) Register(ctx context.Context, username, password, display string) (userID string, err error) {
-	csrf := b.refreshCSRF(ctx)
-	req := connect.NewRequest(&bffv1.RegisterRequest{Username: username, Password: password, DisplayName: display})
-	b.writeHeaders(req, csrf, b.Origin)
-	res, err := b.Auth.Register(ctx, req)
+// Register simulates registration in Logto, then performs the BFF HTTP login.
+// The unused legacy password argument is retained for existing business fixtures;
+// no password is sent to, stored by, or authenticated in the application.
+func (b *Browser) Register(ctx context.Context, subject, _, display string) (string, error) {
+	if err := b.logtoSignIn(ctx, subject, display); err != nil {
+		return "", err
+	}
+	me, err := b.Me(ctx)
 	if err != nil {
 		return "", err
 	}
-	return res.Msg.GetUser().GetId(), nil
+	return me.Id, nil
 }
 
-func (b *Browser) Login(ctx context.Context, username, password string, origin string) error {
-	csrf := b.refreshCSRF(ctx)
-	req := connect.NewRequest(&bffv1.LoginRequest{Username: username, Password: password})
-	b.writeHeaders(req, csrf, origin)
-	_, err := b.Auth.Login(ctx, req)
-	return err
+func (b *Browser) Login(ctx context.Context, subject, _ string, _ string) error {
+	return b.logtoSignIn(ctx, subject, subject)
+}
+
+func (b *Browser) logtoSignIn(ctx context.Context, subject, display string) error {
+	hc := *b.HTTP
+	hc.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	get := func(target string) (*http.Response, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+		if err != nil {
+			return nil, err
+		}
+		return hc.Do(req)
+	}
+	begin, err := get(b.Origin + "/auth/login?app=test")
+	if err != nil {
+		return err
+	}
+	begin.Body.Close()
+	if begin.StatusCode != http.StatusFound {
+		return fmt.Errorf("begin: %d", begin.StatusCode)
+	}
+	u, err := url.Parse(begin.Header.Get("Location"))
+	if err != nil {
+		return err
+	}
+	end, err := get(b.Origin + "/auth/callback/logto?state=" + u.Query().Get("state") + "&code=" + url.QueryEscape(subject+"|"+display))
+	if err != nil {
+		return err
+	}
+	end.Body.Close()
+	if end.StatusCode != http.StatusSeeOther {
+		return fmt.Errorf("callback: %d", end.StatusCode)
+	}
+	return nil
+}
+
+// harnessLogto never runs outside tests. The real OIDC exchange is covered by
+// oauth_browser_test.go and provider/logto_test.go.
+type harnessLogto struct{}
+
+func (harnessLogto) Name() string        { return "logto" }
+func (harnessLogto) DisplayName() string { return "Logto" }
+func (harnessLogto) AuthorizeURL(state string) string {
+	return "https://identity.example/authorize?state=" + state
+}
+func (harnessLogto) Exchange(_ context.Context, code string) (*provider.Claims, error) {
+	sub, name, ok := strings.Cut(code, "|")
+	if !ok || sub == "" {
+		return nil, fmt.Errorf("invalid test authorization code")
+	}
+	return &provider.Claims{ExternalID: sub, Login: sub, Name: name}, nil
 }
 
 func (b *Browser) Logout(ctx context.Context) error {

@@ -49,28 +49,24 @@ func init() {
 	userDescAvatarURL := userFields[3].Descriptor()
 	// user.DefaultAvatarURL holds the default value on creation for the avatar_url field.
 	user.DefaultAvatarURL = userDescAvatarURL.Default.(string)
-	// userDescProvider is the schema descriptor for provider field.
-	userDescProvider := userFields[4].Descriptor()
-	// user.DefaultProvider holds the default value on creation for the provider field.
-	user.DefaultProvider = userDescProvider.Default.(string)
+	// userDescIssuer is the schema descriptor for issuer field.
+	userDescIssuer := userFields[4].Descriptor()
+	// user.IssuerValidator is a validator for the "issuer" field. It is called by the builders before save.
+	user.IssuerValidator = userDescIssuer.Validators[0].(func(string) error)
 	// userDescExternalID is the schema descriptor for external_id field.
 	userDescExternalID := userFields[5].Descriptor()
-	// user.DefaultExternalID holds the default value on creation for the external_id field.
-	user.DefaultExternalID = userDescExternalID.Default.(string)
-	// userDescPasswordHash is the schema descriptor for password_hash field.
-	userDescPasswordHash := userFields[6].Descriptor()
-	// user.DefaultPasswordHash holds the default value on creation for the password_hash field.
-	user.DefaultPasswordHash = userDescPasswordHash.Default.(string)
+	// user.ExternalIDValidator is a validator for the "external_id" field. It is called by the builders before save.
+	user.ExternalIDValidator = userDescExternalID.Validators[0].(func(string) error)
 	// userDescDisabled is the schema descriptor for disabled field.
-	userDescDisabled := userFields[7].Descriptor()
+	userDescDisabled := userFields[6].Descriptor()
 	// user.DefaultDisabled holds the default value on creation for the disabled field.
 	user.DefaultDisabled = userDescDisabled.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[9].Descriptor()
+	userDescCreatedAt := userFields[8].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[10].Descriptor()
+	userDescUpdatedAt := userFields[9].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

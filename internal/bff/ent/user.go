@@ -23,12 +23,10 @@ type User struct {
 	DisplayName string `json:"display_name,omitempty"`
 	// AvatarURL holds the value of the "avatar_url" field.
 	AvatarURL string `json:"avatar_url,omitempty"`
-	// Provider holds the value of the "provider" field.
-	Provider string `json:"provider,omitempty"`
+	// Issuer holds the value of the "issuer" field.
+	Issuer string `json:"issuer,omitempty"`
 	// ExternalID holds the value of the "external_id" field.
 	ExternalID string `json:"external_id,omitempty"`
-	// PasswordHash holds the value of the "password_hash" field.
-	PasswordHash string `json:"-"`
 	// Disabled holds the value of the "disabled" field.
 	Disabled bool `json:"disabled,omitempty"`
 	// DeletionRequestedAt holds the value of the "deletion_requested_at" field.
@@ -68,7 +66,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldDisabled:
 			values[i] = new(sql.NullBool)
-		case user.FieldID, user.FieldUsername, user.FieldDisplayName, user.FieldAvatarURL, user.FieldProvider, user.FieldExternalID, user.FieldPasswordHash:
+		case user.FieldID, user.FieldUsername, user.FieldDisplayName, user.FieldAvatarURL, user.FieldIssuer, user.FieldExternalID:
 			values[i] = new(sql.NullString)
 		case user.FieldDeletionRequestedAt, user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -112,23 +110,17 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.AvatarURL = value.String
 			}
-		case user.FieldProvider:
+		case user.FieldIssuer:
 			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field provider", values[i])
+				return fmt.Errorf("unexpected type %T for field issuer", values[i])
 			} else if value.Valid {
-				_m.Provider = value.String
+				_m.Issuer = value.String
 			}
 		case user.FieldExternalID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field external_id", values[i])
 			} else if value.Valid {
 				_m.ExternalID = value.String
-			}
-		case user.FieldPasswordHash:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field password_hash", values[i])
-			} else if value.Valid {
-				_m.PasswordHash = value.String
 			}
 		case user.FieldDisabled:
 			if value, ok := values[i].(*sql.NullBool); !ok {
@@ -207,13 +199,11 @@ func (_m *User) String() string {
 	builder.WriteString("avatar_url=")
 	builder.WriteString(_m.AvatarURL)
 	builder.WriteString(", ")
-	builder.WriteString("provider=")
-	builder.WriteString(_m.Provider)
+	builder.WriteString("issuer=")
+	builder.WriteString(_m.Issuer)
 	builder.WriteString(", ")
 	builder.WriteString("external_id=")
 	builder.WriteString(_m.ExternalID)
-	builder.WriteString(", ")
-	builder.WriteString("password_hash=<sensitive>")
 	builder.WriteString(", ")
 	builder.WriteString("disabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Disabled))

@@ -1,10 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import {
   BellRinging,
   ClockCounterClockwise,
   CloudCheck,
-  GithubLogo,
-  GoogleLogo,
   ShareNetwork,
   ShieldCheck,
   SignOut,
@@ -42,15 +40,6 @@ type Props = {
 
 const when = (date: Date | null) =>
   date ? date.toLocaleString("zh-CN", { hour12: false }) : "—";
-const providerIcon = (name: string) =>
-  name === "github" ? (
-    <GithubLogo size={17} />
-  ) : name === "google" ? (
-    <GoogleLogo size={17} />
-  ) : name === "logto" ? (
-    <ShieldCheck size={17} />
-  ) : null;
-
 export default function AccountDialog({
   open,
   onOpenChange,
@@ -64,16 +53,11 @@ export default function AccountDialog({
   onOpenCollaboration,
   onOpenNotifications,
 }: Props) {
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteWord, setDeleteWord] = useState("");
-  const [deletePassword, setDeletePassword] = useState("");
   const [confirmLogout, setConfirmLogout] = useState(false);
   const signedIn = !!cloud.user;
   const { loadProviders } = cloud;
@@ -84,8 +68,6 @@ export default function AccountDialog({
     setConfirmLogout(false);
     setConfirmDelete(false);
     setDeleteWord("");
-    setDeletePassword("");
-    setPassword("");
     if (!signedIn) void loadProviders();
   }, [open, signedIn, loadProviders]);
 
@@ -129,20 +111,6 @@ export default function AccountDialog({
     }
   };
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    const name = username.trim();
-    const ok = await run(() =>
-      mode === "login"
-        ? cloud.login(name, password)
-        : cloud.register(name, password, displayName.trim()),
-    );
-    if (ok) {
-      setPassword("");
-      onOpenChange(false);
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -156,14 +124,14 @@ export default function AccountDialog({
                 {cloud.user.displayName || cloud.user.username}
               </DialogTitle>
               <DialogDescription>
-                {cloud.user.username ? `@${cloud.user.username}` : "第三方账号"}
+                {cloud.user.username ? `@${cloud.user.username}` : "用户中心账号"}
                 ，同步完成的足迹可在其他设备登录查看。
               </DialogDescription>
             </DialogHeader>
             <p className="account-sync" role="status">
               <CloudCheck size={16} />
               {cloud.deletionBlocked
-                ? "账号注销待完成，暂停编辑"
+                ? "云端数据删除待完成，暂停编辑"
                 : cloud.sync === "conflict"
                   ? "相同记录发生冲突，请先处理"
                   : cloud.cacheFailed
@@ -300,8 +268,7 @@ export default function AccountDialog({
             </div>
             {cloud.deletionBlocked && (
               <p role="alert" className="unreadable-note">
-                账号注销可能尚未完成，暂停云端编辑。请重试注销；第三方账号需最近
-                15 分钟内重新登录。
+                云端数据删除可能尚未完成，暂停云端编辑。请重试删除。
               </p>
             )}
             <Button
@@ -309,36 +276,24 @@ export default function AccountDialog({
               disabled={pending}
               onClick={() => setConfirmDelete(true)}
             >
-              注销账号
+              删除云端数据
             </Button>
             {confirmDelete && (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (deleteWord !== "注销") return;
+                  if (deleteWord !== "删除") return;
                   void run(async () => {
-                    await cloud.deleteAccount(deletePassword);
+                    await cloud.deleteAccount();
                     onOpenChange(false);
                   });
                 }}
               >
                 <p className="unreadable-note" role="alert">
-                  注销将永久删除此账号的云端足迹、省份标记、会话、同步历史和照片，无法恢复。未同步修改也将丢弃，请先导出备份。登录前的本地足迹会保留。
+                  将永久删除你在山海足迹中的云端足迹、照片、历史快照和同步记录，并退出所有已登录设备，无法恢复；不会注销用户中心账号。未同步修改也将丢弃，请先导出备份。登录前的本机足迹会保留。开始删除前需在最近 15 分钟内登录；之后仍可重新登录，从空白足迹开始记录。
                 </p>
-                {cloud.user.username && (
-                  <label className="field-label">
-                    确认当前密码
-                    <Input
-                      type="password"
-                      autoComplete="current-password"
-                      required
-                      value={deletePassword}
-                      onChange={(e) => setDeletePassword(e.target.value)}
-                    />
-                  </label>
-                )}
                 <label className="field-label">
-                  输入“注销”确认
+                  输入“删除”确认
                   <Input
                     required
                     autoComplete="off"
@@ -353,122 +308,45 @@ export default function AccountDialog({
                     disabled={pending}
                     onClick={() => setConfirmDelete(false)}
                   >
-                    保留账号
+                    保留数据
                   </Button>
                   <Button
                     type="submit"
                     variant="destructive"
-                    disabled={pending || deleteWord !== "注销"}
+                    disabled={pending || deleteWord !== "删除"}
                   >
-                    确认永久注销
+                    确认永久删除
                   </Button>
                 </div>
               </form>
             )}
           </>
         ) : (
-          <form onSubmit={(e) => void submit(e)}>
+          <>
             <DialogHeader>
-              <span className="dialog-icon">
-                <UserCircle size={22} />
-              </span>
-              <DialogTitle>
-                {mode === "login" ? "登录山海足迹" : "创建账号"}
-              </DialogTitle>
+              <span className="dialog-icon"><UserCircle size={22} /></span>
+              <DialogTitle>登录山海足迹</DialogTitle>
               <DialogDescription>
-                登录后足迹保存到云端，可在多台设备间同步。不登录也能继续使用，足迹只保存在这台设备。
+                使用用户中心账号登录，让旅途足迹跨设备同步。注册、找回密码和第三方登录将在用户中心完成；也可以暂不登录，继续在本机记录。
               </DialogDescription>
             </DialogHeader>
-            <div className="account-tabs" role="tablist">
-              {(["login", "register"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === m}
-                  className={mode === m ? "nav-active" : ""}
-                  onClick={() => {
-                    setMode(m);
-                    setError("");
-                  }}
-                >
-                  {m === "login" ? "登录" : "注册"}
-                </button>
+            {error && <p className="unreadable-note unreadable-error" role="alert">{error}</p>}
+            <div className="account-oauth">
+              {cloud.providers.filter((p) => p.name === "logto").map((p) => (
+                <Button key={p.name} disabled={pending} onClick={() => void run(() => cloud.startOAuth("logto"))}>
+                  <ShieldCheck size={17} />
+                  前往用户中心登录
+                </Button>
               ))}
-            </div>
-            <label className="field-label">
-              用户名
-              {mode === "register" && (
-                <span>3–32 位小写字母、数字或下划线</span>
+              {!cloud.providers.some((p) => p.name === "logto") && (
+                <p role="status">统一登录暂不可用，请稍后重试；本地足迹不受影响。</p>
               )}
-              <Input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                autoCapitalize="none"
-                maxLength={32}
-                required
-              />
-            </label>
-            {mode === "register" && (
-              <label className="field-label">
-                昵称<span>选填，最多 40 个字</span>
-                <Input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  maxLength={40}
-                />
-              </label>
-            )}
-            <label className="field-label">
-              密码{mode === "register" && <span>至少 8 位</span>}
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete={
-                  mode === "login" ? "current-password" : "new-password"
-                }
-                minLength={mode === "register" ? 8 : undefined}
-                maxLength={72}
-                required
-              />
-            </label>
-            {error && (
-              <p className="unreadable-note unreadable-error" role="alert">
-                {error}
-              </p>
-            )}
-            <div className="dialog-actions">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                暂不登录
-              </Button>
-              <Button type="submit" disabled={pending}>
-                {mode === "login" ? "登录" : "注册并登录"}
-              </Button>
             </div>
-            {cloud.providers.length > 0 && (
-              <div className="account-oauth">
-                <span>或使用第三方账号</span>
-                {cloud.providers.map((p) => (
-                  <Button
-                    key={p.name}
-                    type="button"
-                    variant="outline"
-                    disabled={pending}
-                    onClick={() => void run(() => cloud.startOAuth(p.name))}
-                  >
-                    {providerIcon(p.name)}
-                    {p.displayName}
-                  </Button>
-                ))}
-              </div>
-            )}
-          </form>
+            <div className="dialog-actions">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>暂不登录</Button>
+              <Button variant="outline" disabled={pending} onClick={() => void run(loadProviders)}>刷新登录入口</Button>
+            </div>
+          </>
         )}
       </DialogContent>
     </Dialog>

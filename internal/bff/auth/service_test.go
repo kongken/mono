@@ -1,124 +1,154 @@
 package auth_test
 
 import (
-	"context"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/bff/auth"
 	"github.com/kongken/mono/internal/bff/config"
-	entsession "github.com/kongken/mono/internal/bff/ent/session"
-	"github.com/kongken/mono/internal/bff/ratelimit"
+	"github.com/kongken/mono/internal/bff/oauth/provider"
 	"github.com/kongken/mono/internal/bff/session"
-	"github.com/kongken/mono/internal/bff/testutil"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 )
 
-func TestRegisterLoginMeLogout(t *testing.T) {
-	db, rdb, prefix := testutil.Backing(t)
-	cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode}
-	svc := auth.NewService(&config.AuthConfig{SessionTTL: time.Hour}, cookies, db, ratelimit.New(rdb, prefix), nil, nil, auth.OAuthDeps{})
-	h := auth.NewHandler(svc, nil, time.Hour)
-	ctx := context.Background()
-
-	reg, exp, tok, err := svc.Register(ctx, "127.0.0.1", &bffv1.RegisterRequest{Username: "alice", Password: "password1", DisplayName: "Alice"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reg.User.Username != "alice" || tok == "" || exp.Before(time.Now()) {
-		t.Fatalf("register: %+v token=%q", reg, tok)
-	}
-	hdr := http.Header{}
-	hdr.Set("Cookie", session.CookieName+"="+tok)
-	bs, err := h.Authenticate(ctx, hdr)
-	if err != nil || bs.UserID != reg.User.Id {
-		t.Fatalf("session: %+v err=%v", bs, err)
-	}
-	me, err := svc.Me(ctx, bs.UserID)
-	if err != nil || me.User.Username != "alice" {
-		t.Fatal(err)
-	}
-	if err = svc.Logout(ctx, bs.SessionID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = h.Authenticate(ctx, hdr); err == nil {
-		t.Fatal("expected revoked session to fail")
-	}
+func logtoConfig() *config.AuthConfig {
+	return &config.AuthConfig{SessionTTL: time.Hour, OAuthProviders: map[string]config.OAuthProvider{
+		"logto": {IssuerURL: "https://identity.example/oidc", RedirectURL: "https://api.example/auth/callback/logto"},
+	}, OAuthApps: map[string]config.OAuthApp{"test": {Origin: "https://app.example", DefaultPath: "/", AllowedPaths: []string{"/"}}}}
 }
 
-func TestListAndRevokeSessions(t *testing.T) {
-	db, rdb, prefix := testutil.Backing(t)
-	cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode}
-	svc := auth.NewService(&config.AuthConfig{SessionTTL: time.Hour}, cookies, db, ratelimit.New(rdb, prefix), nil, nil, auth.OAuthDeps{})
-	ctx := context.Background()
-
-	reg, _, tok1, err := svc.Register(ctx, "127.0.0.1", &bffv1.RegisterRequest{Username: "erin", Password: "password1", DisplayName: "Erin"})
-	if err != nil {
-		t.Fatal(err)
+func signIn(t *testing.T, h *auth.Handler) string {
+	t.Helper()
+	begin := httptest.NewRecorder()
+	h.ServeOAuthHTTP(begin, httptest.NewRequest("GET", "/auth/login?app=test", nil), "")
+	if begin.Code != http.StatusFound {
+		t.Fatalf("begin: %d %s", begin.Code, begin.Body)
 	}
-	_, _, tok2, err := svc.Login(ctx, "127.0.0.1", &bffv1.LoginRequest{Username: "erin", Password: "password1"})
-	if err != nil {
-		t.Fatal(err)
+	u, _ := url.Parse(begin.Header().Get("Location"))
+	r := httptest.NewRequest("GET", "/auth/callback/logto?code=good-code&state="+u.Query().Get("state"), nil)
+	for _, c := range begin.Result().Cookies() {
+		r.AddCookie(c)
 	}
-	h := auth.NewHandler(svc, nil, time.Hour)
-	hdr1 := http.Header{}
-	hdr1.Set("Cookie", session.CookieName+"="+tok1)
-	bs1, err := h.Authenticate(ctx, hdr1)
-	if err != nil {
-		t.Fatal(err)
+	end := httptest.NewRecorder()
+	h.ServeOAuthHTTP(end, r, "")
+	if end.Code != http.StatusSeeOther {
+		t.Fatalf("callback: %d %s", end.Code, end.Body)
 	}
-	list, err := svc.ListSessions(ctx, bs1.UserID, bs1.SessionID)
-	if err != nil || len(list.Sessions) != 2 {
-		t.Fatalf("list: %+v err=%v", list, err)
-	}
-	var otherID string
-	for _, s := range list.Sessions {
-		if !s.Current {
-			otherID = s.Id
+	for _, c := range end.Result().Cookies() {
+		if c.Name == session.CookieName {
+			return c.Value
 		}
 	}
-	if otherID == "" {
-		t.Fatal("expected non-current session")
-	}
-	stranger, _, _, err := svc.Register(ctx, "127.0.0.1", &bffv1.RegisterRequest{Username: "mallory", Password: "password1", DisplayName: "M"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = svc.RevokeSession(ctx, stranger.User.Id, otherID); err == nil || connect.CodeOf(err) != connect.CodeNotFound {
-		t.Fatalf("stranger revoke: %v", err)
-	}
-	hdr2 := http.Header{}
-	hdr2.Set("Cookie", session.CookieName+"="+tok2)
-	bs2, err := h.Authenticate(ctx, hdr2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = svc.RevokeSession(ctx, bs2.UserID, otherID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = h.Authenticate(ctx, hdr2); err == nil {
-		t.Fatal("revoked session should fail auth")
-	}
-	if _, err = h.Authenticate(ctx, hdr1); err != nil {
-		t.Fatal("current session should stay valid")
-	}
-	if n, _ := db.Session.Query().Where(entsession.Revoked(false)).Count(ctx); n != 2 {
-		t.Fatalf("active sessions = %d", n)
-	}
-	_ = reg
+	t.Fatal("missing session cookie")
+	return ""
 }
 
-func TestCSRFRejectsLogin(t *testing.T) {
-	if err := session.CheckWrite(http.Header{}, nil, "localhost"); err == nil {
-		t.Fatal("missing csrf should fail")
+func TestLogtoSessionMeLogoutAndProfileRefresh(t *testing.T) {
+	p := &fakeProvider{name: "logto", claims: &provider.Claims{ExternalID: "alice", Login: "alice", Name: "Alice"}}
+	reg := provider.NewRegistry()
+	reg.Register(p)
+	svc, h := oauthSvc(t, reg, logtoConfig())
+	token := signIn(t, h)
+	bs, err := svc.ResolveSession(t.Context(), token)
+	if err != nil {
+		t.Fatal(err)
 	}
-	h := http.Header{}
-	h.Set(session.CSRFHeader, "a")
-	h.Set("Cookie", session.CSRFCookieName+"=b")
-	if err := session.CheckWrite(h, nil, ""); err == nil {
-		t.Fatal("mismatched csrf should fail")
+	me, err := svc.Me(t.Context(), bs.UserID)
+	if err != nil || me.User.DisplayName != "Alice" {
+		t.Fatalf("me: %v %v", me, err)
 	}
-	_ = connect.CodePermissionDenied
+	p.claims.Name = "New name"
+	p.claims.Login = "renamed"
+	signIn(t, h)
+	me, err = svc.Me(t.Context(), bs.UserID)
+	if err != nil || me.User.DisplayName != "New name" || me.User.Username != "renamed" {
+		t.Fatalf("refresh: %v %v", me, err)
+	}
+	if err := svc.Logout(t.Context(), bs.SessionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ResolveSession(t.Context(), token); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("revoked: %v", err)
+	}
+}
+
+func TestListAndRevokeLogtoSessions(t *testing.T) {
+	p := &fakeProvider{name: "logto", claims: &provider.Claims{ExternalID: "erin"}}
+	reg := provider.NewRegistry()
+	reg.Register(p)
+	svc, h := oauthSvc(t, reg, logtoConfig())
+	tok1, tok2 := signIn(t, h), signIn(t, h)
+	bs1, err := svc.ResolveSession(t.Context(), tok1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bs2, err := svc.ResolveSession(t.Context(), tok2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := svc.ListSessions(t.Context(), bs1.UserID, bs1.SessionID)
+	if err != nil || len(list.Sessions) != 2 {
+		t.Fatalf("sessions: %v %v", list, err)
+	}
+	p.claims.ExternalID = "mallory"
+	stranger, err := svc.ResolveSession(t.Context(), signIn(t, h))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RevokeSession(t.Context(), stranger.UserID, bs2.SessionID); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("cross user revoke: %v", err)
+	}
+	if err := svc.RevokeSession(t.Context(), bs1.UserID, bs2.SessionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ResolveSession(t.Context(), tok2); err == nil {
+		t.Fatal("revoked session accepted")
+	}
+	if _, err := svc.ResolveSession(t.Context(), tok1); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPasswordEndpointsAreRetiredWithoutStorage(t *testing.T) {
+	h := auth.NewHandler(nil, nil, time.Hour)
+	if _, err := h.Register(t.Context(), connect.NewRequest(&bffv1.RegisterRequest{Username: "alice", Password: "password1"})); connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Fatalf("register: %v", err)
+	}
+	if _, err := h.Login(t.Context(), connect.NewRequest(&bffv1.LoginRequest{Username: "alice", Password: "password1"})); connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Fatalf("login: %v", err)
+	}
+}
+
+func TestLogtoIssuerAndSubjectAreTheOnlyIdentityKey(t *testing.T) {
+	p := &fakeProvider{name: "logto", claims: &provider.Claims{ExternalID: "one", Login: "same", Email: "same@example.com"}}
+	reg := provider.NewRegistry()
+	reg.Register(p)
+	cfg := logtoConfig()
+	svc, h := oauthSvc(t, reg, cfg)
+	first, err := svc.ResolveSession(t.Context(), signIn(t, h))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.claims.ExternalID = "two"
+	second, err := svc.ResolveSession(t.Context(), signIn(t, h))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.UserID == second.UserID {
+		t.Fatal("identities linked by username or email")
+	}
+	pc := cfg.OAuthProviders["logto"]
+	pc.IssuerURL = "https://other.example/oidc"
+	cfg.OAuthProviders["logto"] = pc
+	third, err := svc.ResolveSession(t.Context(), signIn(t, h))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third.UserID == second.UserID {
+		t.Fatal("identities linked across issuers")
+	}
 }

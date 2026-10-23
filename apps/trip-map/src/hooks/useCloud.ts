@@ -239,7 +239,7 @@ export function useCloud(options: Options) {
     if (!s) return;
     if (s.user.deletionPending) {
       setLoaded("failed");
-      setLoadError("账号注销未完成，请打开账号设置重试注销");
+      setLoadError("云端数据删除未完成，请打开账号设置重试删除");
       return;
     }
     if (protectedCache.current) {
@@ -323,7 +323,7 @@ export function useCloud(options: Options) {
       setHasData(true);
       opts.current.onAccountChange(emptySaved);
       setLoaded("failed");
-      setLoadError("账号注销未完成，请重试注销");
+      setLoadError("云端数据删除未完成，请重试删除");
       return;
     }
     setLoaded("pending");
@@ -354,7 +354,7 @@ export function useCloud(options: Options) {
     if (s?.user.deletionPending) {
       setHasData(true);
       setLoaded("failed");
-      setLoadError("账号注销未完成，请重试注销");
+      setLoadError("云端数据删除未完成，请重试删除");
       return;
     }
     if (s && cache) {
@@ -436,12 +436,6 @@ export function useCloud(options: Options) {
         opts.current.notify(describeApiError(error));
     }).finally(() => setBusy(""));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const signIn = async (action: () => Promise<StoredSession>) => {
-    const s = await action();
-    enter(s);
-    opts.current.notify(`已登录：${s.user.displayName || s.user.username}`);
-  };
 
   /** Server-confirmed revision of the loaded data, or null before it is loaded. */
   const revision = useCallback(
@@ -567,10 +561,6 @@ export function useCloud(options: Options) {
       else engine.push(next);
       return true;
     },
-    login: (username: string, password: string) =>
-      signIn(() => authApi.login(username, password)),
-    register: (username: string, password: string, displayName: string) =>
-      signIn(() => authApi.register(username, password, displayName)),
     loadProviders,
     startOAuth: async (provider: string) => {
       if (!apiConfig.enabled) throw new Error("backend not configured");
@@ -581,7 +571,7 @@ export function useCloud(options: Options) {
         provider,
       ));
     },
-    deleteAccount: async (password: string) => {
+    deleteAccount: async () => {
       const s = sessionRef.current;
       if (!s) return;
       const engine = engineRef.current;
@@ -589,8 +579,8 @@ export function useCloud(options: Options) {
       engine?.stop();
       setDeletionBlocked(true);
       try {
-        await authApi.deleteAccount(password);
-        leaveAccount("账号及全部云端数据已注销；登录前的本地足迹保留", true);
+        await authApi.deleteAccount();
+        leaveAccount("山海足迹云端数据已删除，用户中心账号及登录前的本机足迹保留", true);
       } catch (error) {
         if (
           !s.user.deletionPending &&
@@ -611,7 +601,7 @@ export function useCloud(options: Options) {
           saveSession(localStorage, pendingSession);
           setSession(pendingSession);
           setLoadError(
-            "注销尚未确认完成，请重新登录或打开账号设置重试；云端编辑已暂停",
+            "云端数据删除尚未确认完成，请重新登录或打开账号设置重试；云端编辑已暂停",
           );
         }
         throw error;

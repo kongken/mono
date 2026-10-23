@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"sort"
 	"strings"
 	"time"
 
@@ -32,16 +31,17 @@ func (s *Service) oauthRegistry() *provider.Registry {
 }
 
 func (s *Service) ListOAuthProviders(context.Context) (*bffv1.ListOAuthProvidersResponse, error) {
-	list := s.oauthRegistry().List()
-	sort.Slice(list, func(i, j int) bool { return list[i].Name() < list[j].Name() })
 	out := &bffv1.ListOAuthProvidersResponse{}
-	for _, p := range list {
+	if p, err := s.oauthRegistry().Get("logto"); err == nil {
 		out.Providers = append(out.Providers, &bffv1.OAuthProvider{Name: p.Name(), DisplayName: p.DisplayName()})
 	}
 	return out, nil
 }
 
 func (s *Service) finishOAuth(ctx context.Context, name, code string, attempt oauth.OAuthState) (*bffv1.CompleteOAuthFlowResponse, time.Time, string, error) {
+	if name != "logto" {
+		return nil, time.Time{}, "", connect.NewError(connect.CodeNotFound, errors.New("only Logto sign-in is supported"))
+	}
 	p, err := s.oauthRegistry().Get(name)
 	if err != nil {
 		return nil, time.Time{}, "", connect.NewError(connect.CodeNotFound, errors.New("unknown oauth provider"))
@@ -63,7 +63,9 @@ func (s *Service) finishOAuth(ctx context.Context, name, code string, attempt oa
 	if u.Disabled && u.DeletionRequestedAt == nil {
 		return nil, time.Time{}, "", connect.NewError(connect.CodePermissionDenied, errors.New("account is disabled"))
 	}
-	s.syncProfile(ctx, u)
+	if err := s.syncProfile(ctx, u); err != nil {
+		return nil, time.Time{}, "", err
+	}
 	token, expires, err := s.issueSession(ctx, u.ID)
 	if err != nil {
 		return nil, time.Time{}, "", err
@@ -72,18 +74,16 @@ func (s *Service) finishOAuth(ctx context.Context, name, code string, attempt oa
 }
 
 func (s *Service) oauthUser(ctx context.Context, providerName string, claims *provider.Claims) (*ent.User, error) {
+	issuer := strings.TrimRight(s.cfg.OAuthProviders[providerName].IssuerURL, "/")
+	if issuer == "" {
+		return nil, internal(errors.New("Logto issuer is not configured"))
+	}
 	find := func() (*ent.User, error) {
-		return s.db.User.Query().Where(user.Provider(providerName), user.ExternalID(claims.ExternalID)).Only(ctx)
+		return s.db.User.Query().Where(user.Issuer(issuer), user.ExternalID(claims.ExternalID)).Only(ctx)
 	}
 	u, err := find()
-	if err == nil {
-		return u, nil
-	}
-	if !ent.IsNotFound(err) {
+	if err != nil && !ent.IsNotFound(err) {
 		return nil, internal(err)
-	}
-	if s.cfg.RegistrationDisabled {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("registration is closed"))
 	}
 	display := strings.TrimSpace(claims.Name)
 	if display == "" {
@@ -99,7 +99,15 @@ func (s *Service) oauthUser(ctx context.Context, providerName string, claims *pr
 	if len(avatar) > maxAvatarURLBytes || !(strings.HasPrefix(avatar, "https://") || strings.HasPrefix(avatar, "http://")) {
 		avatar = ""
 	}
-	u, err = s.db.User.Create().SetProvider(providerName).SetExternalID(claims.ExternalID).SetDisplayName(display).SetAvatarURL(avatar).Save(ctx)
+	// Names are projections, never account keys and never used for linking.
+	login := strings.TrimSpace(claims.Login)
+	if len(login) > 64 {
+		login = ""
+	}
+	if u != nil {
+		return s.db.User.UpdateOne(u).SetUsername(login).SetDisplayName(display).SetAvatarURL(avatar).Save(ctx)
+	}
+	u, err = s.db.User.Create().SetIssuer(issuer).SetExternalID(claims.ExternalID).SetUsername(login).SetDisplayName(display).SetAvatarURL(avatar).Save(ctx)
 	if ent.IsConstraintError(err) {
 		if u, err = find(); err != nil {
 			return nil, internal(err)

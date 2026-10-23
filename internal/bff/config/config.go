@@ -39,9 +39,11 @@ type Config struct {
 	Auth        AuthConfig `yaml:"auth"`
 }
 
-// AuthConfig controls browser sessions and registration.
+// AuthConfig controls BFF browser sessions and the sole identity source, Logto.
 type AuthConfig struct {
-	SessionTTL           time.Duration            `yaml:"session_ttl"`
+	SessionTTL time.Duration `yaml:"session_ttl"`
+	// Retained only to reject obsolete configuration rather than silently
+	// blocking first-time Logto users. Registration policy belongs to Logto.
 	RegistrationDisabled bool                     `yaml:"registration_disabled"`
 	CookieSecure         bool                     `yaml:"cookie_secure"`
 	CSRFTokenTTL         time.Duration            `yaml:"csrf_token_ttl"`
@@ -65,6 +67,9 @@ type OAuthProvider struct {
 func (p OAuthProvider) Enabled() bool { return p.ClientID != "" && p.ClientSecret != "" }
 
 func (a *AuthConfig) validateOAuth() error {
+	if a.RegistrationDisabled {
+		return fmt.Errorf("auth.registration_disabled is retired; configure registration in Logto")
+	}
 	if len(a.OAuthApps) > 0 && !a.CookieSecure && !a.OAuthDevelopment {
 		return fmt.Errorf("oauth apps require cookie_secure outside explicit development mode")
 	}
@@ -84,6 +89,12 @@ func (a *AuthConfig) validateOAuth() error {
 	}
 
 	for name, p := range a.OAuthProviders {
+		if name != "logto" {
+			return fmt.Errorf("auth.oauth_providers.%s is retired; configure social connections in Logto", name)
+		}
+		if !p.Enabled() {
+			return fmt.Errorf("auth.oauth_providers.logto requires client_id and client_secret")
+		}
 		callback, _ := url.Parse(p.RedirectURL)
 		if p.Enabled() && (!a.CookieSecure && (callback == nil || !loopbackHost(callback.Hostname())) || !oauthName.MatchString(name) || !validCallback(p.RedirectURL, name, a.OAuthDevelopment) || len(a.OAuthApps) == 0) {
 			return fmt.Errorf("auth.oauth_providers.%s requires oauth_apps and an exact BFF /auth/callback/%s URL", name, name)

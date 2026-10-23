@@ -94,7 +94,7 @@ test("switching accounts keeps only the new user's cache", () => {
 
 test("OAuth navigation uses BFF host and an app identifier", () => {
   assert.equal(oauthLoginURL("https://api.example.com/api", "https://a.example.com", "trip-map", "logto"), "https://api.example.com/auth/login?app=trip-map&provider=logto");
-  assert.equal(oauthLoginURL("/api", "http://localhost:5173", "trip-map", "github"), "http://localhost:5173/auth/login?app=trip-map&provider=github");
+  assert.equal(oauthLoginURL("/api", "http://localhost:5173", "trip-map", "logto"), "http://localhost:5173/auth/login?app=trip-map&provider=logto");
 });
 
 
@@ -105,16 +105,24 @@ test("API errors are described in Chinese, never with raw server text", () => {
   const e = (code, msg) => new ConnectError(msg, code);
   assert.equal(
     describeApiError(e(Code.Unauthenticated, "invalid username or password")),
-    "用户名或密码不正确",
+    "登录已失效或凭据不正确，请重新登录",
   );
   assert.equal(
     describeApiError(e(Code.AlreadyExists, "username is taken")),
-    "该用户名已被使用",
+    "该内容已存在",
   );
   assert.equal(
     describeApiError(e(Code.PermissionDenied, "registration is closed")),
-    "当前未开放注册",
+    "当前无法执行此操作",
   );
+  assert.match(
+    describeApiError(e(Code.Unimplemented, "password accounts are retired; use Logto")),
+    /前往用户中心登录/,
+  );
+  const freshLogin = describeApiError(e(Code.FailedPrecondition, "sign in again before deleting cloud data"));
+  assert.match(freshLogin, /通过用户中心重新登录/);
+  assert.match(freshLogin, /最近 15 分钟/);
+  assert.doesNotMatch(freshLogin, /Logto/i);
   assert.match(
     describeApiError(e(Code.InvalidArgument, "something odd")),
     /不符合要求/,

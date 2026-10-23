@@ -15,8 +15,8 @@ import (
 
 func TestOAuthHTTPBrowserBindingAndConcurrentApps(t *testing.T) {
 	reg := provider.NewRegistry()
-	reg.Register(&fakeProvider{name: "fake", claims: &provider.Claims{ExternalID: "http-42", Name: "HTTP User"}})
-	cfg := &config.AuthConfig{CookieSecure: true, OAuthDevelopment: true, OAuthProviders: map[string]config.OAuthProvider{"fake": {RedirectURL: "http://localhost/auth/callback/fake"}}, OAuthApps: map[string]config.OAuthApp{
+	reg.Register(&fakeProvider{name: "logto", claims: &provider.Claims{ExternalID: "http-42", Name: "HTTP User"}})
+	cfg := &config.AuthConfig{CookieSecure: true, OAuthDevelopment: true, OAuthProviders: map[string]config.OAuthProvider{"logto": {IssuerURL: "https://identity.example/oidc", RedirectURL: "http://localhost/auth/callback/logto"}}, OAuthApps: map[string]config.OAuthApp{
 		"a": {Origin: "https://a.example.com", DefaultPath: "/", AllowedPaths: []string{"/"}},
 		"b": {Origin: "https://b.example.com", DefaultPath: "/map", AllowedPaths: []string{"/map"}},
 	}}
@@ -31,12 +31,12 @@ func TestOAuthHTTPBrowserBindingAndConcurrentApps(t *testing.T) {
 		return w
 	}
 	for _, q := range []string{"app=unknown", "app=a&return_to=//evil.example", "app=a&return_to=%2F%255cevil", "app=a&return_to=/other", "app=a&return_to=https%3A%2F%2Fevil.example", "app=a&return_to=%2F%2Fevil.example", "app=a&return_to=%2F..%2Fother", "app=a&return_to=%2F%5Cevil.example", "app=a&callback=https%3A%2F%2Fevil.example"} {
-		if w := call("/auth/login?provider=fake&"+q, nil); w.Code != 400 {
+		if w := call("/auth/login?provider=logto&"+q, nil); w.Code != 400 {
 			t.Fatalf("bad target accepted: %s: %d", q, w.Code)
 		}
 	}
-	a := call("/auth/login?provider=fake&app=a", nil)
-	b := call("/auth/login?provider=fake&app=b", nil)
+	a := call("/auth/login?provider=logto&app=a", nil)
+	b := call("/auth/login?provider=logto&app=b", nil)
 	state := func(w *httptest.ResponseRecorder) string {
 		t.Helper()
 		if w.Code != 302 {
@@ -49,12 +49,12 @@ func TestOAuthHTTPBrowserBindingAndConcurrentApps(t *testing.T) {
 	if a.Result().Cookies()[0].Name == b.Result().Cookies()[0].Name {
 		t.Fatal("concurrent flows share binding cookie")
 	}
-	callback := func(s string) string { return "/auth/callback/fake?code=good-code&state=" + s }
+	callback := func(s string) string { return "/auth/callback/logto?code=good-code&state=" + s }
 	if w := call(callback(sa), nil); w.Code != 400 || len(w.Result().Cookies()) > 1 {
 		t.Fatal("missing browser binding accepted")
 	}
 	// The rejected state is consumed. A new attempt still works independently of b.
-	a = call("/auth/login?provider=fake&app=a", nil)
+	a = call("/auth/login?provider=logto&app=a", nil)
 	sa = state(a)
 	for _, flow := range []struct {
 		s      string
@@ -81,14 +81,11 @@ func TestOAuthHTTPBrowserBindingAndConcurrentApps(t *testing.T) {
 }
 
 func TestOAuthHTTPFailuresNeverCreateSession(t *testing.T) {
-	for _, scenario := range []string{"binding mismatch", "provider mismatch", "cancel", "missing code", "bad code", "forged state", "expired state", "closed registration"} {
+	for _, scenario := range []string{"binding mismatch", "provider mismatch", "cancel", "missing code", "bad code", "forged state", "expired state"} {
 		t.Run(scenario, func(t *testing.T) {
 			reg := provider.NewRegistry()
-			reg.Register(&fakeProvider{name: "fake", claims: &provider.Claims{ExternalID: "failure-user"}})
-			cfg := &config.AuthConfig{CookieSecure: true, OAuthApps: map[string]config.OAuthApp{"a": {Origin: "https://a.example.com", DefaultPath: "/", AllowedPaths: []string{"/"}}}, OAuthProviders: map[string]config.OAuthProvider{"fake": {RedirectURL: "https://api.example.com/auth/callback/fake"}}}
-			if scenario == "closed registration" {
-				cfg.RegistrationDisabled = true
-			}
+			reg.Register(&fakeProvider{name: "logto", claims: &provider.Claims{ExternalID: "failure-user"}})
+			cfg := &config.AuthConfig{CookieSecure: true, OAuthApps: map[string]config.OAuthApp{"a": {Origin: "https://a.example.com", DefaultPath: "/", AllowedPaths: []string{"/"}}}, OAuthProviders: map[string]config.OAuthProvider{"logto": {IssuerURL: "https://identity.example/oidc", RedirectURL: "https://api.example.com/auth/callback/logto"}}}
 			_, h, rdb, prefix := oauthSvcBacking(t, reg, cfg)
 			call := func(path string, cookies []*http.Cookie) *httptest.ResponseRecorder {
 				r := httptest.NewRequest("GET", path, nil)
@@ -99,12 +96,12 @@ func TestOAuthHTTPFailuresNeverCreateSession(t *testing.T) {
 				h.ServeOAuthHTTP(w, r, "")
 				return w
 			}
-			begin := call("/auth/login?app=a&provider=fake", nil)
+			begin := call("/auth/login?app=a&provider=logto", nil)
 			u, _ := url.Parse(begin.Header().Get("Location"))
 			state := u.Query().Get("state")
 			cookies := begin.Result().Cookies()
 			query := "?code=good-code&state=" + state
-			path := "/auth/callback/fake"
+			path := "/auth/callback/logto"
 			switch scenario {
 			case "binding mismatch":
 				cookies[0].Value = "another-browser"

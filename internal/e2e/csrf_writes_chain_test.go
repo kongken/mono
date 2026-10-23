@@ -64,7 +64,7 @@ func TestChainBusinessWritesRequireCSRFAndOrigin(t *testing.T) {
 	_, err = u.RegionSvc.ApplyRegionUpgrade(ctx, regReq)
 	assertWriteRejected(t, err)
 
-	delAcct := connect.NewRequest(&bffv1.DeleteAccountRequest{Confirmation: "DELETE", Password: "password1"})
+	delAcct := connect.NewRequest(&bffv1.DeleteAccountRequest{Confirmation: "DELETE"})
 	u.writeHeaders(delAcct, csrf, "https://evil.example")
 	_, err = u.Auth.DeleteAccount(ctx, delAcct)
 	assertWriteRejected(t, err)

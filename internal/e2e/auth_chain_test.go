@@ -146,14 +146,14 @@ func TestChainSessionStatesRejected(t *testing.T) {
 	}
 }
 
-func TestChainRegisterResponseHasNoSessionToken(t *testing.T) {
+func TestChainMeResponseHasNoSessionToken(t *testing.T) {
 	h := NewChainHarness(t)
 	ctx := context.Background()
 	b := h.FreshBrowser()
-	csrf := b.refreshCSRF(ctx)
-	req := connect.NewRequest(&bffv1.RegisterRequest{Username: "gina", Password: "password1", DisplayName: "Gina"})
-	b.writeHeaders(req, csrf, b.Origin)
-	res, err := b.Auth.Register(ctx, req)
+	if _, err := b.Register(ctx, "gina", "", "Gina"); err != nil {
+		t.Fatal(err)
+	}
+	res, err := b.Auth.Me(ctx, connect.NewRequest(&bffv1.MeRequest{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestChainRegisterResponseHasNoSessionToken(t *testing.T) {
 	}
 }
 
-func TestChainLoginViaPasswordAfterRegister(t *testing.T) {
+func TestChainLogtoLoginAfterLogout(t *testing.T) {
 	h := NewChainHarness(t)
 	ctx := context.Background()
 	b := h.FreshBrowser()

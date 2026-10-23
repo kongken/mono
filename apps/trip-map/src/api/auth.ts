@@ -36,23 +36,13 @@ export function toStoredSession(reply: {
 }
 
 export const authApi = {
-  register: async (username: string, password: string, displayName: string) => {
-    await refreshCSRF();
-    return toStoredSession(
-      await client().register({ username, password, displayName }),
-    );
-  },
-  login: async (username: string, password: string) => {
-    await refreshCSRF();
-    return toStoredSession(await client().login({ username, password }));
-  },
   logout: async () => {
     await refreshCSRF();
     await client().logout({});
   },
-  deleteAccount: async (password: string) => {
+  deleteAccount: async () => {
     await refreshCSRF();
-    await client().deleteAccount({ confirmation: "DELETE", password });
+    await client().deleteAccount({ confirmation: "DELETE" });
   },
   me: async () => toUser((await client().me({})).user),
   listSessions: async () => {

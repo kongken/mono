@@ -96,7 +96,7 @@ Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:180
 | 前端 | `npm test` | 运行所有前端应用的脚本与业务逻辑测试（`npm run test:trip-map` 只跑山海足迹） |
 | 前端 | `npm run test:e2e:trip-map` | 运行 Playwright 浏览器测试 |
 | 地图与数据 | `npm run check:maps` | 检查地图、区域索引及前后端数据副本 |
-| 后端 | `make build` | 构建 BFF、tripmap 与 legacy 账号导入工具至 `bin/` |
+| 后端 | `make build` | 构建 BFF 与 tripmap 服务至 `bin/` |
 | 后端 | `make test` | 运行 Go 测试，未配置存储连接时相关集成测试跳过 |
 | 后端 | `make test-integration` | 在独立的 Compose 开发依赖上验证存储与服务链路 |
 | 服务边界 | `make check-import-boundaries` | 检查后端模块依赖边界 |
@@ -118,7 +118,7 @@ trip-map-web、BFF 与 tripmap 分别构建镜像，构建上下文均为仓库�
 
 GitHub Actions 按矩阵构建并发布三个镜像，镜像名由当前 GitHub 仓库名加组件后缀生成（`-tripmap`、`-trip-map-web`、`-bff`）；PR 仅构建。前端容器提供静态资源并把 API 与分享页请求转发到 BFF，业务服务只在内网暴露。部署拓扑、配置挂载与发布流程见 [部署与发布](docs/deployment.md) 和 [Docker 镜像与 Actions](docs/docker-images.md)。
 
-已有 tripmap 账号升级到 BFF 认证时，先执行两个服务的版本化迁移，再使用 `bin/bff-import-legacy-accounts` 导入（先 `--dry-run`），抽查登录后再按需清理旧凭据列，详见 [Legacy 账号导入](docs/deployment.md#legacy-账号导入-44)。
+Logto 是唯一账号来源，旧测试账号不迁移。手动清理 SQL 的目标库、执行顺序及限制见 [Logto-only 身份迁移](docs/deployment.md#logto-only-身份迁移)：所有副本升级后、开放新登录前清理 tripmap 认证遗留列与旧用户名唯一索引，可选清空测试业务资料；验证后删除 BFF 旧账号表。脚本不会自动执行，也不修改 Logto 数据库。
 
 照片直传、公开分享、OAuth 与通知需要额外配置，相关说明见下方文档。
 

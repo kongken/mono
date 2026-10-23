@@ -66,7 +66,9 @@ const (
 
 // AuthServiceClient is a client for the bff.v1.AuthService service.
 type AuthServiceClient interface {
+	// Deprecated: do not use.
 	Register(context.Context, *connect.Request[v1.RegisterRequest]) (*connect.Response[v1.RegisterResponse], error)
+	// Deprecated: do not use.
 	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
 	Me(context.Context, *connect.Request[v1.MeRequest]) (*connect.Response[v1.MeResponse], error)
@@ -74,12 +76,15 @@ type AuthServiceClient interface {
 	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
 	// RevokeSession revokes one of the caller's own sessions.
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
-	// DeleteAccount starts or retries account deletion for the signed-in session.
+	// DeleteAccount deletes application cloud data, NOT the Logto account.
+	// Requires a BFF session issued within 15 minutes; cleanup retries are exempt.
 	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
 	ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error)
+	// Deprecated: do not use.
 	BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error)
+	// Deprecated: do not use.
 	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error)
 }
 
@@ -179,11 +184,15 @@ type authServiceClient struct {
 }
 
 // Register calls bff.v1.AuthService.Register.
+//
+// Deprecated: do not use.
 func (c *authServiceClient) Register(ctx context.Context, req *connect.Request[v1.RegisterRequest]) (*connect.Response[v1.RegisterResponse], error) {
 	return c.register.CallUnary(ctx, req)
 }
 
 // Login calls bff.v1.AuthService.Login.
+//
+// Deprecated: do not use.
 func (c *authServiceClient) Login(ctx context.Context, req *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error) {
 	return c.login.CallUnary(ctx, req)
 }
@@ -224,18 +233,24 @@ func (c *authServiceClient) ListOAuthProviders(ctx context.Context, req *connect
 }
 
 // BeginOAuthFlow calls bff.v1.AuthService.BeginOAuthFlow.
+//
+// Deprecated: do not use.
 func (c *authServiceClient) BeginOAuthFlow(ctx context.Context, req *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error) {
 	return c.beginOAuthFlow.CallUnary(ctx, req)
 }
 
 // CompleteOAuthFlow calls bff.v1.AuthService.CompleteOAuthFlow.
+//
+// Deprecated: do not use.
 func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, req *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error) {
 	return c.completeOAuthFlow.CallUnary(ctx, req)
 }
 
 // AuthServiceHandler is an implementation of the bff.v1.AuthService service.
 type AuthServiceHandler interface {
+	// Deprecated: do not use.
 	Register(context.Context, *connect.Request[v1.RegisterRequest]) (*connect.Response[v1.RegisterResponse], error)
+	// Deprecated: do not use.
 	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
 	Me(context.Context, *connect.Request[v1.MeRequest]) (*connect.Response[v1.MeResponse], error)
@@ -243,12 +258,15 @@ type AuthServiceHandler interface {
 	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
 	// RevokeSession revokes one of the caller's own sessions.
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
-	// DeleteAccount starts or retries account deletion for the signed-in session.
+	// DeleteAccount deletes application cloud data, NOT the Logto account.
+	// Requires a BFF session issued within 15 minutes; cleanup retries are exempt.
 	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
 	ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error)
+	// Deprecated: do not use.
 	BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error)
+	// Deprecated: do not use.
 	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error)
 }
 

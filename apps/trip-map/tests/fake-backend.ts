@@ -270,8 +270,12 @@ export function fakeBackend(
     },
     /** Saves a snapshot of the current server state, as the server's scheduler would. */
     seedSnapshot: (reason = "scheduled") => capture(reason).snap,
-    install: () =>
-      page.route("**/api/**", async (route) => {
+    install: async () => {
+      await page.route("**/auth/login?*", async (route) => {
+        state.authenticated = true; // Controlled Logto callback in browser fixtures.
+        await route.fulfill({ status: 303, headers: { Location: "/" } });
+      });
+      await page.route("**/api/**", async (route) => {
         const req = route.request();
         const method = req.url().split("/").pop()!;
         const binary = !!req.headers()["content-type"]?.includes("proto");
@@ -307,22 +311,13 @@ export function fakeBackend(
           case "IssueCSRFToken":
             return send(bffAuth.IssueCSRFTokenResponseSchema, { token: csrfToken });
           case "Register":
-            state.authenticated = true;
-            return send(bffAuth.RegisterResponseSchema, {
-              user: bffUser(),
-              expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
-            });
           case "Login":
-            state.authenticated = true;
-            return send(bffAuth.LoginResponseSchema, {
-              user: bffUser(),
-              expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
-            });
+            return route.fulfill(failure("unimplemented", "password accounts retired", 501));
           case "Logout":
             state.authenticated = false;
             return send(bffAuth.LogoutResponseSchema, {});
           case "ListOAuthProviders":
-            return send(bffAuth.ListOAuthProvidersResponseSchema, {});
+            return send(bffAuth.ListOAuthProvidersResponseSchema, { providers: [{ name: "logto", displayName: "Logto" }] });
           case "BeginOAuthFlow":
           case "CompleteOAuthFlow":
             return route.fulfill(failure("unimplemented", "use BFF HTTP login", 501));
@@ -702,7 +697,8 @@ export function fakeBackend(
           default:
             return route.fulfill({ status: 404, contentType: "application/json", body: '{"code":"unimplemented"}' });
         }
-      }),
+      });
+    },
   };
 }
 
@@ -721,9 +717,7 @@ export async function seedLocal(page: Page, visits: V[], provinces: Record<strin
 export async function login(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByLabel("用户名", { exact: true }).fill("ci_user");
-  await page.getByLabel("密码", { exact: true }).fill("correct horse battery");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await page.getByRole("button", { name: "前往用户中心登录", exact: true }).click();
 }
 
 

@@ -38,6 +38,29 @@ func uploadTripPhoto(t *testing.T, e *env, token, regionCode, tripID, filename s
 	return id
 }
 
+func TestFriendLookupRejectsAmbiguousLogtoNames(t *testing.T) {
+	e := newEnv(t)
+	ctx := t.Context()
+	caller := e.register("caller")
+	first := e.register("shared")
+	second := e.register("SHARED")
+	_, err := e.collab.SendFriendRequest(ctx, bearer(caller, &tripmapv1.SendFriendRequestRequest{Target: "shared"}))
+	wantCode(t, err, connect.CodeInvalidArgument)
+	if count := e.store.DB.Friendship.Query().CountX(ctx); count != 0 {
+		t.Fatal("ambiguous name created a friendship")
+	}
+	ov, err := e.collab.GetCollaborationOverview(ctx, bearer(second, &tripmapv1.GetCollaborationOverviewRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A username colliding with another user's invite code cannot shadow it.
+	e.store.DB.User.UpdateOneID(first).SetUsername(ov.Msg.MyFriendCode).ExecX(ctx)
+	res, err := e.collab.SendFriendRequest(ctx, bearer(caller, &tripmapv1.SendFriendRequestRequest{Target: ov.Msg.MyFriendCode}))
+	if err != nil || res.Msg.Friendship.Friend.Id != second {
+		t.Fatalf("friend code did not select its owner: %v %v", res, err)
+	}
+}
+
 func TestFriendshipLifecycleAndPermissions(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()

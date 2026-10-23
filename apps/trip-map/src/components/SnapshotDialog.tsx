@@ -344,7 +344,7 @@ export default function SnapshotDialog({
               ))}
             </ul>
             <p className="snapshot-retention">
-              快照保留 30 天（至少保留最新 10 个，最多 50 个），不可修改；注销账号时一并删除。
+              快照保留 30 天（至少保留最新 10 个，最多 50 个），不可修改；删除云端数据时一并删除。
             </p>
             <div className="dialog-actions">
               <Button variant="outline" onClick={() => onOpenChange(false)}>

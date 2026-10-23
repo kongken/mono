@@ -463,7 +463,7 @@ export default function ShareDialog({ open, onOpenChange, cloud, visitedCities }
               </p>
             )}
             {!idle && (
-              <p className="unreadable-note">云端数据还没有加载完成或账号注销未完成，暂时不能发布。</p>
+              <p className="unreadable-note">云端数据还没有加载完成或云端数据删除未完成，暂时不能发布。</p>
             )}
           </>
         )}

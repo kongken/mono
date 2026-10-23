@@ -8,6 +8,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/tripmap/ent"
+	"github.com/kongken/mono/internal/tripmap/ent/user"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -37,15 +38,20 @@ func (s *ProfileService) EnsureProfile(ctx context.Context, req *tripmapv1.Ensur
 	if err == nil {
 		up := st.DB.User.UpdateOneID(userID)
 		changed := false
-		if name := strings.TrimSpace(req.GetDisplayName()); name != "" && existing.DisplayName != name {
+		if name := strings.TrimSpace(req.GetDisplayName()); existing.DisplayName != name {
 			up.SetDisplayName(name)
 			changed = true
 		}
-		if av := strings.TrimSpace(req.GetAvatarUrl()); av != "" && existing.AvatarURL != av {
+		if av := strings.TrimSpace(req.GetAvatarUrl()); existing.AvatarURL != av {
 			up.SetAvatarURL(av)
 			changed = true
 		}
-		if un := strings.TrimSpace(req.GetUsername()); un != "" && (existing.Username == nil || *existing.Username != un) {
+		if un := strings.TrimSpace(req.GetUsername()); un == "" {
+			if existing.Username != nil {
+				up.ClearUsername()
+				changed = true
+			}
+		} else if existing.Username == nil || *existing.Username != un {
 			up.SetUsername(un)
 			changed = true
 		}
@@ -68,8 +74,11 @@ func (s *ProfileService) EnsureProfile(ctx context.Context, req *tripmapv1.Ensur
 	}
 	if _, err = create.Save(ctx); err != nil {
 		if ent.IsConstraintError(err) {
-			// Another caller created the row; treat as success.
-			return &tripmapv1.EnsureProfileResponse{Created: false}, nil
+			// Only a concurrent insert of this ID is success, never a collision
+			// on another field in an incompletely upgraded database.
+			if exists, lookupErr := st.DB.User.Query().Where(user.ID(userID)).Exist(ctx); lookupErr == nil && exists {
+				return &tripmapv1.EnsureProfileResponse{Created: false}, nil
+			}
 		}
 		return nil, grpcError(internalError(err))
 	}
@@ -77,8 +86,7 @@ func (s *ProfileService) EnsureProfile(ctx context.Context, req *tripmapv1.Ensur
 }
 
 func grpcError(err error) error {
-	var ce *connect.Error
-	if errors.As(err, &ce) {
+	if ce, ok := errors.AsType[*connect.Error](err); ok {
 		switch ce.Code() {
 		case connect.CodeUnauthenticated:
 			return status.Error(codes.Unauthenticated, ce.Message())

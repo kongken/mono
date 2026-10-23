@@ -1,11 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * Real-stack smoke for BFF Cookie auth (#30). Requires a running BFF + tripmap
- * (e.g. `make dev`) and `E2E_REAL_BFF=1`; see docs/bff.md §验证.
+ * Real-stack session smoke. Requires BFF + tripmap and a Playwright storage
+ * state captured after a real Logto login. Keep that file outside the repo.
+ * E2E_REAL_BFF=1 E2E_LOGTO_STORAGE_STATE=/private/path/state.json; see docs/bff.md.
  * Not run in default CI (Playwright uses the fake backend elsewhere).
  */
-const enabled = process.env.E2E_REAL_BFF === "1";
+const enabled = process.env.E2E_REAL_BFF === "1" && !!process.env.E2E_LOGTO_STORAGE_STATE;
+test.use({ storageState: process.env.E2E_LOGTO_STORAGE_STATE });
 
 const LOCAL_KEY = "shanhai-travel-v2";
 const SESSION_KEY = "shanhai-session-v1";
@@ -25,24 +27,18 @@ const localSeed = {
   marks: {},
 };
 
-async function registerUser(page: Page, username: string, password: string) {
+async function restoreLogtoSession(page: Page) {
   await page.goto("/");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("tab", { name: "注册" }).click();
-  await page.getByLabel("用户名", { exact: true }).fill(username);
-  await page.getByLabel("密码", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "注册并登录" }).click();
   await expect(page.getByRole("button", { name: "账号", exact: true })).toBeVisible();
 }
 
 test.describe("real BFF cookie auth", () => {
-  test.skip(!enabled, "set E2E_REAL_BFF=1 with BFF+tripmap up (make dev)");
+  test.skip(!enabled, "set E2E_REAL_BFF=1 and E2E_LOGTO_STORAGE_STATE with BFF+tripmap up");
 
   test("desktop: login/logout, HttpOnly cookie, no token in storage", async ({
     page,
     context,
   }) => {
-    const user = `pw_${Date.now().toString(36)}`;
     await page.addInitScript(
       ([key, raw]) => localStorage.setItem(key, raw),
       [LOCAL_KEY, JSON.stringify(localSeed)],
@@ -57,7 +53,7 @@ test.describe("real BFF cookie auth", () => {
       ["shanhai-cloud-v2:someone-else", otherCache],
     );
 
-    await registerUser(page, user, "password1");
+    await restoreLogtoSession(page);
 
     const cookies = await context.cookies();
     const sid = cookies.find((c) => c.name === "kongken_sid");
@@ -88,9 +84,8 @@ test.describe("real BFF cookie auth", () => {
     ).toBe(otherCache);
   });
 
-  test("mobile viewport: register and session cookie", async ({ page, context }) => {
-    const user = `mob_${Date.now().toString(36)}`;
-    await registerUser(page, user, "password1");
+  test("mobile viewport: restore Logto session cookie", async ({ page, context }) => {
+    await restoreLogtoSession(page);
     const sid = (await context.cookies()).find((c) => c.name === "kongken_sid");
     expect(sid?.httpOnly).toBe(true);
   });

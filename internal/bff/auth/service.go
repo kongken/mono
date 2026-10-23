@@ -4,17 +4,12 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"regexp"
-	"strings"
-	"sync"
 	"time"
-	"unicode/utf8"
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/ent"
 	entsession "github.com/kongken/mono/internal/bff/ent/session"
-	"github.com/kongken/mono/internal/bff/ent/user"
 	"github.com/kongken/mono/internal/bff/oauth"
 	"github.com/kongken/mono/internal/bff/oauth/provider"
 	"github.com/kongken/mono/internal/bff/ratelimit"
@@ -22,27 +17,13 @@ import (
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
-	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
 	maxDisplayRunes   = 40
 	maxAvatarURLBytes = 500
-	minPasswordBytes  = 8
-	maxPasswordBytes  = 72
-	invalidCredential = "invalid username or password"
 	touchInterval     = time.Minute
-)
-
-var usernamePattern = regexp.MustCompile(`^[a-z0-9_]{3,32}$`)
-
-const (
-	loginWindow    = 15 * time.Minute
-	loginPerUser   = 10
-	loginPerIP     = 40
-	registerWindow = time.Hour
-	registerPerIP  = 10
 )
 
 type Service struct {
@@ -60,16 +41,6 @@ func NewService(cfg *config.AuthConfig, cookies session.CookieConfig, db *ent.Cl
 	s := &Service{cfg: cfg, cookies: cookies, db: db, limit: limit, profiles: profiles, cleanup: cleanup}
 	applyOAuthDeps(s, oauth)
 	return s
-}
-
-var (
-	dummyHashOnce sync.Once
-	dummyHash     []byte
-)
-
-func burnPassword(password string) {
-	dummyHashOnce.Do(func() { dummyHash, _ = bcrypt.GenerateFromPassword([]byte("unused-password"), bcrypt.DefaultCost) })
-	_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
 }
 
 func (s *Service) SessionLifetime() time.Duration {
@@ -102,25 +73,6 @@ func toUser(u *ent.User) *bffv1.User {
 	return out
 }
 
-func normalizeUsername(raw string) (string, error) {
-	name := strings.ToLower(strings.TrimSpace(raw))
-	if !usernamePattern.MatchString(name) {
-		return "", connect.NewError(connect.CodeInvalidArgument, errors.New("username must be 3-32 characters of a-z, 0-9 or underscore"))
-	}
-	return name, nil
-}
-
-func cleanDisplayName(raw, fallback string) (string, error) {
-	name := strings.TrimSpace(raw)
-	if name == "" {
-		return fallback, nil
-	}
-	if utf8.RuneCountInString(name) > maxDisplayRunes {
-		return "", connect.NewError(connect.CodeInvalidArgument, errors.New("display name is too long"))
-	}
-	return name, nil
-}
-
 func (s *Service) issueSession(ctx context.Context, userID string) (token string, expires time.Time, err error) {
 	token, hash, err := session.NewToken()
 	if err != nil {
@@ -134,9 +86,9 @@ func (s *Service) issueSession(ctx context.Context, userID string) (token string
 	return token, expires, nil
 }
 
-func (s *Service) syncProfile(ctx context.Context, u *ent.User) {
-	if s.profiles == nil {
-		return
+func (s *Service) syncProfile(ctx context.Context, u *ent.User) error {
+	if s.profiles == nil || u.DeletionRequestedAt != nil {
+		return nil
 	}
 	name := u.DisplayName
 	userName := ""
@@ -149,87 +101,9 @@ func (s *Service) syncProfile(ctx context.Context, u *ent.User) {
 	})
 	if err != nil {
 		slog.Warn("ensure tripmap profile", "user", u.ID, "error", err)
+		return connect.NewError(connect.CodeUnavailable, errors.New("profile synchronization unavailable; retry sign-in"))
 	}
-}
-
-func (s *Service) Register(ctx context.Context, clientIP string, req *bffv1.RegisterRequest) (*bffv1.RegisterResponse, time.Time, string, error) {
-	if s.cfg.RegistrationDisabled {
-		return nil, time.Time{}, "", connect.NewError(connect.CodePermissionDenied, errors.New("registration is closed"))
-	}
-	if err := s.allow(ctx, "register:ip:"+clientIP, registerPerIP, registerWindow); err != nil {
-		return nil, time.Time{}, "", err
-	}
-	username, err := normalizeUsername(req.GetUsername())
-	if err != nil {
-		return nil, time.Time{}, "", err
-	}
-	password := req.GetPassword()
-	if len(password) < minPasswordBytes || len(password) > maxPasswordBytes {
-		return nil, time.Time{}, "", connect.NewError(connect.CodeInvalidArgument, errors.New("password must be 8-72 bytes"))
-	}
-	display, err := cleanDisplayName(req.GetDisplayName(), username)
-	if err != nil {
-		return nil, time.Time{}, "", err
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, time.Time{}, "", internal(err)
-	}
-	u, err := s.db.User.Create().SetUsername(username).SetDisplayName(display).SetPasswordHash(string(hash)).Save(ctx)
-	if err != nil {
-		if ent.IsConstraintError(err) {
-			return nil, time.Time{}, "", connect.NewError(connect.CodeAlreadyExists, errors.New("username is taken"))
-		}
-		slog.Error("create user", "error", err)
-		return nil, time.Time{}, "", internal(err)
-	}
-	s.syncProfile(ctx, u)
-	token, expires, err := s.issueSession(ctx, u.ID)
-	if err != nil {
-		return nil, time.Time{}, "", err
-	}
-	return &bffv1.RegisterResponse{User: toUser(u), ExpiresAt: timestamppb.New(expires)}, expires, token, nil
-}
-
-func (s *Service) Login(ctx context.Context, clientIP string, req *bffv1.LoginRequest) (*bffv1.LoginResponse, time.Time, string, error) {
-	username := strings.ToLower(strings.TrimSpace(req.GetUsername()))
-	password := req.GetPassword()
-	if username == "" || password == "" {
-		return nil, time.Time{}, "", connect.NewError(connect.CodeInvalidArgument, errors.New("username and password are required"))
-	}
-	if len(username) > 64 || len(password) > 1024 {
-		return nil, time.Time{}, "", connect.NewError(connect.CodeUnauthenticated, errors.New(invalidCredential))
-	}
-	if err := s.allow(ctx, "login:ip:"+clientIP, loginPerIP, loginWindow); err != nil {
-		return nil, time.Time{}, "", err
-	}
-	if err := s.allow(ctx, "login:user:"+username, loginPerUser, loginWindow); err != nil {
-		return nil, time.Time{}, "", err
-	}
-	u, err := s.db.User.Query().Where(user.UsernameEQ(username)).Only(ctx)
-	switch {
-	case ent.IsNotFound(err):
-		burnPassword(password)
-		return nil, time.Time{}, "", connect.NewError(connect.CodeUnauthenticated, errors.New(invalidCredential))
-	case err != nil:
-		slog.Error("login lookup", "error", err)
-		return nil, time.Time{}, "", internal(err)
-	}
-	if u.PasswordHash == "" || bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
-		if u.PasswordHash == "" {
-			burnPassword(password)
-		}
-		return nil, time.Time{}, "", connect.NewError(connect.CodeUnauthenticated, errors.New(invalidCredential))
-	}
-	if u.Disabled && u.DeletionRequestedAt == nil {
-		return nil, time.Time{}, "", connect.NewError(connect.CodePermissionDenied, errors.New("account is disabled"))
-	}
-	s.syncProfile(ctx, u)
-	token, expires, err := s.issueSession(ctx, u.ID)
-	if err != nil {
-		return nil, time.Time{}, "", err
-	}
-	return &bffv1.LoginResponse{User: toUser(u), ExpiresAt: timestamppb.New(expires)}, expires, token, nil
+	return nil
 }
 
 func (s *Service) Me(ctx context.Context, userID string) (*bffv1.MeResponse, error) {

@@ -36,10 +36,12 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// AuthService handles password accounts and browser sessions (HttpOnly Cookie).
-// Register, Login and IssueCSRFToken are anonymous; Me and Logout require a session.
+// AuthService handles Logto-backed browser sessions (HttpOnly Cookie).
+// Password and SPA OAuth RPCs are retired, unimplemented compatibility stubs.
 type AuthServiceClient interface {
+	// Deprecated: Do not use.
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error)
+	// Deprecated: Do not use.
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
 	Me(ctx context.Context, in *MeRequest, opts ...grpc.CallOption) (*MeResponse, error)
@@ -47,12 +49,15 @@ type AuthServiceClient interface {
 	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
 	// RevokeSession revokes one of the caller's own sessions.
 	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*RevokeSessionResponse, error)
-	// DeleteAccount starts or retries account deletion for the signed-in session.
+	// DeleteAccount deletes application cloud data, NOT the Logto account.
+	// Requires a BFF session issued within 15 minutes; cleanup retries are exempt.
 	DeleteAccount(ctx context.Context, in *DeleteAccountRequest, opts ...grpc.CallOption) (*DeleteAccountResponse, error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(ctx context.Context, in *IssueCSRFTokenRequest, opts ...grpc.CallOption) (*IssueCSRFTokenResponse, error)
 	ListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest, opts ...grpc.CallOption) (*ListOAuthProvidersResponse, error)
+	// Deprecated: Do not use.
 	BeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest, opts ...grpc.CallOption) (*BeginOAuthFlowResponse, error)
+	// Deprecated: Do not use.
 	CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest, opts ...grpc.CallOption) (*CompleteOAuthFlowResponse, error)
 }
 
@@ -64,6 +69,7 @@ func NewAuthServiceClient(cc grpc.ClientConnInterface) AuthServiceClient {
 	return &authServiceClient{cc}
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RegisterResponse)
@@ -74,6 +80,7 @@ func (c *authServiceClient) Register(ctx context.Context, in *RegisterRequest, o
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LoginResponse)
@@ -154,6 +161,7 @@ func (c *authServiceClient) ListOAuthProviders(ctx context.Context, in *ListOAut
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) BeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest, opts ...grpc.CallOption) (*BeginOAuthFlowResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(BeginOAuthFlowResponse)
@@ -164,6 +172,7 @@ func (c *authServiceClient) BeginOAuthFlow(ctx context.Context, in *BeginOAuthFl
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest, opts ...grpc.CallOption) (*CompleteOAuthFlowResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CompleteOAuthFlowResponse)
@@ -178,10 +187,12 @@ func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, in *CompleteO
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
 //
-// AuthService handles password accounts and browser sessions (HttpOnly Cookie).
-// Register, Login and IssueCSRFToken are anonymous; Me and Logout require a session.
+// AuthService handles Logto-backed browser sessions (HttpOnly Cookie).
+// Password and SPA OAuth RPCs are retired, unimplemented compatibility stubs.
 type AuthServiceServer interface {
+	// Deprecated: Do not use.
 	Register(context.Context, *RegisterRequest) (*RegisterResponse, error)
+	// Deprecated: Do not use.
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
 	Me(context.Context, *MeRequest) (*MeResponse, error)
@@ -189,12 +200,15 @@ type AuthServiceServer interface {
 	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
 	// RevokeSession revokes one of the caller's own sessions.
 	RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error)
-	// DeleteAccount starts or retries account deletion for the signed-in session.
+	// DeleteAccount deletes application cloud data, NOT the Logto account.
+	// Requires a BFF session issued within 15 minutes; cleanup retries are exempt.
 	DeleteAccount(context.Context, *DeleteAccountRequest) (*DeleteAccountResponse, error)
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error)
 	ListOAuthProviders(context.Context, *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error)
+	// Deprecated: Do not use.
 	BeginOAuthFlow(context.Context, *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error)
+	// Deprecated: Do not use.
 	CompleteOAuthFlow(context.Context, *CompleteOAuthFlowRequest) (*CompleteOAuthFlowResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }

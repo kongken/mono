@@ -9,9 +9,9 @@
 **当前已实现**
 
 - `bff.tripmap.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
-- `bff.v1.AuthService`：`Register`、`Login`、`Me`、`Logout`、`ListSessions`、`RevokeSession`、`IssueCSRFToken`，以及 OAuth `ListOAuthProviders` 与 HTTP 登录/回调（#54；旧 Begin/Complete RPC 返回 unimplemented）；账号、OAuth 绑定与会话在 BFF 独立 PostgreSQL（`migrations/bff/`、`internal/bff/ent`），OAuth state 在 BFF Redis（10 分钟、单次使用、绑定 provider/PKCE、app/落点、固定 redirect URI 和浏览器 Cookie 摘要）。会话 Cookie：`kongken_sid`（HttpOnly、Path `/`、SameSite=Lax；生产 `auth.cookie_secure: true`）。CSRF：Cookie `kongken_csrf` + 请求头 `X-CSRF-Token`；写操作（含 `RevokeSession`）校验 Origin。响应不返回会话令牌；会话列表与撤销只读写 BFF 存储，不向 tripmap 下传浏览器会话 ID。
-- OAuth 提供方在 `config.bff.yaml` 的 `auth.oauth_providers`（GitHub、Google、Logto；Logto 带 PKCE），与旧 tripmap `auth.oauth_providers` 字段含义相同，配置迁到 BFF。
-- `bff.tripmap.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。注册/登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
+- `bff.v1.AuthService` 使用 Logto 作为唯一身份来源。BFF 只保存 `(issuer, sub)` 到本地业务用户 ID 的映射、展示资料缓存和浏览器 Cookie 会话；账号密码、注册、找回密码、社交连接和 Passkey 由 Logto 管理。旧 `Register`、`Login` 和 SPA OAuth RPC 保留 deprecated 契约但返回 `unimplemented`，不会在 BFF 写入或验证密码。会话、CSRF、OAuth state 和固定回调仍由 BFF 负责。
+- OAuth 提供方只允许 `logto`；GitHub、Google 等社交连接应在 Logto 中配置，不再作为 BFF 的平行身份提供方。
+- `bff.tripmap.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。Logto 登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
 - `bff.tripmap.v1.NotificationService`（全部提醒设置 RPC）→ tripmap gRPC `NotificationService`；浏览器经 Cookie 会话，业务仍只认 BFF 签发的内部凭证与用户 ID。
 - 公开 HTTP：`GET/HEAD/POST /api/notifications/unsubscribe` 在 BFF 显式注册（`internal/bff/publichttp`），边缘限流与追踪路径模板 `/api/notifications/unsubscribe`（不含查询令牌），再调用 tripmap gRPC `NotificationPublicService/ProcessEmailUnsubscribe`（匿名内部凭证 + 退订签名令牌）；不使用 Cookie CSRF。
 - `bff.tripmap.v1.ShareService`（#36：`GetShare`、`PreviewShare`、`SaveShare`、`RevokeShare`）→ tripmap gRPC `ShareService` 同名方法；浏览器经 Cookie 会话。
@@ -26,15 +26,16 @@
 - 可选 Mapbox 底图瓦片：`GET /api/tiles/{z}/{x}/{y}.png`（匿名）在 `gateway.Services` 登记为 tripmap 的 HTTP 路由，BFF 透明转发到 `upstreams.tripmap`（需要 tripmap 的 `mapbox_tiles.enabled`，见 [后端初始化](backend.md#mapbox-瓦片代理可选)）。BFF 不持有 Mapbox token、样式或限流配置；转发时只保留 `Accept`、`User-Agent` 与缓存验证头 `If-None-Match`、`If-Modified-Since`（查询串原样转发，由 tripmap 校验），丢弃 Cookie、Authorization、CSRF、Origin 等其余浏览器头，并覆盖写入 `X-Real-IP`；保留 tripmap 的图片、缓存与验证响应头及 304 状态，去掉 `Access-Control-*` 并按 `cors_allowed_origins` 应答；tripmap 不可达时返回不缓存的 502。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
-**开发数据保留（#30 / #44）**
+**测试数据清理与升级**
 
-不默认删除 tripmap 既有数据。`migrations/tripmap/20261017180000_retire_tripmap_sessions.sql` 只删除 tripmap 侧会话表；`users` 上的 legacy 凭据列保留到运维确认导入之后。顺序：**(1)** 应用 tripmap + BFF 版本化迁移；**(2)** `bin/bff-import-legacy-accounts -tripmap-dsn … -bff-dsn …`（先 `--dry-run` 看报告）；**(3)** 抽查同一 `user_id` 可登录；**(4)** 可选手动执行 `deploy/sql/tripmap/post_import_drop_legacy_auth_columns.sql`（不在 atlas 中）。新注册仍在 BFF 建 `auth_users` 并 `EnsureProfile` 同步 tripmap 业务列。
+当前约定不迁移旧的测试账号或云端足迹。BFF 新增身份映射迁移，旧会话失效。手动清理 SQL 的目标库和顺序见 [Logto-only 身份迁移](deployment.md#logto-only-身份迁移)：所有副本更新后、开放新登录前清理 tripmap 认证遗留列与旧用户名唯一索引，可选清空测试业务数据；验证后再删除 BFF 旧账号表。保留新身份映射、会话及删除回执。这些脚本不会由启动流程自动调用，也不删除 Logto 租户中的用户。
+
 
 **当前限制**
 
 - 浏览器 RPC 仅 `/api/bff.*`（共用的 `bff.v1`、各产品的 `bff.<产品>.v1`）；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/unsubscribe 由 BFF `publichttp` 提供）。
-- 前端的业务 RPC（含分享 API）使用 `bff.tripmap.v1`，OAuth/会话管理使用 `bff.v1`；账号凭据在 BFF 独立库；tripmap `users` 仍可能含 legacy 凭据列直至 post-import 清理（Ent 不写入这些列）。
-- 真实 GitHub/Google/Logto 端到端授权验收仍依赖部署凭据，CI 使用受控 fake 提供方与 `internal/e2e/oauth_chain_test.go`。
+- 前端的业务 RPC（含分享 API）使用 `bff.tripmap.v1`；OAuth/会话管理使用 `bff.v1`。Logto 的 `(issuer, sub)` 映射和 BFF 会话在 BFF 独立库；tripmap `users` 只保存业务 profile，不再保存认证遗留字段。
+- 真实 Logto 授权端到端验收仍依赖部署凭据；CI 使用受控 fake Logto 提供方。GitHub/Google 不再由本项目直接验收。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）
@@ -137,7 +138,7 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 复制 `config.bff.example.yaml` 为 `config.bff.yaml`（已被 Git 忽略）。与 tripmap 一样由 Butterfly 文件模式读取，`${VAR}` 不展开。
 
 - `db_store` / `redis_store` / `key_prefix` / `auto_migrate`：BFF 认证库与 Redis 限流（见 example 内 `store` 段）。
-- `auth.session_ttl`、`auth.cookie_secure`、`auth.registration_disabled`、`auth.csrf_token_ttl`。
+- `auth.session_ttl`、`auth.cookie_secure`、`auth.csrf_token_ttl`、`auth.oauth_apps`、`auth.oauth_providers.logto`。不再支持 `auth.registration_disabled` 或 GitHub/Google provider；Logto 的注册和账号策略在 Logto 管理。
 - `upstreams.<服务>`、`grpc.*`、`internal_auth.*`、`client_ip_header`、`cors_allowed_origins`：同前。`grpc.services.<名称>.transport` 为 `tls`（默认）或 `h2c`，见 [内部 gRPC 与凭证](#内部-grpc-与凭证)。
 
 配置示例（`grpc.ca_file` 仅 TLS 上游需要；`internal_auth` 在所有模式下必填）：
@@ -223,7 +224,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 - `internal/bff/auth`：注册/登录/会话/CSRF（需 `TRIPMAP_TEST_*`）。
 - `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与内部 gRPC（TLS 与 h2c）信任。
-- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Cookie 注册/登录、Me、Logout、`ListSessions`/`RevokeSession`（跨设备撤销与 CSRF）、A/B 足迹隔离、`SyncChanges` 幂等与 revision 冲突、行程增删改读、提醒设置、公开退订 HTTP、**#43** 注销重试/S3 故障/完成回执/跨用户隔离、错误 Origin/CSRF、过期/撤销/禁用/注销待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。浏览器注销 UI 仍用 Playwright 模拟 RPC（`apps/trip-map/tests/account-deletion.spec.ts`），真实 Cookie 链路以 e2e 为准。
+- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Logto HTTP 登录、Cookie 会话、Me、Logout、`ListSessions`/`RevokeSession`（跨设备撤销与 CSRF）、A/B 足迹隔离、`SyncChanges` 幂等与 revision 冲突、行程增删改读、提醒设置、公开退订 HTTP、**#43** 云端数据删除重试/S3 故障/完成回执/跨用户隔离、错误 Origin/CSRF、过期/撤销/禁用/删除待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。浏览器云端数据删除 UI 使用 Playwright 模拟 RPC（`apps/trip-map/tests/account-deletion.spec.ts`），真实 Cookie 链路以 e2e 为准。
 - **Playwright 真实栈**（默认跳过）：`apps/trip-map/tests/bff-cookie-real.spec.ts`；先 `make dev`（或等价 BFF+tripmap），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @kongken/trip-map -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
 - 其余 UI：Playwright 模拟后端覆盖登录骨架与业务场景。
 
@@ -237,7 +238,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 ## 多 Web App 登录与迁移（#54）
 
-GitHub、Google、Logto 统一使用 BFF HTTP 回调；Logto 继续使用 S256 PKCE。浏览器顶层导航到 `/auth/login?app=trip-map&provider=logto`（provider 默认 logto），可选 `return_to` 只接受该 app 的精确允许路径。未知 app、绝对/协议相对地址、百分号编码、反斜线、非规范路径、查询串和片段均拒绝。客户端不能选择 issuer、callback 或 origin。
+Logto 使用 BFF HTTP 回调与 S256 PKCE；社交连接全部由 Logto 管理。浏览器顶层导航到 `/auth/login?app=trip-map&provider=logto`（provider 默认 logto），可选 `return_to` 只接受该 app 的精确允许路径。未知 app、绝对/协议相对地址、百分号编码、反斜线、非规范路径、查询串和片段均拒绝。客户端不能选择 issuer、callback 或 origin。
 
 每次尝试在 Redis 保存随机 192-bit state（10 分钟、GETDEL 单次消费）、app、完整返回地址、固定 redirect URI、PKCE verifier 和独立随机浏览器 Cookie 的 SHA-256 摘要。每个 state 有独立短期 HttpOnly、Secure、SameSite=Lax、host-only Cookie，生产使用 `__Host-` 前缀；标签页并发不会覆盖绑定。回调先消费 state，再校验 provider、绑定和配置中的 redirect URI/返回白名单；成功才建会话并 303 返回干净的应用地址，清除该次 Cookie。取消、缺参、过期、重放、上游失败只显示中文错误，要求重新发起，不建立新会话、不回显上游错误/授权码。未完成尝试的 Cookie 自行在 10 分钟后过期。
 
@@ -266,13 +267,13 @@ auth:
 
 迁移步骤：
 
-1. 在 Logto Traditional web 应用登记唯一固定 BFF callback；GitHub/Google 同步登记各自 `/auth/callback/github`、`/auth/callback/google`。把 BFF 的 `redirect_url` 从 SPA 地址改到该入口，增加 `oauth_apps` 与精确 `cors_allowed_origins`。缺少 oauth_apps、或不符合路径/HTTPS 规则的旧配置在启动时拒绝；部署者仍须确认所填 callback URL 实际路由到 BFF（同源代理可保持前端主机地址）；不兼容升级前正在授权的 state，用户需重新点击登录。
+1. 在 Logto Traditional web 应用登记唯一固定 BFF callback `https://api.example.com/auth/callback/logto`，并在 Logto 内配置注册、密码、邮箱验证、社交连接和 Passkey 策略。BFF 增加 `oauth_apps` 与精确 `cors_allowed_origins`，不再登记 GitHub/Google 的本项目 callback。部署者仍须确认 callback URL 实际路由到 BFF；同源代理可保持前端主机地址。
 2. 公网网关将 `/auth/login` 和 `/auth/callback/*` 转发给 BFF；所有层的访问日志、错误日志、追踪/APM 均排除 OAuth 查询串。BFF 回调响应 `Cache-Control: no-store`、`Referrer-Policy: no-referrer`；随仓库的 Nginx 示例对 `/auth/` 禁止访问日志并限制错误日志。只允许受信网关访问 BFF；由网关覆盖 `X-Real-IP` 后才配置 `client_ip_header`，直连则留空；不依赖请求 Host/Referer 生成返回地址。
 3. 山海足迹构建 `VITE_API_BASE_URL=https://api.example.com/api`、`VITE_OAUTH_APP_ID=trip-map`（默认 trip-map）。其他应用使用各自 app ID，通过同一 BFF 顶层入口登录，返回后用 Me 恢复身份。前端不处理授权码、不持久化 state/token。旧 Begin/Complete RPC 保留契约占位但返回 unimplemented；不存在可用的平行认证链。旧 SPA 登录临时 sessionStorage 键在加载时清理。
 4. 同源模式仍可构建 `VITE_API_BASE_URL=/api`，通过同一个前端网关代理 `/api` 和 `/auth/`，callback 也登记这个网关地址，使登录与 API Cookie 在同一主机；Vite 和 Nginx 示例都已代理 `/auth/`。共享 BFF 多前端模式则让所有应用直连同一个 API 主机，不能混用独立代理的 Cookie。前端挂在子路径时把服务端默认落点和允许路径同步设为该路径。
-5. 本地开发可以显式设置 `auth.oauth_development: true`：仅为 loopback/localhost origin 和 callback 允许 HTTP，配合 `cookie_secure: false`。生产移除此开关并使用 HTTPS/Secure；配置错误在启动时拒绝。密码入口策略不变；`registration_disabled: true` 仍会阻止 OAuth 新用户创建，不能用于“仅 Logto”。
+5. 本地开发可以显式设置 `auth.oauth_development: true`：仅为 loopback/localhost origin 和 callback 允许 HTTP，配合 `cookie_secure: false`。生产移除此开关并使用 HTTPS/Secure；配置错误在启动时拒绝。账号注册与密码策略统一由 Logto 管理。
 
-CORS 由统一中间件应答：精确允许 Origin 的正常、错误与 OPTIONS 响应均带 Allow-Origin、Allow-Credentials 与 Vary，预检包含 Connect/CSRF/区域头及 X-Kongken-User；不允许 `*` 或任意回显。读取授权不会免除写入的 Origin/CSRF 验证。CSRF token 从 IssueCSRFToken 响应体取得，并在凭据请求中放入 X-CSRF-Token（不要求前端读取 BFF Cookie）。退出只撤销当前 BFF 会话，不调用 Logto 全局退出；其他设备会话按原规则保留。共享这个 BFF Cookie 的应用会在下一次请求观察到退出。
+CORS 由统一中间件应答：精确允许 Origin 的正常、错误与 OPTIONS 响应均带 Allow-Origin、Allow-Credentials 与 Vary，预检包含 Connect/CSRF/区域头及 X-Kongken-User；不允许 `*` 或任意回显。读取授权不会免除写入的 Origin/CSRF 验证。CSRF token 从 IssueCSRFToken 响应体取得，并在凭据请求中放入 X-CSRF-Token（不要求前端读取 BFF Cookie）。退出只撤销当前 BFF 会话，不调用 Logto 全局退出；其他设备会话按原规则保留。Logto 远端账号禁用或删除不会实时撤销现有 BFF 会话；资料仅在再次登录时刷新。删除云端数据也不删除 Logto 账号；再次登录会创建新的本地业务映射。
 
 受控真实栈验证：
 

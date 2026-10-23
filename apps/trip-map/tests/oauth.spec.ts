@@ -1,7 +1,30 @@
 import { test, expect } from "@playwright/test";
 import { fakeBackend } from "./fake-backend";
 import { create, toJsonString } from "@bufbuild/protobuf";
-import { ListOAuthProvidersResponseSchema } from "@kongken/api-client/bff/v1/auth_pb";
+import { ListOAuthProvidersResponseSchema, MeResponseSchema } from "@kongken/api-client/bff/v1/auth_pb";
+
+test("missing Logto offers local mode and refresh, never a password form", async ({ page }) => {
+  const backend = fakeBackend(page, { visits: [] });
+  await backend.install();
+  let available = false;
+  await page.route("**/api/bff.v1.AuthService/ListOAuthProviders", route => route.fulfill({
+    contentType: "application/json",
+    body: toJsonString(ListOAuthProvidersResponseSchema, create(ListOAuthProvidersResponseSchema, {
+      providers: available ? [{ name: "logto", displayName: "Logto" }] : [],
+    })),
+  }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(page.getByText(/统一登录暂不可用/)).toBeVisible();
+  await expect(page.locator('input[type="password"]')).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "注册", exact: true })).toHaveCount(0);
+  available = true;
+  await page.getByRole("button", { name: "刷新登录入口" }).click();
+  await expect(page.getByRole("button", { name: "前往用户中心登录" })).toBeVisible();
+  await expect(page.getByText(/统一登录暂不可用/)).toHaveCount(0);
+  await page.getByRole("button", { name: "暂不登录" }).click();
+  await expect(page.getByRole("button", { name: "登录", exact: true })).toBeVisible();
+});
 
 test("BFF login uses top-level navigation and restores via Me without SPA authorization material", async ({ page }) => {
   const backend = fakeBackend(page, { visits: [] });
@@ -22,7 +45,11 @@ test("BFF login uses top-level navigation and restores via Me without SPA author
   });
   await page.goto("/");
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("button", { name: /Logto/ }).click();
+  const dialog = page.getByRole("dialog", { name: "登录山海足迹" });
+  await expect(dialog).toContainText("使用用户中心账号登录");
+  // Provider displayName may still contain the implementation brand; never render it.
+  await expect(dialog).not.toContainText(/Logto/i);
+  await dialog.getByRole("button", { name: "前往用户中心登录", exact: true }).click();
   await expect(page.getByRole("button", { name: "账号", exact: true })).toBeVisible();
   expect(navigated).toBe(true);
   expect(new URL(page.url()).pathname).toBe("/");
@@ -31,4 +58,15 @@ test("BFF login uses top-level navigation and restores via Me without SPA author
   expect(session.pending).toBeNull();
   expect(session.local).not.toMatch(/"token"|"state"|"code"/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.route("**/api/bff.v1.AuthService/Me", route => route.fulfill({
+    contentType: "application/json",
+    body: toJsonString(MeResponseSchema, create(MeResponseSchema, { user: { id: "ci-migrate", displayName: "旅行者" } })),
+  }));
+  // Restore from Me without a cached display profile, as on a new device.
+  await page.evaluate(() => localStorage.removeItem("shanhai-session-v1"));
+  await page.reload();
+  await page.getByRole("button", { name: "账号", exact: true }).click();
+  const account = page.getByRole("dialog", { name: "旅行者", exact: true });
+  await expect(account).toContainText("用户中心账号");
+  await expect(account).not.toContainText(/Logto/i);
 });

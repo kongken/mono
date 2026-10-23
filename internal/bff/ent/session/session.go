@@ -29,12 +29,12 @@ const (
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// Table holds the table name of the session in the database.
-	Table = "auth_sessions"
+	Table = "auth_browser_sessions"
 	// UserTable is the table that holds the user relation/edge.
-	UserTable = "auth_sessions"
+	UserTable = "auth_browser_sessions"
 	// UserInverseTable is the table name for the User entity.
 	// It exists in this package in order to avoid circular dependency with the "user" package.
-	UserInverseTable = "auth_users"
+	UserInverseTable = "auth_identities"
 	// UserColumn is the table column denoting the user relation/edge.
 	UserColumn = "user_id"
 )
