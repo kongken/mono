@@ -107,9 +107,10 @@ type InternalAuth struct {
 	Issuer string `yaml:"issuer"`
 	// KID names the signing key; services look the public key up by it. Rotating
 	// means adding the new public key to every service first, then changing
-	// kid and private_key_file here.
+	// kid and the private key source here.
 	KID string `yaml:"kid"`
-	// PrivateKeyFile is an Ed25519 key in PKCS#8 PEM form.
+	// PrivateKey and PrivateKeyFile are mutually exclusive PKCS#8 PEM sources.
+	PrivateKey     string `yaml:"private_key"`
 	PrivateKeyFile string `yaml:"private_key_file"`
 }
 
@@ -143,8 +144,8 @@ func (c *Config) ValidateInternal(grpcServices []string) error {
 	if len(grpcServices) == 0 {
 		return nil
 	}
-	if c.InternalAuth.Issuer == "" || c.InternalAuth.KID == "" || c.InternalAuth.PrivateKeyFile == "" {
-		return fmt.Errorf("internal_auth requires issuer, kid and private_key_file")
+	if c.InternalAuth.Issuer == "" || c.InternalAuth.KID == "" || (c.InternalAuth.PrivateKey == "") == (c.InternalAuth.PrivateKeyFile == "") {
+		return fmt.Errorf("internal_auth requires issuer, kid and exactly one of private_key or private_key_file")
 	}
 	if c.GRPC.MaxMessageBytes < 0 {
 		return fmt.Errorf("grpc.max_message_bytes must not be negative")

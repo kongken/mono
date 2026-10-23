@@ -37,17 +37,24 @@ func TestValidateInternal(t *testing.T) {
 	if c := ok(); c.ValidateInternal([]string{"tripmap"}) != nil {
 		t.Fatal(c.ValidateInternal([]string{"tripmap"}))
 	}
+	inline := ok()
+	inline.InternalAuth.PrivateKeyFile = ""
+	inline.InternalAuth.PrivateKey = "PEM content is checked at dial"
+	if err := inline.ValidateInternal([]string{"tripmap"}); err != nil {
+		t.Fatal(err)
+	}
 	if c := (Config{}); c.ValidateInternal(nil) != nil {
 		t.Fatal("a route table without gRPC services needs no internal settings")
 	}
 	for name, mutate := range map[string]func(*Config){
-		"no issuer":       func(c *Config) { c.InternalAuth.Issuer = "" },
-		"no kid":          func(c *Config) { c.InternalAuth.KID = "" },
-		"no private key":  func(c *Config) { c.InternalAuth.PrivateKeyFile = "" },
-		"no CA":           func(c *Config) { c.GRPC.CAFile = "" },
-		"no address":      func(c *Config) { c.GRPC.Services["tripmap"] = GRPCService{} },
-		"unknown service": func(c *Config) { c.GRPC.Services["tirpmap"] = GRPCService{Address: "x:1"} },
-		"negative limit":  func(c *Config) { c.GRPC.MaxMessageBytes = -1 },
+		"no issuer":        func(c *Config) { c.InternalAuth.Issuer = "" },
+		"no kid":           func(c *Config) { c.InternalAuth.KID = "" },
+		"no private key":   func(c *Config) { c.InternalAuth.PrivateKeyFile = "" },
+		"both key sources": func(c *Config) { c.InternalAuth.PrivateKey = "inline" },
+		"no CA":            func(c *Config) { c.GRPC.CAFile = "" },
+		"no address":       func(c *Config) { c.GRPC.Services["tripmap"] = GRPCService{} },
+		"unknown service":  func(c *Config) { c.GRPC.Services["tirpmap"] = GRPCService{Address: "x:1"} },
+		"negative limit":   func(c *Config) { c.GRPC.MaxMessageBytes = -1 },
 	} {
 		c := ok()
 		mutate(&c)

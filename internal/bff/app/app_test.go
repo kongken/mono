@@ -207,6 +207,9 @@ func TestExampleConfigCoversTheRouteTable(t *testing.T) {
 	if err := cfg.ValidateInternal(gateway.GRPCNames(gateway.Services)); err != nil {
 		t.Fatal(err)
 	}
+	if cfg.GRPC.CAFile != "" || cfg.GRPC.Services["tripmap"].Transport != "h2c" {
+		t.Fatal("local example must use explicit h2c without a CA")
+	}
 }
 
 func TestCredentialPathsStayOutOfTraces(t *testing.T) {

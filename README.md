@@ -68,7 +68,7 @@ make storage-init
 make dev-secrets
 ```
 
-`make deps-up` 启动 PostgreSQL、Redis 与 S3 开发依赖；`make storage-init` 初始化 S3 bucket；`make dev-secrets` 生成本地 CA、tripmap TLS 证书与 BFF 签名密钥。配置文件和 `dev-secrets/` 均已被 Git 忽略。已有本地环境时保留配置、数据库和密钥，跳过对应的首次初始化步骤。
+`make deps-up` 启动 PostgreSQL、Redis 与 S3 开发依赖；`make storage-init` 初始化 S3 bucket；`make dev-secrets` 仅生成 BFF 的 Ed25519 签名密钥对。本地示例显式使用 h2c，不需要 TLS 证书；也可在配置中填写配套的 `private_key` / `public_key` PEM（替换对应 `*_key_file`），无需独立密钥文件，见 [BFF 配置](docs/bff.md#配置内联签名密钥)。TLS 开发另用 `go run ./cmd/dev-secrets -tls` 并同步配置两端。配置文件和 `dev-secrets/` 均已被 Git 忽略。已有本地环境时保留配置、数据库和密钥，跳过对应的首次初始化步骤；升级不会自动修改已有配置。
 
 启动两个后端服务：
 

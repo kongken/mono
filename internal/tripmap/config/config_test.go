@@ -114,6 +114,9 @@ func TestExampleConfigParses(t *testing.T) {
 	if cfg.Auth.ClientIPHeader != "X-Real-IP" {
 		t.Fatalf("unexpected auth defaults: %+v", cfg.Auth)
 	}
+	if cfg.GRPC.Transport != "h2c" || cfg.GRPC.CertFile != "" || cfg.GRPC.KeyFile != "" {
+		t.Fatal("local example must use explicit h2c without TLS files")
+	}
 }
 
 func TestShareConfigValidation(t *testing.T) {
