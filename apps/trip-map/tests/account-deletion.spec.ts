@@ -105,7 +105,7 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
   });
   await page.goto("/");
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("button", { name: "使用 Logto 登录", exact: true }).click();
+  await page.getByRole("button", { name: "前往用户中心登录", exact: true }).click();
   // The local footprint is offered for migration; this test is about deletion.
   await page.getByRole("button", { name: "稍后再说" }).click();
   await expect(
@@ -133,7 +133,8 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
     exact: true,
   });
   await expect(confirm).toBeDisabled();
-  await expect(page.getByText("不会删除 Logto 账号", { exact: false })).toBeVisible();
+  await expect(page.getByText("不会注销用户中心账号", { exact: false })).toBeVisible();
+  await expect(page.getByRole("dialog")).not.toContainText(/Logto/i);
   await expect(page.locator('input[type="password"]')).toHaveCount(0);
   await page.getByLabel("输入“删除”确认", { exact: true }).fill("删除");
   await confirm.click();

@@ -117,12 +117,12 @@ test("API errors are described in Chinese, never with raw server text", () => {
   );
   assert.match(
     describeApiError(e(Code.Unimplemented, "password accounts are retired; use Logto")),
-    /Logto 登录/,
+    /前往用户中心登录/,
   );
-  assert.match(
-    describeApiError(e(Code.FailedPrecondition, "sign in again before deleting cloud data")),
-    /最近 15 分钟/,
-  );
+  const freshLogin = describeApiError(e(Code.FailedPrecondition, "sign in again before deleting cloud data"));
+  assert.match(freshLogin, /通过用户中心重新登录/);
+  assert.match(freshLogin, /最近 15 分钟/);
+  assert.doesNotMatch(freshLogin, /Logto/i);
   assert.match(
     describeApiError(e(Code.InvalidArgument, "something odd")),
     /不符合要求/,

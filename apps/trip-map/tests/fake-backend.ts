@@ -717,7 +717,7 @@ export async function seedLocal(page: Page, visits: V[], provinces: Record<strin
 export async function login(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("button", { name: "使用 Logto 登录", exact: true }).click();
+  await page.getByRole("button", { name: "前往用户中心登录", exact: true }).click();
 }
 
 

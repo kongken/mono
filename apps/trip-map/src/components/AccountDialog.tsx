@@ -124,7 +124,7 @@ export default function AccountDialog({
                 {cloud.user.displayName || cloud.user.username}
               </DialogTitle>
               <DialogDescription>
-                {cloud.user.username ? `@${cloud.user.username}` : "Logto 账号"}
+                {cloud.user.username ? `@${cloud.user.username}` : "用户中心账号"}
                 ，同步完成的足迹可在其他设备登录查看。
               </DialogDescription>
             </DialogHeader>
@@ -290,7 +290,7 @@ export default function AccountDialog({
                 }}
               >
                 <p className="unreadable-note" role="alert">
-                  将永久删除此账号在本项目中的云端足迹、省份标记、会话、同步历史和照片，无法恢复；不会删除 Logto 账号。未同步修改也将丢弃，请先导出备份。登录前的本地足迹会保留。开始删除前需在最近 15 分钟内登录；再次登录可建立空白云端资料。
+                  将永久删除你在山海足迹中的云端足迹、照片、历史快照和同步记录，并退出所有已登录设备，无法恢复；不会注销用户中心账号。未同步修改也将丢弃，请先导出备份。登录前的本机足迹会保留。开始删除前需在最近 15 分钟内登录；之后仍可重新登录，从空白足迹开始记录。
                 </p>
                 <label className="field-label">
                   输入“删除”确认
@@ -327,7 +327,7 @@ export default function AccountDialog({
               <span className="dialog-icon"><UserCircle size={22} /></span>
               <DialogTitle>登录山海足迹</DialogTitle>
               <DialogDescription>
-                通过 Logto 统一登录。注册、密码找回及第三方登录均在统一账号页面完成。登录后足迹可跨设备同步，不登录也能继续在本机记录。
+                使用用户中心账号登录，让旅途足迹跨设备同步。注册、找回密码和第三方登录将在用户中心完成；也可以暂不登录，继续在本机记录。
               </DialogDescription>
             </DialogHeader>
             {error && <p className="unreadable-note unreadable-error" role="alert">{error}</p>}
@@ -335,7 +335,7 @@ export default function AccountDialog({
               {cloud.providers.filter((p) => p.name === "logto").map((p) => (
                 <Button key={p.name} disabled={pending} onClick={() => void run(() => cloud.startOAuth("logto"))}>
                   <ShieldCheck size={17} />
-                  使用 {p.displayName} 登录
+                  前往用户中心登录
                 </Button>
               ))}
               {!cloud.providers.some((p) => p.name === "logto") && (

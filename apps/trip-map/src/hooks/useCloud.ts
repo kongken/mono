@@ -580,7 +580,7 @@ export function useCloud(options: Options) {
       setDeletionBlocked(true);
       try {
         await authApi.deleteAccount();
-        leaveAccount("本项目云端数据已删除，Logto 账号及登录前的本地足迹保留", true);
+        leaveAccount("山海足迹云端数据已删除，用户中心账号及登录前的本机足迹保留", true);
       } catch (error) {
         if (
           !s.user.deletionPending &&
