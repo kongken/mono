@@ -32,6 +32,12 @@ func UnaryClientInterceptor(signer *servicetoken.Signer, audience string) grpc.U
 		if ip := validIP(call.ClientIP); ip != "" {
 			md.Set(MetadataClientIP, ip)
 		}
+		if RequiredRole(method) != "" {
+			md.Set(MetadataChannel, NormalizeChannel(call.Channel))
+			if id := NormalizeTokenID(call.TokenID); id != "" {
+				md.Set(MetadataTokenID, id)
+			}
+		}
 		if call.TripmapSchema != "" {
 			md.Set(MetadataTripmapSchema, call.TripmapSchema)
 		}

@@ -5,6 +5,7 @@ package ent
 import (
 	"time"
 
+	"github.com/kongken/mono/internal/metro/ent/adminauditlog"
 	"github.com/kongken/mono/internal/metro/ent/catalogstate"
 	"github.com/kongken/mono/internal/metro/ent/city"
 	"github.com/kongken/mono/internal/metro/ent/line"
@@ -17,6 +18,48 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	adminauditlogFields := schema.AdminAuditLog{}.Fields()
+	_ = adminauditlogFields
+	// adminauditlogDescActorUserID is the schema descriptor for actor_user_id field.
+	adminauditlogDescActorUserID := adminauditlogFields[1].Descriptor()
+	// adminauditlog.ActorUserIDValidator is a validator for the "actor_user_id" field. It is called by the builders before save.
+	adminauditlog.ActorUserIDValidator = adminauditlogDescActorUserID.Validators[0].(func(string) error)
+	// adminauditlogDescTokenID is the schema descriptor for token_id field.
+	adminauditlogDescTokenID := adminauditlogFields[3].Descriptor()
+	// adminauditlog.DefaultTokenID holds the default value on creation for the token_id field.
+	adminauditlog.DefaultTokenID = adminauditlogDescTokenID.Default.(string)
+	// adminauditlogDescRequestID is the schema descriptor for request_id field.
+	adminauditlogDescRequestID := adminauditlogFields[4].Descriptor()
+	// adminauditlog.DefaultRequestID holds the default value on creation for the request_id field.
+	adminauditlog.DefaultRequestID = adminauditlogDescRequestID.Default.(string)
+	// adminauditlogDescAction is the schema descriptor for action field.
+	adminauditlogDescAction := adminauditlogFields[5].Descriptor()
+	// adminauditlog.ActionValidator is a validator for the "action" field. It is called by the builders before save.
+	adminauditlog.ActionValidator = adminauditlogDescAction.Validators[0].(func(string) error)
+	// adminauditlogDescEntityType is the schema descriptor for entity_type field.
+	adminauditlogDescEntityType := adminauditlogFields[6].Descriptor()
+	// adminauditlog.EntityTypeValidator is a validator for the "entity_type" field. It is called by the builders before save.
+	adminauditlog.EntityTypeValidator = adminauditlogDescEntityType.Validators[0].(func(string) error)
+	// adminauditlogDescEntityID is the schema descriptor for entity_id field.
+	adminauditlogDescEntityID := adminauditlogFields[7].Descriptor()
+	// adminauditlog.EntityIDValidator is a validator for the "entity_id" field. It is called by the builders before save.
+	adminauditlog.EntityIDValidator = adminauditlogDescEntityID.Validators[0].(func(string) error)
+	// adminauditlogDescBeforeJSON is the schema descriptor for before_json field.
+	adminauditlogDescBeforeJSON := adminauditlogFields[8].Descriptor()
+	// adminauditlog.DefaultBeforeJSON holds the default value on creation for the before_json field.
+	adminauditlog.DefaultBeforeJSON = adminauditlogDescBeforeJSON.Default.(string)
+	// adminauditlogDescAfterJSON is the schema descriptor for after_json field.
+	adminauditlogDescAfterJSON := adminauditlogFields[9].Descriptor()
+	// adminauditlog.DefaultAfterJSON holds the default value on creation for the after_json field.
+	adminauditlog.DefaultAfterJSON = adminauditlogDescAfterJSON.Default.(string)
+	// adminauditlogDescCreatedAt is the schema descriptor for created_at field.
+	adminauditlogDescCreatedAt := adminauditlogFields[10].Descriptor()
+	// adminauditlog.DefaultCreatedAt holds the default value on creation for the created_at field.
+	adminauditlog.DefaultCreatedAt = adminauditlogDescCreatedAt.Default.(func() time.Time)
+	// adminauditlogDescID is the schema descriptor for id field.
+	adminauditlogDescID := adminauditlogFields[0].Descriptor()
+	// adminauditlog.DefaultID holds the default value on creation for the id field.
+	adminauditlog.DefaultID = adminauditlogDescID.Default.(func() string)
 	catalogstateFields := schema.CatalogState{}.Fields()
 	_ = catalogstateFields
 	// catalogstateDescVersion is the schema descriptor for version field.

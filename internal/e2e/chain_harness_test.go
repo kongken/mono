@@ -34,13 +34,12 @@ import (
 	bffconfig "github.com/kongken/mono/internal/bff/config"
 	bffent "github.com/kongken/mono/internal/bff/ent"
 	"github.com/kongken/mono/internal/bff/oauth/provider"
+	"github.com/kongken/mono/internal/bff/session"
+	bfftestutil "github.com/kongken/mono/internal/bff/testutil"
 	metroapp "github.com/kongken/mono/internal/metro/app"
 	metroconfig "github.com/kongken/mono/internal/metro/config"
 	metroent "github.com/kongken/mono/internal/metro/ent"
 	metrotestutil "github.com/kongken/mono/internal/metro/testutil"
-	bffmetrov1connect "github.com/kongken/mono/pkg/proto/bff/metro/v1/bffmetrov1connect"
-	"github.com/kongken/mono/internal/bff/session"
-	bfftestutil "github.com/kongken/mono/internal/bff/testutil"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
 	"github.com/kongken/mono/internal/platform/servicetoken"
@@ -51,6 +50,7 @@ import (
 	tripmapent "github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/regions"
 	"github.com/kongken/mono/internal/tripmap/testutil"
+	bffmetrov1connect "github.com/kongken/mono/pkg/proto/bff/metro/v1/bffmetrov1connect"
 	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
 	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
@@ -89,6 +89,7 @@ type Browser struct {
 	HTTP       *http.Client
 	Auth       bffv1connect.AuthServiceClient
 	Catalog    bffmetrov1connect.CatalogServiceClient
+	MetroAdmin bffmetrov1connect.AdminServiceClient
 	Foot       bfftripmapv1connect.FootprintServiceClient
 	Snap       bfftripmapv1connect.SnapshotServiceClient
 	Friends    bfftripmapv1connect.FriendServiceClient
@@ -338,6 +339,7 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 		t: h.T, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
 		Auth:       bffv1connect.NewAuthServiceClient(hc, api),
 		Catalog:    bffmetrov1connect.NewCatalogServiceClient(hc, api),
+		MetroAdmin: bffmetrov1connect.NewAdminServiceClient(hc, api),
 		Foot:       bfftripmapv1connect.NewFootprintServiceClient(hc, api),
 		Snap:       bfftripmapv1connect.NewSnapshotServiceClient(hc, api),
 		Friends:    bfftripmapv1connect.NewFriendServiceClient(hc, api),
@@ -447,6 +449,11 @@ func (b *Browser) DeleteItinerary(ctx context.Context, msg *bfftripmapv1.DeleteI
 		return nil, err
 	}
 	return res.Msg, nil
+}
+
+// Write adds the CSRF token and Origin a state-changing browser call carries.
+func (b *Browser) Write(ctx context.Context, req connect.AnyRequest) {
+	b.writeHeaders(req, b.refreshCSRF(ctx), b.Origin)
 }
 
 func (b *Browser) withTripmapHeaders(req connect.AnyRequest) {

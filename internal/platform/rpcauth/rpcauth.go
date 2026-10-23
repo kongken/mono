@@ -34,6 +34,17 @@ const (
 	// declared footprint schema and region catalog version from the BFF.
 	MetadataTripmapSchema  = "x-tripmap-schema"
 	MetadataTripmapRegions = "x-tripmap-regions"
+	// MetadataChannel and MetadataTokenID say how an administrator reached the
+	// BFF (the browser or an MCP management token) for audit records. A service
+	// reads them only after the credential verifies.
+	MetadataChannel = "x-bff-channel"
+	MetadataTokenID = "x-bff-token-id"
+)
+
+// The values of Call.Channel.
+const (
+	ChannelWeb = "web"
+	ChannelMCP = "mcp"
 )
 
 // Call is what a handler may know about the caller of the current request.
@@ -52,6 +63,11 @@ type Call struct {
 	// TripmapSchema and TripmapRegions are forwarded from the browser when set.
 	TripmapSchema  string
 	TripmapRegions string
+	// Channel is ChannelWeb or ChannelMCP; empty on the BFF side means web. A
+	// service always sees one of the two.
+	Channel string
+	// TokenID identifies the management token behind an MCP call; empty otherwise.
+	TokenID string
 }
 
 type callKey struct{}
@@ -130,6 +146,23 @@ func HasRole(roles []string, role string) bool {
 		}
 	}
 	return false
+}
+
+// NormalizeChannel returns ChannelMCP or ChannelWeb; anything unknown is web.
+func NormalizeChannel(c string) string {
+	if c == ChannelMCP {
+		return ChannelMCP
+	}
+	return ChannelWeb
+}
+
+// NormalizeTokenID keeps a token ID only when it is short and made of safe
+// characters, like a request ID; otherwise it returns "".
+func NormalizeTokenID(id string) string {
+	if requestIDPattern.MatchString(id) {
+		return id
+	}
+	return ""
 }
 
 var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)

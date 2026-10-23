@@ -67,6 +67,8 @@ func authenticate(ctx context.Context, v *servicetoken.Verifier, fullMethod stri
 		RequestID:      NormalizeRequestID(first(md, MetadataRequestID)),
 		TripmapSchema:  strings.TrimSpace(first(md, MetadataTripmapSchema)),
 		TripmapRegions: strings.TrimSpace(first(md, MetadataTripmapRegions)),
+		Channel:        NormalizeChannel(first(md, MetadataChannel)),
+		TokenID:        NormalizeTokenID(first(md, MetadataTokenID)),
 	}
 	call.ClientIP = validIP(first(md, MetadataClientIP))
 	if tp := first(md, MetadataTraceparent); traceparentPattern.MatchString(tp) {

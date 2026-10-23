@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// AdminAuditLog is the predicate function for adminauditlog builders.
+type AdminAuditLog func(*sql.Selector)
+
 // CatalogState is the predicate function for catalogstate builders.
 type CatalogState func(*sql.Selector)
 

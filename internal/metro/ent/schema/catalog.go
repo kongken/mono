@@ -190,3 +190,41 @@ func (CatalogState) Fields() []ent.Field {
 		field.Time("updated_at").Default(now).UpdateDefault(now),
 	}
 }
+
+// AuditChannels are the ways an administrator reaches the admin API.
+var AuditChannels = []string{"web", "mcp"}
+
+// AdminAuditLog records one catalog change: who, through which channel, what
+// changed and the entity before and after. It is written in the same transaction
+// as the change and is never updated or deleted by the service.
+type AdminAuditLog struct{ ent.Schema }
+
+func (AdminAuditLog) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "admin_audit_logs"}}
+}
+
+func (AdminAuditLog) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(),
+		field.String("actor_user_id").NotEmpty().Immutable(),
+		field.Enum("channel").Values(AuditChannels...).Immutable(),
+		// The management token behind an mcp call.
+		field.String("token_id").Default("").Immutable(),
+		field.String("request_id").Default("").Immutable(),
+		field.String("action").NotEmpty().Immutable(),
+		field.String("entity_type").NotEmpty().Immutable(),
+		field.String("entity_id").NotEmpty().Immutable(),
+		// JSON text snapshots; empty when absent.
+		field.Text("before_json").Default("").Immutable(),
+		field.Text("after_json").Default("").Immutable(),
+		field.Time("created_at").Default(now).Immutable(),
+	}
+}
+
+func (AdminAuditLog) Indexes() []ent.Index {
+	return []ent.Index{
+		index.Fields("created_at"),
+		index.Fields("entity_type", "entity_id", "created_at"),
+		index.Fields("actor_user_id", "created_at"),
+	}
+}

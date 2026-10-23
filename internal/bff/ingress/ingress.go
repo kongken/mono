@@ -112,6 +112,7 @@ func Interceptor(p Policy) connect.Interceptor {
 				}
 			}
 			call := rpcauth.Call{
+				Channel:     rpcauth.ChannelWeb,
 				RequestID:   requestID,
 				ClientIP:    httpx.ClientAddr(p.ClientIPHeader, req.Header(), req.Peer().Addr),
 				TraceParent: rpcauth.NormalizeTraceparent(req.Header().Get(rpcauth.MetadataTraceparent)),

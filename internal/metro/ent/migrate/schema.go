@@ -9,6 +9,43 @@ import (
 )
 
 var (
+	// AdminAuditLogsColumns holds the columns for the "admin_audit_logs" table.
+	AdminAuditLogsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "actor_user_id", Type: field.TypeString},
+		{Name: "channel", Type: field.TypeEnum, Enums: []string{"web", "mcp"}},
+		{Name: "token_id", Type: field.TypeString, Default: ""},
+		{Name: "request_id", Type: field.TypeString, Default: ""},
+		{Name: "action", Type: field.TypeString},
+		{Name: "entity_type", Type: field.TypeString},
+		{Name: "entity_id", Type: field.TypeString},
+		{Name: "before_json", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "after_json", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// AdminAuditLogsTable holds the schema information for the "admin_audit_logs" table.
+	AdminAuditLogsTable = &schema.Table{
+		Name:       "admin_audit_logs",
+		Columns:    AdminAuditLogsColumns,
+		PrimaryKey: []*schema.Column{AdminAuditLogsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "adminauditlog_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{AdminAuditLogsColumns[10]},
+			},
+			{
+				Name:    "adminauditlog_entity_type_entity_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{AdminAuditLogsColumns[6], AdminAuditLogsColumns[7], AdminAuditLogsColumns[10]},
+			},
+			{
+				Name:    "adminauditlog_actor_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{AdminAuditLogsColumns[1], AdminAuditLogsColumns[10]},
+			},
+		},
+	}
 	// CatalogStateColumns holds the columns for the "catalog_state" table.
 	CatalogStateColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -135,6 +172,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AdminAuditLogsTable,
 		CatalogStateTable,
 		CitiesTable,
 		LinesTable,
@@ -144,6 +182,9 @@ var (
 )
 
 func init() {
+	AdminAuditLogsTable.Annotation = &entsql.Annotation{
+		Table: "admin_audit_logs",
+	}
 	CatalogStateTable.Annotation = &entsql.Annotation{
 		Table: "catalog_state",
 	}

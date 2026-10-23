@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/kongken/mono/internal/metro/ent/adminauditlog"
 	"github.com/kongken/mono/internal/metro/ent/catalogstate"
 	"github.com/kongken/mono/internal/metro/ent/city"
 	"github.com/kongken/mono/internal/metro/ent/line"
@@ -77,6 +78,7 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
+			adminauditlog.Table:     adminauditlog.ValidColumn,
 			catalogstate.Table:      catalogstate.ValidColumn,
 			city.Table:              city.ValidColumn,
 			line.Table:              line.ValidColumn,

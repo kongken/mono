@@ -9,6 +9,18 @@ import (
 	"github.com/kongken/mono/internal/metro/ent"
 )
 
+// The AdminAuditLogFunc type is an adapter to allow the use of ordinary
+// function as AdminAuditLog mutator.
+type AdminAuditLogFunc func(context.Context, *ent.AdminAuditLogMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AdminAuditLogFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AdminAuditLogMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AdminAuditLogMutation", m)
+}
+
 // The CatalogStateFunc type is an adapter to allow the use of ordinary
 // function as CatalogState mutator.
 type CatalogStateFunc func(context.Context, *ent.CatalogStateMutation) (ent.Value, error)

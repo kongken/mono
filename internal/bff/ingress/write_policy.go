@@ -52,6 +52,14 @@ var readOnlyProcedures = map[string]bool{
 	bffmetrov1connect.CatalogServiceListLinesProcedure:              true,
 	bffmetrov1connect.CatalogServiceListRollingStockTopicsProcedure: true,
 	bffmetrov1connect.CatalogServiceGetRollingStockTopicProcedure:   true,
+
+	// Administrator reads. They still need the metro-admin role.
+	bffmetrov1connect.AdminServiceListAdminCitiesProcedure:             true,
+	bffmetrov1connect.AdminServiceListAdminRollingStocksProcedure:      true,
+	bffmetrov1connect.AdminServiceListAdminLinesProcedure:              true,
+	bffmetrov1connect.AdminServiceListAdminRollingStockTopicsProcedure: true,
+	bffmetrov1connect.AdminServiceExportCatalogProcedure:               true,
+	bffmetrov1connect.AdminServiceListAuditLogsProcedure:               true,
 }
 
 // RequiresWriteProtection reports whether Origin/CSRF must be validated for procedure.

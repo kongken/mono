@@ -30,6 +30,7 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 		metrov1.RegisterSystemServiceServer(r, application.NewSystemService(h))
 		if res := h.resources.Load(); res != nil && res.DB != nil {
 			metrov1.RegisterCatalogServiceServer(r, application.NewCatalogService(res.DB))
+			metrov1.RegisterAdminServiceServer(r, application.NewAdminService(res.DB))
 		}
 		for _, register := range extra {
 			register(r)
