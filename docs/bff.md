@@ -135,7 +135,7 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 ## 配置
 
-复制 `config.bff.example.yaml` 为 `config.bff.yaml`（已被 Git 忽略）。与 tripmap 一样由 Butterfly 文件模式读取，`${VAR}` 不展开。
+复制 `config.bff.example.yaml` 为 `config.bff.yaml`（已被 Git 忽略）。本地默认由 Butterfly 文件模式读取，`${VAR}` 不展开。也支持 Consul KV：默认读取 `apps/bff`，设置 `BUTTERFLY_NAMESPACE=kongken/prod` 后读取 `kongken/prod/bff`；`BUTTERFLY_CONFIG_CONSUL_NAMESPACE` 是独立的 Consul API Namespace。完整环境变量和启动示例见 [Consul 配置与路径前缀](backend.md#consul-配置与路径前缀)。
 
 - `db_store` / `redis_store` / `key_prefix` / `auto_migrate`：BFF 认证库与 Redis 限流（见 example 内 `store` 段）。
 - `auth.session_ttl`、`auth.cookie_secure`、`auth.csrf_token_ttl`、`auth.oauth_apps`、`auth.oauth_providers.logto`。不再支持 `auth.registration_disabled` 或 GitHub/Google provider；Logto 的注册和账号策略在 Logto 管理。

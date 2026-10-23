@@ -21,6 +21,12 @@
 - 前端构建需 `--build-arg VITE_API_BASE_URL=/api`，使浏览器与 BFF 同源；纯静态托管不设置该变量时仍为本地模式。
 - 示例文件：`deploy/trip-map-web/default.conf.template`（前端 Nginx）、`deploy/reverse-proxy/Caddyfile.example`（单站点 Caddy）、`deploy/compose.stack.example.yaml`（内网隔离的 Compose 栈）、`deploy/k8s/secrets.layout.example.yaml`（Secret 键名示意）。
 
+## 配置来源
+
+BFF、tripmap 镜像及 Compose 示例默认使用文件模式。使用 Consul KV 时，覆盖两个服务的 `BUTTERFLY_CONFIG_TYPE=consul`，设置进程可访问的 `BUTTERFLY_CONFIG_CONSUL_ADDRESS`，并按需设置 `BUTTERFLY_NAMESPACE`（默认 `apps`）。例如前缀为 `kongken/prod` 时，分别在 `kongken/prod/bff`、`kongken/prod/tripmap` 保存完整 YAML 配置；无需 `.yaml` 后缀或按字段拆 key。
+
+`BUTTERFLY_CONFIG_CONSUL_NAMESPACE` 是 Consul API Namespace，不控制 KV 路径前缀。Consul 模式忽略 `BUTTERFLY_CONFIG_FILE_PATH`，但证书和签名密钥文件仍需挂载；配置变化后重启对应服务。环境变量、示例与工具限制见 [Consul 配置与路径前缀](backend.md#consul-配置与路径前缀)。
+
 ## 受信代理与客户端地址
 
 - 边缘反代必须设置 **`X-Real-IP`**（客户端地址）和 **`X-Forwarded-Proto`**（`https`）；BFF 按 `client_ip_header`（生产建议 `X-Real-IP`）解析地址，并**覆盖**转发给 tripmap 的 `X-Real-IP`，客户端无法自选地址。
