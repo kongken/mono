@@ -21,12 +21,12 @@ storage:
 # Business RPCs on internal gRPC only (TLS by default); HTTP is /ping and /readyz (internal).
 # Do not expose 18082/18083 publicly.
 grpc:
-  # transport: tls   # default. Set "h2c" (and remove cert_file/key_file) only for an explicitly
-  #                  # approved trusted internal network: it has no encryption or server
-  #                  # authentication. internal_auth below is required in both modes.
+  # Local loopback only: no encryption or server authentication; signatures still required.
+  # For TLS, run `go run ./cmd/dev-secrets -tls`, set transport: tls and add cert/key.
+  transport: h2c
   listen: 127.0.0.1:18083
-  cert_file: dev-secrets/tripmap.pem
-  key_file: dev-secrets/tripmap.key
+  # cert_file: dev-secrets/tripmap.pem
+  # key_file: dev-secrets/tripmap.key
   # max_message_bytes: 20971520   # default 20 MiB; the largest legitimate request is 16 MiB
 
 # Only calls carrying a credential signed by one of these BFF keys are accepted.
@@ -37,6 +37,11 @@ internal_auth:
   trusted_keys:
     - kid: dev-1
       public_key_file: dev-secrets/bff.pub
+      # Alternatively REMOVE public_key_file and paste the matching PKIX Ed25519 PEM:
+      # public_key: |
+      #   -----BEGIN PUBLIC KEY-----
+      #   <your base64-encoded key>
+      #   -----END PUBLIC KEY-----
   # clock_skew: 10s
 
 auth:

@@ -108,10 +108,10 @@ BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法�
 - **匿名与受保护**：匿名方法同样要求有效 BFF 凭证；不含 `sub` 的凭证打不开受保护方法。业务只能从拦截器放入 context 的类型化信息（`rpcauth.CallFrom` / `UserIDFrom`）取得用户 ID，不读取裸 metadata。
 - **metadata 白名单**：BFF 每次调用都重建出站 metadata，写入 `authorization`、`x-request-id`、`traceparent`、`x-bff-client-ip`，以及浏览器声明的 `x-tripmap-schema`、`x-tripmap-regions`（足迹读/sync 需要）；服务端只读取白名单项。
 - **私钥与公钥**：私钥（PKCS#8 PEM）只在 BFF；服务只持受信公钥（PKIX PEM）。不依赖网络位置认证，不使用 mTLS（TLS 为单向，只由客户端校验服务端证书）。两种传输下都要求 BFF 凭证；h2c 只去掉传输层 TLS 材料，不去掉签名密钥。
-- **密钥轮换**：在服务的 `internal_auth.trusted_keys` 加入新公钥（`kid` 不同，新旧并存）→ 把 BFF 的 `internal_auth.kid` 与 `private_key_file` 切到新密钥 → 等旧凭证的有效窗口与允许偏差过去（约 70 秒）后撤下旧公钥。仍用已撤销密钥签名的 BFF 会被拒绝，浏览器看到 `INTERNAL`。
+- **密钥轮换**：在服务的 `internal_auth.trusted_keys` 加入新公钥（`kid` 不同，新旧并存，文件和内联来源可混用）→ 把 BFF 的 `internal_auth.kid` 与私钥配置（`private_key` 或 `private_key_file`）切到新密钥 → 等旧凭证的有效窗口与允许偏差过去（约 70 秒）后撤下旧公钥。仍用已撤销密钥签名的 BFF 会被拒绝，浏览器看到 `INTERNAL`。
 - **日志**：凭证、Cookie、CSRF 令牌等不进入日志；上游错误只记录服务名和 gRPC 码。
 
-本地开发用 `make dev-secrets` 生成 `dev-secrets/`（CA、tripmap 证书、签名密钥，`kid` 为 `dev-1`，已被 Git 忽略）。
+本地示例显式选用 loopback h2c，无需本地 TLS 证书。`make dev-secrets` 默认只生成 `dev-secrets/bff.key` / `bff.pub` 签名密钥对（`kid` 为 `dev-1`，目录已被 Git 忽略）；也可[在配置内填写密钥](#配置内联签名密钥)，不需要独立 key 文件。TLS 本地测试使用 `go run ./cmd/dev-secrets -tls` 额外生成 CA 与 tripmap 证书，同时将两端配置改为 TLS 并设置 CA/cert/key；已有文件不会覆盖，轮换需显式 `-force`。
 
 ## 公开 HTTP（`internal/bff/publichttp`）
 
@@ -164,9 +164,45 @@ grpc:
 
 从 TLS 手动切到 h2c：先在业务服务配置 `grpc.transport: h2c` 并去掉 `cert_file`/`key_file`，同时在 BFF 对应上游加 `transport: h2c` 并去掉 `server_name`，两端一起滚动（模式不一致期间该上游返回 `UNAVAILABLE`，不会回退）。升级应用本身不改变任何现有部署的传输。
 
+### 配置内联签名密钥
+
+文件方式继续兼容；每个密钥的来源必须二选一：
+
+- BFF：`internal_auth.private_key`（内联 **PKCS#8 Ed25519 PEM**）或 `private_key_file`。
+- tripmap：`internal_auth.trusted_keys[].public_key`（内联 **PKIX Ed25519 PEM**）或 `public_key_file`。
+- 同时设置、都未设置、错误 PEM/DER、非 Ed25519 或无法读取文件，均拒绝启动；不根据加载失败回退另一来源。错误不输出 PEM 内容。不同 `kid` 可分别选择文件或内联来源，重复 `kid` 仍拒绝。
+
+以下内容是占位符，必须替换为**同一密钥对**，两端使用相同 `kid`；不要保留对应的 `*_key_file`：
+
+```yaml
+# BFF config.bff.yaml（仅展示 internal_auth）
+internal_auth:
+  issuer: tripmap-bff
+  kid: key-1
+  private_key: |
+    -----BEGIN PRIVATE KEY-----
+    <PKCS#8 Ed25519 private key base64>
+    -----END PRIVATE KEY-----
+---
+# tripmap config.tripmap.yaml（仅展示 internal_auth）
+internal_auth:
+  issuer: tripmap-bff
+  audience: tripmap
+  trusted_keys:
+    - kid: key-1
+      public_key: |
+        -----BEGIN PUBLIC KEY-----
+        <matching PKIX Ed25519 public key base64>
+        -----END PUBLIC KEY-----
+```
+
+使用 YAML `|` 保留真实换行；不展开 `${VAR}`，也不把字面量 `\n` 转成换行。内联配置适用于 TLS 与 h2c，不会禁用签名。密钥只在启动时加载，修改配置后需重启；轮换顺序同前。
+
+**保密**：含 `private_key` 的配置本身就是 Secret，仅保存在忽略的本地配置或受控 Secret 配置中，限制文件权限与读取范围；不得提交到 Git、放入公开 ConfigMap、输出到日志或 PR。tripmap 只配置公钥，不应拿到 BFF 私钥。生产使用独立密钥对，不能复用开发密钥。
+
 ## 本地开发与部署
 
-首次 `make dev-secrets`；创建库 `bff`。`make dev` 启动 BFF（18081）与 tripmap（18082/18083 内网）。生产见 [部署与发布](deployment.md)。
+首次 `make dev-secrets`（或配置配套的内联签名 PEM）；创建库 `bff`。`make dev` 启动 BFF（18081）与 tripmap（18082/18083 内网）。生产见 [部署与发布](deployment.md)。
 
 ## 新增业务
 

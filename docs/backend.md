@@ -14,7 +14,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 
 | 路径 | 职责 |
 | --- | --- |
-| `cmd/bff/`、`internal/bff/`（共用的账号与会话；各产品的领域适配在 `internal/bff/<产品>/`，tripmap 的在 `internal/bff/tripmap/`） | BFF：公网唯一浏览器 RPC（`bff.v1` 账号、`bff.<产品>.v1` 业务，Connect、Cookie/CSRF），经 TLS gRPC 调 tripmap（[说明](bff.md)） |
+| `cmd/bff/`、`internal/bff/`（共用的账号与会话；各产品的领域适配在 `internal/bff/<产品>/`，tripmap 的在 `internal/bff/tripmap/`） | BFF：公网唯一浏览器 RPC（`bff.v1` 账号、`bff.<产品>.v1` 业务，Connect、Cookie/CSRF），经内部 gRPC（TLS / h2c）调 tripmap（[说明](bff.md)） |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
@@ -43,7 +43,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `internal/platform/grpcx/` | 跨服务共享：自管 gRPC 监听（默认 TLS，显式 h2c）、消息大小限制与优雅关闭 |
 | `internal/platform/testkit/` | 跨服务共享：测试用临时 CA、证书与签名密钥 |
 | `internal/e2e/` | 仅测试：真实 BFF → 内部 gRPC（TLS 与 h2c）→ 真实 tripmap 的端到端测试（[说明](bff.md#验证)） |
-| `cmd/dev-secrets/` | `make dev-secrets`：生成本地开发用 CA、证书与签名密钥 |
+| `cmd/dev-secrets/` | `make dev-secrets`：生成本地开发签名密钥对；显式 `-tls` 才生成 CA 与证书 |
 
 ## 媒体接口（F4，`bff.tripmap.v1.MediaService` → `tripmap.v1.MediaService`）
 
@@ -103,10 +103,11 @@ cp config.tripmap.example.yaml config.tripmap.yaml
 cp config.bff.example.yaml config.bff.yaml
 make deps-up
 make storage-init
+make dev-secrets
 make dev
 ```
 
-`make dev` 同时启动 BFF 和 tripmap；也可分别运行 `make dev-bff` 与 `make dev-tripmap`。
+`make dev` 同时启动 BFF 和 tripmap；也可分别运行 `make dev-bff` 与 `make dev-tripmap`。本地示例在 loopback 上显式使用 h2c，`make dev-secrets` 仅生成签名密钥对，无需 TLS 证书。若在配置内填写配套 PEM（[内联签名密钥](bff.md#配置内联签名密钥)），可跳过该生成步骤；原有文件方式仍可用。已有配置不会自动切换传输。
 
 另开终端启动前端：
 
@@ -127,7 +128,7 @@ Compose 只启动本项目的开发依赖，使用命名卷保存数据。S3 开
 | S3 开发控制台 | `http://127.0.0.1:19001` |
 | BFF（公网入口） | `http://127.0.0.1:18081` |
 | tripmap 服务 HTTP（仅供 BFF 访问） | `http://127.0.0.1:18082` |
-| tripmap 服务 gRPC over TLS（仅供 BFF 访问） | `127.0.0.1:18083` |
+| tripmap 服务 gRPC（本地示例 h2c，仅供 BFF 访问） | `127.0.0.1:18083` |
 | Vite 前端 | 启动时输出地址，通常为 `http://localhost:5173` |
 
 端口避开了现有 `neo-box` 开发服务。Vite 代理 `/api`、`/ping` 和 `/readyz` 到 BFF 的 `18081`；若改变 BFF 端口，同时更新代理配置。`make deps-down` 仅停止并移除本项目容器，保留数据卷。
@@ -145,7 +146,7 @@ Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CON
 - `auth.client_ip_header` 用于分享/退订限流；生产在 BFF 之后设为 `X-Real-IP`。账号会话/OAuth/CSRF 在 `config.bff.yaml`（[BFF 配置](bff.md#配置)）。
 - **OAuth（#32 已迁至 BFF）**：在 `config.bff.yaml` 的 `auth.oauth_providers.<github|google|logto>` 配置（字段含义与旧 tripmap 相同：`client_id`、`client_secret`、`redirect_url`、可选 `scopes` 与 `display_name`；Logto 另需 `issuer_url`）。tripmap `config.tripmap.yaml` 中的 `auth.oauth_providers` 不再用于浏览器登录。
 - `grpc.listen` 必填，`grpc.transport` 为 `tls`（默认）或 `h2c`：tripmap 自管的原生 gRPC 监听（业务 RPC 只在这里提供，BFF 调用）。`tls` 要求 `grpc.cert_file`、`grpc.key_file`；`h2c`（明文 HTTP/2，仅限经批准的可信内网）不加载证书，仍配置 cert/key 则启动失败；未知值启动失败，也不会按证书缺失推测为 h2c。`grpc.max_message_bytes` 默认 20 MiB。`internal_auth`（下一条）在两种模式下都必填，风险与切换见 [BFF 内部 gRPC 与凭证](bff.md#内部-grpc-与凭证)。
-- `internal_auth.issuer`、`audience`、`trusted_keys[]`（`kid` + `public_key_file`）必填，可选 `clock_skew`（默认 10 秒）：只接受这些 BFF 公钥签名的内部凭证，规则见 [内部 gRPC 与凭证](bff.md#内部-grpc-与凭证)。缺失时启动失败；本地用 `make dev-secrets` 生成文件。
+- `internal_auth.issuer`、`audience`、`trusted_keys[]` 必填；每项需要 `kid`，以及 `public_key`（内联 PKIX Ed25519 PEM）或 `public_key_file` **二选一**。缺失、同时设置、格式错误或非 Ed25519 均启动失败，不会回退另一来源。可选 `clock_skew`（默认 10 秒）：只接受这些 BFF 公钥签名的内部凭证，规则见 [内部 gRPC 与凭证](bff.md#内部-grpc-与凭证)。本地可用 `make dev-secrets` 生成文件或[在配置内填写 PEM](bff.md#配置内联签名密钥)。
 - `mapbox_tiles.enabled` 开启 Mapbox 瓦片代理（默认关闭），`token`、`username`、`style_id` 等见下文“Mapbox 瓦片代理（可选）”。
 - `share.public_base_url` 开启公开分享（为空即关闭）；`share.app_index_url`、`share.html_csp` 与限流项见下文 F6 一节。
 - `auto_migrate: true` 在启动时通过 Ent 创建或补充表结构。本地示例开启；生产环境应设为 `false`，改由下文“版本化数据库迁移”中评审过的 SQL 文件升级，再启动新版本后端。
@@ -162,7 +163,7 @@ S3 兼容服务可设置 endpoint 和 `use_path_style: true`；AWS S3 可省略 
 | --- | --- |
 | `GET /ping` | 存活检查，返回 `{"message":"pong"}` |
 | `GET /readyz` | 检查 PostgreSQL、Redis 和 S3 bucket；全部可用返回 200，否则 503 |
-| gRPC `tripmap.v1.SystemService/GetStatus` | 仅在内部 TLS gRPC 端口，匿名方法但仍需 BFF 凭证；返回 `ready`、各依赖的 `name` / `ready`、`footprint_schema`、`share_enabled`、`region_version` |
+| gRPC `tripmap.v1.SystemService/GetStatus` | 仅在内部 gRPC 端口（TLS / h2c），匿名方法但仍需 BFF 凭证；返回 `ready`、各依赖的 `name` / `ready`、`footprint_schema`、`share_enabled`、`region_version` |
 | `POST /api/bff.tripmap.v1.StatusService/GetStatus`（BFF） | 浏览器的匿名状态查询，内容与上一行相同，由 BFF 经内部 gRPC 获取 |
 
 就绪检查对每个依赖设置 2 秒超时并发执行，只返回状态，不返回原始驱动错误、连接字符串或凭据。RPC 请求成功时 HTTP 状态表示 RPC 调用结果，依赖可用性应读取响应中的 `ready`；运维探针使用 `/readyz`。tripmap 原来的 Connect 版 `tripmap.v1.SystemService` 已移除，不保留旧过程名。

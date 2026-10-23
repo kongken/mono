@@ -27,9 +27,9 @@ type Clients struct{ conns map[string]*grpc.ClientConn }
 // Dial prepares a connection for each named service. Connections are opened
 // lazily, so the BFF starts before its services are up.
 func Dial(cfg *config.Config, services []string) (*Clients, error) {
-	key, err := servicetoken.LoadPrivateKey(cfg.InternalAuth.PrivateKeyFile)
+	key, err := servicetoken.ReadPrivateKey(cfg.InternalAuth.PrivateKey, cfg.InternalAuth.PrivateKeyFile)
 	if err != nil {
-		return nil, fmt.Errorf("internal_auth.private_key_file: %w", err)
+		return nil, fmt.Errorf("internal_auth private key: %w", err)
 	}
 	signer := &servicetoken.Signer{Issuer: cfg.InternalAuth.Issuer, KID: cfg.InternalAuth.KID, Key: key}
 	// Resolve every transport first: a bad value fails before anything is dialed,

@@ -10,36 +10,48 @@ import (
 	"time"
 )
 
-// LoadPrivateKey reads an Ed25519 private key in PKCS#8 PEM form.
+// LoadPrivateKey reads an Ed25519 private key in PKCS#8 PEM form from a file.
 func LoadPrivateKey(file string) (ed25519.PrivateKey, error) {
-	block, err := pemBlock(file, "PRIVATE KEY")
+	return ReadPrivateKey("", file)
+}
+
+// ReadPrivateKey reads a PKCS#8 PEM Ed25519 key from exactly one source:
+// literal configuration content or a file. Errors never include PEM content.
+func ReadPrivateKey(inline, file string) (ed25519.PrivateKey, error) {
+	block, err := pemBlock(inline, file, "PRIVATE KEY")
 	if err != nil {
 		return nil, err
 	}
 	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", file, err)
+		return nil, errors.New("invalid PKCS#8 private key")
 	}
 	key, ok := parsed.(ed25519.PrivateKey)
 	if !ok {
-		return nil, fmt.Errorf("%s: not an Ed25519 private key", file)
+		return nil, errors.New("not an Ed25519 private key")
 	}
 	return key, nil
 }
 
-// LoadPublicKey reads an Ed25519 public key in PKIX PEM form.
+// LoadPublicKey reads an Ed25519 public key in PKIX PEM form from a file.
 func LoadPublicKey(file string) (ed25519.PublicKey, error) {
-	block, err := pemBlock(file, "PUBLIC KEY")
+	return ReadPublicKey("", file)
+}
+
+// ReadPublicKey reads a PKIX PEM Ed25519 key from exactly one source:
+// literal configuration content or a file. Errors never include PEM content.
+func ReadPublicKey(inline, file string) (ed25519.PublicKey, error) {
+	block, err := pemBlock(inline, file, "PUBLIC KEY")
 	if err != nil {
 		return nil, err
 	}
 	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", file, err)
+		return nil, errors.New("invalid PKIX public key")
 	}
 	key, ok := parsed.(ed25519.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("%s: not an Ed25519 public key", file)
+		return nil, errors.New("not an Ed25519 public key")
 	}
 	return key, nil
 }
@@ -57,21 +69,30 @@ func MarshalKeyPair(priv ed25519.PrivateKey) (privatePEM, publicPEM []byte, err 
 	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pub}), nil
 }
 
-func pemBlock(file, want string) (*pem.Block, error) {
-	raw, err := os.ReadFile(file)
-	if err != nil {
-		return nil, err
+func pemBlock(inline, file, want string) (*pem.Block, error) {
+	if (inline == "") == (file == "") {
+		return nil, errors.New("configure exactly one of inline PEM or key file")
+	}
+	raw := []byte(inline)
+	if file != "" {
+		var err error
+		raw, err = os.ReadFile(file)
+		if err != nil {
+			return nil, err
+		}
 	}
 	block, _ := pem.Decode(raw)
 	if block == nil || block.Type != want {
-		return nil, errors.New(file + ": expected a " + want + " PEM block")
+		return nil, errors.New("expected a " + want + " PEM block")
 	}
 	return block, nil
 }
 
 // TrustedKey is one entry of a service's trusted public key list.
 type TrustedKey struct {
-	KID           string `yaml:"kid"`
+	KID string `yaml:"kid"`
+	// PublicKey and PublicKeyFile are mutually exclusive PKIX PEM sources.
+	PublicKey     string `yaml:"public_key"`
 	PublicKeyFile string `yaml:"public_key_file"`
 }
 
@@ -93,13 +114,13 @@ func (c VerifyConfig) NewVerifier() (*Verifier, error) {
 	}
 	v := &Verifier{Issuer: c.Issuer, Audience: c.Audience, Keys: map[string]ed25519.PublicKey{}}
 	for _, k := range c.TrustedKeys {
-		if k.KID == "" || k.PublicKeyFile == "" {
-			return nil, errors.New("internal_auth.trusted_keys entries need kid and public_key_file")
+		if k.KID == "" || (k.PublicKey == "") == (k.PublicKeyFile == "") {
+			return nil, errors.New("internal_auth.trusted_keys entries need kid and exactly one of public_key or public_key_file")
 		}
 		if _, dup := v.Keys[k.KID]; dup {
 			return nil, fmt.Errorf("internal_auth.trusted_keys: kid %q is listed twice", k.KID)
 		}
-		key, err := LoadPublicKey(k.PublicKeyFile)
+		key, err := ReadPublicKey(k.PublicKey, k.PublicKeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("internal_auth.trusted_keys %s: %w", k.KID, err)
 		}

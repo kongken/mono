@@ -32,15 +32,16 @@ migration:
 bff-migration:
 	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations/bff
 
-# Writes dev-secrets/: a local CA, tripmap's TLS certificate and the BFF's Ed25519 signing
-# key (kid dev-1) that the example configs refer to. Refuses to overwrite; add -force via
-# `go run ./cmd/dev-secrets -force` to rotate them.
+# Writes dev-secrets/: the BFF's Ed25519 signing key pair (kid dev-1).
+# Local examples use h2c, so no TLS certificates are generated. For TLS use
+# `go run ./cmd/dev-secrets -tls`; add -force to explicitly rotate existing files.
 dev-secrets:
 	go run ./cmd/dev-secrets
 
 # Configs are ignored locally, so make dev can safely use them for credentials.
 # The BFF is the entry on 18081 (the Vite proxy target); tripmap listens on 18082 (HTTP) and
-# 18083 (gRPC over TLS, config grpc.listen) behind it. Run `make dev-secrets` once first.
+# 18083 (gRPC over h2c in local examples, config grpc.listen) behind it.
+# Run `make dev-secrets` first, or configure matching inline signing keys.
 dev:
 	$(MAKE) -j2 dev-bff dev-tripmap
 

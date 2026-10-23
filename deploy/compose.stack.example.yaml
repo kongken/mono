@@ -1,6 +1,7 @@
 # Example production-style stack: trip-map-web (Nginx) + BFF + tripmap + dependencies.
 # Copy configs from config.tripmap.example.yaml / config.bff.example.yaml; run `make dev-secrets`
-# once locally or mount real TLS/signing Secrets (see docs/deployment.md).
+# for signing keys, or configure inline PEM keys. Local configs use h2c (no TLS files).
+# TLS deployments need explicit TLS config and certificates (see docs/deployment.md).
 # tripmap HTTP/gRPC must NOT be published to the public internet.
 
 name: trip-map-stack
@@ -37,10 +38,11 @@ services:
     image: ghcr.io/kongken/mono-tripmap:main
     volumes:
       - ./config.tripmap.yaml:/config/config.yaml:ro
-      - ./secrets/tripmap.pem:/secrets/tripmap.pem:ro
-      - ./secrets/tripmap.key:/secrets/tripmap.key:ro
+      # Omit this mount when using internal_auth.trusted_keys[].public_key.
       - ./secrets/bff.pub:/secrets/bff.pub:ro
-      - ./secrets/ca.pem:/secrets/ca.pem:ro
+      # TLS only (not needed for h2c):
+      # - ./secrets/tripmap.pem:/secrets/tripmap.pem:ro
+      # - ./secrets/tripmap.key:/secrets/tripmap.key:ro
     environment:
       BUTTERFLY_CONFIG_TYPE: file
       BUTTERFLY_CONFIG_FILE_PATH: /config/config.yaml
@@ -54,8 +56,10 @@ services:
     image: ghcr.io/kongken/mono-bff:main
     volumes:
       - ./config.bff.yaml:/config/config.yaml:ro
+      # Omit this mount when using internal_auth.private_key.
       - ./secrets/bff.key:/secrets/bff.key:ro
-      - ./secrets/ca.pem:/secrets/ca.pem:ro
+      # Only needed while at least one gRPC upstream uses TLS:
+      # - ./secrets/ca.pem:/secrets/ca.pem:ro
     environment:
       BUTTERFLY_CONFIG_TYPE: file
       BUTTERFLY_CONFIG_FILE_PATH: /config/config.yaml

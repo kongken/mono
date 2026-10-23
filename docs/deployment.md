@@ -45,7 +45,7 @@
 | `bff.key`（Ed25519 PKCS#8） | **仅 BFF** | 签发内部 JWS（`internal_auth.private_key_file`） |
 | `bff.pub`（PKIX） | tripmap（及轮换期多副本） | `internal_auth.trusted_keys[].public_key_file` |
 
-`bff.key` / `bff.pub` 在 `tls` 与 `h2c` 两种内部传输下**都必需**：h2c 只去掉传输层的证书 / CA，不去掉应用层签名。
+Ed25519 私钥 / 公钥在 `tls` 与 `h2c` 两种内部传输下**都必需**：h2c 只去掉传输层的证书 / CA，不去掉应用层签名。上表展示文件方式；也可将 PEM 分别放入 BFF `internal_auth.private_key`、tripmap `internal_auth.trusted_keys[].public_key`，替换对应 `*_key_file`，不再要求独立 key 文件或签名密钥挂载。来源必须二选一，完整格式与保密要求见 [配置内联签名密钥](bff.md#配置内联签名密钥)。含私钥的配置必须按 Secret 管理，不可放入公开 ConfigMap；现有 Deployment 的文件挂载不会自动移除，需由部署方另行同步修改。
 
 ### 内部 gRPC 传输（tls / h2c）
 
@@ -55,13 +55,13 @@
 - 业务 gRPC 端口（tripmap `18083`）不得通过公网 Ingress、NodePort 或 LoadBalancer 暴露；本项目不自动修改集群网络策略，也不会因升级而改变现有部署的传输（未配置即 `tls`）。
 - 两端模式不一致时，BFF `/readyz` 的 `{name}_grpc` 为未就绪，浏览器看到 `UNAVAILABLE`；不会自动回退到另一种传输。
 
-本地开发：`make dev-secrets` 写入被 Git 忽略的 `dev-secrets/`（`kid` 为 `dev-1`，与示例 YAML 一致）。生产用 CA 签发 tripmap 证书（SAN 含服务 DNS 名），私钥与公钥分 Secret 挂载；示例键名见 `deploy/k8s/secrets.layout.example.yaml`。
+本地示例显式使用 loopback h2c：`make dev-secrets` 仅生成签名密钥对，写入被 Git 忽略的 `dev-secrets/`（`kid` 为 `dev-1`）。本地 TLS 另用 `go run ./cmd/dev-secrets -tls` 并同步修改两端配置；已有配置不会自动切换。生产 TLS 用 CA 签发 tripmap 证书（SAN 含服务 DNS 名），签名私钥与公钥分别通过 Secret 文件或各自的 Secret 配置提供；文件布局示例见 `deploy/k8s/secrets.layout.example.yaml`。
 
 ### Ed25519 签名密钥轮换
 
 1. 生成新密钥对，在**每个** tripmap（及未来业务服务）的 `internal_auth.trusted_keys` **追加**新 `kid` 与 `bff.pub`（新旧公钥并存）。
 2. 滚动重启 tripmap，确认 `/readyz` 与 BFF `/readyz` 中 `tripmap_grpc` 正常。
-3. 更新 BFF Secret 中的 `bff.key`，并把 BFF `internal_auth.kid` 与 `private_key_file` 指向新密钥；滚动重启 BFF。
+3. 更新 BFF Secret 中的私钥，并把 BFF `internal_auth.kid` 与私钥来源（`private_key` 或 `private_key_file`，二选一）切到新密钥；滚动重启 BFF。
 4. 等待旧凭证最长有效期（**60 秒**）加允许时钟偏差（默认 **10 秒**，`internal_auth.clock_skew`）后再从 `trusted_keys` 移除旧公钥。
 5. 仍用已撤销私钥签名的调用会被 tripmap 拒绝，浏览器侧表现为 `INTERNAL`。
 
