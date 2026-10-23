@@ -1,6 +1,6 @@
 # BFF（公网入口）
 
-一个仓库承载多个业务时，BFF（`cmd/bff`）是唯一的公网入口，统一处理跨域、客户端地址、请求生命周期和追踪脱敏。业务服务只在内网监听。当前只有 tripmap 一个业务。
+一个仓库承载多个业务时，BFF（`cmd/bff`）是唯一的公网入口，统一处理跨域、客户端地址、请求生命周期和追踪脱敏。业务服务只在内网监听。当前有 tripmap（山海足迹）和 metro（地铁足迹，可选）两个业务。
 
 ## 当前状态
 
@@ -24,6 +24,10 @@
 - `bff.tripmap.v1.ReportService/GetReport`（#39）→ tripmap gRPC `ReportService/GetReport`；`bff.tripmap.v1.SearchService/SearchNotes` → tripmap gRPC `SearchService/SearchNotes`（Connect 读上限 4 KiB）。tripmap 公网 Connect 上的 `ReportService` / `SearchService` 已移除。
 - `bff.tripmap.v1.RegionService`（#40：`GetRegionIndex`、`PreviewRegionUpgrade`、`ApplyRegionUpgrade`）→ tripmap gRPC `RegionService` 同名方法；`ApplyRegionUpgrade` 校验 Origin/CSRF；`X-Tripmap-Regions` 白名单下传。tripmap 公网 Connect 上的 `RegionService` 已移除。
 - 可选 Mapbox 底图瓦片：`GET /api/tiles/{z}/{x}/{y}.png`（匿名）在 `gateway.Services` 登记为 tripmap 的 HTTP 路由，BFF 透明转发到 `upstreams.tripmap`（需要 tripmap 的 `mapbox_tiles.enabled`，见 [后端初始化](backend.md#mapbox-瓦片代理可选)）。BFF 不持有 Mapbox token、样式或限流配置；转发时只保留 `Accept`、`User-Agent` 与缓存验证头 `If-None-Match`、`If-Modified-Since`（查询串原样转发，由 tripmap 校验），丢弃 Cookie、Authorization、CSRF、Origin 等其余浏览器头，并覆盖写入 `X-Real-IP`；保留 tripmap 的图片、缓存与验证响应头及 304 状态，去掉 `Access-Control-*` 并按 `cors_allowed_origins` 应答；tripmap 不可达时返回不缓存的 502。
+- **角色与管理员（#64 P0）**：登录时 BFF 向 Logto 请求 `roles` scope，把 userinfo 的 `roles` 与签发时间（`authenticated_at`）随会话保存（`auth_browser_sessions` 的 `roles`、`authenticated_at` 列，见 `migrations/bff/20261023161947_session_roles.sql`）；`MeResponse.roles` 返回它们，旧会话没有角色，视为非管理员。proto 方法选项 `platform.v1.required_role`（`proto/platform/v1/options.proto`）声明方法所需的角色：BFF ingress 在认证后检查（未登录 `UNAUTHENTICATED`，缺角色 `PERMISSION_DENIED`，会话签发超过 `auth.admin_session_max_age`（默认 12h）`UNAUTHENTICATED`），业务服务的拦截器再从内部凭证独立检查一次。角色只在声明了 `required_role` 的方法的凭证里签入（`rol` claim），其他调用看不到。角色在登录时读取、不会实时撤销，所以管理会话要定期重新登录。
+- **账号清理多产品化**：“删除云端数据”依次调用 `auth.account_cleanup` 列出的各产品清理器（默认只有 tripmap；示例配置为 `[tripmap, metro]`），每个都幂等；任一产品失败则账号仍为“待删除”，重试时对已成功的产品重复调用无副作用。未部署的产品不能列入。
+- **可选上游**：`gateway.Service.Optional`（metro）使该产品在 `upstreams` 没有对应项时整体不启用：不校验、不挂路由、不探测、不清理；已配置则与 tripmap 一样校验 `grpc.services`。
+- **metro（#64 P1–P3）**：`bff.metro.v1.CatalogService`（城市、线路、车型专题；全部匿名只读，`ListCities` 支持 `known_version`）→ `metro.v1.CatalogService`（按字段手写映射）；`bff.metro.v1.RiderService`（`GetPublicProfile` 匿名；`GetMyProfile`、`UpdateMyProfile`、`ListMyLines`、`MarkLine`、`UnmarkLine` 需登录）→ `metro.v1.RiderService`；`bff.metro.v1.AdminService`（城市/车型/线路/车型专题的增删改与列表、`ImportCatalog`、`ExportCatalog`、`ListAuditLogs`；全部 `required_role = "metro-admin"`）→ `metro.v1.AdminService`。管理读（`ListAdmin*`、`ExportCatalog`、`ListAuditLogs`）与登录读登记为只读过程，其余写过程校验 Origin/CSRF；`ImportCatalog`、`ExportCatalog` 登记为 25 秒重任务；管理接口 Connect 读上限 2 MiB（导入文档上限 1 MiB）。管理与骑行者契约与内部契约同形，由 `internal/bff/metro/relay` 经 protobuf 线格式转换，`TestContractsStayWireCompatible`（`internal/bff/metro/admin`、`rider`）在两边字段、编号、类型或方法不一致时失败；域错误（`INVALID_ARGUMENT` 字段错误、`FAILED_PRECONDITION` 的当前 revision 或引用数量、`ALREADY_EXISTS`）连同类型化 detail（`ValidationDetail`、`RevisionConflictDetail`、`ReferencedDetail`）原样返回浏览器。BFF 下传审计所需的 `x-bff-channel`（`web`）与（MCP 渠道的）`x-bff-token-id`，只在声明了 `required_role` 的方法上发送。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
 **测试数据清理与升级**
@@ -52,6 +56,7 @@
 | `/ping`、`/readyz` | `internal/bff/app/app.go` | BFF 自身与依赖就绪 |
 | `/api/bff.v1.<Service>/<Method>` | `app.go` `publicAPI` + `bffv1connect.New*Handler` | 共用的账号与会话 Connect RPC；`NoRoute` 下前缀 `/api/bff.` 进入此 mux |
 | `/api/bff.tripmap.v1.<Service>/<Method>` | `internal/bff/tripmap/tripmap.go` `MountStatus`、`MountRPC` | 山海足迹业务 Connect RPC，同一个 mux |
+| `/api/bff.metro.v1.<Service>/<Method>` | `internal/bff/metro/metro.go` `MountRPC` | 地铁足迹业务 Connect RPC；仅当配置了 `upstreams.metro` 时挂载 |
 | `/s/…`、`/api/share/…`、`/api/notifications/unsubscribe` | `app.go` `mountPublicHTTP` + `internal/bff/publichttp` | 分享页/数据/预览图、邮件退订；凭分享或退订令牌，不用 Cookie CSRF |
 | `/api/tiles/{z}/{x}/{y}.png` | `gateway/services.go` `Routes`（`Anonymous: true`）+ `gateway.Forward` | 登记路径透明转发到 tripmap，规则与限流在 tripmap；不规范路径（`..`、`//`）404 |
 | 其他路径 | `NoRoute` | **404**（含旧 `/api/tripmap.v1.*`） |
@@ -65,9 +70,10 @@
 
 - **只接受 Connect**：仅 `POST`，`Content-Type` 必须是 `application/json` 或 `application/proto`（可带 charset），否则返回 405 / 415（`Accept-Post` 列出可用类型）。gRPC、gRPC-Web 与 Connect 流式帧都在到达处理器前被拒绝。处理器还要求 `Connect-Protocol-Version: 1`，缺失或不是 `1` 返回 400。
 - **路径**：未知方法或服务、多余路径段、含 `..` 或 `//` 的路径一律 404，不会落入通用转发。
+- **角色**：方法选项 `platform.v1.required_role` 声明所需角色（默认无）；ingress 先认证，再检查会话角色和 `admin_session_max_age`，通过后才把角色签进该调用的内部凭证。`rpcauth.Call.Roles` 不对没有此选项的方法生效。
 - **匿名策略**：由 proto 方法选项 `platform.v1.anonymous` 声明（`proto/platform/v1/options.proto`）；**默认受保护**，未知过程也受保护。BFF 的拦截器和 tripmap 的拦截器各自独立执行同一规则。匿名方法不使用浏览器会话，调用内部服务时不带用户 ID。
 - **写操作防护**：除 `internal/bff/ingress/write_policy.go` 列出的只读 RPC 外，所有 `bff.*` 过程在 ingress 统一校验 CSRF 双提交与同源（`Origin`、配置的 `cors_allowed_origins`、或与 `Host` 匹配的 Origin，或在缺少 `Origin` 时浏览器的 `Sec-Fetch-Site: same-origin`）。`IssueCSRFToken` 与各类 GET 式读 RPC 豁免；公开 HTTP 路由使用领域令牌而非 CSRF。
-- **期限与取消**：普通过程上限 10 秒；上传等重任务上限 25 秒，需在 `ingress.Policy.Heavy` 中显式登记（已登记 `FootprintService/SyncChanges`）。实际期限取客户端剩余期限（`Connect-Timeout-Ms`）与上限的较小值，在 BFF 设置一次并通过 gRPC 期限传给业务服务；客户端取消会传播到服务，服务端处理随之停止。不做任何自动重试。
+- **期限与取消**：普通过程上限 10 秒；上传等重任务上限 25 秒，需在 `ingress.Policy.Heavy` 中显式登记（已登记 `FootprintService/SyncChanges` 与 metro 的 `ImportCatalog`、`ExportCatalog` 等）。实际期限取客户端剩余期限（`Connect-Timeout-Ms`）与上限的较小值，在 BFF 设置一次并通过 gRPC 期限传给业务服务；客户端取消会传播到服务，服务端处理随之停止。不做任何自动重试。
 - **请求 ID**：读取 `X-Request-Id`，仅当匹配 `^[A-Za-z0-9._-]{1,64}$` 时沿用，否则替换为随机 32 位十六进制；响应（含错误）回写该头，并作为内部 metadata 下传。
 - **客户端地址**：按 `client_ip_header`（受信反向代理写入的头）解析，未设置时用 TCP 对端；客户端自带的 `X-Bff-Client-Ip` 之类的头不会被读取。
 - **错误**：业务服务的错误消息不原样返回；`NOT_FOUND`、`PERMISSION_DENIED`、`INVALID_ARGUMENT`、`RESOURCE_EXHAUSTED` 等用户可见域错误按同名 Connect 码返回；`UNAVAILABLE`、`DEADLINE_EXCEEDED`、`CANCELED` 同理。BFF 凭证被拒（tripmap 返回的 `UNAUTHENTICATED`）与 `INTERNAL` 等服务端故障统一为 `INTERNAL: internal error`。tripmap 不可达时返回 `UNAVAILABLE`。
@@ -104,10 +110,11 @@ BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法�
 | `iat` / `nbf` / `exp` | 签发 / 生效 / 过期时间（秒），`exp - iat` 不得超过 60 秒 |
 | `jti` | 随机凭证 ID，仅用于日志关联，**不提供单次使用或完整防重放保证** |
 | `mth` | 目标 RPC 的完整方法名，如 `/tripmap.v1.SystemService/GetStatus`，凭证只对该方法有效 |
+| `rol` | 可选，用户的角色名列表。只在目标方法声明了 `required_role` 时才签入，且必须有 `sub`；服务端据此独立执行角色要求 |
 
 - **校验**：服务端检查签名、`kid`、`iss`、`aud`、`mth`、时间窗口和必需字段；允许的时钟偏差默认 10 秒（`internal_auth.clock_skew` 可调，0–1 分钟）。所有失败返回同一个 `UNAUTHENTICATED`，不说明失败原因。
 - **匿名与受保护**：匿名方法同样要求有效 BFF 凭证；不含 `sub` 的凭证打不开受保护方法。业务只能从拦截器放入 context 的类型化信息（`rpcauth.CallFrom` / `UserIDFrom`）取得用户 ID，不读取裸 metadata。
-- **metadata 白名单**：BFF 每次调用都重建出站 metadata，写入 `authorization`、`x-request-id`、`traceparent`、`x-bff-client-ip`，以及浏览器声明的 `x-tripmap-schema`、`x-tripmap-regions`（足迹读/sync 需要）；服务端只读取白名单项。
+- **metadata 白名单**：BFF 每次调用都重建出站 metadata，写入 `authorization`、`x-request-id`、`traceparent`、`x-bff-client-ip`，浏览器声明的 `x-tripmap-schema`、`x-tripmap-regions`（足迹读/sync 需要），以及仅发往声明了 `required_role` 的方法的 `x-bff-channel`（`web` 或 `mcp`）与 `x-bff-token-id`（审计用）；服务端只读取白名单项，并且只在凭证验证通过后相信它们。
 - **私钥与公钥**：私钥（PKCS#8 PEM）只在 BFF；服务只持受信公钥（PKIX PEM）。不依赖网络位置认证，不使用 mTLS（TLS 为单向，只由客户端校验服务端证书）。两种传输下都要求 BFF 凭证；h2c 只去掉传输层 TLS 材料，不去掉签名密钥。
 - **密钥轮换**：在服务的 `internal_auth.trusted_keys` 加入新公钥（`kid` 不同，新旧并存，文件和内联来源可混用）→ 把 BFF 的 `internal_auth.kid` 与私钥配置（`private_key` 或 `private_key_file`）切到新密钥 → 等旧凭证的有效窗口与允许偏差过去（约 70 秒）后撤下旧公钥。仍用已撤销密钥签名的 BFF 会被拒绝，浏览器看到 `INTERNAL`。
 - **日志**：凭证、Cookie、CSRF 令牌等不进入日志；上游错误只记录服务名和 gRPC 码。
@@ -129,7 +136,7 @@ BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法�
 | 路径 | 行为 |
 | --- | --- |
 | `GET /ping` | BFF 存活，返回 `{"message":"pong"}` |
-| `GET /readyz` | upstream HTTP `/readyz`、`bff_postgres`、`bff_redis`、各 `{name}_grpc`（按该上游所选传输 tls / h2c，签名 `GetStatus`）；2 秒超时，全部就绪 200，否则 503 |
+| `GET /readyz` | upstream HTTP `/readyz`、`bff_postgres`、`bff_redis`、各 `{name}_grpc`（按该上游所选传输 tls / h2c，签名 `GetStatus`；`tripmap_grpc`、`metro_grpc`）；2 秒超时，全部就绪 200，否则 503 |
 
 BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
@@ -138,8 +145,8 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 复制 `config.bff.example.yaml` 为 `config.bff.yaml`（已被 Git 忽略）。本地默认由 Butterfly 文件模式读取，`${VAR}` 不展开。也支持 Consul KV：默认读取 `apps/bff`，设置 `BUTTERFLY_NAMESPACE=kongken/prod` 后读取 `kongken/prod/bff`；`BUTTERFLY_CONFIG_CONSUL_NAMESPACE` 是独立的 Consul API Namespace。完整环境变量和启动示例见 [Consul 配置与路径前缀](backend.md#consul-配置与路径前缀)。
 
 - `db_store` / `redis_store` / `key_prefix` / `auto_migrate`：BFF 认证库与 Redis 限流（见 example 内 `store` 段）。
-- `auth.session_ttl`、`auth.cookie_secure`、`auth.csrf_token_ttl`、`auth.oauth_apps`、`auth.oauth_providers.logto`。不再支持 `auth.registration_disabled` 或 GitHub/Google provider；Logto 的注册和账号策略在 Logto 管理。
-- `upstreams.<服务>`、`grpc.*`、`internal_auth.*`、`client_ip_header`、`cors_allowed_origins`：同前。`grpc.services.<名称>.transport` 为 `tls`（默认）或 `h2c`，见 [内部 gRPC 与凭证](#内部-grpc-与凭证)。
+- `auth.session_ttl`、`auth.admin_session_max_age`（默认 12h，声明了 `required_role` 的方法要求会话在此时间内签发）、`auth.account_cleanup`（启用“删除云端数据”清理的产品，默认 `[tripmap]`）、`auth.cookie_secure`、`auth.csrf_token_ttl`、`auth.oauth_apps`（含 `metro` 前端应用）、`auth.oauth_providers.logto`。不再支持 `auth.registration_disabled` 或 GitHub/Google provider；Logto 的注册和账号策略在 Logto 管理。
+- `upstreams.<服务>`（`metro` 可选：不写则 BFF 不启用地铁足迹，也不需要 `grpc.services.metro`）、`grpc.*`、`internal_auth.*`、`client_ip_header`、`cors_allowed_origins`：同前。`grpc.services.<名称>.transport` 为 `tls`（默认）或 `h2c`，见 [内部 gRPC 与凭证](#内部-grpc-与凭证)。
 
 配置示例（`grpc.ca_file` 仅 TLS 上游需要；`internal_auth` 在所有模式下必填）：
 
@@ -203,7 +210,7 @@ internal_auth:
 
 ## 本地开发与部署
 
-首次 `make dev-secrets`（或配置配套的内联签名 PEM）；创建库 `bff`。`make dev` 启动 BFF（18081）与 tripmap（18082/18083 内网）。生产见 [部署与发布](deployment.md)。
+首次 `make dev-secrets`（或配置配套的内联签名 PEM）；创建库 `bff`。`make dev` 启动 BFF（18081）、tripmap（18082/18083 内网）与 metro（18084/18085 内网，需要自己的数据库 `metro`，见 [后端初始化](backend.md#metro-服务地铁足迹)；不用 metro 时在两个终端分别运行 `make dev-bff`、`make dev-tripmap`，并去掉 BFF 配置里的 `upstreams.metro`）。生产见 [部署与发布](deployment.md)。
 
 ## 新增业务
 
@@ -222,7 +229,8 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 ## 验证
 
-- `internal/bff/auth`：注册/登录/会话/CSRF（需 `TRIPMAP_TEST_*`）。
+- `internal/bff/auth`：注册/登录/会话/CSRF（需 `TRIPMAP_TEST_*`）；多产品清理与角色写入会话。
+- metro 经 BFF 的链路测试（`internal/e2e/metro_*_chain_test.go`，`ChainMetro`）：匿名目录与 `known_version`、`metro_grpc` 就绪、无 `upstreams.metro` 时无 metro 路由、管理接口的角色要求（匿名 / 无角色 / 其他角色 / 管理员 / 缺 CSRF）、校验与 revision 冲突 detail 抵达浏览器、导入预览与写入、审计渠道与执行者、绕过 BFF 直连 metro 时仅含 `sub` 的凭证被拒、骑行者资料与乘坐记录、云端数据删除同时清理 tripmap 与 metro 且单个产品失败时保持待删除并可重试。
 - `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与内部 gRPC（TLS 与 h2c）信任。
 - **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Logto HTTP 登录、Cookie 会话、Me、Logout、`ListSessions`/`RevokeSession`（跨设备撤销与 CSRF）、A/B 足迹隔离、`SyncChanges` 幂等与 revision 冲突、行程增删改读、提醒设置、公开退订 HTTP、**#43** 云端数据删除重试/S3 故障/完成回执/跨用户隔离、错误 Origin/CSRF、过期/撤销/禁用/删除待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。浏览器云端数据删除 UI 使用 Playwright 模拟 RPC（`apps/trip-map/tests/account-deletion.spec.ts`），真实 Cookie 链路以 e2e 为准。
 - **Playwright 真实栈**（默认跳过）：`apps/trip-map/tests/bff-cookie-real.spec.ts`；先 `make dev`（或等价 BFF+tripmap），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @kongken/trip-map -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。

@@ -70,13 +70,13 @@ make dev-secrets
 
 `make deps-up` 启动 PostgreSQL、Redis 与 S3 开发依赖；`make storage-init` 初始化 S3 bucket；`make dev-secrets` 仅生成 BFF 的 Ed25519 签名密钥对。本地示例显式使用 h2c，不需要 TLS 证书；也可在配置中填写配套的 `private_key` / `public_key` PEM（替换对应 `*_key_file`），无需独立密钥文件，见 [BFF 配置](docs/bff.md#配置内联签名密钥)。TLS 开发另用 `go run ./cmd/dev-secrets -tls` 并同步配置两端。配置文件和 `dev-secrets/` 均已被 Git 忽略。已有本地环境时保留配置、数据库和密钥，跳过对应的首次初始化步骤；升级不会自动修改已有配置。
 
-启动两个后端服务：
+启动后端服务（BFF、tripmap 与可选的 metro；metro 需要自己的数据库和 `config.metro.yaml`，见 [后端初始化](docs/backend.md#metro-服务地铁足迹)）：
 
 ```bash
 make dev
 ```
 
-也可在不同终端分别运行 `make dev-bff` 和 `make dev-tripmap`。另开终端启用前端后端连接：
+也可在不同终端分别运行 `make dev-bff`、`make dev-tripmap` 和 `make dev-metro`。另开终端启用前端后端连接：
 
 ```bash
 npm install

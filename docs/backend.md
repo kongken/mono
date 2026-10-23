@@ -10,12 +10,15 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 
 ## 项目结构
 
-仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前只有 tripmap 一个业务；业务包之间不互相 import，`internal/platform/` 不依赖业务包。公网请求经 BFF（`cmd/bff`）转发到业务服务，见 [BFF（公网入口）](bff.md)。
+仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前有 tripmap 与 metro 两个业务；业务包之间不互相 import，`internal/platform/` 不依赖业务包。公网请求经 BFF（`cmd/bff`）转发到业务服务，见 [BFF（公网入口）](bff.md)。
 
 | 路径 | 职责 |
 | --- | --- |
 | `cmd/bff/`、`internal/bff/`（共用的账号与会话；各产品的领域适配在 `internal/bff/<产品>/`，tripmap 的在 `internal/bff/tripmap/`） | BFF：公网唯一浏览器 RPC（`bff.v1` 账号、`bff.<产品>.v1` 业务，Connect、Cookie/CSRF），经内部 gRPC（TLS / h2c）调 tripmap（[说明](bff.md)） |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
+| `cmd/metro/`、`internal/metro/`（`app`、`application`、`config`、`ent`、`testutil`） | 地铁足迹业务服务：入口、装配与内部 gRPC、`CatalogService`/`AdminService`/`RiderService`/`AccountCleanupService`、配置、Ent 模型、隔离 schema 的测试辅助（[说明](#metro-服务地铁足迹)） |
+| `internal/bff/metro/` | 地铁足迹的 BFF 适配（目录手写映射；管理与骑行者经 `relay` 线格式转换）与账号清理器 |
+| `proto/metro/v1/`、`proto/bff/metro/v1/`、`migrations/metro/` | metro 的内部与浏览器契约、版本化迁移 |
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
 | `internal/tripmap/tiles/` | 可选的 Mapbox 瓦片代理：`GET /api/tiles/{z}/{x}/{y}.png` 的配置校验、请求校验、限流与上游访问（[说明](#mapbox-瓦片代理可选)） |
@@ -458,7 +461,7 @@ curl --fail http://127.0.0.1:18081/api/bff.tripmap.v1.StatusService/GetStatus \
 | --- | --- |
 | `users` | BFF 身份映射 ID、`schema_version`（足迹结构，默认 1，F5 升级后为 2）、可空且可重复的登录名、展示名/头像缓存、`friend_code`（F7 好友邀请码）、`friend_show_cities/dates/notes`（F7 对好友公开范围）、足迹 `revision`、创建/更新时间；不保存认证凭据 |
 | `auth_identities` | Logto `(issuer, sub)` 映射、登录名/展示名/头像缓存、禁用和云端数据删除状态；唯一键为 `(issuer, external_id)` |
-| `auth_browser_sessions` | BFF 浏览器会话的唯一令牌哈希、创建/过期/最近使用时间、撤销标记；用户删除时级联 |
+| `auth_browser_sessions` | BFF 浏览器会话的唯一令牌哈希、创建/过期/最近使用时间、撤销标记、登录时读取的 `roles`（JSON）与 `authenticated_at`；用户删除时级联 |
 | `city_visits` | 所属用户、区域 ID/名称、所属省份、颜色、日期字符串、备注；`user_id + region_code` 唯一。F5 起日期与备注列是版本 1 的冻结副本，不再更新 |
 | `city_trips` | F5：所属用户、所属城市行（外键，级联删除）、旅行 ID（`user_id + trip_id` 唯一）、区域 ID、日期字符串、备注、创建/更新时间 |
 | `province_marks` | 所属用户、省份 ID、颜色；`user_id + province_code` 唯一 |
@@ -509,14 +512,57 @@ BFF 的 `20261023095053_logto_identity_mapping.sql` 新增 Logto 身份映射和
 
 **限制。** 迁移流水线只覆盖 PostgreSQL 结构；部署时仍需人工执行并记录已执行的版本（没有内置的迁移执行器或版本表）；回滚依赖数据库备份。
 
+## metro 服务（地铁足迹）
+
+规格与决策见 [metro 规格](metro/spec.md)。后端已实现 P0–P3：共用的角色层、服务骨架与目录读取、管理接口、骑行者资料与乘坐记录、账号清理。尚未实现：管理令牌与 MCP（P4）、`apps/metro` 前端（P5–P6）、Docker 镜像与部署清单（P7）。
+
+**接口**（内部 gRPC，经 BFF 暴露，见 [BFF](bff.md)）：
+
+| 服务 | 方法 | 访问 |
+| --- | --- | --- |
+| `metro.v1.SystemService` | `GetStatus` | 匿名（BFF 就绪探测） |
+| `metro.v1.CatalogService` | `ListCities`（`known_version` → `not_modified`）、`GetCity`、`ListLines`（默认只返回 `operating`）、`ListRollingStockTopics`、`GetRollingStockTopic` | 匿名 |
+| `metro.v1.AdminService` | 城市、车型、线路、车型专题各 `Create`/`Update`/`Delete`，`ListAdminCities`/`ListAdminRollingStocks`/`ListAdminLines`/`ListAdminRollingStockTopics`，`ImportCatalog`、`ExportCatalog`、`ListAuditLogs` | `required_role = "metro-admin"`，metro 自己再检查凭证里的角色 |
+| `metro.v1.RiderService` | `GetPublicProfile`；`GetMyProfile`、`UpdateMyProfile`、`ListMyLines`、`MarkLine`、`UnmarkLine` | 前者匿名，其余登录；用户只取自凭证 |
+| `metro.v1.AccountCleanupService` | `CleanupUserData` | 登录（凭证里的用户，`user_id` 若填必须一致） |
+
+**目录规则**（`internal/metro/application`）：
+
+- 目录写入在一个事务里完成变更、审计行和 `catalog_state.version + 1`；`Update`/`Delete` 必须带 `expected_revision`，不一致返回 `FAILED_PRECONDITION` 和 `RevisionConflictDetail`（当前 revision）；`Update` 提交的值与已存值相同时什么都不改（revision、version、审计都不动）。并发更新用行锁（`SELECT … FOR UPDATE`）串行化，同一 revision 只有一个成功。
+- 校验集中在 `catalogdoc.go`：导入、管理 RPC 与审计快照共用同一套记录类型。字段错误返回 `INVALID_ARGUMENT` 加 `ValidationDetail`（字段路径，导入里形如 `lines[3].color`）；唯一键冲突返回 `ALREADY_EXISTS`。`status` 未指定按 `operating`；车型专题至少要有 `rolling_stock_codes` 或 `cars` 之一；`length_km` 等数值最多两位小数；日期只接受 `YYYY-MM-DD`；链接只接受 https。
+- 引用完整性：被线路引用的城市、车型不能删除；有乘坐记录的线路不能删除（`LineGuard`，应改为 `retired`）。`Line.code` 创建后不可改；线路可改城市。违反时返回 `FAILED_PRECONDITION` 加 `ReferencedDetail`（各引用数量）。数据库外键同为 `RESTRICT`。
+- 导入（`metro-catalog/1`）：按自然键 upsert，全有或全无，不删除；先做记录级校验，再检查引用能否在文件或库内解析；`dry_run` 返回新增/更新/无变化数量和逐条错误，不写入、不加版本、不写审计；真实导入有错误时整体拒绝；没有任何变化的导入不加版本、不写审计、不增加 revision；每条实际变化的记录写一行审计。单次最多 2000 条记录、1 MiB。非 dry-run 先锁 `catalog_state` 再规划。`ExportCatalog` 输出同一格式且顺序稳定，导出再导入全部“无变化”。
+- 审计（`admin_audit_logs`）：执行者、渠道（`web`/`mcp`，来自 BFF 下传的 `x-bff-channel`）、令牌 ID、请求 ID、`action`（如 `line.update`）、实体与 JSON 快照；只增不改，没有自动清理。账号删除不清除审计里的 `actor_user_id`。
+- 骑行者：资料行在第一次 `UpdateMyProfile` 时创建（读取不创建）；`handle` 小写化后须匹配 `^[a-z0-9_]{3,32}$` 且不在保留字表，冲突返回 `ALREADY_EXISTS`；公开前必须有 `handle`（数据库约束同样要求）；社交账号按平台校验用户名，或接受指向该平台域名的 https 链接；`GetPublicProfile` 对不存在、未公开、格式不对的 handle 返回同样的 `NOT_FOUND`。`MarkLine` 对同一用户同一线路 upsert（重复调用只改年份，不带年份即清空），`retired`/`planned` 线路不能新标记（已有记录可保留、改年份、取消）；`UnmarkLine` 对没标记过的线路也成功；线路不存在返回 `NOT_FOUND`；年份须在 1900 到当年之间。统计（城市数、线路数、总里程）在查询时计算。
+
+**配置**：`config.metro.example.yaml` 复制为被忽略的 `config.metro.yaml`：`db_store`（metro 独占的 PostgreSQL 库，例如 `createdb metro`）、可选 `redis_store`、`auto_migrate`（本地建表；生产关闭并执行 `migrations/metro/`）、`grpc.*`（与 tripmap 相同的 tls/h2c 规则）、`internal_auth`（`audience: metro`，只放 BFF 公钥）。HTTP 端口只有 `/ping` 与 `/readyz`，内网使用。`make dev-metro` 以 18084（HTTP）与 18085（gRPC）启动。
+
+**数据库模型**（`internal/metro/ent/schema`，业务规则同时写成数据库 `CHECK`，手工改库也写不进非法行）：
+
+| 表 | 关键字段与约束 |
+| --- | --- |
+| `cities` | `slug`（唯一，≤32，小写字母数字连字符）、`name`、`header_images`（JSON，≤8）、`map_svg_url`、`sort_order`、`revision`、时间戳 |
+| `rolling_stocks` | `code`（唯一，≤32）、可空的 `length_m`/`width_m`（`numeric(6,2)`，>0）和 `capacity`、`revision` |
+| `lines` | `code`（唯一，不可改，`^[a-z0-9][a-z0-9-]{1,31}$`）、`city_id`（外键 `RESTRICT`）、`name`、`number`（0 未编号）、`status`（planned / under_construction / operating / suspended / retired）、可空 `rolling_stock_id`（外键 `RESTRICT`）、`cars`、`cars_addition`、`stations`、`length_km`（`numeric(8,2)`）、`color`（`#RRGGBB`）、可空日期 `commenced_on`/`extended_on`、`is_loop`、`revision` |
+| `rolling_stock_topics` | `slug`（唯一）、`name`、`rolling_stock_codes`、`cars`（JSON 列表）、`revision` |
+| `catalog_state` | 单行（`id = 1`），`version` 单调递增；其行锁让并发管理写入排队 |
+| `admin_audit_logs` | 见上，索引 `created_at`、`(entity_type, entity_id, created_at)`、`(actor_user_id, created_at)` |
+| `rider_profiles` | 主键 `user_id`（BFF 用户 ID）、可空唯一 `handle`、`display_name`、`subtitle`、`bio`（≤500）、`location`、`header_images`、五个社交字段、`is_public`（默认 false，公开须有 handle） |
+| `rider_lines` | `(user_id, line_id)` 唯一，`line_id` 外键 `RESTRICT`，可空 `ridden_year`（≥1900） |
+
+**迁移**：`migrations/metro/`（`baseline`、`admin_audit`、`rider`）由 `make metro-migration NAME=<变更名> DEV_DSN='postgres://…'` 生成，规则同 tripmap（先 `make ent-metro`）；全新库按文件名顺序全部执行。
+
+**健康与验证**：`/readyz` 报告 `postgres`（配置了 Redis 时再加 `redis`）；BFF 的 `/readyz` 增加 `metro` 与 `metro_grpc`。`internal/metro/application` 的测试直接调用服务实现，使用隔离的 PostgreSQL schema（需要 `TRIPMAP_TEST_POSTGRES_DSN`，未设置则跳过）；`internal/platform/moduleboundary` 保证 `internal/metro`、`internal/bff/metro` 与 tripmap 互不 import。
+
 ## 生成、构建与验证
 
 ```bash
 make ent            # 修改 Ent schema 后生成客户端
+make ent-metro      # 修改 metro 的 Ent schema 后生成客户端
 make buf            # 修改 proto 后生成 Go / TypeScript 契约
 buf lint
 make test           # Go 单元测试；未配置连接时跳过实际存储集成测试
-make build          # bin/tripmap 与 bin/bff
+make build          # bin/tripmap、bin/bff 与 bin/metro
 npm test
 npm run build
 ```

@@ -1,6 +1,26 @@
 # 地铁足迹（metro）产品规格
 
-> **状态：待实现。** 本文是规格，描述要做什么以及为什么这样做，不描述当前行为。实现过程中每完成一部分，就把对应内容迁到 `docs/metro/features.md`（用户可见规则与验收场景）、`docs/backend.md`、`docs/bff.md`，并在本文标注已完成或删除。
+> **状态：后端 P0–P3 已实现，P4–P7 待实现。** 本文是规格，描述要做什么以及为什么这样做。已落地部分的当前行为以 [后端初始化](../backend.md#metro-服务地铁足迹) 和 [BFF](../bff.md) 为准；与下表的偏差和补充决定也记在这里。实现过程中每完成一部分，就把对应内容迁到 `docs/metro/features.md`（用户可见规则与验收场景）、`docs/backend.md`、`docs/bff.md`，并在本文标注已完成或删除。
+
+**实现状态**
+
+| 阶段 | 状态 | 说明 |
+| --- | --- | --- |
+| P0 共用层 | 已实现 | 角色进会话与凭证、`required_role`、`admin_session_max_age`、账号清理多产品化、`oauth_apps` 沿用既有机制 |
+| P1 服务骨架与目录读取 | 已实现 | `cmd/metro`、Ent 与 `migrations/metro/`、`CatalogService`（内部与 BFF）、可选上游、`metro_grpc` 就绪探测、模块边界检查 |
+| P2 管理接口 | 已实现 | 12 个增删改、4 个管理列表、导入导出、审计、引用完整性、`expected_revision` |
+| P3 骑行者 | 已实现 | `RiderService`、`AccountCleanupService`、BFF 适配与清理器 |
+| P4 MCP | 未实现 | 审计已预留 `channel=mcp`、令牌 ID 的传递（`x-bff-channel`、`x-bff-token-id`）；`bff_access_tokens`、`AccessTokenService`、MCP 端点未做 |
+| P5–P7 | 未实现 | `apps/metro`、管理后台、Docker/CI/部署清单、`docs/metro/features.md`、`docs/monorepo.md`、`GLOSSARY.md` |
+
+**实现中的补充决定**（规格未写明处）：
+
+- 管理列表方法叫 `ListAdminCities`、`ListAdminRollingStocks`、`ListAdminLines`、`ListAdminRollingStockTopics`（与匿名的 `CatalogService` 请求/响应消息同包，避免重名）；每个写方法有自己的响应消息，返回实体（含 `revision`）和写入后的 `catalog_version`。更新与删除按 `id` 定位，线路、城市引用用 `slug`/`code`。
+- `Update` 提交的值与已存值相同时不写入（revision、版本、审计都不动）；`status` 未指定按 `operating`；车型专题必须至少给出 `rolling_stock_codes` 或 `cars` 之一（避免“无条件”专题匹配所有线路）；`ExtendedOn` 不得早于 `CommencedOn`。
+- 没有任何变化的导入不加 `catalog_state.version`、不写审计；`ExportCatalog` 也登记为 25 秒重任务。导入文档里车型专题的键是 `topics`（与 6.3 示例一致）。
+- 内部契约与浏览器契约的管理、骑行者消息逐字段同形，BFF 经 protobuf 线格式转换，由 `TestContractsStayWireCompatible` 守住一致性；目录读取契约仍是手写映射。
+- 骑行者 `handle` 先小写化再校验；`GetMyProfile` 在资料不存在时返回默认值而不创建；`MarkLine` 不带年份会清空年份。
+- 待决问题 5（Logto 角色声明）：已按 Logto 核心源码核实 `roles` scope 在 userinfo 中返回 `roles`（角色名即 Logto 角色名）；**未对真实租户验证**，部署前仍需确认。
 
 ## 1. 背景与目标
 
