@@ -420,20 +420,23 @@ func (m *AccountDeletionReceiptMutation) ResetEdge(name string) error {
 // SessionMutation represents an operation that mutates the Session nodes in the graph.
 type SessionMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *string
-	token_hash    *string
-	created_at    *time.Time
-	expires_at    *time.Time
-	last_used_at  *time.Time
-	revoked       *bool
-	clearedFields map[string]struct{}
-	user          *string
-	cleareduser   bool
-	done          bool
-	oldValue      func(context.Context) (*Session, error)
-	predicates    []predicate.Session
+	op               Op
+	typ              string
+	id               *string
+	token_hash       *string
+	created_at       *time.Time
+	expires_at       *time.Time
+	last_used_at     *time.Time
+	revoked          *bool
+	roles            *[]string
+	appendroles      []string
+	authenticated_at *time.Time
+	clearedFields    map[string]struct{}
+	user             *string
+	cleareduser      bool
+	done             bool
+	oldValue         func(context.Context) (*Session, error)
+	predicates       []predicate.Session
 }
 
 var _ ent.Mutation = (*SessionMutation)(nil)
@@ -769,6 +772,120 @@ func (m *SessionMutation) ResetRevoked() {
 	m.revoked = nil
 }
 
+// SetRoles sets the "roles" field.
+func (m *SessionMutation) SetRoles(s []string) {
+	m.roles = &s
+	m.appendroles = nil
+}
+
+// Roles returns the value of the "roles" field in the mutation.
+func (m *SessionMutation) Roles() (r []string, exists bool) {
+	v := m.roles
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRoles returns the old "roles" field's value of the Session entity.
+// If the Session object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SessionMutation) OldRoles(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRoles is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRoles requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRoles: %w", err)
+	}
+	return oldValue.Roles, nil
+}
+
+// AppendRoles adds s to the "roles" field.
+func (m *SessionMutation) AppendRoles(s []string) {
+	m.appendroles = append(m.appendroles, s...)
+}
+
+// AppendedRoles returns the list of values that were appended to the "roles" field in this mutation.
+func (m *SessionMutation) AppendedRoles() ([]string, bool) {
+	if len(m.appendroles) == 0 {
+		return nil, false
+	}
+	return m.appendroles, true
+}
+
+// ClearRoles clears the value of the "roles" field.
+func (m *SessionMutation) ClearRoles() {
+	m.roles = nil
+	m.appendroles = nil
+	m.clearedFields[session.FieldRoles] = struct{}{}
+}
+
+// RolesCleared returns if the "roles" field was cleared in this mutation.
+func (m *SessionMutation) RolesCleared() bool {
+	_, ok := m.clearedFields[session.FieldRoles]
+	return ok
+}
+
+// ResetRoles resets all changes to the "roles" field.
+func (m *SessionMutation) ResetRoles() {
+	m.roles = nil
+	m.appendroles = nil
+	delete(m.clearedFields, session.FieldRoles)
+}
+
+// SetAuthenticatedAt sets the "authenticated_at" field.
+func (m *SessionMutation) SetAuthenticatedAt(t time.Time) {
+	m.authenticated_at = &t
+}
+
+// AuthenticatedAt returns the value of the "authenticated_at" field in the mutation.
+func (m *SessionMutation) AuthenticatedAt() (r time.Time, exists bool) {
+	v := m.authenticated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAuthenticatedAt returns the old "authenticated_at" field's value of the Session entity.
+// If the Session object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SessionMutation) OldAuthenticatedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAuthenticatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAuthenticatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAuthenticatedAt: %w", err)
+	}
+	return oldValue.AuthenticatedAt, nil
+}
+
+// ClearAuthenticatedAt clears the value of the "authenticated_at" field.
+func (m *SessionMutation) ClearAuthenticatedAt() {
+	m.authenticated_at = nil
+	m.clearedFields[session.FieldAuthenticatedAt] = struct{}{}
+}
+
+// AuthenticatedAtCleared returns if the "authenticated_at" field was cleared in this mutation.
+func (m *SessionMutation) AuthenticatedAtCleared() bool {
+	_, ok := m.clearedFields[session.FieldAuthenticatedAt]
+	return ok
+}
+
+// ResetAuthenticatedAt resets all changes to the "authenticated_at" field.
+func (m *SessionMutation) ResetAuthenticatedAt() {
+	m.authenticated_at = nil
+	delete(m.clearedFields, session.FieldAuthenticatedAt)
+}
+
 // ClearUser clears the "user" edge to the User entity.
 func (m *SessionMutation) ClearUser() {
 	m.cleareduser = true
@@ -830,7 +947,7 @@ func (m *SessionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *SessionMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 8)
 	if m.user != nil {
 		fields = append(fields, session.FieldUserID)
 	}
@@ -848,6 +965,12 @@ func (m *SessionMutation) Fields() []string {
 	}
 	if m.revoked != nil {
 		fields = append(fields, session.FieldRevoked)
+	}
+	if m.roles != nil {
+		fields = append(fields, session.FieldRoles)
+	}
+	if m.authenticated_at != nil {
+		fields = append(fields, session.FieldAuthenticatedAt)
 	}
 	return fields
 }
@@ -869,6 +992,10 @@ func (m *SessionMutation) Field(name string) (ent.Value, bool) {
 		return m.LastUsedAt()
 	case session.FieldRevoked:
 		return m.Revoked()
+	case session.FieldRoles:
+		return m.Roles()
+	case session.FieldAuthenticatedAt:
+		return m.AuthenticatedAt()
 	}
 	return nil, false
 }
@@ -890,6 +1017,10 @@ func (m *SessionMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldLastUsedAt(ctx)
 	case session.FieldRevoked:
 		return m.OldRevoked(ctx)
+	case session.FieldRoles:
+		return m.OldRoles(ctx)
+	case session.FieldAuthenticatedAt:
+		return m.OldAuthenticatedAt(ctx)
 	}
 	return nil, fmt.Errorf("unknown Session field %s", name)
 }
@@ -941,6 +1072,20 @@ func (m *SessionMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetRevoked(v)
 		return nil
+	case session.FieldRoles:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRoles(v)
+		return nil
+	case session.FieldAuthenticatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAuthenticatedAt(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Session field %s", name)
 }
@@ -974,6 +1119,12 @@ func (m *SessionMutation) ClearedFields() []string {
 	if m.FieldCleared(session.FieldLastUsedAt) {
 		fields = append(fields, session.FieldLastUsedAt)
 	}
+	if m.FieldCleared(session.FieldRoles) {
+		fields = append(fields, session.FieldRoles)
+	}
+	if m.FieldCleared(session.FieldAuthenticatedAt) {
+		fields = append(fields, session.FieldAuthenticatedAt)
+	}
 	return fields
 }
 
@@ -990,6 +1141,12 @@ func (m *SessionMutation) ClearField(name string) error {
 	switch name {
 	case session.FieldLastUsedAt:
 		m.ClearLastUsedAt()
+		return nil
+	case session.FieldRoles:
+		m.ClearRoles()
+		return nil
+	case session.FieldAuthenticatedAt:
+		m.ClearAuthenticatedAt()
 		return nil
 	}
 	return fmt.Errorf("unknown Session nullable field %s", name)
@@ -1016,6 +1173,12 @@ func (m *SessionMutation) ResetField(name string) error {
 		return nil
 	case session.FieldRevoked:
 		m.ResetRevoked()
+		return nil
+	case session.FieldRoles:
+		m.ResetRoles()
+		return nil
+	case session.FieldAuthenticatedAt:
+		m.ResetAuthenticatedAt()
 		return nil
 	}
 	return fmt.Errorf("unknown Session field %s", name)

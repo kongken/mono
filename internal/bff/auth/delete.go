@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"connectrpc.com/connect"
@@ -13,12 +14,39 @@ import (
 	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
-	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 const deletionReceiptTTL = 24 * time.Hour
+
+// cleanupProducts asks every enabled product to remove the user's data. Every
+// cleaner runs even when an earlier one failed, so one product being down does
+// not stop the others from making progress. Any failure leaves the account in
+// the pending-deletion state and returns UNAVAILABLE, so the client retries; the
+// retry repeats the products that already succeeded, which is harmless because
+// each cleanup is idempotent. The completion receipt is written only after all
+// of them have succeeded.
+func (s *Service) cleanupProducts(ctx context.Context, userID string) error {
+	callCtx := rpcauth.WithCall(ctx, rpcauth.Call{UserID: userID})
+	var failed error
+	for _, c := range s.cleaners {
+		err := c.CleanupUserData(callCtx, userID)
+		if err == nil {
+			continue
+		}
+		slog.Warn("product data cleanup failed", "product", c.Name(), "user", userID, "error", err)
+		if failed != nil {
+			continue
+		}
+		if st, ok := status.FromError(err); ok && st.Code() == codes.Unavailable {
+			failed = connect.NewError(connect.CodeUnavailable, errors.New(st.Message()))
+		} else {
+			failed = connect.NewError(connect.CodeUnavailable, errors.New("object cleanup incomplete; retry account deletion"))
+		}
+	}
+	return failed
+}
 
 // CompletionReceiptValid reports whether token may replay a finished deletion.
 func (s *Service) CompletionReceiptValid(ctx context.Context, token string) bool {
@@ -82,14 +110,8 @@ func (s *Service) DeleteAccount(ctx context.Context, browser session.BrowserSess
 	if err = tx.Commit(); err != nil {
 		return internal(err)
 	}
-	if s.cleanup != nil {
-		callCtx := rpcauth.WithCall(ctx, rpcauth.Call{UserID: u.ID})
-		if _, err = s.cleanup.CleanupUserData(callCtx, &tripmapv1.CleanupUserDataRequest{UserId: u.ID}); err != nil {
-			if st, ok := status.FromError(err); ok && st.Code() == codes.Unavailable {
-				return connect.NewError(connect.CodeUnavailable, errors.New(st.Message()))
-			}
-			return connect.NewError(connect.CodeUnavailable, errors.New("object cleanup incomplete; retry account deletion"))
-		}
+	if err = s.cleanupProducts(ctx, u.ID); err != nil {
+		return err
 	}
 	final, err := s.db.Tx(ctx)
 	if err != nil {

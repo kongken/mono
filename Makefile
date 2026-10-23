@@ -1,8 +1,9 @@
-.PHONY: build test ent buf dev dev-bff dev-tripmap dev-secrets deps-up deps-down storage-init migration vapid-keys check-import-boundaries check-docs
+.PHONY: metro-migration bff-migration build test ent ent-bff ent-metro buf dev dev-bff dev-tripmap dev-metro dev-secrets deps-up deps-down storage-init migration vapid-keys check-import-boundaries check-docs
 
 build:
 	go build -o bin/bff ./cmd/bff
 	go build -o bin/tripmap ./cmd/tripmap
+	go build -o bin/metro ./cmd/metro
 
 test:
 	go test ./...
@@ -19,6 +20,9 @@ ent:
 ent-bff:
 	go generate ./internal/bff/ent
 
+ent-metro:
+	go generate ./internal/metro/ent
+
 buf:
 	buf generate
 
@@ -31,6 +35,10 @@ migration:
 bff-migration:
 	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations/bff
 
+# Same for the metro business database (migrations/metro/).
+metro-migration:
+	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations/metro
+
 # Writes dev-secrets/: the BFF's Ed25519 signing key pair (kid dev-1).
 # Local examples use h2c, so no TLS certificates are generated. For TLS use
 # `go run ./cmd/dev-secrets -tls`; add -force to explicitly rotate existing files.
@@ -39,16 +47,20 @@ dev-secrets:
 
 # Configs are ignored locally, so make dev can safely use them for credentials.
 # The BFF is the entry on 18081 (the Vite proxy target); tripmap listens on 18082 (HTTP) and
-# 18083 (gRPC over h2c in local examples, config grpc.listen) behind it.
+# 18083 (gRPC over h2c in local examples, config grpc.listen) behind it. metro is the second
+# product: 18084 (HTTP) and 18085 (gRPC); it needs its own database (see config.metro.example.yaml).
 # Run `make dev-secrets` first, or configure matching inline signing keys.
 dev:
-	$(MAKE) -j2 dev-bff dev-tripmap
+	$(MAKE) -j3 dev-bff dev-tripmap dev-metro
 
 dev-bff:
 	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.bff.yaml PORT=18081 go run ./cmd/bff
 
 dev-tripmap:
 	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.tripmap.yaml PORT=18082 go run ./cmd/tripmap
+
+dev-metro:
+	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.metro.yaml PORT=18084 go run ./cmd/metro
 
 deps-up:
 	docker compose up -d --wait

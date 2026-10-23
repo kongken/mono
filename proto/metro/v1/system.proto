@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package metro.v1;
+
+import "platform/v1/options.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/metro/v1;metrov1";
+
+// SystemService exposes read-only infrastructure readiness, not user data. It is
+// served over gRPC to the BFF only, and backs the BFF's metro_grpc readiness probe.
+service SystemService {
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+}
+
+message GetStatusRequest {}
+
+message GetStatusResponse {
+  bool ready = 1;
+  repeated DependencyStatus dependencies = 2;
+}
+
+message DependencyStatus {
+  string name = 1;
+  bool ready = 2;
+}

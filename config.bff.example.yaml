@@ -12,6 +12,9 @@ auto_migrate: true
 
 upstreams:
   tripmap: http://127.0.0.1:18082
+  # metro (the second product) is optional: remove this line, grpc.services.metro and
+  # auth.account_cleanup's metro entry to run the BFF without it.
+  metro: http://127.0.0.1:18084
 
 grpc:
   # Local loopback uses h2c: no CA or server_name. For TLS, run
@@ -22,6 +25,9 @@ grpc:
       address: 127.0.0.1:18083
       # Unencrypted HTTP/2; only for loopback or an explicitly approved trusted network.
       # Must match tripmap's grpc.transport; signatures remain required.
+      transport: h2c
+    metro:
+      address: 127.0.0.1:18085
       transport: h2c
 
 internal_auth:
@@ -37,6 +43,10 @@ internal_auth:
 
 auth:
   session_ttl: 168h
+  # Procedures that declare required_role (the metro admin API) also need a session
+  # signed in within this long, because Logto roles are read at sign-in and are not
+  # revoked live. Default 12h.
+  admin_session_max_age: 12h
   csrf_token_ttl: 24h    # optional; default 24h when unset
   cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP
   # Explicit loopback-only HTTP exception for local OAuth development.
@@ -47,10 +57,10 @@ auth:
       origin: http://localhost:5173
       default_path: /
       allowed_paths: [/]
-    second-app:
+    metro:
       origin: http://localhost:5174
-      default_path: /map
-      allowed_paths: [/map]
+      default_path: /
+      allowed_paths: [/, /me, /admin]
   # Logto is the sole identity provider. Configure registration, password
   # recovery, social connections and passkeys in Logto.
   # oauth_providers:

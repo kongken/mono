@@ -11,4 +11,11 @@ extend google.protobuf.MethodOptions {
   // protected unless it carries this option. The BFF and each business service
   // enforce it independently; an anonymous call still needs a valid BFF credential.
   bool anonymous = 50100;
+
+  // Names the role a signed-in caller must hold, such as "metro-admin". The BFF
+  // checks the roles stored in the browser session, and the business service
+  // checks the roles carried by the internal credential, each independently.
+  // Methods without this option are not checked for roles. A role requirement
+  // does not make a method anonymous.
+  string required_role = 50101;
 }

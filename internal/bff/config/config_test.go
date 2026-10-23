@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestValidate(t *testing.T) {
 	services := []string{"tripmap"}
@@ -92,6 +95,48 @@ func TestValidateInternalTransports(t *testing.T) {
 		"h2c typo in service key": cfg("", map[string]GRPCService{"tripmap": {Address: "a:1", Transport: "h2c"}, "billing": {Address: "b:1", Transport: "h2c"}, "tirpmap": {Address: "c:1", Transport: "h2c"}}),
 	} {
 		if c.ValidateInternal(two) == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestAuthAdminSessionAndAccountCleanup(t *testing.T) {
+	var a AuthConfig
+	if a.AdminSessionLimit() != DefaultAdminSessionMaxAge || a.AdminSessionLimit().Hours() != 12 {
+		t.Fatalf("default admin session limit: %v", a.AdminSessionLimit())
+	}
+	a.AdminSessionMaxAge = time.Hour
+	if a.AdminSessionLimit() != time.Hour {
+		t.Fatalf("configured admin session limit: %v", a.AdminSessionLimit())
+	}
+	if got := a.CleanupProducts(); len(got) != 1 || got[0] != "tripmap" {
+		t.Fatalf("default cleanup products: %v", got)
+	}
+
+	services := []string{"tripmap", "metro"}
+	base := func() Config {
+		return Config{Upstreams: map[string]string{"tripmap": "http://tripmap:1", "metro": "http://metro:1"}}
+	}
+	ok := base()
+	ok.Auth.AccountCleanup = []string{"tripmap", "metro"}
+	if err := ok.Validate(services); err != nil {
+		t.Fatal(err)
+	}
+	for name, mutate := range map[string]func(*Config){
+		"unknown product":    func(c *Config) { c.Auth.AccountCleanup = []string{"tripmap", "railmap"} },
+		"duplicate product":  func(c *Config) { c.Auth.AccountCleanup = []string{"metro", "metro"} },
+		"negative admin age": func(c *Config) { c.Auth.AdminSessionMaxAge = -time.Hour },
+		"not in route table": func(c *Config) { c.Auth.AccountCleanup = []string{"metro"} },
+	} {
+		c := base()
+		mutate(&c)
+		if name == "not in route table" {
+			if err := c.Validate([]string{"tripmap"}); err == nil {
+				t.Errorf("%s: accepted", name)
+			}
+			continue
+		}
+		if c.Validate(services) == nil {
 			t.Errorf("%s: accepted", name)
 		}
 	}

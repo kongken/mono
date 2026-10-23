@@ -23,6 +23,7 @@ import (
 	"github.com/kongken/mono/internal/bff/ent"
 	"github.com/kongken/mono/internal/bff/gateway"
 	"github.com/kongken/mono/internal/bff/ingress"
+	bffmetro "github.com/kongken/mono/internal/bff/metro"
 	"github.com/kongken/mono/internal/bff/oauth"
 	"github.com/kongken/mono/internal/bff/oauth/provider"
 	"github.com/kongken/mono/internal/bff/ratelimit"
@@ -68,7 +69,8 @@ func (h *Handlers) SetResources(r *Resources)              { h.resources.Store(r
 func (h *Handlers) SetOAuthRegistry(reg *provider.Registry) { h.oauthReg.Store(reg) }
 
 func (h *Handlers) Bootstrap() error {
-	if err := h.cfg.Validate(gateway.Names(h.services)); err != nil {
+	services := gateway.Active(h.services, h.cfg.Upstreams)
+	if err := h.cfg.Validate(gateway.Names(services)); err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -78,11 +80,11 @@ func (h *Handlers) Bootstrap() error {
 			return err
 		}
 	}
-	gw, err := gateway.New(h.cfg, h.services)
+	gw, err := gateway.New(h.cfg, services)
 	if err != nil {
 		return err
 	}
-	grpcServices := gateway.GRPCNames(h.services)
+	grpcServices := gateway.GRPCNames(services)
 	if err := h.cfg.ValidateInternal(grpcServices); err != nil {
 		return err
 	}
@@ -160,15 +162,19 @@ func heavyProcedures() map[string]bool {
 	for procedure := range bfftripmap.HeavyProcedures() {
 		heavy[procedure] = true
 	}
+	for procedure := range bffmetro.HeavyProcedures() {
+		heavy[procedure] = true
+	}
 	return heavy
 }
 
 func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 	conn := clients.Conn(bfftripmap.Service)
 	policy := ingress.Policy{
-		ClientIPHeader: h.cfg.ClientIPHeader,
-		AllowedOrigins: h.cfg.CORSAllowedOrigins,
-		Heavy:          heavyProcedures(),
+		ClientIPHeader:     h.cfg.ClientIPHeader,
+		AllowedOrigins:     h.cfg.CORSAllowedOrigins,
+		Heavy:              heavyProcedures(),
+		AdminSessionMaxAge: h.cfg.Auth.AdminSessionLimit(),
 	}
 	if r := h.resources.Load(); r != nil && conn != nil {
 		cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode, Secure: h.cfg.Auth.CookieSecure}
@@ -179,7 +185,7 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 		}
 		oauthDeps := bffauth.OAuthDeps{State: oauthState, Registry: reg}
 		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix),
-			tripmapv1.NewProfileServiceClient(conn), tripmapv1.NewAccountCleanupServiceClient(conn), oauthDeps)
+			tripmapv1.NewProfileServiceClient(conn), h.cleaners(clients), oauthDeps)
 		authHandler := bffauth.NewHandler(svc, h.cfg.CORSAllowedOrigins, h.cfg.Auth.CSRFTokenTTL)
 		h.auth.Store(authHandler)
 		policy.Authenticate = authHandler.Authenticate
@@ -197,9 +203,29 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 			route, handler := bffv1connect.NewAuthServiceHandler(auth, opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
 			bfftripmap.MountRPC(mux, conn, opts)
+			if metroConn := clients.Conn(bffmetro.Service); metroConn != nil {
+				bffmetro.MountRPC(mux, metroConn, opts)
+			}
 		}
 	}
 	return http.StripPrefix("/api", mux)
+}
+
+// cleaners builds the account-deletion cleaners of the products enabled by
+// auth.account_cleanup.
+func (h *Handlers) cleaners(clients *upstream.Clients) []bffauth.UserDataCleaner {
+	var out []bffauth.UserDataCleaner
+	for _, name := range h.cfg.Auth.CleanupProducts() {
+		conn := clients.Conn(name)
+		if conn == nil {
+			continue
+		}
+		switch name {
+		case bfftripmap.Service:
+			out = append(out, bfftripmap.NewCleaner(conn))
+		}
+	}
+	return out
 }
 
 func (h *Handlers) mountPublicHTTP(r *gin.Engine) {

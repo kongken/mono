@@ -66,7 +66,7 @@ func (s *Service) finishOAuth(ctx context.Context, name, code string, attempt oa
 	if err := s.syncProfile(ctx, u); err != nil {
 		return nil, time.Time{}, "", err
 	}
-	token, expires, err := s.issueSession(ctx, u.ID)
+	token, expires, err := s.issueSession(ctx, u.ID, claims.Roles)
 	if err != nil {
 		return nil, time.Time{}, "", err
 	}

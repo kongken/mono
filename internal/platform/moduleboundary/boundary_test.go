@@ -9,10 +9,22 @@ import (
 	"testing"
 )
 
-// Each service binary must only depend on its own business tree and platform.
-var boundaries = map[string]string{
-	"github.com/kongken/mono/cmd/bff":     "github.com/kongken/mono/internal/tripmap",
-	"github.com/kongken/mono/cmd/tripmap": "github.com/kongken/mono/internal/bff",
+// Each service binary must only depend on its own business tree and platform:
+// no business tree may reach into another, and the BFF reaches products only
+// through their proto contracts.
+var boundaries = map[string][]string{
+	"github.com/kongken/mono/cmd/bff": {
+		"github.com/kongken/mono/internal/tripmap",
+		"github.com/kongken/mono/internal/metro",
+	},
+	"github.com/kongken/mono/cmd/tripmap": {
+		"github.com/kongken/mono/internal/bff",
+		"github.com/kongken/mono/internal/metro",
+	},
+	"github.com/kongken/mono/cmd/metro": {
+		"github.com/kongken/mono/internal/bff",
+		"github.com/kongken/mono/internal/tripmap",
+	},
 }
 
 func moduleRoot(t *testing.T) string {
@@ -27,7 +39,7 @@ func moduleRoot(t *testing.T) string {
 func TestServiceImportBoundaries(t *testing.T) {
 	root := moduleRoot(t)
 	checked := 0
-	for entry, forbidden := range boundaries {
+	for entry, forbiddenTrees := range boundaries {
 		// Service images only copy their own cmd/ and business tree, so the other
 		// service's entry point is absent there; the image build itself enforces
 		// the boundary in that case.
@@ -47,8 +59,10 @@ func TestServiceImportBoundaries(t *testing.T) {
 			t.Fatalf("go list -deps %s: %v\n%s", entry, err, stderr)
 		}
 		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-			if line == forbidden || strings.HasPrefix(line, forbidden+"/") {
-				t.Fatalf("%s must not import %s (found %s)", entry, forbidden, line)
+			for _, forbidden := range forbiddenTrees {
+				if line == forbidden || strings.HasPrefix(line, forbidden+"/") {
+					t.Fatalf("%s must not import %s (found %s)", entry, forbidden, line)
+				}
 			}
 		}
 	}

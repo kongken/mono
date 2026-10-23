@@ -3,6 +3,7 @@ package ingress
 import (
 	"strings"
 
+	"github.com/kongken/mono/pkg/proto/bff/metro/v1/bffmetrov1connect"
 	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 )
@@ -45,6 +46,12 @@ var readOnlyProcedures = map[string]bool{
 
 	bfftripmapv1connect.RegionServiceGetRegionIndexProcedure:       true,
 	bfftripmapv1connect.RegionServicePreviewRegionUpgradeProcedure: true,
+
+	bffmetrov1connect.CatalogServiceListCitiesProcedure:             true,
+	bffmetrov1connect.CatalogServiceGetCityProcedure:                true,
+	bffmetrov1connect.CatalogServiceListLinesProcedure:              true,
+	bffmetrov1connect.CatalogServiceListRollingStockTopicsProcedure: true,
+	bffmetrov1connect.CatalogServiceGetRollingStockTopicProcedure:   true,
 }
 
 // RequiresWriteProtection reports whether Origin/CSRF must be validated for procedure.

@@ -42,6 +42,15 @@ type Config struct {
 // AuthConfig controls BFF browser sessions and the sole identity source, Logto.
 type AuthConfig struct {
 	SessionTTL time.Duration `yaml:"session_ttl"`
+	// AdminSessionMaxAge bounds how old a session may be (counted from sign-in)
+	// when it calls a procedure that declares required_role. Roles are read at
+	// sign-in and are not revoked live, so this limits how long a role removed in
+	// Logto keeps working. Default 12h.
+	AdminSessionMaxAge time.Duration `yaml:"admin_session_max_age"`
+	// AccountCleanup lists the products whose data is removed when a user deletes
+	// their cloud data, each named like its entry in the route table. Default:
+	// tripmap only. A product not deployed in this environment must not be listed.
+	AccountCleanup []string `yaml:"account_cleanup"`
 	// Retained only to reject obsolete configuration rather than silently
 	// blocking first-time Logto users. Registration policy belongs to Logto.
 	RegistrationDisabled bool                     `yaml:"registration_disabled"`
@@ -65,6 +74,25 @@ type OAuthProvider struct {
 }
 
 func (p OAuthProvider) Enabled() bool { return p.ClientID != "" && p.ClientSecret != "" }
+
+// DefaultAdminSessionMaxAge is used when auth.admin_session_max_age is unset.
+const DefaultAdminSessionMaxAge = 12 * time.Hour
+
+// AdminSessionLimit returns the effective admin_session_max_age.
+func (a *AuthConfig) AdminSessionLimit() time.Duration {
+	if a.AdminSessionMaxAge <= 0 {
+		return DefaultAdminSessionMaxAge
+	}
+	return a.AdminSessionMaxAge
+}
+
+// CleanupProducts returns the products enabled for account data cleanup.
+func (a *AuthConfig) CleanupProducts() []string {
+	if len(a.AccountCleanup) == 0 {
+		return []string{"tripmap"}
+	}
+	return a.AccountCleanup
+}
 
 func (a *AuthConfig) validateOAuth() error {
 	if a.RegistrationDisabled {
@@ -208,6 +236,17 @@ func (c *Config) Validate(services []string) error {
 	}
 	if err := httpx.CheckOrigins("cors_allowed_origins", c.CORSAllowedOrigins); err != nil {
 		return err
+	}
+	if c.Auth.AdminSessionMaxAge < 0 {
+		return fmt.Errorf("auth.admin_session_max_age must not be negative")
+	}
+	for i, name := range c.Auth.AccountCleanup {
+		if !slices.Contains(services, name) {
+			return fmt.Errorf("auth.account_cleanup names %q, which is not a service in the route table", name)
+		}
+		if slices.Contains(c.Auth.AccountCleanup[:i], name) {
+			return fmt.Errorf("auth.account_cleanup lists %q twice", name)
+		}
 	}
 	return c.Auth.validateOAuth()
 }

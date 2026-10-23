@@ -95,6 +95,11 @@ func Revoked(v bool) predicate.Session {
 	return predicate.Session(sql.FieldEQ(FieldRevoked, v))
 }
 
+// AuthenticatedAt applies equality check predicate on the "authenticated_at" field. It's identical to AuthenticatedAtEQ.
+func AuthenticatedAt(v time.Time) predicate.Session {
+	return predicate.Session(sql.FieldEQ(FieldAuthenticatedAt, v))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v string) predicate.Session {
 	return predicate.Session(sql.FieldEQ(FieldUserID, v))
@@ -363,6 +368,66 @@ func RevokedEQ(v bool) predicate.Session {
 // RevokedNEQ applies the NEQ predicate on the "revoked" field.
 func RevokedNEQ(v bool) predicate.Session {
 	return predicate.Session(sql.FieldNEQ(FieldRevoked, v))
+}
+
+// RolesIsNil applies the IsNil predicate on the "roles" field.
+func RolesIsNil() predicate.Session {
+	return predicate.Session(sql.FieldIsNull(FieldRoles))
+}
+
+// RolesNotNil applies the NotNil predicate on the "roles" field.
+func RolesNotNil() predicate.Session {
+	return predicate.Session(sql.FieldNotNull(FieldRoles))
+}
+
+// AuthenticatedAtEQ applies the EQ predicate on the "authenticated_at" field.
+func AuthenticatedAtEQ(v time.Time) predicate.Session {
+	return predicate.Session(sql.FieldEQ(FieldAuthenticatedAt, v))
+}
+
+// AuthenticatedAtNEQ applies the NEQ predicate on the "authenticated_at" field.
+func AuthenticatedAtNEQ(v time.Time) predicate.Session {
+	return predicate.Session(sql.FieldNEQ(FieldAuthenticatedAt, v))
+}
+
+// AuthenticatedAtIn applies the In predicate on the "authenticated_at" field.
+func AuthenticatedAtIn(vs ...time.Time) predicate.Session {
+	return predicate.Session(sql.FieldIn(FieldAuthenticatedAt, vs...))
+}
+
+// AuthenticatedAtNotIn applies the NotIn predicate on the "authenticated_at" field.
+func AuthenticatedAtNotIn(vs ...time.Time) predicate.Session {
+	return predicate.Session(sql.FieldNotIn(FieldAuthenticatedAt, vs...))
+}
+
+// AuthenticatedAtGT applies the GT predicate on the "authenticated_at" field.
+func AuthenticatedAtGT(v time.Time) predicate.Session {
+	return predicate.Session(sql.FieldGT(FieldAuthenticatedAt, v))
+}
+
+// AuthenticatedAtGTE applies the GTE predicate on the "authenticated_at" field.
+func AuthenticatedAtGTE(v time.Time) predicate.Session {
+	return predicate.Session(sql.FieldGTE(FieldAuthenticatedAt, v))
+}
+
+// AuthenticatedAtLT applies the LT predicate on the "authenticated_at" field.
+func AuthenticatedAtLT(v time.Time) predicate.Session {
+	return predicate.Session(sql.FieldLT(FieldAuthenticatedAt, v))
+}
+
+// AuthenticatedAtLTE applies the LTE predicate on the "authenticated_at" field.
+func AuthenticatedAtLTE(v time.Time) predicate.Session {
+	return predicate.Session(sql.FieldLTE(FieldAuthenticatedAt, v))
+}
+
+// AuthenticatedAtIsNil applies the IsNil predicate on the "authenticated_at" field.
+func AuthenticatedAtIsNil() predicate.Session {
+	return predicate.Session(sql.FieldIsNull(FieldAuthenticatedAt))
+}
+
+// AuthenticatedAtNotNil applies the NotNil predicate on the "authenticated_at" field.
+func AuthenticatedAtNotNil() predicate.Session {
+	return predicate.Session(sql.FieldNotNull(FieldAuthenticatedAt))
 }
 
 // HasUser applies the HasEdge predicate on the "user" edge.

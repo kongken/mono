@@ -84,6 +84,26 @@ func (_c *SessionCreate) SetNillableRevoked(v *bool) *SessionCreate {
 	return _c
 }
 
+// SetRoles sets the "roles" field.
+func (_c *SessionCreate) SetRoles(v []string) *SessionCreate {
+	_c.mutation.SetRoles(v)
+	return _c
+}
+
+// SetAuthenticatedAt sets the "authenticated_at" field.
+func (_c *SessionCreate) SetAuthenticatedAt(v time.Time) *SessionCreate {
+	_c.mutation.SetAuthenticatedAt(v)
+	return _c
+}
+
+// SetNillableAuthenticatedAt sets the "authenticated_at" field if the given value is not nil.
+func (_c *SessionCreate) SetNillableAuthenticatedAt(v *time.Time) *SessionCreate {
+	if v != nil {
+		_c.SetAuthenticatedAt(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *SessionCreate) SetID(v string) *SessionCreate {
 	_c.mutation.SetID(v)
@@ -233,6 +253,14 @@ func (_c *SessionCreate) createSpec() (*Session, *sqlgraph.CreateSpec) {
 		_spec.SetField(session.FieldRevoked, field.TypeBool, value)
 		_node.Revoked = value
 	}
+	if value, ok := _c.mutation.Roles(); ok {
+		_spec.SetField(session.FieldRoles, field.TypeJSON, value)
+		_node.Roles = value
+	}
+	if value, ok := _c.mutation.AuthenticatedAt(); ok {
+		_spec.SetField(session.FieldAuthenticatedAt, field.TypeTime, value)
+		_node.AuthenticatedAt = &value
+	}
 	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -344,6 +372,24 @@ func (u *SessionUpsert) UpdateRevoked() *SessionUpsert {
 	return u
 }
 
+// SetRoles sets the "roles" field.
+func (u *SessionUpsert) SetRoles(v []string) *SessionUpsert {
+	u.Set(session.FieldRoles, v)
+	return u
+}
+
+// UpdateRoles sets the "roles" field to the value that was provided on create.
+func (u *SessionUpsert) UpdateRoles() *SessionUpsert {
+	u.SetExcluded(session.FieldRoles)
+	return u
+}
+
+// ClearRoles clears the value of the "roles" field.
+func (u *SessionUpsert) ClearRoles() *SessionUpsert {
+	u.SetNull(session.FieldRoles)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
 // Using this option is equivalent to using:
 //
@@ -369,6 +415,9 @@ func (u *SessionUpsertOne) UpdateNewValues() *SessionUpsertOne {
 		}
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(session.FieldCreatedAt)
+		}
+		if _, exists := u.create.mutation.AuthenticatedAt(); exists {
+			s.SetIgnore(session.FieldAuthenticatedAt)
 		}
 	}))
 	return u
@@ -447,6 +496,27 @@ func (u *SessionUpsertOne) SetRevoked(v bool) *SessionUpsertOne {
 func (u *SessionUpsertOne) UpdateRevoked() *SessionUpsertOne {
 	return u.Update(func(s *SessionUpsert) {
 		s.UpdateRevoked()
+	})
+}
+
+// SetRoles sets the "roles" field.
+func (u *SessionUpsertOne) SetRoles(v []string) *SessionUpsertOne {
+	return u.Update(func(s *SessionUpsert) {
+		s.SetRoles(v)
+	})
+}
+
+// UpdateRoles sets the "roles" field to the value that was provided on create.
+func (u *SessionUpsertOne) UpdateRoles() *SessionUpsertOne {
+	return u.Update(func(s *SessionUpsert) {
+		s.UpdateRoles()
+	})
+}
+
+// ClearRoles clears the value of the "roles" field.
+func (u *SessionUpsertOne) ClearRoles() *SessionUpsertOne {
+	return u.Update(func(s *SessionUpsert) {
+		s.ClearRoles()
 	})
 }
 
@@ -642,6 +712,9 @@ func (u *SessionUpsertBulk) UpdateNewValues() *SessionUpsertBulk {
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(session.FieldCreatedAt)
 			}
+			if _, exists := b.mutation.AuthenticatedAt(); exists {
+				s.SetIgnore(session.FieldAuthenticatedAt)
+			}
 		}
 	}))
 	return u
@@ -720,6 +793,27 @@ func (u *SessionUpsertBulk) SetRevoked(v bool) *SessionUpsertBulk {
 func (u *SessionUpsertBulk) UpdateRevoked() *SessionUpsertBulk {
 	return u.Update(func(s *SessionUpsert) {
 		s.UpdateRevoked()
+	})
+}
+
+// SetRoles sets the "roles" field.
+func (u *SessionUpsertBulk) SetRoles(v []string) *SessionUpsertBulk {
+	return u.Update(func(s *SessionUpsert) {
+		s.SetRoles(v)
+	})
+}
+
+// UpdateRoles sets the "roles" field to the value that was provided on create.
+func (u *SessionUpsertBulk) UpdateRoles() *SessionUpsertBulk {
+	return u.Update(func(s *SessionUpsert) {
+		s.UpdateRoles()
+	})
+}
+
+// ClearRoles clears the value of the "roles" field.
+func (u *SessionUpsertBulk) ClearRoles() *SessionUpsertBulk {
+	return u.Update(func(s *SessionUpsert) {
+		s.ClearRoles()
 	})
 }
 

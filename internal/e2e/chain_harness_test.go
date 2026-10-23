@@ -34,6 +34,11 @@ import (
 	bffconfig "github.com/kongken/mono/internal/bff/config"
 	bffent "github.com/kongken/mono/internal/bff/ent"
 	"github.com/kongken/mono/internal/bff/oauth/provider"
+	metroapp "github.com/kongken/mono/internal/metro/app"
+	metroconfig "github.com/kongken/mono/internal/metro/config"
+	metroent "github.com/kongken/mono/internal/metro/ent"
+	metrotestutil "github.com/kongken/mono/internal/metro/testutil"
+	bffmetrov1connect "github.com/kongken/mono/pkg/proto/bff/metro/v1/bffmetrov1connect"
 	"github.com/kongken/mono/internal/bff/session"
 	bfftestutil "github.com/kongken/mono/internal/bff/testutil"
 	"github.com/kongken/mono/internal/platform/grpcx"
@@ -66,6 +71,10 @@ type ChainHarness struct {
 	BFFDB     *bffent.Client
 	TripmapDB *tripmapent.Client
 
+	// Metro and MetroDB are set when the harness was built with ChainMetro.
+	Metro   *metroapp.Handlers
+	MetroDB *metroent.Client
+
 	regionVersion string
 	// transport is the internal gRPC transport in use: "tls" or "h2c".
 	transport  string
@@ -79,6 +88,7 @@ type Browser struct {
 	t          *testing.T
 	HTTP       *http.Client
 	Auth       bffv1connect.AuthServiceClient
+	Catalog    bffmetrov1connect.CatalogServiceClient
 	Foot       bfftripmapv1connect.FootprintServiceClient
 	Snap       bfftripmapv1connect.SnapshotServiceClient
 	Friends    bfftripmapv1connect.FriendServiceClient
@@ -101,6 +111,10 @@ type ChainHTTPOptions struct {
 	Configure func(*bffconfig.Config, string)
 }
 
+// ChainMetro adds the metro service (with an isolated database of its own) to the
+// harness and registers it with the BFF as an optional product.
+type ChainMetro struct{}
+
 // ChainTransport selects the internal gRPC transport of a harness ("tls" or
 // "h2c"). Without it the harness uses TRIPMAP_TEST_GRPC_TRANSPORT, then tls, so
 // the whole suite can be rerun over h2c.
@@ -115,6 +129,7 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	var httpOptions ChainHTTPOptions
 	var mutate []func(*tripmapconfig.AppConfig)
 	var tripUnary []grpc.UnaryServerInterceptor
+	withMetro := false
 	transport := os.Getenv("TRIPMAP_TEST_GRPC_TRANSPORT")
 	blob := blobstore.Store(noopBlobs{})
 	for _, e := range extras {
@@ -123,6 +138,8 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 			httpOptions = v
 		case ChainTransport:
 			transport = string(v)
+		case ChainMetro:
+			withMetro = true
 		case *provider.Registry:
 			oauthReg = v
 		case func(*tripmapconfig.AppConfig):
@@ -206,6 +223,39 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 			"tripmap": {Address: h.Tripmap.GRPCAddr(), Transport: "h2c"},
 		}}
 	}
+	if withMetro {
+		h.MetroDB = metrotestutil.DB(t)
+		metroGRPC := grpcx.ServerConfig{Transport: transport, Listen: "127.0.0.1:0"}
+		if transport == "tls" {
+			tls := ca.Issue(t, "metro.internal")
+			metroGRPC.CertFile, metroGRPC.KeyFile = tls.CertFile, tls.KeyFile
+		}
+		h.Metro = metroapp.New(&metroconfig.AppConfig{
+			GRPC:         metroGRPC,
+			InternalAuth: servicetoken.VerifyConfig{Issuer: issuer, Audience: "metro", TrustedKeys: []servicetoken.TrustedKey{{KID: "k1", PublicKeyFile: keys.PublicFile}}},
+		})
+		h.Metro.SetResources(&metroapp.Resources{
+			DB: h.MetroDB,
+			Health: health.New(health.Probe{Name: "postgres", Check: func(ctx context.Context) error {
+				_, err := h.MetroDB.CatalogState.Query().Exist(ctx)
+				return err
+			}}),
+		})
+		if err := h.Metro.StartGRPC(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = h.Metro.Shutdown() })
+		metroHTTP := gin.New()
+		h.Metro.Routes(metroHTTP)
+		metroSrv := httptest.NewServer(metroHTTP)
+		t.Cleanup(metroSrv.Close)
+		bffCfg.Upstreams["metro"] = metroSrv.URL
+		svc := bffconfig.GRPCService{Address: h.Metro.GRPCAddr(), ServerName: "metro.internal"}
+		if transport == "h2c" {
+			svc = bffconfig.GRPCService{Address: h.Metro.GRPCAddr(), Transport: "h2c"}
+		}
+		bffCfg.GRPC.Services["metro"] = svc
+	}
 	bffRouter := gin.New()
 	bffSrv := httptest.NewUnstartedServer(bffRouter)
 	scheme := "http"
@@ -287,6 +337,7 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 	return &Browser{
 		t: h.T, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
 		Auth:       bffv1connect.NewAuthServiceClient(hc, api),
+		Catalog:    bffmetrov1connect.NewCatalogServiceClient(hc, api),
 		Foot:       bfftripmapv1connect.NewFootprintServiceClient(hc, api),
 		Snap:       bfftripmapv1connect.NewSnapshotServiceClient(hc, api),
 		Friends:    bfftripmapv1connect.NewFriendServiceClient(hc, api),
@@ -439,7 +490,12 @@ func (b *Browser) Login(ctx context.Context, subject, _ string, _ string) error 
 	return b.logtoSignIn(ctx, subject, subject)
 }
 
-func (b *Browser) logtoSignIn(ctx context.Context, subject, display string) error {
+// LoginWithRoles signs in as subject with the given Logto roles in the session.
+func (b *Browser) LoginWithRoles(ctx context.Context, subject string, roles ...string) error {
+	return b.logtoSignIn(ctx, subject, subject, roles...)
+}
+
+func (b *Browser) logtoSignIn(ctx context.Context, subject, display string, roles ...string) error {
 	hc := *b.HTTP
 	hc.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	get := func(target string) (*http.Response, error) {
@@ -461,7 +517,7 @@ func (b *Browser) logtoSignIn(ctx context.Context, subject, display string) erro
 	if err != nil {
 		return err
 	}
-	end, err := get(b.Origin + "/auth/callback/logto?state=" + u.Query().Get("state") + "&code=" + url.QueryEscape(subject+"|"+display))
+	end, err := get(b.Origin + "/auth/callback/logto?state=" + u.Query().Get("state") + "&code=" + url.QueryEscape(subject+"|"+display+"|"+strings.Join(roles, ",")))
 	if err != nil {
 		return err
 	}
@@ -482,11 +538,16 @@ func (harnessLogto) AuthorizeURL(state string) string {
 	return "https://identity.example/authorize?state=" + state
 }
 func (harnessLogto) Exchange(_ context.Context, code string) (*provider.Claims, error) {
-	sub, name, ok := strings.Cut(code, "|")
+	sub, rest, ok := strings.Cut(code, "|")
+	name, roles, _ := strings.Cut(rest, "|")
 	if !ok || sub == "" {
 		return nil, fmt.Errorf("invalid test authorization code")
 	}
-	return &provider.Claims{ExternalID: sub, Login: sub, Name: name}, nil
+	claims := &provider.Claims{ExternalID: sub, Login: sub, Name: name}
+	if roles != "" {
+		claims.Roles = strings.Split(roles, ",")
+	}
+	return claims, nil
 }
 
 func (b *Browser) Logout(ctx context.Context) error {

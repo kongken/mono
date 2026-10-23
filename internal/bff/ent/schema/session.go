@@ -26,6 +26,14 @@ func (Session) Fields() []ent.Field {
 		field.Time("expires_at"),
 		field.Time("last_used_at").Optional().Nillable(),
 		field.Bool("revoked").Default(false),
+		// Roles are the Logto role names read at sign-in. Sessions created before
+		// roles were recorded have none and are never administrators.
+		field.JSON("roles", []string{}).Optional(),
+		// AuthenticatedAt is when the user signed in at Logto (the session's
+		// issue time). Procedures that declare required_role are refused once it
+		// is older than auth.admin_session_max_age. Null on older sessions, which
+		// fall back to created_at.
+		field.Time("authenticated_at").Optional().Nillable().Immutable(),
 	}
 }
 

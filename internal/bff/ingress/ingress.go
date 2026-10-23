@@ -57,6 +57,11 @@ type Policy struct {
 	// writes the client address into; empty uses the TCP peer. Never set it when
 	// clients can reach the BFF directly.
 	ClientIPHeader string
+	// AdminSessionMaxAge is how old (since sign-in) a session may be when it calls
+	// a procedure that declares required_role. Zero disables the check.
+	AdminSessionMaxAge time.Duration
+	// Now defaults to time.Now; tests set it.
+	Now func() time.Time
 	// Authenticate resolves the browser session cookie for protected procedures.
 	Authenticate func(ctx context.Context, header http.Header) (session.BrowserSession, error)
 	// DeletionReceiptValid allows AuthService/DeleteAccount when the session cookie
@@ -66,6 +71,8 @@ type Policy struct {
 
 var (
 	errUnauthenticated     = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
+	errRoleMissing         = connect.NewError(connect.CodePermissionDenied, errors.New("required role missing"))
+	errSessionTooOld       = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in again to use this feature"))
 	errWriteRejected       = connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
 	errDeletionInProgress  = connect.NewError(connect.CodeFailedPrecondition, errors.New("account deletion in progress"))
 	deletionAllowedMethods = map[string]bool{
@@ -74,6 +81,13 @@ var (
 		bffv1connect.AuthServiceDeleteAccountProcedure: true,
 	}
 )
+
+func (p Policy) now() time.Time {
+	if p.Now != nil {
+		return p.Now()
+	}
+	return time.Now()
+}
 
 // Interceptor applies, to every unary procedure and independently of the service
 // behind it: the anonymous policy declared in proto (default protected), the
@@ -124,6 +138,19 @@ func Interceptor(p Policy) connect.Interceptor {
 					return nil, withID(errUnauthenticated)
 				}
 				call.UserID = browser.UserID
+				// A role requirement is checked after the session is known, so an
+				// anonymous caller sees UNAUTHENTICATED and a signed-in caller
+				// without the role sees PERMISSION_DENIED. The business service
+				// checks the same requirement again from the credential.
+				if role := rpcauth.RequiredRole(procedure); role != "" && browser.UserID != "" {
+					if !browser.HasRole(role) {
+						return nil, withID(errRoleMissing)
+					}
+					if p.AdminSessionMaxAge > 0 && p.now().Sub(browser.AuthenticatedAt) > p.AdminSessionMaxAge {
+						return nil, withID(errSessionTooOld)
+					}
+					call.Roles = browser.Roles
+				}
 				if browser.DeletionPending && !deletionAllowedMethods[procedure] {
 					return nil, withID(errDeletionInProgress)
 				}

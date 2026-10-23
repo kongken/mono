@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -64,7 +65,7 @@ func TestLogto_AuthorizeURLCarriesPKCE(t *testing.T) {
 		"client_id":             "app-id",
 		"redirect_uri":          "https://trip.example.com/auth/callback/logto",
 		"response_type":         "code",
-		"scope":                 "openid profile email",
+		"scope":                 "openid profile email roles",
 		"state":                 "state-xyz",
 		"code_challenge":        "challenge-abc",
 		"code_challenge_method": "S256",
@@ -82,8 +83,13 @@ func TestLogto_CustomScopes(t *testing.T) {
 	cfg := testLogtoConfig()
 	cfg.Scopes = []string{"openid", "profile"}
 	q, _ := url.Parse(NewLogto(cfg).AuthorizePKCEURL("s", "c"))
-	if got := q.Query().Get("scope"); got != "openid profile" {
+	if got := q.Query().Get("scope"); got != "openid profile roles" {
 		t.Fatalf("scope = %q", got)
+	}
+	cfg.Scopes = []string{"openid", "roles"}
+	q, _ = url.Parse(NewLogto(cfg).AuthorizePKCEURL("s", "c"))
+	if got := q.Query().Get("scope"); got != "openid roles" {
+		t.Fatalf("scope with roles already present = %q", got)
 	}
 }
 
@@ -165,7 +171,7 @@ func TestLogto_ExchangePKCE(t *testing.T) {
 		token: okToken,
 		userinfo: func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"sub":"u8x2k","name":"小山","username":"shanhai","picture":"https://cdn.example.com/a.png","email":"a@example.com","email_verified":true}`))
+			_, _ = w.Write([]byte(`{"sub":"u8x2k","name":"小山","username":"shanhai","picture":"https://cdn.example.com/a.png","email":"a@example.com","email_verified":true,"roles":["metro-admin"," ","metro-admin","editor"]}`))
 		},
 	}
 	p := srv.start(t)
@@ -191,8 +197,8 @@ func TestLogto_ExchangePKCE(t *testing.T) {
 	if srv.tokenAuth != wantAuth {
 		t.Errorf("token authorization = %q", srv.tokenAuth)
 	}
-	want := Claims{Provider: "logto", ExternalID: "u8x2k", Login: "shanhai", Name: "小山", Email: "a@example.com", AvatarURL: "https://cdn.example.com/a.png"}
-	if *claims != want {
+	want := Claims{Provider: "logto", ExternalID: "u8x2k", Login: "shanhai", Name: "小山", Email: "a@example.com", AvatarURL: "https://cdn.example.com/a.png", Roles: []string{"metro-admin", "editor"}}
+	if !reflect.DeepEqual(*claims, want) {
 		t.Fatalf("claims = %+v, want %+v", *claims, want)
 	}
 }

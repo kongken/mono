@@ -1,0 +1,152 @@
+syntax = "proto3";
+
+package bff.metro.v1;
+
+import "platform/v1/options.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/metro/v1;bffmetrov1";
+
+// CatalogService is the browser-facing metro catalog (cities, lines, rolling
+// stock topics) that administrators maintain. Every method is anonymous: the
+// catalog is public. The shapes mirror metro.v1.CatalogService but are a separate
+// contract; the BFF maps between them.
+service CatalogService {
+  // ListCities returns every city with its operating line count and length. When
+  // known_version equals the current catalog version the response carries only
+  // not_modified.
+  rpc ListCities(ListCitiesRequest) returns (ListCitiesResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  // GetCity returns one city and its lines ordered by number (unnumbered last).
+  rpc GetCity(GetCityRequest) returns (GetCityResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  // ListLines lists lines, optionally of one city; operating lines unless
+  // statuses says otherwise.
+  rpc ListLines(ListLinesRequest) returns (ListLinesResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  rpc ListRollingStockTopics(ListRollingStockTopicsRequest) returns (ListRollingStockTopicsResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  // GetRollingStockTopic returns a topic with the operating lines it selects,
+  // grouped by city.
+  rpc GetRollingStockTopic(GetRollingStockTopicRequest) returns (GetRollingStockTopicResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+}
+
+enum LineStatus {
+  LINE_STATUS_UNSPECIFIED = 0;
+  LINE_STATUS_PLANNED = 1;
+  LINE_STATUS_UNDER_CONSTRUCTION = 2;
+  LINE_STATUS_OPERATING = 3;
+  LINE_STATUS_SUSPENDED = 4;
+  LINE_STATUS_RETIRED = 5;
+}
+
+message City {
+  string slug = 1;
+  string name = 2;
+  repeated string header_images = 3;
+  // https address of an SVG map; clients show it as an image only.
+  string map_svg_url = 4;
+  int32 sort_order = 5;
+  // Operating lines of the city and their total length.
+  int32 line_count = 6;
+  double total_length_km = 7;
+}
+
+message Line {
+  string code = 1;
+  string city_slug = 2;
+  string city_name = 3;
+  string name = 4;
+  // Sort number; 0 means unnumbered and sorts last.
+  int32 number = 5;
+  LineStatus status = 6;
+  // Code of the rolling stock; empty when unknown.
+  string rolling_stock_code = 7;
+  int32 cars = 8;
+  int32 cars_addition = 9;
+  int32 stations = 10;
+  double length_km = 11;
+  // #RRGGBB.
+  string color = 12;
+  // YYYY-MM-DD; empty when unknown.
+  string commenced_on = 13;
+  string extended_on = 14;
+  bool is_loop = 15;
+}
+
+message RollingStockTopic {
+  string slug = 1;
+  string name = 2;
+  repeated string rolling_stock_codes = 3;
+  repeated int32 cars = 4;
+}
+
+message ListCitiesRequest {
+  // Catalog version the client already holds; 0 for none.
+  int64 known_version = 1;
+}
+
+message ListCitiesResponse {
+  int64 version = 1;
+  bool not_modified = 2;
+  repeated City cities = 3;
+}
+
+message GetCityRequest {
+  string slug = 1;
+  // Empty means operating lines only.
+  repeated LineStatus statuses = 2;
+}
+
+message GetCityResponse {
+  int64 version = 1;
+  City city = 2;
+  repeated Line lines = 3;
+  // Count and length of the returned lines.
+  int32 total_lines = 4;
+  double total_length_km = 5;
+}
+
+message ListLinesRequest {
+  // Empty means every city.
+  string city_slug = 1;
+  // Empty means operating lines only.
+  repeated LineStatus statuses = 2;
+}
+
+message ListLinesResponse {
+  int64 version = 1;
+  repeated Line lines = 2;
+}
+
+message ListRollingStockTopicsRequest {}
+
+message ListRollingStockTopicsResponse {
+  int64 version = 1;
+  repeated RollingStockTopic topics = 2;
+}
+
+message GetRollingStockTopicRequest {
+  string slug = 1;
+}
+
+message TopicCity {
+  string city_slug = 1;
+  string city_name = 2;
+  int32 line_count = 3;
+  double total_length_km = 4;
+}
+
+message GetRollingStockTopicResponse {
+  int64 version = 1;
+  RollingStockTopic topic = 2;
+  repeated Line lines = 3;
+  repeated TopicCity cities = 4;
+  int32 total_lines = 5;
+  double total_length_km = 6;
+}

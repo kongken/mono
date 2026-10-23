@@ -8,6 +8,11 @@ type Service struct {
 	// grpc.services entry in the configuration. Its upstreams entry stays for the
 	// health probe and for the routes not migrated yet.
 	GRPC bool
+	// Optional marks a product that not every deployment runs. It takes part in the
+	// BFF only when upstreams.<name> is configured; without it the service is left
+	// out of readiness, routing and account cleanup, so adding a product to the
+	// route table does not force every environment to deploy it.
+	Optional bool
 	// Packages is a legacy field for tests that still model extra upstreams.
 	Packages []string
 	// Routes are plain HTTP paths forwarded to the service's upstreams address.
@@ -40,7 +45,27 @@ var Services = []Service{{
 		// credentials, so it is traced as it is.
 		{Path: "/api/tiles/", Anonymous: true},
 	},
+}, {
+	// The metro product. Its browser API is bff.metro.v1 over Connect; the MCP
+	// endpoint (BFFOwnedRoutes) is added with the MCP stage.
+	Name:     "metro",
+	GRPC:     true,
+	Optional: true,
 }}
+
+// Active returns the services of the route table that take part in this
+// deployment: every required service, and the optional ones that have an
+// upstream address configured.
+func Active(services []Service, upstreams map[string]string) []Service {
+	var out []Service
+	for _, s := range services {
+		if s.Optional && upstreams[s.Name] == "" {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
 
 // Names lists the services in the route table.
 func Names(services []Service) []string {

@@ -1,0 +1,55 @@
+# Local-only sample. Copy to ignored config.metro.yaml; replace credentials for deployment.
+# Butterfly reads literal YAML; ${VAR} substitutions are not supported.
+log:
+  level: info
+  format: text
+  add_source: false
+
+# metro owns its own PostgreSQL database (create it first, for example: createdb metro).
+db_store: main
+# Optional: nothing uses Redis yet. When set, it is checked at startup and by /readyz.
+# redis_store: main
+# Ent creates/adds tables locally. Disable this in production and apply migrations/metro/.
+auto_migrate: true
+
+# Business RPCs on internal gRPC only (TLS by default); HTTP is /ping and /readyz (internal).
+# Do not expose 18084/18085 publicly.
+grpc:
+  # Local loopback only: no encryption or server authentication; signatures still required.
+  # For TLS, run `go run ./cmd/dev-secrets -tls`, set transport: tls and add cert/key.
+  transport: h2c
+  listen: 127.0.0.1:18085
+  # cert_file: dev-secrets/metro.pem
+  # key_file: dev-secrets/metro.key
+
+# Only calls carrying a credential signed by one of these BFF keys are accepted.
+# audience is this service's name in the BFF configuration. During rotation list the
+# old and the new key together. Only public keys belong here.
+internal_auth:
+  issuer: tripmap-bff
+  audience: metro
+  trusted_keys:
+    - kid: dev-1
+      public_key_file: dev-secrets/bff.pub
+      # Alternatively REMOVE public_key_file and paste the matching PKIX Ed25519 PEM:
+      # public_key: |
+      #   -----BEGIN PUBLIC KEY-----
+      #   <your base64-encoded key>
+      #   -----END PUBLIC KEY-----
+  # clock_skew: 10s
+
+store:
+  db:
+    main:
+      driver: postgres
+      host: 127.0.0.1
+      port: 15432
+      user: tripmap
+      password: tripmap-local
+      db_name: metro
+      ssl_mode: disable
+  # redis:
+  #   main:
+  #     addr: 127.0.0.1:16379
+  #     password: tripmap-local
+  #     db: 0

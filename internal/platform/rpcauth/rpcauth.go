@@ -40,6 +40,10 @@ const (
 type Call struct {
 	// UserID is empty for anonymous calls.
 	UserID string
+	// Roles are the role names the BFF verified for UserID. On the service side
+	// they are readable only after the credential verified; on the BFF side they
+	// are signed into the credential only for methods that declare required_role.
+	Roles []string
 	// ClientIP is the end client's address as resolved by the BFF; empty if absent.
 	ClientIP  string
 	RequestID string
@@ -92,6 +96,40 @@ func Anonymous(fullMethod string) bool {
 	}
 	anonymous, _ := proto.GetExtension(opts, platformv1.E_Anonymous).(bool)
 	return anonymous
+}
+
+// RequiredRole returns the role proto declares for fullMethod through the
+// required_role option, or "" when the method needs no role. Unknown methods
+// return "" here and are rejected by the anonymous policy instead.
+func RequiredRole(fullMethod string) string {
+	service, method, ok := strings.Cut(strings.TrimPrefix(fullMethod, "/"), "/")
+	if !ok || strings.Contains(method, "/") {
+		return ""
+	}
+	desc, err := protoregistry.GlobalFiles.FindDescriptorByName(protoreflect.FullName(service + "." + method))
+	if err != nil {
+		return ""
+	}
+	md, ok := desc.(protoreflect.MethodDescriptor)
+	if !ok {
+		return ""
+	}
+	opts, _ := md.Options().(*descriptorpb.MethodOptions)
+	if opts == nil {
+		return ""
+	}
+	role, _ := proto.GetExtension(opts, platformv1.E_RequiredRole).(string)
+	return role
+}
+
+// HasRole reports whether roles contains role.
+func HasRole(roles []string, role string) bool {
+	for _, r := range roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
 }
 
 var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
