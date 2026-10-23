@@ -1,4 +1,4 @@
-.PHONY: metro-migration bff-migration build test ent ent-bff ent-metro buf dev dev-bff dev-tripmap dev-metro dev-secrets deps-up deps-down storage-init migration vapid-keys check-import-boundaries check-docs
+.PHONY: metro-migration bff-migration build test ent ent-bff ent-metro buf dev dev-bff dev-tripmap dev-metro dev-metro-web dev-secrets deps-up deps-down storage-init migration vapid-keys check-import-boundaries check-docs
 
 build:
 	go build -o bin/bff ./cmd/bff
@@ -61,6 +61,11 @@ dev-tripmap:
 
 dev-metro:
 	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.metro.yaml PORT=18084 go run ./cmd/metro
+
+# The metro web app (Vite on 5174, proxying /api and /auth to the BFF on 18081).
+# Run it next to `make dev`.
+dev-metro-web:
+	npm run dev:metro
 
 deps-up:
 	docker compose up -d --wait

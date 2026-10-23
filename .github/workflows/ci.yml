@@ -93,3 +93,5 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           npm run test:e2e:trip-map
+      - name: Browser acceptance for metro (mocked BFF, no real OAuth)
+        run: npm run test:e2e:metro

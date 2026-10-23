@@ -1,0 +1,51 @@
+import { createClient } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-web";
+import { AuthService } from "@kongken/api-client/bff/v1/auth_pb";
+import { AccessTokenService } from "@kongken/api-client/bff/v1/access_token_pb";
+import { AdminService } from "@kongken/api-client/bff/metro/v1/admin_pb";
+import { CatalogService } from "@kongken/api-client/bff/metro/v1/catalog_pb";
+import { RiderService } from "@kongken/api-client/bff/metro/v1/rider_pb";
+
+/** The BFF's RPC base: a same-origin path in production, set at build time otherwise. */
+export const apiBase = ((import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim().replace(/\/+$/, "")) || "/api";
+
+let csrf: string | undefined;
+
+const transport = createConnectTransport({
+  baseUrl: apiBase,
+  fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
+  interceptors: [
+    (next) => (req) => {
+      if (csrf) req.header.set("X-CSRF-Token", csrf);
+      return next(req);
+    },
+  ],
+});
+
+export const auth = createClient(AuthService, transport);
+export const tokens = createClient(AccessTokenService, transport);
+export const admin = createClient(AdminService, transport);
+export const catalog = createClient(CatalogService, transport);
+export const rider = createClient(RiderService, transport);
+
+/**
+ * Runs a state-changing call with a fresh CSRF token (the BFF double-submit
+ * check). Reads never need it.
+ */
+export async function write<T>(call: () => Promise<T>): Promise<T> {
+  csrf = (await auth.issueCSRFToken({})).token;
+  return call();
+}
+
+/** Top-level navigation target of the login flow; the BFF redirects back to returnTo. */
+export function loginURL(returnTo: string): string {
+  const url = new URL("/auth/login", new URL(apiBase, window.location.origin));
+  url.searchParams.set("app", "metro");
+  url.searchParams.set("return_to", returnTo);
+  return url.toString();
+}
+
+/** Public address of the MCP endpoint on the BFF host. */
+export function mcpEndpoint(): string {
+  return new URL("/mcp/metro", new URL(apiBase, window.location.origin)).toString();
+}

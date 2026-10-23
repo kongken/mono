@@ -1,0 +1,72 @@
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
+    # BACKEND_UPSTREAM is the BFF, the only public entry of the services. It is
+    # resolved at request time, so the static site can start independently.
+    resolver 127.0.0.11 valid=10s;
+    set $backend_upstream "${BACKEND_UPSTREAM}";
+
+    # OAuth callback queries contain credentials; never log them.
+    location ^~ /auth/ {
+        access_log off;
+        error_log /dev/stderr crit;
+        proxy_pass http://$backend_upstream$request_uri;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Referer "";
+        proxy_read_timeout 15s;
+    }
+
+    # MCP endpoint for AI clients. The Bearer token is a credential, so no
+    # request headers are logged by the BFF's own access log either; keep this
+    # path out of the edge access log as well. Only POST is served by the BFF.
+    location = /mcp/metro {
+        access_log off;
+        error_log /dev/stderr crit;
+        client_max_body_size 2m;
+        proxy_pass http://$backend_upstream$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+    }
+
+    location ~ ^/(api/|ping$|readyz$) {
+        # A catalogue import is limited to 1 MiB by the service; leave room for the envelope.
+        client_max_body_size 2m;
+        proxy_pass http://$backend_upstream$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+    }
+
+    location /assets/ {
+        try_files $uri =404;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+    location = /index.html { add_header Cache-Control "no-store"; }
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+    location / { try_files $uri $uri/ /index.html; }
+    gzip on;
+    gzip_types application/json application/javascript text/css image/svg+xml;
+}

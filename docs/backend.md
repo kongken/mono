@@ -514,7 +514,7 @@ BFF 的 `20261023095053_logto_identity_mapping.sql` 新增 Logto 身份映射和
 
 ## metro 服务（地铁足迹）
 
-规格与决策见 [metro 规格](metro/spec.md)。后端已实现 P0–P3：共用的角色层、服务骨架与目录读取、管理接口、骑行者资料与乘坐记录、账号清理。尚未实现：管理令牌与 MCP（P4）、`apps/metro` 前端（P5–P6）、Docker 镜像与部署清单（P7）。
+规格与决策见 [metro 规格](metro/spec.md)。已实现：共用的角色层、服务骨架与目录读取、管理接口、骑行者资料与乘坐记录、账号清理（P0–P3，本节）；管理令牌与 MCP 端点在 BFF（P4，见 [BFF](bff.md)）；前端 `apps/metro`（P5–P6，见 [功能描述](metro/features.md)）；镜像与部署清单（P7，见 [Docker 镜像](docker-images.md)）。metro 服务本身不感知 MCP 和令牌，它只看到内部凭证里的角色与 `x-bff-channel`、`x-bff-token-id`。
 
 **接口**（内部 gRPC，经 BFF 暴露，见 [BFF](bff.md)）：
 

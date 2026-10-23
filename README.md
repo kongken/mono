@@ -11,6 +11,7 @@
 | trip-map（山海足迹） | `apps/trip-map/` | React、Vite、TypeScript、Tailwind CSS、shadcn/ui 前端 | Vite 输出地址，通常为 `http://localhost:5173` |
 | bff | `cmd/bff/`、`internal/bff/` | 唯一公网 API 入口；账号、OAuth、Cookie 会话、CSRF 和业务接口适配 | HTTP `127.0.0.1:18081` |
 | tripmap | `cmd/tripmap/`、`internal/tripmap/` | 足迹、行程、媒体、分享等旅行领域业务 | 内网 HTTP `127.0.0.1:18082`；内部 gRPC `127.0.0.1:18083`（默认 TLS，可显式选 h2c） |
+| metro（地铁足迹，第二个产品，可选） | `apps/metro/`、`cmd/metro/`、`internal/metro/` | 城市、线路、车型目录与骑行者记录；管理后台；BFF 上的 MCP 端点（见 [功能描述](docs/metro/features.md)） | 前端 `http://localhost:5174`；内网 HTTP `127.0.0.1:18084`、gRPC `127.0.0.1:18085` |
 
 浏览器经 BFF 的 Connect 接口访问后端（账号与会话是共用的 `bff.v1`，山海足迹业务是 `bff.tripmap.v1`）；BFF 使用内部凭证，通过内部 gRPC（默认 TLS；可信内网可显式配置 h2c，见 [BFF](docs/bff.md#内部-grpc-与凭证)）调用 tripmap。tripmap 的 HTTP 端口提供 `/ping`、`/readyz` 健康检查；启用 Mapbox 底图时还提供匿名的 `GET /api/tiles/…`，由 BFF 转发。账号与会话保存在 BFF 的独立数据库，旅行数据由 tripmap 管理。当前有两个后端服务，其中 tripmap 是唯一的业务服务，详见 [BFF](docs/bff.md)。
 
@@ -18,6 +19,7 @@
 
 ```text
 apps/trip-map/        山海足迹前端应用
+apps/metro/           地铁足迹前端应用（含管理后台）
 packages/
   ui/                 共享 shadcn/ui 组件
   api-client/         Buf 生成的 TypeScript RPC 契约
@@ -26,6 +28,7 @@ packages/
 cmd/
   bff/                BFF 服务入口
   tripmap/            旅行业务服务入口
+  metro/              地铁足迹业务服务入口
   ...                 数据迁移、存储初始化与密钥生成工具
 internal/
   bff/                BFF 认证、接口适配与 Ent schema
@@ -76,7 +79,7 @@ make dev-secrets
 make dev
 ```
 
-也可在不同终端分别运行 `make dev-bff`、`make dev-tripmap` 和 `make dev-metro`。另开终端启用前端后端连接：
+也可在不同终端分别运行 `make dev-bff`、`make dev-tripmap` 和 `make dev-metro`。地铁足迹的前端另开终端运行 `make dev-metro-web`（等价 `npm run dev:metro`，端口 5174，把 `/api`、`/auth/` 代理到 BFF；登录与管理需要 Logto 与 `metro-admin` 角色，见 [部署](docs/deployment.md#地铁足迹metro可选)）。另开终端启用前端后端连接：
 
 ```bash
 npm install
@@ -95,8 +98,9 @@ Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:180
 | 前端 | `npm run preview:trip-map` | 预览已构建的山海足迹 |
 | 前端 | `npm test` | 运行所有前端应用的脚本与业务逻辑测试（`npm run test:trip-map` 只跑山海足迹） |
 | 前端 | `npm run test:e2e:trip-map` | 运行 Playwright 浏览器测试 |
+| 前端 | `npm run build:metro`、`npm run test:metro`、`npm run test:e2e:metro` | 构建、单元测试与 Playwright 测试地铁足迹（浏览器测试使用模拟 BFF） |
 | 地图与数据 | `npm run check:maps` | 检查地图、区域索引及前后端数据副本 |
-| 后端 | `make build` | 构建 BFF 与 tripmap 服务至 `bin/` |
+| 后端 | `make build` | 构建 BFF、tripmap 与 metro 服务至 `bin/` |
 | 后端 | `make test` | 运行 Go 测试，未配置存储连接时相关集成测试跳过 |
 | 后端 | `make test-integration` | 在独立的 Compose 开发依赖上验证存储与服务链路 |
 | 服务边界 | `make check-import-boundaries` | 检查后端模块依赖边界 |
@@ -108,15 +112,17 @@ Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:180
 
 ## 部署
 
-trip-map-web、BFF 与 tripmap 分别构建镜像，构建上下文均为仓库根目录：
+trip-map-web、BFF、tripmap 与可选的 metro、metro-web 分别构建镜像，构建上下文均为仓库根目录：
 
 | 部署单元 | Dockerfile |
 | --- | --- |
 | trip-map-web | `deploy/trip-map-web/Dockerfile` |
 | BFF | `deploy/bff/Dockerfile` |
 | tripmap | `deploy/tripmap/Dockerfile` |
+| metro | `deploy/metro/Dockerfile` |
+| metro-web | `deploy/metro-web/Dockerfile` |
 
-GitHub Actions 按矩阵构建并发布三个镜像，镜像名由当前 GitHub 仓库名加组件后缀生成（`-tripmap`、`-trip-map-web`、`-bff`）；PR 仅构建。前端容器提供静态资源并把 API 与分享页请求转发到 BFF，业务服务只在内网暴露。部署拓扑、配置挂载与发布流程见 [部署与发布](docs/deployment.md) 和 [Docker 镜像与 Actions](docs/docker-images.md)。
+GitHub Actions 按矩阵构建并发布各镜像，镜像名由当前 GitHub 仓库名加组件后缀生成（`-tripmap`、`-trip-map-web`、`-bff`、`-metro`、`-metro-web`）；PR 仅构建。前端容器提供静态资源并把 API 与分享页请求转发到 BFF，业务服务只在内网暴露。部署拓扑、配置挂载与发布流程见 [部署与发布](docs/deployment.md) 和 [Docker 镜像与 Actions](docs/docker-images.md)。
 
 Logto 是唯一账号来源，旧测试账号不迁移。手动清理 SQL 的目标库、执行顺序及限制见 [Logto-only 身份迁移](docs/deployment.md#logto-only-身份迁移)：所有副本升级后、开放新登录前清理 tripmap 认证遗留列与旧用户名唯一索引，可选清空测试业务资料；验证后删除 BFF 旧账号表。脚本不会自动执行，也不修改 Logto 数据库。
 
@@ -128,6 +134,7 @@ Logto 是唯一账号来源，旧测试账号不迁移。手动清理 SQL 的目
 - [前后端 monorepo 布局](docs/monorepo.md)：workspace、共享包与新增应用。
 - [功能描述](docs/trip-map/features.md)：山海足迹的功能规则、验收场景与当前限制。
 - [数据与地图说明](docs/trip-map/data-and-maps.md)：存储、备份、区域版本和地图维护。
+- [地铁足迹功能描述](docs/metro/features.md)：第二个产品的页面、管理后台、管理令牌与 MCP。
 - [后端初始化](docs/backend.md)：依赖、配置、媒体直传、通知、模型与迁移。
 - [BFF](docs/bff.md)：认证、浏览器契约、内部 gRPC 与服务边界。
 - [公开分享页与预览图](docs/trip-map/sharing.md)：分享模型、隐私与部署配置。

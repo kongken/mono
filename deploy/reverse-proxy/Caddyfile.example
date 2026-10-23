@@ -73,3 +73,55 @@ example.com {
 	try_files {path} /index.html
 	file_server
 }
+
+# metro (optional second product) on its own host. The MCP endpoint takes a Bearer
+# token; keep it out of the access log. Everything else is the same as above.
+metro.example.com {
+	encode gzip zstd
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	handle /auth/* {
+		reverse_proxy bff:18081 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up Referer ""
+		}
+	}
+	handle /mcp/metro {
+		log_skip
+		request_body {
+			max_size 2MB
+		}
+		reverse_proxy bff:18081 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+	handle /api/* {
+		request_body {
+			max_size 2MB
+		}
+		reverse_proxy bff:18081 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+	handle /ping /readyz {
+		reverse_proxy bff:18081
+	}
+
+	# SPA static files (build with --build-arg VITE_API_BASE_URL=/api).
+	root * /srv/metro
+	try_files {path} /index.html
+	file_server
+}

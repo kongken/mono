@@ -98,7 +98,16 @@ BFF 启动**不要求** tripmap 已就绪；编排系统应使用 BFF `/readyz` 
 
 ## 独立镜像与 import 边界
 
-tripmap、BFF、前端为三个镜像（见 [Docker 镜像](docker-images.md)）。Dockerfile 只 `COPY` 本服务业务目录与 `internal/platform/`；`go test ./internal/platform/moduleboundary`（`make check-import-boundaries`）断言 `cmd/bff` 不依赖 `internal/tripmap`、`cmd/tripmap` 不依赖 `internal/bff`。
+tripmap、BFF、metro 与各前端为独立镜像（见 [Docker 镜像](docker-images.md)）。Dockerfile 只 `COPY` 本服务业务目录与 `internal/platform/`；`go test ./internal/platform/moduleboundary`（`make check-import-boundaries`）断言 `cmd/bff` 不依赖业务包、业务服务（tripmap、metro）互不依赖也不依赖 `internal/bff`。
+
+## 地铁足迹（metro，可选）
+
+示例见 `deploy/compose.stack.example.yaml`（`metro`、`metro-web` 服务）与 `deploy/reverse-proxy/Caddyfile.example`（`metro.example.com` 站点）。步骤：
+
+1. 在同一个 PostgreSQL 实例创建独立数据库 `metro`，复制 `config.metro.example.yaml` 为 `config.metro.yaml`，生产环境关闭 `auto_migrate` 并按文件名顺序执行 `migrations/metro/`；BFF 库另需执行新的 `migrations/bff/*_access_tokens.sql`。
+2. `config.bff.yaml` 加 `upstreams.metro`、`grpc.services.metro`，`auth.account_cleanup` 列入 `metro`，`auth.oauth_apps.metro` 填 metro 站点的 origin 与 `allowed_paths: [/, /me, /admin]`，按需调整 `mcp.rate_limit_per_minute`。不部署 metro 时去掉这些项，BFF 不会挂载 metro 的任何路由。
+3. Logto：创建角色 `metro-admin` 并授予管理员，应用需允许 `roles` scope；BFF 的回调 URI 不变。**角色声明按 Logto 源码核实、未对真实租户验证**，上线前先让一个管理员登录并确认 `Me` 返回 `metro-admin`。
+4. 边缘网关对 `/mcp/metro` 不记录请求头与访问日志（Bearer 令牌），并保证 `client_ip_header` 由网关覆盖（MCP 失败认证按该地址限流）。MCP 令牌由管理员在 `/admin/tokens` 创建，最长 90 天，明文只显示一次。
 
 ## Logto-only 身份迁移
 
