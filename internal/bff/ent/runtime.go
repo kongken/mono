@@ -5,6 +5,7 @@ package ent
 import (
 	"time"
 
+	"github.com/kongken/mono/internal/bff/ent/accesstoken"
 	"github.com/kongken/mono/internal/bff/ent/accountdeletionreceipt"
 	"github.com/kongken/mono/internal/bff/ent/schema"
 	"github.com/kongken/mono/internal/bff/ent/session"
@@ -15,6 +16,28 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	accesstokenFields := schema.AccessToken{}.Fields()
+	_ = accesstokenFields
+	// accesstokenDescName is the schema descriptor for name field.
+	accesstokenDescName := accesstokenFields[2].Descriptor()
+	// accesstoken.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	accesstoken.NameValidator = accesstokenDescName.Validators[0].(func(string) error)
+	// accesstokenDescTokenHash is the schema descriptor for token_hash field.
+	accesstokenDescTokenHash := accesstokenFields[3].Descriptor()
+	// accesstoken.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
+	accesstoken.TokenHashValidator = accesstokenDescTokenHash.Validators[0].(func(string) error)
+	// accesstokenDescAudience is the schema descriptor for audience field.
+	accesstokenDescAudience := accesstokenFields[4].Descriptor()
+	// accesstoken.AudienceValidator is a validator for the "audience" field. It is called by the builders before save.
+	accesstoken.AudienceValidator = accesstokenDescAudience.Validators[0].(func(string) error)
+	// accesstokenDescCreatedAt is the schema descriptor for created_at field.
+	accesstokenDescCreatedAt := accesstokenFields[7].Descriptor()
+	// accesstoken.DefaultCreatedAt holds the default value on creation for the created_at field.
+	accesstoken.DefaultCreatedAt = accesstokenDescCreatedAt.Default.(func() time.Time)
+	// accesstokenDescID is the schema descriptor for id field.
+	accesstokenDescID := accesstokenFields[0].Descriptor()
+	// accesstoken.DefaultID holds the default value on creation for the id field.
+	accesstoken.DefaultID = accesstokenDescID.Default.(func() string)
 	accountdeletionreceiptFields := schema.AccountDeletionReceipt{}.Fields()
 	_ = accountdeletionreceiptFields
 	// accountdeletionreceiptDescID is the schema descriptor for id field.

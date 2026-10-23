@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// AccessToken is the predicate function for accesstoken builders.
+type AccessToken func(*sql.Selector)
+
 // AccountDeletionReceipt is the predicate function for accountdeletionreceipt builders.
 type AccountDeletionReceipt func(*sql.Selector)
 

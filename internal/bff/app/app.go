@@ -18,12 +18,14 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/kongken/mono/internal/bff/accesstoken"
 	bffauth "github.com/kongken/mono/internal/bff/auth"
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/ent"
 	"github.com/kongken/mono/internal/bff/gateway"
 	"github.com/kongken/mono/internal/bff/ingress"
 	bffmetro "github.com/kongken/mono/internal/bff/metro"
+	"github.com/kongken/mono/internal/bff/metro/mcp"
 	"github.com/kongken/mono/internal/bff/oauth"
 	"github.com/kongken/mono/internal/bff/oauth/provider"
 	"github.com/kongken/mono/internal/bff/ratelimit"
@@ -202,6 +204,10 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 		if auth := h.auth.Load(); auth != nil {
 			route, handler := bffv1connect.NewAuthServiceHandler(auth, opts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
+			if r := h.resources.Load(); r != nil {
+				route, handler = bffv1connect.NewAccessTokenServiceHandler(accesstoken.NewHandler(accesstoken.New(r.DB)), opts...)
+				mux.Handle(route, ingress.ConnectOnly(handler))
+			}
 			bfftripmap.MountRPC(mux, conn, opts)
 			if metroConn := clients.Conn(bffmetro.Service); metroConn != nil {
 				bffmetro.MountRPC(mux, metroConn, opts)
@@ -228,6 +234,23 @@ func (h *Handlers) cleaners(clients *upstream.Clients) []bffauth.UserDataCleaner
 		}
 	}
 	return out
+}
+
+// mountMCP serves the metro MCP endpoint when metro is deployed and the BFF has
+// its database and Redis. Every method is routed so that anything but POST gets
+// a clear 405 from the handler.
+func (h *Handlers) mountMCP(r *gin.Engine) {
+	clients, res := h.upstreams.Load(), h.resources.Load()
+	if clients == nil || res == nil {
+		return
+	}
+	conn := clients.Conn(bffmetro.Service)
+	if conn == nil {
+		return
+	}
+	handler := bffmetro.NewMCP(conn, accesstoken.New(res.DB), ratelimit.New(res.Redis, res.KeyPrefix),
+		h.cfg.MCP.RateLimit(), h.cfg.ClientIPHeader)
+	r.Any(mcp.Path, gin.WrapH(handler))
 }
 
 func (h *Handlers) mountPublicHTTP(r *gin.Engine) {
@@ -279,6 +302,9 @@ func (h *Handlers) Routes(r *gin.Engine) {
 		c.JSON(code, gin.H{"ready": health.Ready(statuses), "dependencies": statuses})
 	})
 	for _, route := range gateway.BFFOwnedRoutes {
+		if route.Method != "" {
+			continue // mounted by its own handler, such as mountMCP
+		}
 		r.GET(route.Path, httpx.RedactTrace(route.Trace), func(c *gin.Context) {
 			if auth := h.auth.Load(); auth != nil {
 				auth.ServeOAuthHTTP(c.Writer, c.Request, h.cfg.ClientIPHeader)
@@ -288,6 +314,7 @@ func (h *Handlers) Routes(r *gin.Engine) {
 		})
 	}
 	h.mountPublicHTTP(r)
+	h.mountMCP(r)
 	r.NoRoute(func(c *gin.Context) {
 		gw := h.gateway.Load()
 		if gw == nil {

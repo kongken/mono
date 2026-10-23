@@ -37,6 +37,22 @@ type Config struct {
 	KeyPrefix   string     `yaml:"key_prefix"`
 	AutoMigrate bool       `yaml:"auto_migrate"`
 	Auth        AuthConfig `yaml:"auth"`
+	// MCP configures the metro MCP endpoint (POST /mcp/metro).
+	MCP MCPConfig `yaml:"mcp"`
+}
+
+// MCPConfig controls the metro MCP endpoint.
+type MCPConfig struct {
+	// RateLimitPerMinute is the request limit per management token. Default 60.
+	RateLimitPerMinute int `yaml:"rate_limit_per_minute"`
+}
+
+// RateLimit returns the effective per-token limit.
+func (m MCPConfig) RateLimit() int {
+	if m.RateLimitPerMinute <= 0 {
+		return 60
+	}
+	return m.RateLimitPerMinute
 }
 
 // AuthConfig controls BFF browser sessions and the sole identity source, Logto.

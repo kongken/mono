@@ -51,5 +51,6 @@ func (User) Indexes() []ent.Index {
 func (User) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("sessions", Session.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("access_tokens", AccessToken.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }

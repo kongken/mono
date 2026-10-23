@@ -18,6 +18,8 @@ var readOnlyProcedures = map[string]bool{
 	bffv1connect.AuthServiceIssueCSRFTokenProcedure:     true,
 	bffv1connect.AuthServiceListOAuthProvidersProcedure: true,
 
+	bffv1connect.AccessTokenServiceListAccessTokensProcedure: true,
+
 	bfftripmapv1connect.FootprintServiceGetChangesProcedure:    true,
 	bfftripmapv1connect.FootprintServiceGetFootprintsProcedure: true,
 

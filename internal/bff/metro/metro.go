@@ -11,6 +11,7 @@ import (
 	"github.com/kongken/mono/internal/bff/ingress"
 	"github.com/kongken/mono/internal/bff/metro/admin"
 	"github.com/kongken/mono/internal/bff/metro/catalog"
+	"github.com/kongken/mono/internal/bff/metro/mcp"
 	"github.com/kongken/mono/internal/bff/metro/rider"
 	"github.com/kongken/mono/pkg/proto/bff/metro/v1/bffmetrov1connect"
 	metrov1 "github.com/kongken/mono/pkg/proto/metro/v1"
@@ -32,6 +33,15 @@ func HeavyProcedures() map[string]bool {
 // adminReadMaxBytes bounds an administration request: the 1 MiB catalog document
 // of an import plus protobuf and JSON overhead.
 const adminReadMaxBytes = 2 << 20
+
+// NewMCP returns the MCP endpoint handler (route mcp.Path). tokens verifies the
+// Bearer management token; ratePerMinute is the per-token request limit.
+func NewMCP(conn *grpc.ClientConn, tokens mcp.Authenticator, limiter mcp.Limiter, ratePerMinute int, clientIPHeader string) http.Handler {
+	return mcp.New(mcp.Config{
+		Admin: metrov1.NewAdminServiceClient(conn), Tokens: tokens, Limiter: limiter,
+		RatePerMinute: ratePerMinute, ClientIPHeader: clientIPHeader,
+	})
+}
 
 // MountRPC registers the metro Connect services on mux. Callers mount it only
 // when the session layer can authenticate the browser.

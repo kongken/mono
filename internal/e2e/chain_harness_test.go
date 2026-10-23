@@ -89,6 +89,7 @@ type Browser struct {
 	t          *testing.T
 	HTTP       *http.Client
 	Auth       bffv1connect.AuthServiceClient
+	Tokens     bffv1connect.AccessTokenServiceClient
 	Catalog    bffmetrov1connect.CatalogServiceClient
 	MetroAdmin bffmetrov1connect.AdminServiceClient
 	MetroRider bffmetrov1connect.RiderServiceClient
@@ -372,6 +373,7 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 	return &Browser{
 		t: h.T, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
 		Auth:       bffv1connect.NewAuthServiceClient(hc, api),
+		Tokens:     bffv1connect.NewAccessTokenServiceClient(hc, api),
 		Catalog:    bffmetrov1connect.NewCatalogServiceClient(hc, api),
 		MetroAdmin: bffmetrov1connect.NewAdminServiceClient(hc, api),
 		MetroRider: bffmetrov1connect.NewRiderServiceClient(hc, api),

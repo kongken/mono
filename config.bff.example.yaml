@@ -41,6 +41,11 @@ internal_auth:
   #   -----END PRIVATE KEY-----
   # Keep private key content only in ignored config or a Secret, never in Git.
 
+# The metro MCP endpoint (POST /mcp/metro, Bearer management token). Served only
+# when upstreams.metro is configured.
+mcp:
+  rate_limit_per_minute: 60
+
 auth:
   session_ttl: 168h
   # Procedures that declare required_role (the metro admin API) also need a session

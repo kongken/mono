@@ -27,6 +27,9 @@ type Route struct {
 	// Trace replaces the path and query in tracing spans when they carry a
 	// credential. Empty records the request as it is.
 	Trace string
+	// Method is the HTTP method a BFF-owned route answers; empty means GET (the
+	// browser-redirect routes of the login flow).
+	Method string
 	// Anonymous marks a path that needs no browser credential: Cookie, Authorization
 	// and every other client header except Accept and User-Agent are dropped before
 	// the request is forwarded.
@@ -46,8 +49,8 @@ var Services = []Service{{
 		{Path: "/api/tiles/", Anonymous: true},
 	},
 }, {
-	// The metro product. Its browser API is bff.metro.v1 over Connect; the MCP
-	// endpoint (BFFOwnedRoutes) is added with the MCP stage.
+	// The metro product. Its browser API is bff.metro.v1 over Connect; its MCP
+	// endpoint is a BFF-owned route (BFFOwnedRoutes).
 	Name:     "metro",
 	GRPC:     true,
 	Optional: true,
@@ -92,6 +95,9 @@ func GRPCNames(services []Service) []string {
 var BFFOwnedRoutes = []Route{
 	{Path: "/auth/login", Trace: "/auth/login"},
 	{Path: "/auth/callback/:provider", Trace: "/auth/callback/:provider"},
+	// The metro MCP endpoint (MCP Streamable HTTP, stateless). It takes a Bearer
+	// management token only and ignores Cookies; the handler is internal/bff/metro/mcp.
+	{Path: "/mcp/metro", Method: "POST"},
 }
 
 // BrowserHeaders supplements the shared Connect headers for BFF clients.

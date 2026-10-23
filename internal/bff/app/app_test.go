@@ -15,6 +15,7 @@ import (
 	"github.com/kongken/mono/internal/bff/app"
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/gateway"
+	"github.com/kongken/mono/internal/bff/metro/mcp"
 	"github.com/kongken/mono/internal/platform/testkit"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -263,4 +264,14 @@ func TestCredentialPathsStayOutOfTraces(t *testing.T) {
 			}
 		}
 	}
+}
+
+// The MCP endpoint is a BFF-owned route; the table and the handler's path agree.
+func TestMCPRouteIsRegisteredAsBFFOwned(t *testing.T) {
+	for _, r := range gateway.BFFOwnedRoutes {
+		if r.Path == mcp.Path && r.Method == http.MethodPost {
+			return
+		}
+	}
+	t.Fatalf("%s is not in gateway.BFFOwnedRoutes as a POST route", mcp.Path)
 }

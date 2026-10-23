@@ -34,6 +34,8 @@ const (
 	FieldUpdatedAt = "updated_at"
 	// EdgeSessions holds the string denoting the sessions edge name in mutations.
 	EdgeSessions = "sessions"
+	// EdgeAccessTokens holds the string denoting the access_tokens edge name in mutations.
+	EdgeAccessTokens = "access_tokens"
 	// Table holds the table name of the user in the database.
 	Table = "auth_identities"
 	// SessionsTable is the table that holds the sessions relation/edge.
@@ -43,6 +45,13 @@ const (
 	SessionsInverseTable = "auth_browser_sessions"
 	// SessionsColumn is the table column denoting the sessions relation/edge.
 	SessionsColumn = "user_id"
+	// AccessTokensTable is the table that holds the access_tokens relation/edge.
+	AccessTokensTable = "bff_access_tokens"
+	// AccessTokensInverseTable is the table name for the AccessToken entity.
+	// It exists in this package in order to avoid circular dependency with the "accesstoken" package.
+	AccessTokensInverseTable = "bff_access_tokens"
+	// AccessTokensColumn is the table column denoting the access_tokens relation/edge.
+	AccessTokensColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -156,10 +165,31 @@ func BySessions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newSessionsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByAccessTokensCount orders the results by access_tokens count.
+func ByAccessTokensCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newAccessTokensStep(), opts...)
+	}
+}
+
+// ByAccessTokens orders the results by access_tokens terms.
+func ByAccessTokens(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAccessTokensStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newSessionsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(SessionsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, SessionsTable, SessionsColumn),
+	)
+}
+func newAccessTokensStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(AccessTokensInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, AccessTokensTable, AccessTokensColumn),
 	)
 }
