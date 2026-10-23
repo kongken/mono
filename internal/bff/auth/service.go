@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"time"
 
 	"connectrpc.com/connect"
@@ -26,19 +27,29 @@ const (
 	touchInterval     = time.Minute
 )
 
+// UserDataCleaner removes one product's data of a user when the user deletes
+// their cloud data. CleanupUserData must be idempotent: it is repeated for every
+// product on each retry of a deletion, and succeeds when there is nothing left
+// to remove.
+type UserDataCleaner interface {
+	// Name identifies the product in logs and in auth.account_cleanup.
+	Name() string
+	CleanupUserData(ctx context.Context, userID string) error
+}
+
 type Service struct {
 	cfg        *config.AuthConfig
 	cookies    session.CookieConfig
 	db         *ent.Client
 	limit      *ratelimit.Limiter
 	profiles   tripmapv1.ProfileServiceClient
-	cleanup    tripmapv1.AccountCleanupServiceClient
+	cleaners   []UserDataCleaner
 	oauthState *oauth.StateStore
 	oauthReg   *provider.Registry
 }
 
-func NewService(cfg *config.AuthConfig, cookies session.CookieConfig, db *ent.Client, limit *ratelimit.Limiter, profiles tripmapv1.ProfileServiceClient, cleanup tripmapv1.AccountCleanupServiceClient, oauth OAuthDeps) *Service {
-	s := &Service{cfg: cfg, cookies: cookies, db: db, limit: limit, profiles: profiles, cleanup: cleanup}
+func NewService(cfg *config.AuthConfig, cookies session.CookieConfig, db *ent.Client, limit *ratelimit.Limiter, profiles tripmapv1.ProfileServiceClient, cleaners []UserDataCleaner, oauth OAuthDeps) *Service {
+	s := &Service{cfg: cfg, cookies: cookies, db: db, limit: limit, profiles: profiles, cleaners: cleaners}
 	applyOAuthDeps(s, oauth)
 	return s
 }
@@ -73,13 +84,15 @@ func toUser(u *ent.User) *bffv1.User {
 	return out
 }
 
-func (s *Service) issueSession(ctx context.Context, userID string) (token string, expires time.Time, err error) {
+func (s *Service) issueSession(ctx context.Context, userID string, roles []string) (token string, expires time.Time, err error) {
 	token, hash, err := session.NewToken()
 	if err != nil {
 		return "", time.Time{}, internal(err)
 	}
-	expires = time.Now().UTC().Add(s.SessionLifetime())
-	if _, err = s.db.Session.Create().SetUserID(userID).SetTokenHash(hash).SetExpiresAt(expires).Save(ctx); err != nil {
+	authenticated := time.Now().UTC()
+	expires = authenticated.Add(s.SessionLifetime())
+	if _, err = s.db.Session.Create().SetUserID(userID).SetTokenHash(hash).SetExpiresAt(expires).
+		SetAuthenticatedAt(authenticated).SetRoles(slices.Clone(roles)).Save(ctx); err != nil {
 		slog.Error("create session", "error", err)
 		return "", time.Time{}, internal(err)
 	}
@@ -106,7 +119,7 @@ func (s *Service) syncProfile(ctx context.Context, u *ent.User) error {
 	return nil
 }
 
-func (s *Service) Me(ctx context.Context, userID string) (*bffv1.MeResponse, error) {
+func (s *Service) Me(ctx context.Context, userID string, roles []string) (*bffv1.MeResponse, error) {
 	u, err := s.db.User.Get(ctx, userID)
 	if err != nil {
 		if ent.IsNotFound(err) {
@@ -117,7 +130,7 @@ func (s *Service) Me(ctx context.Context, userID string) (*bffv1.MeResponse, err
 	if u.Disabled && u.DeletionRequestedAt == nil {
 		return nil, errUnauth
 	}
-	return &bffv1.MeResponse{User: toUser(u)}, nil
+	return &bffv1.MeResponse{User: toUser(u), Roles: slices.Clone(roles)}, nil
 }
 
 func (s *Service) Logout(ctx context.Context, sessionID string) error {
@@ -187,9 +200,14 @@ func (s *Service) ResolveSession(ctx context.Context, token string) (session.Bro
 			slog.Warn("touch session", "error", err)
 		}
 	}
+	authenticated := sess.CreatedAt
+	if sess.AuthenticatedAt != nil {
+		authenticated = *sess.AuthenticatedAt
+	}
 	return session.BrowserSession{
 		UserID: sess.UserID, SessionID: sess.ID,
 		DeletionPending: u.DeletionRequestedAt != nil,
+		Roles:           slices.Clone(sess.Roles), AuthenticatedAt: authenticated,
 	}, nil
 }
 

@@ -1,0 +1,440 @@
+syntax = "proto3";
+
+package metro.v1;
+
+import "google/protobuf/timestamp.proto";
+import "metro/v1/catalog.proto";
+import "platform/v1/options.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/metro/v1;metrov1";
+
+// AdminService maintains the catalog. Every method requires the metro-admin role
+// and is internal-only (BFF -> metro gRPC): both the browser's admin pages
+// (bff.metro.v1.AdminService) and MCP tool calls reach the same methods, so the
+// rules, revision checks and audit are identical for both.
+service AdminService {
+  rpc CreateCity(CreateCityRequest) returns (CreateCityResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  // Update replaces every editable field of the city. It fails with
+  // FAILED_PRECONDITION (and a RevisionConflictDetail) unless expected_revision is
+  // the revision the caller last read.
+  rpc UpdateCity(UpdateCityRequest) returns (UpdateCityResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  rpc DeleteCity(DeleteCityRequest) returns (DeleteCityResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  rpc ListAdminCities(ListAdminCitiesRequest) returns (ListAdminCitiesResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  rpc CreateRollingStock(CreateRollingStockRequest) returns (CreateRollingStockResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  // Update replaces every editable field of the rolling stock. It fails with
+  // FAILED_PRECONDITION (and a RevisionConflictDetail) unless expected_revision is
+  // the revision the caller last read.
+  rpc UpdateRollingStock(UpdateRollingStockRequest) returns (UpdateRollingStockResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  rpc DeleteRollingStock(DeleteRollingStockRequest) returns (DeleteRollingStockResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  rpc ListAdminRollingStocks(ListAdminRollingStocksRequest) returns (ListAdminRollingStocksResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  rpc CreateLine(CreateLineRequest) returns (CreateLineResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  // Update replaces every editable field of the line. It fails with
+  // FAILED_PRECONDITION (and a RevisionConflictDetail) unless expected_revision is
+  // the revision the caller last read.
+  rpc UpdateLine(UpdateLineRequest) returns (UpdateLineResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  rpc DeleteLine(DeleteLineRequest) returns (DeleteLineResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  rpc ListAdminLines(ListAdminLinesRequest) returns (ListAdminLinesResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  rpc CreateRollingStockTopic(CreateRollingStockTopicRequest) returns (CreateRollingStockTopicResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  // Update replaces every editable field of the rolling stock topic. It fails with
+  // FAILED_PRECONDITION (and a RevisionConflictDetail) unless expected_revision is
+  // the revision the caller last read.
+  rpc UpdateRollingStockTopic(UpdateRollingStockTopicRequest) returns (UpdateRollingStockTopicResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  rpc DeleteRollingStockTopic(DeleteRollingStockTopicRequest) returns (DeleteRollingStockTopicResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  rpc ListAdminRollingStockTopics(ListAdminRollingStockTopicsRequest) returns (ListAdminRollingStockTopicsResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  // ImportCatalog upserts a metro-catalog/1 JSON document by natural key, all or
+  // nothing. With dry_run it only reports what would change.
+  rpc ImportCatalog(ImportCatalogRequest) returns (ImportCatalogResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  // ExportCatalog returns the whole catalog as a metro-catalog/1 JSON document.
+  rpc ExportCatalog(ExportCatalogRequest) returns (ExportCatalogResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+}
+
+// LineStatus is shared with CatalogService (see catalog.proto).
+
+// ---- entities ----
+
+message CityInput {
+  // Unique, lowercase letters, digits and hyphens, at most 32 characters; used in URLs.
+  string slug = 1;
+  string name = 2;
+  // https image addresses, at most 8.
+  repeated string header_images = 3;
+  // https address of an SVG map, or empty. Clients display it as an image only.
+  string map_svg_url = 4;
+  int32 sort_order = 5;
+}
+
+message AdminCity {
+  string id = 1;
+  // Starts at 1 and rises by one on every change.
+  int64 revision = 2;
+  CityInput city = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message RollingStockInput {
+  // Unique, at most 32 characters, no leading or trailing blanks or control characters.
+  string code = 1;
+  optional double length_m = 2;
+  optional double width_m = 3;
+  optional int32 capacity = 4;
+}
+
+message AdminRollingStock {
+  string id = 1;
+  int64 revision = 2;
+  RollingStockInput rolling_stock = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message LineInput {
+  // Unique, [a-z0-9][a-z0-9-]{1,31}. Cannot be changed after creation.
+  string code = 1;
+  // Slug of the city the line belongs to.
+  string city_slug = 2;
+  string name = 3;
+  // Sort number; 0 means unnumbered and sorts last.
+  int32 number = 4;
+  LineStatus status = 5;
+  // Code of the rolling stock, or empty.
+  string rolling_stock_code = 6;
+  int32 cars = 7;
+  int32 cars_addition = 8;
+  int32 stations = 9;
+  // At most two decimals.
+  double length_km = 10;
+  // #RRGGBB.
+  string color = 11;
+  // YYYY-MM-DD, or empty.
+  string commenced_on = 12;
+  string extended_on = 13;
+  bool is_loop = 14;
+}
+
+message AdminLine {
+  string id = 1;
+  int64 revision = 2;
+  LineInput line = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message RollingStockTopicInput {
+  string slug = 1;
+  string name = 2;
+  // Empty means rolling stock is not a criterion.
+  repeated string rolling_stock_codes = 3;
+  // A line matches when its cars or cars_addition is listed. Empty means the car
+  // count is not a criterion. At least one of the two lists must be non-empty.
+  repeated int32 cars = 4;
+}
+
+message AdminRollingStockTopic {
+  string id = 1;
+  int64 revision = 2;
+  RollingStockTopicInput topic = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+// ---- writes ----
+
+message CreateCityRequest { CityInput city = 1; }
+message UpdateCityRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+  CityInput city = 3;
+}
+message DeleteCityRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+}
+message CreateCityResponse {
+  AdminCity city = 1;
+  // Catalog version after the write.
+  int64 catalog_version = 2;
+}
+
+message UpdateCityResponse {
+  AdminCity city = 1;
+  // Catalog version after the write.
+  int64 catalog_version = 2;
+}
+
+message DeleteCityResponse {
+  // Catalog version after the delete.
+  int64 catalog_version = 1;
+}
+
+message CreateRollingStockRequest { RollingStockInput rolling_stock = 1; }
+message UpdateRollingStockRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+  RollingStockInput rolling_stock = 3;
+}
+message DeleteRollingStockRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+}
+message CreateRollingStockResponse {
+  AdminRollingStock rolling_stock = 1;
+  int64 catalog_version = 2;
+}
+
+message UpdateRollingStockResponse {
+  AdminRollingStock rolling_stock = 1;
+  int64 catalog_version = 2;
+}
+
+message DeleteRollingStockResponse {
+  // Catalog version after the delete.
+  int64 catalog_version = 1;
+}
+
+message CreateLineRequest { LineInput line = 1; }
+message UpdateLineRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+  LineInput line = 3;
+}
+message DeleteLineRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+}
+message CreateLineResponse {
+  AdminLine line = 1;
+  int64 catalog_version = 2;
+}
+
+message UpdateLineResponse {
+  AdminLine line = 1;
+  int64 catalog_version = 2;
+}
+
+message DeleteLineResponse {
+  // Catalog version after the delete.
+  int64 catalog_version = 1;
+}
+
+message CreateRollingStockTopicRequest { RollingStockTopicInput topic = 1; }
+message UpdateRollingStockTopicRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+  RollingStockTopicInput topic = 3;
+}
+message DeleteRollingStockTopicRequest {
+  string id = 1;
+  int64 expected_revision = 2;
+}
+message CreateRollingStockTopicResponse {
+  AdminRollingStockTopic topic = 1;
+  int64 catalog_version = 2;
+}
+
+message UpdateRollingStockTopicResponse {
+  AdminRollingStockTopic topic = 1;
+  int64 catalog_version = 2;
+}
+
+message DeleteRollingStockTopicResponse {
+  // Catalog version after the delete.
+  int64 catalog_version = 1;
+}
+
+// ---- lists (administrator view: every status, with revision) ----
+
+message ListAdminCitiesRequest {
+  // Substring of slug or name; empty lists all.
+  string query = 1;
+  // 1 to 200; 0 means 50.
+  int32 page_size = 2;
+  string page_token = 3;
+}
+message ListAdminCitiesResponse {
+  repeated AdminCity cities = 1;
+  // Empty on the last page.
+  string next_page_token = 2;
+  int64 total = 3;
+}
+
+message ListAdminRollingStocksRequest {
+  string query = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+message ListAdminRollingStocksResponse {
+  repeated AdminRollingStock rolling_stocks = 1;
+  string next_page_token = 2;
+  int64 total = 3;
+}
+
+message ListAdminLinesRequest {
+  // Substring of code or name.
+  string query = 1;
+  // Empty means every city.
+  string city_slug = 2;
+  // Empty means every status.
+  repeated LineStatus statuses = 3;
+  int32 page_size = 4;
+  string page_token = 5;
+}
+message ListAdminLinesResponse {
+  repeated AdminLine lines = 1;
+  string next_page_token = 2;
+  int64 total = 3;
+}
+
+message ListAdminRollingStockTopicsRequest {
+  string query = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+message ListAdminRollingStockTopicsResponse {
+  repeated AdminRollingStockTopic topics = 1;
+  string next_page_token = 2;
+  int64 total = 3;
+}
+
+// ---- import and export ----
+
+message ImportCatalogRequest {
+  // A metro-catalog/1 document, at most 1 MiB and 2000 records.
+  string catalog_json = 1;
+  // Validate and report only: nothing is written, the version stays, no audit row.
+  bool dry_run = 2;
+}
+
+message ChangeCounts {
+  int32 created = 1;
+  int32 updated = 2;
+  int32 unchanged = 3;
+}
+
+message ImportCatalogResponse {
+  bool dry_run = 1;
+  ChangeCounts cities = 2;
+  ChangeCounts rolling_stocks = 3;
+  ChangeCounts lines = 4;
+  ChangeCounts topics = 5;
+  // Per-record problems (a dry run reports them here; a real run fails with
+  // INVALID_ARGUMENT and the same list in ValidationDetail). Paths look like
+  // lines[3].color.
+  repeated FieldError errors = 6;
+  // Catalog version after the import; unchanged by a dry run or an import that
+  // changed nothing.
+  int64 catalog_version = 7;
+}
+
+message ExportCatalogRequest {}
+
+message ExportCatalogResponse {
+  string catalog_json = 1;
+  int64 catalog_version = 2;
+}
+
+// ---- audit ----
+
+message ListAuditLogsRequest {
+  // city, rolling_stock, line or topic; empty means any.
+  string entity_type = 1;
+  string entity_id = 2;
+  string actor_user_id = 3;
+  // web or mcp; empty means any.
+  string channel = 4;
+  google.protobuf.Timestamp from = 5;
+  google.protobuf.Timestamp to = 6;
+  int32 page_size = 7;
+  string page_token = 8;
+}
+
+message AuditLog {
+  string id = 1;
+  string actor_user_id = 2;
+  string channel = 3;
+  // Management token that made an mcp call.
+  string token_id = 4;
+  string request_id = 5;
+  // For example line.update.
+  string action = 6;
+  string entity_type = 7;
+  string entity_id = 8;
+  // JSON snapshots; empty when absent (before a create, after a delete).
+  string before_json = 9;
+  string after_json = 10;
+  google.protobuf.Timestamp created_at = 11;
+}
+
+message ListAuditLogsResponse {
+  repeated AuditLog logs = 1;
+  string next_page_token = 2;
+}
+
+// ---- error details ----
+// Attached to failed calls so clients and MCP tools can show what to fix.
+
+message FieldError {
+  // Path of the offending field, such as color or lines[3].color.
+  string field = 1;
+  string reason = 2;
+}
+
+// ValidationDetail accompanies INVALID_ARGUMENT and ALREADY_EXISTS.
+message ValidationDetail {
+  repeated FieldError errors = 1;
+}
+
+// RevisionConflictDetail accompanies FAILED_PRECONDITION from a stale expected_revision.
+message RevisionConflictDetail {
+  int64 current_revision = 1;
+}
+
+message EntityCount {
+  string entity_type = 1;
+  int64 count = 2;
+}
+
+// ReferencedDetail accompanies FAILED_PRECONDITION from deleting something that is
+// still referenced.
+message ReferencedDetail {
+  repeated EntityCount references = 1;
+}

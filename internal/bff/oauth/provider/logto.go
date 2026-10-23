@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 )
 
@@ -40,6 +41,11 @@ func NewLogto(cfg LogtoConfig) *Logto {
 	}
 	if len(cfg.Scopes) == 0 {
 		cfg.Scopes = []string{"openid", "profile", "email"}
+	}
+	// Business roles (such as metro-admin) reach the session through the roles
+	// scope, so it is always requested.
+	if !slices.Contains(cfg.Scopes, "roles") {
+		cfg.Scopes = append(slices.Clone(cfg.Scopes), "roles")
 	}
 	if cfg.DisplayName == "" {
 		cfg.DisplayName = "Logto"
@@ -164,11 +170,12 @@ func (p *Logto) fetchUser(ctx context.Context, token string) (*Claims, error) {
 		return nil, fmt.Errorf("logto: userinfo status %d: %s", resp.StatusCode, raw)
 	}
 	var u struct {
-		Sub      string `json:"sub"`
-		Name     string `json:"name"`
-		Username string `json:"username"`
-		Picture  string `json:"picture"`
-		Email    string `json:"email"`
+		Sub      string   `json:"sub"`
+		Name     string   `json:"name"`
+		Username string   `json:"username"`
+		Picture  string   `json:"picture"`
+		Email    string   `json:"email"`
+		Roles    []string `json:"roles"`
 	}
 	if err := json.Unmarshal(raw, &u); err != nil {
 		return nil, fmt.Errorf("logto: decode userinfo response: %w", err)
@@ -183,5 +190,21 @@ func (p *Logto) fetchUser(ctx context.Context, token string) (*Claims, error) {
 			login = u.Email[:at]
 		}
 	}
-	return &Claims{Provider: "logto", ExternalID: sub, Login: login, Name: u.Name, Email: u.Email, AvatarURL: u.Picture}, nil
+	return &Claims{Provider: "logto", ExternalID: sub, Login: login, Name: u.Name, Email: u.Email, AvatarURL: u.Picture, Roles: cleanRoles(u.Roles)}, nil
+}
+
+// cleanRoles keeps distinct, non-empty role names of reasonable size, in order.
+func cleanRoles(in []string) []string {
+	var out []string
+	for _, r := range in {
+		r = strings.TrimSpace(r)
+		if r == "" || len(r) > 64 || slices.Contains(out, r) {
+			continue
+		}
+		out = append(out, r)
+		if len(out) == 32 {
+			break
+		}
+	}
+	return out
 }

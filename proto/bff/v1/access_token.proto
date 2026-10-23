@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package bff.v1;
+
+import "google/protobuf/timestamp.proto";
+import "platform/v1/options.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
+
+// AccessTokenService manages the management tokens that non-browser clients (the
+// metro MCP endpoint) present as a Bearer credential. A token acts as the
+// administrator who created it, with the roles that administrator had at creation
+// time. It lives in the BFF because it is part of the identity layer; the audience
+// field says which product's endpoint accepts it.
+//
+// Every method needs the metro-admin role: metro is the only audience in v1.
+service AccessTokenService {
+  // CreateAccessToken returns the plaintext secret once; only its digest is kept.
+  rpc CreateAccessToken(CreateAccessTokenRequest) returns (CreateAccessTokenResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  // ListAccessTokens lists the caller's tokens, or every administrator's with
+  // all_users. Revoked and expired tokens are included.
+  rpc ListAccessTokens(ListAccessTokensRequest) returns (ListAccessTokensResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+  // RevokeAccessToken takes effect on the next request. Any administrator may
+  // revoke any token. Revoking an already revoked token succeeds; an unknown id
+  // is NOT_FOUND.
+  rpc RevokeAccessToken(RevokeAccessTokenRequest) returns (RevokeAccessTokenResponse) {
+    option (platform.v1.required_role) = "metro-admin";
+  }
+}
+
+message AccessToken {
+  string id = 1;
+  // The administrator the token acts as.
+  string user_id = 2;
+  string name = 3;
+  // Product endpoint that accepts the token; metro.
+  string audience = 4;
+  // metro:read and/or metro:write (write includes read).
+  repeated string scopes = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  google.protobuf.Timestamp last_used_at = 8;
+  google.protobuf.Timestamp revoked_at = 9;
+}
+
+message CreateAccessTokenRequest {
+  // 1 to 64 characters, no control characters.
+  string name = 1;
+  // Only "metro" in v1; empty means metro.
+  string audience = 2;
+  // Empty means metro:read only.
+  repeated string scopes = 3;
+  // 1 to 90.
+  int32 expires_in_days = 4;
+}
+
+message CreateAccessTokenResponse {
+  AccessToken token = 1;
+  // The bearer secret (mcp_ followed by 64 hex characters). Shown only here.
+  string secret = 2;
+}
+
+message ListAccessTokensRequest {
+  bool all_users = 1;
+}
+
+message ListAccessTokensResponse {
+  // Newest first, at most 200.
+  repeated AccessToken tokens = 1;
+}
+
+message RevokeAccessTokenRequest {
+  string id = 1;
+}
+
+message RevokeAccessTokenResponse {}

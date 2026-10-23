@@ -12,6 +12,8 @@
 //	iat, nbf, exp  issue, not-before and expiry times (seconds); exp-iat is 60s
 //	jti  random token ID, for logs only; it is not a replay barrier
 //	mth  full gRPC method the token is valid for, such as /tripmap.v1.SystemService/GetStatus
+//	rol  optional role names the BFF verified for the user, such as metro-admin;
+//	     present only on calls to methods that declare required_role
 //
 // Replay is limited by TLS, the 60s lifetime, aud and mth together; jti does not
 // make a token single-use.
@@ -58,6 +60,8 @@ type Claims struct {
 	ExpiresAt int64  `json:"exp"`
 	ID        string `json:"jti"`
 	Method    string `json:"mth"`
+	// Roles is empty unless the BFF vouches for roles of the subject.
+	Roles []string `json:"rol,omitempty"`
 }
 
 // Signer issues tokens with the BFF's private key.
@@ -79,6 +83,15 @@ func (s *Signer) now() time.Time {
 // Sign issues a token for one call of method on audience. An empty subject marks
 // an anonymous call.
 func (s *Signer) Sign(audience, method, subject string) (string, error) {
+	return s.SignRoles(audience, method, subject, nil)
+}
+
+// SignRoles is Sign with the verified role names of the subject in the rol
+// claim. Roles without a subject are refused: a role belongs to a user.
+func (s *Signer) SignRoles(audience, method, subject string, roles []string) (string, error) {
+	if len(roles) > 0 && subject == "" {
+		return "", errors.New("servicetoken: roles require a subject")
+	}
 	if s.Issuer == "" || s.KID == "" || len(s.Key) != ed25519.PrivateKeySize || audience == "" || method == "" {
 		return "", errors.New("servicetoken: signer, audience and method are required")
 	}
@@ -88,7 +101,7 @@ func (s *Signer) Sign(audience, method, subject string) (string, error) {
 	}
 	now := s.now().Unix()
 	head, _ := json.Marshal(header{Alg: algorithm, Typ: "JWT", KID: s.KID})
-	body, _ := json.Marshal(Claims{Issuer: s.Issuer, Audience: audience, Subject: subject, IssuedAt: now, NotBefore: now, ExpiresAt: now + int64(Lifetime/time.Second), ID: hex.EncodeToString(id), Method: method})
+	body, _ := json.Marshal(Claims{Issuer: s.Issuer, Audience: audience, Subject: subject, IssuedAt: now, NotBefore: now, ExpiresAt: now + int64(Lifetime/time.Second), ID: hex.EncodeToString(id), Method: method, Roles: roles})
 	signing := b64(head) + "." + b64(body)
 	return signing + "." + b64(ed25519.Sign(s.Key, []byte(signing))), nil
 }

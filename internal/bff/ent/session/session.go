@@ -26,6 +26,10 @@ const (
 	FieldLastUsedAt = "last_used_at"
 	// FieldRevoked holds the string denoting the revoked field in the database.
 	FieldRevoked = "revoked"
+	// FieldRoles holds the string denoting the roles field in the database.
+	FieldRoles = "roles"
+	// FieldAuthenticatedAt holds the string denoting the authenticated_at field in the database.
+	FieldAuthenticatedAt = "authenticated_at"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// Table holds the table name of the session in the database.
@@ -48,6 +52,8 @@ var Columns = []string{
 	FieldExpiresAt,
 	FieldLastUsedAt,
 	FieldRevoked,
+	FieldRoles,
+	FieldAuthenticatedAt,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -107,6 +113,11 @@ func ByLastUsedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByRevoked orders the results by the revoked field.
 func ByRevoked(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRevoked, opts...).ToFunc()
+}
+
+// ByAuthenticatedAt orders the results by the authenticated_at field.
+func ByAuthenticatedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAuthenticatedAt, opts...).ToFunc()
 }
 
 // ByUserField orders the results by user field.

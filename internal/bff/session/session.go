@@ -26,6 +26,20 @@ type BrowserSession struct {
 	UserID          string
 	SessionID       string
 	DeletionPending bool
+	// Roles are the Logto role names recorded when the session was signed in.
+	Roles []string
+	// AuthenticatedAt is when the user signed in at Logto.
+	AuthenticatedAt time.Time
+}
+
+// HasRole reports whether the session holds role.
+func (s BrowserSession) HasRole(role string) bool {
+	for _, r := range s.Roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
 }
 
 func WithBrowser(ctx context.Context, s BrowserSession) context.Context {

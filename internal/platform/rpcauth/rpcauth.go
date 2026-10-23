@@ -34,12 +34,27 @@ const (
 	// declared footprint schema and region catalog version from the BFF.
 	MetadataTripmapSchema  = "x-tripmap-schema"
 	MetadataTripmapRegions = "x-tripmap-regions"
+	// MetadataChannel and MetadataTokenID say how an administrator reached the
+	// BFF (the browser or an MCP management token) for audit records. A service
+	// reads them only after the credential verifies.
+	MetadataChannel = "x-bff-channel"
+	MetadataTokenID = "x-bff-token-id"
+)
+
+// The values of Call.Channel.
+const (
+	ChannelWeb = "web"
+	ChannelMCP = "mcp"
 )
 
 // Call is what a handler may know about the caller of the current request.
 type Call struct {
 	// UserID is empty for anonymous calls.
 	UserID string
+	// Roles are the role names the BFF verified for UserID. On the service side
+	// they are readable only after the credential verified; on the BFF side they
+	// are signed into the credential only for methods that declare required_role.
+	Roles []string
 	// ClientIP is the end client's address as resolved by the BFF; empty if absent.
 	ClientIP  string
 	RequestID string
@@ -48,6 +63,11 @@ type Call struct {
 	// TripmapSchema and TripmapRegions are forwarded from the browser when set.
 	TripmapSchema  string
 	TripmapRegions string
+	// Channel is ChannelWeb or ChannelMCP; empty on the BFF side means web. A
+	// service always sees one of the two.
+	Channel string
+	// TokenID identifies the management token behind an MCP call; empty otherwise.
+	TokenID string
 }
 
 type callKey struct{}
@@ -92,6 +112,57 @@ func Anonymous(fullMethod string) bool {
 	}
 	anonymous, _ := proto.GetExtension(opts, platformv1.E_Anonymous).(bool)
 	return anonymous
+}
+
+// RequiredRole returns the role proto declares for fullMethod through the
+// required_role option, or "" when the method needs no role. Unknown methods
+// return "" here and are rejected by the anonymous policy instead.
+func RequiredRole(fullMethod string) string {
+	service, method, ok := strings.Cut(strings.TrimPrefix(fullMethod, "/"), "/")
+	if !ok || strings.Contains(method, "/") {
+		return ""
+	}
+	desc, err := protoregistry.GlobalFiles.FindDescriptorByName(protoreflect.FullName(service + "." + method))
+	if err != nil {
+		return ""
+	}
+	md, ok := desc.(protoreflect.MethodDescriptor)
+	if !ok {
+		return ""
+	}
+	opts, _ := md.Options().(*descriptorpb.MethodOptions)
+	if opts == nil {
+		return ""
+	}
+	role, _ := proto.GetExtension(opts, platformv1.E_RequiredRole).(string)
+	return role
+}
+
+// HasRole reports whether roles contains role.
+func HasRole(roles []string, role string) bool {
+	for _, r := range roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+// NormalizeChannel returns ChannelMCP or ChannelWeb; anything unknown is web.
+func NormalizeChannel(c string) string {
+	if c == ChannelMCP {
+		return ChannelMCP
+	}
+	return ChannelWeb
+}
+
+// NormalizeTokenID keeps a token ID only when it is short and made of safe
+// characters, like a request ID; otherwise it returns "".
+func NormalizeTokenID(id string) string {
+	if requestIDPattern.MatchString(id) {
+		return id
+	}
+	return ""
 }
 
 var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)

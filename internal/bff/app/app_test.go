@@ -15,6 +15,7 @@ import (
 	"github.com/kongken/mono/internal/bff/app"
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/gateway"
+	"github.com/kongken/mono/internal/bff/metro/mcp"
 	"github.com/kongken/mono/internal/platform/testkit"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -201,14 +202,36 @@ func TestExampleConfigCoversTheRouteTable(t *testing.T) {
 	if err := yaml.Unmarshal(raw, &cfg); err != nil {
 		t.Fatal(err)
 	}
-	if err := cfg.Validate(gateway.Names(gateway.Services)); err != nil {
+	// The example enables every product, optional ones included.
+	active := gateway.Active(gateway.Services, cfg.Upstreams)
+	if len(active) != len(gateway.Services) {
+		t.Fatalf("the example configures %d of %d services", len(active), len(gateway.Services))
+	}
+	if err := cfg.Validate(gateway.Names(active)); err != nil {
 		t.Fatal(err)
 	}
-	if err := cfg.ValidateInternal(gateway.GRPCNames(gateway.Services)); err != nil {
+	if err := cfg.ValidateInternal(gateway.GRPCNames(active)); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.GRPC.CAFile != "" || cfg.GRPC.Services["tripmap"].Transport != "h2c" {
+	if cfg.GRPC.CAFile != "" || cfg.GRPC.Services["tripmap"].Transport != "h2c" || cfg.GRPC.Services["metro"].Transport != "h2c" {
 		t.Fatal("local example must use explicit h2c without a CA")
+	}
+	if _, err := cfg.Auth.OAuthApps["metro"].ReturnURL("/admin"); err != nil {
+		t.Fatalf("metro oauth app: %v", err)
+	}
+}
+
+func TestOptionalServicesNeedAnUpstream(t *testing.T) {
+	names := func(s []gateway.Service) []string { return gateway.Names(s) }
+	without := names(gateway.Active(gateway.Services, map[string]string{"tripmap": "http://t"}))
+	with := names(gateway.Active(gateway.Services, map[string]string{"tripmap": "http://t", "metro": "http://m"}))
+	if len(without) != 1 || without[0] != "tripmap" || len(with) != 2 {
+		t.Fatalf("active services without metro %v, with metro %v", without, with)
+	}
+	// A required service stays in the list even when its upstream is missing, so
+	// validation can report it.
+	if got := names(gateway.Active(gateway.Services, nil)); len(got) != 1 || got[0] != "tripmap" {
+		t.Fatalf("no upstreams at all: %v", got)
 	}
 }
 
@@ -241,4 +264,14 @@ func TestCredentialPathsStayOutOfTraces(t *testing.T) {
 			}
 		}
 	}
+}
+
+// The MCP endpoint is a BFF-owned route; the table and the handler's path agree.
+func TestMCPRouteIsRegisteredAsBFFOwned(t *testing.T) {
+	for _, r := range gateway.BFFOwnedRoutes {
+		if r.Path == mcp.Path && r.Method == http.MethodPost {
+			return
+		}
+	}
+	t.Fatalf("%s is not in gateway.BFFOwnedRoutes as a POST route", mcp.Path)
 }

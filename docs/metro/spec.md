@@ -1,6 +1,37 @@
 # 地铁足迹（metro）产品规格
 
-> **状态：待实现。** 本文是规格，描述要做什么以及为什么这样做，不描述当前行为。实现过程中每完成一部分，就把对应内容迁到 `docs/metro/features.md`（用户可见规则与验收场景）、`docs/backend.md`、`docs/bff.md`，并在本文标注已完成或删除。
+> **状态：P0–P7 已实现。** 本文是规格，描述要做什么以及为什么这样做；落地后的当前行为以 [功能描述](features.md)、[后端初始化](../backend.md#metro-服务地铁足迹) 和 [BFF](../bff.md) 为准，与下表的偏差和补充决定记在下面。
+
+**实现状态**
+
+| 阶段 | 状态 | 说明 |
+| --- | --- | --- |
+| P0 共用层 | 已实现 | 角色进会话与凭证、`required_role`、`admin_session_max_age`、账号清理多产品化、`oauth_apps` 沿用既有机制 |
+| P1 服务骨架与目录读取 | 已实现 | `cmd/metro`、Ent 与 `migrations/metro/`、`CatalogService`（内部与 BFF）、可选上游、`metro_grpc` 就绪探测、模块边界检查 |
+| P2 管理接口 | 已实现 | 12 个增删改、4 个管理列表、导入导出、审计、引用完整性、`expected_revision` |
+| P3 骑行者 | 已实现 | `RiderService`、`AccountCleanupService`、BFF 适配与清理器 |
+| P4 MCP | 已实现 | `bff_access_tokens`、`bff.v1.AccessTokenService`、`POST /mcp/metro`（20 个工具）、按令牌限流；验收 14–16 由 `internal/e2e/metro_mcp_chain_test.go` 覆盖 |
+| P5 前端公开部分 | 已实现 | `apps/metro`：首页、城市、专题、公开主页、`/me` |
+| P6 前端管理后台 | 已实现 | 四类目录的增删改、导入、导出、审计、令牌；验收 17–21 由 Playwright（模拟 BFF，桌面与手机）覆盖 |
+| P7 部署与文档 | 已实现 | `deploy/metro/`、`deploy/metro-web/`、镜像矩阵与 CI、Compose/Caddy 示例、`make dev-metro-web`、文档与 `GLOSSARY.md`；Dockerfile 的输入在临时目录里验证过，但没有实际执行 `docker build` |
+
+**P4–P7 的补充决定与偏差**：
+
+- **MCP 库（待决问题 7）**：不引入 Go MCP 库，手写无状态 JSON-RPC（`initialize`、`ping`、`tools/list`、`tools/call`，批量，通知返回 202）。理由见 [BFF](../bff.md)。
+- **工具名与字段**：20 个工具（读 7、写 13）；输入字段使用 camelCase（与浏览器契约的 JSON 形式一致），`metro_get_entity` 以 `entityType` 与 `key` 定位实体。JSON Schema 由 proto 描述符生成。
+- **令牌审计（偏差）**：令牌的创建与吊销写 BFF 的 `slog`（令牌 ID、用户、名称、作用域），不写 metro 的 `admin_audit`——审计表属于 metro，BFF 不直接写它。MCP 调用造成的目录写入仍按 8.3 记 `channel=mcp` 与令牌 ID。
+- **失败认证限流**：除按令牌限流外，按客户端地址限制失败认证（每分钟 30 次），防止猜测令牌。
+- **前端**：自带 History API 路由；管理列表由服务端搜索与分页（“加载更多”）；`tsconfig.app.json` 关闭了 `erasableSyntaxOnly`（生成的契约含 enum）；管理后台按需懒加载。
+- **Playwright 使用模拟 BFF**（`page.route`），不连接真实后端；前后端的真实链路只由 Go 的 `internal/e2e` 验证。
+
+**实现中的补充决定**（规格未写明处）：
+
+- 管理列表方法叫 `ListAdminCities`、`ListAdminRollingStocks`、`ListAdminLines`、`ListAdminRollingStockTopics`（与匿名的 `CatalogService` 请求/响应消息同包，避免重名）；每个写方法有自己的响应消息，返回实体（含 `revision`）和写入后的 `catalog_version`。更新与删除按 `id` 定位，线路、城市引用用 `slug`/`code`。
+- `Update` 提交的值与已存值相同时不写入（revision、版本、审计都不动）；`status` 未指定按 `operating`；车型专题必须至少给出 `rolling_stock_codes` 或 `cars` 之一（避免“无条件”专题匹配所有线路）；`ExtendedOn` 不得早于 `CommencedOn`。
+- 没有任何变化的导入不加 `catalog_state.version`、不写审计；`ExportCatalog` 也登记为 25 秒重任务。导入文档里车型专题的键是 `topics`（与 6.3 示例一致）。
+- 内部契约与浏览器契约的管理、骑行者消息逐字段同形，BFF 经 protobuf 线格式转换，由 `TestContractsStayWireCompatible` 守住一致性；目录读取契约仍是手写映射。
+- 骑行者 `handle` 先小写化再校验；`GetMyProfile` 在资料不存在时返回默认值而不创建；`MarkLine` 不带年份会清空年份。
+- 待决问题 5（Logto 角色声明）：已按 Logto 核心源码核实 `roles` scope 在 userinfo 中返回 `roles`（角色名即 Logto 角色名）；**未对真实租户验证**，部署前仍需确认。
 
 ## 1. 背景与目标
 
@@ -443,7 +474,7 @@ MCP：
 4. **角色粒度。** 本文只有一个 `metro-admin`。是否需要“只读运维”或“编辑但不能删除/导入”等细分角色？`required_role` 机制支持以后增加。
 5. **Logto 角色声明（技术核实）。** 需要在实际使用的 Logto 租户确认：请求 `roles` scope 后，userinfo 是否返回 `roles`，以及角色名是否就是 `metro-admin`。若不返回，则退回到登录时调用 Logto 管理 API 查询，P0 需要相应增加管理 API 凭据配置。
 6. **产品命名与视觉。** 产品对外名称、域名、主题色和图标尚未确定；本文中的 `metro` 是工程内部名称。
-7. **MCP 库选型。** 见 8.4，实现时评估。
+7. **MCP 库选型。**（已决定）手写，见文首“补充决定”；需要 resources 或服务端推送时再评估官方 SDK。
 8. **已有线路的批量下线。** 当前没有批量改状态的接口，可通过导入 JSON（同 `code`、新 `status`）完成；是否需要专门的批量接口？
 
 ## 15. 完成时的文档同步清单

@@ -9,6 +9,41 @@ import (
 )
 
 var (
+	// BffAccessTokensColumns holds the columns for the "bff_access_tokens" table.
+	BffAccessTokensColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "name", Type: field.TypeString},
+		{Name: "token_hash", Type: field.TypeString, Unique: true},
+		{Name: "audience", Type: field.TypeString},
+		{Name: "scopes", Type: field.TypeJSON},
+		{Name: "roles", Type: field.TypeJSON},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
+		{Name: "revoked_at", Type: field.TypeTime, Nullable: true},
+		{Name: "user_id", Type: field.TypeString},
+	}
+	// BffAccessTokensTable holds the schema information for the "bff_access_tokens" table.
+	BffAccessTokensTable = &schema.Table{
+		Name:       "bff_access_tokens",
+		Columns:    BffAccessTokensColumns,
+		PrimaryKey: []*schema.Column{BffAccessTokensColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "bff_access_tokens_auth_identities_access_tokens",
+				Columns:    []*schema.Column{BffAccessTokensColumns[10]},
+				RefColumns: []*schema.Column{AuthIdentitiesColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "bff_access_token_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{BffAccessTokensColumns[10]},
+			},
+		},
+	}
 	// AccountDeletionReceiptsColumns holds the columns for the "account_deletion_receipts" table.
 	AccountDeletionReceiptsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -36,6 +71,8 @@ var (
 		{Name: "expires_at", Type: field.TypeTime},
 		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
 		{Name: "revoked", Type: field.TypeBool, Default: false},
+		{Name: "roles", Type: field.TypeJSON, Nullable: true},
+		{Name: "authenticated_at", Type: field.TypeTime, Nullable: true},
 		{Name: "user_id", Type: field.TypeString},
 	}
 	// AuthBrowserSessionsTable holds the schema information for the "auth_browser_sessions" table.
@@ -46,7 +83,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "auth_browser_sessions_auth_identities_sessions",
-				Columns:    []*schema.Column{AuthBrowserSessionsColumns[6]},
+				Columns:    []*schema.Column{AuthBrowserSessionsColumns[8]},
 				RefColumns: []*schema.Column{AuthIdentitiesColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -55,7 +92,7 @@ var (
 			{
 				Name:    "browser_session_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{AuthBrowserSessionsColumns[6]},
+				Columns: []*schema.Column{AuthBrowserSessionsColumns[8]},
 			},
 			{
 				Name:    "browser_session_expires_at",
@@ -92,6 +129,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		BffAccessTokensTable,
 		AccountDeletionReceiptsTable,
 		AuthBrowserSessionsTable,
 		AuthIdentitiesTable,
@@ -99,6 +137,10 @@ var (
 )
 
 func init() {
+	BffAccessTokensTable.ForeignKeys[0].RefTable = AuthIdentitiesTable
+	BffAccessTokensTable.Annotation = &entsql.Annotation{
+		Table: "bff_access_tokens",
+	}
 	AuthBrowserSessionsTable.ForeignKeys[0].RefTable = AuthIdentitiesTable
 	AuthBrowserSessionsTable.Annotation = &entsql.Annotation{
 		Table: "auth_browser_sessions",

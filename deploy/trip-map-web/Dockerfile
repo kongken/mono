@@ -4,6 +4,7 @@ WORKDIR /app
 # Workspace manifests first so the dependency layer is cached until one changes.
 COPY package.json package-lock.json ./
 COPY apps/trip-map/package.json apps/trip-map/package.json
+COPY apps/metro/package.json apps/metro/package.json
 COPY packages/ui/package.json packages/ui/package.json
 COPY packages/api-client/package.json packages/api-client/package.json
 COPY packages/geo-data/package.json packages/geo-data/package.json

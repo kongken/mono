@@ -68,7 +68,7 @@ func (h *Handler) Me(ctx context.Context, _ *connect.Request[bffv1.MeRequest]) (
 	if !ok {
 		return nil, errUnauth
 	}
-	msg, err := h.svc.Me(ctx, bs.UserID)
+	msg, err := h.svc.Me(ctx, bs.UserID, bs.Roles)
 	if err != nil {
 		return nil, err
 	}

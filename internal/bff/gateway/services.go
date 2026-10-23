@@ -8,6 +8,11 @@ type Service struct {
 	// grpc.services entry in the configuration. Its upstreams entry stays for the
 	// health probe and for the routes not migrated yet.
 	GRPC bool
+	// Optional marks a product that not every deployment runs. It takes part in the
+	// BFF only when upstreams.<name> is configured; without it the service is left
+	// out of readiness, routing and account cleanup, so adding a product to the
+	// route table does not force every environment to deploy it.
+	Optional bool
 	// Packages is a legacy field for tests that still model extra upstreams.
 	Packages []string
 	// Routes are plain HTTP paths forwarded to the service's upstreams address.
@@ -22,6 +27,9 @@ type Route struct {
 	// Trace replaces the path and query in tracing spans when they carry a
 	// credential. Empty records the request as it is.
 	Trace string
+	// Method is the HTTP method a BFF-owned route answers; empty means GET (the
+	// browser-redirect routes of the login flow).
+	Method string
 	// Anonymous marks a path that needs no browser credential: Cookie, Authorization
 	// and every other client header except Accept and User-Agent are dropped before
 	// the request is forwarded.
@@ -40,7 +48,27 @@ var Services = []Service{{
 		// credentials, so it is traced as it is.
 		{Path: "/api/tiles/", Anonymous: true},
 	},
+}, {
+	// The metro product. Its browser API is bff.metro.v1 over Connect; its MCP
+	// endpoint is a BFF-owned route (BFFOwnedRoutes).
+	Name:     "metro",
+	GRPC:     true,
+	Optional: true,
 }}
+
+// Active returns the services of the route table that take part in this
+// deployment: every required service, and the optional ones that have an
+// upstream address configured.
+func Active(services []Service, upstreams map[string]string) []Service {
+	var out []Service
+	for _, s := range services {
+		if s.Optional && upstreams[s.Name] == "" {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
 
 // Names lists the services in the route table.
 func Names(services []Service) []string {
@@ -67,6 +95,9 @@ func GRPCNames(services []Service) []string {
 var BFFOwnedRoutes = []Route{
 	{Path: "/auth/login", Trace: "/auth/login"},
 	{Path: "/auth/callback/:provider", Trace: "/auth/callback/:provider"},
+	// The metro MCP endpoint (MCP Streamable HTTP, stateless). It takes a Bearer
+	// management token only and ignores Cookies; the handler is internal/bff/metro/mcp.
+	{Path: "/mcp/metro", Method: "POST"},
 }
 
 // BrowserHeaders supplements the shared Connect headers for BFF clients.

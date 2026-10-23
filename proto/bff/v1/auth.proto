@@ -91,6 +91,11 @@ message MeRequest {}
 
 message MeResponse {
   User user = 1;
+  // Roles the Logto account held when this session was signed in, such as
+  // "metro-admin". Clients may use them to show or hide entry points only;
+  // every server call checks the role again. Sessions created before roles were
+  // recorded have none.
+  repeated string roles = 2;
 }
 
 message ListSessionsRequest {}

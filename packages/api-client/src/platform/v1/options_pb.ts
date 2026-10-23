@@ -11,7 +11,7 @@ import { file_google_protobuf_descriptor } from "@bufbuild/protobuf/wkt";
  * Describes the file platform/v1/options.proto.
  */
 export const file_platform_v1_options: GenFile = /*@__PURE__*/
-  fileDesc("ChlwbGF0Zm9ybS92MS9vcHRpb25zLnByb3RvEgtwbGF0Zm9ybS52MTo+Cglhbm9ueW1vdXMSHi5nb29nbGUucHJvdG9idWYuTWV0aG9kT3B0aW9ucxi0hwMgASgIUglhbm9ueW1vdXNCOlo4Z2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL3BsYXRmb3JtL3YxO3BsYXRmb3JtdjFiBnByb3RvMw", [file_google_protobuf_descriptor]);
+  fileDesc("ChlwbGF0Zm9ybS92MS9vcHRpb25zLnByb3RvEgtwbGF0Zm9ybS52MTo+Cglhbm9ueW1vdXMSHi5nb29nbGUucHJvdG9idWYuTWV0aG9kT3B0aW9ucxi0hwMgASgIUglhbm9ueW1vdXM6RQoNcmVxdWlyZWRfcm9sZRIeLmdvb2dsZS5wcm90b2J1Zi5NZXRob2RPcHRpb25zGLWHAyABKAlSDHJlcXVpcmVkUm9sZUI6WjhnaXRodWIuY29tL2tvbmdrZW4vbW9uby9wa2cvcHJvdG8vcGxhdGZvcm0vdjE7cGxhdGZvcm12MWIGcHJvdG8z", [file_google_protobuf_descriptor]);
 
 /**
  * Marks a method that may be called without a signed-in user. Every method is
@@ -22,4 +22,16 @@ export const file_platform_v1_options: GenFile = /*@__PURE__*/
  */
 export const anonymous: GenExtension<MethodOptions, boolean> = /*@__PURE__*/
   extDesc(file_platform_v1_options, 0);
+
+/**
+ * Names the role a signed-in caller must hold, such as "metro-admin". The BFF
+ * checks the roles stored in the browser session, and the business service
+ * checks the roles carried by the internal credential, each independently.
+ * Methods without this option are not checked for roles. A role requirement
+ * does not make a method anonymous.
+ *
+ * @generated from extension: string required_role = 50101;
+ */
+export const required_role: GenExtension<MethodOptions, string> = /*@__PURE__*/
+  extDesc(file_platform_v1_options, 1);
 

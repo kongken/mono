@@ -1,4 +1,6 @@
-h1:5fE9ZwVUbNnfzqXK8BDMjmckwr6KJNKI5M+1Q0xni5k=
+h1:5RxzprG9W4MdxNtAEM3eyY4ZNizjwhHH2nVhbO6c1rU=
 20261017093114_auth_baseline.sql h1:tvzLVl4NxPb1PoWNzrhd7O7fE7HAcTdLTlxZe/97+YA=
 20261017120000_account_deletion_receipt.sql h1:EQUDHNVCqklW3AzaiIHDYfx30BAzYaRFtQBtpr2DJWY=
 20261023095053_logto_identity_mapping.sql h1:nohdX5SSMP+cBHK4Sg9KYRZ/sg9bTR6VahkgShRmA14=
+20261023161947_session_roles.sql h1:TmQ8zAaPUtIjzLgQQ29dl8ZSwyV1amzkI2XlSK2NjcE=
+20261023165605_access_tokens.sql h1:TqzYoPcRWWQ0jiFICI5OA/YDd0zGjW+XvbKUa9omY3I=

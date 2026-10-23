@@ -12,7 +12,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var errUnauthenticated = status.Error(codes.Unauthenticated, "invalid or missing service credential")
+var (
+	errUnauthenticated = status.Error(codes.Unauthenticated, "invalid or missing service credential")
+	errPermission      = status.Error(codes.PermissionDenied, "required role missing")
+)
 
 type mdCarrier metadata.MD
 
@@ -32,7 +35,9 @@ func (m mdCarrier) Keys() []string {
 }
 
 // authenticate verifies the credential for fullMethod and returns the context
-// handlers run under. Every failure is the same UNAUTHENTICATED error.
+// handlers run under. Every credential failure is the same UNAUTHENTICATED
+// error; a verified credential without the declared required_role is
+// PERMISSION_DENIED.
 func authenticate(ctx context.Context, v *servicetoken.Verifier, fullMethod string) (context.Context, error) {
 	md, _ := metadata.FromIncomingContext(ctx)
 	auth := md.Get(MetadataAuthorization)
@@ -51,11 +56,19 @@ func authenticate(ctx context.Context, v *servicetoken.Verifier, fullMethod stri
 	if claims.Subject == "" && !Anonymous(fullMethod) {
 		return nil, errUnauthenticated
 	}
+	// The role requirement is enforced here from the verified credential, so a
+	// service does not depend on the BFF having checked it.
+	if role := RequiredRole(fullMethod); role != "" && !HasRole(claims.Roles, role) {
+		return nil, errPermission
+	}
 	call := Call{
 		UserID:         claims.Subject,
+		Roles:          claims.Roles,
 		RequestID:      NormalizeRequestID(first(md, MetadataRequestID)),
 		TripmapSchema:  strings.TrimSpace(first(md, MetadataTripmapSchema)),
 		TripmapRegions: strings.TrimSpace(first(md, MetadataTripmapRegions)),
+		Channel:        NormalizeChannel(first(md, MetadataChannel)),
+		TokenID:        NormalizeTokenID(first(md, MetadataTokenID)),
 	}
 	call.ClientIP = validIP(first(md, MetadataClientIP))
 	if tp := first(md, MetadataTraceparent); traceparentPattern.MatchString(tp) {

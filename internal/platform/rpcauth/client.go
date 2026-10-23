@@ -18,13 +18,25 @@ import (
 func UnaryClientInterceptor(signer *servicetoken.Signer, audience string) grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		call := CallFrom(ctx)
-		token, err := signer.Sign(audience, method, call.UserID)
+		// Roles travel only to methods that declare a role requirement, so a
+		// service that never asks for roles never sees them.
+		var roles []string
+		if RequiredRole(method) != "" {
+			roles = call.Roles
+		}
+		token, err := signer.SignRoles(audience, method, call.UserID, roles)
 		if err != nil {
 			return status.Error(codes.Internal, "sign service credential")
 		}
 		md := metadata.Pairs(MetadataAuthorization, "Bearer "+token, MetadataRequestID, NormalizeRequestID(call.RequestID))
 		if ip := validIP(call.ClientIP); ip != "" {
 			md.Set(MetadataClientIP, ip)
+		}
+		if RequiredRole(method) != "" {
+			md.Set(MetadataChannel, NormalizeChannel(call.Channel))
+			if id := NormalizeTokenID(call.TokenID); id != "" {
+				md.Set(MetadataTokenID, id)
+			}
 		}
 		if call.TripmapSchema != "" {
 			md.Set(MetadataTripmapSchema, call.TripmapSchema)

@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package metro.v1;
+
+import "metro/v1/catalog.proto";
+import "platform/v1/options.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/metro/v1;metrov1";
+
+// RiderService keeps riders' profiles and the lines they have ridden. Everything
+// except GetPublicProfile acts on the signed-in caller only: the user comes from
+// the verified credential, never from a request field.
+service RiderService {
+  // GetPublicProfile returns a profile by handle. A profile that does not exist
+  // and one that is not public are indistinguishable: both are NOT_FOUND.
+  rpc GetPublicProfile(GetPublicProfileRequest) returns (GetPublicProfileResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  // GetMyProfile returns the caller's profile, or the defaults when none was
+  // written yet (nothing is created by reading).
+  rpc GetMyProfile(GetMyProfileRequest) returns (GetMyProfileResponse);
+  // UpdateMyProfile replaces every editable field and creates the profile on first use.
+  rpc UpdateMyProfile(UpdateMyProfileRequest) returns (UpdateMyProfileResponse);
+  rpc ListMyLines(ListMyLinesRequest) returns (ListMyLinesResponse);
+  // MarkLine records that the caller rode a line. Calling it again for the same
+  // line only changes the year. Retired and planned lines cannot be newly marked.
+  rpc MarkLine(MarkLineRequest) returns (MarkLineResponse);
+  // UnmarkLine removes the record; a line that was never marked succeeds too.
+  rpc UnmarkLine(UnmarkLineRequest) returns (UnmarkLineResponse);
+}
+
+message ProfileInput {
+  // Empty clears the handle. Lowercase letters, digits and underscores, 3 to 32
+  // characters, not a reserved word. Needed before the profile can be public.
+  string handle = 1;
+  string display_name = 2;
+  string subtitle = 3;
+  string bio = 4;
+  string location = 5;
+  // https image addresses, at most 8.
+  repeated string header_images = 6;
+  // Each is a username on the platform or an https link to its site; empty clears.
+  string twitter = 7;
+  string instagram = 8;
+  string weibo = 9;
+  string facebook = 10;
+  string github = 11;
+  // Private by default.
+  bool is_public = 12;
+}
+
+message GetMyProfileRequest {}
+message GetMyProfileResponse {
+  ProfileInput profile = 1;
+  // False until the first UpdateMyProfile.
+  bool exists = 2;
+}
+message UpdateMyProfileRequest { ProfileInput profile = 1; }
+message UpdateMyProfileResponse { ProfileInput profile = 1; }
+
+// PublicProfile is what a visitor may see.
+message PublicProfile {
+  string handle = 1;
+  string display_name = 2;
+  string subtitle = 3;
+  string bio = 4;
+  string location = 5;
+  repeated string header_images = 6;
+  string twitter = 7;
+  string instagram = 8;
+  string weibo = 9;
+  string facebook = 10;
+  string github = 11;
+}
+
+message RiddenLine {
+  string line_code = 1;
+  string line_name = 2;
+  // #RRGGBB.
+  string color = 3;
+  LineStatus status = 4;
+  double length_km = 5;
+  // 0 when the year is unknown.
+  int32 ridden_year = 6;
+}
+
+// RiddenCity groups a rider's lines by city, lines ordered by number (unnumbered last).
+message RiddenCity {
+  string city_slug = 1;
+  string city_name = 2;
+  repeated RiddenLine lines = 3;
+}
+
+message RiderStats {
+  int32 city_count = 1;
+  int32 line_count = 2;
+  double total_length_km = 3;
+}
+
+message GetPublicProfileRequest { string handle = 1; }
+message GetPublicProfileResponse {
+  PublicProfile profile = 1;
+  repeated RiddenCity cities = 2;
+  RiderStats stats = 3;
+}
+
+message ListMyLinesRequest {}
+message ListMyLinesResponse {
+  repeated RiddenCity cities = 1;
+  RiderStats stats = 2;
+}
+
+message MarkLineRequest {
+  string line_code = 1;
+  // 1900 to the current year; absent means unknown.
+  optional int32 ridden_year = 2;
+}
+message MarkLineResponse { RiddenLine line = 1; }
+
+message UnmarkLineRequest { string line_code = 1; }
+message UnmarkLineResponse {}

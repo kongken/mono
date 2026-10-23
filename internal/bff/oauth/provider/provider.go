@@ -29,6 +29,9 @@ type Claims struct {
 	Email string
 	// AvatarURL is a URL to the user's avatar image. Optional.
 	AvatarURL string
+	// Roles are the role names in the userinfo "roles" claim. Empty when the
+	// "roles" scope was not granted or the account holds no role.
+	Roles []string
 }
 
 // Provider abstracts the configured Logto login provider.

@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/kongken/mono/internal/bff/ent/predicate"
 	"github.com/kongken/mono/internal/bff/ent/session"
@@ -73,6 +74,24 @@ func (_u *SessionUpdate) SetNillableRevoked(v *bool) *SessionUpdate {
 	if v != nil {
 		_u.SetRevoked(*v)
 	}
+	return _u
+}
+
+// SetRoles sets the "roles" field.
+func (_u *SessionUpdate) SetRoles(v []string) *SessionUpdate {
+	_u.mutation.SetRoles(v)
+	return _u
+}
+
+// AppendRoles appends value to the "roles" field.
+func (_u *SessionUpdate) AppendRoles(v []string) *SessionUpdate {
+	_u.mutation.AppendRoles(v)
+	return _u
+}
+
+// ClearRoles clears the value of the "roles" field.
+func (_u *SessionUpdate) ClearRoles() *SessionUpdate {
+	_u.mutation.ClearRoles()
 	return _u
 }
 
@@ -140,6 +159,20 @@ func (_u *SessionUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Revoked(); ok {
 		_spec.SetField(session.FieldRevoked, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.Roles(); ok {
+		_spec.SetField(session.FieldRoles, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedRoles(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, session.FieldRoles, value)
+		})
+	}
+	if _u.mutation.RolesCleared() {
+		_spec.ClearField(session.FieldRoles, field.TypeJSON)
+	}
+	if _u.mutation.AuthenticatedAtCleared() {
+		_spec.ClearField(session.FieldAuthenticatedAt, field.TypeTime)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{session.Label}
@@ -205,6 +238,24 @@ func (_u *SessionUpdateOne) SetNillableRevoked(v *bool) *SessionUpdateOne {
 	if v != nil {
 		_u.SetRevoked(*v)
 	}
+	return _u
+}
+
+// SetRoles sets the "roles" field.
+func (_u *SessionUpdateOne) SetRoles(v []string) *SessionUpdateOne {
+	_u.mutation.SetRoles(v)
+	return _u
+}
+
+// AppendRoles appends value to the "roles" field.
+func (_u *SessionUpdateOne) AppendRoles(v []string) *SessionUpdateOne {
+	_u.mutation.AppendRoles(v)
+	return _u
+}
+
+// ClearRoles clears the value of the "roles" field.
+func (_u *SessionUpdateOne) ClearRoles() *SessionUpdateOne {
+	_u.mutation.ClearRoles()
 	return _u
 }
 
@@ -301,6 +352,20 @@ func (_u *SessionUpdateOne) sqlSave(ctx context.Context) (_node *Session, err er
 	}
 	if value, ok := _u.mutation.Revoked(); ok {
 		_spec.SetField(session.FieldRevoked, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.Roles(); ok {
+		_spec.SetField(session.FieldRoles, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedRoles(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, session.FieldRoles, value)
+		})
+	}
+	if _u.mutation.RolesCleared() {
+		_spec.ClearField(session.FieldRoles, field.TypeJSON)
+	}
+	if _u.mutation.AuthenticatedAtCleared() {
+		_spec.ClearField(session.FieldAuthenticatedAt, field.TypeTime)
 	}
 	_node = &Session{config: _u.config}
 	_spec.Assign = _node.assignValues

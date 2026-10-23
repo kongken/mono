@@ -1,4 +1,7 @@
 # Example production-style stack: trip-map-web (Nginx) + BFF + tripmap + dependencies.
+# metro (the second product) and metro-web are optional: delete both services, the
+# `metro` upstream and grpc service in config.bff.yaml, and the metro entries of
+# auth.account_cleanup / auth.oauth_apps to run without it.
 # Copy configs from config.tripmap.example.yaml / config.bff.example.yaml; run `make dev-secrets`
 # for signing keys, or configure inline PEM keys. Local configs use h2c (no TLS files).
 # TLS deployments need explicit TLS config and certificates (see docs/deployment.md).
@@ -65,12 +68,37 @@ services:
       BUTTERFLY_CONFIG_FILE_PATH: /config/config.yaml
       PORT: "18081"
     expose: ["18081"]
-    depends_on: [tripmap, postgres, redis]
+    depends_on: [tripmap, metro, postgres, redis]
+    networks: [internal]
+
+  # metro needs its own database (see config.metro.example.yaml) in the same
+  # PostgreSQL server; like tripmap, it must NOT be published to the internet.
+  metro:
+    image: ghcr.io/kongken/mono-metro:main
+    volumes:
+      - ./config.metro.yaml:/config/config.yaml:ro
+      - ./secrets/bff.pub:/secrets/bff.pub:ro
+    environment:
+      BUTTERFLY_CONFIG_TYPE: file
+      BUTTERFLY_CONFIG_FILE_PATH: /config/config.yaml
+      PORT: "18084"
+    expose: ["18084", "18085"]
+    depends_on:
+      postgres: { condition: service_healthy }
     networks: [internal]
 
   trip-map-web:
     image: ghcr.io/kongken/mono-trip-map-web:main
     ports: ["443:443", "80:80"]
+    environment:
+      BACKEND_UPSTREAM: bff:18081
+    depends_on: [bff]
+    networks: [internal, edge]
+
+  # Serve it on its own host name (the BFF's auth.oauth_apps.metro.origin) from the
+  # edge proxy, or publish a port here. It proxies /api, /auth and /mcp/metro to the BFF.
+  metro-web:
+    image: ghcr.io/kongken/mono-metro-web:main
     environment:
       BACKEND_UPSTREAM: bff:18081
     depends_on: [bff]

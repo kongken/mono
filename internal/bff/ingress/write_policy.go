@@ -3,6 +3,7 @@ package ingress
 import (
 	"strings"
 
+	"github.com/kongken/mono/pkg/proto/bff/metro/v1/bffmetrov1connect"
 	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 )
@@ -16,6 +17,8 @@ var readOnlyProcedures = map[string]bool{
 	bffv1connect.AuthServiceListSessionsProcedure:       true,
 	bffv1connect.AuthServiceIssueCSRFTokenProcedure:     true,
 	bffv1connect.AuthServiceListOAuthProvidersProcedure: true,
+
+	bffv1connect.AccessTokenServiceListAccessTokensProcedure: true,
 
 	bfftripmapv1connect.FootprintServiceGetChangesProcedure:    true,
 	bfftripmapv1connect.FootprintServiceGetFootprintsProcedure: true,
@@ -45,6 +48,24 @@ var readOnlyProcedures = map[string]bool{
 
 	bfftripmapv1connect.RegionServiceGetRegionIndexProcedure:       true,
 	bfftripmapv1connect.RegionServicePreviewRegionUpgradeProcedure: true,
+
+	bffmetrov1connect.CatalogServiceListCitiesProcedure:             true,
+	bffmetrov1connect.CatalogServiceGetCityProcedure:                true,
+	bffmetrov1connect.CatalogServiceListLinesProcedure:              true,
+	bffmetrov1connect.CatalogServiceListRollingStockTopicsProcedure: true,
+	bffmetrov1connect.CatalogServiceGetRollingStockTopicProcedure:   true,
+
+	bffmetrov1connect.RiderServiceGetPublicProfileProcedure: true,
+	bffmetrov1connect.RiderServiceGetMyProfileProcedure:     true,
+	bffmetrov1connect.RiderServiceListMyLinesProcedure:      true,
+
+	// Administrator reads. They still need the metro-admin role.
+	bffmetrov1connect.AdminServiceListAdminCitiesProcedure:             true,
+	bffmetrov1connect.AdminServiceListAdminRollingStocksProcedure:      true,
+	bffmetrov1connect.AdminServiceListAdminLinesProcedure:              true,
+	bffmetrov1connect.AdminServiceListAdminRollingStockTopicsProcedure: true,
+	bffmetrov1connect.AdminServiceExportCatalogProcedure:               true,
+	bffmetrov1connect.AdminServiceListAuditLogsProcedure:               true,
 }
 
 // RequiresWriteProtection reports whether Origin/CSRF must be validated for procedure.

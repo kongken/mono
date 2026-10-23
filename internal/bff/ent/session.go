@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -30,6 +31,10 @@ type Session struct {
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 	// Revoked holds the value of the "revoked" field.
 	Revoked bool `json:"revoked,omitempty"`
+	// Roles holds the value of the "roles" field.
+	Roles []string `json:"roles,omitempty"`
+	// AuthenticatedAt holds the value of the "authenticated_at" field.
+	AuthenticatedAt *time.Time `json:"authenticated_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the SessionQuery when eager-loading is set.
 	Edges        SessionEdges `json:"edges"`
@@ -61,11 +66,13 @@ func (*Session) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case session.FieldRoles:
+			values[i] = new([]byte)
 		case session.FieldRevoked:
 			values[i] = new(sql.NullBool)
 		case session.FieldID, session.FieldUserID, session.FieldTokenHash:
 			values[i] = new(sql.NullString)
-		case session.FieldCreatedAt, session.FieldExpiresAt, session.FieldLastUsedAt:
+		case session.FieldCreatedAt, session.FieldExpiresAt, session.FieldLastUsedAt, session.FieldAuthenticatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -124,6 +131,21 @@ func (_m *Session) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field revoked", values[i])
 			} else if value.Valid {
 				_m.Revoked = value.Bool
+			}
+		case session.FieldRoles:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field roles", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.Roles); err != nil {
+					return fmt.Errorf("unmarshal field roles: %w", err)
+				}
+			}
+		case session.FieldAuthenticatedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field authenticated_at", values[i])
+			} else if value.Valid {
+				_m.AuthenticatedAt = new(time.Time)
+				*_m.AuthenticatedAt = value.Time
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -184,6 +206,14 @@ func (_m *Session) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("revoked=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Revoked))
+	builder.WriteString(", ")
+	builder.WriteString("roles=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Roles))
+	builder.WriteString(", ")
+	if v := _m.AuthenticatedAt; v != nil {
+		builder.WriteString("authenticated_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/kongken/mono/internal/bff/ingress"
 	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/platform/rpcauth"
+	"github.com/kongken/mono/internal/platform/testkit"
 	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
 	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 	_ "github.com/kongken/mono/pkg/proto/tripmap/v1" // registers the protected methods used below
@@ -164,6 +165,66 @@ func TestProceduresAreProtectedUnlessDeclaredAnonymous(t *testing.T) {
 	seen, client = intercepted(t, policy, anonymousProcedure)
 	if _, err = client.CallUnary(context.Background(), connect.NewRequest(&bfftripmapv1.GetStatusRequest{})); err != nil || seen.call.UserID != "" {
 		t.Fatalf("anonymous procedure with a session: err=%v user=%q", err, seen.call.UserID)
+	}
+}
+
+func TestRequiredRoleIsCheckedAtTheEdge(t *testing.T) {
+	testkit.RegisterRoleProbe()
+	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
+	policyFor := func(bs session.BrowserSession, signedIn bool) ingress.Policy {
+		return ingress.Policy{
+			AdminSessionMaxAge: 12 * time.Hour,
+			Now:                func() time.Time { return now },
+			Authenticate: func(context.Context, http.Header) (session.BrowserSession, error) {
+				if !signedIn {
+					return session.BrowserSession{}, connect.NewError(connect.CodeUnauthenticated, nil)
+				}
+				return bs, nil
+			},
+		}
+	}
+	admin := session.BrowserSession{UserID: "u1", SessionID: "s1", Roles: []string{testkit.ProbeRole}, AuthenticatedAt: now.Add(-time.Hour)}
+	call := func(policy ingress.Policy, procedure string) (*probe, error) {
+		seen, client := intercepted(t, policy, procedure)
+		_, err := client.CallUnary(context.Background(), writeSafeReq())
+		return seen, err
+	}
+
+	seen, err := call(policyFor(admin, true), testkit.AdminProcedure)
+	if err != nil || !seen.called || !rpcauth.HasRole(seen.call.Roles, testkit.ProbeRole) {
+		t.Fatalf("admin: err=%v called=%v roles=%v", err, seen.called, seen.call.Roles)
+	}
+	// A procedure without the option does not carry roles on to the credential layer.
+	if seen, err = call(policyFor(admin, true), testkit.OpenProcedure); err != nil || len(seen.call.Roles) != 0 {
+		t.Fatalf("open procedure: err=%v roles=%v", err, seen.call.Roles)
+	}
+	if seen, err = call(policyFor(admin, false), testkit.AdminProcedure); connect.CodeOf(err) != connect.CodeUnauthenticated || seen.called {
+		t.Fatalf("anonymous: %v", err)
+	}
+	plain := admin
+	plain.Roles = nil
+	if seen, err = call(policyFor(plain, true), testkit.AdminProcedure); connect.CodeOf(err) != connect.CodePermissionDenied || seen.called {
+		t.Fatalf("no role: %v", err)
+	}
+	// A session from before roles were recorded has no roles and no authentication time.
+	legacy := session.BrowserSession{UserID: "u1", SessionID: "s1"}
+	if seen, err = call(policyFor(legacy, true), testkit.AdminProcedure); connect.CodeOf(err) != connect.CodePermissionDenied || seen.called {
+		t.Fatalf("legacy session: %v", err)
+	}
+	// An old session loses admin access only; ordinary procedures keep working.
+	old := admin
+	old.AuthenticatedAt = now.Add(-13 * time.Hour)
+	if seen, err = call(policyFor(old, true), testkit.AdminProcedure); connect.CodeOf(err) != connect.CodeUnauthenticated || seen.called {
+		t.Fatalf("old session on admin procedure: %v", err)
+	}
+	if seen, err = call(policyFor(old, true), testkit.OpenProcedure); err != nil || !seen.called {
+		t.Fatalf("old session on ordinary procedure: %v", err)
+	}
+	// A non-admin with an old session is told about the role, not asked to sign in again.
+	oldPlain := plain
+	oldPlain.AuthenticatedAt = now.Add(-48 * time.Hour)
+	if _, err = call(policyFor(oldPlain, true), testkit.AdminProcedure); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("old non-admin: %v", err)
 	}
 }
 

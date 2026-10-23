@@ -57,14 +57,14 @@ func TestLogtoSessionMeLogoutAndProfileRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	me, err := svc.Me(t.Context(), bs.UserID)
+	me, err := svc.Me(t.Context(), bs.UserID, bs.Roles)
 	if err != nil || me.User.DisplayName != "Alice" {
 		t.Fatalf("me: %v %v", me, err)
 	}
 	p.claims.Name = "New name"
 	p.claims.Login = "renamed"
 	signIn(t, h)
-	me, err = svc.Me(t.Context(), bs.UserID)
+	me, err = svc.Me(t.Context(), bs.UserID, bs.Roles)
 	if err != nil || me.User.DisplayName != "New name" || me.User.Username != "renamed" {
 		t.Fatalf("refresh: %v %v", me, err)
 	}
