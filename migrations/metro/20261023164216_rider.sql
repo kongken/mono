@@ -1,0 +1,10 @@
+-- Create "rider_profiles" table
+CREATE TABLE "rider_profiles" ("user_id" character varying NOT NULL, "handle" character varying NULL, "display_name" character varying NOT NULL DEFAULT '', "subtitle" character varying NOT NULL DEFAULT '', "bio" character varying NOT NULL DEFAULT '', "location" character varying NOT NULL DEFAULT '', "header_images" jsonb NOT NULL, "twitter" character varying NOT NULL DEFAULT '', "instagram" character varying NOT NULL DEFAULT '', "weibo" character varying NOT NULL DEFAULT '', "facebook" character varying NOT NULL DEFAULT '', "github" character varying NOT NULL DEFAULT '', "is_public" boolean NOT NULL DEFAULT false, "created_at" timestamptz NOT NULL, "updated_at" timestamptz NOT NULL, PRIMARY KEY ("user_id"), CONSTRAINT "rider_profiles_bio_length" CHECK (char_length((bio)::text) <= 500), CONSTRAINT "rider_profiles_handle_format" CHECK ((handle IS NULL) OR ((handle)::text ~ '^[a-z0-9_]{3,32}$'::text)), CONSTRAINT "rider_profiles_images_limit" CHECK (jsonb_array_length(header_images) <= 8), CONSTRAINT "rider_profiles_public_handle" CHECK ((NOT is_public) OR (handle IS NOT NULL)));
+-- Create index "rider_profiles_handle_key" to table: "rider_profiles"
+CREATE UNIQUE INDEX "rider_profiles_handle_key" ON "rider_profiles" ("handle");
+-- Create "rider_lines" table
+CREATE TABLE "rider_lines" ("id" character varying NOT NULL, "user_id" character varying NOT NULL, "ridden_year" bigint NULL, "created_at" timestamptz NOT NULL, "updated_at" timestamptz NOT NULL, "line_id" character varying NOT NULL, PRIMARY KEY ("id"), CONSTRAINT "rider_lines_lines_line" FOREIGN KEY ("line_id") REFERENCES "lines" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT, CONSTRAINT "rider_lines_year" CHECK ((ridden_year IS NULL) OR (ridden_year >= 1900)));
+-- Create index "riderline_line_id" to table: "rider_lines"
+CREATE INDEX "riderline_line_id" ON "rider_lines" ("line_id");
+-- Create index "riderline_user_id_line_id" to table: "rider_lines"
+CREATE UNIQUE INDEX "riderline_user_id_line_id" ON "rider_lines" ("user_id", "line_id");

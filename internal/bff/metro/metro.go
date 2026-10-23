@@ -11,6 +11,7 @@ import (
 	"github.com/kongken/mono/internal/bff/ingress"
 	"github.com/kongken/mono/internal/bff/metro/admin"
 	"github.com/kongken/mono/internal/bff/metro/catalog"
+	"github.com/kongken/mono/internal/bff/metro/rider"
 	"github.com/kongken/mono/pkg/proto/bff/metro/v1/bffmetrov1connect"
 	metrov1 "github.com/kongken/mono/pkg/proto/metro/v1"
 	"google.golang.org/grpc"
@@ -39,4 +40,5 @@ func MountRPC(mux *http.ServeMux, conn *grpc.ClientConn, opts []connect.HandlerO
 	mount(bffmetrov1connect.NewCatalogServiceHandler(catalog.New(metrov1.NewCatalogServiceClient(conn)), opts...))
 	mount(bffmetrov1connect.NewAdminServiceHandler(admin.New(metrov1.NewAdminServiceClient(conn)),
 		append(opts[:len(opts):len(opts)], connect.WithReadMaxBytes(adminReadMaxBytes))...))
+	mount(bffmetrov1connect.NewRiderServiceHandler(rider.New(metrov1.NewRiderServiceClient(conn)), opts...))
 }

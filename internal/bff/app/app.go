@@ -223,6 +223,8 @@ func (h *Handlers) cleaners(clients *upstream.Clients) []bffauth.UserDataCleaner
 		switch name {
 		case bfftripmap.Service:
 			out = append(out, bfftripmap.NewCleaner(conn))
+		case bffmetro.Service:
+			out = append(out, bffmetro.NewCleaner(conn))
 		}
 	}
 	return out

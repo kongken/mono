@@ -53,6 +53,10 @@ var readOnlyProcedures = map[string]bool{
 	bffmetrov1connect.CatalogServiceListRollingStockTopicsProcedure: true,
 	bffmetrov1connect.CatalogServiceGetRollingStockTopicProcedure:   true,
 
+	bffmetrov1connect.RiderServiceGetPublicProfileProcedure: true,
+	bffmetrov1connect.RiderServiceGetMyProfileProcedure:     true,
+	bffmetrov1connect.RiderServiceListMyLinesProcedure:      true,
+
 	// Administrator reads. They still need the metro-admin role.
 	bffmetrov1connect.AdminServiceListAdminCitiesProcedure:             true,
 	bffmetrov1connect.AdminServiceListAdminRollingStocksProcedure:      true,

@@ -9,6 +9,8 @@ import (
 	"github.com/kongken/mono/internal/metro/ent/catalogstate"
 	"github.com/kongken/mono/internal/metro/ent/city"
 	"github.com/kongken/mono/internal/metro/ent/line"
+	"github.com/kongken/mono/internal/metro/ent/riderline"
+	"github.com/kongken/mono/internal/metro/ent/riderprofile"
 	"github.com/kongken/mono/internal/metro/ent/rollingstock"
 	"github.com/kongken/mono/internal/metro/ent/rollingstocktopic"
 	"github.com/kongken/mono/internal/metro/ent/schema"
@@ -170,6 +172,86 @@ func init() {
 	lineDescID := lineFields[0].Descriptor()
 	// line.DefaultID holds the default value on creation for the id field.
 	line.DefaultID = lineDescID.Default.(func() string)
+	riderlineFields := schema.RiderLine{}.Fields()
+	_ = riderlineFields
+	// riderlineDescUserID is the schema descriptor for user_id field.
+	riderlineDescUserID := riderlineFields[1].Descriptor()
+	// riderline.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	riderline.UserIDValidator = riderlineDescUserID.Validators[0].(func(string) error)
+	// riderlineDescCreatedAt is the schema descriptor for created_at field.
+	riderlineDescCreatedAt := riderlineFields[4].Descriptor()
+	// riderline.DefaultCreatedAt holds the default value on creation for the created_at field.
+	riderline.DefaultCreatedAt = riderlineDescCreatedAt.Default.(func() time.Time)
+	// riderlineDescUpdatedAt is the schema descriptor for updated_at field.
+	riderlineDescUpdatedAt := riderlineFields[5].Descriptor()
+	// riderline.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	riderline.DefaultUpdatedAt = riderlineDescUpdatedAt.Default.(func() time.Time)
+	// riderline.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	riderline.UpdateDefaultUpdatedAt = riderlineDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// riderlineDescID is the schema descriptor for id field.
+	riderlineDescID := riderlineFields[0].Descriptor()
+	// riderline.DefaultID holds the default value on creation for the id field.
+	riderline.DefaultID = riderlineDescID.Default.(func() string)
+	riderprofileFields := schema.RiderProfile{}.Fields()
+	_ = riderprofileFields
+	// riderprofileDescDisplayName is the schema descriptor for display_name field.
+	riderprofileDescDisplayName := riderprofileFields[2].Descriptor()
+	// riderprofile.DefaultDisplayName holds the default value on creation for the display_name field.
+	riderprofile.DefaultDisplayName = riderprofileDescDisplayName.Default.(string)
+	// riderprofileDescSubtitle is the schema descriptor for subtitle field.
+	riderprofileDescSubtitle := riderprofileFields[3].Descriptor()
+	// riderprofile.DefaultSubtitle holds the default value on creation for the subtitle field.
+	riderprofile.DefaultSubtitle = riderprofileDescSubtitle.Default.(string)
+	// riderprofileDescBio is the schema descriptor for bio field.
+	riderprofileDescBio := riderprofileFields[4].Descriptor()
+	// riderprofile.DefaultBio holds the default value on creation for the bio field.
+	riderprofile.DefaultBio = riderprofileDescBio.Default.(string)
+	// riderprofileDescLocation is the schema descriptor for location field.
+	riderprofileDescLocation := riderprofileFields[5].Descriptor()
+	// riderprofile.DefaultLocation holds the default value on creation for the location field.
+	riderprofile.DefaultLocation = riderprofileDescLocation.Default.(string)
+	// riderprofileDescHeaderImages is the schema descriptor for header_images field.
+	riderprofileDescHeaderImages := riderprofileFields[6].Descriptor()
+	// riderprofile.DefaultHeaderImages holds the default value on creation for the header_images field.
+	riderprofile.DefaultHeaderImages = riderprofileDescHeaderImages.Default.([]string)
+	// riderprofileDescTwitter is the schema descriptor for twitter field.
+	riderprofileDescTwitter := riderprofileFields[7].Descriptor()
+	// riderprofile.DefaultTwitter holds the default value on creation for the twitter field.
+	riderprofile.DefaultTwitter = riderprofileDescTwitter.Default.(string)
+	// riderprofileDescInstagram is the schema descriptor for instagram field.
+	riderprofileDescInstagram := riderprofileFields[8].Descriptor()
+	// riderprofile.DefaultInstagram holds the default value on creation for the instagram field.
+	riderprofile.DefaultInstagram = riderprofileDescInstagram.Default.(string)
+	// riderprofileDescWeibo is the schema descriptor for weibo field.
+	riderprofileDescWeibo := riderprofileFields[9].Descriptor()
+	// riderprofile.DefaultWeibo holds the default value on creation for the weibo field.
+	riderprofile.DefaultWeibo = riderprofileDescWeibo.Default.(string)
+	// riderprofileDescFacebook is the schema descriptor for facebook field.
+	riderprofileDescFacebook := riderprofileFields[10].Descriptor()
+	// riderprofile.DefaultFacebook holds the default value on creation for the facebook field.
+	riderprofile.DefaultFacebook = riderprofileDescFacebook.Default.(string)
+	// riderprofileDescGithub is the schema descriptor for github field.
+	riderprofileDescGithub := riderprofileFields[11].Descriptor()
+	// riderprofile.DefaultGithub holds the default value on creation for the github field.
+	riderprofile.DefaultGithub = riderprofileDescGithub.Default.(string)
+	// riderprofileDescIsPublic is the schema descriptor for is_public field.
+	riderprofileDescIsPublic := riderprofileFields[12].Descriptor()
+	// riderprofile.DefaultIsPublic holds the default value on creation for the is_public field.
+	riderprofile.DefaultIsPublic = riderprofileDescIsPublic.Default.(bool)
+	// riderprofileDescCreatedAt is the schema descriptor for created_at field.
+	riderprofileDescCreatedAt := riderprofileFields[13].Descriptor()
+	// riderprofile.DefaultCreatedAt holds the default value on creation for the created_at field.
+	riderprofile.DefaultCreatedAt = riderprofileDescCreatedAt.Default.(func() time.Time)
+	// riderprofileDescUpdatedAt is the schema descriptor for updated_at field.
+	riderprofileDescUpdatedAt := riderprofileFields[14].Descriptor()
+	// riderprofile.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	riderprofile.DefaultUpdatedAt = riderprofileDescUpdatedAt.Default.(func() time.Time)
+	// riderprofile.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	riderprofile.UpdateDefaultUpdatedAt = riderprofileDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// riderprofileDescID is the schema descriptor for id field.
+	riderprofileDescID := riderprofileFields[0].Descriptor()
+	// riderprofile.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	riderprofile.IDValidator = riderprofileDescID.Validators[0].(func(string) error)
 	rollingstockFields := schema.RollingStock{}.Fields()
 	_ = rollingstockFields
 	// rollingstockDescRevision is the schema descriptor for revision field.

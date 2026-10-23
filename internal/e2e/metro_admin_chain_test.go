@@ -7,7 +7,11 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/kongken/mono/internal/platform/rpcauth"
 	bffmetrov1 "github.com/kongken/mono/pkg/proto/bff/metro/v1"
+	metrov1 "github.com/kongken/mono/pkg/proto/metro/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func adminWrite[T any](t *testing.T, b *Browser, msg *T) *connect.Request[T] {
@@ -174,3 +178,28 @@ func TestChainMetroImportThroughTheBFF(t *testing.T) {
 }
 
 func errorAs(err error, target **connect.Error) bool { return errors.As(err, target) }
+
+// metro enforces required_role itself: a credential that names a user but carries
+// no metro-admin role is refused even when the BFF is bypassed.
+func TestChainMetroRefusesAdminCallsWithoutTheRoleInTheCredential(t *testing.T) {
+	h := NewChainHarness(t, ChainMetro{})
+	client := metrov1.NewAdminServiceClient(h.DirectMetroGRPC())
+	call := func(roles ...string) error {
+		ctx := rpcauth.WithCall(context.Background(), rpcauth.Call{UserID: "mallory", Roles: roles, RequestID: "direct"})
+		_, err := client.ListAdminCities(ctx, &metrov1.ListAdminCitiesRequest{})
+		return err
+	}
+	for name, roles := range map[string][]string{"no roles": nil, "other role": {"metro-viewer"}} {
+		if err := call(roles...); status.Code(err) != codes.PermissionDenied {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if err := call("metro-admin"); err != nil {
+		t.Fatalf("with the role: %v", err)
+	}
+	// An anonymous credential never reaches the admin API.
+	_, err := client.ListAdminCities(context.Background(), &metrov1.ListAdminCitiesRequest{})
+	if status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("anonymous: %v", err)
+	}
+}

@@ -19,6 +19,8 @@ import (
 	"github.com/kongken/mono/internal/metro/ent/catalogstate"
 	"github.com/kongken/mono/internal/metro/ent/city"
 	"github.com/kongken/mono/internal/metro/ent/line"
+	"github.com/kongken/mono/internal/metro/ent/riderline"
+	"github.com/kongken/mono/internal/metro/ent/riderprofile"
 	"github.com/kongken/mono/internal/metro/ent/rollingstock"
 	"github.com/kongken/mono/internal/metro/ent/rollingstocktopic"
 )
@@ -36,6 +38,10 @@ type Client struct {
 	City *CityClient
 	// Line is the client for interacting with the Line builders.
 	Line *LineClient
+	// RiderLine is the client for interacting with the RiderLine builders.
+	RiderLine *RiderLineClient
+	// RiderProfile is the client for interacting with the RiderProfile builders.
+	RiderProfile *RiderProfileClient
 	// RollingStock is the client for interacting with the RollingStock builders.
 	RollingStock *RollingStockClient
 	// RollingStockTopic is the client for interacting with the RollingStockTopic builders.
@@ -55,6 +61,8 @@ func (c *Client) init() {
 	c.CatalogState = NewCatalogStateClient(c.config)
 	c.City = NewCityClient(c.config)
 	c.Line = NewLineClient(c.config)
+	c.RiderLine = NewRiderLineClient(c.config)
+	c.RiderProfile = NewRiderProfileClient(c.config)
 	c.RollingStock = NewRollingStockClient(c.config)
 	c.RollingStockTopic = NewRollingStockTopicClient(c.config)
 }
@@ -153,6 +161,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		CatalogState:      NewCatalogStateClient(cfg),
 		City:              NewCityClient(cfg),
 		Line:              NewLineClient(cfg),
+		RiderLine:         NewRiderLineClient(cfg),
+		RiderProfile:      NewRiderProfileClient(cfg),
 		RollingStock:      NewRollingStockClient(cfg),
 		RollingStockTopic: NewRollingStockTopicClient(cfg),
 	}, nil
@@ -178,6 +188,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		CatalogState:      NewCatalogStateClient(cfg),
 		City:              NewCityClient(cfg),
 		Line:              NewLineClient(cfg),
+		RiderLine:         NewRiderLineClient(cfg),
+		RiderProfile:      NewRiderProfileClient(cfg),
 		RollingStock:      NewRollingStockClient(cfg),
 		RollingStockTopic: NewRollingStockTopicClient(cfg),
 	}, nil
@@ -209,8 +221,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AdminAuditLog, c.CatalogState, c.City, c.Line, c.RollingStock,
-		c.RollingStockTopic,
+		c.AdminAuditLog, c.CatalogState, c.City, c.Line, c.RiderLine, c.RiderProfile,
+		c.RollingStock, c.RollingStockTopic,
 	} {
 		n.Use(hooks...)
 	}
@@ -220,8 +232,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AdminAuditLog, c.CatalogState, c.City, c.Line, c.RollingStock,
-		c.RollingStockTopic,
+		c.AdminAuditLog, c.CatalogState, c.City, c.Line, c.RiderLine, c.RiderProfile,
+		c.RollingStock, c.RollingStockTopic,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -238,6 +250,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.City.mutate(ctx, m)
 	case *LineMutation:
 		return c.Line.mutate(ctx, m)
+	case *RiderLineMutation:
+		return c.RiderLine.mutate(ctx, m)
+	case *RiderProfileMutation:
+		return c.RiderProfile.mutate(ctx, m)
 	case *RollingStockMutation:
 		return c.RollingStock.mutate(ctx, m)
 	case *RollingStockTopicMutation:
@@ -827,6 +843,288 @@ func (c *LineClient) mutate(ctx context.Context, m *LineMutation) (Value, error)
 	}
 }
 
+// RiderLineClient is a client for the RiderLine schema.
+type RiderLineClient struct {
+	config
+}
+
+// NewRiderLineClient returns a client for the RiderLine from the given config.
+func NewRiderLineClient(c config) *RiderLineClient {
+	return &RiderLineClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `riderline.Hooks(f(g(h())))`.
+func (c *RiderLineClient) Use(hooks ...Hook) {
+	c.hooks.RiderLine = append(c.hooks.RiderLine, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `riderline.Intercept(f(g(h())))`.
+func (c *RiderLineClient) Intercept(interceptors ...Interceptor) {
+	c.inters.RiderLine = append(c.inters.RiderLine, interceptors...)
+}
+
+// Create returns a builder for creating a RiderLine entity.
+func (c *RiderLineClient) Create() *RiderLineCreate {
+	mutation := newRiderLineMutation(c.config, OpCreate)
+	return &RiderLineCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of RiderLine entities.
+func (c *RiderLineClient) CreateBulk(builders ...*RiderLineCreate) *RiderLineCreateBulk {
+	return &RiderLineCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *RiderLineClient) MapCreateBulk(slice any, setFunc func(*RiderLineCreate, int)) *RiderLineCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &RiderLineCreateBulk{err: fmt.Errorf("calling to RiderLineClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*RiderLineCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &RiderLineCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for RiderLine.
+func (c *RiderLineClient) Update() *RiderLineUpdate {
+	mutation := newRiderLineMutation(c.config, OpUpdate)
+	return &RiderLineUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *RiderLineClient) UpdateOne(_m *RiderLine) *RiderLineUpdateOne {
+	mutation := newRiderLineMutation(c.config, OpUpdateOne, withRiderLine(_m))
+	return &RiderLineUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *RiderLineClient) UpdateOneID(id string) *RiderLineUpdateOne {
+	mutation := newRiderLineMutation(c.config, OpUpdateOne, withRiderLineID(id))
+	return &RiderLineUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for RiderLine.
+func (c *RiderLineClient) Delete() *RiderLineDelete {
+	mutation := newRiderLineMutation(c.config, OpDelete)
+	return &RiderLineDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *RiderLineClient) DeleteOne(_m *RiderLine) *RiderLineDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *RiderLineClient) DeleteOneID(id string) *RiderLineDeleteOne {
+	builder := c.Delete().Where(riderline.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &RiderLineDeleteOne{builder}
+}
+
+// Query returns a query builder for RiderLine.
+func (c *RiderLineClient) Query() *RiderLineQuery {
+	return &RiderLineQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeRiderLine},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a RiderLine entity by its id.
+func (c *RiderLineClient) Get(ctx context.Context, id string) (*RiderLine, error) {
+	return c.Query().Where(riderline.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *RiderLineClient) GetX(ctx context.Context, id string) *RiderLine {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryLine queries the line edge of a RiderLine.
+func (c *RiderLineClient) QueryLine(_m *RiderLine) *LineQuery {
+	query := (&LineClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(riderline.Table, riderline.FieldID, id),
+			sqlgraph.To(line.Table, line.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, riderline.LineTable, riderline.LineColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *RiderLineClient) Hooks() []Hook {
+	return c.hooks.RiderLine
+}
+
+// Interceptors returns the client interceptors.
+func (c *RiderLineClient) Interceptors() []Interceptor {
+	return c.inters.RiderLine
+}
+
+func (c *RiderLineClient) mutate(ctx context.Context, m *RiderLineMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&RiderLineCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&RiderLineUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&RiderLineUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&RiderLineDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown RiderLine mutation op: %q", m.Op())
+	}
+}
+
+// RiderProfileClient is a client for the RiderProfile schema.
+type RiderProfileClient struct {
+	config
+}
+
+// NewRiderProfileClient returns a client for the RiderProfile from the given config.
+func NewRiderProfileClient(c config) *RiderProfileClient {
+	return &RiderProfileClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `riderprofile.Hooks(f(g(h())))`.
+func (c *RiderProfileClient) Use(hooks ...Hook) {
+	c.hooks.RiderProfile = append(c.hooks.RiderProfile, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `riderprofile.Intercept(f(g(h())))`.
+func (c *RiderProfileClient) Intercept(interceptors ...Interceptor) {
+	c.inters.RiderProfile = append(c.inters.RiderProfile, interceptors...)
+}
+
+// Create returns a builder for creating a RiderProfile entity.
+func (c *RiderProfileClient) Create() *RiderProfileCreate {
+	mutation := newRiderProfileMutation(c.config, OpCreate)
+	return &RiderProfileCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of RiderProfile entities.
+func (c *RiderProfileClient) CreateBulk(builders ...*RiderProfileCreate) *RiderProfileCreateBulk {
+	return &RiderProfileCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *RiderProfileClient) MapCreateBulk(slice any, setFunc func(*RiderProfileCreate, int)) *RiderProfileCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &RiderProfileCreateBulk{err: fmt.Errorf("calling to RiderProfileClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*RiderProfileCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &RiderProfileCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for RiderProfile.
+func (c *RiderProfileClient) Update() *RiderProfileUpdate {
+	mutation := newRiderProfileMutation(c.config, OpUpdate)
+	return &RiderProfileUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *RiderProfileClient) UpdateOne(_m *RiderProfile) *RiderProfileUpdateOne {
+	mutation := newRiderProfileMutation(c.config, OpUpdateOne, withRiderProfile(_m))
+	return &RiderProfileUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *RiderProfileClient) UpdateOneID(id string) *RiderProfileUpdateOne {
+	mutation := newRiderProfileMutation(c.config, OpUpdateOne, withRiderProfileID(id))
+	return &RiderProfileUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for RiderProfile.
+func (c *RiderProfileClient) Delete() *RiderProfileDelete {
+	mutation := newRiderProfileMutation(c.config, OpDelete)
+	return &RiderProfileDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *RiderProfileClient) DeleteOne(_m *RiderProfile) *RiderProfileDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *RiderProfileClient) DeleteOneID(id string) *RiderProfileDeleteOne {
+	builder := c.Delete().Where(riderprofile.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &RiderProfileDeleteOne{builder}
+}
+
+// Query returns a query builder for RiderProfile.
+func (c *RiderProfileClient) Query() *RiderProfileQuery {
+	return &RiderProfileQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeRiderProfile},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a RiderProfile entity by its id.
+func (c *RiderProfileClient) Get(ctx context.Context, id string) (*RiderProfile, error) {
+	return c.Query().Where(riderprofile.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *RiderProfileClient) GetX(ctx context.Context, id string) *RiderProfile {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *RiderProfileClient) Hooks() []Hook {
+	return c.hooks.RiderProfile
+}
+
+// Interceptors returns the client interceptors.
+func (c *RiderProfileClient) Interceptors() []Interceptor {
+	return c.inters.RiderProfile
+}
+
+func (c *RiderProfileClient) mutate(ctx context.Context, m *RiderProfileMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&RiderProfileCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&RiderProfileUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&RiderProfileUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&RiderProfileDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown RiderProfile mutation op: %q", m.Op())
+	}
+}
+
 // RollingStockClient is a client for the RollingStock schema.
 type RollingStockClient struct {
 	config
@@ -1112,11 +1410,11 @@ func (c *RollingStockTopicClient) mutate(ctx context.Context, m *RollingStockTop
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AdminAuditLog, CatalogState, City, Line, RollingStock,
+		AdminAuditLog, CatalogState, City, Line, RiderLine, RiderProfile, RollingStock,
 		RollingStockTopic []ent.Hook
 	}
 	inters struct {
-		AdminAuditLog, CatalogState, City, Line, RollingStock,
+		AdminAuditLog, CatalogState, City, Line, RiderLine, RiderProfile, RollingStock,
 		RollingStockTopic []ent.Interceptor
 	}
 )

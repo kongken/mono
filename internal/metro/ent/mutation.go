@@ -16,6 +16,8 @@ import (
 	"github.com/kongken/mono/internal/metro/ent/city"
 	"github.com/kongken/mono/internal/metro/ent/line"
 	"github.com/kongken/mono/internal/metro/ent/predicate"
+	"github.com/kongken/mono/internal/metro/ent/riderline"
+	"github.com/kongken/mono/internal/metro/ent/riderprofile"
 	"github.com/kongken/mono/internal/metro/ent/rollingstock"
 	"github.com/kongken/mono/internal/metro/ent/rollingstocktopic"
 )
@@ -33,6 +35,8 @@ const (
 	TypeCatalogState      = "CatalogState"
 	TypeCity              = "City"
 	TypeLine              = "Line"
+	TypeRiderLine         = "RiderLine"
+	TypeRiderProfile      = "RiderProfile"
 	TypeRollingStock      = "RollingStock"
 	TypeRollingStockTopic = "RollingStockTopic"
 )
@@ -3720,6 +3724,1739 @@ func (m *LineMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Line edge %s", name)
+}
+
+// RiderLineMutation represents an operation that mutates the RiderLine nodes in the graph.
+type RiderLineMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *string
+	user_id        *string
+	ridden_year    *int
+	addridden_year *int
+	created_at     *time.Time
+	updated_at     *time.Time
+	clearedFields  map[string]struct{}
+	line           *string
+	clearedline    bool
+	done           bool
+	oldValue       func(context.Context) (*RiderLine, error)
+	predicates     []predicate.RiderLine
+}
+
+var _ ent.Mutation = (*RiderLineMutation)(nil)
+
+// riderlineOption allows management of the mutation configuration using functional options.
+type riderlineOption func(*RiderLineMutation)
+
+// newRiderLineMutation creates new mutation for the RiderLine entity.
+func newRiderLineMutation(c config, op Op, opts ...riderlineOption) *RiderLineMutation {
+	m := &RiderLineMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeRiderLine,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withRiderLineID sets the ID field of the mutation.
+func withRiderLineID(id string) riderlineOption {
+	return func(m *RiderLineMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *RiderLine
+		)
+		m.oldValue = func(ctx context.Context) (*RiderLine, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().RiderLine.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withRiderLine sets the old RiderLine of the mutation.
+func withRiderLine(node *RiderLine) riderlineOption {
+	return func(m *RiderLineMutation) {
+		m.oldValue = func(context.Context) (*RiderLine, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m RiderLineMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m RiderLineMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of RiderLine entities.
+func (m *RiderLineMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *RiderLineMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *RiderLineMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().RiderLine.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *RiderLineMutation) SetUserID(s string) {
+	m.user_id = &s
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *RiderLineMutation) UserID() (r string, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the RiderLine entity.
+// If the RiderLine object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderLineMutation) OldUserID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *RiderLineMutation) ResetUserID() {
+	m.user_id = nil
+}
+
+// SetLineID sets the "line_id" field.
+func (m *RiderLineMutation) SetLineID(s string) {
+	m.line = &s
+}
+
+// LineID returns the value of the "line_id" field in the mutation.
+func (m *RiderLineMutation) LineID() (r string, exists bool) {
+	v := m.line
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLineID returns the old "line_id" field's value of the RiderLine entity.
+// If the RiderLine object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderLineMutation) OldLineID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLineID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLineID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLineID: %w", err)
+	}
+	return oldValue.LineID, nil
+}
+
+// ResetLineID resets all changes to the "line_id" field.
+func (m *RiderLineMutation) ResetLineID() {
+	m.line = nil
+}
+
+// SetRiddenYear sets the "ridden_year" field.
+func (m *RiderLineMutation) SetRiddenYear(i int) {
+	m.ridden_year = &i
+	m.addridden_year = nil
+}
+
+// RiddenYear returns the value of the "ridden_year" field in the mutation.
+func (m *RiderLineMutation) RiddenYear() (r int, exists bool) {
+	v := m.ridden_year
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRiddenYear returns the old "ridden_year" field's value of the RiderLine entity.
+// If the RiderLine object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderLineMutation) OldRiddenYear(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRiddenYear is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRiddenYear requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRiddenYear: %w", err)
+	}
+	return oldValue.RiddenYear, nil
+}
+
+// AddRiddenYear adds i to the "ridden_year" field.
+func (m *RiderLineMutation) AddRiddenYear(i int) {
+	if m.addridden_year != nil {
+		*m.addridden_year += i
+	} else {
+		m.addridden_year = &i
+	}
+}
+
+// AddedRiddenYear returns the value that was added to the "ridden_year" field in this mutation.
+func (m *RiderLineMutation) AddedRiddenYear() (r int, exists bool) {
+	v := m.addridden_year
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearRiddenYear clears the value of the "ridden_year" field.
+func (m *RiderLineMutation) ClearRiddenYear() {
+	m.ridden_year = nil
+	m.addridden_year = nil
+	m.clearedFields[riderline.FieldRiddenYear] = struct{}{}
+}
+
+// RiddenYearCleared returns if the "ridden_year" field was cleared in this mutation.
+func (m *RiderLineMutation) RiddenYearCleared() bool {
+	_, ok := m.clearedFields[riderline.FieldRiddenYear]
+	return ok
+}
+
+// ResetRiddenYear resets all changes to the "ridden_year" field.
+func (m *RiderLineMutation) ResetRiddenYear() {
+	m.ridden_year = nil
+	m.addridden_year = nil
+	delete(m.clearedFields, riderline.FieldRiddenYear)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *RiderLineMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *RiderLineMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the RiderLine entity.
+// If the RiderLine object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderLineMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *RiderLineMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *RiderLineMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *RiderLineMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the RiderLine entity.
+// If the RiderLine object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderLineMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *RiderLineMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearLine clears the "line" edge to the Line entity.
+func (m *RiderLineMutation) ClearLine() {
+	m.clearedline = true
+	m.clearedFields[riderline.FieldLineID] = struct{}{}
+}
+
+// LineCleared reports if the "line" edge to the Line entity was cleared.
+func (m *RiderLineMutation) LineCleared() bool {
+	return m.clearedline
+}
+
+// LineIDs returns the "line" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// LineID instead. It exists only for internal usage by the builders.
+func (m *RiderLineMutation) LineIDs() (ids []string) {
+	if id := m.line; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetLine resets all changes to the "line" edge.
+func (m *RiderLineMutation) ResetLine() {
+	m.line = nil
+	m.clearedline = false
+}
+
+// Where appends a list predicates to the RiderLineMutation builder.
+func (m *RiderLineMutation) Where(ps ...predicate.RiderLine) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the RiderLineMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *RiderLineMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.RiderLine, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *RiderLineMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *RiderLineMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (RiderLine).
+func (m *RiderLineMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *RiderLineMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.user_id != nil {
+		fields = append(fields, riderline.FieldUserID)
+	}
+	if m.line != nil {
+		fields = append(fields, riderline.FieldLineID)
+	}
+	if m.ridden_year != nil {
+		fields = append(fields, riderline.FieldRiddenYear)
+	}
+	if m.created_at != nil {
+		fields = append(fields, riderline.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, riderline.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *RiderLineMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case riderline.FieldUserID:
+		return m.UserID()
+	case riderline.FieldLineID:
+		return m.LineID()
+	case riderline.FieldRiddenYear:
+		return m.RiddenYear()
+	case riderline.FieldCreatedAt:
+		return m.CreatedAt()
+	case riderline.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *RiderLineMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case riderline.FieldUserID:
+		return m.OldUserID(ctx)
+	case riderline.FieldLineID:
+		return m.OldLineID(ctx)
+	case riderline.FieldRiddenYear:
+		return m.OldRiddenYear(ctx)
+	case riderline.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case riderline.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown RiderLine field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *RiderLineMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case riderline.FieldUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case riderline.FieldLineID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLineID(v)
+		return nil
+	case riderline.FieldRiddenYear:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRiddenYear(v)
+		return nil
+	case riderline.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case riderline.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown RiderLine field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *RiderLineMutation) AddedFields() []string {
+	var fields []string
+	if m.addridden_year != nil {
+		fields = append(fields, riderline.FieldRiddenYear)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *RiderLineMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case riderline.FieldRiddenYear:
+		return m.AddedRiddenYear()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *RiderLineMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case riderline.FieldRiddenYear:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRiddenYear(v)
+		return nil
+	}
+	return fmt.Errorf("unknown RiderLine numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *RiderLineMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(riderline.FieldRiddenYear) {
+		fields = append(fields, riderline.FieldRiddenYear)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *RiderLineMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *RiderLineMutation) ClearField(name string) error {
+	switch name {
+	case riderline.FieldRiddenYear:
+		m.ClearRiddenYear()
+		return nil
+	}
+	return fmt.Errorf("unknown RiderLine nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *RiderLineMutation) ResetField(name string) error {
+	switch name {
+	case riderline.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case riderline.FieldLineID:
+		m.ResetLineID()
+		return nil
+	case riderline.FieldRiddenYear:
+		m.ResetRiddenYear()
+		return nil
+	case riderline.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case riderline.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown RiderLine field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *RiderLineMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.line != nil {
+		edges = append(edges, riderline.EdgeLine)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *RiderLineMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case riderline.EdgeLine:
+		if id := m.line; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *RiderLineMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *RiderLineMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *RiderLineMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedline {
+		edges = append(edges, riderline.EdgeLine)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *RiderLineMutation) EdgeCleared(name string) bool {
+	switch name {
+	case riderline.EdgeLine:
+		return m.clearedline
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *RiderLineMutation) ClearEdge(name string) error {
+	switch name {
+	case riderline.EdgeLine:
+		m.ClearLine()
+		return nil
+	}
+	return fmt.Errorf("unknown RiderLine unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *RiderLineMutation) ResetEdge(name string) error {
+	switch name {
+	case riderline.EdgeLine:
+		m.ResetLine()
+		return nil
+	}
+	return fmt.Errorf("unknown RiderLine edge %s", name)
+}
+
+// RiderProfileMutation represents an operation that mutates the RiderProfile nodes in the graph.
+type RiderProfileMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *string
+	handle              *string
+	display_name        *string
+	subtitle            *string
+	bio                 *string
+	location            *string
+	header_images       *[]string
+	appendheader_images []string
+	twitter             *string
+	instagram           *string
+	weibo               *string
+	facebook            *string
+	github              *string
+	is_public           *bool
+	created_at          *time.Time
+	updated_at          *time.Time
+	clearedFields       map[string]struct{}
+	done                bool
+	oldValue            func(context.Context) (*RiderProfile, error)
+	predicates          []predicate.RiderProfile
+}
+
+var _ ent.Mutation = (*RiderProfileMutation)(nil)
+
+// riderprofileOption allows management of the mutation configuration using functional options.
+type riderprofileOption func(*RiderProfileMutation)
+
+// newRiderProfileMutation creates new mutation for the RiderProfile entity.
+func newRiderProfileMutation(c config, op Op, opts ...riderprofileOption) *RiderProfileMutation {
+	m := &RiderProfileMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeRiderProfile,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withRiderProfileID sets the ID field of the mutation.
+func withRiderProfileID(id string) riderprofileOption {
+	return func(m *RiderProfileMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *RiderProfile
+		)
+		m.oldValue = func(ctx context.Context) (*RiderProfile, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().RiderProfile.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withRiderProfile sets the old RiderProfile of the mutation.
+func withRiderProfile(node *RiderProfile) riderprofileOption {
+	return func(m *RiderProfileMutation) {
+		m.oldValue = func(context.Context) (*RiderProfile, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m RiderProfileMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m RiderProfileMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of RiderProfile entities.
+func (m *RiderProfileMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *RiderProfileMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *RiderProfileMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().RiderProfile.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetHandle sets the "handle" field.
+func (m *RiderProfileMutation) SetHandle(s string) {
+	m.handle = &s
+}
+
+// Handle returns the value of the "handle" field in the mutation.
+func (m *RiderProfileMutation) Handle() (r string, exists bool) {
+	v := m.handle
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHandle returns the old "handle" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldHandle(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHandle is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHandle requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHandle: %w", err)
+	}
+	return oldValue.Handle, nil
+}
+
+// ClearHandle clears the value of the "handle" field.
+func (m *RiderProfileMutation) ClearHandle() {
+	m.handle = nil
+	m.clearedFields[riderprofile.FieldHandle] = struct{}{}
+}
+
+// HandleCleared returns if the "handle" field was cleared in this mutation.
+func (m *RiderProfileMutation) HandleCleared() bool {
+	_, ok := m.clearedFields[riderprofile.FieldHandle]
+	return ok
+}
+
+// ResetHandle resets all changes to the "handle" field.
+func (m *RiderProfileMutation) ResetHandle() {
+	m.handle = nil
+	delete(m.clearedFields, riderprofile.FieldHandle)
+}
+
+// SetDisplayName sets the "display_name" field.
+func (m *RiderProfileMutation) SetDisplayName(s string) {
+	m.display_name = &s
+}
+
+// DisplayName returns the value of the "display_name" field in the mutation.
+func (m *RiderProfileMutation) DisplayName() (r string, exists bool) {
+	v := m.display_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisplayName returns the old "display_name" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldDisplayName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisplayName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisplayName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisplayName: %w", err)
+	}
+	return oldValue.DisplayName, nil
+}
+
+// ResetDisplayName resets all changes to the "display_name" field.
+func (m *RiderProfileMutation) ResetDisplayName() {
+	m.display_name = nil
+}
+
+// SetSubtitle sets the "subtitle" field.
+func (m *RiderProfileMutation) SetSubtitle(s string) {
+	m.subtitle = &s
+}
+
+// Subtitle returns the value of the "subtitle" field in the mutation.
+func (m *RiderProfileMutation) Subtitle() (r string, exists bool) {
+	v := m.subtitle
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSubtitle returns the old "subtitle" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldSubtitle(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSubtitle is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSubtitle requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSubtitle: %w", err)
+	}
+	return oldValue.Subtitle, nil
+}
+
+// ResetSubtitle resets all changes to the "subtitle" field.
+func (m *RiderProfileMutation) ResetSubtitle() {
+	m.subtitle = nil
+}
+
+// SetBio sets the "bio" field.
+func (m *RiderProfileMutation) SetBio(s string) {
+	m.bio = &s
+}
+
+// Bio returns the value of the "bio" field in the mutation.
+func (m *RiderProfileMutation) Bio() (r string, exists bool) {
+	v := m.bio
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBio returns the old "bio" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldBio(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBio is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBio requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBio: %w", err)
+	}
+	return oldValue.Bio, nil
+}
+
+// ResetBio resets all changes to the "bio" field.
+func (m *RiderProfileMutation) ResetBio() {
+	m.bio = nil
+}
+
+// SetLocation sets the "location" field.
+func (m *RiderProfileMutation) SetLocation(s string) {
+	m.location = &s
+}
+
+// Location returns the value of the "location" field in the mutation.
+func (m *RiderProfileMutation) Location() (r string, exists bool) {
+	v := m.location
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocation returns the old "location" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldLocation(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocation is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocation requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocation: %w", err)
+	}
+	return oldValue.Location, nil
+}
+
+// ResetLocation resets all changes to the "location" field.
+func (m *RiderProfileMutation) ResetLocation() {
+	m.location = nil
+}
+
+// SetHeaderImages sets the "header_images" field.
+func (m *RiderProfileMutation) SetHeaderImages(s []string) {
+	m.header_images = &s
+	m.appendheader_images = nil
+}
+
+// HeaderImages returns the value of the "header_images" field in the mutation.
+func (m *RiderProfileMutation) HeaderImages() (r []string, exists bool) {
+	v := m.header_images
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHeaderImages returns the old "header_images" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldHeaderImages(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHeaderImages is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHeaderImages requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHeaderImages: %w", err)
+	}
+	return oldValue.HeaderImages, nil
+}
+
+// AppendHeaderImages adds s to the "header_images" field.
+func (m *RiderProfileMutation) AppendHeaderImages(s []string) {
+	m.appendheader_images = append(m.appendheader_images, s...)
+}
+
+// AppendedHeaderImages returns the list of values that were appended to the "header_images" field in this mutation.
+func (m *RiderProfileMutation) AppendedHeaderImages() ([]string, bool) {
+	if len(m.appendheader_images) == 0 {
+		return nil, false
+	}
+	return m.appendheader_images, true
+}
+
+// ResetHeaderImages resets all changes to the "header_images" field.
+func (m *RiderProfileMutation) ResetHeaderImages() {
+	m.header_images = nil
+	m.appendheader_images = nil
+}
+
+// SetTwitter sets the "twitter" field.
+func (m *RiderProfileMutation) SetTwitter(s string) {
+	m.twitter = &s
+}
+
+// Twitter returns the value of the "twitter" field in the mutation.
+func (m *RiderProfileMutation) Twitter() (r string, exists bool) {
+	v := m.twitter
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTwitter returns the old "twitter" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldTwitter(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTwitter is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTwitter requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTwitter: %w", err)
+	}
+	return oldValue.Twitter, nil
+}
+
+// ResetTwitter resets all changes to the "twitter" field.
+func (m *RiderProfileMutation) ResetTwitter() {
+	m.twitter = nil
+}
+
+// SetInstagram sets the "instagram" field.
+func (m *RiderProfileMutation) SetInstagram(s string) {
+	m.instagram = &s
+}
+
+// Instagram returns the value of the "instagram" field in the mutation.
+func (m *RiderProfileMutation) Instagram() (r string, exists bool) {
+	v := m.instagram
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInstagram returns the old "instagram" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldInstagram(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInstagram is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInstagram requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInstagram: %w", err)
+	}
+	return oldValue.Instagram, nil
+}
+
+// ResetInstagram resets all changes to the "instagram" field.
+func (m *RiderProfileMutation) ResetInstagram() {
+	m.instagram = nil
+}
+
+// SetWeibo sets the "weibo" field.
+func (m *RiderProfileMutation) SetWeibo(s string) {
+	m.weibo = &s
+}
+
+// Weibo returns the value of the "weibo" field in the mutation.
+func (m *RiderProfileMutation) Weibo() (r string, exists bool) {
+	v := m.weibo
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWeibo returns the old "weibo" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldWeibo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWeibo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWeibo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWeibo: %w", err)
+	}
+	return oldValue.Weibo, nil
+}
+
+// ResetWeibo resets all changes to the "weibo" field.
+func (m *RiderProfileMutation) ResetWeibo() {
+	m.weibo = nil
+}
+
+// SetFacebook sets the "facebook" field.
+func (m *RiderProfileMutation) SetFacebook(s string) {
+	m.facebook = &s
+}
+
+// Facebook returns the value of the "facebook" field in the mutation.
+func (m *RiderProfileMutation) Facebook() (r string, exists bool) {
+	v := m.facebook
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFacebook returns the old "facebook" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldFacebook(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFacebook is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFacebook requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFacebook: %w", err)
+	}
+	return oldValue.Facebook, nil
+}
+
+// ResetFacebook resets all changes to the "facebook" field.
+func (m *RiderProfileMutation) ResetFacebook() {
+	m.facebook = nil
+}
+
+// SetGithub sets the "github" field.
+func (m *RiderProfileMutation) SetGithub(s string) {
+	m.github = &s
+}
+
+// Github returns the value of the "github" field in the mutation.
+func (m *RiderProfileMutation) Github() (r string, exists bool) {
+	v := m.github
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGithub returns the old "github" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldGithub(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGithub is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGithub requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGithub: %w", err)
+	}
+	return oldValue.Github, nil
+}
+
+// ResetGithub resets all changes to the "github" field.
+func (m *RiderProfileMutation) ResetGithub() {
+	m.github = nil
+}
+
+// SetIsPublic sets the "is_public" field.
+func (m *RiderProfileMutation) SetIsPublic(b bool) {
+	m.is_public = &b
+}
+
+// IsPublic returns the value of the "is_public" field in the mutation.
+func (m *RiderProfileMutation) IsPublic() (r bool, exists bool) {
+	v := m.is_public
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIsPublic returns the old "is_public" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldIsPublic(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIsPublic is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIsPublic requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIsPublic: %w", err)
+	}
+	return oldValue.IsPublic, nil
+}
+
+// ResetIsPublic resets all changes to the "is_public" field.
+func (m *RiderProfileMutation) ResetIsPublic() {
+	m.is_public = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *RiderProfileMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *RiderProfileMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *RiderProfileMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *RiderProfileMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *RiderProfileMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the RiderProfile entity.
+// If the RiderProfile object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RiderProfileMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *RiderProfileMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// Where appends a list predicates to the RiderProfileMutation builder.
+func (m *RiderProfileMutation) Where(ps ...predicate.RiderProfile) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the RiderProfileMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *RiderProfileMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.RiderProfile, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *RiderProfileMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *RiderProfileMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (RiderProfile).
+func (m *RiderProfileMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *RiderProfileMutation) Fields() []string {
+	fields := make([]string, 0, 14)
+	if m.handle != nil {
+		fields = append(fields, riderprofile.FieldHandle)
+	}
+	if m.display_name != nil {
+		fields = append(fields, riderprofile.FieldDisplayName)
+	}
+	if m.subtitle != nil {
+		fields = append(fields, riderprofile.FieldSubtitle)
+	}
+	if m.bio != nil {
+		fields = append(fields, riderprofile.FieldBio)
+	}
+	if m.location != nil {
+		fields = append(fields, riderprofile.FieldLocation)
+	}
+	if m.header_images != nil {
+		fields = append(fields, riderprofile.FieldHeaderImages)
+	}
+	if m.twitter != nil {
+		fields = append(fields, riderprofile.FieldTwitter)
+	}
+	if m.instagram != nil {
+		fields = append(fields, riderprofile.FieldInstagram)
+	}
+	if m.weibo != nil {
+		fields = append(fields, riderprofile.FieldWeibo)
+	}
+	if m.facebook != nil {
+		fields = append(fields, riderprofile.FieldFacebook)
+	}
+	if m.github != nil {
+		fields = append(fields, riderprofile.FieldGithub)
+	}
+	if m.is_public != nil {
+		fields = append(fields, riderprofile.FieldIsPublic)
+	}
+	if m.created_at != nil {
+		fields = append(fields, riderprofile.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, riderprofile.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *RiderProfileMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case riderprofile.FieldHandle:
+		return m.Handle()
+	case riderprofile.FieldDisplayName:
+		return m.DisplayName()
+	case riderprofile.FieldSubtitle:
+		return m.Subtitle()
+	case riderprofile.FieldBio:
+		return m.Bio()
+	case riderprofile.FieldLocation:
+		return m.Location()
+	case riderprofile.FieldHeaderImages:
+		return m.HeaderImages()
+	case riderprofile.FieldTwitter:
+		return m.Twitter()
+	case riderprofile.FieldInstagram:
+		return m.Instagram()
+	case riderprofile.FieldWeibo:
+		return m.Weibo()
+	case riderprofile.FieldFacebook:
+		return m.Facebook()
+	case riderprofile.FieldGithub:
+		return m.Github()
+	case riderprofile.FieldIsPublic:
+		return m.IsPublic()
+	case riderprofile.FieldCreatedAt:
+		return m.CreatedAt()
+	case riderprofile.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *RiderProfileMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case riderprofile.FieldHandle:
+		return m.OldHandle(ctx)
+	case riderprofile.FieldDisplayName:
+		return m.OldDisplayName(ctx)
+	case riderprofile.FieldSubtitle:
+		return m.OldSubtitle(ctx)
+	case riderprofile.FieldBio:
+		return m.OldBio(ctx)
+	case riderprofile.FieldLocation:
+		return m.OldLocation(ctx)
+	case riderprofile.FieldHeaderImages:
+		return m.OldHeaderImages(ctx)
+	case riderprofile.FieldTwitter:
+		return m.OldTwitter(ctx)
+	case riderprofile.FieldInstagram:
+		return m.OldInstagram(ctx)
+	case riderprofile.FieldWeibo:
+		return m.OldWeibo(ctx)
+	case riderprofile.FieldFacebook:
+		return m.OldFacebook(ctx)
+	case riderprofile.FieldGithub:
+		return m.OldGithub(ctx)
+	case riderprofile.FieldIsPublic:
+		return m.OldIsPublic(ctx)
+	case riderprofile.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case riderprofile.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown RiderProfile field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *RiderProfileMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case riderprofile.FieldHandle:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHandle(v)
+		return nil
+	case riderprofile.FieldDisplayName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisplayName(v)
+		return nil
+	case riderprofile.FieldSubtitle:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSubtitle(v)
+		return nil
+	case riderprofile.FieldBio:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBio(v)
+		return nil
+	case riderprofile.FieldLocation:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocation(v)
+		return nil
+	case riderprofile.FieldHeaderImages:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHeaderImages(v)
+		return nil
+	case riderprofile.FieldTwitter:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTwitter(v)
+		return nil
+	case riderprofile.FieldInstagram:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInstagram(v)
+		return nil
+	case riderprofile.FieldWeibo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWeibo(v)
+		return nil
+	case riderprofile.FieldFacebook:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFacebook(v)
+		return nil
+	case riderprofile.FieldGithub:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGithub(v)
+		return nil
+	case riderprofile.FieldIsPublic:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIsPublic(v)
+		return nil
+	case riderprofile.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case riderprofile.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown RiderProfile field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *RiderProfileMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *RiderProfileMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *RiderProfileMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown RiderProfile numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *RiderProfileMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(riderprofile.FieldHandle) {
+		fields = append(fields, riderprofile.FieldHandle)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *RiderProfileMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *RiderProfileMutation) ClearField(name string) error {
+	switch name {
+	case riderprofile.FieldHandle:
+		m.ClearHandle()
+		return nil
+	}
+	return fmt.Errorf("unknown RiderProfile nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *RiderProfileMutation) ResetField(name string) error {
+	switch name {
+	case riderprofile.FieldHandle:
+		m.ResetHandle()
+		return nil
+	case riderprofile.FieldDisplayName:
+		m.ResetDisplayName()
+		return nil
+	case riderprofile.FieldSubtitle:
+		m.ResetSubtitle()
+		return nil
+	case riderprofile.FieldBio:
+		m.ResetBio()
+		return nil
+	case riderprofile.FieldLocation:
+		m.ResetLocation()
+		return nil
+	case riderprofile.FieldHeaderImages:
+		m.ResetHeaderImages()
+		return nil
+	case riderprofile.FieldTwitter:
+		m.ResetTwitter()
+		return nil
+	case riderprofile.FieldInstagram:
+		m.ResetInstagram()
+		return nil
+	case riderprofile.FieldWeibo:
+		m.ResetWeibo()
+		return nil
+	case riderprofile.FieldFacebook:
+		m.ResetFacebook()
+		return nil
+	case riderprofile.FieldGithub:
+		m.ResetGithub()
+		return nil
+	case riderprofile.FieldIsPublic:
+		m.ResetIsPublic()
+		return nil
+	case riderprofile.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case riderprofile.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown RiderProfile field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *RiderProfileMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *RiderProfileMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *RiderProfileMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *RiderProfileMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *RiderProfileMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *RiderProfileMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *RiderProfileMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown RiderProfile unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *RiderProfileMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown RiderProfile edge %s", name)
 }
 
 // RollingStockMutation represents an operation that mutates the RollingStock nodes in the graph.

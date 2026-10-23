@@ -57,6 +57,30 @@ func (f LineFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error)
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LineMutation", m)
 }
 
+// The RiderLineFunc type is an adapter to allow the use of ordinary
+// function as RiderLine mutator.
+type RiderLineFunc func(context.Context, *ent.RiderLineMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f RiderLineFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.RiderLineMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.RiderLineMutation", m)
+}
+
+// The RiderProfileFunc type is an adapter to allow the use of ordinary
+// function as RiderProfile mutator.
+type RiderProfileFunc func(context.Context, *ent.RiderProfileMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f RiderProfileFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.RiderProfileMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.RiderProfileMutation", m)
+}
+
 // The RollingStockFunc type is an adapter to allow the use of ordinary
 // function as RollingStock mutator.
 type RollingStockFunc func(context.Context, *ent.RollingStockMutation) (ent.Value, error)

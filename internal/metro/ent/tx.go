@@ -20,6 +20,10 @@ type Tx struct {
 	City *CityClient
 	// Line is the client for interacting with the Line builders.
 	Line *LineClient
+	// RiderLine is the client for interacting with the RiderLine builders.
+	RiderLine *RiderLineClient
+	// RiderProfile is the client for interacting with the RiderProfile builders.
+	RiderProfile *RiderProfileClient
 	// RollingStock is the client for interacting with the RollingStock builders.
 	RollingStock *RollingStockClient
 	// RollingStockTopic is the client for interacting with the RollingStockTopic builders.
@@ -159,6 +163,8 @@ func (tx *Tx) init() {
 	tx.CatalogState = NewCatalogStateClient(tx.config)
 	tx.City = NewCityClient(tx.config)
 	tx.Line = NewLineClient(tx.config)
+	tx.RiderLine = NewRiderLineClient(tx.config)
+	tx.RiderProfile = NewRiderProfileClient(tx.config)
 	tx.RollingStock = NewRollingStockClient(tx.config)
 	tx.RollingStockTopic = NewRollingStockTopicClient(tx.config)
 }

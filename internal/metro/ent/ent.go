@@ -16,6 +16,8 @@ import (
 	"github.com/kongken/mono/internal/metro/ent/catalogstate"
 	"github.com/kongken/mono/internal/metro/ent/city"
 	"github.com/kongken/mono/internal/metro/ent/line"
+	"github.com/kongken/mono/internal/metro/ent/riderline"
+	"github.com/kongken/mono/internal/metro/ent/riderprofile"
 	"github.com/kongken/mono/internal/metro/ent/rollingstock"
 	"github.com/kongken/mono/internal/metro/ent/rollingstocktopic"
 )
@@ -82,6 +84,8 @@ func checkColumn(t, c string) error {
 			catalogstate.Table:      catalogstate.ValidColumn,
 			city.Table:              city.ValidColumn,
 			line.Table:              line.ValidColumn,
+			riderline.Table:         riderline.ValidColumn,
+			riderprofile.Table:      riderprofile.ValidColumn,
 			rollingstock.Table:      rollingstock.ValidColumn,
 			rollingstocktopic.Table: rollingstocktopic.ValidColumn,
 		})

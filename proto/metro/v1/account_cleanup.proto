@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package metro.v1;
+
+option go_package = "github.com/kongken/mono/pkg/proto/metro/v1;metrov1";
+
+// AccountCleanupService is internal-only (BFF -> metro gRPC). It removes one
+// user's rider profile and ride records; the BFF owns auth rows and receipts.
+// The audit log keeps its actor_user_id: it is an operations record.
+service AccountCleanupService {
+  // CleanupUserData is idempotent: a user without data succeeds. The user is the
+  // one in the verified credential; user_id, when set, must match it.
+  rpc CleanupUserData(CleanupUserDataRequest) returns (CleanupUserDataResponse);
+}
+
+message CleanupUserDataRequest {
+  string user_id = 1;
+}
+
+message CleanupUserDataResponse {}

@@ -18,6 +18,12 @@ type City func(*sql.Selector)
 // Line is the predicate function for line builders.
 type Line func(*sql.Selector)
 
+// RiderLine is the predicate function for riderline builders.
+type RiderLine func(*sql.Selector)
+
+// RiderProfile is the predicate function for riderprofile builders.
+type RiderProfile func(*sql.Selector)
+
 // RollingStock is the predicate function for rollingstock builders.
 type RollingStock func(*sql.Selector)
 

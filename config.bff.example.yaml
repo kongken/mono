@@ -47,6 +47,9 @@ auth:
   # signed in within this long, because Logto roles are read at sign-in and are not
   # revoked live. Default 12h.
   admin_session_max_age: 12h
+  # Products whose data "delete my cloud data" removes; each needs its upstream.
+  # Default: tripmap only.
+  account_cleanup: [tripmap, metro]
   csrf_token_ttl: 24h    # optional; default 24h when unset
   cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP
   # Explicit loopback-only HTTP exception for local OAuth development.

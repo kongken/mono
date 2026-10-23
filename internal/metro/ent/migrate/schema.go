@@ -136,6 +136,65 @@ var (
 			},
 		},
 	}
+	// RiderLinesColumns holds the columns for the "rider_lines" table.
+	RiderLinesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeString},
+		{Name: "ridden_year", Type: field.TypeInt, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "line_id", Type: field.TypeString},
+	}
+	// RiderLinesTable holds the schema information for the "rider_lines" table.
+	RiderLinesTable = &schema.Table{
+		Name:       "rider_lines",
+		Columns:    RiderLinesColumns,
+		PrimaryKey: []*schema.Column{RiderLinesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "rider_lines_lines_line",
+				Columns:    []*schema.Column{RiderLinesColumns[5]},
+				RefColumns: []*schema.Column{LinesColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "riderline_user_id_line_id",
+				Unique:  true,
+				Columns: []*schema.Column{RiderLinesColumns[1], RiderLinesColumns[5]},
+			},
+			{
+				Name:    "riderline_line_id",
+				Unique:  false,
+				Columns: []*schema.Column{RiderLinesColumns[5]},
+			},
+		},
+	}
+	// RiderProfilesColumns holds the columns for the "rider_profiles" table.
+	RiderProfilesColumns = []*schema.Column{
+		{Name: "user_id", Type: field.TypeString},
+		{Name: "handle", Type: field.TypeString, Unique: true, Nullable: true},
+		{Name: "display_name", Type: field.TypeString, Default: ""},
+		{Name: "subtitle", Type: field.TypeString, Default: ""},
+		{Name: "bio", Type: field.TypeString, Default: ""},
+		{Name: "location", Type: field.TypeString, Default: ""},
+		{Name: "header_images", Type: field.TypeJSON},
+		{Name: "twitter", Type: field.TypeString, Default: ""},
+		{Name: "instagram", Type: field.TypeString, Default: ""},
+		{Name: "weibo", Type: field.TypeString, Default: ""},
+		{Name: "facebook", Type: field.TypeString, Default: ""},
+		{Name: "github", Type: field.TypeString, Default: ""},
+		{Name: "is_public", Type: field.TypeBool, Default: false},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// RiderProfilesTable holds the schema information for the "rider_profiles" table.
+	RiderProfilesTable = &schema.Table{
+		Name:       "rider_profiles",
+		Columns:    RiderProfilesColumns,
+		PrimaryKey: []*schema.Column{RiderProfilesColumns[0]},
+	}
 	// RollingStocksColumns holds the columns for the "rolling_stocks" table.
 	RollingStocksColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -176,6 +235,8 @@ var (
 		CatalogStateTable,
 		CitiesTable,
 		LinesTable,
+		RiderLinesTable,
+		RiderProfilesTable,
 		RollingStocksTable,
 		RollingStockTopicsTable,
 	}
@@ -210,6 +271,22 @@ func init() {
 		"lines_color_format": "color ~ '^#[0-9A-Fa-f]{6}$'",
 		"lines_counts":       "number >= 0 AND cars >= 0 AND cars_addition >= 0 AND stations >= 0 AND length_km >= 0",
 		"lines_name_length":  "char_length(name) BETWEEN 1 AND 32",
+	}
+	RiderLinesTable.ForeignKeys[0].RefTable = LinesTable
+	RiderLinesTable.Annotation = &entsql.Annotation{
+		Table: "rider_lines",
+	}
+	RiderLinesTable.Annotation.Checks = map[string]string{
+		"rider_lines_year": "ridden_year IS NULL OR ridden_year >= 1900",
+	}
+	RiderProfilesTable.Annotation = &entsql.Annotation{
+		Table: "rider_profiles",
+	}
+	RiderProfilesTable.Annotation.Checks = map[string]string{
+		"rider_profiles_bio_length":    "char_length(bio) <= 500",
+		"rider_profiles_handle_format": "handle IS NULL OR handle ~ '^[a-z0-9_]{3,32}$'",
+		"rider_profiles_images_limit":  "jsonb_array_length(header_images) <= 8",
+		"rider_profiles_public_handle": "NOT is_public OR handle IS NOT NULL",
 	}
 	RollingStocksTable.Annotation = &entsql.Annotation{
 		Table: "rolling_stocks",

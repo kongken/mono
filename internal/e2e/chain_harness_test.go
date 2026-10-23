@@ -42,6 +42,7 @@ import (
 	metrotestutil "github.com/kongken/mono/internal/metro/testutil"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
+	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/platform/servicetoken"
 	"github.com/kongken/mono/internal/platform/testkit"
 	tripmapapp "github.com/kongken/mono/internal/tripmap/app"
@@ -90,6 +91,7 @@ type Browser struct {
 	Auth       bffv1connect.AuthServiceClient
 	Catalog    bffmetrov1connect.CatalogServiceClient
 	MetroAdmin bffmetrov1connect.AdminServiceClient
+	MetroRider bffmetrov1connect.RiderServiceClient
 	Foot       bfftripmapv1connect.FootprintServiceClient
 	Snap       bfftripmapv1connect.SnapshotServiceClient
 	Friends    bfftripmapv1connect.FriendServiceClient
@@ -116,6 +118,10 @@ type ChainHTTPOptions struct {
 // harness and registers it with the BFF as an optional product.
 type ChainMetro struct{}
 
+// ChainMetroUnary adds server interceptors to metro (after authentication), for
+// injecting faults.
+type ChainMetroUnary []grpc.UnaryServerInterceptor
+
 // ChainTransport selects the internal gRPC transport of a harness ("tls" or
 // "h2c"). Without it the harness uses TRIPMAP_TEST_GRPC_TRANSPORT, then tls, so
 // the whole suite can be rerun over h2c.
@@ -131,6 +137,7 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	var mutate []func(*tripmapconfig.AppConfig)
 	var tripUnary []grpc.UnaryServerInterceptor
 	withMetro := false
+	var metroUnary []grpc.UnaryServerInterceptor
 	transport := os.Getenv("TRIPMAP_TEST_GRPC_TRANSPORT")
 	blob := blobstore.Store(noopBlobs{})
 	for _, e := range extras {
@@ -141,6 +148,8 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 			transport = string(v)
 		case ChainMetro:
 			withMetro = true
+		case ChainMetroUnary:
+			metroUnary = v
 		case *provider.Registry:
 			oauthReg = v
 		case func(*tripmapconfig.AppConfig):
@@ -242,6 +251,8 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 				return err
 			}}),
 		})
+		h.Metro.SetGRPCTestUnaryInterceptors(metroUnary...)
+		bffCfg.Auth.AccountCleanup = []string{"tripmap", "metro"}
 		if err := h.Metro.StartGRPC(); err != nil {
 			t.Fatal(err)
 		}
@@ -326,6 +337,29 @@ func (h *ChainHarness) DirectTripmapGRPC() *grpc.ClientConn {
 	return conn
 }
 
+// DirectMetroGRPC dials metro's gRPC port, bypassing the BFF, with the BFF's
+// credential interceptor so a test decides exactly what the credential carries.
+func (h *ChainHarness) DirectMetroGRPC() *grpc.ClientConn {
+	h.T.Helper()
+	creds := insecure.NewCredentials()
+	if h.transport != "h2c" {
+		pem, err := os.ReadFile(h.caFile)
+		if err != nil {
+			h.T.Fatal(err)
+		}
+		pool := x509.NewCertPool()
+		pool.AppendCertsFromPEM(pem)
+		creds = credentials.NewTLS(&tls.Config{RootCAs: pool, ServerName: "metro.internal", MinVersion: tls.VersionTLS13})
+	}
+	conn, err := grpc.NewClient(h.Metro.GRPCAddr(), grpc.WithTransportCredentials(creds),
+		grpc.WithUnaryInterceptor(rpcauth.UnaryClientInterceptor(h.signer, "metro")))
+	if err != nil {
+		h.T.Fatal(err)
+	}
+	h.T.Cleanup(func() { _ = conn.Close() })
+	return conn
+}
+
 // FreshBrowser returns a new isolated cookie jar for another user/session.
 func (h *ChainHarness) FreshBrowser() *Browser {
 	h.T.Helper()
@@ -340,6 +374,7 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 		Auth:       bffv1connect.NewAuthServiceClient(hc, api),
 		Catalog:    bffmetrov1connect.NewCatalogServiceClient(hc, api),
 		MetroAdmin: bffmetrov1connect.NewAdminServiceClient(hc, api),
+		MetroRider: bffmetrov1connect.NewRiderServiceClient(hc, api),
 		Foot:       bfftripmapv1connect.NewFootprintServiceClient(hc, api),
 		Snap:       bfftripmapv1connect.NewSnapshotServiceClient(hc, api),
 		Friends:    bfftripmapv1connect.NewFriendServiceClient(hc, api),
