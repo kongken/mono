@@ -14,7 +14,6 @@ import (
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
-	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -39,7 +38,7 @@ func (s *Service) DeleteAccount(ctx context.Context, browser session.BrowserSess
 	if req.GetConfirmation() != "DELETE" {
 		return connect.NewError(connect.CodeInvalidArgument, errors.New("explicit DELETE confirmation is required"))
 	}
-	if err := s.allow(ctx, "delete:"+browser.UserID, 10, loginWindow); err != nil {
+	if err := s.allow(ctx, "delete:"+browser.UserID, 10, oauthWindow); err != nil {
 		return err
 	}
 	tx, err := s.db.Tx(ctx)
@@ -57,18 +56,15 @@ func (s *Service) DeleteAccount(ctx context.Context, browser session.BrowserSess
 	if u.Disabled && u.DeletionRequestedAt == nil {
 		return errUnauth
 	}
-	if u.PasswordHash != "" {
-		pw := req.GetPassword()
-		if len(pw) > maxPasswordBytes || bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(pw)) != nil {
-			return connect.NewError(connect.CodePermissionDenied, errors.New("password verification failed"))
-		}
-	} else {
+	// This deletes application data, never the Logto identity. Once cleanup has
+	// started, the retained session may retry without another freshness check.
+	if u.DeletionRequestedAt == nil {
 		sess, err := tx.Session.Get(ctx, browser.SessionID)
-		if err != nil {
+		if err != nil || sess.UserID != u.ID {
 			return errUnauth
 		}
 		if time.Since(sess.CreatedAt) > 15*time.Minute {
-			return connect.NewError(connect.CodeFailedPrecondition, errors.New("sign in again before deleting an OAuth account"))
+			return connect.NewError(connect.CodeFailedPrecondition, errors.New("sign in again before deleting cloud data"))
 		}
 	}
 	if u.DeletionRequestedAt == nil {

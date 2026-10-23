@@ -8,7 +8,6 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/bff/session"
-	"github.com/kongken/mono/internal/platform/httpx"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 )
 
@@ -25,23 +24,11 @@ func NewHandler(svc *Service, _ []string, csrfTTL time.Duration) *Handler {
 }
 
 func (h *Handler) Register(ctx context.Context, req *connect.Request[bffv1.RegisterRequest]) (*connect.Response[bffv1.RegisterResponse], error) {
-	msg, expires, token, err := h.svc.Register(ctx, httpx.ClientAddr("", req.Header(), req.Peer().Addr), req.Msg)
-	if err != nil {
-		return nil, err
-	}
-	res := connect.NewResponse(msg)
-	session.SetSessionCookie(res.Header(), h.svc.cookies, token, expires)
-	return res, nil
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("password accounts are retired; use Logto"))
 }
 
 func (h *Handler) Login(ctx context.Context, req *connect.Request[bffv1.LoginRequest]) (*connect.Response[bffv1.LoginResponse], error) {
-	msg, expires, token, err := h.svc.Login(ctx, httpx.ClientAddr("", req.Header(), req.Peer().Addr), req.Msg)
-	if err != nil {
-		return nil, err
-	}
-	res := connect.NewResponse(msg)
-	session.SetSessionCookie(res.Header(), h.svc.cookies, token, expires)
-	return res, nil
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("password accounts are retired; use Logto"))
 }
 
 func (h *Handler) Logout(ctx context.Context, req *connect.Request[bffv1.LogoutRequest]) (*connect.Response[bffv1.LogoutResponse], error) {

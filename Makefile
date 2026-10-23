@@ -3,7 +3,6 @@
 build:
 	go build -o bin/bff ./cmd/bff
 	go build -o bin/tripmap ./cmd/tripmap
-	go build -o bin/bff-import-legacy-accounts ./cmd/bff-import-legacy-accounts
 
 test:
 	go test ./...

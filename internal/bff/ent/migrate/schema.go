@@ -28,8 +28,8 @@ var (
 			},
 		},
 	}
-	// AuthSessionsColumns holds the columns for the "auth_sessions" table.
-	AuthSessionsColumns = []*schema.Column{
+	// AuthBrowserSessionsColumns holds the columns for the "auth_browser_sessions" table.
+	AuthBrowserSessionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
 		{Name: "token_hash", Type: field.TypeString, Unique: true},
 		{Name: "created_at", Type: field.TypeTime},
@@ -38,76 +38,72 @@ var (
 		{Name: "revoked", Type: field.TypeBool, Default: false},
 		{Name: "user_id", Type: field.TypeString},
 	}
-	// AuthSessionsTable holds the schema information for the "auth_sessions" table.
-	AuthSessionsTable = &schema.Table{
-		Name:       "auth_sessions",
-		Columns:    AuthSessionsColumns,
-		PrimaryKey: []*schema.Column{AuthSessionsColumns[0]},
+	// AuthBrowserSessionsTable holds the schema information for the "auth_browser_sessions" table.
+	AuthBrowserSessionsTable = &schema.Table{
+		Name:       "auth_browser_sessions",
+		Columns:    AuthBrowserSessionsColumns,
+		PrimaryKey: []*schema.Column{AuthBrowserSessionsColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "auth_sessions_auth_users_sessions",
-				Columns:    []*schema.Column{AuthSessionsColumns[6]},
-				RefColumns: []*schema.Column{AuthUsersColumns[0]},
+				Symbol:     "auth_browser_sessions_auth_identities_sessions",
+				Columns:    []*schema.Column{AuthBrowserSessionsColumns[6]},
+				RefColumns: []*schema.Column{AuthIdentitiesColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "session_user_id",
+				Name:    "browser_session_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{AuthSessionsColumns[6]},
+				Columns: []*schema.Column{AuthBrowserSessionsColumns[6]},
 			},
 			{
-				Name:    "session_expires_at",
+				Name:    "browser_session_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{AuthSessionsColumns[3]},
+				Columns: []*schema.Column{AuthBrowserSessionsColumns[3]},
 			},
 		},
 	}
-	// AuthUsersColumns holds the columns for the "auth_users" table.
-	AuthUsersColumns = []*schema.Column{
+	// AuthIdentitiesColumns holds the columns for the "auth_identities" table.
+	AuthIdentitiesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
-		{Name: "username", Type: field.TypeString, Unique: true, Nullable: true},
+		{Name: "username", Type: field.TypeString, Nullable: true},
 		{Name: "display_name", Type: field.TypeString, Default: ""},
 		{Name: "avatar_url", Type: field.TypeString, Default: ""},
-		{Name: "provider", Type: field.TypeString, Default: ""},
-		{Name: "external_id", Type: field.TypeString, Default: ""},
-		{Name: "password_hash", Type: field.TypeString, Default: ""},
+		{Name: "issuer", Type: field.TypeString},
+		{Name: "external_id", Type: field.TypeString},
 		{Name: "disabled", Type: field.TypeBool, Default: false},
 		{Name: "deletion_requested_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}
-	// AuthUsersTable holds the schema information for the "auth_users" table.
-	AuthUsersTable = &schema.Table{
-		Name:       "auth_users",
-		Columns:    AuthUsersColumns,
-		PrimaryKey: []*schema.Column{AuthUsersColumns[0]},
+	// AuthIdentitiesTable holds the schema information for the "auth_identities" table.
+	AuthIdentitiesTable = &schema.Table{
+		Name:       "auth_identities",
+		Columns:    AuthIdentitiesColumns,
+		PrimaryKey: []*schema.Column{AuthIdentitiesColumns[0]},
 		Indexes: []*schema.Index{
 			{
-				Name:    "user_provider_external_id",
+				Name:    "user_issuer_external_id",
 				Unique:  true,
-				Columns: []*schema.Column{AuthUsersColumns[4], AuthUsersColumns[5]},
-				Annotation: &entsql.IndexAnnotation{
-					Where: "external_id <> ''",
-				},
+				Columns: []*schema.Column{AuthIdentitiesColumns[4], AuthIdentitiesColumns[5]},
 			},
 		},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		AccountDeletionReceiptsTable,
-		AuthSessionsTable,
-		AuthUsersTable,
+		AuthBrowserSessionsTable,
+		AuthIdentitiesTable,
 	}
 )
 
 func init() {
-	AuthSessionsTable.ForeignKeys[0].RefTable = AuthUsersTable
-	AuthSessionsTable.Annotation = &entsql.Annotation{
-		Table: "auth_sessions",
+	AuthBrowserSessionsTable.ForeignKeys[0].RefTable = AuthIdentitiesTable
+	AuthBrowserSessionsTable.Annotation = &entsql.Annotation{
+		Table: "auth_browser_sessions",
 	}
-	AuthUsersTable.Annotation = &entsql.Annotation{
-		Table: "auth_users",
+	AuthIdentitiesTable.Annotation = &entsql.Annotation{
+		Table: "auth_identities",
 	}
 }

@@ -21,8 +21,8 @@ func timestamps() []ent.Field {
 	return []ent.Field{field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now)}
 }
 
-// User is the business profile row keyed by the BFF account ID. Credentials and
-// session state live in the BFF database; this table holds footprint-related fields only.
+// User is the business profile keyed by the BFF identity mapping ID.
+// Logto owns accounts and credentials; the BFF owns browser sessions.
 type User struct{ ent.Schema }
 
 func (User) Annotations() []schema.Annotation {
@@ -31,17 +31,9 @@ func (User) Annotations() []schema.Annotation {
 func (User) Fields() []ent.Field {
 	return append([]ent.Field{
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(),
-		field.String("username").Optional().Nillable().Unique(),
+		field.String("username").Optional().Nillable(),
 		field.String("display_name").Default(""),
 		field.String("avatar_url").Default(""),
-		// Legacy credential columns remain until bff-import-legacy-accounts and the
-		// optional post-import SQL cleanup; tripmap application code never writes them.
-		field.String("email").Optional().Nillable().Immutable(),
-		field.String("provider").Default("").Immutable(),
-		field.String("external_id").Default("").Immutable(),
-		field.String("password_hash").Default("").Sensitive().Immutable(),
-		field.Bool("disabled").Default(false).Immutable(),
-		field.Time("deletion_requested_at").Optional().Nillable().Immutable(),
 		field.Int64("revision").Default(0).NonNegative(),
 		// 1 = date/note live on city_visits (frozen once upgraded); 2 = trips live in
 		// city_trips. Upgraded in place by the first write from a schema 2 client.
@@ -53,12 +45,6 @@ func (User) Fields() []ent.Field {
 		field.Bool("friend_show_dates").Default(false),
 		field.Bool("friend_show_notes").Default(false),
 	}, timestamps()...)
-}
-func (User) Indexes() []ent.Index {
-	return []ent.Index{
-		index.Fields("provider", "external_id").Unique().Annotations(entsql.IndexWhere("external_id <> ''")),
-		index.Fields("email").Unique(),
-	}
 }
 func (User) Edges() []ent.Edge {
 	return []ent.Edge{
@@ -469,5 +455,3 @@ func (Itinerary) Indexes() []ent.Index {
 		index.Fields("user_id", "updated_at"),
 	}
 }
-
-

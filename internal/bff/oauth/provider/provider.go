@@ -1,7 +1,5 @@
-// Package provider defines the OAuth login provider abstraction used by the
-// AuthService. Each supported provider (GitHub, Google, …) implements the
-// Provider interface and is registered with a Registry. The AuthService
-// dispatches BeginOAuthFlow / CompleteOAuthFlow by provider name.
+// Package provider defines the Logto login provider abstraction used by the
+// AuthService. The AuthService dispatches the fixed Logto callback by name.
 package provider
 
 import (
@@ -13,17 +11,16 @@ import (
 // registered under the given name.
 var ErrUnknownProvider = errors.New("oauth provider not configured")
 
-// Claims is the normalized set of user attributes a provider returns after a
+// Claims is the normalized set of identity attributes Logto returns after a
 // successful code exchange. Only ExternalID is strictly required; the rest
 // are best-effort.
 type Claims struct {
-	// Provider is the registry name of the provider that produced these
-	// claims (e.g. "github").
+	// Provider is the fixed Logto registry name that produced these claims.
 	Provider string
 	// ExternalID is the provider-issued account ID. Stable across email or
 	// username changes.
 	ExternalID string
-	// Login is the provider-side username (e.g. GitHub login). Optional.
+	// Login is the Logto username, used only as an optional display cache.
 	Login string
 	// Name is the provider-side display name. Optional.
 	Name string
@@ -34,11 +31,11 @@ type Claims struct {
 	AvatarURL string
 }
 
-// Provider abstracts a single OAuth login provider.
+// Provider abstracts the configured Logto login provider.
 type Provider interface {
-	// Name returns the registry key for this provider (e.g. "github").
+	// Name returns the fixed registry key ("logto").
 	Name() string
-	// DisplayName is the human-readable label shown on the login page.
+	// DisplayName is the human-readable Logto label shown on the login page.
 	DisplayName() string
 	// AuthorizeURL builds the authorization URL the user is redirected to.
 	// state is an opaque CSRF token issued by the AuthService.

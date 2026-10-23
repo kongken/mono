@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	bffsession "github.com/kongken/mono/internal/bff/ent/session"
@@ -43,7 +44,7 @@ func TestChainAccountDeletionRetryReceiptAndIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := &bffv1.DeleteAccountRequest{Confirmation: "DELETE", Password: "password1"}
+	req := &bffv1.DeleteAccountRequest{Confirmation: "DELETE"}
 	if err = a.DeleteAccount(ctx, req, aID); err == nil || connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("expected unavailable on S3 failure: %v", err)
 	}
@@ -79,6 +80,45 @@ func TestChainAccountDeletionRetryReceiptAndIsolation(t *testing.T) {
 	}
 	if h.BFFDB.Session.Query().Where(bffsession.UserID(aID)).CountX(ctx) != 0 {
 		t.Fatal("bff sessions for A should be gone")
+	}
+}
+
+func TestCloudDataDeletionRequiresRecentSessionAndPreservesLogtoLogin(t *testing.T) {
+	h := NewChainHarness(t)
+	ctx := t.Context()
+	b := h.FreshBrowser()
+	id, err := b.Register(ctx, "same-logto-subject", "", "Traveler")
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, hash, err := session.NewToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.BFFDB.Session.Create().SetUserID(id).SetTokenHash(hash).
+		SetCreatedAt(time.Now().Add(-16 * time.Minute)).SetExpiresAt(time.Now().Add(time.Hour)).SaveX(ctx)
+	u, _ := url.Parse(b.Origin)
+	b.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: session.CookieName, Value: token, Path: "/"}})
+	if err := b.DeleteAccount(ctx, &bffv1.DeleteAccountRequest{Confirmation: "DELETE"}); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("old BFF session accepted: %v", err)
+	}
+	if h.BFFDB.User.GetX(ctx, id).DeletionRequestedAt != nil {
+		t.Fatal("freshness rejection started deletion")
+	}
+	if err := b.Login(ctx, "same-logto-subject", "", b.Origin); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.DeleteAccount(ctx, &bffv1.DeleteAccountRequest{Confirmation: "DELETE"}); err != nil {
+		t.Fatal(err)
+	}
+	// The same Logto subject remains usable, but receives a new empty mapping.
+	newID, err := b.Register(ctx, "same-logto-subject", "", "Traveler")
+	if err != nil || newID == id {
+		t.Fatalf("new mapping after cloud deletion: %q %v", newID, err)
+	}
+	fp, err := b.GetFootprints(ctx)
+	if err != nil || len(fp.Visits) != 0 || len(fp.ProvinceMarks) != 0 {
+		t.Fatalf("new business profile is not empty: %v %v", fp, err)
 	}
 }
 

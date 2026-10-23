@@ -648,15 +648,9 @@ var (
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
-		{Name: "username", Type: field.TypeString, Unique: true, Nullable: true},
+		{Name: "username", Type: field.TypeString, Nullable: true},
 		{Name: "display_name", Type: field.TypeString, Default: ""},
 		{Name: "avatar_url", Type: field.TypeString, Default: ""},
-		{Name: "email", Type: field.TypeString, Nullable: true},
-		{Name: "provider", Type: field.TypeString, Default: ""},
-		{Name: "external_id", Type: field.TypeString, Default: ""},
-		{Name: "password_hash", Type: field.TypeString, Default: ""},
-		{Name: "disabled", Type: field.TypeBool, Default: false},
-		{Name: "deletion_requested_at", Type: field.TypeTime, Nullable: true},
 		{Name: "revision", Type: field.TypeInt64, Default: 0},
 		{Name: "schema_version", Type: field.TypeInt, Default: 1},
 		{Name: "friend_code", Type: field.TypeString, Unique: true, Nullable: true},
@@ -671,21 +665,6 @@ var (
 		Name:       "users",
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "user_provider_external_id",
-				Unique:  true,
-				Columns: []*schema.Column{UsersColumns[5], UsersColumns[6]},
-				Annotation: &entsql.IndexAnnotation{
-					Where: "external_id <> ''",
-				},
-			},
-			{
-				Name:    "user_email",
-				Unique:  true,
-				Columns: []*schema.Column{UsersColumns[4]},
-			},
-		},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{

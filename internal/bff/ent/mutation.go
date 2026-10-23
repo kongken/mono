@@ -1104,9 +1104,8 @@ type UserMutation struct {
 	username              *string
 	display_name          *string
 	avatar_url            *string
-	provider              *string
+	issuer                *string
 	external_id           *string
-	password_hash         *string
 	disabled              *bool
 	deletion_requested_at *time.Time
 	created_at            *time.Time
@@ -1345,40 +1344,40 @@ func (m *UserMutation) ResetAvatarURL() {
 	m.avatar_url = nil
 }
 
-// SetProvider sets the "provider" field.
-func (m *UserMutation) SetProvider(s string) {
-	m.provider = &s
+// SetIssuer sets the "issuer" field.
+func (m *UserMutation) SetIssuer(s string) {
+	m.issuer = &s
 }
 
-// Provider returns the value of the "provider" field in the mutation.
-func (m *UserMutation) Provider() (r string, exists bool) {
-	v := m.provider
+// Issuer returns the value of the "issuer" field in the mutation.
+func (m *UserMutation) Issuer() (r string, exists bool) {
+	v := m.issuer
 	if v == nil {
 		return
 	}
 	return *v, true
 }
 
-// OldProvider returns the old "provider" field's value of the User entity.
+// OldIssuer returns the old "issuer" field's value of the User entity.
 // If the User object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *UserMutation) OldProvider(ctx context.Context) (v string, err error) {
+func (m *UserMutation) OldIssuer(ctx context.Context) (v string, err error) {
 	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldProvider is only allowed on UpdateOne operations")
+		return v, errors.New("OldIssuer is only allowed on UpdateOne operations")
 	}
 	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldProvider requires an ID field in the mutation")
+		return v, errors.New("OldIssuer requires an ID field in the mutation")
 	}
 	oldValue, err := m.oldValue(ctx)
 	if err != nil {
-		return v, fmt.Errorf("querying old value for OldProvider: %w", err)
+		return v, fmt.Errorf("querying old value for OldIssuer: %w", err)
 	}
-	return oldValue.Provider, nil
+	return oldValue.Issuer, nil
 }
 
-// ResetProvider resets all changes to the "provider" field.
-func (m *UserMutation) ResetProvider() {
-	m.provider = nil
+// ResetIssuer resets all changes to the "issuer" field.
+func (m *UserMutation) ResetIssuer() {
+	m.issuer = nil
 }
 
 // SetExternalID sets the "external_id" field.
@@ -1415,42 +1414,6 @@ func (m *UserMutation) OldExternalID(ctx context.Context) (v string, err error) 
 // ResetExternalID resets all changes to the "external_id" field.
 func (m *UserMutation) ResetExternalID() {
 	m.external_id = nil
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (m *UserMutation) SetPasswordHash(s string) {
-	m.password_hash = &s
-}
-
-// PasswordHash returns the value of the "password_hash" field in the mutation.
-func (m *UserMutation) PasswordHash() (r string, exists bool) {
-	v := m.password_hash
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldPasswordHash returns the old "password_hash" field's value of the User entity.
-// If the User object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *UserMutation) OldPasswordHash(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldPasswordHash is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldPasswordHash requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldPasswordHash: %w", err)
-	}
-	return oldValue.PasswordHash, nil
-}
-
-// ResetPasswordHash resets all changes to the "password_hash" field.
-func (m *UserMutation) ResetPasswordHash() {
-	m.password_hash = nil
 }
 
 // SetDisabled sets the "disabled" field.
@@ -1698,7 +1661,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 9)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -1708,14 +1671,11 @@ func (m *UserMutation) Fields() []string {
 	if m.avatar_url != nil {
 		fields = append(fields, user.FieldAvatarURL)
 	}
-	if m.provider != nil {
-		fields = append(fields, user.FieldProvider)
+	if m.issuer != nil {
+		fields = append(fields, user.FieldIssuer)
 	}
 	if m.external_id != nil {
 		fields = append(fields, user.FieldExternalID)
-	}
-	if m.password_hash != nil {
-		fields = append(fields, user.FieldPasswordHash)
 	}
 	if m.disabled != nil {
 		fields = append(fields, user.FieldDisabled)
@@ -1743,12 +1703,10 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.DisplayName()
 	case user.FieldAvatarURL:
 		return m.AvatarURL()
-	case user.FieldProvider:
-		return m.Provider()
+	case user.FieldIssuer:
+		return m.Issuer()
 	case user.FieldExternalID:
 		return m.ExternalID()
-	case user.FieldPasswordHash:
-		return m.PasswordHash()
 	case user.FieldDisabled:
 		return m.Disabled()
 	case user.FieldDeletionRequestedAt:
@@ -1772,12 +1730,10 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldDisplayName(ctx)
 	case user.FieldAvatarURL:
 		return m.OldAvatarURL(ctx)
-	case user.FieldProvider:
-		return m.OldProvider(ctx)
+	case user.FieldIssuer:
+		return m.OldIssuer(ctx)
 	case user.FieldExternalID:
 		return m.OldExternalID(ctx)
-	case user.FieldPasswordHash:
-		return m.OldPasswordHash(ctx)
 	case user.FieldDisabled:
 		return m.OldDisabled(ctx)
 	case user.FieldDeletionRequestedAt:
@@ -1816,12 +1772,12 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetAvatarURL(v)
 		return nil
-	case user.FieldProvider:
+	case user.FieldIssuer:
 		v, ok := value.(string)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
-		m.SetProvider(v)
+		m.SetIssuer(v)
 		return nil
 	case user.FieldExternalID:
 		v, ok := value.(string)
@@ -1829,13 +1785,6 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetExternalID(v)
-		return nil
-	case user.FieldPasswordHash:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetPasswordHash(v)
 		return nil
 	case user.FieldDisabled:
 		v, ok := value.(bool)
@@ -1938,14 +1887,11 @@ func (m *UserMutation) ResetField(name string) error {
 	case user.FieldAvatarURL:
 		m.ResetAvatarURL()
 		return nil
-	case user.FieldProvider:
-		m.ResetProvider()
+	case user.FieldIssuer:
+		m.ResetIssuer()
 		return nil
 	case user.FieldExternalID:
 		m.ResetExternalID()
-		return nil
-	case user.FieldPasswordHash:
-		m.ResetPasswordHash()
 		return nil
 	case user.FieldDisabled:
 		m.ResetDisabled()

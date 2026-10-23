@@ -39,7 +39,6 @@ auth:
   session_ttl: 168h
   csrf_token_ttl: 24h    # optional; default 24h when unset
   cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP
-  # registration_disabled: true
   # Explicit loopback-only HTTP exception for local OAuth development.
   # Production: remove oauth_development, set cookie_secure: true, use HTTPS.
   oauth_development: true
@@ -52,16 +51,14 @@ auth:
       origin: http://localhost:5174
       default_path: /map
       allowed_paths: [/map]
+  # Logto is the sole identity provider. Configure registration, password
+  # recovery, social connections and passkeys in Logto.
   # oauth_providers:
   #   logto:
-  #     issuer_url: https://tenant.logto.app/oidc
+  #     issuer_url: https://auth.example.com/oidc
   #     client_id: local-client
   #     client_secret: replace-in-ignored-config
-  #     redirect_url: http://localhost:5173/auth/callback/logto
-  #   github:
-  #     client_id: local-client
-  #     client_secret: replace-in-ignored-config
-  #     redirect_url: http://localhost:5173/auth/callback/github
+  #     redirect_url: http://localhost:18081/auth/callback/logto
 
 # Exact origins for direct BFF access. Same-origin /api proxy needs none.
 cors_allowed_origins:

@@ -77,48 +77,6 @@ func (_u *UserUpdate) SetNillableAvatarURL(v *string) *UserUpdate {
 	return _u
 }
 
-// SetProvider sets the "provider" field.
-func (_u *UserUpdate) SetProvider(v string) *UserUpdate {
-	_u.mutation.SetProvider(v)
-	return _u
-}
-
-// SetNillableProvider sets the "provider" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableProvider(v *string) *UserUpdate {
-	if v != nil {
-		_u.SetProvider(*v)
-	}
-	return _u
-}
-
-// SetExternalID sets the "external_id" field.
-func (_u *UserUpdate) SetExternalID(v string) *UserUpdate {
-	_u.mutation.SetExternalID(v)
-	return _u
-}
-
-// SetNillableExternalID sets the "external_id" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableExternalID(v *string) *UserUpdate {
-	if v != nil {
-		_u.SetExternalID(*v)
-	}
-	return _u
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (_u *UserUpdate) SetPasswordHash(v string) *UserUpdate {
-	_u.mutation.SetPasswordHash(v)
-	return _u
-}
-
-// SetNillablePasswordHash sets the "password_hash" field if the given value is not nil.
-func (_u *UserUpdate) SetNillablePasswordHash(v *string) *UserUpdate {
-	if v != nil {
-		_u.SetPasswordHash(*v)
-	}
-	return _u
-}
-
 // SetDisabled sets the "disabled" field.
 func (_u *UserUpdate) SetDisabled(v bool) *UserUpdate {
 	_u.mutation.SetDisabled(v)
@@ -257,15 +215,6 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AvatarURL(); ok {
 		_spec.SetField(user.FieldAvatarURL, field.TypeString, value)
 	}
-	if value, ok := _u.mutation.Provider(); ok {
-		_spec.SetField(user.FieldProvider, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.ExternalID(); ok {
-		_spec.SetField(user.FieldExternalID, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.PasswordHash(); ok {
-		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
-	}
 	if value, ok := _u.mutation.Disabled(); ok {
 		_spec.SetField(user.FieldDisabled, field.TypeBool, value)
 	}
@@ -387,48 +336,6 @@ func (_u *UserUpdateOne) SetAvatarURL(v string) *UserUpdateOne {
 func (_u *UserUpdateOne) SetNillableAvatarURL(v *string) *UserUpdateOne {
 	if v != nil {
 		_u.SetAvatarURL(*v)
-	}
-	return _u
-}
-
-// SetProvider sets the "provider" field.
-func (_u *UserUpdateOne) SetProvider(v string) *UserUpdateOne {
-	_u.mutation.SetProvider(v)
-	return _u
-}
-
-// SetNillableProvider sets the "provider" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableProvider(v *string) *UserUpdateOne {
-	if v != nil {
-		_u.SetProvider(*v)
-	}
-	return _u
-}
-
-// SetExternalID sets the "external_id" field.
-func (_u *UserUpdateOne) SetExternalID(v string) *UserUpdateOne {
-	_u.mutation.SetExternalID(v)
-	return _u
-}
-
-// SetNillableExternalID sets the "external_id" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableExternalID(v *string) *UserUpdateOne {
-	if v != nil {
-		_u.SetExternalID(*v)
-	}
-	return _u
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (_u *UserUpdateOne) SetPasswordHash(v string) *UserUpdateOne {
-	_u.mutation.SetPasswordHash(v)
-	return _u
-}
-
-// SetNillablePasswordHash sets the "password_hash" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillablePasswordHash(v *string) *UserUpdateOne {
-	if v != nil {
-		_u.SetPasswordHash(*v)
 	}
 	return _u
 }
@@ -600,15 +507,6 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AvatarURL(); ok {
 		_spec.SetField(user.FieldAvatarURL, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.Provider(); ok {
-		_spec.SetField(user.FieldProvider, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.ExternalID(); ok {
-		_spec.SetField(user.FieldExternalID, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.PasswordHash(); ok {
-		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Disabled(); ok {
 		_spec.SetField(user.FieldDisabled, field.TypeBool, value)

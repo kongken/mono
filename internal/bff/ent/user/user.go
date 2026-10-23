@@ -20,12 +20,10 @@ const (
 	FieldDisplayName = "display_name"
 	// FieldAvatarURL holds the string denoting the avatar_url field in the database.
 	FieldAvatarURL = "avatar_url"
-	// FieldProvider holds the string denoting the provider field in the database.
-	FieldProvider = "provider"
+	// FieldIssuer holds the string denoting the issuer field in the database.
+	FieldIssuer = "issuer"
 	// FieldExternalID holds the string denoting the external_id field in the database.
 	FieldExternalID = "external_id"
-	// FieldPasswordHash holds the string denoting the password_hash field in the database.
-	FieldPasswordHash = "password_hash"
 	// FieldDisabled holds the string denoting the disabled field in the database.
 	FieldDisabled = "disabled"
 	// FieldDeletionRequestedAt holds the string denoting the deletion_requested_at field in the database.
@@ -37,12 +35,12 @@ const (
 	// EdgeSessions holds the string denoting the sessions edge name in mutations.
 	EdgeSessions = "sessions"
 	// Table holds the table name of the user in the database.
-	Table = "auth_users"
+	Table = "auth_identities"
 	// SessionsTable is the table that holds the sessions relation/edge.
-	SessionsTable = "auth_sessions"
+	SessionsTable = "auth_browser_sessions"
 	// SessionsInverseTable is the table name for the Session entity.
 	// It exists in this package in order to avoid circular dependency with the "session" package.
-	SessionsInverseTable = "auth_sessions"
+	SessionsInverseTable = "auth_browser_sessions"
 	// SessionsColumn is the table column denoting the sessions relation/edge.
 	SessionsColumn = "user_id"
 )
@@ -53,9 +51,8 @@ var Columns = []string{
 	FieldUsername,
 	FieldDisplayName,
 	FieldAvatarURL,
-	FieldProvider,
+	FieldIssuer,
 	FieldExternalID,
-	FieldPasswordHash,
 	FieldDisabled,
 	FieldDeletionRequestedAt,
 	FieldCreatedAt,
@@ -77,12 +74,10 @@ var (
 	DefaultDisplayName string
 	// DefaultAvatarURL holds the default value on creation for the "avatar_url" field.
 	DefaultAvatarURL string
-	// DefaultProvider holds the default value on creation for the "provider" field.
-	DefaultProvider string
-	// DefaultExternalID holds the default value on creation for the "external_id" field.
-	DefaultExternalID string
-	// DefaultPasswordHash holds the default value on creation for the "password_hash" field.
-	DefaultPasswordHash string
+	// IssuerValidator is a validator for the "issuer" field. It is called by the builders before save.
+	IssuerValidator func(string) error
+	// ExternalIDValidator is a validator for the "external_id" field. It is called by the builders before save.
+	ExternalIDValidator func(string) error
 	// DefaultDisabled holds the default value on creation for the "disabled" field.
 	DefaultDisabled bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
@@ -118,19 +113,14 @@ func ByAvatarURL(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAvatarURL, opts...).ToFunc()
 }
 
-// ByProvider orders the results by the provider field.
-func ByProvider(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldProvider, opts...).ToFunc()
+// ByIssuer orders the results by the issuer field.
+func ByIssuer(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIssuer, opts...).ToFunc()
 }
 
 // ByExternalID orders the results by the external_id field.
 func ByExternalID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldExternalID, opts...).ToFunc()
-}
-
-// ByPasswordHash orders the results by the password_hash field.
-func ByPasswordHash(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldPasswordHash, opts...).ToFunc()
 }
 
 // ByDisabled orders the results by the disabled field.

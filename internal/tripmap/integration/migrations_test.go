@@ -206,9 +206,24 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 	if got, want := pendingChanges(t, ctx, client), pendingChanges(t, ctx, reference); got != want {
 		t.Fatalf("migrations differ from the Ent schema.\nmigrated database wants:\n%s\nEnt-created database wants:\n%s", got, want)
 	}
-	// New accounts after migration only touch business profile columns; legacy auth columns keep defaults.
+	// Logto-only clients never select or write legacy credential columns.
 	if _, err := client.User.Create().SetID("u-new").SetUsername("fresh_user").SetDisplayName("新用户").Save(ctx); err != nil {
 		t.Fatalf("ent create profile-only user: %v", err)
+	}
+	cleanup, err := os.ReadFile("../../../deploy/sql/tripmap/post_import_drop_legacy_auth_columns.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if _, err := scoped.ExecContext(ctx, string(cleanup)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := client.User.Get(ctx, "u-new"); err != nil {
+		t.Fatalf("new client requires retired columns: %v", err)
+	}
+	if _, err := client.User.Create().SetID("u-same-name").SetUsername("fresh_user").Save(ctx); err != nil {
+		t.Fatalf("cached usernames must not be unique after cleanup: %v", err)
 	}
 }
 

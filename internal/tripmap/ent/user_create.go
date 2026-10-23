@@ -81,90 +81,6 @@ func (_c *UserCreate) SetNillableAvatarURL(v *string) *UserCreate {
 	return _c
 }
 
-// SetEmail sets the "email" field.
-func (_c *UserCreate) SetEmail(v string) *UserCreate {
-	_c.mutation.SetEmail(v)
-	return _c
-}
-
-// SetNillableEmail sets the "email" field if the given value is not nil.
-func (_c *UserCreate) SetNillableEmail(v *string) *UserCreate {
-	if v != nil {
-		_c.SetEmail(*v)
-	}
-	return _c
-}
-
-// SetProvider sets the "provider" field.
-func (_c *UserCreate) SetProvider(v string) *UserCreate {
-	_c.mutation.SetProvider(v)
-	return _c
-}
-
-// SetNillableProvider sets the "provider" field if the given value is not nil.
-func (_c *UserCreate) SetNillableProvider(v *string) *UserCreate {
-	if v != nil {
-		_c.SetProvider(*v)
-	}
-	return _c
-}
-
-// SetExternalID sets the "external_id" field.
-func (_c *UserCreate) SetExternalID(v string) *UserCreate {
-	_c.mutation.SetExternalID(v)
-	return _c
-}
-
-// SetNillableExternalID sets the "external_id" field if the given value is not nil.
-func (_c *UserCreate) SetNillableExternalID(v *string) *UserCreate {
-	if v != nil {
-		_c.SetExternalID(*v)
-	}
-	return _c
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (_c *UserCreate) SetPasswordHash(v string) *UserCreate {
-	_c.mutation.SetPasswordHash(v)
-	return _c
-}
-
-// SetNillablePasswordHash sets the "password_hash" field if the given value is not nil.
-func (_c *UserCreate) SetNillablePasswordHash(v *string) *UserCreate {
-	if v != nil {
-		_c.SetPasswordHash(*v)
-	}
-	return _c
-}
-
-// SetDisabled sets the "disabled" field.
-func (_c *UserCreate) SetDisabled(v bool) *UserCreate {
-	_c.mutation.SetDisabled(v)
-	return _c
-}
-
-// SetNillableDisabled sets the "disabled" field if the given value is not nil.
-func (_c *UserCreate) SetNillableDisabled(v *bool) *UserCreate {
-	if v != nil {
-		_c.SetDisabled(*v)
-	}
-	return _c
-}
-
-// SetDeletionRequestedAt sets the "deletion_requested_at" field.
-func (_c *UserCreate) SetDeletionRequestedAt(v time.Time) *UserCreate {
-	_c.mutation.SetDeletionRequestedAt(v)
-	return _c
-}
-
-// SetNillableDeletionRequestedAt sets the "deletion_requested_at" field if the given value is not nil.
-func (_c *UserCreate) SetNillableDeletionRequestedAt(v *time.Time) *UserCreate {
-	if v != nil {
-		_c.SetDeletionRequestedAt(*v)
-	}
-	return _c
-}
-
 // SetRevision sets the "revision" field.
 func (_c *UserCreate) SetRevision(v int64) *UserCreate {
 	_c.mutation.SetRevision(v)
@@ -597,22 +513,6 @@ func (_c *UserCreate) defaults() {
 		v := user.DefaultAvatarURL
 		_c.mutation.SetAvatarURL(v)
 	}
-	if _, ok := _c.mutation.Provider(); !ok {
-		v := user.DefaultProvider
-		_c.mutation.SetProvider(v)
-	}
-	if _, ok := _c.mutation.ExternalID(); !ok {
-		v := user.DefaultExternalID
-		_c.mutation.SetExternalID(v)
-	}
-	if _, ok := _c.mutation.PasswordHash(); !ok {
-		v := user.DefaultPasswordHash
-		_c.mutation.SetPasswordHash(v)
-	}
-	if _, ok := _c.mutation.Disabled(); !ok {
-		v := user.DefaultDisabled
-		_c.mutation.SetDisabled(v)
-	}
 	if _, ok := _c.mutation.Revision(); !ok {
 		v := user.DefaultRevision
 		_c.mutation.SetRevision(v)
@@ -654,18 +554,6 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.AvatarURL(); !ok {
 		return &ValidationError{Name: "avatar_url", err: errors.New(`ent: missing required field "User.avatar_url"`)}
-	}
-	if _, ok := _c.mutation.Provider(); !ok {
-		return &ValidationError{Name: "provider", err: errors.New(`ent: missing required field "User.provider"`)}
-	}
-	if _, ok := _c.mutation.ExternalID(); !ok {
-		return &ValidationError{Name: "external_id", err: errors.New(`ent: missing required field "User.external_id"`)}
-	}
-	if _, ok := _c.mutation.PasswordHash(); !ok {
-		return &ValidationError{Name: "password_hash", err: errors.New(`ent: missing required field "User.password_hash"`)}
-	}
-	if _, ok := _c.mutation.Disabled(); !ok {
-		return &ValidationError{Name: "disabled", err: errors.New(`ent: missing required field "User.disabled"`)}
 	}
 	if _, ok := _c.mutation.Revision(); !ok {
 		return &ValidationError{Name: "revision", err: errors.New(`ent: missing required field "User.revision"`)}
@@ -745,30 +633,6 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AvatarURL(); ok {
 		_spec.SetField(user.FieldAvatarURL, field.TypeString, value)
 		_node.AvatarURL = value
-	}
-	if value, ok := _c.mutation.Email(); ok {
-		_spec.SetField(user.FieldEmail, field.TypeString, value)
-		_node.Email = &value
-	}
-	if value, ok := _c.mutation.Provider(); ok {
-		_spec.SetField(user.FieldProvider, field.TypeString, value)
-		_node.Provider = value
-	}
-	if value, ok := _c.mutation.ExternalID(); ok {
-		_spec.SetField(user.FieldExternalID, field.TypeString, value)
-		_node.ExternalID = value
-	}
-	if value, ok := _c.mutation.PasswordHash(); ok {
-		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
-		_node.PasswordHash = value
-	}
-	if value, ok := _c.mutation.Disabled(); ok {
-		_spec.SetField(user.FieldDisabled, field.TypeBool, value)
-		_node.Disabled = value
-	}
-	if value, ok := _c.mutation.DeletionRequestedAt(); ok {
-		_spec.SetField(user.FieldDeletionRequestedAt, field.TypeTime, value)
-		_node.DeletionRequestedAt = &value
 	}
 	if value, ok := _c.mutation.Revision(); ok {
 		_spec.SetField(user.FieldRevision, field.TypeInt64, value)
@@ -1287,24 +1151,6 @@ func (u *UserUpsertOne) UpdateNewValues() *UserUpsertOne {
 		if _, exists := u.create.mutation.ID(); exists {
 			s.SetIgnore(user.FieldID)
 		}
-		if _, exists := u.create.mutation.Email(); exists {
-			s.SetIgnore(user.FieldEmail)
-		}
-		if _, exists := u.create.mutation.Provider(); exists {
-			s.SetIgnore(user.FieldProvider)
-		}
-		if _, exists := u.create.mutation.ExternalID(); exists {
-			s.SetIgnore(user.FieldExternalID)
-		}
-		if _, exists := u.create.mutation.PasswordHash(); exists {
-			s.SetIgnore(user.FieldPasswordHash)
-		}
-		if _, exists := u.create.mutation.Disabled(); exists {
-			s.SetIgnore(user.FieldDisabled)
-		}
-		if _, exists := u.create.mutation.DeletionRequestedAt(); exists {
-			s.SetIgnore(user.FieldDeletionRequestedAt)
-		}
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(user.FieldCreatedAt)
 		}
@@ -1689,24 +1535,6 @@ func (u *UserUpsertBulk) UpdateNewValues() *UserUpsertBulk {
 		for _, b := range u.create.builders {
 			if _, exists := b.mutation.ID(); exists {
 				s.SetIgnore(user.FieldID)
-			}
-			if _, exists := b.mutation.Email(); exists {
-				s.SetIgnore(user.FieldEmail)
-			}
-			if _, exists := b.mutation.Provider(); exists {
-				s.SetIgnore(user.FieldProvider)
-			}
-			if _, exists := b.mutation.ExternalID(); exists {
-				s.SetIgnore(user.FieldExternalID)
-			}
-			if _, exists := b.mutation.PasswordHash(); exists {
-				s.SetIgnore(user.FieldPasswordHash)
-			}
-			if _, exists := b.mutation.Disabled(); exists {
-				s.SetIgnore(user.FieldDisabled)
-			}
-			if _, exists := b.mutation.DeletionRequestedAt(); exists {
-				s.SetIgnore(user.FieldDeletionRequestedAt)
 			}
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(user.FieldCreatedAt)

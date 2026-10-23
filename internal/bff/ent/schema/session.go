@@ -14,7 +14,7 @@ import (
 type Session struct{ ent.Schema }
 
 func (Session) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "auth_sessions"}}
+	return []schema.Annotation{entsql.Annotation{Table: "auth_browser_sessions"}}
 }
 
 func (Session) Fields() []ent.Field {
@@ -37,7 +37,7 @@ func (Session) Edges() []ent.Edge {
 
 func (Session) Indexes() []ent.Index {
 	return []ent.Index{
-		index.Fields("user_id"),
-		index.Fields("expires_at"),
+		index.Fields("user_id").StorageKey("browser_session_user_id"),
+		index.Fields("expires_at").StorageKey("browser_session_expires_at"),
 	}
 }

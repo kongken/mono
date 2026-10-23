@@ -15,6 +15,10 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
     (data) => localStorage.setItem("shanhai-travel-v1", JSON.stringify(data)),
     local,
   );
+  await page.route("**/auth/login?*", async (route) => {
+    authenticated = true;
+    await route.fulfill({ status: 303, headers: { Location: "/" } });
+  });
   await page.route("**/api/**", async (route) => {
     const method = route.request().url().split("/").pop();
     const binary = route.request().headers()["content-type"]?.includes("proto");
@@ -25,20 +29,9 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
         schema = auth.IssueCSRFTokenResponseSchema;
         data = { token: "ci-csrf" };
         break;
-      case "Login":
-        authenticated = true;
-        schema = auth.LoginResponseSchema;
-        data = {
-          user: {
-            id: "ci-account",
-            username: "ci_user",
-            displayName: "CI 旅行者",
-          },
-          expiresAt: { seconds: BigInt(Math.floor(Date.now() / 1000) + 3600) },
-        };
-        break;
       case "ListOAuthProviders":
         schema = auth.ListOAuthProvidersResponseSchema;
+        data = { providers: [{ name: "logto", displayName: "Logto" }] };
         break;
       case "Me":
         if (!authenticated) {
@@ -76,7 +69,7 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
           ? fromBinary(auth.DeleteAccountRequestSchema, raw)
           : JSON.parse(raw.toString());
         expect(request.confirmation).toBe("DELETE");
-        expect(request.password).toBe("correct horse battery");
+        expect("password" in request).toBe(false);
         attempts++;
         if (attempts === 1) {
           await route.fulfill({
@@ -112,9 +105,7 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
   });
   await page.goto("/");
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByLabel("用户名", { exact: true }).fill("ci_user");
-  await page.getByLabel("密码", { exact: true }).fill("correct horse battery");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await page.getByRole("button", { name: "使用 Logto 登录", exact: true }).click();
   // The local footprint is offered for migration; this test is about deletion.
   await page.getByRole("button", { name: "稍后再说" }).click();
   await expect(
@@ -136,18 +127,17 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
   await expect(notice).toBeVisible();
   await notice.getByRole("button", { name: "不合并，保留在旧位置" }).click();
   await page.getByRole("button", { name: "账号", exact: true }).click();
-  await page.getByRole("button", { name: "注销账号", exact: true }).click();
+  await page.getByRole("button", { name: "删除云端数据", exact: true }).click();
   const confirm = page.getByRole("button", {
-    name: "确认永久注销",
+    name: "确认永久删除",
     exact: true,
   });
   await expect(confirm).toBeDisabled();
-  await page
-    .getByLabel("确认当前密码", { exact: true })
-    .fill("correct horse battery");
-  await page.getByLabel("输入“注销”确认", { exact: true }).fill("注销");
+  await expect(page.getByText("不会删除 Logto 账号", { exact: false })).toBeVisible();
+  await expect(page.locator('input[type="password"]')).toHaveCount(0);
+  await page.getByLabel("输入“删除”确认", { exact: true }).fill("删除");
   await confirm.click();
-  await expect(page.getByText(/账号注销可能尚未完成/)).toBeVisible();
+  await expect(page.getByText(/云端数据删除可能尚未完成/)).toBeVisible();
   await expect.poll(() => attempts).toBe(1);
   await confirm.click();
   await expect(

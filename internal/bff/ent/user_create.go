@@ -66,45 +66,15 @@ func (_c *UserCreate) SetNillableAvatarURL(v *string) *UserCreate {
 	return _c
 }
 
-// SetProvider sets the "provider" field.
-func (_c *UserCreate) SetProvider(v string) *UserCreate {
-	_c.mutation.SetProvider(v)
-	return _c
-}
-
-// SetNillableProvider sets the "provider" field if the given value is not nil.
-func (_c *UserCreate) SetNillableProvider(v *string) *UserCreate {
-	if v != nil {
-		_c.SetProvider(*v)
-	}
+// SetIssuer sets the "issuer" field.
+func (_c *UserCreate) SetIssuer(v string) *UserCreate {
+	_c.mutation.SetIssuer(v)
 	return _c
 }
 
 // SetExternalID sets the "external_id" field.
 func (_c *UserCreate) SetExternalID(v string) *UserCreate {
 	_c.mutation.SetExternalID(v)
-	return _c
-}
-
-// SetNillableExternalID sets the "external_id" field if the given value is not nil.
-func (_c *UserCreate) SetNillableExternalID(v *string) *UserCreate {
-	if v != nil {
-		_c.SetExternalID(*v)
-	}
-	return _c
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (_c *UserCreate) SetPasswordHash(v string) *UserCreate {
-	_c.mutation.SetPasswordHash(v)
-	return _c
-}
-
-// SetNillablePasswordHash sets the "password_hash" field if the given value is not nil.
-func (_c *UserCreate) SetNillablePasswordHash(v *string) *UserCreate {
-	if v != nil {
-		_c.SetPasswordHash(*v)
-	}
 	return _c
 }
 
@@ -236,18 +206,6 @@ func (_c *UserCreate) defaults() {
 		v := user.DefaultAvatarURL
 		_c.mutation.SetAvatarURL(v)
 	}
-	if _, ok := _c.mutation.Provider(); !ok {
-		v := user.DefaultProvider
-		_c.mutation.SetProvider(v)
-	}
-	if _, ok := _c.mutation.ExternalID(); !ok {
-		v := user.DefaultExternalID
-		_c.mutation.SetExternalID(v)
-	}
-	if _, ok := _c.mutation.PasswordHash(); !ok {
-		v := user.DefaultPasswordHash
-		_c.mutation.SetPasswordHash(v)
-	}
 	if _, ok := _c.mutation.Disabled(); !ok {
 		v := user.DefaultDisabled
 		_c.mutation.SetDisabled(v)
@@ -274,14 +232,21 @@ func (_c *UserCreate) check() error {
 	if _, ok := _c.mutation.AvatarURL(); !ok {
 		return &ValidationError{Name: "avatar_url", err: errors.New(`ent: missing required field "User.avatar_url"`)}
 	}
-	if _, ok := _c.mutation.Provider(); !ok {
-		return &ValidationError{Name: "provider", err: errors.New(`ent: missing required field "User.provider"`)}
+	if _, ok := _c.mutation.Issuer(); !ok {
+		return &ValidationError{Name: "issuer", err: errors.New(`ent: missing required field "User.issuer"`)}
+	}
+	if v, ok := _c.mutation.Issuer(); ok {
+		if err := user.IssuerValidator(v); err != nil {
+			return &ValidationError{Name: "issuer", err: fmt.Errorf(`ent: validator failed for field "User.issuer": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.ExternalID(); !ok {
 		return &ValidationError{Name: "external_id", err: errors.New(`ent: missing required field "User.external_id"`)}
 	}
-	if _, ok := _c.mutation.PasswordHash(); !ok {
-		return &ValidationError{Name: "password_hash", err: errors.New(`ent: missing required field "User.password_hash"`)}
+	if v, ok := _c.mutation.ExternalID(); ok {
+		if err := user.ExternalIDValidator(v); err != nil {
+			return &ValidationError{Name: "external_id", err: fmt.Errorf(`ent: validator failed for field "User.external_id": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.Disabled(); !ok {
 		return &ValidationError{Name: "disabled", err: errors.New(`ent: missing required field "User.disabled"`)}
@@ -340,17 +305,13 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldAvatarURL, field.TypeString, value)
 		_node.AvatarURL = value
 	}
-	if value, ok := _c.mutation.Provider(); ok {
-		_spec.SetField(user.FieldProvider, field.TypeString, value)
-		_node.Provider = value
+	if value, ok := _c.mutation.Issuer(); ok {
+		_spec.SetField(user.FieldIssuer, field.TypeString, value)
+		_node.Issuer = value
 	}
 	if value, ok := _c.mutation.ExternalID(); ok {
 		_spec.SetField(user.FieldExternalID, field.TypeString, value)
 		_node.ExternalID = value
-	}
-	if value, ok := _c.mutation.PasswordHash(); ok {
-		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
-		_node.PasswordHash = value
 	}
 	if value, ok := _c.mutation.Disabled(); ok {
 		_spec.SetField(user.FieldDisabled, field.TypeBool, value)
@@ -478,42 +439,6 @@ func (u *UserUpsert) UpdateAvatarURL() *UserUpsert {
 	return u
 }
 
-// SetProvider sets the "provider" field.
-func (u *UserUpsert) SetProvider(v string) *UserUpsert {
-	u.Set(user.FieldProvider, v)
-	return u
-}
-
-// UpdateProvider sets the "provider" field to the value that was provided on create.
-func (u *UserUpsert) UpdateProvider() *UserUpsert {
-	u.SetExcluded(user.FieldProvider)
-	return u
-}
-
-// SetExternalID sets the "external_id" field.
-func (u *UserUpsert) SetExternalID(v string) *UserUpsert {
-	u.Set(user.FieldExternalID, v)
-	return u
-}
-
-// UpdateExternalID sets the "external_id" field to the value that was provided on create.
-func (u *UserUpsert) UpdateExternalID() *UserUpsert {
-	u.SetExcluded(user.FieldExternalID)
-	return u
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (u *UserUpsert) SetPasswordHash(v string) *UserUpsert {
-	u.Set(user.FieldPasswordHash, v)
-	return u
-}
-
-// UpdatePasswordHash sets the "password_hash" field to the value that was provided on create.
-func (u *UserUpsert) UpdatePasswordHash() *UserUpsert {
-	u.SetExcluded(user.FieldPasswordHash)
-	return u
-}
-
 // SetDisabled sets the "disabled" field.
 func (u *UserUpsert) SetDisabled(v bool) *UserUpsert {
 	u.Set(user.FieldDisabled, v)
@@ -572,6 +497,12 @@ func (u *UserUpsertOne) UpdateNewValues() *UserUpsertOne {
 	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
 		if _, exists := u.create.mutation.ID(); exists {
 			s.SetIgnore(user.FieldID)
+		}
+		if _, exists := u.create.mutation.Issuer(); exists {
+			s.SetIgnore(user.FieldIssuer)
+		}
+		if _, exists := u.create.mutation.ExternalID(); exists {
+			s.SetIgnore(user.FieldExternalID)
 		}
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(user.FieldCreatedAt)
@@ -653,48 +584,6 @@ func (u *UserUpsertOne) SetAvatarURL(v string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateAvatarURL() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateAvatarURL()
-	})
-}
-
-// SetProvider sets the "provider" field.
-func (u *UserUpsertOne) SetProvider(v string) *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.SetProvider(v)
-	})
-}
-
-// UpdateProvider sets the "provider" field to the value that was provided on create.
-func (u *UserUpsertOne) UpdateProvider() *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateProvider()
-	})
-}
-
-// SetExternalID sets the "external_id" field.
-func (u *UserUpsertOne) SetExternalID(v string) *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.SetExternalID(v)
-	})
-}
-
-// UpdateExternalID sets the "external_id" field to the value that was provided on create.
-func (u *UserUpsertOne) UpdateExternalID() *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateExternalID()
-	})
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (u *UserUpsertOne) SetPasswordHash(v string) *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.SetPasswordHash(v)
-	})
-}
-
-// UpdatePasswordHash sets the "password_hash" field to the value that was provided on create.
-func (u *UserUpsertOne) UpdatePasswordHash() *UserUpsertOne {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdatePasswordHash()
 	})
 }
 
@@ -930,6 +819,12 @@ func (u *UserUpsertBulk) UpdateNewValues() *UserUpsertBulk {
 			if _, exists := b.mutation.ID(); exists {
 				s.SetIgnore(user.FieldID)
 			}
+			if _, exists := b.mutation.Issuer(); exists {
+				s.SetIgnore(user.FieldIssuer)
+			}
+			if _, exists := b.mutation.ExternalID(); exists {
+				s.SetIgnore(user.FieldExternalID)
+			}
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(user.FieldCreatedAt)
 			}
@@ -1011,48 +906,6 @@ func (u *UserUpsertBulk) SetAvatarURL(v string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateAvatarURL() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateAvatarURL()
-	})
-}
-
-// SetProvider sets the "provider" field.
-func (u *UserUpsertBulk) SetProvider(v string) *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.SetProvider(v)
-	})
-}
-
-// UpdateProvider sets the "provider" field to the value that was provided on create.
-func (u *UserUpsertBulk) UpdateProvider() *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateProvider()
-	})
-}
-
-// SetExternalID sets the "external_id" field.
-func (u *UserUpsertBulk) SetExternalID(v string) *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.SetExternalID(v)
-	})
-}
-
-// UpdateExternalID sets the "external_id" field to the value that was provided on create.
-func (u *UserUpsertBulk) UpdateExternalID() *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdateExternalID()
-	})
-}
-
-// SetPasswordHash sets the "password_hash" field.
-func (u *UserUpsertBulk) SetPasswordHash(v string) *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.SetPasswordHash(v)
-	})
-}
-
-// UpdatePasswordHash sets the "password_hash" field to the value that was provided on create.
-func (u *UserUpsertBulk) UpdatePasswordHash() *UserUpsertBulk {
-	return u.Update(func(s *UserUpsert) {
-		s.UpdatePasswordHash()
 	})
 }
 

@@ -21,22 +21,22 @@ func timestamps() []ent.Field {
 	}
 }
 
-// User holds BFF-owned account identity (password and future OAuth bindings).
+// User is a local Logto identity mapping and profile cache, not an account store.
+// Logto owns credentials and registration; ID is only the stable business key.
 type User struct{ ent.Schema }
 
 func (User) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "auth_users"}}
+	return []schema.Annotation{entsql.Annotation{Table: "auth_identities"}}
 }
 
 func (User) Fields() []ent.Field {
 	return append([]ent.Field{
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(),
-		field.String("username").Optional().Nillable().Unique(),
+		field.String("username").Optional().Nillable(),
 		field.String("display_name").Default(""),
 		field.String("avatar_url").Default(""),
-		field.String("provider").Default(""),
-		field.String("external_id").Default(""),
-		field.String("password_hash").Default("").Sensitive(),
+		field.String("issuer").NotEmpty().Immutable(),
+		field.String("external_id").NotEmpty().Immutable(),
 		field.Bool("disabled").Default(false),
 		field.Time("deletion_requested_at").Optional().Nillable(),
 	}, timestamps()...)
@@ -44,7 +44,7 @@ func (User) Fields() []ent.Field {
 
 func (User) Indexes() []ent.Index {
 	return []ent.Index{
-		index.Fields("provider", "external_id").Unique().Annotations(entsql.IndexWhere("external_id <> ''")),
+		index.Fields("issuer", "external_id").Unique(),
 	}
 }
 
