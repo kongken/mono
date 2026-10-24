@@ -6,8 +6,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net"
-	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -15,6 +13,8 @@ import (
 
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/servicetoken"
+	"github.com/kongken/mono/internal/usersrv/mailer"
+	"github.com/kongken/mono/internal/usersrv/outbox"
 	"github.com/kongken/mono/internal/usersrv/passwordhash"
 	"github.com/kongken/mono/internal/usersrv/ratelimit"
 )
@@ -38,7 +38,18 @@ type AppConfig struct {
 	// InternalAuth lists the BFF public keys that may call this service.
 	InternalAuth servicetoken.VerifyConfig `yaml:"internal_auth"`
 	Auth         AuthConfig                `yaml:"auth"`
-	RateLimit    RateLimitConfig           `yaml:"rate_limit"`
+	// Mail selects the one mail vendor and holds the outbox encryption keys.
+	Mail      MailConfig      `yaml:"mail"`
+	RateLimit RateLimitConfig `yaml:"rate_limit"`
+}
+
+// MailConfig is the mail section: the vendor settings of package mailer plus the
+// outbox encryption keys. The encryption keys are independent of the BFF
+// signing key and of auth.hmac_key, and live in configuration or a mounted
+// Secret, never in the database that holds the encrypted jobs.
+type MailConfig struct {
+	mailer.Config `yaml:",inline"`
+	Encryption    outbox.EncryptionConfig `yaml:"encryption"`
 }
 
 // AuthConfig groups the account rules.
@@ -87,8 +98,8 @@ type LimitConfig struct {
 	Window string `yaml:"window"`
 }
 
-// RateLimitConfig lists the limits stage P1 enforces. Counters live in Redis
-// and fail closed. Registration, reset and mail limits arrive with stages P2/P3.
+// RateLimitConfig lists the limits usersrv enforces. Counters live in Redis and
+// fail closed. The token-submission limits arrive with stage P3.
 type RateLimitConfig struct {
 	// PasswordPerAccount and PasswordPerIP bound password verification (re-auth,
 	// change password): success counts too. Defaults 10 and 40 per 15 minutes.
@@ -98,6 +109,19 @@ type RateLimitConfig struct {
 	ProfileWritePerUser LimitConfig `yaml:"profile_write_per_user"`
 	// DeletionPerUser bounds BeginDeletion/FinishDeletion; default 10 per 15 minutes.
 	DeletionPerUser LimitConfig `yaml:"deletion_per_user"`
+
+	// Account mail requests (spec section 10). Per client address 20/hour for
+	// each of registration and reset; per mailbox a cooldown (1 per 60s) and 5 per
+	// hour for each purpose; 8 per hour for all account mail to one mailbox;
+	// 200 per hour for the whole service (adjust to the vendor's quota).
+	RegistrationMailPerIP    LimitConfig `yaml:"registration_mail_per_ip"`
+	ResetMailPerIP           LimitConfig `yaml:"reset_mail_per_ip"`
+	RegistrationMailCooldown LimitConfig `yaml:"registration_mail_cooldown"`
+	RegistrationMailPerEmail LimitConfig `yaml:"registration_mail_per_email"`
+	ResetMailCooldown        LimitConfig `yaml:"reset_mail_cooldown"`
+	ResetMailPerEmail        LimitConfig `yaml:"reset_mail_per_email"`
+	MailPerEmail             LimitConfig `yaml:"mail_per_email"`
+	MailGlobal               LimitConfig `yaml:"mail_global"`
 }
 
 func (c *AppConfig) Print() {}
@@ -134,8 +158,31 @@ func (c *AppConfig) Validate() error {
 	if err := c.Auth.validate(); err != nil {
 		return err
 	}
+	if err := c.Mail.validate(&c.Auth); err != nil {
+		return err
+	}
 	return c.RateLimit.validate()
 }
+
+// validate checks the vendor settings and the encryption keys. Both are required:
+// without a usable mail setup usersrv would look able to register users while
+// no mail can leave, so it refuses to start.
+func (m *MailConfig) validate(auth *AuthConfig) error {
+	if err := m.Config.Validate(); err != nil {
+		return err
+	}
+	keys, err := m.Encryption.Keyring()
+	if err != nil {
+		return err
+	}
+	if hmacKey, err := auth.HMACKeyBytes(); err == nil && keys.Overlaps(hmacKey) {
+		return errors.New("mail.encryption keys must differ from auth.hmac_key")
+	}
+	return nil
+}
+
+// Keyring returns the loaded outbox encryption keys; call it after Validate.
+func (m MailConfig) Keyring() (*outbox.Keyring, error) { return m.Encryption.Keyring() }
 
 func (a *AuthConfig) validate() error {
 	if a.RegistrationEnabled == nil {
@@ -202,35 +249,8 @@ func (a AuthConfig) HMACKeyBytes() ([]byte, error) {
 	return key, nil
 }
 
-// validateOrigin accepts an exact https origin, or an http loopback origin when
-// development mode is explicitly allowed. No path, query, fragment or userinfo.
 func validateOrigin(origin string, allowLoopbackHTTP bool) error {
-	if origin == "" {
-		return errors.New("is required")
-	}
-	u, err := url.Parse(origin)
-	if err != nil || u.Host == "" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") ||
-		strings.ContainsAny(origin, " \t\r\n") || strings.HasSuffix(origin, "/") {
-		return errors.New("must be an exact origin such as https://example.com")
-	}
-	switch u.Scheme {
-	case "https":
-		return nil
-	case "http":
-		if allowLoopbackHTTP && isLoopback(u.Hostname()) {
-			return nil
-		}
-		return errors.New("http is only allowed for loopback hosts with auth.allow_loopback_http")
-	}
-	return errors.New("must use https")
-}
-
-func isLoopback(host string) bool {
-	if host == "localhost" {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
+	return mailer.ValidateOrigin(origin, allowLoopbackHTTP)
 }
 
 // Resolve applies defaults and checks the bounds, returning the hasher config.
@@ -279,6 +299,14 @@ func (r *RateLimitConfig) validate() error {
 		{"password_per_ip", &r.PasswordPerIP, 40, "15m"},
 		{"profile_write_per_user", &r.ProfileWritePerUser, 30, "1m"},
 		{"deletion_per_user", &r.DeletionPerUser, 10, "15m"},
+		{"registration_mail_per_ip", &r.RegistrationMailPerIP, 20, "1h"},
+		{"reset_mail_per_ip", &r.ResetMailPerIP, 20, "1h"},
+		{"registration_mail_cooldown", &r.RegistrationMailCooldown, 1, "60s"},
+		{"registration_mail_per_email", &r.RegistrationMailPerEmail, 5, "1h"},
+		{"reset_mail_cooldown", &r.ResetMailCooldown, 1, "60s"},
+		{"reset_mail_per_email", &r.ResetMailPerEmail, 5, "1h"},
+		{"mail_per_email", &r.MailPerEmail, 8, "1h"},
+		{"mail_global", &r.MailGlobal, 200, "1h"},
 	} {
 		if l.cfg.Limit == 0 {
 			l.cfg.Limit = l.limit
@@ -305,7 +333,7 @@ func (l LimitConfig) Rule(name string) (ratelimit.Rule, error) {
 	return ratelimit.Rule{Name: name, Limit: l.Limit, Window: d}, nil
 }
 
-// Limits returns the P1 rules; call it after Validate.
+// Limits returns the resolved rules; call it after Validate.
 func (r RateLimitConfig) Limits() (Limits, error) {
 	var out Limits
 	var err error
@@ -318,6 +346,14 @@ func (r RateLimitConfig) Limits() (Limits, error) {
 		{&out.PasswordPerIP, "password_per_ip", r.PasswordPerIP},
 		{&out.ProfileWritePerUser, "profile_write_per_user", r.ProfileWritePerUser},
 		{&out.DeletionPerUser, "deletion_per_user", r.DeletionPerUser},
+		{&out.Mail.RegistrationPerIP, "registration_mail_per_ip", r.RegistrationMailPerIP},
+		{&out.Mail.ResetPerIP, "reset_mail_per_ip", r.ResetMailPerIP},
+		{&out.Mail.RegistrationEmailCooldown, "registration_mail_cooldown", r.RegistrationMailCooldown},
+		{&out.Mail.RegistrationPerEmail, "registration_mail_per_email", r.RegistrationMailPerEmail},
+		{&out.Mail.ResetEmailCooldown, "reset_mail_cooldown", r.ResetMailCooldown},
+		{&out.Mail.ResetPerEmail, "reset_mail_per_email", r.ResetMailPerEmail},
+		{&out.Mail.MailPerEmail, "mail_per_email", r.MailPerEmail},
+		{&out.Mail.MailGlobal, "mail_global", r.MailGlobal},
 	} {
 		if *p.dst, err = p.cfg.Rule(p.name); err != nil {
 			return out, err
@@ -329,4 +365,6 @@ func (r RateLimitConfig) Limits() (Limits, error) {
 // Limits are the resolved rules.
 type Limits struct {
 	PasswordPerAccount, PasswordPerIP, ProfileWritePerUser, DeletionPerUser ratelimit.Rule
+	// Mail are the limits of account mail requests.
+	Mail ratelimit.MailRules
 }

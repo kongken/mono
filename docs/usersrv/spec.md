@@ -1,6 +1,6 @@
 # usersrv 自建用户系统规格
 
-> **状态：实现中（P1 已实现，P2–P6 待实现）。** 当前主干的浏览器登录仍使用 Logto；`usersrv` 目前只提供账号核心（见下方“实现状态登记”），BFF 尚未调用它，**不开放任何新登录或注册**。实现期间不得把本文中尚未登记为已实现的目标能力写成已经上线。
+> **状态：实现中（P1、P2 已实现，P3–P6 待实现）。** 当前主干的浏览器登录仍使用 Logto；`usersrv` 目前提供账号核心与邮件模块（见下方“实现状态登记”，邮件还没有对外入口，注册与找回流程在 P3），BFF 尚未调用它，**不开放任何新登录或注册**。实现期间不得把本文中尚未登记为已实现的目标能力写成已经上线。
 >
 > 规格与评审：[GitHub Issue #75](https://github.com/kongken/mono/issues/75)。本文是实现规格的仓库副本，评审修改同步到该 Issue。具体安全参数、流程细节及交付拆分是本规格提出的工程默认值，不代表用户逐项确认；第 1 节单列已确认要求。实现后同步各产品的当前行为文档，并在本文逐阶段登记状态。
 
@@ -9,7 +9,7 @@
 | 阶段 | 状态 | 说明 |
 | --- | --- | --- |
 | P1 usersrv 骨架与账号核心 | **已实现** | 见下文“P1 已实现内容”；单元与集成测试通过，不开放新登录 | 已实现 |
-| P2 邮件模块 | 待实现 | 表 `mail_jobs` 留给 P2；`BeginDeletion` 取消未发邮件的钩子也在 P2 | 待实现 |
+| P2 邮件模块 | **已实现** | 见下文“P2 已实现内容”；四 adapter 通过本地假 HTTP/SMTP 服务的契约测试，真实厂商只有[手动冒烟文档](mail-smoke-test.md)，尚未对真实服务验证；邮件还没有对外入口（P3 才会签发） | 已实现 |
 | P3 账号流程 | 待实现 | `RequestRegistration`、`CompleteRegistration`、`AuthenticateWithEmail`、`RequestPasswordReset`、`ResetPassword` 的契约已定稿，服务端返回 `UNIMPLEMENTED` | 待实现 |
 | P4 BFF 与产品鉴权 | 待实现 | BFF 尚未登记或调用 usersrv；`bff.v1` 仍是 Logto 契约 | 待实现 |
 | P5 前端 | 待实现 | 两个前端应用仍使用 Logto 登录 |
@@ -20,15 +20,27 @@
 实现说明与命令见 [后端初始化](../backend.md#usersrv-服务账号核心p1)。对规格的补充（均不改变第 1 节与既定默认值）：
 
 - 账号核心在 `internal/usersrv/account`：邮箱规范化与校验（`identity`，§4.1：只接受单个纯 ASCII 地址，IDN 须填 punycode）、昵称与头像校验、Argon2id（`passwordhash`，默认 64 MiB、3 次迭代、并行度 1、盐 16 字节、输出 32 字节，单进程最多 2 个并发计算，未知邮箱使用等成本虚拟哈希）、账号状态 `active/disabled/deleting`、`auth_version` 在同一事务中单调递增、安全审计同事务写入。
-- 数据模型：`users`、`user_roles`、`account_tokens`、`security_audit`，另外两处补充：`deletion_tombstones`（§9.2 要求的注销 tombstone，24 小时，仅用户 UUID、工作流 ID 与时间）、`users.deletion_started_at`/`deletion_mutation_id`（记录拥有 `deleting` 状态的注销工作流）；`security_audit` 增加 `reason`（仅角色 CLI 使用，操作者不得写入邮箱）。`mail_jobs` 不在 P1 创建。
+- 数据模型：`users`、`user_roles`、`account_tokens`、`security_audit`，另外两处补充：`deletion_tombstones`（§9.2 要求的注销 tombstone，24 小时，仅用户 UUID、工作流 ID 与时间）、`users.deletion_started_at`/`deletion_mutation_id`（记录拥有 `deleting` 状态的注销工作流）；`security_audit` 增加 `reason`（仅角色 CLI 使用，操作者不得写入邮箱）。`mail_jobs` 在 P2 创建。
 - 内部契约 `usersrv.v1`（`proto/usersrv/v1/`）：`SystemService.GetStatus`；`AccountService` 已实现 `GetAuthState`、`GetMyAccount`、`VerifyPassword`、`ChangePassword`、`UpdateMyProfile`、`BeginDeletion`、`FinishDeletion`，所有方法都要求 BFF 签名凭证（`aud=usersrv`、绑定方法、60 秒）；本人方法只取凭证中的 `sub`，请求体没有用户 ID 字段。`GetAuthState` 与 `GetMyAccount` 拆开：前者每请求复核用，不含邮箱；后者含登录邮箱，仅供本人账号界面。
 - 错误通过 `google.rpc.ErrorInfo`（domain `usersrv.v1`）区分原因（`INVALID_CREDENTIALS`、`ACCOUNT_NOT_ACTIVE`、`VERSION_CONFLICT`、`RATE_LIMITED`、`INVALID_ARGUMENT`、`DELETION_MISMATCH`），BFF 适配层据此把“错误密码”与内部签名错误分开（§9.1）。
-- 限流（§10，Redis，原子计数，Redis 不可用时返回 `UNAVAILABLE` 且不放行）：密码验证（重新认证、修改密码）每用户 10 次/15 分钟、每 IP 40 次/15 分钟，成功也计数；资料写入每用户 30 次/分钟；注销每用户 10 次/15 分钟。Redis key 中的主体用独立 HMAC 密钥摘要。注册、重置、邮件合计限额随 P2/P3 实现。
+- 限流（§10，Redis，原子计数，Redis 不可用时返回 `UNAVAILABLE` 且不放行）：密码验证（重新认证、修改密码）每用户 10 次/15 分钟、每 IP 40 次/15 分钟，成功也计数；资料写入每用户 30 次/分钟；注销每用户 10 次/15 分钟。Redis key 中的主体用独立 HMAC 密钥摘要。注册、重置、邮件合计限额的计数器在 P2 实现（见下），由 P3 的注册/找回流程调用。
 - 注销：`BeginDeletion` 幂等切到 `deleting`、递增 `auth_version`、作废该用户及其邮箱的账号令牌；`FinishDeletion` 要求 `deleting` 且工作流 ID 一致，删除账号与角色（级联）、作废令牌并写 tombstone，24 小时内同用户同工作流重放成功；同邮箱可重新注册得到新 UUID。已禁用账号不能开始注销（需先启用）。
 - 角色与状态：只有命令行 `usersrv-admin` 能授予/撤销 `metro-admin`、禁用/启用账号；授予只限已验证的 active 账号，每次尝试（含被拒）记录操作者、原因、结果；没有“首个用户自动管理员”，也没有 RPC 入口。授予/撤销/禁用/启用若改变了状态就递增 `auth_version`（已处于目标状态时只写审计，不递增）。
 - 后台清理：每小时清除过期令牌（过期或消费超过 7 天）、过期 tombstone、超过 90 天的审计行；它是 `/readyz` 报告的 `worker` 本地状态。
-- `auth.apps.<id>.origin`、令牌 TTL 与 HMAC 密钥已进入配置并在启动时校验，但邮件链接与令牌在 P2/P3 才使用。
+- `auth.apps.<id>.origin`、令牌 TTL 与 HMAC 密钥已进入配置并在启动时校验，邮件链接在 P2 使用，令牌的签发与验证流程在 P3。
 - 已测量的 Argon2id 成本见 [后端初始化](../backend.md#usersrv-服务账号核心p1) 的“资源预算”。
+
+### P2 已实现内容
+
+实现说明、配置与运维见 [后端初始化](../backend.md#usersrv-邮件模块p2)。对规格的补充（均不改变第 1 节与既定默认值）：
+
+- `internal/usersrv/mailer`：统一的 `Send(ctx, message)`；固定的中文验证/重置模板（纯文本与 HTML，参数转义，收件人和标题拒绝 CR/LF）；四个 adapter（Mailgun 与 SendGrid、SMTP2GO 用原生 HTTP API，SMTP 支持 `implicit_tls`/`starttls` 且始终校验证书）。HTTP adapter 禁止重定向、响应体限 16 KiB 并脱敏、默认 10 秒超时；错误分为 temporary/permanent/uncertain。配置校验让未知 provider、缺参数、混入其他厂商参数、非法 region/TLS 模式都在启动时失败。
+- 邮件跟踪：Mailgun 与 SendGrid 请求里显式关闭点击/打开跟踪（否则令牌会经厂商域名改写）；SMTP2GO API 没有逐封开关，需在其账户里关闭。SMTP 目前只实现 AUTH PLAIN/LOGIN，且只在 TLS 或回环地址上发送凭证。
+- 加密 outbox 表 `mail_jobs`（迁移 `migrations/usersrv/20261024153533_mail_outbox.sql`）：收件人、模板参数与明文令牌整体 AES-256-GCM 加密（带 key ID，关联数据绑定任务 ID 与用途）；状态机 `pending/sending/accepted/failed/uncertain/expired/cancelled`；密文只在 `pending/sending` 存在，数据库 `CHECK` 保证终态必须清空。同进程 worker 用数据库 lease（发送超时＋30 秒）抢占，多副本只会发一次；发送前复核挑战（存在、未消费、未过期）与账号（active、`auth_version` 一致、邮箱未被注册）。最多 3 次尝试，退避 1、5 分钟，重试用同一令牌；`uncertain` 永不自动重发；任务记录保留 7 天，每小时清理。任务固定签发时的 provider 与配置代次，不一致则取消（`config_changed`）；队列里有任务但缺少其解密 key 时启动失败。`BeginDeletion`/`FinishDeletion` 取消该用户未发的账号邮件。
+- 链接固定为 `auth.apps.<app_id>.origin` 的精确 origin 加 `/account/verify-email` 或 `/account/reset-password`，令牌放在 `#token=` 片段里；调用方不能指定 URL。
+- 限流（Redis 原子，邮箱用独立 HMAC 摘要；Redis 不可用返回 `UNAVAILABLE`）：每客户端 IP、全服务、每邮箱 60 秒冷却、每邮箱每用途、每邮箱合计，默认值见 `config.usersrv.example.yaml`。超出邮箱维度只“抑制”（调用方仍给统一成功应答，不发信）；超出 IP/全服务维度返回 `RESOURCE_EXHAUSTED`。
+- 日志与指标：没有指标导出器，只有 `Service.Snapshot()` 计数和结构化日志（任务 ID、provider、模板、状态、错误类、次数、耗时、`alert`），不含邮箱、令牌、链接或密钥；告警事件为 `mail_vendor_auth_failed`、`mail_uncertain`、`mail_decrypt_failed`、`mail_key_missing`、`mail_backlog` 等。`/readyz` 增加 `mail_outbox`（worker 本地状态）。
+- 测试：四个 adapter 对本地 HTTP/SMTP 假服务做契约测试（Mailgun US/EU 各一例），outbox 与限流用真实 PostgreSQL/Redis。**没有、也不会在 CI 里连接真实厂商**；手动步骤见 [邮件厂商手动冒烟测试](mail-smoke-test.md)。
 
 ## 1. 已确认要求
 
@@ -344,7 +356,7 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 | 阶段 | 范围 | 依赖/完成门槛 | 状态 |
 | --- | --- | --- | --- |
 | P1 usersrv 骨架与账号核心 | 独立库、配置、健康、契约、邮箱规范化、Argon2id、状态/版本、角色 CLI、import 检查 | 本规格评审；可单测/集成测试，不开放新登录 | 已实现 |
-| P2 邮件模块 | 四 adapter、统一模板、加密 outbox、lease、失败分类、限流、固定链接 | P1 存储；四种假服务契约测试通过 | 待实现 |
+| P2 邮件模块 | 四 adapter、统一模板、加密 outbox、lease、失败分类、限流、固定链接 | P1 存储；四种假服务契约测试通过 | 已实现 |
 | P3 账号流程 | 注册验证、邮箱密码认证、找回/改密、资料、重新认证、令牌并发 | P1/P2；真实 usersrv＋假邮件集成闭环 | 待实现 |
 | P4 BFF 与产品鉴权 | 新浏览器契约、会话版本复核、MCP 版本/角色复核、tripmap 投影/好友入口、注销工作流 | P3；真实 BFF→usersrv→两产品 E2E 通过 | 待实现 |
 | P5 前端 | 两应用表单、邮件落地页、设备/资料/改密/注销、错误/离线保护、共用包 | P4 契约；桌面/手机 Playwright 和真实账号链 | 待实现 |

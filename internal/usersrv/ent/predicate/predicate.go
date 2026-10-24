@@ -12,6 +12,9 @@ type AccountToken func(*sql.Selector)
 // DeletionTombstone is the predicate function for deletiontombstone builders.
 type DeletionTombstone func(*sql.Selector)
 
+// MailJob is the predicate function for mailjob builders.
+type MailJob func(*sql.Selector)
+
 // SecurityAudit is the predicate function for securityaudit builders.
 type SecurityAudit func(*sql.Selector)
 

@@ -10,6 +10,8 @@ import (
 
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/servicetoken"
+	"github.com/kongken/mono/internal/usersrv/mailer"
+	"github.com/kongken/mono/internal/usersrv/outbox"
 	"gopkg.in/yaml.v3"
 )
 
@@ -23,6 +25,19 @@ func valid() *AppConfig {
 			Apps:    map[string]AppOrigin{"trip-map": {Origin: "https://map.example.com"}, "metro": {Origin: "https://metro.example.com"}},
 			HMACKey: base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32))),
 		},
+		Mail: validMail(),
+	}
+}
+
+func validMail() MailConfig {
+	return MailConfig{
+		Config: mailer.Config{
+			Provider: "mailgun", FromEmail: "no-reply@example.com", FromName: "山海足迹",
+			Mailgun: mailer.MailgunConfig{APIKey: "key-secret", Domain: "mg.example.com", Region: "eu"},
+		},
+		Encryption: outbox.EncryptionConfig{ActiveKeyID: "k1", Keys: []outbox.KeyConfig{
+			{ID: "k1", Key: base64.StdEncoding.EncodeToString([]byte(strings.Repeat("e", 32)))},
+		}},
 	}
 }
 
@@ -98,12 +113,47 @@ func TestStartupRefusesIncompleteOrUnsafeConfig(t *testing.T) {
 		"zero-sized window":    func(c *AppConfig) { c.RateLimit.PasswordPerIP = LimitConfig{Limit: 5, Window: "0s"} },
 		"negative limit":       func(c *AppConfig) { c.RateLimit.ProfileWritePerUser = LimitConfig{Limit: -1, Window: "1m"} },
 		"garbage window":       func(c *AppConfig) { c.RateLimit.DeletionPerUser = LimitConfig{Limit: 5, Window: "often"} },
+		"garbage mail window":  func(c *AppConfig) { c.RateLimit.MailGlobal = LimitConfig{Limit: 5, Window: "often"} },
+		"no mail section":      func(c *AppConfig) { c.Mail = MailConfig{} },
+		"no mail provider":     func(c *AppConfig) { c.Mail.Provider = "" },
+		"mail without keys":    func(c *AppConfig) { c.Mail.Encryption = outbox.EncryptionConfig{} },
+		"mail key is the hmac": func(c *AppConfig) { c.Mail.Encryption.Keys[0].Key = c.Auth.HMACKey },
+		"active key unknown":   func(c *AppConfig) { c.Mail.Encryption.ActiveKeyID = "other" },
 	}
 	for name, mutate := range cases {
 		c := valid()
 		mutate(c)
 		if err := c.Validate(); err == nil {
 			t.Errorf("%s: accepted", name)
+		}
+	}
+	// The mail limits get the specified defaults.
+	d := valid()
+	if err := d.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	ml, err := d.RateLimit.Limits()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, got := range map[string][2]any{
+		"registration ip":       {ml.Mail.RegistrationPerIP.Limit, ml.Mail.RegistrationPerIP.Window},
+		"reset ip":              {ml.Mail.ResetPerIP.Limit, ml.Mail.ResetPerIP.Window},
+		"registration cooldown": {ml.Mail.RegistrationEmailCooldown.Limit, ml.Mail.RegistrationEmailCooldown.Window},
+		"registration email":    {ml.Mail.RegistrationPerEmail.Limit, ml.Mail.RegistrationPerEmail.Window},
+		"reset cooldown":        {ml.Mail.ResetEmailCooldown.Limit, ml.Mail.ResetEmailCooldown.Window},
+		"reset email":           {ml.Mail.ResetPerEmail.Limit, ml.Mail.ResetPerEmail.Window},
+		"all mail per email":    {ml.Mail.MailPerEmail.Limit, ml.Mail.MailPerEmail.Window},
+		"global":                {ml.Mail.MailGlobal.Limit, ml.Mail.MailGlobal.Window},
+	} {
+		want := map[string][2]any{
+			"registration ip": {20, time.Hour}, "reset ip": {20, time.Hour},
+			"registration cooldown": {1, time.Minute}, "registration email": {5, time.Hour},
+			"reset cooldown": {1, time.Minute}, "reset email": {5, time.Hour},
+			"all mail per email": {8, time.Hour}, "global": {200, time.Hour},
+		}[name]
+		if got != want {
+			t.Errorf("mail limit %s = %v, want %v", name, got, want)
 		}
 	}
 	// Disabling registration is an explicit choice and stays valid.
@@ -169,8 +219,11 @@ func TestExampleConfigLoadsAndValidates(t *testing.T) {
 	if c.GRPC.Listen != "127.0.0.1:18087" || c.InternalAuth.Audience != "usersrv" || c.KeyPrefix == "" || c.RedisStore == "" {
 		t.Fatalf("example config drifted: %+v", c)
 	}
-	// The local sample secret is public; make sure nobody mistakes it for a strong default.
-	if !strings.Contains(string(raw), "public local sample") {
-		t.Fatal("the sample HMAC key lost its warning")
+	// The local sample secrets are public; make sure nobody mistakes them for strong defaults.
+	if strings.Count(string(raw), "public local sample") < 2 {
+		t.Fatal("a sample key lost its warning")
+	}
+	if _, err = c.Mail.Keyring(); err != nil || c.Mail.Provider != "smtp" || c.Mail.SMTP.TLSMode != "plain" {
+		t.Fatalf("example mail section: %+v %v", c.Mail, err)
 	}
 }

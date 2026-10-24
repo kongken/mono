@@ -14,7 +14,8 @@
 | [后端初始化](backend.md) | 已确定的技术栈、开发环境、文件与 Consul 配置及路径前缀、健康接口、数据库模型、版本化数据库迁移（`migrations/tripmap/`）和验证方式 | 后端基础设施、接口、schema 或迁移文件变化时 |
 | [后端功能调研](trip-map/backend-research.md) | 引入后端后可扩展的功能、数据模型与接口草案、同步与迁移、技术选型倾向、分阶段交付和待决问题（待实现，非当前行为） | 后端方向的决策或范围发生变化时 |
 | [地铁足迹功能描述](metro/features.md) | 页面与登录、标记与公开主页、管理后台、导入导出、管理令牌与 MCP 的用户可见规则、验收场景（前端 17–21）与限制 | 用户可见功能发生变化时 |
-| [usersrv 自建用户系统规格](usersrv/spec.md) | 取代 Logto 的邮箱＋密码用户系统：已确认要求、数据与安全参数、分阶段交付（P1–P6）与逐阶段实现状态登记（目前 P1 已实现，BFF 尚未接入；实现后的当前行为以 [后端初始化](backend.md#usersrv-服务账号核心p1) 为准） | 规格范围或阶段状态变化时 |
+| [usersrv 自建用户系统规格](usersrv/spec.md) | 取代 Logto 的邮箱＋密码用户系统：已确认要求、数据与安全参数、分阶段交付（P1–P6）与逐阶段实现状态登记（目前 P1、P2 已实现，BFF 尚未接入；实现后的当前行为以 [后端初始化](backend.md#usersrv-服务账号核心p1) 与[邮件模块](backend.md#usersrv-邮件模块p2)为准） | 规格范围或阶段状态变化时 |
+| [usersrv 邮件厂商手动冒烟测试](usersrv/mail-smoke-test.md) | 启用 Mailgun、SendGrid、SMTP、SMTP2GO 前由运维手动执行的验证步骤；自动化测试只连本地假服务，不连真实厂商 | 邮件 adapter、跟踪或配置要求变化时 |
 | [地铁足迹（metro）规格](metro/spec.md) | 第二个产品的目标、决策、数据模型、接口、Logto 角色授权、admin 与 MCP、`apps/metro`、分阶段交付、验收场景与待决问题（P0–P7 均已实现；实现后的当前行为以功能描述、[后端初始化](backend.md#metro-服务地铁足迹) 与 [BFF](bff.md) 为准） | 规格范围或决策变化时 |
 | [项目协作说明](../AGENTS.md) | 开发约定、文档同步和验证要求 | 协作流程发生变化时 |
 | [Issue tracker](agents/issue-tracker.md) | GitHub Issues 操作、父子任务和依赖约定 | 任务跟踪方式变化时 |

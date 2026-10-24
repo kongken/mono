@@ -10,14 +10,14 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 
 ## 项目结构
 
-仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前有 tripmap 与 metro 两个业务，另有自建用户系统 usersrv 的账号核心（P1，BFF 尚未接入）；业务包之间不互相 import，`internal/platform/` 不依赖业务包。公网请求经 BFF（`cmd/bff`）转发到业务服务，见 [BFF（公网入口）](bff.md)。
+仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前有 tripmap 与 metro 两个业务，另有自建用户系统 usersrv 的账号核心与邮件模块（P1、P2，BFF 尚未接入）；业务包之间不互相 import，`internal/platform/` 不依赖业务包。公网请求经 BFF（`cmd/bff`）转发到业务服务，见 [BFF（公网入口）](bff.md)。
 
 | 路径 | 职责 |
 | --- | --- |
 | `cmd/bff/`、`internal/bff/`（共用的账号与会话；各产品的领域适配在 `internal/bff/<产品>/`，tripmap 的在 `internal/bff/tripmap/`） | BFF：公网唯一浏览器 RPC（`bff.v1` 账号、`bff.<产品>.v1` 业务，Connect、Cookie/CSRF），经内部 gRPC（TLS / h2c）调 tripmap（[说明](bff.md)） |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `cmd/metro/`、`internal/metro/`（`app`、`application`、`config`、`ent`、`testutil`） | 地铁足迹业务服务：入口、装配与内部 gRPC、`CatalogService`/`AdminService`/`RiderService`/`AccountCleanupService`、配置、Ent 模型、隔离 schema 的测试辅助（[说明](#metro-服务地铁足迹)） |
-| `cmd/usersrv/`、`internal/usersrv/`（`app`、`application`、`account`、`identity`、`passwordhash`、`ratelimit`、`worker`、`config`、`ent`、`testutil`、`integration`）、`cmd/usersrv-admin/` | 自建用户系统的账号核心（规格 [usersrv](usersrv/spec.md)，P1）：服务入口、内部 gRPC `usersrv.v1`、账号与角色、Argon2id、限流、运维命令；BFF 尚未调用（[说明](#usersrv-服务账号核心p1)） |
+| `cmd/usersrv/`、`internal/usersrv/`（`app`、`application`、`account`、`identity`、`passwordhash`、`ratelimit`、`worker`、`mailer`、`outbox`、`config`、`ent`、`testutil`、`integration`）、`cmd/usersrv-admin/` | 自建用户系统的账号核心与邮件模块（规格 [usersrv](usersrv/spec.md)，P1、P2）：服务入口、内部 gRPC `usersrv.v1`、账号与角色、Argon2id、限流、邮件 adapter 与加密 outbox、运维命令；BFF 尚未调用（[账号核心](#usersrv-服务账号核心p1)、[邮件模块](#usersrv-邮件模块p2)） |
 | `proto/usersrv/v1/`、`migrations/usersrv/` | usersrv 的内部契约与版本化迁移 |
 | `internal/bff/metro/` | 地铁足迹的 BFF 适配（目录手写映射；管理与骑行者经 `relay` 线格式转换）与账号清理器 |
 | `proto/metro/v1/`、`proto/bff/metro/v1/`、`migrations/metro/` | metro 的内部与浏览器契约、版本化迁移 |
@@ -558,7 +558,7 @@ BFF 的 `20261023095053_logto_identity_mapping.sql` 新增 Logto 身份映射和
 
 ## usersrv 服务（账号核心，P1）
 
-规格见 [usersrv 规格](usersrv/spec.md)（阶段状态也登记在那里）。**当前只实现 P1：** 独立服务骨架与账号核心。BFF 没有登记也不会调用 usersrv，浏览器登录仍然是 Logto；usersrv 不开放任何新登录或注册。邮件、注册与找回密码流程、BFF 适配、前端与发布在 P2–P6。
+规格见 [usersrv 规格](usersrv/spec.md)（阶段状态也登记在那里）。**当前实现 P1（账号核心）与 P2（邮件模块，见[下一节](#usersrv-邮件模块p2)）。** BFF 没有登记也不会调用 usersrv，浏览器登录仍然是 Logto；usersrv 不开放任何新登录或注册。注册与找回密码流程、BFF 适配、前端与发布在 P3–P6。
 
 **运行**：`config.usersrv.example.yaml` 复制为被忽略的 `config.usersrv.yaml`，准备 usersrv 独占的 PostgreSQL 库（例如 `createdb usersrv`）和 Redis（必需；限流计数在 Redis，不可用时拒绝而不是放行）；Redis key 都以 `key_prefix`（默认 `usersrv:`）开头。`make dev-usersrv` 以 HTTP 18086（`/ping`、`/readyz`，内网）与 gRPC 18087 启动。`/readyz` 报告 `postgres`、`redis` 与 `worker`（后台清理的本地状态）。gRPC 默认 TLS，本机可显式 `transport: h2c`（密码走这条链路，跨主机必须用 TLS）；只接受 `internal_auth.trusted_keys` 里 BFF 公钥签发、`aud=usersrv`、绑定方法且 60 秒内的凭证，所有方法（包括匿名标注的）都要求有效凭证，本人方法只取凭证里的 `sub`。生产关闭 `auto_migrate`，执行 `migrations/usersrv/`；新迁移用 `make usersrv-migration NAME=… DEV_DSN=…`（先 `make ent-usersrv`），规则同 tripmap。
 
@@ -588,7 +588,7 @@ BFF 的 `20261023095053_logto_identity_mapping.sql` 新增 Logto 身份映射和
 | --- | --- |
 | `users` | UUID 主键、`email_canonical`（唯一）、`email_verified_at`、`password_hash`（Sensitive，PHC 字符串）、`status`、`auth_version`（≥1）、`display_name`、`avatar_url`、`profile_version`、注销标记（`deletion_started_at`、`deletion_mutation_id`）、时间戳 |
 | `user_roles` | `(user_id, role)` 唯一，外键 `ON DELETE CASCADE`；目前只有 `metro-admin` |
-| `account_tokens` | 唯一的 32 字节 `token_hash`（只存哈希）、用途（注册/重置）及与用途绑定的约束、过期与使用时间；P3 使用 |
+| `account_tokens` | 唯一的 32 字节 `token_hash`（只存哈希）、用途（注册/重置）及与用途绑定的约束、过期与使用时间；由 P2 的 outbox 与 P3 的流程签发/消费 |
 | `security_audit` | 用户 ID（可空）、操作者、动作、结果、请求 ID，以及 CLI 的 `reason`；只增不改，不含邮箱 |
 | `deletion_tombstones` | 用户 UUID、工作流 ID、完成与过期时间；不含邮箱 |
 
@@ -604,6 +604,31 @@ bin/usersrv-admin -config config.usersrv.yaml disable -user-id <uuid> -operator 
 **资源预算**（本地一次测量，机器为 8 核；不是压测，部署前需在目标环境复测）：默认参数下一次哈希约 200 ms、一次校验约 185 ms；并发上限 2 时 40 个校验排队完成约 3.6 秒（约 11 次/秒）。每次计算占 64 MiB，上限 2 个并发即常驻约 128 MiB；Go 的垃圾回收滞后，测量时进程 `Sys` 达到约 330 MiB。容器内存限制建议不低于 512 MiB，并按需设置 `GOMEMLIMIT`。调低参数前须记录原因。
 
 **测试**：`make test` 运行全部单元测试，需要 PostgreSQL / Redis 的测试在未设置 `USERSRV_TEST_POSTGRES_DSN`、`USERSRV_TEST_REDIS_ADDR` 时跳过；`make test-integration-usersrv` 使用 Compose 示例的本地地址跑全部（每个测试用随机 schema 与 Redis key 前缀，不触碰其他服务的开发数据；Redis 的限流窗口测试需要真实 Redis 的过期行为）。覆盖：邮箱与密码校验、Argon2 并发上限、账号状态与版本并发、注销与 tombstone 重放、角色 CLI（含被拒）、限流与 Redis 故障、真实 gRPC 栈下的凭证拒绝（错误 `aud`、错误方法、过期、伪造密钥）、`/readyz`，以及迁移文件重放后与 Ent schema 一致、校验和与数据库约束。`internal/platform/moduleboundary` 保证 `internal/usersrv` 不 import 其他业务，BFF 不 import `internal/usersrv`。
+
+## usersrv 邮件模块（P2）
+
+规格见 [usersrv 规格](usersrv/spec.md)。邮件模块由两个包组成，目前**没有对外的入口**：P3 的注册、找回密码流程才会调用它，浏览器登录仍是 Logto。
+
+**配置**（`config.usersrv.example.yaml` 的 `mail:` 段）：只能启用一个 provider（`mailgun`/`sendgrid`/`smtp`/`smtp2go`，不自动故障转移），并配置对应厂商段；未知 provider、缺少必填参数、混入其他厂商参数、非法 `region`（`us`/`eu`）或 `smtp.tls_mode`（`implicit_tls`/`starttls`）都让 usersrv 启动失败。`from_email`/`from_name`/`reply_to` 全局配置，`timeout` 默认 10 秒（最多 1 分钟）。`allow_insecure_loopback` 只允许开发时对回环地址用明文 SMTP。Key 与密码不进日志。`mail.encryption` 的 AES-256-GCM key 是 32 字节标准 base64，用 `key` 或 `key_file` 提供，必须不同于 `auth.hmac_key`；生产放 Secret，不与数据库放在一起。
+
+**adapter**（`internal/usersrv/mailer`）：Mailgun 用 `api.mailgun.net`/`api.eu.mailgun.net`（`/v3/{domain}/messages`，Basic 认证），SendGrid 用 `api.sendgrid.com/v3/mail/send`（Bearer），SMTP2GO 用 `api.smtp2go.com/v3/email/send`（原生 API，`X-Smtp2go-Api-Key`），SMTP 用 `implicit_tls` 或 `starttls`（STARTTLS 不可用时拒绝，不降级明文）并始终校验证书。所有 HTTP adapter：禁用重定向与连接复用、TLS 1.2 以上、响应体限 16 KiB 且脱敏后才进入错误。错误分类：401/403 与多数 4xx 为 permanent（401/403 另带认证告警）；408/429/503 与请求尚未发出的网络错误为 temporary；请求已发出后的超时/断线与其余 5xx 为 uncertain；SMTP 4xx 为 temporary，5xx 为 permanent，DATA 结束后断线为 uncertain。
+
+**outbox**（`internal/usersrv/outbox`，表 `mail_jobs`）：
+
+- 签发（`Issue`）在**调用方的事务**里同时写账号令牌（只存 SHA-256 摘要）与任务；任务里的收件人、模板参数与明文令牌用 AES-256-GCM 加密，关联数据绑定任务 ID 与用途，格式带版本与 key ID。令牌只在 `pending`/`sending` 的密文里存在，进入终态立即清空，数据库 `CHECK` 保证这一点。
+- 同进程 worker（3 秒轮询，`/readyz` 的 `mail_outbox`）用 `UPDATE … WHERE status='pending'` 抢占任务并设置 lease（发送超时＋30 秒），多副本只会发送一次；发送与写结果不随关停取消，进行中的发送会完成。lease 过期（进程中途死亡）的任务标为 `uncertain`，**不会自动重发**，以免重复发出可用令牌；`uncertain` 需运维人工判断，用户可重新申请。
+- 发送前复核：挑战存在且未消费未过期、账号 active、`auth_version` 一致（重置）、邮箱仍未被注册（注册）；否则任务取消（`cancelled`）。令牌过期则任务 `expired`。
+- 临时失败最多 3 次尝试，退避 1 分钟、5 分钟，每次用同一令牌，不会换发新的。永久失败与不确定结果不重试。
+- 任务固定签发时的 provider 与 `mail.generation`，与当前不一致则取消（`config_changed`）。切换厂商：先排空队列、递增 `generation`、换 provider，之后用户重新申请。轮换加密 key：新增 key，设为 `active_key_id`，旧 key 保留到不再有用它加密的任务；队列里任务缺少解密 key 时 usersrv 拒绝启动（`mail_key_missing`），不会悄悄丢弃。
+- 记录保留 7 天，janitor 每小时清理过期记录；`BeginDeletion`/`FinishDeletion` 取消该用户未发的账号邮件。
+
+**固定链接**：`auth.apps.<app_id>.origin` 的精确 origin（必须 HTTPS；仅在 `auth.allow_loopback_http` 开启时回环主机可用 HTTP）加固定路径 `/account/verify-email` 或 `/account/reset-password`，令牌放在 `#token=` 片段里，不进入服务端日志。收件人不能指定任何 URL 或应用。Mailgun 与 SendGrid 请求关闭点击/打开跟踪（否则令牌会经厂商域名）；SMTP2GO 需在账户里关闭。
+
+**限流**（`outbox.Guard`，Redis 原子，邮箱按独立 HMAC 摘要作 key，Redis 不可用时返回 `UNAVAILABLE`）：顺序为每客户端 IP、全服务、每邮箱 60 秒冷却、每邮箱每用途、每邮箱合计。邮箱维度超限为“抑制”（调用方仍应给统一的中性成功应答，不发信，避免泄露邮箱是否存在）；IP 与全服务超限返回 `RESOURCE_EXHAUSTED`。默认值见示例配置的 `rate_limit`。
+
+**日志与指标**：没有指标导出器；`Service.Snapshot()` 提供计数，每次处理一个任务输出结构化日志：任务 ID、provider、模板、状态、错误类、次数、耗时、`code` 与 `alert`，永不含邮箱、令牌、链接、Key 或厂商返回的原文。告警事件：`mail_vendor_auth_failed`、`mail_uncertain`、`mail_permanent_failure`、`mail_decrypt_failed`、`mail_render_failed`、`mail_key_missing`、`mail_backlog`。
+
+**测试与手动验证**：`make test-integration-usersrv` 里四个 adapter 对本地受控的 HTTP/SMTP 假服务做契约测试（认证方式、From/Reply-To、单收件人、中文标题、文本与 HTML、超时/取消、错误分类、拒绝重定向与证书错误、日志脱敏；Mailgun US 与 EU 各一例），outbox 与限流用真实 PostgreSQL/Redis（原子性、无明文落库、加密与轮换、重试与退避、同令牌、多副本只发一次、复核取消、provider 固定、清理、数据库约束、日志无敏感信息）。**自动化不会连接真实厂商**，真实服务的验证步骤见[手动冒烟测试](usersrv/mail-smoke-test.md)；SPF/DKIM/DMARC 由运维在厂商与 DNS 侧配置。已知限制：SMTP 只实现 AUTH PLAIN/LOGIN；厂商 API 按公开文档实现，尚未对真实服务验证。
 
 ## 生成、构建与验证
 

@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/usersrv/ent"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
+	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/predicate"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
 )
@@ -52,9 +53,25 @@ func (s *Service) purgeAudit(ctx context.Context, before time.Time) (int, error)
 	return s.db.SecurityAudit.Delete().Where(securityaudit.CreatedAtLT(before)).Exec(ctx)
 }
 
-// voidTokens deletes the account tokens bound to the user or to its address.
+// voidTokens deletes the account tokens bound to the user or to its address and
+// cancels the mail jobs that were still waiting to carry them, erasing their
+// ciphertext in the same transaction. A job that a worker is already sending
+// cannot be recalled; its token no longer exists, so the link it carries is dead.
 func (s *Service) voidTokens(ctx context.Context, tx *ent.Tx, id uuid.UUID, email string) error {
-	_, err := tx.AccountToken.Delete().Where(accounttoken.Or(accounttoken.UserID(id), accounttoken.EmailCanonical(email))).Exec(ctx)
+	match := accounttoken.Or(accounttoken.UserID(id), accounttoken.EmailCanonical(email))
+	ids, err := tx.AccountToken.Query().Where(match).IDs(ctx)
+	if err != nil {
+		return err
+	}
+	if len(ids) > 0 {
+		now := s.now()
+		if _, err = tx.MailJob.Update().Where(mailjob.ChallengeIDIn(ids...), mailjob.StatusEQ(mailjob.StatusPending)).
+			SetStatus(mailjob.StatusCancelled).SetResultClass("account_closed").
+			ClearCiphertext().ClearKeyID().SetFinishedAt(now).Save(ctx); err != nil {
+			return err
+		}
+	}
+	_, err = tx.AccountToken.Delete().Where(match).Exec(ctx)
 	return err
 }
 

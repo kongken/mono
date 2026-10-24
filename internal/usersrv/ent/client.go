@@ -18,6 +18,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
+	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
 	"github.com/kongken/mono/internal/usersrv/ent/user"
 	"github.com/kongken/mono/internal/usersrv/ent/userrole"
@@ -32,6 +33,8 @@ type Client struct {
 	AccountToken *AccountTokenClient
 	// DeletionTombstone is the client for interacting with the DeletionTombstone builders.
 	DeletionTombstone *DeletionTombstoneClient
+	// MailJob is the client for interacting with the MailJob builders.
+	MailJob *MailJobClient
 	// SecurityAudit is the client for interacting with the SecurityAudit builders.
 	SecurityAudit *SecurityAuditClient
 	// User is the client for interacting with the User builders.
@@ -51,6 +54,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.AccountToken = NewAccountTokenClient(c.config)
 	c.DeletionTombstone = NewDeletionTombstoneClient(c.config)
+	c.MailJob = NewMailJobClient(c.config)
 	c.SecurityAudit = NewSecurityAuditClient(c.config)
 	c.User = NewUserClient(c.config)
 	c.UserRole = NewUserRoleClient(c.config)
@@ -148,6 +152,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:            cfg,
 		AccountToken:      NewAccountTokenClient(cfg),
 		DeletionTombstone: NewDeletionTombstoneClient(cfg),
+		MailJob:           NewMailJobClient(cfg),
 		SecurityAudit:     NewSecurityAuditClient(cfg),
 		User:              NewUserClient(cfg),
 		UserRole:          NewUserRoleClient(cfg),
@@ -172,6 +177,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:            cfg,
 		AccountToken:      NewAccountTokenClient(cfg),
 		DeletionTombstone: NewDeletionTombstoneClient(cfg),
+		MailJob:           NewMailJobClient(cfg),
 		SecurityAudit:     NewSecurityAuditClient(cfg),
 		User:              NewUserClient(cfg),
 		UserRole:          NewUserRoleClient(cfg),
@@ -203,21 +209,23 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.AccountToken.Use(hooks...)
-	c.DeletionTombstone.Use(hooks...)
-	c.SecurityAudit.Use(hooks...)
-	c.User.Use(hooks...)
-	c.UserRole.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.AccountToken, c.DeletionTombstone, c.MailJob, c.SecurityAudit, c.User,
+		c.UserRole,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.AccountToken.Intercept(interceptors...)
-	c.DeletionTombstone.Intercept(interceptors...)
-	c.SecurityAudit.Intercept(interceptors...)
-	c.User.Intercept(interceptors...)
-	c.UserRole.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.AccountToken, c.DeletionTombstone, c.MailJob, c.SecurityAudit, c.User,
+		c.UserRole,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -227,6 +235,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.AccountToken.mutate(ctx, m)
 	case *DeletionTombstoneMutation:
 		return c.DeletionTombstone.mutate(ctx, m)
+	case *MailJobMutation:
+		return c.MailJob.mutate(ctx, m)
 	case *SecurityAuditMutation:
 		return c.SecurityAudit.mutate(ctx, m)
 	case *UserMutation:
@@ -501,6 +511,139 @@ func (c *DeletionTombstoneClient) mutate(ctx context.Context, m *DeletionTombsto
 		return (&DeletionTombstoneDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown DeletionTombstone mutation op: %q", m.Op())
+	}
+}
+
+// MailJobClient is a client for the MailJob schema.
+type MailJobClient struct {
+	config
+}
+
+// NewMailJobClient returns a client for the MailJob from the given config.
+func NewMailJobClient(c config) *MailJobClient {
+	return &MailJobClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `mailjob.Hooks(f(g(h())))`.
+func (c *MailJobClient) Use(hooks ...Hook) {
+	c.hooks.MailJob = append(c.hooks.MailJob, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `mailjob.Intercept(f(g(h())))`.
+func (c *MailJobClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MailJob = append(c.inters.MailJob, interceptors...)
+}
+
+// Create returns a builder for creating a MailJob entity.
+func (c *MailJobClient) Create() *MailJobCreate {
+	mutation := newMailJobMutation(c.config, OpCreate)
+	return &MailJobCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MailJob entities.
+func (c *MailJobClient) CreateBulk(builders ...*MailJobCreate) *MailJobCreateBulk {
+	return &MailJobCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MailJobClient) MapCreateBulk(slice any, setFunc func(*MailJobCreate, int)) *MailJobCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MailJobCreateBulk{err: fmt.Errorf("calling to MailJobClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MailJobCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MailJobCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MailJob.
+func (c *MailJobClient) Update() *MailJobUpdate {
+	mutation := newMailJobMutation(c.config, OpUpdate)
+	return &MailJobUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MailJobClient) UpdateOne(_m *MailJob) *MailJobUpdateOne {
+	mutation := newMailJobMutation(c.config, OpUpdateOne, withMailJob(_m))
+	return &MailJobUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MailJobClient) UpdateOneID(id uuid.UUID) *MailJobUpdateOne {
+	mutation := newMailJobMutation(c.config, OpUpdateOne, withMailJobID(id))
+	return &MailJobUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MailJob.
+func (c *MailJobClient) Delete() *MailJobDelete {
+	mutation := newMailJobMutation(c.config, OpDelete)
+	return &MailJobDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MailJobClient) DeleteOne(_m *MailJob) *MailJobDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MailJobClient) DeleteOneID(id uuid.UUID) *MailJobDeleteOne {
+	builder := c.Delete().Where(mailjob.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MailJobDeleteOne{builder}
+}
+
+// Query returns a query builder for MailJob.
+func (c *MailJobClient) Query() *MailJobQuery {
+	return &MailJobQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMailJob},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MailJob entity by its id.
+func (c *MailJobClient) Get(ctx context.Context, id uuid.UUID) (*MailJob, error) {
+	return c.Query().Where(mailjob.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MailJobClient) GetX(ctx context.Context, id uuid.UUID) *MailJob {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *MailJobClient) Hooks() []Hook {
+	return c.hooks.MailJob
+}
+
+// Interceptors returns the client interceptors.
+func (c *MailJobClient) Interceptors() []Interceptor {
+	return c.inters.MailJob
+}
+
+func (c *MailJobClient) mutate(ctx context.Context, m *MailJobMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MailJobCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MailJobUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MailJobUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MailJobDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MailJob mutation op: %q", m.Op())
 	}
 }
 
@@ -938,9 +1081,11 @@ func (c *UserRoleClient) mutate(ctx context.Context, m *UserRoleMutation) (Value
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AccountToken, DeletionTombstone, SecurityAudit, User, UserRole []ent.Hook
+		AccountToken, DeletionTombstone, MailJob, SecurityAudit, User,
+		UserRole []ent.Hook
 	}
 	inters struct {
-		AccountToken, DeletionTombstone, SecurityAudit, User, UserRole []ent.Interceptor
+		AccountToken, DeletionTombstone, MailJob, SecurityAudit, User,
+		UserRole []ent.Interceptor
 	}
 )

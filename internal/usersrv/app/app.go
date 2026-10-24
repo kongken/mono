@@ -23,6 +23,8 @@ import (
 	"github.com/kongken/mono/internal/usersrv/application"
 	"github.com/kongken/mono/internal/usersrv/config"
 	"github.com/kongken/mono/internal/usersrv/ent"
+	"github.com/kongken/mono/internal/usersrv/mailer"
+	"github.com/kongken/mono/internal/usersrv/outbox"
 	"github.com/kongken/mono/internal/usersrv/passwordhash"
 	"github.com/kongken/mono/internal/usersrv/ratelimit"
 	"github.com/kongken/mono/internal/usersrv/worker"
@@ -30,8 +32,12 @@ import (
 	"google.golang.org/grpc"
 )
 
-// maintenanceInterval is how often expired tokens, tombstones and audit rows are purged.
+// maintenanceInterval is how often expired tokens, tombstones, audit rows and
+// finished mail job records are purged.
 const maintenanceInterval = time.Hour
+
+// outboxInterval is how often the in-process mail worker looks for due jobs.
+const outboxInterval = 3 * time.Second
 
 // Resources are the connected backing services and what is built on them.
 type Resources struct {
@@ -39,7 +45,11 @@ type Resources struct {
 	Accounts *account.Service
 	Limiter  application.Limiter
 	Limits   application.Limits
-	Health   *health.Checker
+	// Mail is the outbox that issues challenges and delivers their mail; MailGuard
+	// applies the account mail limits. Both are nil only in tests that do not use mail.
+	Mail      *outbox.Service
+	MailGuard *outbox.Guard
+	Health    *health.Checker
 	// Workers run in the background and stop on shutdown.
 	Workers []*worker.Loop
 }
@@ -69,7 +79,7 @@ func (h *Handlers) Check(ctx context.Context) []health.Status {
 	if r := h.resources.Load(); r != nil && r.Health != nil {
 		return r.Health.Check(ctx)
 	}
-	return []health.Status{{Name: "postgres"}, {Name: "redis"}, {Name: "worker"}}
+	return []health.Status{{Name: "postgres"}, {Name: "redis"}, {Name: "worker"}, {Name: "mail_outbox"}}
 }
 
 // Bootstrap runs after Butterfly loads YAML and registers its named store clients.
@@ -127,7 +137,17 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 		_ = client.Close()
 		return fmt.Errorf("account schema (apply migrations/usersrv or set auto_migrate): %w", err)
 	}
-	res, err := NewResources(client, hasher, cache, h.cfg.KeyPrefix, hmacKey, limitsOf(rules), db.PingContext)
+	mail, err := h.buildMail(client)
+	if err != nil {
+		_ = client.Close()
+		return err
+	}
+	// A queued job that needs a key we no longer have must stop the start, not be dropped.
+	if err := mail.Preflight(ctx); err != nil {
+		_ = client.Close()
+		return err
+	}
+	res, err := NewResources(client, hasher, cache, h.cfg.KeyPrefix, hmacKey, limitsOf(rules), db.PingContext, WithMail(mail))
 	if err != nil {
 		_ = client.Close()
 		return err
@@ -147,13 +167,57 @@ func limitsOf(l config.Limits) application.Limits {
 	return application.Limits{
 		PasswordPerAccount: l.PasswordPerAccount, PasswordPerIP: l.PasswordPerIP,
 		ProfileWritePerUser: l.ProfileWritePerUser, DeletionPerUser: l.DeletionPerUser,
+		Mail: l.Mail,
 	}
 }
+
+// buildMail assembles the mail outbox from the configuration: the one active
+// vendor adapter, the fixed link builder and the encryption keys. Nothing here
+// contacts the vendor.
+func (h *Handlers) buildMail(db *ent.Client) (*outbox.Service, error) {
+	keys, err := h.cfg.Mail.Keyring()
+	if err != nil {
+		return nil, err
+	}
+	m, err := mailer.New(h.cfg.Mail.Config)
+	if err != nil {
+		return nil, err
+	}
+	origins := make(map[string]string, len(h.cfg.Auth.Apps))
+	for id, a := range h.cfg.Auth.Apps {
+		origins[id] = a.Origin
+	}
+	links, err := mailer.NewLinks(origins, h.cfg.Auth.AllowLoopbackHTTP)
+	if err != nil {
+		return nil, err
+	}
+	regTTL, err := time.ParseDuration(h.cfg.Auth.RegistrationTTL)
+	if err != nil {
+		return nil, err
+	}
+	resetTTL, err := time.ParseDuration(h.cfg.Auth.ResetTTL)
+	if err != nil {
+		return nil, err
+	}
+	return outbox.New(db, keys, links, m, outbox.Settings{RegistrationTTL: regTTL, ResetTTL: resetTTL})
+}
+
+// ResourceOption customises NewResources.
+type ResourceOption func(*resourceOptions)
+
+type resourceOptions struct{ mail *outbox.Service }
+
+// WithMail adds the mail outbox, its worker and its readiness probe.
+func WithMail(m *outbox.Service) ResourceOption { return func(o *resourceOptions) { o.mail = m } }
 
 // NewResources builds the account core, limiter, maintenance worker and health
 // probes over connected stores. Bootstrap uses it; so do tests.
 func NewResources(db *ent.Client, hasher *passwordhash.Hasher, rdb redis.UniversalClient, keyPrefix string, hmacKey []byte,
-	limits application.Limits, pingDB func(context.Context) error) (*Resources, error) {
+	limits application.Limits, pingDB func(context.Context) error, opts ...ResourceOption) (*Resources, error) {
+	var o resourceOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
 	limiter, err := ratelimit.New(rdb, keyPrefix, hmacKey)
 	if err != nil {
 		return nil, err
@@ -161,6 +225,11 @@ func NewResources(db *ent.Client, hasher *passwordhash.Hasher, rdb redis.Univers
 	accounts := account.NewService(db, hasher)
 	janitor := worker.New("maintenance", maintenanceInterval, func(ctx context.Context) error {
 		_, err := accounts.PurgeExpired(ctx)
+		if o.mail != nil {
+			if _, perr := o.mail.Purge(ctx); perr != nil {
+				err = errors.Join(err, perr)
+			}
+		}
 		return err
 	})
 	probes := []health.Probe{
@@ -168,7 +237,22 @@ func NewResources(db *ent.Client, hasher *passwordhash.Hasher, rdb redis.Univers
 		{Name: "redis", Check: func(ctx context.Context) error { return rdb.Ping(ctx).Err() }},
 		{Name: "worker", Check: janitor.Check},
 	}
-	return &Resources{DB: db, Accounts: accounts, Limiter: limiter, Limits: limits, Health: health.New(probes...), Workers: []*worker.Loop{janitor}}, nil
+	res := &Resources{DB: db, Accounts: accounts, Limiter: limiter, Limits: limits, Workers: []*worker.Loop{janitor}}
+	if o.mail != nil {
+		guard, err := outbox.NewGuard(limiter, limits.Mail)
+		if err != nil {
+			return nil, err
+		}
+		sender := worker.New("mail-outbox", outboxInterval, func(ctx context.Context) error {
+			_, err := o.mail.RunOnce(ctx)
+			return err
+		})
+		probes = append(probes, health.Probe{Name: "mail_outbox", Check: sender.Check})
+		res.Mail, res.MailGuard = o.mail, guard
+		res.Workers = append(res.Workers, sender)
+	}
+	res.Health = health.New(probes...)
+	return res, nil
 }
 
 // Shutdown drains RPCs, stops the workers, then closes the stores they use.

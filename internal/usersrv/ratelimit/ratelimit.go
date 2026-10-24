@@ -77,3 +77,18 @@ func (l *Limiter) redisKey(rule Rule, subject []string) string {
 	mac.Write([]byte(strings.Join(subject, "\x00")))
 	return l.prefix + "rl:" + rule.Name + ":" + hex.EncodeToString(mac.Sum(nil))
 }
+
+// MailRules are the limits of account mail requests (spec section 10). The
+// cooldown rules are "one request per window" per mailbox and purpose.
+type MailRules struct {
+	RegistrationPerIP         Rule
+	ResetPerIP                Rule
+	RegistrationEmailCooldown Rule
+	RegistrationPerEmail      Rule
+	ResetEmailCooldown        Rule
+	ResetPerEmail             Rule
+	// MailPerEmail caps all account mail to one mailbox; MailGlobal caps the
+	// whole service (adjust it to the vendor's actual quota).
+	MailPerEmail Rule
+	MailGlobal   Rule
+}

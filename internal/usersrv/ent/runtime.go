@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
+	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/schema"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
 	"github.com/kongken/mono/internal/usersrv/ent/user"
@@ -46,6 +47,38 @@ func init() {
 	deletiontombstoneDescCompletedAt := deletiontombstoneFields[2].Descriptor()
 	// deletiontombstone.DefaultCompletedAt holds the default value on creation for the completed_at field.
 	deletiontombstone.DefaultCompletedAt = deletiontombstoneDescCompletedAt.Default.(func() time.Time)
+	mailjobFields := schema.MailJob{}.Fields()
+	_ = mailjobFields
+	// mailjobDescProvider is the schema descriptor for provider field.
+	mailjobDescProvider := mailjobFields[2].Descriptor()
+	// mailjob.ProviderValidator is a validator for the "provider" field. It is called by the builders before save.
+	mailjob.ProviderValidator = mailjobDescProvider.Validators[0].(func(string) error)
+	// mailjobDescTemplate is the schema descriptor for template field.
+	mailjobDescTemplate := mailjobFields[4].Descriptor()
+	// mailjob.TemplateValidator is a validator for the "template" field. It is called by the builders before save.
+	mailjob.TemplateValidator = mailjobDescTemplate.Validators[0].(func(string) error)
+	// mailjobDescAttempts is the schema descriptor for attempts field.
+	mailjobDescAttempts := mailjobFields[8].Descriptor()
+	// mailjob.DefaultAttempts holds the default value on creation for the attempts field.
+	mailjob.DefaultAttempts = mailjobDescAttempts.Default.(int)
+	// mailjobDescResultClass is the schema descriptor for result_class field.
+	mailjobDescResultClass := mailjobFields[12].Descriptor()
+	// mailjob.DefaultResultClass holds the default value on creation for the result_class field.
+	mailjob.DefaultResultClass = mailjobDescResultClass.Default.(string)
+	// mailjobDescCreatedAt is the schema descriptor for created_at field.
+	mailjobDescCreatedAt := mailjobFields[14].Descriptor()
+	// mailjob.DefaultCreatedAt holds the default value on creation for the created_at field.
+	mailjob.DefaultCreatedAt = mailjobDescCreatedAt.Default.(func() time.Time)
+	// mailjobDescUpdatedAt is the schema descriptor for updated_at field.
+	mailjobDescUpdatedAt := mailjobFields[15].Descriptor()
+	// mailjob.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	mailjob.DefaultUpdatedAt = mailjobDescUpdatedAt.Default.(func() time.Time)
+	// mailjob.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	mailjob.UpdateDefaultUpdatedAt = mailjobDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// mailjobDescID is the schema descriptor for id field.
+	mailjobDescID := mailjobFields[0].Descriptor()
+	// mailjob.DefaultID holds the default value on creation for the id field.
+	mailjob.DefaultID = mailjobDescID.Default.(func() uuid.UUID)
 	securityauditFields := schema.SecurityAudit{}.Fields()
 	_ = securityauditFields
 	// securityauditDescActor is the schema descriptor for actor field.

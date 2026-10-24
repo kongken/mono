@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
+	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/predicate"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
 	"github.com/kongken/mono/internal/usersrv/ent/user"
@@ -31,6 +32,7 @@ const (
 	// Node types.
 	TypeAccountToken      = "AccountToken"
 	TypeDeletionTombstone = "DeletionTombstone"
+	TypeMailJob           = "MailJob"
 	TypeSecurityAudit     = "SecurityAudit"
 	TypeUser              = "User"
 	TypeUserRole          = "UserRole"
@@ -1335,6 +1337,1315 @@ func (m *DeletionTombstoneMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *DeletionTombstoneMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown DeletionTombstone edge %s", name)
+}
+
+// MailJobMutation represents an operation that mutates the MailJob nodes in the graph.
+type MailJobMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *uuid.UUID
+	challenge_id     *uuid.UUID
+	provider         *string
+	generation       *int
+	addgeneration    *int
+	template         *string
+	ciphertext       *[]byte
+	key_id           *string
+	status           *mailjob.Status
+	attempts         *int
+	addattempts      *int
+	next_attempt_at  *time.Time
+	lease_owner      *string
+	lease_expires_at *time.Time
+	result_class     *string
+	expires_at       *time.Time
+	created_at       *time.Time
+	updated_at       *time.Time
+	finished_at      *time.Time
+	clearedFields    map[string]struct{}
+	done             bool
+	oldValue         func(context.Context) (*MailJob, error)
+	predicates       []predicate.MailJob
+}
+
+var _ ent.Mutation = (*MailJobMutation)(nil)
+
+// mailjobOption allows management of the mutation configuration using functional options.
+type mailjobOption func(*MailJobMutation)
+
+// newMailJobMutation creates new mutation for the MailJob entity.
+func newMailJobMutation(c config, op Op, opts ...mailjobOption) *MailJobMutation {
+	m := &MailJobMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeMailJob,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withMailJobID sets the ID field of the mutation.
+func withMailJobID(id uuid.UUID) mailjobOption {
+	return func(m *MailJobMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *MailJob
+		)
+		m.oldValue = func(ctx context.Context) (*MailJob, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().MailJob.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withMailJob sets the old MailJob of the mutation.
+func withMailJob(node *MailJob) mailjobOption {
+	return func(m *MailJobMutation) {
+		m.oldValue = func(context.Context) (*MailJob, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m MailJobMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m MailJobMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of MailJob entities.
+func (m *MailJobMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *MailJobMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *MailJobMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().MailJob.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetChallengeID sets the "challenge_id" field.
+func (m *MailJobMutation) SetChallengeID(u uuid.UUID) {
+	m.challenge_id = &u
+}
+
+// ChallengeID returns the value of the "challenge_id" field in the mutation.
+func (m *MailJobMutation) ChallengeID() (r uuid.UUID, exists bool) {
+	v := m.challenge_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChallengeID returns the old "challenge_id" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldChallengeID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChallengeID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChallengeID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChallengeID: %w", err)
+	}
+	return oldValue.ChallengeID, nil
+}
+
+// ResetChallengeID resets all changes to the "challenge_id" field.
+func (m *MailJobMutation) ResetChallengeID() {
+	m.challenge_id = nil
+}
+
+// SetProvider sets the "provider" field.
+func (m *MailJobMutation) SetProvider(s string) {
+	m.provider = &s
+}
+
+// Provider returns the value of the "provider" field in the mutation.
+func (m *MailJobMutation) Provider() (r string, exists bool) {
+	v := m.provider
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProvider returns the old "provider" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldProvider(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProvider is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProvider requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProvider: %w", err)
+	}
+	return oldValue.Provider, nil
+}
+
+// ResetProvider resets all changes to the "provider" field.
+func (m *MailJobMutation) ResetProvider() {
+	m.provider = nil
+}
+
+// SetGeneration sets the "generation" field.
+func (m *MailJobMutation) SetGeneration(i int) {
+	m.generation = &i
+	m.addgeneration = nil
+}
+
+// Generation returns the value of the "generation" field in the mutation.
+func (m *MailJobMutation) Generation() (r int, exists bool) {
+	v := m.generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGeneration returns the old "generation" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldGeneration(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGeneration: %w", err)
+	}
+	return oldValue.Generation, nil
+}
+
+// AddGeneration adds i to the "generation" field.
+func (m *MailJobMutation) AddGeneration(i int) {
+	if m.addgeneration != nil {
+		*m.addgeneration += i
+	} else {
+		m.addgeneration = &i
+	}
+}
+
+// AddedGeneration returns the value that was added to the "generation" field in this mutation.
+func (m *MailJobMutation) AddedGeneration() (r int, exists bool) {
+	v := m.addgeneration
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGeneration resets all changes to the "generation" field.
+func (m *MailJobMutation) ResetGeneration() {
+	m.generation = nil
+	m.addgeneration = nil
+}
+
+// SetTemplate sets the "template" field.
+func (m *MailJobMutation) SetTemplate(s string) {
+	m.template = &s
+}
+
+// Template returns the value of the "template" field in the mutation.
+func (m *MailJobMutation) Template() (r string, exists bool) {
+	v := m.template
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTemplate returns the old "template" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldTemplate(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTemplate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTemplate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTemplate: %w", err)
+	}
+	return oldValue.Template, nil
+}
+
+// ResetTemplate resets all changes to the "template" field.
+func (m *MailJobMutation) ResetTemplate() {
+	m.template = nil
+}
+
+// SetCiphertext sets the "ciphertext" field.
+func (m *MailJobMutation) SetCiphertext(b []byte) {
+	m.ciphertext = &b
+}
+
+// Ciphertext returns the value of the "ciphertext" field in the mutation.
+func (m *MailJobMutation) Ciphertext() (r []byte, exists bool) {
+	v := m.ciphertext
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCiphertext returns the old "ciphertext" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldCiphertext(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCiphertext is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCiphertext requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCiphertext: %w", err)
+	}
+	return oldValue.Ciphertext, nil
+}
+
+// ClearCiphertext clears the value of the "ciphertext" field.
+func (m *MailJobMutation) ClearCiphertext() {
+	m.ciphertext = nil
+	m.clearedFields[mailjob.FieldCiphertext] = struct{}{}
+}
+
+// CiphertextCleared returns if the "ciphertext" field was cleared in this mutation.
+func (m *MailJobMutation) CiphertextCleared() bool {
+	_, ok := m.clearedFields[mailjob.FieldCiphertext]
+	return ok
+}
+
+// ResetCiphertext resets all changes to the "ciphertext" field.
+func (m *MailJobMutation) ResetCiphertext() {
+	m.ciphertext = nil
+	delete(m.clearedFields, mailjob.FieldCiphertext)
+}
+
+// SetKeyID sets the "key_id" field.
+func (m *MailJobMutation) SetKeyID(s string) {
+	m.key_id = &s
+}
+
+// KeyID returns the value of the "key_id" field in the mutation.
+func (m *MailJobMutation) KeyID() (r string, exists bool) {
+	v := m.key_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKeyID returns the old "key_id" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldKeyID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKeyID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKeyID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKeyID: %w", err)
+	}
+	return oldValue.KeyID, nil
+}
+
+// ClearKeyID clears the value of the "key_id" field.
+func (m *MailJobMutation) ClearKeyID() {
+	m.key_id = nil
+	m.clearedFields[mailjob.FieldKeyID] = struct{}{}
+}
+
+// KeyIDCleared returns if the "key_id" field was cleared in this mutation.
+func (m *MailJobMutation) KeyIDCleared() bool {
+	_, ok := m.clearedFields[mailjob.FieldKeyID]
+	return ok
+}
+
+// ResetKeyID resets all changes to the "key_id" field.
+func (m *MailJobMutation) ResetKeyID() {
+	m.key_id = nil
+	delete(m.clearedFields, mailjob.FieldKeyID)
+}
+
+// SetStatus sets the "status" field.
+func (m *MailJobMutation) SetStatus(value mailjob.Status) {
+	m.status = &value
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *MailJobMutation) Status() (r mailjob.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldStatus(ctx context.Context) (v mailjob.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *MailJobMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetAttempts sets the "attempts" field.
+func (m *MailJobMutation) SetAttempts(i int) {
+	m.attempts = &i
+	m.addattempts = nil
+}
+
+// Attempts returns the value of the "attempts" field in the mutation.
+func (m *MailJobMutation) Attempts() (r int, exists bool) {
+	v := m.attempts
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAttempts returns the old "attempts" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldAttempts(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAttempts is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAttempts requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAttempts: %w", err)
+	}
+	return oldValue.Attempts, nil
+}
+
+// AddAttempts adds i to the "attempts" field.
+func (m *MailJobMutation) AddAttempts(i int) {
+	if m.addattempts != nil {
+		*m.addattempts += i
+	} else {
+		m.addattempts = &i
+	}
+}
+
+// AddedAttempts returns the value that was added to the "attempts" field in this mutation.
+func (m *MailJobMutation) AddedAttempts() (r int, exists bool) {
+	v := m.addattempts
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAttempts resets all changes to the "attempts" field.
+func (m *MailJobMutation) ResetAttempts() {
+	m.attempts = nil
+	m.addattempts = nil
+}
+
+// SetNextAttemptAt sets the "next_attempt_at" field.
+func (m *MailJobMutation) SetNextAttemptAt(t time.Time) {
+	m.next_attempt_at = &t
+}
+
+// NextAttemptAt returns the value of the "next_attempt_at" field in the mutation.
+func (m *MailJobMutation) NextAttemptAt() (r time.Time, exists bool) {
+	v := m.next_attempt_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNextAttemptAt returns the old "next_attempt_at" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldNextAttemptAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNextAttemptAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNextAttemptAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNextAttemptAt: %w", err)
+	}
+	return oldValue.NextAttemptAt, nil
+}
+
+// ResetNextAttemptAt resets all changes to the "next_attempt_at" field.
+func (m *MailJobMutation) ResetNextAttemptAt() {
+	m.next_attempt_at = nil
+}
+
+// SetLeaseOwner sets the "lease_owner" field.
+func (m *MailJobMutation) SetLeaseOwner(s string) {
+	m.lease_owner = &s
+}
+
+// LeaseOwner returns the value of the "lease_owner" field in the mutation.
+func (m *MailJobMutation) LeaseOwner() (r string, exists bool) {
+	v := m.lease_owner
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLeaseOwner returns the old "lease_owner" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldLeaseOwner(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLeaseOwner is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLeaseOwner requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLeaseOwner: %w", err)
+	}
+	return oldValue.LeaseOwner, nil
+}
+
+// ClearLeaseOwner clears the value of the "lease_owner" field.
+func (m *MailJobMutation) ClearLeaseOwner() {
+	m.lease_owner = nil
+	m.clearedFields[mailjob.FieldLeaseOwner] = struct{}{}
+}
+
+// LeaseOwnerCleared returns if the "lease_owner" field was cleared in this mutation.
+func (m *MailJobMutation) LeaseOwnerCleared() bool {
+	_, ok := m.clearedFields[mailjob.FieldLeaseOwner]
+	return ok
+}
+
+// ResetLeaseOwner resets all changes to the "lease_owner" field.
+func (m *MailJobMutation) ResetLeaseOwner() {
+	m.lease_owner = nil
+	delete(m.clearedFields, mailjob.FieldLeaseOwner)
+}
+
+// SetLeaseExpiresAt sets the "lease_expires_at" field.
+func (m *MailJobMutation) SetLeaseExpiresAt(t time.Time) {
+	m.lease_expires_at = &t
+}
+
+// LeaseExpiresAt returns the value of the "lease_expires_at" field in the mutation.
+func (m *MailJobMutation) LeaseExpiresAt() (r time.Time, exists bool) {
+	v := m.lease_expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLeaseExpiresAt returns the old "lease_expires_at" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldLeaseExpiresAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLeaseExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLeaseExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLeaseExpiresAt: %w", err)
+	}
+	return oldValue.LeaseExpiresAt, nil
+}
+
+// ClearLeaseExpiresAt clears the value of the "lease_expires_at" field.
+func (m *MailJobMutation) ClearLeaseExpiresAt() {
+	m.lease_expires_at = nil
+	m.clearedFields[mailjob.FieldLeaseExpiresAt] = struct{}{}
+}
+
+// LeaseExpiresAtCleared returns if the "lease_expires_at" field was cleared in this mutation.
+func (m *MailJobMutation) LeaseExpiresAtCleared() bool {
+	_, ok := m.clearedFields[mailjob.FieldLeaseExpiresAt]
+	return ok
+}
+
+// ResetLeaseExpiresAt resets all changes to the "lease_expires_at" field.
+func (m *MailJobMutation) ResetLeaseExpiresAt() {
+	m.lease_expires_at = nil
+	delete(m.clearedFields, mailjob.FieldLeaseExpiresAt)
+}
+
+// SetResultClass sets the "result_class" field.
+func (m *MailJobMutation) SetResultClass(s string) {
+	m.result_class = &s
+}
+
+// ResultClass returns the value of the "result_class" field in the mutation.
+func (m *MailJobMutation) ResultClass() (r string, exists bool) {
+	v := m.result_class
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResultClass returns the old "result_class" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldResultClass(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResultClass is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResultClass requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResultClass: %w", err)
+	}
+	return oldValue.ResultClass, nil
+}
+
+// ResetResultClass resets all changes to the "result_class" field.
+func (m *MailJobMutation) ResetResultClass() {
+	m.result_class = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *MailJobMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *MailJobMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *MailJobMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *MailJobMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *MailJobMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *MailJobMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *MailJobMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *MailJobMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *MailJobMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetFinishedAt sets the "finished_at" field.
+func (m *MailJobMutation) SetFinishedAt(t time.Time) {
+	m.finished_at = &t
+}
+
+// FinishedAt returns the value of the "finished_at" field in the mutation.
+func (m *MailJobMutation) FinishedAt() (r time.Time, exists bool) {
+	v := m.finished_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFinishedAt returns the old "finished_at" field's value of the MailJob entity.
+// If the MailJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MailJobMutation) OldFinishedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFinishedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFinishedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFinishedAt: %w", err)
+	}
+	return oldValue.FinishedAt, nil
+}
+
+// ClearFinishedAt clears the value of the "finished_at" field.
+func (m *MailJobMutation) ClearFinishedAt() {
+	m.finished_at = nil
+	m.clearedFields[mailjob.FieldFinishedAt] = struct{}{}
+}
+
+// FinishedAtCleared returns if the "finished_at" field was cleared in this mutation.
+func (m *MailJobMutation) FinishedAtCleared() bool {
+	_, ok := m.clearedFields[mailjob.FieldFinishedAt]
+	return ok
+}
+
+// ResetFinishedAt resets all changes to the "finished_at" field.
+func (m *MailJobMutation) ResetFinishedAt() {
+	m.finished_at = nil
+	delete(m.clearedFields, mailjob.FieldFinishedAt)
+}
+
+// Where appends a list predicates to the MailJobMutation builder.
+func (m *MailJobMutation) Where(ps ...predicate.MailJob) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the MailJobMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *MailJobMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.MailJob, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *MailJobMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *MailJobMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (MailJob).
+func (m *MailJobMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *MailJobMutation) Fields() []string {
+	fields := make([]string, 0, 16)
+	if m.challenge_id != nil {
+		fields = append(fields, mailjob.FieldChallengeID)
+	}
+	if m.provider != nil {
+		fields = append(fields, mailjob.FieldProvider)
+	}
+	if m.generation != nil {
+		fields = append(fields, mailjob.FieldGeneration)
+	}
+	if m.template != nil {
+		fields = append(fields, mailjob.FieldTemplate)
+	}
+	if m.ciphertext != nil {
+		fields = append(fields, mailjob.FieldCiphertext)
+	}
+	if m.key_id != nil {
+		fields = append(fields, mailjob.FieldKeyID)
+	}
+	if m.status != nil {
+		fields = append(fields, mailjob.FieldStatus)
+	}
+	if m.attempts != nil {
+		fields = append(fields, mailjob.FieldAttempts)
+	}
+	if m.next_attempt_at != nil {
+		fields = append(fields, mailjob.FieldNextAttemptAt)
+	}
+	if m.lease_owner != nil {
+		fields = append(fields, mailjob.FieldLeaseOwner)
+	}
+	if m.lease_expires_at != nil {
+		fields = append(fields, mailjob.FieldLeaseExpiresAt)
+	}
+	if m.result_class != nil {
+		fields = append(fields, mailjob.FieldResultClass)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, mailjob.FieldExpiresAt)
+	}
+	if m.created_at != nil {
+		fields = append(fields, mailjob.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, mailjob.FieldUpdatedAt)
+	}
+	if m.finished_at != nil {
+		fields = append(fields, mailjob.FieldFinishedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *MailJobMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case mailjob.FieldChallengeID:
+		return m.ChallengeID()
+	case mailjob.FieldProvider:
+		return m.Provider()
+	case mailjob.FieldGeneration:
+		return m.Generation()
+	case mailjob.FieldTemplate:
+		return m.Template()
+	case mailjob.FieldCiphertext:
+		return m.Ciphertext()
+	case mailjob.FieldKeyID:
+		return m.KeyID()
+	case mailjob.FieldStatus:
+		return m.Status()
+	case mailjob.FieldAttempts:
+		return m.Attempts()
+	case mailjob.FieldNextAttemptAt:
+		return m.NextAttemptAt()
+	case mailjob.FieldLeaseOwner:
+		return m.LeaseOwner()
+	case mailjob.FieldLeaseExpiresAt:
+		return m.LeaseExpiresAt()
+	case mailjob.FieldResultClass:
+		return m.ResultClass()
+	case mailjob.FieldExpiresAt:
+		return m.ExpiresAt()
+	case mailjob.FieldCreatedAt:
+		return m.CreatedAt()
+	case mailjob.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case mailjob.FieldFinishedAt:
+		return m.FinishedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *MailJobMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case mailjob.FieldChallengeID:
+		return m.OldChallengeID(ctx)
+	case mailjob.FieldProvider:
+		return m.OldProvider(ctx)
+	case mailjob.FieldGeneration:
+		return m.OldGeneration(ctx)
+	case mailjob.FieldTemplate:
+		return m.OldTemplate(ctx)
+	case mailjob.FieldCiphertext:
+		return m.OldCiphertext(ctx)
+	case mailjob.FieldKeyID:
+		return m.OldKeyID(ctx)
+	case mailjob.FieldStatus:
+		return m.OldStatus(ctx)
+	case mailjob.FieldAttempts:
+		return m.OldAttempts(ctx)
+	case mailjob.FieldNextAttemptAt:
+		return m.OldNextAttemptAt(ctx)
+	case mailjob.FieldLeaseOwner:
+		return m.OldLeaseOwner(ctx)
+	case mailjob.FieldLeaseExpiresAt:
+		return m.OldLeaseExpiresAt(ctx)
+	case mailjob.FieldResultClass:
+		return m.OldResultClass(ctx)
+	case mailjob.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	case mailjob.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case mailjob.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case mailjob.FieldFinishedAt:
+		return m.OldFinishedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown MailJob field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MailJobMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case mailjob.FieldChallengeID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChallengeID(v)
+		return nil
+	case mailjob.FieldProvider:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProvider(v)
+		return nil
+	case mailjob.FieldGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGeneration(v)
+		return nil
+	case mailjob.FieldTemplate:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTemplate(v)
+		return nil
+	case mailjob.FieldCiphertext:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCiphertext(v)
+		return nil
+	case mailjob.FieldKeyID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetKeyID(v)
+		return nil
+	case mailjob.FieldStatus:
+		v, ok := value.(mailjob.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case mailjob.FieldAttempts:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAttempts(v)
+		return nil
+	case mailjob.FieldNextAttemptAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNextAttemptAt(v)
+		return nil
+	case mailjob.FieldLeaseOwner:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLeaseOwner(v)
+		return nil
+	case mailjob.FieldLeaseExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLeaseExpiresAt(v)
+		return nil
+	case mailjob.FieldResultClass:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResultClass(v)
+		return nil
+	case mailjob.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	case mailjob.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case mailjob.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case mailjob.FieldFinishedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFinishedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MailJob field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *MailJobMutation) AddedFields() []string {
+	var fields []string
+	if m.addgeneration != nil {
+		fields = append(fields, mailjob.FieldGeneration)
+	}
+	if m.addattempts != nil {
+		fields = append(fields, mailjob.FieldAttempts)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *MailJobMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case mailjob.FieldGeneration:
+		return m.AddedGeneration()
+	case mailjob.FieldAttempts:
+		return m.AddedAttempts()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MailJobMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case mailjob.FieldGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGeneration(v)
+		return nil
+	case mailjob.FieldAttempts:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAttempts(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MailJob numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *MailJobMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(mailjob.FieldCiphertext) {
+		fields = append(fields, mailjob.FieldCiphertext)
+	}
+	if m.FieldCleared(mailjob.FieldKeyID) {
+		fields = append(fields, mailjob.FieldKeyID)
+	}
+	if m.FieldCleared(mailjob.FieldLeaseOwner) {
+		fields = append(fields, mailjob.FieldLeaseOwner)
+	}
+	if m.FieldCleared(mailjob.FieldLeaseExpiresAt) {
+		fields = append(fields, mailjob.FieldLeaseExpiresAt)
+	}
+	if m.FieldCleared(mailjob.FieldFinishedAt) {
+		fields = append(fields, mailjob.FieldFinishedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *MailJobMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *MailJobMutation) ClearField(name string) error {
+	switch name {
+	case mailjob.FieldCiphertext:
+		m.ClearCiphertext()
+		return nil
+	case mailjob.FieldKeyID:
+		m.ClearKeyID()
+		return nil
+	case mailjob.FieldLeaseOwner:
+		m.ClearLeaseOwner()
+		return nil
+	case mailjob.FieldLeaseExpiresAt:
+		m.ClearLeaseExpiresAt()
+		return nil
+	case mailjob.FieldFinishedAt:
+		m.ClearFinishedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown MailJob nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *MailJobMutation) ResetField(name string) error {
+	switch name {
+	case mailjob.FieldChallengeID:
+		m.ResetChallengeID()
+		return nil
+	case mailjob.FieldProvider:
+		m.ResetProvider()
+		return nil
+	case mailjob.FieldGeneration:
+		m.ResetGeneration()
+		return nil
+	case mailjob.FieldTemplate:
+		m.ResetTemplate()
+		return nil
+	case mailjob.FieldCiphertext:
+		m.ResetCiphertext()
+		return nil
+	case mailjob.FieldKeyID:
+		m.ResetKeyID()
+		return nil
+	case mailjob.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case mailjob.FieldAttempts:
+		m.ResetAttempts()
+		return nil
+	case mailjob.FieldNextAttemptAt:
+		m.ResetNextAttemptAt()
+		return nil
+	case mailjob.FieldLeaseOwner:
+		m.ResetLeaseOwner()
+		return nil
+	case mailjob.FieldLeaseExpiresAt:
+		m.ResetLeaseExpiresAt()
+		return nil
+	case mailjob.FieldResultClass:
+		m.ResetResultClass()
+		return nil
+	case mailjob.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	case mailjob.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case mailjob.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case mailjob.FieldFinishedAt:
+		m.ResetFinishedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown MailJob field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *MailJobMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *MailJobMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *MailJobMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *MailJobMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *MailJobMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *MailJobMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *MailJobMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown MailJob unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *MailJobMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown MailJob edge %s", name)
 }
 
 // SecurityAuditMutation represents an operation that mutates the SecurityAudit nodes in the graph.

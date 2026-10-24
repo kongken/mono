@@ -23,6 +23,9 @@ type Limits struct {
 	PasswordPerIP       ratelimit.Rule
 	ProfileWritePerUser ratelimit.Rule
 	DeletionPerUser     ratelimit.Rule
+	// Mail are the limits of account mail requests, applied by the registration
+	// and reset methods of stage P3 through outbox.Guard.
+	Mail ratelimit.MailRules
 }
 
 // AccountService implements usersrv.v1.AccountService. Stage P1 serves the

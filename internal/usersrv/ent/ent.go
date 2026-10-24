@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
+	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
 	"github.com/kongken/mono/internal/usersrv/ent/user"
 	"github.com/kongken/mono/internal/usersrv/ent/userrole"
@@ -79,6 +80,7 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			accounttoken.Table:      accounttoken.ValidColumn,
 			deletiontombstone.Table: deletiontombstone.ValidColumn,
+			mailjob.Table:           mailjob.ValidColumn,
 			securityaudit.Table:     securityaudit.ValidColumn,
 			user.Table:              user.ValidColumn,
 			userrole.Table:          userrole.ValidColumn,

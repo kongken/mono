@@ -334,7 +334,7 @@ func (s *Service) activeUser(ctx context.Context, id uuid.UUID) (*ent.User, erro
 // BeginDeletion moves an active account to deleting for one workflow. Repeating
 // it with the same mutation ID succeeds; another mutation ID is refused. It
 // bumps auth_version and voids every account token of the user and of its
-// address. (Cancelling unsent mail belongs to the mail outbox of stage P2.)
+// address, and cancels the account mails still waiting in the outbox.
 func (s *Service) BeginDeletion(ctx context.Context, id uuid.UUID, mutationID, requestID string) (int64, error) {
 	mutationID, err := identity.NormalizeMutationID(mutationID)
 	if err != nil {

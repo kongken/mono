@@ -65,6 +65,54 @@ var (
 			},
 		},
 	}
+	// MailJobsColumns holds the columns for the "mail_jobs" table.
+	MailJobsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "challenge_id", Type: field.TypeUUID},
+		{Name: "provider", Type: field.TypeString},
+		{Name: "generation", Type: field.TypeInt},
+		{Name: "template", Type: field.TypeString},
+		{Name: "ciphertext", Type: field.TypeBytes, Nullable: true},
+		{Name: "key_id", Type: field.TypeString, Nullable: true},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending", "sending", "accepted", "failed", "uncertain", "expired", "cancelled"}, Default: "pending"},
+		{Name: "attempts", Type: field.TypeInt, Default: 0},
+		{Name: "next_attempt_at", Type: field.TypeTime},
+		{Name: "lease_owner", Type: field.TypeString, Nullable: true},
+		{Name: "lease_expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "result_class", Type: field.TypeString, Default: ""},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "finished_at", Type: field.TypeTime, Nullable: true},
+	}
+	// MailJobsTable holds the schema information for the "mail_jobs" table.
+	MailJobsTable = &schema.Table{
+		Name:       "mail_jobs",
+		Columns:    MailJobsColumns,
+		PrimaryKey: []*schema.Column{MailJobsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "mailjob_status_next_attempt_at",
+				Unique:  false,
+				Columns: []*schema.Column{MailJobsColumns[7], MailJobsColumns[9]},
+			},
+			{
+				Name:    "mailjob_status_lease_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{MailJobsColumns[7], MailJobsColumns[11]},
+			},
+			{
+				Name:    "mailjob_challenge_id",
+				Unique:  false,
+				Columns: []*schema.Column{MailJobsColumns[1]},
+			},
+			{
+				Name:    "mailjob_finished_at",
+				Unique:  false,
+				Columns: []*schema.Column{MailJobsColumns[16]},
+			},
+		},
+	}
 	// SecurityAuditColumns holds the columns for the "security_audit" table.
 	SecurityAuditColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -149,6 +197,7 @@ var (
 	Tables = []*schema.Table{
 		AccountTokensTable,
 		DeletionTombstonesTable,
+		MailJobsTable,
 		SecurityAuditTable,
 		UsersTable,
 		UserRolesTable,
@@ -174,6 +223,22 @@ func init() {
 	DeletionTombstonesTable.Annotation.Checks = map[string]string{
 		"deletion_tombstones_expiry":   "expires_at > completed_at",
 		"deletion_tombstones_mutation": "char_length(mutation_id) BETWEEN 1 AND 64",
+	}
+	MailJobsTable.Annotation = &entsql.Annotation{
+		Table: "mail_jobs",
+	}
+	MailJobsTable.Annotation.Checks = map[string]string{
+		"mail_jobs_attempts":   "attempts BETWEEN 0 AND 3",
+		"mail_jobs_ciphertext": "(status IN ('pending', 'sending')) = (ciphertext IS NOT NULL AND key_id IS NOT NULL)",
+		"mail_jobs_expiry":     "expires_at > created_at",
+		"mail_jobs_finished":   "(status IN ('pending', 'sending')) = (finished_at IS NULL)",
+		"mail_jobs_generation": "generation >= 1",
+		"mail_jobs_key_id":     "key_id IS NULL OR char_length(key_id) BETWEEN 1 AND 64",
+		"mail_jobs_lease":      "(status = 'sending') = (lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL)",
+		"mail_jobs_provider":   "provider IN ('mailgun', 'sendgrid', 'smtp', 'smtp2go')",
+		"mail_jobs_result":     "char_length(result_class) <= 64",
+		"mail_jobs_status":     "status IN ('pending', 'sending', 'accepted', 'failed', 'uncertain', 'expired', 'cancelled')",
+		"mail_jobs_template":   "template IN ('verify_email', 'reset_password')",
 	}
 	SecurityAuditTable.Annotation = &entsql.Annotation{
 		Table: "security_audit",

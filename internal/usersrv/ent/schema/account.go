@@ -210,3 +210,67 @@ func (DeletionTombstone) Fields() []ent.Field {
 func (DeletionTombstone) Indexes() []ent.Index {
 	return []ent.Index{index.Fields("expires_at")}
 }
+
+// MailJob is one outbox entry of an account mail. The recipient, the template
+// parameters and the plaintext token live only in ciphertext (AES-256-GCM, key
+// outside this database, associated data bound to the job ID and template); the
+// plain columns carry no address, token, link or body. A job that reached a
+// final state keeps its status record for retention but never its ciphertext.
+type MailJob struct{ ent.Schema }
+
+func (MailJob) Annotations() []schema.Annotation {
+	return []schema.Annotation{
+		entsql.Annotation{Table: "mail_jobs"},
+		entsql.Checks(map[string]string{
+			"mail_jobs_status":     "status IN ('pending', 'sending', 'accepted', 'failed', 'uncertain', 'expired', 'cancelled')",
+			"mail_jobs_provider":   "provider IN ('mailgun', 'sendgrid', 'smtp', 'smtp2go')",
+			"mail_jobs_template":   "template IN ('verify_email', 'reset_password')",
+			"mail_jobs_attempts":   "attempts BETWEEN 0 AND 3",
+			"mail_jobs_generation": "generation >= 1",
+			"mail_jobs_result":     "char_length(result_class) <= 64",
+			"mail_jobs_key_id":     "key_id IS NULL OR char_length(key_id) BETWEEN 1 AND 64",
+			"mail_jobs_expiry":     "expires_at > created_at",
+			// Secrets exist exactly while the job can still be sent.
+			"mail_jobs_ciphertext": "(status IN ('pending', 'sending')) = (ciphertext IS NOT NULL AND key_id IS NOT NULL)",
+			"mail_jobs_lease":      "(status = 'sending') = (lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL)",
+			"mail_jobs_finished":   "(status IN ('pending', 'sending')) = (finished_at IS NULL)",
+		}),
+	}
+}
+
+func (MailJob) Fields() []ent.Field {
+	return []ent.Field{
+		field.UUID("id", uuid.UUID{}).Default(uuid.New).Immutable(),
+		// The account_tokens row this mail carries. No foreign key: challenges are
+		// purged by the lifecycle code and the job record must outlive them.
+		field.UUID("challenge_id", uuid.UUID{}).Immutable(),
+		// Fixed when the job is issued: a configuration change never re-routes a
+		// queued job to another vendor.
+		field.String("provider").NotEmpty().Immutable(),
+		field.Int("generation").Immutable(),
+		field.String("template").NotEmpty().Immutable(),
+		field.Bytes("ciphertext").Optional().Sensitive(),
+		field.String("key_id").Optional().Nillable(),
+		field.Enum("status").Values("pending", "sending", "accepted", "failed", "uncertain", "expired", "cancelled").Default("pending"),
+		field.Int("attempts").Default(0),
+		field.Time("next_attempt_at"),
+		field.String("lease_owner").Optional().Nillable(),
+		field.Time("lease_expires_at").Optional().Nillable(),
+		// A short fixed classification such as "ok", "temporary", "permanent",
+		// "uncertain", "decrypt_failed", "challenge_consumed"; never vendor text.
+		field.String("result_class").Default(""),
+		field.Time("expires_at").Immutable(),
+		field.Time("created_at").Default(now).Immutable(),
+		field.Time("updated_at").Default(now).UpdateDefault(now),
+		field.Time("finished_at").Optional().Nillable(),
+	}
+}
+
+func (MailJob) Indexes() []ent.Index {
+	return []ent.Index{
+		index.Fields("status", "next_attempt_at"),
+		index.Fields("status", "lease_expires_at"),
+		index.Fields("challenge_id"),
+		index.Fields("finished_at"),
+	}
+}

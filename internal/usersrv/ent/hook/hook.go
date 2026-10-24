@@ -33,6 +33,18 @@ func (f DeletionTombstoneFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DeletionTombstoneMutation", m)
 }
 
+// The MailJobFunc type is an adapter to allow the use of ordinary
+// function as MailJob mutator.
+type MailJobFunc func(context.Context, *ent.MailJobMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MailJobFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MailJobMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MailJobMutation", m)
+}
+
 // The SecurityAuditFunc type is an adapter to allow the use of ordinary
 // function as SecurityAudit mutator.
 type SecurityAuditFunc func(context.Context, *ent.SecurityAuditMutation) (ent.Value, error)
