@@ -111,23 +111,24 @@ Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:180
 | 服务边界 | `make check-import-boundaries` | 检查后端模块依赖边界 |
 | 文档 | `make check-docs` | 检查 Markdown 相对链接的目标路径 |
 
-修改 `proto/` 后运行 `make buf`；修改 tripmap / BFF Ent schema 后分别运行 `make ent` / `make ent-bff`，生成文件随变更一起提交。生产关闭两个服务的 `auto_migrate`，使用 `migrations/tripmap/` 与 `migrations/bff/` 中评审过的迁移，详见 [版本化数据库迁移](docs/backend.md#版本化数据库迁移)。
+修改 `proto/` 后运行 `make buf`；修改 tripmap / BFF / metro / usersrv Ent schema 后分别运行 `make ent` / `make ent-bff` / `make ent-metro` / `make ent-usersrv`，生成文件随变更一起提交。生产关闭各服务的 `auto_migrate`，使用 `migrations/<服务>/` 中评审过的迁移，详见 [版本化数据库迁移](docs/backend.md#版本化数据库迁移)。
 
 地图文件位于 `apps/trip-map/public/maps/`，区域、坐标、搜索索引与分享预览几何的更新命令和兼容规则见 [数据与地图说明](docs/trip-map/data-and-maps.md)。
 
 ## 部署
 
-trip-map-web、BFF、tripmap 与可选的 metro、metro-web 分别构建镜像，构建上下文均为仓库根目录：
+trip-map-web、BFF、usersrv、tripmap 与可选的 metro、metro-web 分别构建镜像，构建上下文均为仓库根目录：
 
 | 部署单元 | Dockerfile |
 | --- | --- |
 | trip-map-web | `deploy/trip-map-web/Dockerfile` |
 | BFF | `deploy/bff/Dockerfile` |
+| usersrv | `deploy/usersrv/Dockerfile` |
 | tripmap | `deploy/tripmap/Dockerfile` |
 | metro | `deploy/metro/Dockerfile` |
 | metro-web | `deploy/metro-web/Dockerfile` |
 
-GitHub Actions 按矩阵构建并发布各镜像，镜像名由当前 GitHub 仓库名加组件后缀生成（`-tripmap`、`-trip-map-web`、`-bff`、`-metro`、`-metro-web`）；PR 仅构建。前端容器提供静态资源并把 API 与分享页请求转发到 BFF，业务服务只在内网暴露。部署拓扑、配置挂载与发布流程见 [部署与发布](docs/deployment.md) 和 [Docker 镜像与 Actions](docs/docker-images.md)。
+GitHub Actions 按矩阵构建并发布各镜像，镜像名由当前 GitHub 仓库名加组件后缀生成（`-tripmap`、`-trip-map-web`、`-bff`、`-usersrv`、`-metro`、`-metro-web`）；PR 仅构建。前端容器提供静态资源并把 API 与分享页请求转发到 BFF，业务服务只在内网暴露。部署拓扑、配置挂载与发布流程见 [部署与发布](docs/deployment.md) 和 [Docker 镜像与 Actions](docs/docker-images.md)。
 
 usersrv 是唯一账号来源，运行时已没有 Logto，旧的 Logto 账号与测试账号不迁移。手动清理的对象、目标库、执行顺序及限制见 [Logto 退役与手动清理](docs/usersrv/retirement.md) 与 [自建用户系统的数据迁移](docs/deployment.md#自建用户系统的数据迁移)；脚本不会自动执行。
 

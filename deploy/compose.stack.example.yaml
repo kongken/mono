@@ -67,9 +67,9 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }
-    networks: [internal]
-    # Outbound only to the mail provider (HTTPS, or the SMTP port). Put this service on an
-    # extra network with egress if `internal` has none.
+    # The internal network has no external connectivity. A separate bridge gives account
+    # mail an outbound route (HTTPS or SMTP); no usersrv port is published to the host.
+    networks: [internal, mail-egress]
 
   tripmap:
     image: ghcr.io/kongken/mono-tripmap:main
@@ -142,6 +142,7 @@ services:
 networks:
   internal:
     internal: true
+  mail-egress:
   edge:
 
 volumes:

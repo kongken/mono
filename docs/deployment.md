@@ -127,7 +127,7 @@ usersrv 是账号服务，BFF 没有它就无法登录或注册，因此是必�
 3. **迁移。** 在发布前按文件名顺序对 `usersrv` 库执行 `migrations/usersrv/`；之后每个版本先应用新迁移再滚动 usersrv。BFF 库同样先应用 `migrations/bff/`（见[下一节](#自建用户系统的数据迁移)）。
 4. **传输与信任。** 生产使用 `grpc.transport: tls`：CA 签发的 `usersrv.pem`/`usersrv.key`（SAN 含 usersrv 的 DNS 名）挂到 usersrv，BFF 的 `grpc.services.usersrv` 设 `transport: tls` 并挂 `ca.pem`。`internal_auth.trusted_keys` 只放 BFF 的公钥 `bff.pub`（`audience: usersrv`）。h2c 不加密，而这条链路携带明文密码，仅限单机本地开发或经批准的加密隧道。
 5. **BFF 配置。** `upstreams.usersrv`（HTTP `/readyz`）与 `grpc.services.usersrv`；旧配置里的 `auth.oauth_apps`、`auth.oauth_providers`、`auth.oauth_development` 可删除（不再读取）；构建前端时不再需要 `VITE_OAUTH_APP_ID`。不部署 metro 时，usersrv 的 `auth.apps` 与 BFF 的 `auth.account_cleanup`、`upstreams`、`grpc.services` 同步去掉 metro 的条目。
-6. **邮件。** usersrv 启动时不连接厂商，也不发探测邮件，配置错误只在启动校验或第一次发信时暴露。四家厂商都没有在本仓库实测，上线前按 [真实邮件手动冒烟](usersrv/mail-smoke-test.md)逐家验证，并为发信域名配置 SPF/DKIM/DMARC。切换厂商时递增 `mail.generation` 并先排空队列。
+6. **邮件。** Compose 中 usersrv 同时接入 `internal` 和 `mail-egress`：前者隔离内部服务，后者提供到邮件厂商的出站路由，不发布 usersrv 端口。自建网络策略需允许所选厂商的 HTTPS / SMTP 出站连接。usersrv 启动时不连接厂商，也不发探测邮件，配置错误只在启动校验或第一次发信时暴露。四家厂商都没有在本仓库实测，上线前按 [真实邮件手动冒烟](usersrv/mail-smoke-test.md)逐家验证，并为发信域名配置 SPF/DKIM/DMARC。切换厂商时递增 `mail.generation` 并先排空队列。
 7. **首个管理员。** 没有“第一个注册用户自动成为管理员”。先用普通流程注册并验证邮箱，再在能访问 usersrv 数据库的位置执行（`USERSRV_DATABASE_URL` 优先于命令行参数，避免密码出现在进程列表）：
 
 ```bash

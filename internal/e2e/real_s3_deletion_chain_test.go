@@ -33,7 +33,7 @@ func realS3(t *testing.T) *blobstore.S3 {
 	// A prefix of its own keeps repeated runs apart from the other tests' objects.
 	store := blobstore.NewS3(client, os.Getenv("TRIPMAP_TEST_S3_BUCKET"), "e2e-"+uuid.NewString()[:8])
 	if err := store.Check(context.Background()); err != nil {
-		t.Skipf("S3 endpoint configured but unreachable: %v", err)
+		t.Fatalf("configured S3 endpoint is not ready: %v", err)
 	}
 	return store
 }
