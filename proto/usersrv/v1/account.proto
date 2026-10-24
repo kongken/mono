@@ -1,0 +1,200 @@
+syntax = "proto3";
+
+package usersrv.v1;
+
+import "platform/v1/options.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/usersrv/v1;usersrvv1";
+
+// AccountService is internal-only (BFF -> usersrv gRPC). Every call needs a
+// credential signed by a trusted BFF key with aud=usersrv, bound to the method.
+//
+// Methods marked anonymous are the ones with no signed-in user; they still need
+// the BFF credential. Every other method acts on the user in the verified
+// credential's sub: no request field selects a user, so a caller can never name
+// another account.
+//
+// Errors carry google.rpc.ErrorInfo (domain "usersrv.v1") so the BFF can tell
+// wrong credentials from internal signing failures:
+//
+//	INVALID_CREDENTIALS  UNAUTHENTICATED       wrong password, or (login) unknown/unavailable account
+//	ACCOUNT_NOT_ACTIVE   FAILED_PRECONDITION   the account is disabled or deleting
+//	VERSION_CONFLICT     ABORTED               a concurrent change won; retry
+//	RATE_LIMITED         RESOURCE_EXHAUSTED    public IP/user limit, never reveals remaining quota
+//	INVALID_ARGUMENT     INVALID_ARGUMENT      format or password policy; metadata "field" names it
+//	DELETION_MISMATCH    FAILED_PRECONDITION   the deletion belongs to another mutation_id
+//
+// A store, Redis or quota-store failure is UNAVAILABLE and never lets a request
+// through. The anonymous registration, login and reset methods are defined here
+// so the contract is final; they return UNIMPLEMENTED until stage P3.
+service AccountService {
+  // RequestRegistration accepts an address for verification. It always answers
+  // the same way for a well-formed address. Defined in P1, implemented in P3.
+  rpc RequestRegistration(RequestRegistrationRequest) returns (RequestRegistrationResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  // CompleteRegistration verifies the token and creates the active account.
+  // It does not sign anybody in. Defined in P1, implemented in P3.
+  rpc CompleteRegistration(CompleteRegistrationRequest) returns (CompleteRegistrationResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  // AuthenticateWithEmail checks an email and password. Unknown address, wrong
+  // password, disabled and deleting accounts are the same UNAUTHENTICATED.
+  // Defined in P1, implemented in P3.
+  rpc AuthenticateWithEmail(AuthenticateWithEmailRequest) returns (AuthenticateWithEmailResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  // RequestPasswordReset always answers the same way for a well-formed address.
+  // Defined in P1, implemented in P3.
+  rpc RequestPasswordReset(RequestPasswordResetRequest) returns (RequestPasswordResetResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  // ResetPassword consumes a reset token. The target user comes from the token.
+  // Defined in P1, implemented in P3.
+  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+
+  // GetAuthState reads the state the BFF must re-check before it forwards a
+  // request: status, auth_version and current roles of the caller. It never
+  // returns the email or any secret. NOT_FOUND when the account does not exist.
+  rpc GetAuthState(GetAuthStateRequest) returns (GetAuthStateResponse);
+  // GetMyAccount returns the caller's own account, including the login email.
+  // Only the account interface may expose the email.
+  rpc GetMyAccount(GetMyAccountRequest) returns (GetMyAccountResponse);
+  // VerifyPassword re-checks the caller's current password (re-authentication)
+  // and returns the account's auth_version for the BFF to compare with its session.
+  rpc VerifyPassword(VerifyPasswordRequest) returns (VerifyPasswordResponse);
+  // ChangePassword needs the current password. Success bumps auth_version, which
+  // invalidates every session and management token at its next check.
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+  // UpdateMyProfile replaces the nickname and avatar. It does not change
+  // auth_version, and it never touches product profiles.
+  rpc UpdateMyProfile(UpdateMyProfileRequest) returns (UpdateMyProfileResponse);
+
+  // BeginDeletion idempotently moves the caller's account to deleting, bumps
+  // auth_version and voids its account tokens. A second call with the same
+  // mutation_id succeeds; a different mutation_id is DELETION_MISMATCH.
+  rpc BeginDeletion(BeginDeletionRequest) returns (BeginDeletionResponse);
+  // FinishDeletion removes the account, credential, roles, tokens and profile and
+  // leaves a 24 hour tombstone, so a lost response can be replayed with the same
+  // user and mutation_id. It is refused unless the account is deleting under that
+  // mutation_id (or a matching tombstone proves it already finished).
+  rpc FinishDeletion(FinishDeletionRequest) returns (FinishDeletionResponse);
+}
+
+enum AccountStatus {
+  ACCOUNT_STATUS_UNSPECIFIED = 0;
+  ACCOUNT_STATUS_ACTIVE = 1;
+  ACCOUNT_STATUS_DISABLED = 2;
+  ACCOUNT_STATUS_DELETING = 3;
+}
+
+// BaseProfile is the cross-product nickname and avatar. It is not the metro
+// rider profile and not a tripmap footprint setting.
+message BaseProfile {
+  // 1-40 Unicode code points; default "旅行者".
+  string display_name = 1;
+  // Empty or an https URL without credentials, at most 500 bytes.
+  string avatar_url = 2;
+  // Increases on every profile write, so a product can keep its projection fresh.
+  int64 profile_version = 3;
+}
+
+message RequestRegistrationRequest {
+  string email = 1;
+  // Must be an app configured in auth.apps; selects the link origin.
+  string app_id = 2;
+}
+message RequestRegistrationResponse {}
+
+message CompleteRegistrationRequest {
+  string token = 1;
+  string password = 2;
+  string display_name = 3;
+}
+message CompleteRegistrationResponse {}
+
+message AuthenticateWithEmailRequest {
+  string email = 1;
+  string password = 2;
+}
+message AuthenticateWithEmailResponse {
+  string user_id = 1;
+  BaseProfile profile = 2;
+  repeated string roles = 3;
+  int64 auth_version = 4;
+}
+
+message RequestPasswordResetRequest {
+  string email = 1;
+  string app_id = 2;
+}
+message RequestPasswordResetResponse {}
+
+message ResetPasswordRequest {
+  string token = 1;
+  string new_password = 2;
+}
+message ResetPasswordResponse {}
+
+message GetAuthStateRequest {}
+message GetAuthStateResponse {
+  AccountStatus status = 1;
+  int64 auth_version = 2;
+  // Current role names, sorted; empty for none.
+  repeated string roles = 3;
+  int64 profile_version = 4;
+}
+
+message GetMyAccountRequest {}
+message GetMyAccountResponse {
+  string user_id = 1;
+  // The canonical login email. For the owner's own account interface only.
+  string email = 2;
+  BaseProfile profile = 3;
+  repeated string roles = 4;
+  AccountStatus status = 5;
+  int64 auth_version = 6;
+}
+
+message VerifyPasswordRequest {
+  string password = 1;
+}
+message VerifyPasswordResponse {
+  int64 auth_version = 1;
+}
+
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+message ChangePasswordResponse {
+  // The new auth_version; the caller's own session is stale too.
+  int64 auth_version = 1;
+}
+
+message UpdateMyProfileRequest {
+  string display_name = 1;
+  string avatar_url = 2;
+}
+message UpdateMyProfileResponse {
+  BaseProfile profile = 1;
+}
+
+message BeginDeletionRequest {
+  // The BFF deletion workflow's idempotency key; 1-64 characters of [A-Za-z0-9._-].
+  string mutation_id = 1;
+}
+message BeginDeletionResponse {
+  int64 auth_version = 1;
+}
+
+message FinishDeletionRequest {
+  string mutation_id = 1;
+}
+message FinishDeletionResponse {
+  // True when the account was removed by this call, false when the tombstone of
+  // an earlier completion answered it.
+  bool removed = 1;
+}

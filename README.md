@@ -11,6 +11,7 @@
 | trip-map（山海足迹） | `apps/trip-map/` | React、Vite、TypeScript、Tailwind CSS、shadcn/ui 前端 | Vite 输出地址，通常为 `http://localhost:5173` |
 | bff | `cmd/bff/`、`internal/bff/` | 唯一公网 API 入口；账号、OAuth、Cookie 会话、CSRF 和业务接口适配 | HTTP `127.0.0.1:18081` |
 | tripmap | `cmd/tripmap/`、`internal/tripmap/` | 足迹、行程、媒体、分享等旅行领域业务 | 内网 HTTP `127.0.0.1:18082`；内部 gRPC `127.0.0.1:18083`（默认 TLS，可显式选 h2c） |
+| usersrv（自建用户系统，**开发中**，P1 账号核心） | `cmd/usersrv/`、`internal/usersrv/`、`cmd/usersrv-admin/` | 邮箱＋密码账号、角色与账号安全状态；BFF 尚未接入，当前不开放任何登录，浏览器登录仍是 Logto（见 [规格](docs/usersrv/spec.md)） | 仅内网：HTTP `127.0.0.1:18086`、gRPC `127.0.0.1:18087`（需自己的数据库与 Redis） |
 | metro（地铁足迹，第二个产品，可选） | `apps/metro/`、`cmd/metro/`、`internal/metro/` | 城市、线路、车型目录与骑行者记录；管理后台；BFF 上的 MCP 端点（见 [功能描述](docs/metro/features.md)） | 前端 `http://localhost:5174`；内网 HTTP `127.0.0.1:18084`、gRPC `127.0.0.1:18085` |
 
 浏览器经 BFF 的 Connect 接口访问后端（账号与会话是共用的 `bff.v1`，山海足迹业务是 `bff.tripmap.v1`）；BFF 使用内部凭证，通过内部 gRPC（默认 TLS；可信内网可显式配置 h2c，见 [BFF](docs/bff.md#内部-grpc-与凭证)）调用 tripmap。tripmap 的 HTTP 端口提供 `/ping`、`/readyz` 健康检查；启用 Mapbox 底图时还提供匿名的 `GET /api/tiles/…`，由 BFF 转发。账号与会话保存在 BFF 的独立数据库，旅行数据由 tripmap 管理。当前有两个后端服务，其中 tripmap 是唯一的业务服务，详见 [BFF](docs/bff.md)。
@@ -29,6 +30,8 @@ cmd/
   bff/                BFF 服务入口
   tripmap/            旅行业务服务入口
   metro/              地铁足迹业务服务入口
+  usersrv/            用户系统账号核心（BFF 尚未接入）
+  usersrv-admin/      usersrv 的角色与账号状态运维命令
   ...                 数据迁移、存储初始化与密钥生成工具
 internal/
   bff/                BFF 认证、接口适配与 Ent schema
@@ -37,7 +40,7 @@ internal/
   e2e/                BFF → tripmap 端到端测试
 proto/                bff、tripmap 与 platform 的 Protobuf 契约
 pkg/proto/            生成的 Go RPC 代码
-migrations/           按 bff、tripmap 分开的版本化数据库迁移
+migrations/           按 bff、tripmap、metro、usersrv 分开的版本化数据库迁移
 deploy/               镜像构建、反向代理与部署示例
 docs/                 功能、数据、开发与部署文档
 ```
@@ -100,7 +103,8 @@ Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:180
 | 前端 | `npm run test:e2e:trip-map` | 运行 Playwright 浏览器测试 |
 | 前端 | `npm run build:metro`、`npm run test:metro`、`npm run test:e2e:metro` | 构建、单元测试与 Playwright 测试地铁足迹（浏览器测试使用模拟 BFF） |
 | 地图与数据 | `npm run check:maps` | 检查地图、区域索引及前后端数据副本 |
-| 后端 | `make build` | 构建 BFF、tripmap 与 metro 服务至 `bin/` |
+| 后端 | `make build` | 构建 BFF、tripmap、metro、usersrv 与 usersrv-admin 至 `bin/` |
+| 后端 | `make test-integration-usersrv` | 用本地 PostgreSQL 与 Redis 运行 usersrv 的全部测试（独立 schema 与 key 前缀） |
 | 后端 | `make test` | 运行 Go 测试，未配置存储连接时相关集成测试跳过 |
 | 后端 | `make test-integration` | 在独立的 Compose 开发依赖上验证存储与服务链路 |
 | 服务边界 | `make check-import-boundaries` | 检查后端模块依赖边界 |
@@ -137,6 +141,7 @@ Logto 是唯一账号来源，旧测试账号不迁移。手动清理 SQL 的目
 - [地铁足迹功能描述](docs/metro/features.md)：第二个产品的页面、管理后台、管理令牌与 MCP。
 - [后端初始化](docs/backend.md)：依赖、配置、媒体直传、通知、模型与迁移。
 - [BFF](docs/bff.md)：认证、浏览器契约、内部 gRPC 与服务边界。
+- [usersrv 规格](docs/usersrv/spec.md)：自建用户系统的目标、分阶段交付与各阶段实现状态（目前只有 P1）。
 - [公开分享页与预览图](docs/trip-map/sharing.md)：分享模型、隐私与部署配置。
 - [部署与发布](docs/deployment.md)：部署拓扑、Secret 与升级顺序。
 - [项目协作说明](AGENTS.md)：实现约定、文档同步与验证要求。

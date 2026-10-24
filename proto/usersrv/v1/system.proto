@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package usersrv.v1;
+
+import "platform/v1/options.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/usersrv/v1;usersrvv1";
+
+// SystemService exposes read-only infrastructure readiness, not user data. It is
+// served over gRPC to the BFF only (a valid BFF credential is still required).
+service SystemService {
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+}
+
+message GetStatusRequest {}
+
+message GetStatusResponse {
+  bool ready = 1;
+  // postgres, redis and worker (the local background worker state). The mail
+  // vendor is never probed.
+  repeated DependencyStatus dependencies = 2;
+}
+
+message DependencyStatus {
+  string name = 1;
+  bool ready = 2;
+}

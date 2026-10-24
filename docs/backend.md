@@ -10,13 +10,15 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 
 ## 项目结构
 
-仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前有 tripmap 与 metro 两个业务；业务包之间不互相 import，`internal/platform/` 不依赖业务包。公网请求经 BFF（`cmd/bff`）转发到业务服务，见 [BFF（公网入口）](bff.md)。
+仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前有 tripmap 与 metro 两个业务，另有自建用户系统 usersrv 的账号核心（P1，BFF 尚未接入）；业务包之间不互相 import，`internal/platform/` 不依赖业务包。公网请求经 BFF（`cmd/bff`）转发到业务服务，见 [BFF（公网入口）](bff.md)。
 
 | 路径 | 职责 |
 | --- | --- |
 | `cmd/bff/`、`internal/bff/`（共用的账号与会话；各产品的领域适配在 `internal/bff/<产品>/`，tripmap 的在 `internal/bff/tripmap/`） | BFF：公网唯一浏览器 RPC（`bff.v1` 账号、`bff.<产品>.v1` 业务，Connect、Cookie/CSRF），经内部 gRPC（TLS / h2c）调 tripmap（[说明](bff.md)） |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `cmd/metro/`、`internal/metro/`（`app`、`application`、`config`、`ent`、`testutil`） | 地铁足迹业务服务：入口、装配与内部 gRPC、`CatalogService`/`AdminService`/`RiderService`/`AccountCleanupService`、配置、Ent 模型、隔离 schema 的测试辅助（[说明](#metro-服务地铁足迹)） |
+| `cmd/usersrv/`、`internal/usersrv/`（`app`、`application`、`account`、`identity`、`passwordhash`、`ratelimit`、`worker`、`config`、`ent`、`testutil`、`integration`）、`cmd/usersrv-admin/` | 自建用户系统的账号核心（规格 [usersrv](usersrv/spec.md)，P1）：服务入口、内部 gRPC `usersrv.v1`、账号与角色、Argon2id、限流、运维命令；BFF 尚未调用（[说明](#usersrv-服务账号核心p1)） |
+| `proto/usersrv/v1/`、`migrations/usersrv/` | usersrv 的内部契约与版本化迁移 |
 | `internal/bff/metro/` | 地铁足迹的 BFF 适配（目录手写映射；管理与骑行者经 `relay` 线格式转换）与账号清理器 |
 | `proto/metro/v1/`、`proto/bff/metro/v1/`、`migrations/metro/` | metro 的内部与浏览器契约、版本化迁移 |
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
@@ -554,15 +556,65 @@ BFF 的 `20261023095053_logto_identity_mapping.sql` 新增 Logto 身份映射和
 
 **健康与验证**：`/readyz` 报告 `postgres`（配置了 Redis 时再加 `redis`）；BFF 的 `/readyz` 增加 `metro` 与 `metro_grpc`。`internal/metro/application` 的测试直接调用服务实现，使用隔离的 PostgreSQL schema（需要 `TRIPMAP_TEST_POSTGRES_DSN`，未设置则跳过）；`internal/platform/moduleboundary` 保证 `internal/metro`、`internal/bff/metro` 与 tripmap 互不 import。
 
+## usersrv 服务（账号核心，P1）
+
+规格见 [usersrv 规格](usersrv/spec.md)（阶段状态也登记在那里）。**当前只实现 P1：** 独立服务骨架与账号核心。BFF 没有登记也不会调用 usersrv，浏览器登录仍然是 Logto；usersrv 不开放任何新登录或注册。邮件、注册与找回密码流程、BFF 适配、前端与发布在 P2–P6。
+
+**运行**：`config.usersrv.example.yaml` 复制为被忽略的 `config.usersrv.yaml`，准备 usersrv 独占的 PostgreSQL 库（例如 `createdb usersrv`）和 Redis（必需；限流计数在 Redis，不可用时拒绝而不是放行）；Redis key 都以 `key_prefix`（默认 `usersrv:`）开头。`make dev-usersrv` 以 HTTP 18086（`/ping`、`/readyz`，内网）与 gRPC 18087 启动。`/readyz` 报告 `postgres`、`redis` 与 `worker`（后台清理的本地状态）。gRPC 默认 TLS，本机可显式 `transport: h2c`（密码走这条链路，跨主机必须用 TLS）；只接受 `internal_auth.trusted_keys` 里 BFF 公钥签发、`aud=usersrv`、绑定方法且 60 秒内的凭证，所有方法（包括匿名标注的）都要求有效凭证，本人方法只取凭证里的 `sub`。生产关闭 `auto_migrate`，执行 `migrations/usersrv/`；新迁移用 `make usersrv-migration NAME=… DEV_DSN=…`（先 `make ent-usersrv`），规则同 tripmap。
+
+**接口**（`usersrv.v1`，仅内部 gRPC）：
+
+| 服务 | 已实现 | 契约已定稿、返回 `UNIMPLEMENTED`（P3） |
+| --- | --- | --- |
+| `SystemService` | `GetStatus` | |
+| `AccountService` | `GetAuthState`（每请求复核用：状态、`auth_version`、角色、昵称与头像，不含邮箱）、`GetMyAccount`（另含登录邮箱）、`VerifyPassword`、`ChangePassword`、`UpdateMyProfile`、`BeginDeletion`、`FinishDeletion` | `RequestRegistration`、`CompleteRegistration`、`AuthenticateWithEmail`、`RequestPasswordReset`、`ResetPassword` |
+
+错误用 `google.rpc.ErrorInfo`（domain `usersrv.v1`，reason 为 `INVALID_CREDENTIALS`、`ACCOUNT_NOT_ACTIVE`、`VERSION_CONFLICT`、`RATE_LIMITED`、`INVALID_ARGUMENT`、`DELETION_MISMATCH`）；错误密码与内部凭证错误因此不会混淆。日志与审计不含邮箱、密码、令牌。
+
+**账号规则**（`internal/usersrv/identity`、`account`）：
+
+- 邮箱（`NormalizeEmail`，登录、注册、重置与运维命令共用）：去首尾空白，整个地址转小写（有意的策略，保留 `+tag`，不猜别名）；只接受单个纯 ASCII 地址，最长 254 字节，本地部分是 ≤64 字节的 dot-atom，域名是至少两段的 DNS 名（接受 ASCII 的 `xn--` 标签，顶级段不能全为数字，因此没有 IP）；拒绝换行、显示名、多个地址、注释、引号本地部分、控制字符与非 ASCII（IDN 请填 punycode）。规范化后的地址是唯一键（`email_canonical`）。
+- 昵称：去首尾空白后 1–40 个字符、无控制字符，空值取默认“旅行者”；头像为空或不带凭据的 https 绝对链接（≤500 字节、仅 ASCII），服务端从不抓取它。密码 12–128 个字符且 ≤512 字节，原样处理（不裁剪、不规范化），不要求字符类别；仅用于比对的旧密码只做大小检查。
+- 状态 `active / disabled / deleting`；`auth_version` 每次改变认证相关状态（改密码、禁用/启用、授予/撤销角色、开始注销）都在同一事务里加一，乐观并发（`Where(auth_version = 旧值)`）保证并发改密码只有一个成功；旧版本的会话或管理令牌下一次复核即失败。资料修改只改 `profile_version`，不改 `auth_version`。
+- 密码：Argon2id，PHC 字符串存储，默认 64 MiB、3 次迭代、并行度 1、盐 16 字节、输出 32 字节；进程内最多 `max_concurrent`（默认 2）个并发计算，排队超过 `wait_timeout`（默认 2 秒）返回 `UNAVAILABLE`；未知邮箱也做一次等成本虚拟校验（`VerifyDummy`）。P1 不做旧参数哈希的自动升级。
+- 注销：`BeginDeletion`（本人，幂等，同工作流 ID 重放成功，其他 ID 被拒）把账号切到 `deleting`、加版本、作废令牌；`FinishDeletion` 要求 `deleting` 且工作流 ID 一致，删除账号与角色并写 24 小时的 tombstone；已禁用账号不能开始注销，需先启用。
+- 后台：每小时清除过期令牌（过期或已使用满 7 天）、过期 tombstone 与超过 90 天的审计行。
+
+**限流**（默认值写在示例配置的 `rate_limit` 下，可改）：重新认证与修改密码按用户 10 次/15 分钟、按 IP 40 次/15 分钟（成功也计数）；资料写入每用户 30 次/分钟；注销每用户 10 次/15 分钟。Redis key 里的主体是独立 HMAC 密钥（`auth.hmac_key` 或 `hmac_key_file`，至少 32 字节）的摘要。
+
+**数据库模型**（`internal/usersrv/ent/schema`，规则同时写成数据库 `CHECK`，手工改库也写不进非法行）：
+
+| 表 | 关键字段与约束 |
+| --- | --- |
+| `users` | UUID 主键、`email_canonical`（唯一）、`email_verified_at`、`password_hash`（Sensitive，PHC 字符串）、`status`、`auth_version`（≥1）、`display_name`、`avatar_url`、`profile_version`、注销标记（`deletion_started_at`、`deletion_mutation_id`）、时间戳 |
+| `user_roles` | `(user_id, role)` 唯一，外键 `ON DELETE CASCADE`；目前只有 `metro-admin` |
+| `account_tokens` | 唯一的 32 字节 `token_hash`（只存哈希）、用途（注册/重置）及与用途绑定的约束、过期与使用时间；P3 使用 |
+| `security_audit` | 用户 ID（可空）、操作者、动作、结果、请求 ID，以及 CLI 的 `reason`；只增不改，不含邮箱 |
+| `deletion_tombstones` | 用户 UUID、工作流 ID、完成与过期时间；不含邮箱 |
+
+**角色与状态运维**（`bin/usersrv-admin`，唯一入口，没有浏览器或 RPC 路径，也没有“第一个注册的用户自动成为管理员”）：
+
+```bash
+USERSRV_DATABASE_URL='postgres://…' bin/usersrv-admin grant-role -email a@example.com -role metro-admin -operator alice -reason "ticket 42"
+bin/usersrv-admin -config config.usersrv.yaml disable -user-id <uuid> -operator alice -reason "abuse report"
+```
+
+命令有 `grant-role`、`revoke-role`、`disable`、`enable`、`show`；数据库地址优先取 `USERSRV_DATABASE_URL`（命令行参数对其他用户可见），否则用 `-config` 读服务 YAML 的 `store.db`。只有已验证邮箱且状态为 `active` 的账号才能被授予角色；撤销、禁用、启用不要求。每次尝试（包括被拒绝的）都记录操作者、原因与结果；原因里不要写邮箱。已经处于目标状态时只写审计、不加版本。
+
+**资源预算**（本地一次测量，机器为 8 核；不是压测，部署前需在目标环境复测）：默认参数下一次哈希约 200 ms、一次校验约 185 ms；并发上限 2 时 40 个校验排队完成约 3.6 秒（约 11 次/秒）。每次计算占 64 MiB，上限 2 个并发即常驻约 128 MiB；Go 的垃圾回收滞后，测量时进程 `Sys` 达到约 330 MiB。容器内存限制建议不低于 512 MiB，并按需设置 `GOMEMLIMIT`。调低参数前须记录原因。
+
+**测试**：`make test` 运行全部单元测试，需要 PostgreSQL / Redis 的测试在未设置 `USERSRV_TEST_POSTGRES_DSN`、`USERSRV_TEST_REDIS_ADDR` 时跳过；`make test-integration-usersrv` 使用 Compose 示例的本地地址跑全部（每个测试用随机 schema 与 Redis key 前缀，不触碰其他服务的开发数据；Redis 的限流窗口测试需要真实 Redis 的过期行为）。覆盖：邮箱与密码校验、Argon2 并发上限、账号状态与版本并发、注销与 tombstone 重放、角色 CLI（含被拒）、限流与 Redis 故障、真实 gRPC 栈下的凭证拒绝（错误 `aud`、错误方法、过期、伪造密钥）、`/readyz`，以及迁移文件重放后与 Ent schema 一致、校验和与数据库约束。`internal/platform/moduleboundary` 保证 `internal/usersrv` 不 import 其他业务，BFF 不 import `internal/usersrv`。
+
 ## 生成、构建与验证
 
 ```bash
 make ent            # 修改 Ent schema 后生成客户端
 make ent-metro      # 修改 metro 的 Ent schema 后生成客户端
+make ent-usersrv    # 修改 usersrv 的 Ent schema 后生成客户端
 make buf            # 修改 proto 后生成 Go / TypeScript 契约
 buf lint
 make test           # Go 单元测试；未配置连接时跳过实际存储集成测试
-make build          # bin/tripmap、bin/bff 与 bin/metro
+make build          # bin/tripmap、bin/bff、bin/metro、bin/usersrv 与 bin/usersrv-admin
 npm test
 npm run build
 ```

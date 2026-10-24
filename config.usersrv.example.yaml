@@ -1,0 +1,91 @@
+# Local-only sample. Copy to ignored config.usersrv.yaml; replace every credential for deployment.
+# Butterfly reads literal YAML; ${VAR} substitutions are not supported.
+#
+# usersrv is the internal account service (email + password accounts, roles, account
+# security state). It is not user-facing: only the BFF calls it, over gRPC. Stage P1 of
+# docs/usersrv/spec.md: the account core is implemented; no sign-in is opened by it yet.
+log:
+  level: info
+  format: text
+  add_source: false
+
+# usersrv owns its own PostgreSQL database (create it first, for example: createdb usersrv).
+db_store: main
+# Required: rate-limit counters live in Redis and fail closed when it is unreachable.
+redis_store: main
+# Every Redis key starts with this prefix; tests and neighbours use their own.
+key_prefix: "usersrv:"
+# Ent creates/adds tables locally. Disable this in production and apply migrations/usersrv/.
+auto_migrate: true
+
+# Internal gRPC only (TLS by default); HTTP is /ping and /readyz (internal).
+# Do not expose 18086/18087 publicly.
+grpc:
+  # Local loopback only: no encryption or server authentication; signatures still required.
+  # Passwords travel on this link: in production use TLS (or an explicitly approved
+  # encrypted tunnel / service mesh), never plaintext across hosts.
+  transport: h2c
+  listen: 127.0.0.1:18087
+  # cert_file: dev-secrets/usersrv.pem
+  # key_file: dev-secrets/usersrv.key
+
+# Only calls carrying a credential signed by one of these BFF keys are accepted.
+# audience must be "usersrv". During rotation list the old and the new key together.
+internal_auth:
+  issuer: tripmap-bff
+  audience: usersrv
+  trusted_keys:
+    - kid: dev-1
+      public_key_file: dev-secrets/bff.pub
+  # clock_skew: 10s
+
+auth:
+  # Set false to refuse new sign-ups (enforced from stage P3); login and reset are unaffected.
+  registration_enabled: true
+  # Mail links (stages P2/P3) are built only from these exact origins and fixed paths.
+  # Both entries are required and must match the BFF's allowed origins.
+  # http is accepted for loopback only, and only with allow_loopback_http.
+  allow_loopback_http: true
+  apps:
+    trip-map:
+      origin: http://localhost:5173
+    metro:
+      origin: http://localhost:5174
+  registration_ttl: 30m
+  reset_ttl: 15m
+  # Argon2id budget. Defaults: 64 MiB, 3 iterations, 1 lane, 2 hashes at once. Measured cost
+  # of the defaults is in docs/backend.md. Do not lower a deployed value without recording why.
+  password_hash:
+    memory_kib: 65536
+    iterations: 3
+    parallelism: 1
+    max_concurrent: 2
+    wait_timeout: 2s
+  # Keys the digests of rate-limit subjects in Redis (>= 32 random bytes, standard base64).
+  # Independent of the BFF signing key and of the mail encryption key. Generate with:
+  #   head -c 32 /dev/urandom | base64
+  # This value is a public local sample: replace it, or use hmac_key_file instead.
+  hmac_key: bG9jYWwtZGV2LW9ubHktdXNlcnNydi1obWFjLWtleSE=
+
+# Defaults shown; all are "limit attempts per window". Counters fail closed.
+rate_limit:
+  password_per_account: {limit: 10, window: 15m}
+  password_per_ip: {limit: 40, window: 15m}
+  profile_write_per_user: {limit: 30, window: 1m}
+  deletion_per_user: {limit: 10, window: 15m}
+
+store:
+  db:
+    main:
+      driver: postgres
+      host: 127.0.0.1
+      port: 15432
+      user: tripmap
+      password: tripmap-local
+      db_name: usersrv
+      ssl_mode: disable
+  redis:
+    main:
+      addr: 127.0.0.1:16379
+      password: tripmap-local
+      db: 0

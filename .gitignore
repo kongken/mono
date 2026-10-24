@@ -28,6 +28,7 @@ dist-ssr
 config.tripmap.yaml
 config.bff.yaml
 config.metro.yaml
+config.usersrv.yaml
 bin/
 coverage.out
 

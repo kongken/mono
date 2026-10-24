@@ -246,6 +246,8 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 ## 待实现
 
+usersrv（自建用户系统）的 P1 账号核心已存在（[后端初始化](backend.md#usersrv-服务账号核心p1)），但 BFF 尚未登记也不调用它，上述 Logto 登录与会话保持不变；BFF 适配在该规格的 P4。
+
 真实 OAuth/SMTP/Web Push/生产 S3 端到端验收依赖部署环境；Playwright 真实 Cookie 栈见「验证」，默认跳过。
 
 ## 多 Web App 登录与迁移（#54）
