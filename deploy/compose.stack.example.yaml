@@ -1,11 +1,16 @@
-# Example production-style stack: trip-map-web (Nginx) + BFF + tripmap + dependencies.
+# Example production-style stack: trip-map-web (Nginx) + BFF + usersrv + tripmap + dependencies.
+# usersrv is the account service and is required: the BFF has no other way to sign anyone in.
 # metro (the second product) and metro-web are optional: delete both services, the
-# `metro` upstream and grpc service in config.bff.yaml, and the metro entries of
-# auth.account_cleanup / auth.oauth_apps to run without it.
-# Copy configs from config.tripmap.example.yaml / config.bff.example.yaml; run `make dev-secrets`
-# for signing keys, or configure inline PEM keys. Local configs use h2c (no TLS files).
-# TLS deployments need explicit TLS config and certificates (see docs/deployment.md).
-# tripmap HTTP/gRPC must NOT be published to the public internet.
+# `metro` upstream and grpc service in config.bff.yaml, the metro entries of
+# auth.account_cleanup and of auth.apps in config.usersrv.yaml to run without it.
+# Copy configs from config.usersrv.example.yaml / config.tripmap.example.yaml /
+# config.bff.example.yaml; run `make dev-secrets` for signing keys, or configure inline PEM keys.
+# Local configs use h2c (no TLS files). usersrv receives passwords from the BFF: in production
+# use TLS (grpc.transport: tls, usersrv.pem/usersrv.key and the BFF's ca.pem), never plaintext
+# between hosts. TLS deployments need explicit TLS config and certificates (see docs/deployment.md).
+# usersrv, tripmap and metro HTTP/gRPC must NOT be published to the public internet.
+# Every credential below (database, Redis, S3 passwords) is an example: replace it, and keep
+# the mail provider key, auth.hmac_key and mail.encryption keys in mounted Secrets.
 
 name: trip-map-stack
 services:
@@ -14,7 +19,11 @@ services:
     environment:
       POSTGRES_USER: tripmap
       POSTGRES_PASSWORD: change-me
-    volumes: [postgres-data:/var/lib/postgresql/data]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Creates the separate bff, usersrv and metro databases on the first start of an empty
+      # volume (tripmap uses POSTGRES_DB's default, "tripmap"). Existing volumes: create them by hand.
+      - ./postgres/init-databases.sql:/docker-entrypoint-initdb.d/10-init-databases.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U tripmap"]
       interval: 5s
@@ -36,6 +45,31 @@ services:
       RUSTFS_ADDRESS: ":9000"
     volumes: [s3-data:/data]
     networks: [internal]
+
+  # usersrv owns the accounts: its own database (`usersrv`), the shared Redis (own key prefix),
+  # no S3. It trusts only the BFF's public key and must NOT be published to the internet.
+  # Mail credentials (config.usersrv.yaml: mail.<provider>) and the HMAC/encryption keys are
+  # Secrets: mount them as files (key_file / hmac_key_file) or keep the whole config in a Secret.
+  # Production: auto_migrate false and apply migrations/usersrv/ first (docs/deployment.md).
+  usersrv:
+    image: ghcr.io/kongken/mono-usersrv:main
+    volumes:
+      - ./config.usersrv.yaml:/config/config.yaml:ro
+      - ./secrets/bff.pub:/secrets/bff.pub:ro
+      # TLS only (not needed for h2c):
+      # - ./secrets/usersrv.pem:/secrets/usersrv.pem:ro
+      # - ./secrets/usersrv.key:/secrets/usersrv.key:ro
+    environment:
+      BUTTERFLY_CONFIG_TYPE: file
+      BUTTERFLY_CONFIG_FILE_PATH: /config/config.yaml
+      PORT: "18086"
+    expose: ["18086", "18087"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+    networks: [internal]
+    # Outbound only to the mail provider (HTTPS, or the SMTP port). Put this service on an
+    # extra network with egress if `internal` has none.
 
   tripmap:
     image: ghcr.io/kongken/mono-tripmap:main
@@ -68,7 +102,7 @@ services:
       BUTTERFLY_CONFIG_FILE_PATH: /config/config.yaml
       PORT: "18081"
     expose: ["18081"]
-    depends_on: [tripmap, metro, postgres, redis]
+    depends_on: [usersrv, tripmap, metro, postgres, redis]
     networks: [internal]
 
   # metro needs its own database (see config.metro.example.yaml) in the same
@@ -95,8 +129,9 @@ services:
     depends_on: [bff]
     networks: [internal, edge]
 
-  # Serve it on its own host name (the BFF's auth.oauth_apps.metro.origin) from the
-  # edge proxy, or publish a port here. It proxies /api, /auth and /mcp/metro to the BFF.
+  # Serve it on its own host name (usersrv's auth.apps.metro.origin and an entry of the BFF's
+  # cors_allowed_origins when the API is on another host) from the edge proxy, or publish a
+  # port here. It proxies /api and /mcp/metro to the BFF.
   metro-web:
     image: ghcr.io/kongken/mono-metro-web:main
     environment:

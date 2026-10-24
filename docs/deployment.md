@@ -1,6 +1,6 @@
 # 部署与发布
 
-本文描述**当前已实现**的同源代理与 HTTPS 同站点多 Web App/BFF 拓扑、密钥与 TLS 布局、健康探针和运维轮换步骤。真实邮件厂商、SMTP、Web Push、生产 S3 策略与社交平台抓取在本仓库 CI 中**未**端到端验收；浏览器真实栈 Playwright 见 [BFF 验证](bff.md#验证)（默认跳过，需本地 `make dev` 与 `E2E_REAL_BFF=1`）。
+本文描述**当前已实现**的同源代理与 HTTPS 同站点多 Web App/BFF 拓扑、密钥与 TLS 布局、健康探针和运维轮换步骤。真实邮件厂商（Mailgun、SendGrid、SMTP、SMTP2GO）、Web Push、生产 S3 策略与社交平台抓取在本仓库 CI 中**未**端到端验收，没有对任何真实厂商实测；浏览器真实栈 Playwright 见 [BFF 验证](bff.md#验证)（默认跳过，需本地 `make dev` 与 `E2E_REAL_BFF=1`）。
 
 ## 拓扑
 
@@ -9,21 +9,27 @@
                       ├─ 静态 SPA（/、/assets、/maps）
                       └─ /api（含 /api/tiles/）、/ping、/readyz、/s/、/api/share/、/api/notifications/ ──► BFF :18081
                                                                                               │
-                                                                                              ├─ PostgreSQL（BFF 认证库）
-                                                                                              ├─ Redis（限流、OAuth state、CSRF）
-                                                                                              └─ TLS gRPC ──► tripmap :18083（内网）
-                                                                                                    ├─ PostgreSQL（业务）
-                                                                                                    ├─ Redis
-                                                                                                    └─ S3
+                                                                                              ├─ PostgreSQL（BFF 会话库）
+                                                                                              ├─ Redis（限流、CSRF）
+                                                                                              ├─ TLS gRPC ──► usersrv :18087（内网，账号与密码）
+                                                                                              │     ├─ PostgreSQL（usersrv 独占库）
+                                                                                              │     ├─ Redis（限流，key 前缀 usersrv:）
+                                                                                              │     └─ 邮件厂商（出站 HTTPS / SMTP）
+                                                                                              ├─ TLS gRPC ──► tripmap :18083（内网）
+                                                                                              │     ├─ PostgreSQL（业务）
+                                                                                              │     ├─ Redis
+                                                                                              │     └─ S3
+                                                                                              └─ TLS gRPC ──► metro :18085（可选）
 ```
 
 - **公网**只暴露边缘 HTTPS 与 BFF 的 HTTP 端口（经边缘反代）；**不得**把 tripmap 的 `18082`（HTTP `/ping`/`/readyz`）或 `18083`（gRPC）直接映射到公网。
 - 前端构建需 `--build-arg VITE_API_BASE_URL=/api`，使浏览器与 BFF 同源；纯静态托管不设置该变量时仍为本地模式。
-- 示例文件：`deploy/trip-map-web/default.conf.template`（前端 Nginx）、`deploy/reverse-proxy/Caddyfile.example`（单站点 Caddy）、`deploy/compose.stack.example.yaml`（内网隔离的 Compose 栈）、`deploy/k8s/secrets.layout.example.yaml`（Secret 键名示意）。
+- 示例文件：`deploy/trip-map-web/default.conf.template`、`deploy/metro-web/default.conf.template`（前端 Nginx）、`deploy/reverse-proxy/Caddyfile.example`（单站点 Caddy）、`deploy/compose.stack.example.yaml`（内网隔离的 Compose 栈，含 usersrv）、`deploy/postgres/init-databases.sql`（创建 `bff`、`usersrv`、`metro` 三个库的初始化脚本）、`deploy/k8s/secrets.layout.example.yaml`（Secret 键名示意）。
+- 边缘对 `/auth/` 前缀一律返回 404（Nginx 模板与 Caddy 示例都有），不让旧的 `/auth/login`、OAuth 回调落入 SPA 回退。
 
 ## 配置来源
 
-BFF、tripmap 镜像及 Compose 示例默认使用文件模式。使用 Consul KV 时，覆盖两个服务的 `BUTTERFLY_CONFIG_TYPE=consul`，设置进程可访问的 `BUTTERFLY_CONFIG_CONSUL_ADDRESS`，并按需设置 `BUTTERFLY_NAMESPACE`（默认 `apps`）。例如前缀为 `kongken/prod` 时，分别在 `kongken/prod/bff`、`kongken/prod/tripmap` 保存完整 YAML 配置；无需 `.yaml` 后缀或按字段拆 key。
+BFF、tripmap、usersrv 镜像及 Compose 示例默认使用文件模式。使用 Consul KV 时，覆盖各服务的 `BUTTERFLY_CONFIG_TYPE=consul`，设置进程可访问的 `BUTTERFLY_CONFIG_CONSUL_ADDRESS`，并按需设置 `BUTTERFLY_NAMESPACE`（默认 `apps`）。例如前缀为 `kongken/prod` 时，分别在 `kongken/prod/bff`、`kongken/prod/tripmap` 保存完整 YAML 配置；无需 `.yaml` 后缀或按字段拆 key。
 
 `BUTTERFLY_CONFIG_CONSUL_NAMESPACE` 是 Consul API Namespace，不控制 KV 路径前缀。Consul 模式忽略 `BUTTERFLY_CONFIG_FILE_PATH`，但证书和签名密钥文件仍需挂载；配置变化后重启对应服务。环境变量、示例与工具限制见 [Consul 配置与路径前缀](backend.md#consul-配置与路径前缀)。
 
@@ -40,7 +46,7 @@ BFF、tripmap 镜像及 Compose 示例默认使用文件模式。使用 Consul K
 
 ## 安全响应头
 
-前端 Nginx 模板已添加 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Permissions-Policy`。Caddy 示例在站点级设置同类头。分享/退订路径仍不写访问日志（令牌在路径或查询中），见 [公开分享页](trip-map/sharing.md#配置与部署)。
+前端 Nginx 模板已添加 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Permissions-Policy`；`index.html` 与落地页的 `location` 因 Nginx `add_header` 不继承而重复同一组头并加 `Cache-Control: no-store`。Caddy 示例在站点级设置同类头（`Referrer-Policy` 用 `?` 前缀，落地页的 `no-referrer` 不被覆盖）。分享/退订路径仍不写访问日志（令牌在路径或查询中），见 [公开分享页](trip-map/sharing.md#配置与部署)。
 
 ## TLS 与内部凭证 Secret
 
@@ -49,7 +55,9 @@ BFF、tripmap 镜像及 Compose 示例默认使用文件模式。使用 Consul K
 | `tripmap.pem` / `tripmap.key` | tripmap Pod/容器 | gRPC TLS 服务端证书（`grpc.cert_file` / `grpc.key_file`）；仅 `tls` 模式需要，`h2c` 不挂载 |
 | `ca.pem` | BFF | 校验 tripmap 证书（`grpc.ca_file`）；仅存在 `tls` 上游时需要，全 `h2c` 可不挂载 |
 | `bff.key`（Ed25519 PKCS#8） | **仅 BFF** | 签发内部 JWS（`internal_auth.private_key_file`） |
-| `bff.pub`（PKIX） | tripmap（及轮换期多副本） | `internal_auth.trusted_keys[].public_key_file` |
+| `bff.pub`（PKIX） | tripmap、usersrv、metro（及轮换期多副本） | `internal_auth.trusted_keys[].public_key_file` |
+| `usersrv.pem` / `usersrv.key` | usersrv | gRPC TLS 服务端证书（`grpc.cert_file` / `grpc.key_file`）；SAN 含服务 DNS 名；**密码经这条链路传输，跨主机必须用 TLS** |
+| `hmac.key`、`mail-encryption-1.key`、邮件厂商凭据 | usersrv | `auth.hmac_key_file`、`mail.encryption.keys[].key_file`、`config.usersrv.yaml` 的 `mail.<provider>`；见[usersrv 的部署](#usersrv-的部署) |
 
 Ed25519 私钥 / 公钥在 `tls` 与 `h2c` 两种内部传输下**都必需**：h2c 只去掉传输层的证书 / CA，不去掉应用层签名。上表展示文件方式；也可将 PEM 分别放入 BFF `internal_auth.private_key`、tripmap `internal_auth.trusted_keys[].public_key`，替换对应 `*_key_file`，不再要求独立 key 文件或签名密钥挂载。来源必须二选一，完整格式与保密要求见 [配置内联签名密钥](bff.md#配置内联签名密钥)。含私钥的配置必须按 Secret 管理，不可放入公开 ConfigMap；现有 Deployment 的文件挂载不会自动移除，需由部署方另行同步修改。
 
@@ -65,11 +73,11 @@ Ed25519 私钥 / 公钥在 `tls` 与 `h2c` 两种内部传输下**都必需**：
 
 ### Ed25519 签名密钥轮换
 
-1. 生成新密钥对，在**每个** tripmap（及未来业务服务）的 `internal_auth.trusted_keys` **追加**新 `kid` 与 `bff.pub`（新旧公钥并存）。
-2. 滚动重启 tripmap，确认 `/readyz` 与 BFF `/readyz` 中 `tripmap_grpc` 正常。
+1. 生成新密钥对，在**每个**业务服务（tripmap、usersrv、metro）的 `internal_auth.trusted_keys` **追加**新 `kid` 与 `bff.pub`（新旧公钥并存）。
+2. 滚动重启这些服务，确认各自 `/readyz` 与 BFF `/readyz` 中 `tripmap_grpc`、`usersrv_grpc`（及 `metro_grpc`）正常。
 3. 更新 BFF Secret 中的私钥，并把 BFF `internal_auth.kid` 与私钥来源（`private_key` 或 `private_key_file`，二选一）切到新密钥；滚动重启 BFF。
 4. 等待旧凭证最长有效期（**60 秒**）加允许时钟偏差（默认 **10 秒**，`internal_auth.clock_skew`）后再从 `trusted_keys` 移除旧公钥。
-5. 仍用已撤销私钥签名的调用会被 tripmap 拒绝，浏览器侧表现为 `INTERNAL`。
+5. 仍用已撤销私钥签名的调用会被业务服务拒绝，浏览器侧表现为 `INTERNAL`（usersrv 不可用时登录失败）。
 
 ## Mapbox 底图（可选）
 
@@ -90,15 +98,16 @@ Ed25519 私钥 / 公钥在 `tls` 与 `h2c` 两种内部传输下**都必需**：
 
 | 探针 | 位置 | 依赖 |
 | --- | --- | --- |
-| `GET /ping` | BFF、tripmap | 进程存活 |
+| `GET /ping` | BFF、tripmap、usersrv、metro | 进程存活 |
 | `GET /readyz` | tripmap | `postgres`、`redis`、`s3`（各 2 秒超时） |
+| `GET /readyz` | usersrv | `postgres`、`redis`、`worker`（后台清理的本地状态；不探测邮件厂商） |
 | `GET /readyz` | BFF | 各 upstream HTTP `/readyz`（如 `tripmap`）、`bff_postgres`、`bff_redis`、各服务 **`{name}_grpc`**（按该上游的传输 tls / h2c，用签名凭证调用 `SystemService/GetStatus`） |
 
-BFF 启动**不要求** tripmap 已就绪；编排系统应使用 BFF `/readyz` 作为对外就绪门。前端 `/healthz` 仅表示静态文件服务。
+BFF 启动**不要求**下游已就绪（usersrv 未就绪时登录、注册与每个需要登录的请求失败）；编排系统应使用 BFF `/readyz` 作为对外就绪门。前端 `/healthz` 仅表示静态文件服务。
 
 ## 独立镜像与 import 边界
 
-tripmap、BFF、metro 与各前端为独立镜像（见 [Docker 镜像](docker-images.md)）。Dockerfile 只 `COPY` 本服务业务目录与 `internal/platform/`；`go test ./internal/platform/moduleboundary`（`make check-import-boundaries`）断言 `cmd/bff` 不依赖业务包、业务服务（tripmap、metro）互不依赖也不依赖 `internal/bff`。
+tripmap、BFF、metro、usersrv 与各前端为独立镜像（见 [Docker 镜像](docker-images.md)）。Dockerfile 只 `COPY` 本服务业务目录与 `internal/platform/`；`go test ./internal/platform/moduleboundary`（`make check-import-boundaries`）断言 `cmd/bff` 不依赖业务包、业务服务（tripmap、metro、usersrv）互不依赖也不依赖 `internal/bff`。
 
 ## 地铁足迹（metro，可选）
 
@@ -109,24 +118,49 @@ tripmap、BFF、metro 与各前端为独立镜像（见 [Docker 镜像](docker-i
 3. 管理员角色：在 usersrv 配置 `auth.apps.metro.origin`，用 `usersrv-admin` 给管理员账号授予 `metro-admin`；BFF 每次请求读取当前角色，上线前先让一个管理员登录并确认 `Me` 返回 `metro-admin`。
 4. 边缘网关对 `/mcp/metro` 不记录请求头与访问日志（Bearer 令牌），并保证 `client_ip_header` 由网关覆盖（MCP 失败认证按该地址限流）。MCP 令牌由管理员在 `/admin/tokens` 创建，最长 90 天，明文只显示一次。
 
+## usersrv 的部署
+
+usersrv 是账号服务，BFF 没有它就无法登录或注册，因此是必需的。它只被 BFF 经内部 gRPC 调用，不得暴露到公网。镜像 `ghcr.io/kongken/mono-usersrv`（`deploy/usersrv/Dockerfile`，入口 `/usersrv`，运维命令 `/usersrv-admin`，容器内 HTTP 18086、gRPC 18087，配置挂载为 `/config/config.yaml`）；资源建议见 [后端初始化](backend.md#usersrv-服务账号核心p1)（内存限制不低于 512 MiB）。
+
+1. **独立数据库与 Redis。** 在同一 PostgreSQL 实例创建独立数据库 `usersrv`（Compose 示例用 `deploy/postgres/init-databases.sql` 在空数据目录首次启动时创建 `bff`、`usersrv`、`metro`；已有数据目录不会重跑，须手动创建）。usersrv 不使用 S3。Redis 必需，限流在 Redis 不可用时拒绝而不是放行；key 前缀默认 `usersrv:`，与 BFF 共用实例时保持前缀不同。
+2. **配置。** 复制 `config.usersrv.example.yaml` 为 `config.usersrv.yaml`（或放入 Consul / Secret），**逐项替换示例值**：`db_store`/`store`、`auth.hmac_key`（≥32 字节随机，`head -c 32 /dev/urandom | base64`）、`mail.encryption`（32 字节随机，与 hmac 不同）、`auth.apps.<app_id>.origin`（每个前端的精确 https 来源，必须和 BFF 的 `cors_allowed_origins` 一致；**生产关闭** `auth.allow_loopback_http`）、`mail.from_email` 与一个 provider（**生产关闭** `mail.allow_insecure_loopback`，SMTP 用 `implicit_tls` 或 `starttls`）。`auto_migrate: false`。示例里的 hmac 与加密 key 是公开的本地样例，直接用于生产等于没有保护。密钥和厂商凭据优先用 `key_file` / `hmac_key_file` 或整份配置放 Secret（布局见 `deploy/k8s/secrets.layout.example.yaml` 的 `usersrv-*`）。
+3. **迁移。** 在发布前按文件名顺序对 `usersrv` 库执行 `migrations/usersrv/`；之后每个版本先应用新迁移再滚动 usersrv。BFF 库同样先应用 `migrations/bff/`（见[下一节](#自建用户系统的数据迁移)）。
+4. **传输与信任。** 生产使用 `grpc.transport: tls`：CA 签发的 `usersrv.pem`/`usersrv.key`（SAN 含 usersrv 的 DNS 名）挂到 usersrv，BFF 的 `grpc.services.usersrv` 设 `transport: tls` 并挂 `ca.pem`。`internal_auth.trusted_keys` 只放 BFF 的公钥 `bff.pub`（`audience: usersrv`）。h2c 不加密，而这条链路携带明文密码，仅限单机本地开发或经批准的加密隧道。
+5. **BFF 配置。** `upstreams.usersrv`（HTTP `/readyz`）与 `grpc.services.usersrv`；旧配置里的 `auth.oauth_apps`、`auth.oauth_providers`、`auth.oauth_development` 可删除（不再读取）；构建前端时不再需要 `VITE_OAUTH_APP_ID`。不部署 metro 时，usersrv 的 `auth.apps` 与 BFF 的 `auth.account_cleanup`、`upstreams`、`grpc.services` 同步去掉 metro 的条目。
+6. **邮件。** usersrv 启动时不连接厂商，也不发探测邮件，配置错误只在启动校验或第一次发信时暴露。四家厂商都没有在本仓库实测，上线前按 [真实邮件手动冒烟](usersrv/mail-smoke-test.md)逐家验证，并为发信域名配置 SPF/DKIM/DMARC。切换厂商时递增 `mail.generation` 并先排空队列。
+7. **首个管理员。** 没有“第一个注册用户自动成为管理员”。先用普通流程注册并验证邮箱，再在能访问 usersrv 数据库的位置执行（`USERSRV_DATABASE_URL` 优先于命令行参数，避免密码出现在进程列表）：
+
+```bash
+docker run --rm --network <内部网络> -e USERSRV_DATABASE_URL='postgres://…/usersrv?sslmode=…' \
+  --entrypoint /usersrv-admin ghcr.io/kongken/mono-usersrv:main \
+  grant-role -email admin@example.com -role metro-admin -operator alice -reason "ticket 42"
+```
+
+8. **上线顺序与回滚。** usersrv（含迁移）→ BFF（含迁移与配置）→ tripmap / metro → 前端。回滚镜像时不要回退 usersrv 的迁移，先确认旧镜像兼容当前表结构；一旦用户已在 usersrv 注册，回滚到 Logto 版本不是受支持的路径，需要恢复备份并接受账号丢失。
+9. **验收。** BFF `/readyz` 中 `usersrv` 与 `usersrv_grpc` 就绪；走一遍注册 → 收邮件 → 设密码 → 登录 → 业务写入 → 找回密码 → 重新登录 → 注销（`make test-integration` 在隔离的真实 PostgreSQL / Redis / S3 上自动走这条链，不含真实邮件）。
+
+旧 Logto 的外部资源与旧表的清理见 [Logto 退役与手动清理](usersrv/retirement.md)；服务启动与迁移不会自动删除任何东西。
+
 ## 自建用户系统的数据迁移
 
-本项目不迁移旧的 Logto 账号、测试云端数据或会话。备份数据库并暂停登录与业务写入后，按以下顺序操作；所有清理 SQL 均由运维手动执行，不由服务启动调用：
+本项目不迁移旧的 Logto 账号、测试云端数据或会话。备份数据库并暂停登录与业务写入后，按以下顺序操作；所有清理 SQL 均由运维手动执行，不由服务启动调用。每个脚本的目标库、范围、前置检查与回滚见 [Logto 退役与手动清理](usersrv/retirement.md)：
 
 1. 部署 usersrv（`config.usersrv.example.yaml`，独立数据库 `usersrv`，生产关闭 `auto_migrate` 并按文件名顺序执行 `migrations/usersrv/`）；在 BFF 配置 `upstreams.usersrv`、`grpc.services.usersrv`（见 [BFF](bff.md#配置)）。
 2. **BFF 数据库**：按版本顺序应用迁移，包括 `migrations/bff/20261024161800_usersrv_sessions.sql`（会话增加 `auth_version`、新建 `bff_account_deletions`）。旧 Cookie 会话在第一次使用时被撤销，用户须重新登录。BFF 与 tripmap 的所有副本升级完成后，旧版本副本才不会再读旧表。
 3. **tripmap 业务数据库（可选，且必须在开放新登录前）**：若整库业务数据均可丢弃，手动执行 `deploy/sql/tripmap/reset_test_profiles.sql`，删除旧测试 profile 及其级联业务数据。它不会清理 S3 实体对象；开放新登录后不要运行此脚本。
 4. **tripmap 业务数据库**：手动执行 `deploy/sql/tripmap/post_import_drop_legacy_auth_columns.sql`，删除认证遗留列及旧用户名唯一索引；保留业务 `users` 表及所有业务结构。
-5. 验证注册、登录、`Me`、业务读写、退出、会话撤销和注销后，**BFF 数据库**可手动执行 `deploy/sql/bff/retire_logto_identities.sql`，删除旧的 `auth_identities`、`account_deletion_receipts`（以及更早的 `auth_sessions`、`auth_users`）。该脚本会先检查新的 `bff_account_deletions` 已存在、没有未完成的旧注销回执依赖。
+5. 验证注册、登录、`Me`、业务读写、退出、会话撤销和注销后，**BFF 数据库**可手动执行（建议 `psql -v ON_ERROR_STOP=1 -f …`） `deploy/sql/bff/retire_logto_identities.sql`，删除旧的 `auth_identities`、`account_deletion_receipts`（以及更早的 `auth_sessions`、`auth_users`）。该脚本会先检查新的 `bff_account_deletions` 已存在、没有未完成的旧注销回执依赖。
 6. 恢复流量。清理后不能直接回滚至旧版本；需要恢复数据库备份。
 
-退出仅撤销当前 BFF 会话。会话在每个请求都和 usersrv 的账号状态、`auth_version`、角色核对：禁用账号、改密码、撤销角色在下一个请求生效。浏览器登录、注册与邮件落地页已在两个前端实现（P5）；邮件厂商与发布步骤属于后续阶段（P6）。落地页 `/account/verify-email`、`/account/reset-password` 在 Nginx 与 Caddy 示例里带 `Referrer-Policy: no-referrer`、`Cache-Control: no-store` 并回退到 `index.html`，自建边缘需保持这三点。
+退出仅撤销当前 BFF 会话。会话在每个请求都和 usersrv 的账号状态、`auth_version`、角色核对：禁用账号、改密码、撤销角色在下一个请求生效。浏览器登录、注册与邮件落地页已在两个前端实现（P5）；usersrv 的发布见上一节，真实邮件厂商需要上线前手动验证。落地页 `/account/verify-email`、`/account/reset-password` 在 Nginx 与 Caddy 示例里带 `Referrer-Policy: no-referrer`、`Cache-Control: no-store` 并回退到 `index.html`，自建边缘需保持这三点。
 
 ## 验证清单
 
 - `make dev-secrets`、`make deps-up`、`make storage-init`、`make dev` 本地 smoke。
 - `make build`、`make test`、`make check-import-boundaries`、`buf lint`、`npm run build`。
-- 有隔离存储时 `make test-integration`。
+- 有隔离存储时 `make test-integration`（需要真实 Redis；设置 `USERSRV_TEST_*`，否则账号链整体跳过）与 `make test-integration-usersrv`。
+- `npm test`（含两个前端的 Playwright 验收，模拟 BFF，不发真实邮件）。
+- 上线前手动：[真实邮件冒烟](usersrv/mail-smoke-test.md)，以及用真实的 Nginx / Caddy 加载示例并检查响应头（见 [usersrv 规格的验证状态](usersrv/spec.md#验证状态)）。
 - 文档链接：`make check-docs`。
 
 ## 多前端共用 BFF 的部署

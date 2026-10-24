@@ -289,6 +289,33 @@ test.describe("account settings", () => {
   });
 });
 
+test.describe("an expired session with nothing cached", () => {
+  test("the full-screen failure page offers signing in again, and signing in loads the footprints", async ({ page }) => {
+    const { accounts, gate } = await setup(page, { signedIn: true });
+    await page.goto("/");
+    await expect(accountButton(page)).toBeVisible();
+    // The session stops working and this device holds no cache for the account.
+    gate.unauthenticated = true;
+    accounts.signOut();
+    await page.evaluate(() => {
+      for (const k of Object.keys(localStorage)) if (k.startsWith("shanhai-cloud-v2:")) localStorage.removeItem(k);
+    });
+    await page.reload();
+    const gateSignIn = page.getByTestId("gate-sign-in");
+    await expect(page.getByRole("heading", { name: "登录已失效" })).toBeVisible();
+    await expect(gateSignIn).toBeVisible();
+    expect(await noOverflow(page)).toBe(true);
+    await expect(gateSignIn.getByLabel("密码", { exact: true })).toHaveAttribute("autocomplete", "current-password");
+    // The same page still offers the export-and-leave route and a retry.
+    await expect(page.getByRole("button", { name: "导出原始账号缓存并退出" })).toBeVisible();
+
+    gate.unauthenticated = false;
+    await fillLogin(page, EMAIL, PASSWORD);
+    await expect(page.getByTestId("gate-sign-in")).toHaveCount(0);
+    await expect(accountButton(page)).toBeVisible();
+  });
+});
+
 test.describe("closing the account", () => {
   test("lists what goes, needs the password and a typed word, and survives a failed cleanup", async ({ page }) => {
     const { accounts } = await setup(page, { signedIn: true });

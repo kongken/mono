@@ -10,14 +10,14 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 
 ## 项目结构
 
-仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前有 tripmap 与 metro 两个业务，另有自建用户系统 usersrv 的账号核心、邮件模块与账号流程（P1–P3，BFF 尚未接入）；业务包之间不互相 import，`internal/platform/` 不依赖业务包。公网请求经 BFF（`cmd/bff`）转发到业务服务，见 [BFF（公网入口）](bff.md)。
+仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前有 tripmap 与 metro 两个业务，另有自建用户系统 usersrv（账号核心、邮件模块、账号流程，已由 BFF 与两个前端接入，P1–P6 全部实现）；业务包之间不互相 import，`internal/platform/` 不依赖业务包。公网请求经 BFF（`cmd/bff`）转发到业务服务，见 [BFF（公网入口）](bff.md)。
 
 | 路径 | 职责 |
 | --- | --- |
 | `cmd/bff/`、`internal/bff/`（共用的账号与会话；各产品的领域适配在 `internal/bff/<产品>/`，tripmap 的在 `internal/bff/tripmap/`） | BFF：公网唯一浏览器 RPC（`bff.v1` 账号、`bff.<产品>.v1` 业务，Connect、Cookie/CSRF），经内部 gRPC（TLS / h2c）调 tripmap（[说明](bff.md)） |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `cmd/metro/`、`internal/metro/`（`app`、`application`、`config`、`ent`、`testutil`） | 地铁足迹业务服务：入口、装配与内部 gRPC、`CatalogService`/`AdminService`/`RiderService`/`AccountCleanupService`、配置、Ent 模型、隔离 schema 的测试辅助（[说明](#metro-服务地铁足迹)） |
-| `cmd/usersrv/`、`internal/usersrv/`（`app`、`application`、`account`、`identity`、`passwordhash`、`ratelimit`、`worker`、`mailer`、`outbox`、`config`、`ent`、`testutil`、`integration`）、`cmd/usersrv-admin/` | 自建用户系统的账号核心、邮件模块与账号流程（规格 [usersrv](usersrv/spec.md)，P1–P3）：服务入口、内部 gRPC `usersrv.v1`、账号与角色、Argon2id、限流、邮件 adapter 与加密 outbox、注册/登录/找回密码、运维命令；BFF 尚未调用（[账号核心](#usersrv-服务账号核心p1)、[邮件模块](#usersrv-邮件模块p2)、[账号流程](#usersrv-账号流程p3)） |
+| `cmd/usersrv/`、`internal/usersrv/`（`app`、`application`、`account`、`identity`、`passwordhash`、`ratelimit`、`worker`、`mailer`、`outbox`、`config`、`ent`、`testutil`、`integration`）、`cmd/usersrv-admin/` | 自建用户系统（规格 [usersrv](usersrv/spec.md)）：服务入口、内部 gRPC `usersrv.v1`、账号与角色、Argon2id、限流、邮件 adapter 与加密 outbox、注册/登录/找回密码、运维命令；BFF 经内部 gRPC 调用（[账号核心](#usersrv-服务账号核心p1)、[邮件模块](#usersrv-邮件模块p2)、[账号流程](#usersrv-账号流程p3)） |
 | `proto/usersrv/v1/`、`migrations/usersrv/` | usersrv 的内部契约与版本化迁移 |
 | `internal/bff/metro/` | 地铁足迹的 BFF 适配（目录手写映射；管理与骑行者经 `relay` 线格式转换）与账号清理器 |
 | `proto/metro/v1/`、`proto/bff/metro/v1/`、`migrations/metro/` | metro 的内部与浏览器契约、版本化迁移 |
@@ -459,7 +459,7 @@ curl --fail http://127.0.0.1:18081/api/bff.tripmap.v1.StatusService/GetStatus \
 | 表 | 关键字段与约束 |
 | --- | --- |
 | `users` | BFF 身份映射 ID、`schema_version`（足迹结构，默认 1，F5 升级后为 2）、可空且可重复的登录名、展示名/头像缓存、`friend_code`（F7 好友邀请码）、`friend_show_cities/dates/notes`（F7 对好友公开范围）、足迹 `revision`、创建/更新时间；不保存认证凭据 |
-| `auth_identities`（遗留） | 旧 Logto `(issuer, sub)` 映射；不再被运行时读写，由 `retire_logto_identities.sql` 手动清理 |
+| `auth_identities`（遗留） | 旧的外部身份 `(issuer, sub)` 映射；不再被运行时读写，由 `retire_logto_identities.sql` 手动清理（范围见 [Logto 退役](usersrv/retirement.md)） |
 | `auth_browser_sessions` | BFF 浏览器会话：令牌摘要、用户 UUID、`auth_version`、`authenticated_at`（真实的密码验证时间）、创建/过期/最近使用时间与撤销标记 |
 | `bff_account_deletions` | 注销工作流（按 Cookie 摘要，一个用户一行）：阶段 `begin/cleanup/finish/local/done`、固定的产品清单与已完成产品、次数/最后错误/下次重试时间、租约、回执过期时间 |
 | `city_visits` | 所属用户、区域 ID/名称、所属省份、颜色、日期字符串、备注；`user_id + region_code` 唯一。F5 起日期与备注列是版本 1 的冻结副本，不再更新 |
@@ -496,7 +496,7 @@ curl --fail http://127.0.0.1:18081/api/bff.tripmap.v1.StatusService/GetStatus \
 | `20261014165138_f12_notifications.sql` | F12 的纯新增变更：新表 `notification_profiles`、`notification_settings`、`push_subscriptions`、`notification_deliveries`（唯一索引与 `users` 外键级联删除）；不改动既有表 |
 | `20261017180000_retire_tripmap_sessions.sql` | 删除 tripmap 侧旧 `auth_sessions` / `account_deletion_receipts`；认证遗留列由手动 SQL 清理 |
 
-BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `auth_version`、去掉对旧身份映射的外键，并新建 `bff_account_deletions`；不导入旧测试账号，旧 BFF Cookie 会话在第一次使用时被撤销。旧 BFF 表 `auth_identities`、`account_deletion_receipts`（以及更早的 `auth_users` / `auth_sessions`）与 tripmap 用户表中的认证遗留列不会被版本化迁移自动删除。升级与各脚本的目标库、执行顺序见 [部署说明](deployment.md#自建用户系统的数据迁移)。脚本不会由服务启动自动执行。
+BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `auth_version`、去掉对旧身份映射的外键，并新建 `bff_account_deletions`；不导入旧测试账号，旧 BFF Cookie 会话在第一次使用时被撤销。旧 BFF 表 `auth_identities`、`account_deletion_receipts`（以及更早的 `auth_users` / `auth_sessions`）与 tripmap 用户表中的认证遗留列不会被版本化迁移自动删除。升级与各脚本的目标库、执行顺序见 [部署说明](deployment.md#自建用户系统的数据迁移)，退役对象与范围见 [Logto 退役与手动清理](usersrv/retirement.md)。脚本不会由服务启动自动执行。
 
 **生成。** 修改 `internal/tripmap/ent/schema/` 并运行 `make ent` 后，用 `make migration NAME=<变更名> DEV_DSN='postgres://…'` 生成下一个文件（`cmd/migrate-gen`）：它在 `DEV_DSN` 指向的服务器上临时创建一个随机命名的空数据库，重放现有 `migrations/tripmap/` 得到“当前结构”，与 Ent schema 比较后写出差异和新的 `atlas.sum`，然后删除该数据库；因此所用账号需要 `CREATEDB`，不会碰服务器上的其他库。生成器只写新增和修改类语句（不写 `DROP COLUMN` / `DROP INDEX`，也不生成会丢数据的回滚脚本）。迁移文件只通过生成器更新，手改会使 `atlas.sum` 校验失败。
 
@@ -556,7 +556,7 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 ## usersrv 服务（账号核心，P1）
 
-规格见 [usersrv 规格](usersrv/spec.md)（阶段状态也登记在那里）。**当前实现 P1（账号核心）、P2（邮件模块，见[下一节](#usersrv-邮件模块p2)）、P3（账号流程，见[其后](#usersrv-账号流程p3)）与 P4（BFF 与产品鉴权，见 [BFF](bff.md#账号会话与注销p4)）。** BFF 已登记 usersrv 为必需上游并经内部 gRPC 调用它；浏览器登录表单与邮件落地页（P5）已在两个前端实现，发布（P6）尚未完成，整条账号链完成前不要在正式环境开放。
+规格见 [usersrv 规格](usersrv/spec.md)（阶段状态也登记在那里）。**当前实现 P1（账号核心）、P2（邮件模块，见[下一节](#usersrv-邮件模块p2)）、P3（账号流程，见[其后](#usersrv-账号流程p3)）、P4（BFF 与产品鉴权，见 [BFF](bff.md#账号会话与注销p4)）、P5（两个前端）与 P6（镜像、发布与 Logto 退役）。** BFF 登记 usersrv 为必需上游并经内部 gRPC 调用它；运行时没有 Logto。镜像为 `ghcr.io/kongken/mono-usersrv`（`deploy/usersrv/Dockerfile`，含 `/usersrv` 与运维命令 `/usersrv-admin`），部署步骤见 [部署与发布](deployment.md#usersrv-的部署)，旧数据的手动清理见 [Logto 退役与手动清理](usersrv/retirement.md)。正式环境开放前仍须完成：真实邮件厂商的手动冒烟（[说明](usersrv/mail-smoke-test.md)，本仓库没有对任何真实厂商实测）与按需的手动退役步骤。
 
 **运行**：`config.usersrv.example.yaml` 复制为被忽略的 `config.usersrv.yaml`，准备 usersrv 独占的 PostgreSQL 库（例如 `createdb usersrv`）和 Redis（必需；限流计数在 Redis，不可用时拒绝而不是放行）；Redis key 都以 `key_prefix`（默认 `usersrv:`）开头。`make dev-usersrv` 以 HTTP 18086（`/ping`、`/readyz`，内网）与 gRPC 18087 启动。`/readyz` 报告 `postgres`、`redis` 与 `worker`（后台清理的本地状态）。gRPC 默认 TLS，本机可显式 `transport: h2c`（密码走这条链路，跨主机必须用 TLS）；只接受 `internal_auth.trusted_keys` 里 BFF 公钥签发、`aud=usersrv`、绑定方法且 60 秒内的凭证，所有方法（包括匿名标注的）都要求有效凭证，本人方法只取凭证里的 `sub`。生产关闭 `auto_migrate`，执行 `migrations/usersrv/`；新迁移用 `make usersrv-migration NAME=… DEV_DSN=…`（先 `make ent-usersrv`），规则同 tripmap。
 
@@ -674,15 +674,15 @@ npm run build
 make test-integration
 ```
 
-该命令使用 Compose 示例的本地地址和开发凭据。使用其他测试环境时，设置 `TRIPMAP_TEST_POSTGRES_DSN`、`TRIPMAP_TEST_REDIS_ADDR`、`TRIPMAP_TEST_REDIS_PASSWORD`、`TRIPMAP_TEST_S3_ENDPOINT`、`TRIPMAP_TEST_S3_ACCESS_KEY`、`TRIPMAP_TEST_S3_SECRET_KEY`、`TRIPMAP_TEST_S3_BUCKET`，运行 `go test -v ./internal/tripmap/integration`。
+该命令使用 Compose 示例的本地地址和开发凭据，运行 `internal/tripmap/integration`、`internal/tripmap/application` 与 `internal/e2e`；同时设置 `USERSRV_TEST_POSTGRES_DSN`、`USERSRV_TEST_REDIS_ADDR`、`USERSRV_TEST_REDIS_PASSWORD`，因为 `internal/e2e` 的真实账号链需要 usersrv——**没有这些变量时账号链的测试会整体跳过（不算通过）**。使用其他测试环境时，设置 `TRIPMAP_TEST_POSTGRES_DSN`、`TRIPMAP_TEST_REDIS_ADDR`、`TRIPMAP_TEST_REDIS_PASSWORD`、`TRIPMAP_TEST_S3_ENDPOINT`、`TRIPMAP_TEST_S3_ACCESS_KEY`、`TRIPMAP_TEST_S3_SECRET_KEY`、`TRIPMAP_TEST_S3_BUCKET` 与上述 `USERSRV_TEST_*`，运行 `go test -v ./internal/tripmap/integration ./internal/tripmap/application ./internal/e2e`。**Redis 必须是真实的 Redis**：限流窗口过期（`ratelimit.TestWindowExpires`）依赖真实的 TTL，用内存模拟的 Redis 会让它失败；PostgreSQL 与 S3 也用与 CI 相同的版本（PostgreSQL 17、`rustfs/rustfs:1.0.1`）验证过。`internal/e2e` 另有真实 S3 的注销清理测试（`real_s3_deletion_chain_test.go`，设置 `TRIPMAP_TEST_S3_*` 时运行，带照片与未完成上传的账号注销后对象全部删除、他人对象保留）。
 
 PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除，以及版本化迁移的升级校验（见上文“版本化数据库迁移”）。
 
-`internal/e2e/` 提供 **`ChainHarness`**（`chain_harness_test.go`）：在设置 `TRIPMAP_TEST_POSTGRES_DSN` 与 `TRIPMAP_TEST_REDIS_ADDR` 时启动真实 BFF（独立 schema + Redis 前缀）→ 内部 gRPC（默认 TLS，可选 h2c）→ 真实 usersrv 与 tripmap（各自独立 schema，邮件远端换成本地收件箱），经 httptest 暴露 BFF 公网 URL。`FreshBrowser()` 返回带 cookie jar 的 **`Browser`**，自动处理 CSRF（`IssueCSRFToken` + `X-CSRF-Token`）与足迹读所需的 `X-Tripmap-Schema` / `X-Tripmap-Regions`；`Register`/`Login` 等辅助方法走真实的 `RequestRegistration` → 收件箱取令牌 → `CompleteRegistration` → `LoginWithEmail`；`Me` / `Logout` / 足迹读与 sync（`GetFootprints`、`GetChanges`、`SyncChanges`）走 Connect 公共客户端；`region_chain_test.go` 覆盖 `bff.tripmap.v1.RegionService` 金门迁移、阻止项与 CSRF；`sessions_chain_test.go` 覆盖 `ListSessions`/`RevokeSession`；`notification_test.go` 覆盖 `bff.tripmap.v1.NotificationService` 与 BFF 公开退订 HTTP；`snapshot_chain_test.go` 覆盖快照创建、去重、恢复、幂等重放与用户隔离；`media_chain_test.go` 覆盖 `bff.tripmap.v1.MediaService` 预留/确认/读/删与用户隔离（内存 blob，非真实 S3）；`report_chain_test.go` 覆盖 `bff.tripmap.v1.ReportService` / `SearchService` 与用户隔离；`shared_trip_chain_test.go` 覆盖 `bff.tripmap.v1.SharedTripService` 邀请/viewer 写入拒绝、editor 足迹 sync、共享媒体与解除好友撤销。后续 ticket 只追加场景测试，复用该 harness。运行：`go test ./internal/e2e/ -count=1`（与 `make test-integration` 同一套 PG/Redis 环境；无需 S3，默认 noop blob，媒体场景可注入 `chainMediaBlobs`）。
+`internal/e2e/` 提供 **`ChainHarness`**（`chain_harness_test.go`）：在设置 `TRIPMAP_TEST_POSTGRES_DSN`、`TRIPMAP_TEST_REDIS_ADDR` 与 `USERSRV_TEST_POSTGRES_DSN`、`USERSRV_TEST_REDIS_ADDR` 时启动真实 BFF（独立 schema + Redis 前缀）→ 内部 gRPC（默认 TLS，可选 h2c）→ 真实 usersrv 与 tripmap（各自独立 schema，邮件远端换成本地收件箱），经 httptest 暴露 BFF 公网 URL。`FreshBrowser()` 返回带 cookie jar 的 **`Browser`**，自动处理 CSRF（`IssueCSRFToken` + `X-CSRF-Token`）与足迹读所需的 `X-Tripmap-Schema` / `X-Tripmap-Regions`；`Register`/`Login` 等辅助方法走真实的 `RequestRegistration` → 收件箱取令牌 → `CompleteRegistration` → `LoginWithEmail`；`Me` / `Logout` / 足迹读与 sync（`GetFootprints`、`GetChanges`、`SyncChanges`）走 Connect 公共客户端；`region_chain_test.go` 覆盖 `bff.tripmap.v1.RegionService` 金门迁移、阻止项与 CSRF；`sessions_chain_test.go` 覆盖 `ListSessions`/`RevokeSession`；`notification_test.go` 覆盖 `bff.tripmap.v1.NotificationService` 与 BFF 公开退订 HTTP；`snapshot_chain_test.go` 覆盖快照创建、去重、恢复、幂等重放与用户隔离；`media_chain_test.go` 覆盖 `bff.tripmap.v1.MediaService` 预留/确认/读/删与用户隔离（内存 blob，非真实 S3）；`report_chain_test.go` 覆盖 `bff.tripmap.v1.ReportService` / `SearchService` 与用户隔离；`shared_trip_chain_test.go` 覆盖 `bff.tripmap.v1.SharedTripService` 邀请/viewer 写入拒绝、editor 足迹 sync、共享媒体与解除好友撤销。后续 ticket 只追加场景测试，复用该 harness。运行：`go test ./internal/e2e/ -count=1`（与 `make test-integration` 同一套 PG/Redis 环境；无需 S3，默认 noop blob，媒体场景可注入 `chainMediaBlobs`）。
 
 `internal/bff/auth`、`internal/bff/session`、`internal/bff/ingress`、`internal/bff/usersrv` 的测试覆盖会话状态、入口策略、错误映射与注销工作流；`internal/e2e/` 覆盖真实 BFF + usersrv + PostgreSQL/Redis + 两个产品服务的账号链（只替换邮件远端）。真实邮件厂商验收仍需部署凭据。
 
-[Docker 镜像与 Actions](docker-images.md) 说明前后端两个镜像的构建发布。`deploy/tripmap/Dockerfile` 仅构建 tripmap 后端镜像，运行时挂载 `/config/config.yaml`；容器中连接 Compose 依赖时，配置地址使用服务名和容器端口，而不是宿主机的 `127.0.0.1`。
+[Docker 镜像与 Actions](docker-images.md) 说明各服务与前端镜像（tripmap、BFF、metro、usersrv 与两个前端）的构建发布。`deploy/tripmap/Dockerfile` 仅构建 tripmap 后端镜像，运行时挂载 `/config/config.yaml`；容器中连接 Compose 依赖时，配置地址使用服务名和容器端口，而不是宿主机的 `127.0.0.1`。
 
 ## 下一阶段
 
@@ -695,7 +695,7 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 - `FootprintService.GetChanges`：参数 `since_revision` / `limit`，返回有序 `changes`、`next_revision`、`current_revision`、`has_more` 与 `resync_required`。
 - `FootprintService.SyncChanges`：参数 `mutation_id`、`base_revision` 和 1–2000 条 oneof 变更（F5 前为 600；上限容纳一次完整迁移：497 个城市、每城市多次旅行与 34 个省份标记，更大的改动由客户端拆成连续批次）。变更为旧版 `upsert_visit`（城市加 `legacy-<区域 ID>` 旅行）、`delete_visit`（连同旅行）、`upsert_mark`、`delete_mark` 以及 F5 新增的 `upsert_city`（只改城市字段）、`upsert_trip`（城市必须已存在，在账号中或在同一批次更早的位置）、`delete_trip`。旅行的所属城市不可更改。全批原子处理，冲突返回 ABORTED；同一 ID 相同内容返回原结果，复用 ID 提交不同内容返回 ALREADY_EXISTS。日志、revision、回执与记录在同一事务提交。
 
-当前 BFF 使用 `auth_identities.deletion_requested_at` 和无身份外键的短期 `account_deletion_receipts`；tripmap 保存 `footprint_changes`、`sync_receipts`，不再保存认证或删除状态列。F3 再新增 `snapshots` 表和 `sync_receipts.snapshot_id`（可空列），应在部署前审核 Ent 迁移并**先升级后端，再部署前端**。旧 RPC 保留原语义并自动记录变化。旧数据不会被清空，也不会被服务端自动迁移上云（由用户在前端主动迁移），缺失旧日志时走全量快照。
+当前 BFF 的注销状态在 `bff_account_deletions`（无身份外键，完成后回执保留 24 小时）；tripmap 保存 `footprint_changes`、`sync_receipts`，不再保存认证或删除状态列。F3 再新增 `snapshots` 表和 `sync_receipts.snapshot_id`（可空列），应在部署前审核 Ent 迁移并**先升级后端，再部署前端**。旧 RPC 保留原语义并自动记录变化。旧数据不会被清空，也不会被服务端自动迁移上云（由用户在前端主动迁移），缺失旧日志时走全量快照。
 
 CI 现在启动 PostgreSQL、Redis 和 S3 兼容测试服务，执行真实处理器/race 与对象读写检查。前端 CI 构建启用 `/api`，自动执行桌面及手机的账号界面验收（登录、注册、邮件落地页、账号设置、注销；模拟 RPC）。真实邮件厂商、生产凭据和生产数据不进入 CI；前端发布镜像仍保持默认纯本地模式，部署云端能力需设置构建参数。
 

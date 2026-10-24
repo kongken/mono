@@ -1,6 +1,6 @@
 # usersrv 自建用户系统规格
 
-> **状态：实现中（P1–P5 已实现，P6 待实现）。** BFF 已接入 `usersrv`（经内部 gRPC 完成注册、登录、改密码、注销、每请求认证状态与角色）并移除了运行时 Logto/OAuth 代码；两个前端有了邮箱登录、注册、找回密码与账号设置（P5），但发布与手动退役（P6）未做，所以**整条账号链完成前不得在正式环境开放**。实现期间不得把本文中尚未登记为已实现的目标能力写成已经上线。
+> **状态：P1–P6 已全部实现并在本地验证（见[验证状态](#验证状态)）；正式环境开放前仍须由运维完成真实邮件厂商的手动冒烟与按需的手动退役步骤。** BFF 已接入 `usersrv`（经内部 gRPC 完成注册、登录、改密码、注销、每请求认证状态与角色），运行时已没有 Logto/OAuth 代码；两个前端有邮箱登录、注册、找回密码与账号设置；usersrv 有镜像、CI 发布矩阵与部署示例，退役对象与手动清理步骤见 [Logto 退役与手动清理](retirement.md)。没有任何真实邮件厂商被实测，不得把 fake adapter 测试说成生产已验证。
 >
 > 规格与评审：[GitHub Issue #75](https://github.com/kongken/mono/issues/75)。本文是实现规格的仓库副本，评审修改同步到该 Issue。具体安全参数、流程细节及交付拆分是本规格提出的工程默认值，不代表用户逐项确认；第 1 节单列已确认要求。实现后同步各产品的当前行为文档，并在本文逐阶段登记状态。
 
@@ -8,12 +8,47 @@
 
 | 阶段 | 状态 | 说明 |
 | --- | --- | --- |
-| P1 usersrv 骨架与账号核心 | **已实现** | 见下文“P1 已实现内容”；单元与集成测试通过，不开放新登录 | 已实现 |
-| P2 邮件模块 | **已实现** | 见下文“P2 已实现内容”；四 adapter 通过本地假 HTTP/SMTP 服务的契约测试，真实厂商只有[手动冒烟文档](mail-smoke-test.md)，尚未对真实服务验证；邮件由 P3 的注册/找回流程签发，仍只有内部 gRPC 入口 | 已实现 |
-| P3 账号流程 | **已实现** | 见下文“P3 已实现内容”；`RequestRegistration`、`CompleteRegistration`、`AuthenticateWithEmail`、`RequestPasswordReset`、`ResetPassword` 在 usersrv 内部 gRPC 上可用，真实 usersrv＋本地假邮件接收器的集成闭环通过；BFF 与前端尚未接入，不开放新登录 | 已实现 |
-| P4 BFF 与产品鉴权 | **已实现** | 见 [BFF](../bff.md#账号会话与注销p4)；`bff.v1` 为新契约（旧 Register/Login/OAuth RPC 已删除并 `reserved`）；会话保存 `auth_version` 与真实认证时间，每个受保护请求和 MCP 工具调用都调用 `GetAuthState`；usersrv 不可用返回 `unavailable` 且不转发；注销工作流持久化并可重试；tripmap 展示投影按需确保，好友只凭 `fc_` 邀请码；metro 管理与 MCP 角色取自 usersrv，`required_role` 两端校验；真实 BFF + usersrv + PostgreSQL/Redis + 两个产品服务的 e2e 通过（§14 场景 5–12、19–21 的后端部分） | 已实现 |
-| P5 前端 | **已实现** | 见下文“P5 已实现内容”；`apps/trip-map` 与 `apps/metro` 有邮箱登录、申请注册、邮件落地页（设置密码、重置密码）、找回密码、基础资料、修改密码、设备列表与撤销、注销账号入口，共用代码在 `packages/account`；两个前端不再有 `/auth/` 代理与 `VITE_OAUTH_APP_ID`；桌面与手机 Playwright（模拟 BFF）通过，真实 BFF + usersrv + 真实 SMTP 链路的可选用例（`E2E_REAL_MAIL=1`）在本地用 PostgreSQL/Redis 通过 | 已实现 |
-| P6 发布与彻底退役 | 待实现 | 镜像、CI 发布矩阵、`deploy/usersrv/` 与真实环境的发布步骤未做（前端 nginx 与 Caddy 示例中的 `/auth/` 配置已在 P5 删除）；手动退役脚本 `deploy/sql/bff/retire_logto_identities.sql` 已提供 | 待实现 |
+| P1 usersrv 骨架与账号核心 | **已实现** | 见下文“P1 已实现内容”；单元与集成测试通过，不开放新登录 |
+| P2 邮件模块 | **已实现** | 见下文“P2 已实现内容”；四 adapter 通过本地假 HTTP/SMTP 服务的契约测试，真实厂商只有[手动冒烟文档](mail-smoke-test.md)，尚未对真实服务验证；邮件由 P3 的注册/找回流程签发 |
+| P3 账号流程 | **已实现** | 见下文“P3 已实现内容”；`RequestRegistration`、`CompleteRegistration`、`AuthenticateWithEmail`、`RequestPasswordReset`、`ResetPassword` 在 usersrv 内部 gRPC 上可用，真实 usersrv＋本地假邮件接收器的集成闭环通过；当时 BFF 与前端尚未接入，已由 P4、P5 接入 |
+| P4 BFF 与产品鉴权 | **已实现** | 见 [BFF](../bff.md#账号会话与注销p4)；`bff.v1` 为新契约（旧 Register/Login/OAuth RPC 已删除并 `reserved`）；会话保存 `auth_version` 与真实认证时间，每个受保护请求和 MCP 工具调用都调用 `GetAuthState`；usersrv 不可用返回 `unavailable` 且不转发；注销工作流持久化并可重试；tripmap 展示投影按需确保，好友只凭 `fc_` 邀请码；metro 管理与 MCP 角色取自 usersrv，`required_role` 两端校验；真实 BFF + usersrv + PostgreSQL/Redis + 两个产品服务的 e2e 通过（§14 场景 5–12、19–21 的后端部分） |
+| P5 前端 | **已实现** | 见下文“P5 已实现内容”；`apps/trip-map` 与 `apps/metro` 有邮箱登录、申请注册、邮件落地页（设置密码、重置密码）、找回密码、基础资料、修改密码、设备列表与撤销、注销账号入口，共用代码在 `packages/account`；两个前端不再有 `/auth/` 代理与 `VITE_OAUTH_APP_ID`；桌面与手机 Playwright（模拟 BFF）通过，真实 BFF + usersrv + 真实 SMTP 链路的可选用例（`E2E_REAL_MAIL=1`）在本地用 PostgreSQL/Redis 通过 |
+| P6 发布与彻底退役 | **已实现** | 见下文“P6 已实现内容”：usersrv 镜像（`deploy/usersrv/Dockerfile`）与 CI 发布矩阵、Compose / k8s Secret / 边缘（Nginx、Caddy）示例、运行时 Logto 入口与配置全部删除（旧 `/auth/login` 与回调返回 404）、手动退役文档与脚本、文档同步、完整验证；真实邮件厂商没有实测，外部 Logto 资源与旧数据的清理由运维手动执行 |
+
+### P6 已实现内容
+
+部署步骤见 [部署与发布](../deployment.md#usersrv-的部署)，退役对象与手动步骤见 [Logto 退役与手动清理](retirement.md)，镜像见 [Docker 镜像](../docker-images.md)。
+
+- **镜像与发布**：`deploy/usersrv/Dockerfile`（只复制 usersrv 相关目录，构建阶段跑这些包的 Go 单元测试，产出 `/usersrv` 与 `/usersrv-admin`，distroless 运行层）；`docker-publish.yml` 的矩阵加入 `usersrv`；`make test-integration` 现在同时设置 `USERSRV_TEST_*`（没有它们，真实账号链整体跳过）。
+- **部署示例**：`deploy/compose.stack.example.yaml` 增加 `usersrv` 服务与 `deploy/postgres/init-databases.sql`（三个独立库）；`deploy/k8s/secrets.layout.example.yaml` 增加 `usersrv-tls`、`usersrv-keys`、`usersrv-mail`；Nginx 模板与 Caddy 示例对 `/auth/` 返回 404。
+- **Logto 退役**：运行时没有任何 Logto/OAuth 入口、配置、依赖或废弃 RPC；`/auth/login`、`/auth/callback/*`、`/auth/logout`、`/api/auth/login` 返回 404（无重定向、无 Cookie），旧 RPC 不存在（`internal/e2e/logto_retired_chain_test.go`）。仓库里仍出现这些词的地方只有：已应用的历史迁移与 `atlas.sum`、退役文档与脚本、本规格、断言“界面没有 Logto/OAuth 文案”的负向测试，以及清除浏览器里 `shanhai-oauth-pending-v1` 旧键的一行。旧表、旧 Redis OAuth state、旧测试数据与 S3 对象的清理**全部手动**，范围写在退役文档里；没有任何自动 DROP 或清库。
+- **产品**：trip-map 全屏的“无法加载云端足迹”页在会话失效且本地没有缓存时，现在直接提供登录表单（此前只有导出与重试，没有重新登录入口）。
+- **文档**：§15 列出的文档已同步，旧的 Logto 当前行为改为历史说明；[邮件冒烟说明](mail-smoke-test.md)改为适用于已集成的栈。
+
+#### 验证状态
+
+以下在隔离的本地环境运行（PostgreSQL 17.11、Redis 7.4.1 源码构建、RustFS 1.0.1 与 CI 服务同版本；用独立 schema 与 key 前缀，不触碰他人数据）：
+
+| 项目 | 结果 |
+| --- | --- |
+| `make build`、`make test`、`go vet`、`go test -race ./...`、`make check-import-boundaries`、`make check-docs`、`buf lint`、`npm run build`、`npm test` | 通过 |
+| `make test-integration` 等价命令（`internal/tripmap/integration`、`application`、`internal/e2e`，设置 `TRIPMAP_TEST_*` 与 `USERSRV_TEST_*`，真实 PostgreSQL / Redis / S3） | 通过 |
+| `ratelimit.TestWindowExpires` | 在真实 Redis 7.4.1 上通过；在内存模拟的 Redis 上失败（窗口不会过期），所以该测试必须用真实 Redis |
+| 无 Logto 全链：注册申请 → 邮件 → 完成注册 → 登录 → tripmap / metro 业务写入 → 邮件重置（旧会话失效）→ 重新登录 → 数据仍在 → 重新认证 → 注销 → 无法登录且数据已删（`TestChainFullAccountLifecycleWithoutLogto`） | 通过（邮件换成进程内收件箱） |
+| 带照片的账号在真实 S3 兼容服务上注销（`real_s3_deletion_chain_test.go`）：已完成照片的对象与缩略图、未完成上传的暂存对象全部删除，他人对象保留 | 通过 |
+| BFF 手动退役脚本（`retire_logto_identities.sql`）在真实 PostgreSQL 上的行为（`retire_logto_sql_test.go`）：有未完成注销时拒绝并不删表；完成后只删四个旧表、可重复执行、不影响新表 | 通过 |
+| 默认 Playwright 套件（模拟 BFF，桌面与手机）：trip-map 与 metro | 通过，含新增的“会话失效且无缓存时重新登录”用例 |
+| 真实 nginx 1.26.3（Debian 构建）加载两个前端模板、真实 Caddy 2.11.7 加载 `Caddyfile.example`，用 curl 检查响应头与路由 | 通过；发现并修复了三个已有问题（见下） |
+
+验证中发现并修复的示例问题：nginx 的 `index.html` 只带 `Cache-Control`（`add_header` 不继承，安全头丢失）；`/auth/login` 经 SPA 回退得到 200；Caddy 示例的 `handle /ping /readyz` 语法无效、站点级 `try_files` 吞掉所有 `handle`、站点级 `Referrer-Policy` 覆盖落地页的 `no-referrer`。
+
+**没有做、也不能由本仓库证明的**：
+
+- 没有对 Mailgun、SendGrid、SMTP、SMTP2GO 任何一家做真实发信（没有凭据、发信域与收件地址）；adapter 只有本地假服务的契约测试。冒烟步骤见[邮件冒烟说明](mail-smoke-test.md)，上线前须逐家手动执行。
+- 没有执行 `docker build`（环境没有 Docker 守护进程权限）：Dockerfile 的输入按同样的文件在临时目录里验证了 Go 测试/构建，以 CI 的镜像矩阵为准。
+- 边缘示例没有用真实域名、公网证书或浏览器验证，只验证了配置能被真实程序加载以及 curl 看到的响应头。
+- 手动退役 SQL 与 S3 步骤没有在任何真实生产数据上演练；没有删除任何外部 Logto 租户、Secret 或基础设施。
+- 没有对生产规模做压测；Argon2id 并发预算的测量见 [后端初始化](../backend.md#usersrv-服务账号核心p1)。
 
 ### P5 已实现内容
 
@@ -386,11 +421,11 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 | P1 usersrv 骨架与账号核心 | 独立库、配置、健康、契约、邮箱规范化、Argon2id、状态/版本、角色 CLI、import 检查 | 本规格评审；可单测/集成测试，不开放新登录 | 已实现 |
 | P2 邮件模块 | 四 adapter、统一模板、加密 outbox、lease、失败分类、限流、固定链接 | P1 存储；四种假服务契约测试通过 | 已实现 |
 | P3 账号流程 | 注册验证、邮箱密码认证、找回/改密、资料、重新认证、令牌并发 | P1/P2；真实 usersrv＋假邮件集成闭环 | 已实现 |
-| P4 BFF 与产品鉴权 | **已实现** | 见 [BFF](../bff.md#账号会话与注销p4)；`bff.v1` 为新契约（旧 Register/Login/OAuth RPC 已删除并 `reserved`）；会话保存 `auth_version` 与真实认证时间，每个受保护请求和 MCP 工具调用都调用 `GetAuthState`；usersrv 不可用返回 `unavailable` 且不转发；注销工作流持久化并可重试；tripmap 展示投影按需确保，好友只凭 `fc_` 邀请码；metro 管理与 MCP 角色取自 usersrv，`required_role` 两端校验；真实 BFF + usersrv + PostgreSQL/Redis + 两个产品服务的 e2e 通过（§14 场景 5–12、19–21 的后端部分） | 已实现 |
-| P5 前端 | **已实现** | 见下文“P5 已实现内容”；`apps/trip-map` 与 `apps/metro` 有邮箱登录、申请注册、邮件落地页（设置密码、重置密码）、找回密码、基础资料、修改密码、设备列表与撤销、注销账号入口，共用代码在 `packages/account`；两个前端不再有 `/auth/` 代理与 `VITE_OAUTH_APP_ID`；桌面与手机 Playwright（模拟 BFF）通过，真实 BFF + usersrv + 真实 SMTP 链路的可选用例（`E2E_REAL_MAIL=1`）在本地用 PostgreSQL/Redis 通过 | 已实现 |
-| P6 发布与彻底退役 | 待实现 | 镜像、CI 发布矩阵、`deploy/usersrv/` 与真实环境的发布步骤未做（前端 nginx 与 Caddy 示例中的 `/auth/` 配置已在 P5 删除）；手动退役脚本 `deploy/sql/bff/retire_logto_identities.sql` 已提供 | 待实现 |
+| P4 BFF 与产品鉴权 | BFF 新契约与会话、每请求 `GetAuthState`、注销工作流、MCP 令牌与产品鉴权、移除运行时 Logto/OAuth | P1–P3；真实 BFF＋usersrv＋PostgreSQL/Redis＋产品服务的 e2e 通过 | 已实现 |
+| P5 前端 | 两个前端的登录、注册、邮件落地页、找回密码、账号设置、注销入口 | P4；桌面与手机 Playwright（模拟 BFF）通过 | 已实现 |
+| P6 发布与彻底退役 | 镜像、CI 发布矩阵、部署示例、Logto 运行时入口删除、手动退役文档与脚本、文档同步、完整验证 | P1–P5 在 `feat/usersrv` 上验证；真实邮件厂商冒烟与手动退役由运维执行 | 已实现 |
 
-P1–P5 可分支递进验证，不能以临时保留 Logto 为最终兼容方案；整条账号链完成前不得在正式环境开启半套注册/登录。
+P1–P6 在同一分支递进验证，没有以临时保留 Logto 作为兼容方案；整条账号链的验收与手动步骤完成前不得在正式环境开启半套注册/登录。
 
 ## 14. 验收场景
 
@@ -437,17 +472,15 @@ P1–P5 可分支递进验证，不能以临时保留 Logto 为最终兼容方�
 
 ## 15. 文档同步与评审状态
 
-本次仅落规格与文档入口；没有新增运行接口、可执行配置或数据库迁移，不需为文档变更构建应用。
+本规格的文档同步已在各阶段完成，P6 做了最后一轮整理：
 
-实施时按阶段同步：
-
-- `docs/backend.md`：usersrv 目录、模型、配置、迁移、角色 CLI、启动和验证；删除 Logto-only 当前描述。
-- `docs/bff.md`：邮箱账号契约、资格复核、Cookie/CSRF、MCP 时效、注销回执、路由登记；删除 OAuth 登录/回调/配置。
-- `docs/trip-map/features.md`、`docs/metro/features.md`：全部用户可见账号行为与验收，注销范围、好友入口、角色时效、离线限制。
-- `docs/metro/spec.md`：标记旧 Logto 角色与账号方案被本规格替代，保留目录/业务规则。
-- `docs/trip-map/data-and-maps.md`：若实现影响账号缓存字段/版本或备份处理，同次说明；不把旧云端不迁移扩大为浏览器本地清空。
-- `docs/deployment.md`、`docs/docker-images.md`、`docs/monorepo.md`、根 `README.md`：新服务、独立库、Secret、邮件配置、部署/命令、外部 Logto 资源手动退役与实测限制。
-- `GLOSSARY.md` 与 `docs/README.md`：统一账号、注销等概念与入口，已实现/待实现明确区分。
+- `docs/backend.md`、`docs/bff.md`：usersrv、账号契约、会话与注销、配置与验证；Logto 只作为已退役的历史与手动清理对象出现。
+- `docs/trip-map/features.md`、`docs/metro/features.md`：用户可见的账号行为与验收（含 trip-map 失效页的重新登录入口）。
+- `docs/metro/spec.md`：已标注旧 Logto 角色与账号方案被本规格替代，保留目录与业务规则。
+- `docs/trip-map/data-and-maps.md`、`docs/trip-map/backend-research.md`：账号来源改为 usersrv。
+- `docs/deployment.md`、`docs/docker-images.md`、`docs/monorepo.md`、根 `README.md`、`AGENTS.md`：新服务、独立库、Secret、邮件配置、命令、手动退役与实测限制。
+- `GLOSSARY.md`、`docs/README.md`：账号、注销等概念与入口，已实现与未实测明确区分。
+- 新增 [Logto 退役与手动清理](retirement.md) 与更新后的 [邮件冒烟说明](mail-smoke-test.md)。
 
 **待评审工程默认：** 邮箱格式范围、先验证再设置密码、不自动登录、密码参数、会话期限、认证版本复核频率、角色 CLI、注销代替原数据删除入口、邮件 outbox 与密钥管理、F12 不在本轮改造、各限流值。用户已确认的第 1 节不作为待决方向重新开启；若调整默认值，先改本规格与验收，再拆分实施任务。
 

@@ -94,6 +94,8 @@ import {
 } from "./lib/draft";
 import { cloudItinerariesKey, isMigrated, markMigrated } from "./lib/session";
 import AccountDialog from "./components/AccountDialog";
+import { AuthPanel } from "@kongken/account/forms";
+import { requireAccount } from "@/api/auth";
 import MigrationDialog from "./components/MigrationDialog";
 import LegacyDialog from "./components/LegacyDialog";
 import SnapshotDialog from "./components/SnapshotDialog";
@@ -1286,8 +1288,17 @@ function App() {
           <p role="status">{cloud.busy || "正在加载云端足迹…"}</p>
         ) : (
           <>
-            <h2>无法加载云端足迹</h2>
+            <h2>{cloud.sessionExpired ? "登录已失效" : "无法加载云端足迹"}</h2>
             <p role="alert">{cloud.loadError}</p>
+            {cloud.sessionExpired && (
+              <section className="cloud-gate-signin" data-testid="gate-sign-in" aria-label="重新登录">
+                <AuthPanel
+                  api={requireAccount()}
+                  appName="山海足迹"
+                  onSignedIn={({ user, expiresAt }) => cloud.signIn(user, expiresAt)}
+                />
+              </section>
+            )}
             <div className="dialog-actions">
               <Button
                 variant="outline"

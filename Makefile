@@ -98,9 +98,14 @@ storage-init:
 
 # Only the isolated Compose development services, never a production DSN.
 .PHONY: test-integration test-integration-usersrv
+# internal/e2e runs the real BFF, usersrv, tripmap and metro together, so it also needs the
+# USERSRV_TEST_* settings (throwaway schemas and Redis key prefixes; without them every chain
+# test skips, which is not a pass).
 test-integration:
 	TRIPMAP_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
 	TRIPMAP_TEST_REDIS_ADDR=127.0.0.1:16379 TRIPMAP_TEST_REDIS_PASSWORD=tripmap-local \
+	USERSRV_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
+	USERSRV_TEST_REDIS_ADDR=127.0.0.1:16379 USERSRV_TEST_REDIS_PASSWORD=tripmap-local \
 	TRIPMAP_TEST_S3_ENDPOINT=http://127.0.0.1:19000 TRIPMAP_TEST_S3_ACCESS_KEY=tripmap-local \
 	TRIPMAP_TEST_S3_SECRET_KEY=tripmap-local-secret TRIPMAP_TEST_S3_BUCKET=tripmap \
 	go test -v ./internal/tripmap/integration ./internal/tripmap/application ./internal/e2e

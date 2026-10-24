@@ -35,7 +35,7 @@ func (Session) Fields() []ent.Field {
 		// time, and refreshing a Cookie or calling Me never moves it. Null on rows
 		// from before usersrv.
 		field.Time("authenticated_at").Optional().Nillable(),
-		// roles (a Logto snapshot) was retired: roles are read from usersrv on every
+		// roles (a snapshot taken at sign-in under the former identity provider) was retired: roles are read from usersrv on every
 		// request. The column stays in databases that have it and is no longer used.
 	}
 }

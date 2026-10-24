@@ -100,7 +100,7 @@ func GRPCNames(services []Service) []string {
 // BFFOwnedRoutes inventories credential-bearing HTTP routes handled by the BFF
 // itself. They are mounted locally, never forwarded to a business upstream. Account
 // flows are Connect RPCs (bff.v1.AuthService), not HTTP routes: there is no browser
-// login redirect and no OAuth callback.
+// login redirect and no third-party callback.
 var BFFOwnedRoutes = []Route{
 	// The metro MCP endpoint (MCP Streamable HTTP, stateless). It takes a Bearer
 	// management token only and ignores Cookies; the handler is internal/bff/metro/mcp.

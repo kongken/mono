@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | `ghcr.io/kongken/mono-tripmap` | `deploy/tripmap/Dockerfile` | tripmap 业务服务，18081（HTTP）与 18083（内部 gRPC，默认 TLS，可显式配置 h2c）端口，运行时挂载配置、证书与 BFF 公钥，只在内网暴露 |
 | `ghcr.io/kongken/mono-bff` | `deploy/bff/Dockerfile` | BFF 公网入口，18081 端口，运行时挂载配置、CA 与签名私钥（见 [BFF](bff.md)） |
+| `ghcr.io/kongken/mono-usersrv` | `deploy/usersrv/Dockerfile` | usersrv 账号服务，18086（HTTP，仅 `/ping`、`/readyz`）与 18087（内部 gRPC，默认 TLS）；镜像里还有运维命令 `/usersrv-admin`（用 `--entrypoint` 运行，见 [部署](deployment.md#usersrv-的部署)），运行时挂载配置、BFF 公钥和（TLS 时）证书，只在内网暴露 |
 | `ghcr.io/kongken/mono-trip-map-web` | `deploy/trip-map-web/Dockerfile` | Nginx 提供 Vite 静态文件，80 端口，同源转发后端请求 |
 | `ghcr.io/kongken/mono-metro` | `deploy/metro/Dockerfile` | metro 业务服务（地铁足迹），18084（HTTP，仅 `/ping`、`/readyz`）与 18085（内部 gRPC），运行时挂载配置与 BFF 公钥，只在内网暴露 |
 | `ghcr.io/kongken/mono-metro-web` | `deploy/metro-web/Dockerfile` | Nginx 提供 `apps/metro` 静态文件，80 端口，把 `/api/`、`/mcp/metro`、`/ping`、`/readyz` 转发给 BFF |
@@ -34,7 +35,9 @@ tripmap 与 BFF 镜像只复制本服务和 `internal/platform` 的代码，只�
 
 前端 Docker 构建会运行 `npm run test:trip-map`、`npm run check:maps` 和 `npm run build:trip-map`；这些检查会读取 `internal/tripmap/share/assets/geometry.json`（F6 预览几何）和 `internal/tripmap/regions/{regions,catalog}.json`（F10 两端索引/摘要校验），Dockerfile 已单独 COPY 它们；前端镜像按 workspace 复制各 `package.json` 后 `npm ci`，再复制 `packages/` 与 `apps/trip-map`（不含浏览器测试），产物取自 `apps/trip-map/dist`；同时复制前端构建配方用于输入清单回归检查。它们只在构建阶段使用，不随前端运行镜像发布。tripmap 镜像构建的测试读取 `packages/fixtures` 与 `migrations/tripmap`，也已 COPY；BFF 镜像构建的测试读取 `config.bff.example.yaml`，并复制 `pkg/`（生成的契约）；预览资源在 `internal` 下随源码进入镜像，`CGO_ENABLED=0` 即可构建。地图 GeoJSON 和静态资源随镜像发布。
 
-metro 镜像同样只复制 `cmd/metro`、`internal/metro`、`internal/platform`、`pkg/` 与 `migrations/metro`，只运行这些包的 Go 单元测试（没有测试数据库时集成测试跳过）；`metro-web` 镜像先复制全部 workspace 的 `package.json` 再 `npm ci`，构建阶段运行 `npm run test:metro` 与 `npm run build:metro`（`VITE_API_BASE_URL` 默认 `/api`，同源转发），不含浏览器测试（Playwright 在 CI 的前端任务中运行）。Docker 守护进程在编写这些 Dockerfile 的环境中不可用，镜像按同样的输入文件在临时目录里验证了 Go 测试/构建与 npm 构建，但没有实际执行 `docker build`；以 CI 的镜像矩阵为准。
+usersrv 镜像复制 `cmd/usersrv`、`cmd/usersrv-admin`、`internal/usersrv`、`internal/platform`、`pkg/` 与 `migrations/usersrv`，只运行这些包的 Go 单元测试（没有测试数据库与 Redis 时集成测试跳过），再生成 `/usersrv` 与 `/usersrv-admin` 两个静态二进制，运行层为 distroless，配置默认 `/config/config.yaml`。
+
+metro 镜像同样只复制 `cmd/metro`、`internal/metro`、`internal/platform`、`pkg/` 与 `migrations/metro`，只运行这些包的 Go 单元测试（没有测试数据库时集成测试跳过）；`metro-web` 镜像先复制全部 workspace 的 `package.json` 再 `npm ci`，构建阶段运行 `npm run test:metro` 与 `npm run build:metro`（`VITE_API_BASE_URL` 默认 `/api`，同源转发），不含浏览器测试（Playwright 在 CI 的前端任务中运行）。Docker 守护进程在编写这些 Dockerfile 的环境中不可用，镜像按同样的输入文件在临时目录里验证了 Go 测试/构建与 npm 构建，但没有实际执行 `docker build`（usersrv 镜像同样没有）；以 CI 的镜像矩阵为准。
 
 本地构建：
 
@@ -43,6 +46,7 @@ docker build -f deploy/tripmap/Dockerfile -t mono-tripmap:local .
 docker build -f deploy/bff/Dockerfile -t mono-bff:local .
 docker build -f deploy/trip-map-web/Dockerfile -t mono-trip-map-web:local .
 docker build -f deploy/metro/Dockerfile -t mono-metro:local .
+docker build -f deploy/usersrv/Dockerfile -t mono-usersrv:local .
 docker build -f deploy/metro-web/Dockerfile -t mono-metro-web:local .
 ```
 

@@ -1805,24 +1805,6 @@ button:disabled {
   color: #3f5a36;
   border-bottom-color: #78a886;
 }
-.account-oauth {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid #e8ede3;
-}
-.account-oauth > span {
-  flex-basis: 100%;
-  font-size: 11px;
-  color: #859186;
-}
-.account-oauth button {
-  flex: 1;
-  font-size: 12px;
-}
 .account-sync {
   display: flex;
   align-items: center;
@@ -1861,6 +1843,11 @@ button:disabled {
 .cloud-gate h2 {
   margin: 0;
   font-size: 18px;
+}
+.cloud-gate-signin {
+  width: min(100%, 360px);
+  margin: 4px 0;
+  text-align: left;
 }
 .cloud-gate p {
   margin: 0;

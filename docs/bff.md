@@ -34,14 +34,14 @@
 
 **测试数据清理与升级**
 
-不迁移旧的测试账号、Logto 身份映射或云端足迹。BFF 的版本化迁移（`migrations/bff`）只做加法与必要的改表：会话表增加 `auth_version`，旧会话行（无版本或用户 ID 不是 UUID）在第一次使用时被撤销，须重新登录；`bff_account_deletions` 保存注销工作流。旧表 `auth_identities`、`account_deletion_receipts` 不会被迁移删除，验证新栈后由手动脚本 `deploy/sql/bff/retire_logto_identities.sql` 清理（见[部署与发布](deployment.md)）。这些脚本不会由启动流程自动调用。
+不迁移旧的测试账号、旧的外部身份映射或云端足迹。BFF 的版本化迁移（`migrations/bff`）只做加法与必要的改表：会话表增加 `auth_version`，旧会话行（无版本或用户 ID 不是 UUID）在第一次使用时被撤销，须重新登录；`bff_account_deletions` 保存注销工作流。旧表 `auth_identities`、`account_deletion_receipts` 不会被迁移删除，验证新栈后由手动脚本 `deploy/sql/bff/retire_logto_identities.sql` 清理（对象、范围与顺序见 [Logto 退役与手动清理](usersrv/retirement.md)，部署步骤见[部署与发布](deployment.md#自建用户系统的数据迁移)）。这些脚本不会由启动流程自动调用。
 
 
 **当前限制**
 
 - 浏览器 RPC 仅 `/api/bff.*`（共用的 `bff.v1`、各产品的 `bff.<产品>.v1`）；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/unsubscribe 由 BFF `publichttp` 提供）。
 - 前端的业务 RPC（含分享 API）使用 `bff.tripmap.v1`；账号与会话管理使用 `bff.v1`。BFF 会话和注销工作流在 BFF 独立库；tripmap `users` 只保存用户 UUID 对应的展示投影与产品数据，好友只能凭 `fc_` 邀请码添加（没有按用户名查找）。
-- 浏览器登录、注册、找回密码、账号设置与邮件落地页已在两个前端实现（P5，见 [usersrv 规格](usersrv/spec.md#p5-已实现内容)）；发布与手动退役（P6）未做，整条账号链完成前不要在正式环境开放。
+- 浏览器登录、注册、找回密码、账号设置与邮件落地页已在两个前端实现（P5，见 [usersrv 规格](usersrv/spec.md#p5-已实现内容)）；发布与退役（P6）：usersrv 镜像与部署示例、Logto 运行时入口删除、手动退役文档已完成（[退役说明](usersrv/retirement.md)）；正式环境开放前仍需对真实邮件厂商做手动冒烟（[说明](usersrv/mail-smoke-test.md)，未对任何真实厂商实测）。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）
@@ -257,7 +257,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 **重试工具**：运维没有单独的命令行；排查时可对工作流行读取 `stage`、`attempts`、`last_error`，后台任务会自动重试（间隔 30 秒起指数退避，最长 15 分钟）。
 
-**限制**：浏览器登录表单、邮件落地页与注册界面已在 P5 实现；发布与手动退役脚本是 P6。
+**限制**：登录入口只有 `bff.v1.AuthService`：旧的 `/auth/login`、OAuth 回调和 `/auth/logout` 等 HTTP 路径一律 404（没有重定向，也不设 Cookie），已删除的 OAuth RPC 不再存在（`internal/e2e/logto_retired_chain_test.go` 在真实链路上验证）。没有对真实邮件厂商实测。手动退役脚本不会由服务启动自动执行。
 
 ## 多 Web App 登录与跨域
 

@@ -92,9 +92,9 @@ jobs:
       - run: npm run build
         env:
           VITE_API_BASE_URL: /api
-      - name: Browser acceptance (mocked RPC, no real OAuth)
+      - name: Browser acceptance (mocked BFF, no real mail)
         run: |
           npx playwright install --with-deps chromium
           npm run test:e2e:trip-map
-      - name: Browser acceptance for metro (mocked BFF, no real OAuth)
+      - name: Browser acceptance for metro (mocked BFF, no real mail)
         run: npm run test:e2e:metro

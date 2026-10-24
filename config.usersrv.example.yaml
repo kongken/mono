@@ -2,9 +2,9 @@
 # Butterfly reads literal YAML; ${VAR} substitutions are not supported.
 #
 # usersrv is the internal account service (email + password accounts, roles, account
-# security state). It is not user-facing: only the BFF calls it, over gRPC. Stages P1-P2 of
-# docs/usersrv/spec.md are implemented: the account core and the mail module (four vendor
-# adapters, encrypted outbox). No sign-in or registration is opened by it yet.
+# security state, account mail). It is not user-facing: only the BFF calls it, over gRPC.
+# Deploying it: docs/deployment.md#usersrv-的部署. Every credential and key below is a public
+# local sample; allow_loopback_http, allow_insecure_loopback and h2c are local-only settings.
 log:
   level: info
   format: text

@@ -7,7 +7,8 @@ example.com {
 	header {
 		X-Content-Type-Options nosniff
 		X-Frame-Options SAMEORIGIN
-		Referrer-Policy strict-origin-when-cross-origin
+		# "?" = default only: a stricter value set inside a handle (the mail landing pages) wins.
+		?Referrer-Policy strict-origin-when-cross-origin
 		Permissions-Policy "geolocation=(), microphone=(), camera=()"
 		-Server
 	}
@@ -52,6 +53,12 @@ example.com {
 		file_server
 	}
 
+	# Retired browser login entry points (the old /auth/login and /auth/callback/*): no route,
+	# and no SPA fallback that would answer them with index.html.
+	handle /auth/* {
+		respond 404
+	}
+
 	# BFF Connect, health and probes (do not strip Connect or CSRF headers).
 	handle /api/* {
 		request_body {
@@ -64,7 +71,8 @@ example.com {
 			header_up X-Forwarded-Proto {scheme}
 		}
 	}
-	handle /ping /readyz {
+	@probes path /ping /readyz
+	handle @probes {
 		reverse_proxy bff:18081 {
 			header_up Host {host}
 			header_up X-Real-IP {remote_host}
@@ -73,10 +81,14 @@ example.com {
 		}
 	}
 
-	# SPA static files (build with --build-arg VITE_API_BASE_URL=/api).
-	root * /srv/www
-	try_files {path} /index.html
-	file_server
+	# SPA static files (build with --build-arg VITE_API_BASE_URL=/api). This must be its own
+	# last `handle`: a site-level try_files runs before every handle and would rewrite /api,
+	# /ping and the paths above to /index.html before they are matched.
+	handle {
+		root * /srv/www
+		try_files {path} /index.html
+		file_server
+	}
 }
 
 # metro (optional second product) on its own host. The MCP endpoint takes a Bearer
@@ -87,7 +99,8 @@ metro.example.com {
 	header {
 		X-Content-Type-Options nosniff
 		X-Frame-Options SAMEORIGIN
-		Referrer-Policy strict-origin-when-cross-origin
+		# "?" = default only: a stricter value set inside a handle (the mail landing pages) wins.
+		?Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
 
@@ -103,6 +116,10 @@ metro.example.com {
 		rewrite * /index.html
 		root * /srv/metro
 		file_server
+	}
+
+	handle /auth/* {
+		respond 404
 	}
 
 	handle /mcp/metro {
@@ -128,12 +145,17 @@ metro.example.com {
 			header_up X-Forwarded-Proto {scheme}
 		}
 	}
-	handle /ping /readyz {
+	@probes path /ping /readyz
+	handle @probes {
 		reverse_proxy bff:18081
 	}
 
-	# SPA static files (build with --build-arg VITE_API_BASE_URL=/api).
-	root * /srv/metro
-	try_files {path} /index.html
-	file_server
+	# SPA static files (build with --build-arg VITE_API_BASE_URL=/api). This must be its own
+	# last `handle`: a site-level try_files runs before every handle and would rewrite /api,
+	# /ping and the paths above to /index.html before they are matched.
+	handle {
+		root * /srv/metro
+		try_files {path} /index.html
+		file_server
+	}
 }

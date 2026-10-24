@@ -13,7 +13,10 @@ usersrv 的四个邮件 adapter（Mailgun、SendGrid、SMTP、SMTP2GO）只对**
 ## 验证步骤（每个厂商各一遍）
 
 1. 启动 usersrv 并确认 `/readyz` 的 `mail_outbox` 为 ready。
-2. usersrv 发邮件的入口只有 P3 的 `RequestRegistration`/`RequestPasswordReset` 内部 gRPC，调用需要 BFF 签名凭证，BFF 接入（P4）前没有现成的客户端。验证时在隔离环境用一个临时 Go 测试或小程序调用 `outbox.Service.IssueStandalone`（`internal/usersrv/outbox`），向测试邮箱签发一封 `verify_email` 邮件；不要在正式库里操作。
+2. 触发一封邮件，二选一（都在**隔离的测试环境**里，不要在正式库里操作）：
+   - **经完整的栈**（推荐，同时验证 BFF → usersrv → 厂商）：把 BFF、usersrv 与前端按[部署说明](../deployment.md#usersrv-的部署)起好，在登录页对测试邮箱“申请注册”（或对已有测试账号“找回密码”）；usersrv 的注册申请对任何邮箱都返回中性成功，是否真的发信以收信为准。
+   - **只测 usersrv 与厂商**：在隔离环境用一个临时 Go 测试或小程序调用 `outbox.Service.IssueStandalone`（`internal/usersrv/outbox`），向测试邮箱签发一封 `verify_email` 邮件。
+   注意 `scripts/real-mail-stack.sh` 与 `E2E_REAL_MAIL=1` 的 Playwright 用例只连本地的 SMTP 接收器，**不是**厂商实测。
 3. 在 3 分钟内（worker 轮询间隔 3 秒）检查：
    - 测试邮箱收到中文标题和正文，纯文本与 HTML 两部分都正常，发件人、回复地址（若配置了 `reply_to`）正确；
    - 邮件里的链接形如 `https://<auth.apps.<app_id>.origin>/account/verify-email#token=…`，令牌在 `#` 之后；
@@ -27,6 +30,17 @@ usersrv 的四个邮件 adapter（Mailgun、SendGrid、SMTP、SMTP2GO）只对**
 5. SMTP 额外检查：
    - `tls_mode: implicit_tls`（通常 465）或 `starttls`（通常 587）；证书必须是公共 CA 签发且主机名匹配，自签证书会被拒绝，这是预期行为；
    - 服务器只支持 AUTH PLAIN/LOGIN 之外的机制时无法使用（当前只实现这两种）。
+
+## 当前验证状态
+
+截至 P6 交付，**没有对 Mailgun、SendGrid、SMTP、SMTP2GO 中任何一家做过真实发信**：没有可用的厂商账号、已验证的发信域名和受控收件地址。自动化只覆盖本地假服务的契约（认证方式、From/Reply-To、单收件人、中文标题、超时与错误分类），以及用本地 SMTP 接收器走完的注册与重置闭环。下表由执行的运维在上线前填写，不进入仓库。
+
+| 厂商 | 是否已实测 |
+| --- | --- |
+| Mailgun（US / EU） | 否 |
+| SendGrid | 否 |
+| SMTP（implicit_tls / starttls） | 否 |
+| SMTP2GO | 否 |
 
 ## 结果记录
 

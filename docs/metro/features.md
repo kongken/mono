@@ -53,14 +53,14 @@
 
 ## MCP
 
-管理员在“管理令牌”创建令牌后，MCP 客户端以 `Authorization: Bearer <令牌>` 访问 `POST /mcp/metro`（无状态 Streamable HTTP，无 Cookie、无 CORS）。令牌只存摘要，最长 90 天，每人最多 10 个有效令牌，吊销立即生效；按令牌限流（默认每分钟 60 次）。令牌带创建时的角色快照：创建者之后在 Logto 失去角色，令牌仍可用到过期或被吊销，所以应使用短有效期。
+管理员在“管理令牌”创建令牌后，MCP 客户端以 `Authorization: Bearer <令牌>` 访问 `POST /mcp/metro`（无状态 Streamable HTTP，无 Cookie、无 CORS）。令牌只存摘要，最长 90 天，每人最多 10 个有效令牌，吊销立即生效；按令牌限流（默认每分钟 60 次）。令牌带创建时的角色快照，但每个工具调用都会向 usersrv 复核：账号非 active、账号的认证版本（改密码、禁用、授予/撤销角色、注销都会改变它）与令牌创建时不同，令牌立即失效；创建者当前已没有 `metro-admin` 时调用返回 `PERMISSION_DENIED`；撤销角色后重新授予不会让旧令牌复活，需要重新创建。
 
 - 工具（20 个）：只读 `metro_list_cities`、`metro_list_lines`、`metro_list_rolling_stocks`、`metro_list_topics`、`metro_get_entity`、`metro_export_catalog`、`metro_list_audit_logs`；读写额外有各类实体的 `metro_create_*`、`metro_update_*`、`metro_delete_*` 和 `metro_import_catalog`。
 - 安全约束：`metro_import_catalog` 的 `dryRun` 默认 `true`，必须显式传 `false` 才写入；更新和删除必须带 `expectedRevision`（先读再写）；校验失败以工具错误返回，含字段级信息，便于模型修正后重试。MCP 与网页走同一个内部管理接口，规则、并发控制和审计完全一致。
 
 ## 验收场景（前端，Playwright，桌面与手机尺寸）
 
-自动化在 `apps/metro/tests/metro.spec.ts`，使用模拟的 BFF（`tests/fake-backend.ts`，拦截浏览器的 Connect 请求并校验写请求带 CSRF 头），**不连接真实后端与 Logto**；真实链路由 `internal/e2e` 的 metro 用例覆盖。
+自动化在 `apps/metro/tests/metro.spec.ts`，使用模拟的 BFF（`tests/fake-backend.ts`，拦截浏览器的 Connect 请求并校验写请求带 CSRF 头），**不连接真实后端**；真实链路由 `internal/e2e` 的 metro 用例覆盖。
 
 17. 匿名浏览首页 → 城市页 → 专题页；尝试标记线路时被引导登录，登录后回到原页面。
 18. 登录用户在城市页标记线路，`/me` 立即反映并可改年份；取消后消失。

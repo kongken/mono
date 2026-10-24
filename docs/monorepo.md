@@ -32,6 +32,8 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 
 共用部分不带产品名：`packages/*`、`internal/platform`、`proto/platform`、`bff.v1`（账号与会话）、BFF 的 `auth`、`session`、`ingress`、`gateway`。
 
+账号服务 usersrv 不属于任何一个产品，而是两个产品共用的服务：`cmd/usersrv`、`cmd/usersrv-admin`（运维命令）、`internal/usersrv`、`proto/usersrv/v1`、`migrations/usersrv/`、`deploy/usersrv/`，镜像 `…-usersrv`（见 [Docker 镜像](docker-images.md)、[部署](deployment.md#usersrv-的部署)）。它与业务服务一样不被其他业务 import，BFF 只经 `usersrv.v1` 内部 gRPC 调用它。
+
 ## 规则
 
 - 所有 npm 命令在仓库根目录执行，根 `package.json` 的脚本转发到各应用（应用生命周期脚本按应用命名：`dev:trip-map`、`build:trip-map`、`test:trip-map`、`preview:trip-map`、`test:e2e:trip-map`，metro 同理 `dev:metro`、`build:metro`、`test:metro`、`preview:metro`、`test:e2e:metro`；`build`、`test` 对所有应用运行；地图数据脚本 `check:maps`、`prepare:*`、`download:maps` 因属于 `packages/geo-data` 的数据流程，名称不带应用前缀，目前转发到 `@kongken/trip-map`）。依赖由根目录统一安装与锁定（单个 `package-lock.json`）。
