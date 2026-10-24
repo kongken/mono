@@ -55,41 +55,23 @@ func (m MCPConfig) RateLimit() int {
 	return m.RateLimitPerMinute
 }
 
-// AuthConfig controls BFF browser sessions and the sole identity source, Logto.
+// AuthConfig controls BFF browser sessions. Accounts, passwords, registration
+// policy, roles and account mail belong to usersrv (see config.usersrv.example.yaml);
+// the BFF keeps the Cookie session, CSRF, the admin session age and the list of
+// products whose data an account deletion removes.
 type AuthConfig struct {
 	SessionTTL time.Duration `yaml:"session_ttl"`
-	// AdminSessionMaxAge bounds how old a session may be (counted from sign-in)
-	// when it calls a procedure that declares required_role. Roles are read at
-	// sign-in and are not revoked live, so this limits how long a role removed in
-	// Logto keeps working. Default 12h.
+	// AdminSessionMaxAge bounds how old, counted from the last real password check
+	// (sign-in or Reauthenticate), a session may be when it calls a procedure that
+	// declares required_role. Default 12h; reauthenticating starts a new period.
 	AdminSessionMaxAge time.Duration `yaml:"admin_session_max_age"`
 	// AccountCleanup lists the products whose data is removed when a user deletes
-	// their cloud data, each named like its entry in the route table. Default:
-	// tripmap only. A product not deployed in this environment must not be listed.
-	AccountCleanup []string `yaml:"account_cleanup"`
-	// Retained only to reject obsolete configuration rather than silently
-	// blocking first-time Logto users. Registration policy belongs to Logto.
-	RegistrationDisabled bool                     `yaml:"registration_disabled"`
-	CookieSecure         bool                     `yaml:"cookie_secure"`
-	CSRFTokenTTL         time.Duration            `yaml:"csrf_token_ttl"`
-	OAuthApps            map[string]OAuthApp      `yaml:"oauth_apps"`
-	OAuthDevelopment     bool                     `yaml:"oauth_development"`
-	OAuthProviders       map[string]OAuthProvider `yaml:"oauth_providers"`
+	// their account, each named like its entry in the route table. Default: tripmap
+	// only. A product not deployed in this environment must not be listed.
+	AccountCleanup []string      `yaml:"account_cleanup"`
+	CookieSecure   bool          `yaml:"cookie_secure"`
+	CSRFTokenTTL   time.Duration `yaml:"csrf_token_ttl"`
 }
-
-// OAuthProvider configures one sign-in provider. It is offered only when both
-// ClientID and ClientSecret are set. RedirectURL must be the BFF callback
-// endpoint registered with the OAuth app.
-type OAuthProvider struct {
-	IssuerURL    string   `yaml:"issuer_url"`
-	ClientID     string   `yaml:"client_id"`
-	ClientSecret string   `yaml:"client_secret"`
-	RedirectURL  string   `yaml:"redirect_url"`
-	Scopes       []string `yaml:"scopes"`
-	DisplayName  string   `yaml:"display_name"`
-}
-
-func (p OAuthProvider) Enabled() bool { return p.ClientID != "" && p.ClientSecret != "" }
 
 // DefaultAdminSessionMaxAge is used when auth.admin_session_max_age is unset.
 const DefaultAdminSessionMaxAge = 12 * time.Hour
@@ -108,53 +90,6 @@ func (a *AuthConfig) CleanupProducts() []string {
 		return []string{"tripmap"}
 	}
 	return a.AccountCleanup
-}
-
-func (a *AuthConfig) validateOAuth() error {
-	if a.RegistrationDisabled {
-		return fmt.Errorf("auth.registration_disabled is retired; configure registration in Logto")
-	}
-	if len(a.OAuthApps) > 0 && !a.CookieSecure && !a.OAuthDevelopment {
-		return fmt.Errorf("oauth apps require cookie_secure outside explicit development mode")
-	}
-	for name, app := range a.OAuthApps {
-		u, _ := url.Parse(app.Origin)
-		if !oauthName.MatchString(name) || !validOAuthOrigin(app.Origin, a.OAuthDevelopment) || !a.CookieSecure && (u == nil || !loopbackHost(u.Hostname())) {
-			return fmt.Errorf("invalid oauth app %q origin", name)
-		}
-		if _, err := app.ReturnURL(app.DefaultPath); err != nil {
-			return fmt.Errorf("oauth app %s default path: %w", name, err)
-		}
-		for _, path := range app.AllowedPaths {
-			if !validReturnPath(path) {
-				return fmt.Errorf("oauth app %s has invalid allowed path", name)
-			}
-		}
-	}
-
-	for name, p := range a.OAuthProviders {
-		if name != "logto" {
-			return fmt.Errorf("auth.oauth_providers.%s is retired; configure social connections in Logto", name)
-		}
-		if !p.Enabled() {
-			return fmt.Errorf("auth.oauth_providers.logto requires client_id and client_secret")
-		}
-		callback, _ := url.Parse(p.RedirectURL)
-		if p.Enabled() && (!a.CookieSecure && (callback == nil || !loopbackHost(callback.Hostname())) || !oauthName.MatchString(name) || !validCallback(p.RedirectURL, name, a.OAuthDevelopment) || len(a.OAuthApps) == 0) {
-			return fmt.Errorf("auth.oauth_providers.%s requires oauth_apps and an exact BFF /auth/callback/%s URL", name, name)
-		}
-		if name == "logto" && p.Enabled() {
-			if p.IssuerURL == "" {
-				return fmt.Errorf("auth.oauth_providers.logto.issuer_url is required")
-			}
-			u, err := url.Parse(p.IssuerURL)
-			if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "https" && !(a.OAuthDevelopment && u.Scheme == "http" && loopbackHost(u.Hostname()))) {
-				return fmt.Errorf("auth.oauth_providers.logto.issuer_url must use HTTPS (or explicit loopback development)")
-			}
-
-		}
-	}
-	return nil
 }
 
 type InternalAuth struct {
@@ -264,5 +199,8 @@ func (c *Config) Validate(services []string) error {
 			return fmt.Errorf("auth.account_cleanup lists %q twice", name)
 		}
 	}
-	return c.Auth.validateOAuth()
+	if c.Auth.SessionTTL < 0 {
+		return fmt.Errorf("auth.session_ttl must not be negative")
+	}
+	return nil
 }

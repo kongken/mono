@@ -38,26 +38,35 @@ func uploadTripPhoto(t *testing.T, e *env, token, regionCode, tripID, filename s
 	return id
 }
 
-func TestFriendLookupRejectsAmbiguousLogtoNames(t *testing.T) {
+func TestFriendsAreFoundOnlyByInviteCode(t *testing.T) {
 	e := newEnv(t)
 	ctx := t.Context()
 	caller := e.register("caller")
-	first := e.register("shared")
-	second := e.register("SHARED")
-	_, err := e.collab.SendFriendRequest(ctx, bearer(caller, &tripmapv1.SendFriendRequestRequest{Target: "shared"}))
-	wantCode(t, err, connect.CodeInvalidArgument)
+	target := e.register("shared")
+	code := e.friendCode("shared")
+	// A name, in any case, never finds anybody.
+	for _, name := range []string{"shared", "SHARED", "caller", "nobody"} {
+		_, err := e.collab.SendFriendRequest(ctx, bearer(caller, &tripmapv1.SendFriendRequestRequest{Target: name}))
+		wantCode(t, err, connect.CodeInvalidArgument)
+	}
+	// So does an address, or the user ID.
+	for _, v := range []string{"shared@example.com", target} {
+		_, err := e.collab.SendFriendRequest(ctx, bearer(caller, &tripmapv1.SendFriendRequestRequest{Target: v}))
+		wantCode(t, err, connect.CodeInvalidArgument)
+	}
 	if count := e.store.DB.Friendship.Query().CountX(ctx); count != 0 {
-		t.Fatal("ambiguous name created a friendship")
+		t.Fatal("a lookup by name created a friendship")
 	}
-	ov, err := e.collab.GetCollaborationOverview(ctx, bearer(second, &tripmapv1.GetCollaborationOverviewRequest{}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	// A username colliding with another user's invite code cannot shadow it.
-	e.store.DB.User.UpdateOneID(first).SetUsername(ov.Msg.MyFriendCode).ExecX(ctx)
-	res, err := e.collab.SendFriendRequest(ctx, bearer(caller, &tripmapv1.SendFriendRequestRequest{Target: ov.Msg.MyFriendCode}))
-	if err != nil || res.Msg.Friendship.Friend.Id != second {
+	// An unknown code is not found, and a well-formed one selects its owner.
+	_, err := e.collab.SendFriendRequest(ctx, bearer(caller, &tripmapv1.SendFriendRequestRequest{Target: "fc_" + strings.Repeat("0", 16)}))
+	wantCode(t, err, connect.CodeNotFound)
+	res, err := e.collab.SendFriendRequest(ctx, bearer(caller, &tripmapv1.SendFriendRequestRequest{Target: strings.ToUpper(code)}))
+	if err != nil || res.Msg.Friendship.Friend.Id != target {
 		t.Fatalf("friend code did not select its owner: %v %v", res, err)
+	}
+	// The friend payload has no login name; the display name is the nickname only.
+	if res.Msg.Friendship.Friend.DisplayName != "" {
+		t.Fatalf("display name falls back to a login name: %q", res.Msg.Friendship.Friend.DisplayName)
 	}
 }
 
@@ -92,11 +101,11 @@ func TestFriendshipLifecycleAndPermissions(t *testing.T) {
 	wantCode(t, err, connect.CodeInvalidArgument)
 	_, err = e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: ovA.Msg.MyFriendCode}))
 	wantCode(t, err, connect.CodeInvalidArgument)
-	_, err = e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: "nobody_such_user"}))
+	_, err = e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: "fc_nosuchcode000000"}))
 	wantCode(t, err, connect.CodeNotFound)
 
-	// Send friend request by case-insensitive username.
-	sendRes, err := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: "bob_f7"}))
+	// Send friend request by invite code.
+	sendRes, err := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: ovB.Msg.MyFriendCode}))
 	if err != nil {
 		t.Fatalf("send friend request: %v", err)
 	}
@@ -183,7 +192,7 @@ func TestFriendFootprintComparisonRespectsBothUsersPrivacySettings(t *testing.T)
 		&tripmapv1.FootprintMutation{Operation: &tripmapv1.FootprintMutation_UpsertMark{UpsertMark: &tripmapv1.ProvinceMark{Province: "510000", Color: "#e2af5c"}}},
 	)
 
-	sendRes, err := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: "cmp_b"}))
+	sendRes, err := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: e.friendCode("cmp_b")}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,9 +265,9 @@ func TestSharedTripInviteAcceptSyncAndLeavePreservesCityAndOtherRecords(t *testi
 	cID := e.register("trip_c")
 
 	// Make A friends with B and C.
-	frAB, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: "trip_b"}))
+	frAB, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: e.friendCode("trip_b")}))
 	_, _ = e.collab.RespondFriendRequest(ctx, bearer(bID, &tripmapv1.RespondFriendRequestRequest{FriendshipId: frAB.Msg.Friendship.Id, Accept: true}))
-	frAC, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: "trip_c"}))
+	frAC, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: e.friendCode("trip_c")}))
 	_, _ = e.collab.RespondFriendRequest(ctx, bearer(cID, &tripmapv1.RespondFriendRequestRequest{FriendshipId: frAC.Msg.Friendship.Id, Accept: true}))
 
 	// A has Hangzhou with trip "t-westlake".
@@ -391,9 +400,9 @@ func TestSharedTripMemberRolesRemoveAndOwnerDissolve(t *testing.T) {
 	bID := e.register("role_b")
 	cID := e.register("role_c")
 
-	frAB, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: "role_b"}))
+	frAB, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: e.friendCode("role_b")}))
 	_, _ = e.collab.RespondFriendRequest(ctx, bearer(bID, &tripmapv1.RespondFriendRequestRequest{FriendshipId: frAB.Msg.Friendship.Id, Accept: true}))
-	frAC, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: "role_c"}))
+	frAC, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: e.friendCode("role_c")}))
 	_, _ = e.collab.RespondFriendRequest(ctx, bearer(cID, &tripmapv1.RespondFriendRequestRequest{FriendshipId: frAC.Msg.Friendship.Id, Accept: true}))
 
 	e.mustSync2(aID, "a-seed", 0,
@@ -495,9 +504,9 @@ func TestSharedTripMediaOwnershipAndRevocation(t *testing.T) {
 	bID := e.register("med_b")
 	cID := e.register("med_c")
 
-	frAB, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: "med_b"}))
+	frAB, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: e.friendCode("med_b")}))
 	_, _ = e.collab.RespondFriendRequest(ctx, bearer(bID, &tripmapv1.RespondFriendRequestRequest{FriendshipId: frAB.Msg.Friendship.Id, Accept: true}))
-	frAC, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: "med_c"}))
+	frAC, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: e.friendCode("med_c")}))
 	_, _ = e.collab.RespondFriendRequest(ctx, bearer(cID, &tripmapv1.RespondFriendRequestRequest{FriendshipId: frAC.Msg.Friendship.Id, Accept: true}))
 
 	e.mustSync2(aID, "a-med", 0,
@@ -577,7 +586,7 @@ func TestRemoveFriendDetachesSharedTripsAndPreservesRecords(t *testing.T) {
 	aID := e.register("unfriend_a")
 	bID := e.register("unfriend_b")
 
-	frAB, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: "unfriend_b"}))
+	frAB, _ := e.collab.SendFriendRequest(ctx, bearer(aID, &tripmapv1.SendFriendRequestRequest{Target: e.friendCode("unfriend_b")}))
 	frID := frAB.Msg.Friendship.Id
 	_, _ = e.collab.RespondFriendRequest(ctx, bearer(bID, &tripmapv1.RespondFriendRequestRequest{FriendshipId: frID, Accept: true}))
 

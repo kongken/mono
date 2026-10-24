@@ -12,140 +12,118 @@ var (
 	// BffAccessTokensColumns holds the columns for the "bff_access_tokens" table.
 	BffAccessTokensColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeString},
 		{Name: "name", Type: field.TypeString},
 		{Name: "token_hash", Type: field.TypeString, Unique: true},
 		{Name: "audience", Type: field.TypeString},
 		{Name: "scopes", Type: field.TypeJSON},
 		{Name: "roles", Type: field.TypeJSON},
+		{Name: "auth_version", Type: field.TypeInt64, Default: 0},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "expires_at", Type: field.TypeTime},
 		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
 		{Name: "revoked_at", Type: field.TypeTime, Nullable: true},
-		{Name: "user_id", Type: field.TypeString},
 	}
 	// BffAccessTokensTable holds the schema information for the "bff_access_tokens" table.
 	BffAccessTokensTable = &schema.Table{
 		Name:       "bff_access_tokens",
 		Columns:    BffAccessTokensColumns,
 		PrimaryKey: []*schema.Column{BffAccessTokensColumns[0]},
-		ForeignKeys: []*schema.ForeignKey{
-			{
-				Symbol:     "bff_access_tokens_auth_identities_access_tokens",
-				Columns:    []*schema.Column{BffAccessTokensColumns[10]},
-				RefColumns: []*schema.Column{AuthIdentitiesColumns[0]},
-				OnDelete:   schema.Cascade,
-			},
-		},
 		Indexes: []*schema.Index{
 			{
 				Name:    "bff_access_token_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{BffAccessTokensColumns[10]},
+				Columns: []*schema.Column{BffAccessTokensColumns[1]},
 			},
 		},
 	}
-	// AccountDeletionReceiptsColumns holds the columns for the "account_deletion_receipts" table.
-	AccountDeletionReceiptsColumns = []*schema.Column{
+	// BffAccountDeletionsColumns holds the columns for the "bff_account_deletions" table.
+	BffAccountDeletionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
-		{Name: "token_hash", Type: field.TypeString, Unique: true},
-		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeString, Unique: true},
+		{Name: "mutation_id", Type: field.TypeString},
+		{Name: "token_hash", Type: field.TypeString},
+		{Name: "products", Type: field.TypeJSON},
+		{Name: "completed_products", Type: field.TypeJSON},
+		{Name: "stage", Type: field.TypeString, Default: "begin"},
+		{Name: "attempts", Type: field.TypeInt, Default: 0},
+		{Name: "last_error", Type: field.TypeString, Default: ""},
+		{Name: "lease_until", Type: field.TypeTime, Nullable: true},
+		{Name: "next_attempt_at", Type: field.TypeTime},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "completed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "receipt_expires_at", Type: field.TypeTime, Nullable: true},
 	}
-	// AccountDeletionReceiptsTable holds the schema information for the "account_deletion_receipts" table.
-	AccountDeletionReceiptsTable = &schema.Table{
-		Name:       "account_deletion_receipts",
-		Columns:    AccountDeletionReceiptsColumns,
-		PrimaryKey: []*schema.Column{AccountDeletionReceiptsColumns[0]},
+	// BffAccountDeletionsTable holds the schema information for the "bff_account_deletions" table.
+	BffAccountDeletionsTable = &schema.Table{
+		Name:       "bff_account_deletions",
+		Columns:    BffAccountDeletionsColumns,
+		PrimaryKey: []*schema.Column{BffAccountDeletionsColumns[0]},
 		Indexes: []*schema.Index{
 			{
-				Name:    "accountdeletionreceipt_expires_at",
+				Name:    "accountdeletion_token_hash",
 				Unique:  false,
-				Columns: []*schema.Column{AccountDeletionReceiptsColumns[2]},
+				Columns: []*schema.Column{BffAccountDeletionsColumns[3]},
+			},
+			{
+				Name:    "accountdeletion_stage_next_attempt_at",
+				Unique:  false,
+				Columns: []*schema.Column{BffAccountDeletionsColumns[6], BffAccountDeletionsColumns[10]},
+			},
+			{
+				Name:    "accountdeletion_receipt_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{BffAccountDeletionsColumns[14]},
 			},
 		},
 	}
 	// AuthBrowserSessionsColumns holds the columns for the "auth_browser_sessions" table.
 	AuthBrowserSessionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeString},
 		{Name: "token_hash", Type: field.TypeString, Unique: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "expires_at", Type: field.TypeTime},
 		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
 		{Name: "revoked", Type: field.TypeBool, Default: false},
-		{Name: "roles", Type: field.TypeJSON, Nullable: true},
+		{Name: "auth_version", Type: field.TypeInt64, Default: 0},
 		{Name: "authenticated_at", Type: field.TypeTime, Nullable: true},
-		{Name: "user_id", Type: field.TypeString},
 	}
 	// AuthBrowserSessionsTable holds the schema information for the "auth_browser_sessions" table.
 	AuthBrowserSessionsTable = &schema.Table{
 		Name:       "auth_browser_sessions",
 		Columns:    AuthBrowserSessionsColumns,
 		PrimaryKey: []*schema.Column{AuthBrowserSessionsColumns[0]},
-		ForeignKeys: []*schema.ForeignKey{
-			{
-				Symbol:     "auth_browser_sessions_auth_identities_sessions",
-				Columns:    []*schema.Column{AuthBrowserSessionsColumns[8]},
-				RefColumns: []*schema.Column{AuthIdentitiesColumns[0]},
-				OnDelete:   schema.Cascade,
-			},
-		},
 		Indexes: []*schema.Index{
 			{
 				Name:    "browser_session_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{AuthBrowserSessionsColumns[8]},
+				Columns: []*schema.Column{AuthBrowserSessionsColumns[1]},
 			},
 			{
 				Name:    "browser_session_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{AuthBrowserSessionsColumns[3]},
-			},
-		},
-	}
-	// AuthIdentitiesColumns holds the columns for the "auth_identities" table.
-	AuthIdentitiesColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeString},
-		{Name: "username", Type: field.TypeString, Nullable: true},
-		{Name: "display_name", Type: field.TypeString, Default: ""},
-		{Name: "avatar_url", Type: field.TypeString, Default: ""},
-		{Name: "issuer", Type: field.TypeString},
-		{Name: "external_id", Type: field.TypeString},
-		{Name: "disabled", Type: field.TypeBool, Default: false},
-		{Name: "deletion_requested_at", Type: field.TypeTime, Nullable: true},
-		{Name: "created_at", Type: field.TypeTime},
-		{Name: "updated_at", Type: field.TypeTime},
-	}
-	// AuthIdentitiesTable holds the schema information for the "auth_identities" table.
-	AuthIdentitiesTable = &schema.Table{
-		Name:       "auth_identities",
-		Columns:    AuthIdentitiesColumns,
-		PrimaryKey: []*schema.Column{AuthIdentitiesColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "user_issuer_external_id",
-				Unique:  true,
-				Columns: []*schema.Column{AuthIdentitiesColumns[4], AuthIdentitiesColumns[5]},
+				Columns: []*schema.Column{AuthBrowserSessionsColumns[4]},
 			},
 		},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		BffAccessTokensTable,
-		AccountDeletionReceiptsTable,
+		BffAccountDeletionsTable,
 		AuthBrowserSessionsTable,
-		AuthIdentitiesTable,
 	}
 )
 
 func init() {
-	BffAccessTokensTable.ForeignKeys[0].RefTable = AuthIdentitiesTable
 	BffAccessTokensTable.Annotation = &entsql.Annotation{
 		Table: "bff_access_tokens",
 	}
-	AuthBrowserSessionsTable.ForeignKeys[0].RefTable = AuthIdentitiesTable
+	BffAccountDeletionsTable.Annotation = &entsql.Annotation{
+		Table: "bff_account_deletions",
+	}
 	AuthBrowserSessionsTable.Annotation = &entsql.Annotation{
 		Table: "auth_browser_sessions",
-	}
-	AuthIdentitiesTable.Annotation = &entsql.Annotation{
-		Table: "auth_identities",
 	}
 }

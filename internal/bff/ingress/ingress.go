@@ -57,29 +57,33 @@ type Policy struct {
 	// writes the client address into; empty uses the TCP peer. Never set it when
 	// clients can reach the BFF directly.
 	ClientIPHeader string
-	// AdminSessionMaxAge is how old (since sign-in) a session may be when it calls
+	// AdminSessionMaxAge is how old (since the password was last checked) a session may be when it calls
 	// a procedure that declares required_role. Zero disables the check.
 	AdminSessionMaxAge time.Duration
 	// Now defaults to time.Now; tests set it.
 	Now func() time.Time
-	// Authenticate resolves the browser session cookie for protected procedures.
+	// Authenticate resolves the browser session cookie for protected procedures and
+	// checks the account at usersrv (active, same auth_version, current roles). It
+	// fails UNAUTHENTICATED for a session that is not valid, and UNAVAILABLE or
+	// INTERNAL when the check itself could not be made; the latter are passed on to
+	// the caller and nothing is forwarded.
 	Authenticate func(ctx context.Context, header http.Header) (session.BrowserSession, error)
-	// DeletionReceiptValid allows AuthService/DeleteAccount when the session cookie
-	// matches a stored completion receipt (24h replay after auth rows are gone).
-	DeletionReceiptValid func(ctx context.Context, sessionToken string) bool
+	// DeletionKnown reports whether the session cookie started an account deletion.
+	// DeleteAccount is admitted for such a cookie even though its session no longer
+	// passes the account check (a deleting account has a new auth_version).
+	DeletionKnown func(ctx context.Context, sessionToken string) bool
+	// Projection runs after the session is verified and before the call is
+	// forwarded, so a product that keeps a display projection of the account can
+	// ensure it exists. It decides by procedure whether it applies; a failure is
+	// returned to the caller as is.
+	Projection func(ctx context.Context, procedure string, browser session.BrowserSession) error
 }
 
 var (
-	errUnauthenticated     = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
-	errRoleMissing         = connect.NewError(connect.CodePermissionDenied, errors.New("required role missing"))
-	errSessionTooOld       = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in again to use this feature"))
-	errWriteRejected       = connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
-	errDeletionInProgress  = connect.NewError(connect.CodeFailedPrecondition, errors.New("account deletion in progress"))
-	deletionAllowedMethods = map[string]bool{
-		bffv1connect.AuthServiceMeProcedure:            true,
-		bffv1connect.AuthServiceLogoutProcedure:        true,
-		bffv1connect.AuthServiceDeleteAccountProcedure: true,
-	}
+	errUnauthenticated = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
+	errRoleMissing     = connect.NewError(connect.CodePermissionDenied, errors.New("required role missing"))
+	errSessionTooOld   = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in again to use this feature"))
+	errWriteRejected   = connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
 )
 
 func (p Policy) now() time.Time {
@@ -124,17 +128,22 @@ func Interceptor(p Policy) connect.Interceptor {
 				}
 				var err error
 				browser, err = p.Authenticate(ctx, req.Header())
-				if err != nil || browser.UserID == "" {
-					token := session.TokenFromRequest(req.Header())
+				if err == nil && browser.UserID == "" {
+					err = errUnauthenticated
+				}
+				if err != nil {
+					// Only a refused session is "sign in"; a check that could not be made
+					// (usersrv or a store down) is reported as such.
+					if ce := new(connect.Error); errors.As(err, &ce) && ce.Code() != connect.CodeUnauthenticated {
+						return nil, withID(err)
+					}
 					if procedure != bffv1connect.AuthServiceDeleteAccountProcedure ||
-						p.DeletionReceiptValid == nil || !p.DeletionReceiptValid(ctx, token) {
+						p.DeletionKnown == nil || !p.DeletionKnown(ctx, session.TokenFromRequest(req.Header())) {
 						return nil, withID(errUnauthenticated)
 					}
 				}
 				// This header only narrows the authenticated Cookie identity; it
 				// never authenticates or selects an account on its own.
-				// A validated deletion completion receipt is an idempotent
-				// acknowledgement after the session/user no longer exist.
 				if expected := req.Header().Get("X-Kongken-User"); browser.UserID != "" && expected != "" && expected != browser.UserID {
 					return nil, withID(errUnauthenticated)
 				}
@@ -152,9 +161,6 @@ func Interceptor(p Policy) connect.Interceptor {
 					}
 					call.Roles = browser.Roles
 				}
-				if browser.DeletionPending && !deletionAllowedMethods[procedure] {
-					return nil, withID(errDeletionInProgress)
-				}
 			}
 			ctx = rpcauth.WithCall(ctx, call)
 			if browser.UserID != "" {
@@ -167,6 +173,11 @@ func Interceptor(p Policy) connect.Interceptor {
 			// WithTimeout keeps an earlier client deadline, so the smaller wins.
 			ctx, cancel := context.WithTimeout(ctx, limit)
 			defer cancel()
+			if p.Projection != nil && browser.UserID != "" {
+				if err := p.Projection(ctx, procedure, browser); err != nil {
+					return nil, withID(err)
+				}
+			}
 			res, err := next(ctx, req)
 			if err != nil {
 				return nil, withID(err)

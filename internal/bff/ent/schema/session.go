@@ -4,13 +4,13 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/schema"
-	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
 	"github.com/google/uuid"
 )
 
-// Session is a browser session; only the token hash is stored.
+// Session is a browser session; only the token hash is stored. user_id is a
+// usersrv user UUID with no foreign key: the account lives in another database.
 type Session struct{ ent.Schema }
 
 func (Session) Annotations() []schema.Annotation {
@@ -20,26 +20,23 @@ func (Session) Annotations() []schema.Annotation {
 func (Session) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(),
-		field.String("user_id").Immutable(),
+		field.String("user_id").NotEmpty().Immutable(),
 		field.String("token_hash").NotEmpty().Unique().Immutable().Sensitive(),
 		field.Time("created_at").Default(now).Immutable(),
 		field.Time("expires_at"),
 		field.Time("last_used_at").Optional().Nillable(),
 		field.Bool("revoked").Default(false),
-		// Roles are the Logto role names read at sign-in. Sessions created before
-		// roles were recorded have none and are never administrators.
-		field.JSON("roles", []string{}).Optional(),
-		// AuthenticatedAt is when the user signed in at Logto (the session's
-		// issue time). Procedures that declare required_role are refused once it
-		// is older than auth.admin_session_max_age. Null on older sessions, which
-		// fall back to created_at.
-		field.Time("authenticated_at").Optional().Nillable().Immutable(),
-	}
-}
-
-func (Session) Edges() []ent.Edge {
-	return []ent.Edge{
-		edge.From("user", User.Type).Ref("sessions").Field("user_id").Unique().Required().Immutable(),
+		// AuthVersion is the account's auth_version when the session was opened. The
+		// session is usable only while usersrv still reports the same value. Sessions
+		// from before usersrv carry 0, which no account ever has, so they never match.
+		field.Int64("auth_version").Default(0).Immutable(),
+		// AuthenticatedAt is when the password was last really checked on this
+		// session: sign-in, or a successful Reauthenticate. It is not the creation
+		// time, and refreshing a Cookie or calling Me never moves it. Null on rows
+		// from before usersrv.
+		field.Time("authenticated_at").Optional().Nillable(),
+		// roles (a snapshot taken at sign-in under the former identity provider) was retired: roles are read from usersrv on every
+		// request. The column stays in databases that have it and is no longer used.
 	}
 }
 

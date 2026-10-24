@@ -1,6 +1,7 @@
--- MANUAL ONLY: tripmap database, never BFF or Logto. Historical filename kept.
--- Deploy Logto-only tripmap to ALL replicas first: old Ent clients select these
+-- MANUAL ONLY: tripmap database, never BFF, usersrv or metro. Historical filename kept.
+-- Deploy the usersrv-era tripmap to ALL replicas first: older Ent clients select these
 -- columns and cannot run after this cleanup. No account import is needed.
+-- See docs/usersrv/retirement.md.
 -- These are credential remnants, not business profile columns.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -12,7 +13,7 @@ END $$;
 
 DROP INDEX IF EXISTS "user_provider_external_id";
 DROP INDEX IF EXISTS "users_email_key";
--- A cached Logto username is mutable and may be shared by different subjects.
+-- A cached username of the former identity provider is mutable and may be shared by different subjects.
 DROP INDEX IF EXISTS "users_username_key";
 
 ALTER TABLE "users" DROP COLUMN IF EXISTS "email";

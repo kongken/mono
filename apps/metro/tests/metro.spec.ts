@@ -3,7 +3,7 @@ import { fakeBackend } from "./fake-backend";
 
 // Acceptance scenarios 17-21 of docs/metro/spec.md, desktop and phone sizes.
 
-test("17 anonymous visitors browse cities and topics, and marking sends them to sign in", async ({ page }) => {
+test("17 anonymous visitors browse cities and topics, and cannot mark rides", async ({ page }) => {
   const fake = fakeBackend(page);
   await fake.install();
 
@@ -28,11 +28,10 @@ test("17 anonymous visitors browse cities and topics, and marking sends them to 
   await expect(page.getByRole("img", { name: /上海 2 条/ })).toBeVisible();
 
   await page.getByTestId("line-sh-1").getByRole("button", { name: "标记坐过" }).click();
-  await expect.poll(() => fake.state.loginRequests.length).toBe(1);
-  expect(new URL(fake.state.loginRequests[0]).searchParams.get("app")).toBe("metro");
-  // After signing in the visitor lands on the page they started from.
-  await expect(page).toHaveURL(/\/topics\/six-cars$/);
-  await expect(page.getByRole("button", { name: "退出" })).toBeVisible();
+  // Anonymous visitors cannot mark rides: nothing is written and they are sent to sign in,
+  // with the page they came from remembered.
+  await expect(page).toHaveURL(/\/login\?next=%2Ftopics%2Fsix-cars$/);
+  await expect(page.getByTestId("auth-panel")).toBeVisible();
 });
 
 test("18 a signed-in rider marks and unmarks a line, and /me follows", async ({ page }) => {

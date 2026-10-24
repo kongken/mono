@@ -94,6 +94,8 @@ import {
 } from "./lib/draft";
 import { cloudItinerariesKey, isMigrated, markMigrated } from "./lib/session";
 import AccountDialog from "./components/AccountDialog";
+import { AuthPanel } from "@kongken/account/forms";
+import { requireAccount } from "@/api/auth";
 import MigrationDialog from "./components/MigrationDialog";
 import LegacyDialog from "./components/LegacyDialog";
 import SnapshotDialog from "./components/SnapshotDialog";
@@ -385,6 +387,16 @@ function App() {
       }
     },
   });
+
+  // "Log in" on the mail landing pages leads here: open the account window on the sign-in form.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("signin") !== "1") return;
+    params.delete("signin");
+    const rest = params.toString();
+    history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
+    if (cloud.enabled) setAccountOpen(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // All user edits go through here so cloud mode can sync them, and refuse
   // them while the cloud copy is not loaded and confirmed.
   const commit = (update: (s: Saved) => Saved, atomic = false) => {
@@ -1276,8 +1288,17 @@ function App() {
           <p role="status">{cloud.busy || "正在加载云端足迹…"}</p>
         ) : (
           <>
-            <h2>无法加载云端足迹</h2>
+            <h2>{cloud.sessionExpired ? "登录已失效" : "无法加载云端足迹"}</h2>
             <p role="alert">{cloud.loadError}</p>
+            {cloud.sessionExpired && (
+              <section className="cloud-gate-signin" data-testid="gate-sign-in" aria-label="重新登录">
+                <AuthPanel
+                  api={requireAccount()}
+                  appName="山海足迹"
+                  onSignedIn={({ user, expiresAt }) => cloud.signIn(user, expiresAt)}
+                />
+              </section>
+            )}
             <div className="dialog-actions">
               <Button
                 variant="outline"
@@ -1430,7 +1451,7 @@ function App() {
             >
               {cloud.user ? (
                 <span className="account-initial">
-                  {(cloud.user.displayName || cloud.user.username || "?")
+                  {(cloud.user.displayName || "?")
                     .slice(0, 1)
                     .toUpperCase()}
                 </span>

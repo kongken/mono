@@ -87,7 +87,8 @@ type CollaborationServiceClient interface {
 	GetCollaborationOverview(context.Context, *connect.Request[v1.GetCollaborationOverviewRequest]) (*connect.Response[v1.GetCollaborationOverviewResponse], error)
 	// UpdateFriendSettings updates which footprint fields confirmed friends can see.
 	UpdateFriendSettings(context.Context, *connect.Request[v1.UpdateFriendSettingsRequest]) (*connect.Response[v1.UpdateFriendSettingsResponse], error)
-	// SendFriendRequest invites another user by username or friend invite code.
+	// SendFriendRequest invites another user by friend invite code (fc_...). There is
+	// no lookup by name, nickname or email.
 	SendFriendRequest(context.Context, *connect.Request[v1.SendFriendRequestRequest]) (*connect.Response[v1.SendFriendRequestResponse], error)
 	// RespondFriendRequest accepts or declines a pending friend request (or cancels an outgoing one).
 	RespondFriendRequest(context.Context, *connect.Request[v1.RespondFriendRequestRequest]) (*connect.Response[v1.RespondFriendRequestResponse], error)
@@ -320,7 +321,8 @@ type CollaborationServiceHandler interface {
 	GetCollaborationOverview(context.Context, *connect.Request[v1.GetCollaborationOverviewRequest]) (*connect.Response[v1.GetCollaborationOverviewResponse], error)
 	// UpdateFriendSettings updates which footprint fields confirmed friends can see.
 	UpdateFriendSettings(context.Context, *connect.Request[v1.UpdateFriendSettingsRequest]) (*connect.Response[v1.UpdateFriendSettingsResponse], error)
-	// SendFriendRequest invites another user by username or friend invite code.
+	// SendFriendRequest invites another user by friend invite code (fc_...). There is
+	// no lookup by name, nickname or email.
 	SendFriendRequest(context.Context, *connect.Request[v1.SendFriendRequestRequest]) (*connect.Response[v1.SendFriendRequestResponse], error)
 	// RespondFriendRequest accepts or declines a pending friend request (or cancels an outgoing one).
 	RespondFriendRequest(context.Context, *connect.Request[v1.RespondFriendRequestRequest]) (*connect.Response[v1.RespondFriendRequestResponse], error)

@@ -29,6 +29,9 @@ jobs:
           - image: tripmap
             suffix: '-tripmap'
             dockerfile: deploy/tripmap/Dockerfile
+          - image: usersrv
+            suffix: '-usersrv'
+            dockerfile: deploy/usersrv/Dockerfile
           - image: trip-map-web
             suffix: '-trip-map-web'
             dockerfile: deploy/trip-map-web/Dockerfile

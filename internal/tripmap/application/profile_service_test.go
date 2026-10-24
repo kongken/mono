@@ -37,18 +37,18 @@ func TestEnsureProfileRejectsForgedUserID(t *testing.T) {
 func TestEnsureProfileRefreshesAndClearsCachedClaims(t *testing.T) {
 	svc, st := profileHarness(t)
 	ctx := rpcauth.WithCall(t.Context(), rpcauth.Call{UserID: "user-a"})
-	if _, err := svc.EnsureProfile(ctx, &tripmapv1.EnsureProfileRequest{Username: "shared", DisplayName: "Alice", AvatarUrl: "https://example.com/a.png"}); err != nil {
+	if _, err := svc.EnsureProfile(ctx, &tripmapv1.EnsureProfileRequest{DisplayName: "Alice", AvatarUrl: "https://example.com/a.png"}); err != nil {
 		t.Fatal(err)
 	}
 	other := rpcauth.WithCall(t.Context(), rpcauth.Call{UserID: "user-b"})
-	if _, err := svc.EnsureProfile(other, &tripmapv1.EnsureProfileRequest{Username: "shared"}); err != nil {
-		t.Fatalf("names must not identify accounts: %v", err)
+	if _, err := svc.EnsureProfile(other, &tripmapv1.EnsureProfileRequest{}); err != nil {
+		t.Fatalf("profiles of different accounts are independent: %v", err)
 	}
 	if _, err := svc.EnsureProfile(ctx, &tripmapv1.EnsureProfileRequest{}); err != nil {
 		t.Fatal(err)
 	}
 	u, err := st.DB.User.Get(ctx, "user-a")
-	if err != nil || u.Username != nil || u.DisplayName != "" || u.AvatarURL != "" {
+	if err != nil || u.DisplayName != "" || u.AvatarURL != "" {
 		t.Fatalf("stale claims retained: %v %v", u, err)
 	}
 }
@@ -58,7 +58,6 @@ func TestEnsureProfileUsesPrincipalOnly(t *testing.T) {
 	ctx := rpcauth.WithCall(context.Background(), rpcauth.Call{UserID: "user-a"})
 	out, err := svc.EnsureProfile(ctx, &tripmapv1.EnsureProfileRequest{
 		DisplayName: "Alice",
-		Username:    "alice",
 	})
 	if err != nil {
 		t.Fatal(err)

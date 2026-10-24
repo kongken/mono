@@ -1,15 +1,20 @@
-// Package e2e runs the real BFF in front of the real tripmap gRPC server over TLS or h2c.
+// Package e2e runs the real BFF in front of the real usersrv and tripmap (and,
+// on request, metro) gRPC servers over TLS or h2c.
 //
-// ChainHarness starts both services with isolated PostgreSQL schemas and Redis
-// key prefixes (requires TRIPMAP_TEST_POSTGRES_DSN and TRIPMAP_TEST_REDIS_ADDR,
-// same as make test-integration). Use FreshBrowser for a cookie jar + CSRF-aware
-// Connect client against the BFF public URL:
+// ChainHarness starts the services with isolated PostgreSQL schemas and Redis
+// key prefixes (requires TRIPMAP_TEST_POSTGRES_DSN, TRIPMAP_TEST_REDIS_ADDR,
+// USERSRV_TEST_POSTGRES_DSN and USERSRV_TEST_REDIS_ADDR, same as make
+// test-integration). The only thing replaced is the far end of account mail: a
+// local Inbox that records what a vendor would have been handed. Use
+// FreshBrowser for a cookie jar + CSRF-aware Connect client against the BFF
+// public URL:
 //
 //	h := NewChainHarness(t)
 //	a := h.FreshBrowser()
-//	id, err := a.Register(t.Context(), "alice", "password1", "Alice")
-//	b := h.FreshBrowser()
-//	_, err = b.Register(t.Context(), "bob", "password1", "Bob")
+//	id, err := a.Register(t.Context(), "alice", "", "Alice")
+//
+// Register runs the real flow: request mail, read the token out of the inbox,
+// complete the registration, sign in.
 //
 // Later tickets add scenarios by reusing ChainHarness and Browser helpers only.
 package e2e_test
@@ -27,13 +32,14 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/gin-gonic/gin"
 	bffapp "github.com/kongken/mono/internal/bff/app"
 	bffconfig "github.com/kongken/mono/internal/bff/config"
 	bffent "github.com/kongken/mono/internal/bff/ent"
-	"github.com/kongken/mono/internal/bff/oauth/provider"
+	bffsession "github.com/kongken/mono/internal/bff/ent/session"
 	"github.com/kongken/mono/internal/bff/session"
 	bfftestutil "github.com/kongken/mono/internal/bff/testutil"
 	metroapp "github.com/kongken/mono/internal/metro/app"
@@ -51,6 +57,14 @@ import (
 	tripmapent "github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/regions"
 	"github.com/kongken/mono/internal/tripmap/testutil"
+	usersrvaccount "github.com/kongken/mono/internal/usersrv/account"
+	usersrvapp "github.com/kongken/mono/internal/usersrv/app"
+	usersrvapplication "github.com/kongken/mono/internal/usersrv/application"
+	usersrvconfig "github.com/kongken/mono/internal/usersrv/config"
+	usersrvent "github.com/kongken/mono/internal/usersrv/ent"
+	usersrvmailer "github.com/kongken/mono/internal/usersrv/mailer"
+	usersrvoutbox "github.com/kongken/mono/internal/usersrv/outbox"
+	usersrvtestutil "github.com/kongken/mono/internal/usersrv/testutil"
 	bffmetrov1connect "github.com/kongken/mono/pkg/proto/bff/metro/v1/bffmetrov1connect"
 	bfftripmapv1 "github.com/kongken/mono/pkg/proto/bff/tripmap/v1"
 	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
@@ -72,6 +86,15 @@ type ChainHarness struct {
 	BFFDB     *bffent.Client
 	TripmapDB *tripmapent.Client
 
+	// Usersrv is the real account service; Accounts is its account core, for the
+	// operator actions that have no browser path (granting a role).
+	Usersrv      *usersrvapp.Handlers
+	UsersrvDB    *usersrvent.Client
+	UsersrvRes   *usersrvapp.Resources
+	Accounts     *usersrvaccount.Service
+	Inbox        *Inbox
+	usersrvFault *usersrvFault
+
 	// Metro and MetroDB are set when the harness was built with ChainMetro.
 	Metro   *metroapp.Handlers
 	MetroDB *metroent.Client
@@ -87,8 +110,10 @@ type ChainHarness struct {
 // Browser is a cookie-aware Connect client for bff.v1 (CSRF + schema headers).
 type Browser struct {
 	t          *testing.T
+	h          *ChainHarness
 	HTTP       *http.Client
 	Auth       bffv1connect.AuthServiceClient
+	Users      bffv1connect.UserServiceClient
 	Tokens     bffv1connect.AccessTokenServiceClient
 	Catalog    bffmetrov1connect.CatalogServiceClient
 	MetroAdmin bffmetrov1connect.AdminServiceClient
@@ -129,11 +154,11 @@ type ChainMetroUnary []grpc.UnaryServerInterceptor
 type ChainTransport string
 
 // NewChainHarness builds the full stack or skips when storage env is unset.
-// Optional extras: *provider.Registry, func(*tripmapconfig.AppConfig), blobstore.Store,
+// Optional extras: ChainUsersrvLimits, func(*tripmapconfig.AppConfig), blobstore.Store,
 // ChainHTTPOptions, ChainTransport, []grpc.UnaryServerInterceptor.
 func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	t.Helper()
-	var oauthReg *provider.Registry
+	usersrvLimit := usersrvLimits()
 	var httpOptions ChainHTTPOptions
 	var mutate []func(*tripmapconfig.AppConfig)
 	var tripUnary []grpc.UnaryServerInterceptor
@@ -151,8 +176,8 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 			withMetro = true
 		case ChainMetroUnary:
 			metroUnary = v
-		case *provider.Registry:
-			oauthReg = v
+		case ChainUsersrvLimits:
+			usersrvLimit = usersrvapplication.Limits(v)
 		case func(*tripmapconfig.AppConfig):
 			mutate = append(mutate, v)
 		case blobstore.Store:
@@ -221,16 +246,68 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	tripSrv := httptest.NewServer(tripHTTP)
 	t.Cleanup(tripSrv.Close)
 
+	// usersrv: the real account service over its own PostgreSQL schema and Redis
+	// prefix. Mail is the only thing replaced; the outbox runs for real and the
+	// harness delivers it on demand (DeliverMail).
+	h.Inbox = &Inbox{}
+	h.usersrvFault = &usersrvFault{}
+	usersrvDB := usersrvtestutil.DB(t)
+	usersrvRedis, usersrvPrefix := usersrvtestutil.Redis(t)
+	usersrvGRPC := grpcx.ServerConfig{Transport: transport, Listen: "127.0.0.1:0"}
+	if transport == "tls" {
+		tls := ca.Issue(t, "usersrv.internal")
+		usersrvGRPC.CertFile, usersrvGRPC.KeyFile = tls.CertFile, tls.KeyFile
+	}
+	h.Usersrv = usersrvapp.New(&usersrvconfig.AppConfig{
+		GRPC:         usersrvGRPC,
+		InternalAuth: servicetoken.VerifyConfig{Issuer: issuer, Audience: "usersrv", TrustedKeys: []servicetoken.TrustedKey{{KID: "k1", PublicKeyFile: keys.PublicFile}}},
+	})
+	h.Usersrv.SetGRPCTestUnaryInterceptors(h.usersrvFault.interceptor())
+	mailSender, err := usersrvmailer.NewWithSender(usersrvmailer.Config{Provider: "sendgrid", FromEmail: "no-reply@example.com", SendGrid: usersrvmailer.SendGridConfig{APIKey: "SG.key"}}, h.Inbox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	links, err := usersrvmailer.NewLinks(map[string]string{"trip-map": "https://map.example.com", "metro": "https://metro.example.com"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outboxSvc, err := usersrvoutbox.New(usersrvDB, mailKeyring(t), links, mailSender, usersrvoutbox.Settings{RegistrationTTL: 30 * time.Minute, ResetTTL: 15 * time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	usersrvRes, err := usersrvapp.NewResources(usersrvDB, usersrvtestutil.Hasher(t), usersrvRedis, usersrvPrefix, []byte(strings.Repeat("h", 32)), usersrvLimit,
+		func(ctx context.Context) error { _, err := usersrvDB.User.Query().Exist(ctx); return err }, usersrvapp.WithMail(outboxSvc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Usersrv.SetResources(usersrvRes)
+	h.UsersrvDB, h.UsersrvRes, h.Accounts = usersrvDB, usersrvRes, usersrvRes.Accounts
+	// The workers run as in production (readiness reports them); DeliverMail
+	// additionally runs the outbox by hand so a scenario does not wait for a tick.
+	for _, w := range usersrvRes.Workers {
+		w.Start()
+	}
+	if err = h.Usersrv.StartGRPC(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = h.Usersrv.Shutdown() })
+	usersrvHTTP := gin.New()
+	h.Usersrv.Routes(usersrvHTTP)
+	usersrvSrv := httptest.NewServer(usersrvHTTP)
+	t.Cleanup(usersrvSrv.Close)
+
 	bffCfg := &bffconfig.Config{
-		Upstreams:    map[string]string{"tripmap": tripSrv.URL},
+		Upstreams:    map[string]string{"usersrv": usersrvSrv.URL, "tripmap": tripSrv.URL},
 		InternalAuth: bffconfig.InternalAuth{Issuer: issuer, KID: "k1", PrivateKeyFile: keys.PrivateFile},
 		GRPC: bffconfig.GRPCConfig{CAFile: ca.CAFile, Services: map[string]bffconfig.GRPCService{
+			"usersrv": {Address: h.Usersrv.GRPCAddr(), ServerName: "usersrv.internal"},
 			"tripmap": {Address: h.Tripmap.GRPCAddr(), ServerName: "tripmap.internal"},
 		}},
 		Auth: bffconfig.AuthConfig{CookieSecure: false},
 	}
 	if transport == "h2c" {
 		bffCfg.GRPC = bffconfig.GRPCConfig{Services: map[string]bffconfig.GRPCService{
+			"usersrv": {Address: h.Usersrv.GRPCAddr(), Transport: "h2c"},
 			"tripmap": {Address: h.Tripmap.GRPCAddr(), Transport: "h2c"},
 		}}
 	}
@@ -276,22 +353,10 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 		scheme = "https"
 	}
 	baseURL := fmt.Sprintf("%s://localhost:%d", scheme, bffSrv.Listener.Addr().(*net.TCPAddr).Port)
-	// Business tests authenticate through the same HTTP callback as production,
-	// with only the remote Logto exchange replaced by a controlled test provider.
-	bffCfg.Auth.OAuthDevelopment = true
-	bffCfg.Auth.OAuthApps = map[string]bffconfig.OAuthApp{"test": {Origin: baseURL, DefaultPath: "/", AllowedPaths: []string{"/"}}}
-	bffCfg.Auth.OAuthProviders = map[string]bffconfig.OAuthProvider{"logto": {IssuerURL: "https://identity.example/oidc", ClientID: "test", ClientSecret: "test", RedirectURL: baseURL + "/auth/callback/logto"}}
-	if oauthReg == nil {
-		oauthReg = provider.NewRegistry()
-		oauthReg.Register(harnessLogto{})
-	}
 	if httpOptions.Configure != nil {
 		httpOptions.Configure(bffCfg, baseURL)
 	}
 	h.BFF = bffapp.New(bffCfg)
-	if oauthReg != nil {
-		h.BFF.SetOAuthRegistry(oauthReg)
-	}
 	h.BFF.SetResources(&bffapp.Resources{DB: bffDB, Redis: bffRedis, KeyPrefix: bffPrefix})
 	if err := h.BFF.Bootstrap(); err != nil {
 		t.Fatal(err)
@@ -371,8 +436,9 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 	hc := &http.Client{Jar: jar}
 	api := h.BFFURL + "/api"
 	return &Browser{
-		t: h.T, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
+		t: h.T, h: h, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
 		Auth:       bffv1connect.NewAuthServiceClient(hc, api),
+		Users:      bffv1connect.NewUserServiceClient(hc, api),
 		Tokens:     bffv1connect.NewAccessTokenServiceClient(hc, api),
 		Catalog:    bffmetrov1connect.NewCatalogServiceClient(hc, api),
 		MetroAdmin: bffmetrov1connect.NewAdminServiceClient(hc, api),
@@ -516,13 +582,62 @@ func (b *Browser) writeHeaders(req connect.AnyRequest, csrf string, origin strin
 	}
 }
 
-// Register simulates registration in Logto, then performs the BFF HTTP login.
-// The unused legacy password argument is retained for existing business fixtures;
-// no password is sent to, stored by, or authenticated in the application.
+// RequestRegistration asks for the verification mail of email.
+func (b *Browser) RequestRegistration(ctx context.Context, email, appID string) (*bffv1.RequestRegistrationResponse, error) {
+	req := connect.NewRequest(&bffv1.RequestRegistrationRequest{Email: email, AppId: appID})
+	b.Write(ctx, req)
+	res, err := b.Auth.RequestRegistration(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+// CompleteRegistration submits the token from the verification mail.
+func (b *Browser) CompleteRegistration(ctx context.Context, token, password, display string) error {
+	req := connect.NewRequest(&bffv1.CompleteRegistrationRequest{Token: token, Password: password, DisplayName: display})
+	b.Write(ctx, req)
+	_, err := b.Auth.CompleteRegistration(ctx, req)
+	return err
+}
+
+// LoginWithEmail signs in with an address and password.
+func (b *Browser) LoginWithEmail(ctx context.Context, email, password string) (*bffv1.LoginWithEmailResponse, error) {
+	req := connect.NewRequest(&bffv1.LoginWithEmailRequest{Email: email, Password: password})
+	b.Write(ctx, req)
+	res, err := b.Auth.LoginWithEmail(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+// register runs the real registration of subject and returns its user ID after
+// the account exists; it does not sign in.
+func (b *Browser) register(ctx context.Context, h *ChainHarness, subject, display string) error {
+	email := emailFor(subject)
+	if _, err := b.RequestRegistration(ctx, email, "trip-map"); err != nil {
+		return err
+	}
+	h.DeliverMail()
+	if len(h.Inbox.To(email)) == 0 {
+		return fmt.Errorf("no verification mail for %s", email)
+	}
+	return b.CompleteRegistration(ctx, h.Inbox.TokenIn(b.t, email), E2EPassword, display)
+}
+
+// Register registers the account of subject (a label, or an address) through the
+// real flow (request, mail, verify) and signs in. The unused legacy password
+// argument is kept for existing business fixtures; every account's password is
+// E2EPassword.
 func (b *Browser) Register(ctx context.Context, subject, _, display string) (string, error) {
-	if err := b.logtoSignIn(ctx, subject, display); err != nil {
+	if err := b.register(ctx, b.h, subject, display); err != nil {
 		return "", err
 	}
+	if _, err := b.LoginWithEmail(ctx, emailFor(subject), E2EPassword); err != nil {
+		return "", err
+	}
+	b.touchTripmap(ctx)
 	me, err := b.Me(ctx)
 	if err != nil {
 		return "", err
@@ -530,68 +645,131 @@ func (b *Browser) Register(ctx context.Context, subject, _, display string) (str
 	return me.Id, nil
 }
 
+// Login signs in as the account of subject.
 func (b *Browser) Login(ctx context.Context, subject, _ string, _ string) error {
-	return b.logtoSignIn(ctx, subject, subject)
-}
-
-// LoginWithRoles signs in as subject with the given Logto roles in the session.
-func (b *Browser) LoginWithRoles(ctx context.Context, subject string, roles ...string) error {
-	return b.logtoSignIn(ctx, subject, subject, roles...)
-}
-
-func (b *Browser) logtoSignIn(ctx context.Context, subject, display string, roles ...string) error {
-	hc := *b.HTTP
-	hc.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	get := func(target string) (*http.Response, error) {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
-		if err != nil {
-			return nil, err
-		}
-		return hc.Do(req)
-	}
-	begin, err := get(b.Origin + "/auth/login?app=test")
-	if err != nil {
+	if _, err := b.LoginWithEmail(ctx, emailFor(subject), E2EPassword); err != nil {
 		return err
 	}
-	begin.Body.Close()
-	if begin.StatusCode != http.StatusFound {
-		return fmt.Errorf("begin: %d", begin.StatusCode)
-	}
-	u, err := url.Parse(begin.Header.Get("Location"))
-	if err != nil {
-		return err
-	}
-	end, err := get(b.Origin + "/auth/callback/logto?state=" + u.Query().Get("state") + "&code=" + url.QueryEscape(subject+"|"+display+"|"+strings.Join(roles, ",")))
-	if err != nil {
-		return err
-	}
-	end.Body.Close()
-	if end.StatusCode != http.StatusSeeOther {
-		return fmt.Errorf("callback: %d", end.StatusCode)
-	}
+	b.touchTripmap(ctx)
 	return nil
 }
 
-// harnessLogto never runs outside tests. The real OIDC exchange is covered by
-// oauth_browser_test.go and provider/logto_test.go.
-type harnessLogto struct{}
-
-func (harnessLogto) Name() string        { return "logto" }
-func (harnessLogto) DisplayName() string { return "Logto" }
-func (harnessLogto) AuthorizeURL(state string) string {
-	return "https://identity.example/authorize?state=" + state
+// touchTripmap makes the first signed-in tripmap call, as a product page does when
+// it loads. tripmap's display projection of the account is made on demand by that
+// call, so business fixtures that seed tripmap rows for a user need it to have
+// happened. A failure (tripmap paused, usersrv down) is the test's business, not
+// the sign-in's.
+func (b *Browser) touchTripmap(ctx context.Context) {
+	req := connect.NewRequest(&bfftripmapv1.GetFootprintsRequest{})
+	b.withTripmapHeaders(req)
+	_, _ = b.Foot.GetFootprints(ctx, req)
 }
-func (harnessLogto) Exchange(_ context.Context, code string) (*provider.Claims, error) {
-	sub, rest, ok := strings.Cut(code, "|")
-	name, roles, _ := strings.Cut(rest, "|")
-	if !ok || sub == "" {
-		return nil, fmt.Errorf("invalid test authorization code")
+
+// LoginWithRoles registers the account of subject, has the operator grant it the
+// given roles (only roles usersrv knows are granted) and signs in, so the session
+// starts at the version that includes them.
+func (b *Browser) LoginWithRoles(ctx context.Context, subject string, roles ...string) error {
+	if err := b.register(ctx, b.h, subject, subject); err != nil {
+		return err
 	}
-	claims := &provider.Claims{ExternalID: sub, Login: sub, Name: name}
-	if roles != "" {
-		claims.Roles = strings.Split(roles, ",")
+	id, err := b.h.Accounts.ResolveEmail(ctx, emailFor(subject))
+	if err != nil {
+		return err
 	}
-	return claims, nil
+	for _, role := range roles {
+		if role != "metro-admin" {
+			continue
+		}
+		if _, err := b.h.Accounts.GrantRole(ctx, usersrvaccount.Operator{Name: "e2e", Reason: "test"}, id, role); err != nil {
+			return err
+		}
+	}
+	return b.Login(ctx, subject, "", "")
+}
+
+// Reauthenticate re-checks the password on the current session.
+func (b *Browser) Reauthenticate(ctx context.Context, password string) error {
+	req := connect.NewRequest(&bffv1.ReauthenticateRequest{Password: password})
+	b.Write(ctx, req)
+	_, err := b.Auth.Reauthenticate(ctx, req)
+	return err
+}
+
+// ChangePassword changes the password of the signed-in account.
+func (b *Browser) ChangePassword(ctx context.Context, current, next string) error {
+	req := connect.NewRequest(&bffv1.ChangePasswordRequest{CurrentPassword: current, NewPassword: next})
+	b.Write(ctx, req)
+	_, err := b.Auth.ChangePassword(ctx, req)
+	return err
+}
+
+// UpdateMyProfile replaces the nickname and avatar.
+func (b *Browser) UpdateMyProfile(ctx context.Context, display, avatar string) (*bffv1.User, error) {
+	req := connect.NewRequest(&bffv1.UpdateMyProfileRequest{DisplayName: display, AvatarUrl: avatar})
+	b.Write(ctx, req)
+	res, err := b.Users.UpdateMyProfile(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg.GetUser(), nil
+}
+
+// RequestPasswordReset asks for the reset mail of email.
+func (b *Browser) RequestPasswordReset(ctx context.Context, email, appID string) (*bffv1.RequestPasswordResetResponse, error) {
+	req := connect.NewRequest(&bffv1.RequestPasswordResetRequest{Email: email, AppId: appID})
+	b.Write(ctx, req)
+	res, err := b.Auth.RequestPasswordReset(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+// ResetPassword submits the token of the reset mail with a new password.
+func (b *Browser) ResetPassword(ctx context.Context, token, next string) error {
+	req := connect.NewRequest(&bffv1.ResetPasswordRequest{Token: token, NewPassword: next})
+	b.Write(ctx, req)
+	_, err := b.Auth.ResetPassword(ctx, req)
+	return err
+}
+
+// MeFull returns the whole Me response.
+func (b *Browser) MeFull(ctx context.Context) (*bffv1.MeResponse, error) {
+	req := connect.NewRequest(&bffv1.MeRequest{})
+	b.withTripmapHeaders(req)
+	res, err := b.Auth.Me(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+// GetAccountDeletion reads the deletion the session cookie started.
+func (b *Browser) GetAccountDeletion(ctx context.Context) (*bffv1.AccountDeletion, error) {
+	req := connect.NewRequest(&bffv1.GetAccountDeletionRequest{})
+	res, err := b.Auth.GetAccountDeletion(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg.GetDeletion(), nil
+}
+
+// RetryAccountDeletion continues the deletion the session cookie started.
+func (b *Browser) RetryAccountDeletion(ctx context.Context) (*bffv1.AccountDeletion, error) {
+	req := connect.NewRequest(&bffv1.RetryAccountDeletionRequest{})
+	b.Write(ctx, req)
+	res, err := b.Auth.RetryAccountDeletion(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg.GetDeletion(), nil
+}
+
+// SetSessionCookie puts a session token into the jar, as a browser that kept an
+// old Cookie would send it.
+func (b *Browser) SetSessionCookie(token string) {
+	u, _ := url.Parse(b.Origin)
+	b.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: session.CookieName, Value: token, Path: "/"}})
 }
 
 func (b *Browser) Logout(ctx context.Context) error {
@@ -633,4 +811,28 @@ func (b *Browser) SessionCookie() string {
 		}
 	}
 	return ""
+}
+
+// operator is the identity the harness acts under for the controlled account
+// operations that have no browser path.
+var operator = usersrvaccount.Operator{Name: "e2e", Reason: "test"}
+
+// ageSession makes the password check of b's current session d old, as if the
+// user had signed in that long ago.
+func (h *ChainHarness) ageSession(b *Browser, d time.Duration) {
+	h.T.Helper()
+	n, err := h.BFFDB.Session.Update().Where(bffsession.TokenHash(session.HashToken(b.SessionCookie()))).
+		SetAuthenticatedAt(time.Now().UTC().Add(-d)).Save(context.Background())
+	if err != nil || n != 1 {
+		h.T.Fatalf("age session: %d %v", n, err)
+	}
+}
+
+// Status reads the anonymous tripmap status through the BFF.
+func (b *Browser) Status(ctx context.Context) (*bfftripmapv1.GetStatusResponse, error) {
+	res, err := bfftripmapv1connect.NewStatusServiceClient(b.HTTP, b.APIURL).GetStatus(ctx, connect.NewRequest(&bfftripmapv1.GetStatusRequest{}))
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
 }

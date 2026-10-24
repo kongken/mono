@@ -21,8 +21,8 @@ func timestamps() []ent.Field {
 	return []ent.Field{field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now)}
 }
 
-// User is the business profile keyed by the BFF identity mapping ID.
-// Logto owns accounts and credentials; the BFF owns browser sessions.
+// User is the tripmap profile keyed by the usersrv user UUID.
+// usersrv owns accounts and credentials; the BFF owns browser sessions. This row is the display projection of an account (ID, nickname, avatar) plus tripmap's own data.
 type User struct{ ent.Schema }
 
 func (User) Annotations() []schema.Annotation {
@@ -38,7 +38,7 @@ func (User) Fields() []ent.Field {
 		// 1 = date/note live on city_visits (frozen once upgraded); 2 = trips live in
 		// city_trips. Upgraded in place by the first write from a schema 2 client.
 		field.Int("schema_version").Default(1).Min(1),
-		// Invite code for F7 friendships (usable even by OAuth accounts without a username).
+		// Invite code for F7 friendships (the only way to add a friend).
 		field.String("friend_code").Optional().Nillable().Unique(),
 		// F7 visibility towards confirmed friends: cities on by default, dates/notes opt-in.
 		field.Bool("friend_show_cities").Default(true),

@@ -32,9 +32,12 @@ test.describe("account sessions list", () => {
       });
     });
     await login(page);
+    // The settings screen reads the email from Me, so the session must be a live one.
+    backend.state.authenticated = true;
     await page.getByRole("button", { name: "账号", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "账号设置" }).click();
     await expect(page.getByText("已登录的设备")).toBeVisible();
-    await expect(page.getByText("当前设备")).toBeVisible();
+    await expect(page.getByTestId("sessions").getByText("当前设备")).toBeVisible();
     await expect(page.locator(".account-sessions li").filter({ hasText: "其他设备" })).toBeVisible();
   });
 });

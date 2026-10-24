@@ -1,12 +1,10 @@
-import { Code, ConnectError } from "@connectrpc/connect";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { authApi, type ProviderInfo } from "@/api/auth";
+import { requireAccount } from "@/api/auth";
 import { detachThisDevice } from "@/api/notification";
 import { createFootprintApi } from "@/api/footprints";
-import { apiConfig, backendEnabled, setTransportAccount } from "@/api/transport";
+import { backendEnabled, setTransportAccount } from "@/api/transport";
 import { refreshCSRF } from "@/api/csrf";
 import { describeApiError, isUnauthenticated } from "@/lib/errors";
-import { oauthLoginURL } from "@/lib/oauth";
 import {
   acknowledgeLegacyCache,
   clearAccountData,
@@ -89,6 +87,9 @@ export function useCloud(options: Options) {
   const [deletionBlocked, setDeletionBlocked] = useState(
     !!options.boot.session?.user.deletionPending,
   );
+  // The session cookie no longer works (expired, revoked, password changed). The cache and
+  // its unsynced edits stay; only signing in again (or exporting them) goes on from here.
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [loaded, setLoaded] = useState<"pending" | "ok" | "failed">("pending");
   const [loadError, setLoadError] = useState(options.boot.error ?? "");
   const protectedCache = useRef(!!options.boot.error);
@@ -107,12 +108,11 @@ export function useCloud(options: Options) {
   // True once this session has confirmed the cloud state, not just the cache.
   const [fresh, setFresh] = useState(false);
   const sawSync = useRef(false);
-  const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [busy, setBusy] = useState("");
   const engineRef = useRef<SyncEngine | null>(null);
   const editSeq = useRef(0);
   const lastRefresh = useRef(0);
-  const callbackHandled = useRef(false);
+  const restoreStarted = useRef(false);
 
   const setSession = (next: StoredSession | null) => {
     setTransportAccount(next?.user.id);
@@ -141,6 +141,7 @@ export function useCloud(options: Options) {
     setConflictRecords([]);
     setPending(false);
     setDeletionBlocked(false);
+    setSessionExpired(false);
     setTransportAccount();
     sessionRef.current = null;
     setSessionState(null);
@@ -214,8 +215,9 @@ export function useCloud(options: Options) {
           if (sessionRef.current?.user.id !== s.user.id) return;
           if (isUnauthenticated(error)) {
             // Do not clear unsent edits automatically when a session expires.
+            setSessionExpired(true);
             setLoadError(
-              "登录已过期，未同步修改仍保留，请先导出备份再退出并重新登录",
+              "登录已失效，未同步修改仍保留在本机。请在账号窗口重新登录后继续同步，或先导出备份",
             );
           } else {
             setLoadError(describeApiError(error));
@@ -261,7 +263,8 @@ export function useCloud(options: Options) {
     } catch (error) {
       if (sessionRef.current?.user.id !== s.user.id) return;
       if (isUnauthenticated(error)) {
-        setLoadError("登录已过期，请先导出未同步修改，再退出并重新登录");
+        setSessionExpired(true);
+        setLoadError("登录已失效。请在账号窗口重新登录；未同步修改仍保留在本机，也可先导出备份");
         setLoaded("failed");
         return;
       }
@@ -318,6 +321,7 @@ export function useCloud(options: Options) {
     engineRef.current?.stop();
     engineRef.current = null;
     setSession(s);
+    setSessionExpired(false);
     setDeletionBlocked(!!s.user.deletionPending);
     if (s.user.deletionPending) {
       setHasData(true);
@@ -416,20 +420,14 @@ export function useCloud(options: Options) {
     };
   }, [session, refresh]);
 
-  // The BFF callback sets its host-only session cookie. Restore from Me;
-  // authorization codes and state never enter the SPA or browser storage.
+  // Restore the session from Me: the HttpOnly session cookie is authoritative.
   useEffect(() => {
-    if (!backendEnabled || callbackHandled.current) return;
-    callbackHandled.current = true;
-    // Discard material left by a pre-migration SPA without accepting its callback.
+    if (!backendEnabled || restoreStarted.current) return;
+    restoreStarted.current = true;
+    // Discard material left by a pre-migration SPA.
     sessionStorage.removeItem("shanhai-oauth-pending-v1");
-    if (location.pathname.includes("/auth/callback/")) {
-      history.replaceState(null, "", import.meta.env.BASE_URL);
-      opts.current.notify("登录入口已更新，请重新发起登录");
-      return;
-    }
     setBusy("正在恢复登录…");
-    authApi.me().then((user) => {
+    requireAccount().me().then(({ user }) => {
       if (sessionRef.current?.user.id !== user.id) enter({ user });
     }).catch((error) => {
       if (!isUnauthenticated(error) && !sessionRef.current)
@@ -448,14 +446,6 @@ export function useCloud(options: Options) {
     () => engineRef.current?.confirmed.saved ?? null,
     [],
   );
-
-  const loadProviders = useCallback(async () => {
-    try {
-      setProviders(await authApi.listProviders());
-    } catch {
-      setProviders([]);
-    }
-  }, []);
 
   return {
     enabled: backendEnabled,
@@ -528,7 +518,6 @@ export function useCloud(options: Options) {
       if (old !== null) download(old, "山海足迹-旧版账号缓存.json");
     },
     busy,
-    providers,
     retry: () => refresh(true),
     /** Hand a user edit to the sync engine; call only in cloud mode. */
     push: (next: Saved, atomic = false) => {
@@ -561,51 +550,67 @@ export function useCloud(options: Options) {
       else engine.push(next);
       return true;
     },
-    loadProviders,
-    startOAuth: async (provider: string) => {
-      if (!apiConfig.enabled) throw new Error("backend not configured");
-      location.assign(oauthLoginURL(
-        apiConfig.baseUrl,
-        location.origin,
-        import.meta.env.VITE_OAUTH_APP_ID || "trip-map",
-        provider,
-      ));
+    sessionExpired,
+    /** A fresh sign-in from the account window: the cookie was just set by the login response. */
+    signIn: (user: StoredSession["user"], expiresAt?: Date | null) => {
+      enter({
+        user: { id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl },
+        ...(expiresAt ? { expiresAt: expiresAt.getTime() } : {}),
+      });
     },
-    deleteAccount: async () => {
+    /** The profile was edited in the account window. */
+    updateUser: (user: Pick<StoredSession["user"], "displayName" | "avatarUrl">) => {
       const s = sessionRef.current;
       if (!s) return;
+      const next = { ...s, user: { ...s.user, ...user } };
+      saveSession(localStorage, next);
+      setSession(next);
+    },
+    /**
+     * The password was changed: the server ended every session, this one included. With
+     * nothing unsynced the account is left like a sign-out; otherwise the cache and its
+     * edits stay and the window asks for a new sign-in, from which syncing continues.
+     */
+    passwordChanged: async () => {
       const engine = engineRef.current;
       await engine?.drain();
-      engine?.stop();
-      setDeletionBlocked(true);
-      try {
-        await authApi.deleteAccount();
-        leaveAccount("山海足迹云端数据已删除，用户中心账号及登录前的本机足迹保留", true);
-      } catch (error) {
-        if (
-          !s.user.deletionPending &&
-          error instanceof ConnectError &&
-          [
-            Code.PermissionDenied,
-            Code.InvalidArgument,
-            Code.FailedPrecondition,
-          ].includes(error.code)
-        ) {
-          setDeletionBlocked(false);
-          engine?.resume();
-        } else {
-          const pendingSession = {
-            ...s,
-            user: { ...s.user, deletionPending: true },
-          };
-          saveSession(localStorage, pendingSession);
-          setSession(pendingSession);
-          setLoadError(
-            "云端数据删除尚未确认完成，请重新登录或打开账号设置重试；云端编辑已暂停",
-          );
-        }
-        throw error;
+      if (engine?.pending || protectedCache.current) {
+        setSessionExpired(true);
+        setLoadError("密码已修改，所有设备都已退出。未同步修改仍保留在本机，请重新登录后继续同步，或先导出备份");
+        setLoaded("failed");
+        opts.current.notify("密码已修改，请使用新密码重新登录；未同步修改仍保留在本机");
+        return "kept" as const;
       }
+      leaveAccount("密码已修改，所有设备都已退出，请使用新密码重新登录");
+      return "left" as const;
+    },
+    /**
+     * Hooks for closing the account (`DeleteAccountPanel`): sync stops once the password was
+     * accepted, resumes when the server refused before starting, and a deletion the server
+     * could not finish is remembered so a reload offers only the retry.
+     */
+    deletion: {
+      prepare: async () => {
+        const engine = engineRef.current;
+        await engine?.drain();
+        engine?.stop();
+        setDeletionBlocked(true);
+      },
+      notStarted: () => {
+        if (sessionRef.current?.user.deletionPending) return;
+        setDeletionBlocked(false);
+        engineRef.current?.resume();
+      },
+      pending: () => {
+        const s = sessionRef.current;
+        if (!s) return;
+        const pendingSession = { ...s, user: { ...s.user, deletionPending: true } };
+        saveSession(localStorage, pendingSession);
+        setSession(pendingSession);
+        setDeletionBlocked(true);
+        setLoadError("注销尚未确认完成，云端编辑已暂停；请打开账号设置重试注销");
+      },
+      done: () => leaveAccount("账号已注销，账号和所有产品的数据都已删除；登录前的本机足迹保留", true),
     },
     logout: async (discardPending = false) => {
       const s = sessionRef.current;
@@ -623,7 +628,7 @@ export function useCloud(options: Options) {
       // Stop this browser receiving the account's reminders once it is signed out.
       await detachThisDevice();
       try {
-        await authApi.logout();
+        await requireAccount().logout();
       } catch (error) {
         revoked = isUnauthenticated(error);
       }

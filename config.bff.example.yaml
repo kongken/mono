@@ -11,6 +11,8 @@ key_prefix: bff
 auto_migrate: true
 
 upstreams:
+  # usersrv is the account service (sign-in, registration, password, roles). It is required.
+  usersrv: http://127.0.0.1:18086
   tripmap: http://127.0.0.1:18082
   # metro (the second product) is optional: remove this line, grpc.services.metro and
   # auth.account_cleanup's metro entry to run the BFF without it.
@@ -21,6 +23,10 @@ grpc:
   # `go run ./cmd/dev-secrets -tls`, set transport: tls and add ca_file.
   # ca_file: dev-secrets/ca.pem
   services:
+    # usersrv trusts this BFF's public key (internal_auth.trusted_keys in its config).
+    usersrv:
+      address: 127.0.0.1:18087
+      transport: h2c
     tripmap:
       address: 127.0.0.1:18083
       # Unencrypted HTTP/2; only for loopback or an explicitly approved trusted network.
@@ -48,35 +54,15 @@ mcp:
 
 auth:
   session_ttl: 168h
-  # Procedures that declare required_role (the metro admin API) also need a session
-  # signed in within this long, because Logto roles are read at sign-in and are not
-  # revoked live. Default 12h.
+  # Procedures that declare required_role (the metro admin API) need a session whose
+  # password was last checked (sign-in or Reauthenticate) within this long. The role
+  # itself is read from usersrv on every request. Default 12h.
   admin_session_max_age: 12h
-  # Products whose data "delete my cloud data" removes; each needs its upstream.
+  # Products whose data account deletion removes; each needs its upstream.
   # Default: tripmap only.
   account_cleanup: [tripmap, metro]
   csrf_token_ttl: 24h    # optional; default 24h when unset
   cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP
-  # Explicit loopback-only HTTP exception for local OAuth development.
-  # Production: remove oauth_development, set cookie_secure: true, use HTTPS.
-  oauth_development: true
-  oauth_apps:
-    trip-map:
-      origin: http://localhost:5173
-      default_path: /
-      allowed_paths: [/]
-    metro:
-      origin: http://localhost:5174
-      default_path: /
-      allowed_paths: [/, /me, /admin]
-  # Logto is the sole identity provider. Configure registration, password
-  # recovery, social connections and passkeys in Logto.
-  # oauth_providers:
-  #   logto:
-  #     issuer_url: https://auth.example.com/oidc
-  #     client_id: local-client
-  #     client_secret: replace-in-ignored-config
-  #     redirect_url: http://localhost:18081/auth/callback/logto
 
 # Exact origins for direct BFF access. Same-origin /api proxy needs none.
 cors_allowed_origins:

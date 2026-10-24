@@ -9,11 +9,14 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	bffconfig "github.com/kongken/mono/internal/bff/config"
 	bffmetrov1 "github.com/kongken/mono/pkg/proto/bff/metro/v1"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // mcpClient speaks MCP Streamable HTTP to the BFF.
@@ -472,4 +475,132 @@ func mustJSON(t *testing.T, v any) []byte {
 		t.Fatal(err)
 	}
 	return b
+}
+
+// Spec §14 scenarios 6, 8, 9 and 20: every tool call asks usersrv again. A token
+// stops working when its owner's password changes or resets, a role is revoked (and
+// is not restored by granting it again), the account is disabled or deleting, and
+// while usersrv cannot answer nothing is run.
+func TestChainMCPTokenIsRevalidatedOnEveryCall(t *testing.T) {
+	h := NewChainHarness(t, ChainMetro{})
+	ctx := context.Background()
+	callOK := func(c *mcpClient) (bool, string) {
+		t.Helper()
+		st, res := c.rpc("tools/call", map[string]any{"name": "metro_list_cities", "arguments": map[string]any{}})
+		if st != http.StatusOK {
+			// A token that no longer exists (account deleted) is refused at the door.
+			return false, "UNAUTHENTICATED"
+		}
+		result := res["result"].(map[string]any)
+		text := result["content"].([]any)[0].(map[string]any)["text"].(string)
+		var out map[string]any
+		_ = json.Unmarshal([]byte(text), &out)
+		msg := ""
+		if e, ok := out["error"].(map[string]any); ok {
+			msg, _ = e["code"].(string)
+		}
+		isErr, _ := result["isError"].(bool)
+		return !isErr, msg
+	}
+
+	admin, id := h.adminBrowser(ctx, "mcp-owner")
+	secret := h.newAdminToken(ctx, admin, "t", 30)
+	c := h.mcp(secret)
+	if ok, msg := callOK(c); !ok {
+		t.Fatalf("a fresh token: %s", msg)
+	}
+
+	// An outage refuses the call instead of running it on an old snapshot.
+	h.FailUsersrv(func(string) error { return status.Error(codes.Unavailable, "down") })
+	if ok, msg := callOK(c); ok || msg != "UNAVAILABLE" {
+		t.Fatalf("during an outage: ok=%v %s", ok, msg)
+	}
+	h.FailUsersrv(nil)
+	if ok, _ := callOK(c); !ok {
+		t.Fatal("the token did not recover with usersrv")
+	}
+
+	// Revoking the role ends the token's access at once; a later grant of the same
+	// role starts a new version and does not bring the token back.
+	uid := userUUID(t, id)
+	if _, err := h.Accounts.RevokeRole(ctx, operator, uid, "metro-admin"); err != nil {
+		t.Fatal(err)
+	}
+	if ok, msg := callOK(c); ok || msg != "UNAUTHENTICATED" {
+		t.Fatalf("after the role was revoked: ok=%v %s", ok, msg)
+	}
+	if _, err := h.Accounts.GrantRole(ctx, operator, uid, "metro-admin"); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := callOK(c); ok {
+		t.Fatal("granting the role again restored an old token")
+	}
+
+	// A password reset or change ends tokens too, and disabling an account does.
+	for name, end := range map[string]func(sub string, id string){
+		"password change": func(sub, _ string) {
+			b := h.FreshBrowser()
+			if err := b.Login(ctx, sub, "", ""); err != nil {
+				t.Fatal(err)
+			}
+			if err := b.ChangePassword(ctx, E2EPassword, "a brand new password"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"disable": func(_, id string) {
+			if _, err := h.Accounts.SetDisabled(ctx, operator, userUUID(t, id), true); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"deletion": func(sub, _ string) {
+			b := h.FreshBrowser()
+			if err := b.Login(ctx, sub, "", ""); err != nil {
+				t.Fatal(err)
+			}
+			if err := b.DeleteAccount(ctx, &bffv1.DeleteAccountRequest{Confirmation: "DELETE", MutationId: "mcp-del"}); err != nil {
+				t.Fatal(err)
+			}
+		},
+	} {
+		sub := "mcp-" + strings.ReplaceAll(name, " ", "-")
+		br, bid := h.adminBrowser(ctx, sub)
+		tc := h.mcp(h.newAdminToken(ctx, br, name, 30))
+		if ok, msg := callOK(tc); !ok {
+			t.Fatalf("%s: a fresh token: %s", name, msg)
+		}
+		end(sub, bid)
+		if ok, msg := callOK(tc); ok || msg != "UNAUTHENTICATED" {
+			t.Fatalf("%s: the token kept working: ok=%v %s", name, ok, msg)
+		}
+	}
+}
+
+// Creating a management token needs the password to have been checked recently.
+func TestChainMCPTokenCreationNeedsARecentPassword(t *testing.T) {
+	h := NewChainHarness(t, ChainMetro{})
+	ctx := context.Background()
+	admin, _ := h.adminBrowser(ctx, "mcp-fresh")
+	h.ageSession(admin, 16*time.Minute)
+	req := connect.NewRequest(&bffv1.CreateAccessTokenRequest{Name: "late", ExpiresInDays: 1})
+	admin.Write(ctx, req)
+	if _, err := admin.Tokens.CreateAccessToken(ctx, req); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("a stale password check created a token: %v", err)
+	}
+	if err := admin.Reauthenticate(ctx, E2EPassword); err != nil {
+		t.Fatal(err)
+	}
+	if secret := h.newAdminToken(ctx, admin, "now", 1); secret == "" {
+		t.Fatal("no token after reauthenticating")
+	}
+	// An admin session older than the limit loses the admin API until it reauthenticates.
+	h.ageSession(admin, 13*time.Hour)
+	if _, err := admin.MetroAdmin.ListAdminCities(ctx, connect.NewRequest(&bffmetrov1.ListAdminCitiesRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("an old admin session: %v", err)
+	}
+	if err := admin.Reauthenticate(ctx, E2EPassword); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := admin.MetroAdmin.ListAdminCities(ctx, connect.NewRequest(&bffmetrov1.ListAdminCitiesRequest{})); err != nil {
+		t.Fatalf("after reauthenticating: %v", err)
+	}
 }

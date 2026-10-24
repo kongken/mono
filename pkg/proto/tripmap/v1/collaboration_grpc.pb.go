@@ -48,7 +48,8 @@ type CollaborationServiceClient interface {
 	GetCollaborationOverview(ctx context.Context, in *GetCollaborationOverviewRequest, opts ...grpc.CallOption) (*GetCollaborationOverviewResponse, error)
 	// UpdateFriendSettings updates which footprint fields confirmed friends can see.
 	UpdateFriendSettings(ctx context.Context, in *UpdateFriendSettingsRequest, opts ...grpc.CallOption) (*UpdateFriendSettingsResponse, error)
-	// SendFriendRequest invites another user by username or friend invite code.
+	// SendFriendRequest invites another user by friend invite code (fc_...). There is
+	// no lookup by name, nickname or email.
 	SendFriendRequest(ctx context.Context, in *SendFriendRequestRequest, opts ...grpc.CallOption) (*SendFriendRequestResponse, error)
 	// RespondFriendRequest accepts or declines a pending friend request (or cancels an outgoing one).
 	RespondFriendRequest(ctx context.Context, in *RespondFriendRequestRequest, opts ...grpc.CallOption) (*RespondFriendRequestResponse, error)
@@ -246,7 +247,8 @@ type CollaborationServiceServer interface {
 	GetCollaborationOverview(context.Context, *GetCollaborationOverviewRequest) (*GetCollaborationOverviewResponse, error)
 	// UpdateFriendSettings updates which footprint fields confirmed friends can see.
 	UpdateFriendSettings(context.Context, *UpdateFriendSettingsRequest) (*UpdateFriendSettingsResponse, error)
-	// SendFriendRequest invites another user by username or friend invite code.
+	// SendFriendRequest invites another user by friend invite code (fc_...). There is
+	// no lookup by name, nickname or email.
 	SendFriendRequest(context.Context, *SendFriendRequestRequest) (*SendFriendRequestResponse, error)
 	// RespondFriendRequest accepts or declines a pending friend request (or cancels an outgoing one).
 	RespondFriendRequest(context.Context, *RespondFriendRequestRequest) (*RespondFriendRequestResponse, error)

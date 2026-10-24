@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/kongken/mono/internal/bff/accesstoken"
+	"github.com/kongken/mono/internal/bff/usersrv"
 	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	metrov1 "github.com/kongken/mono/pkg/proto/metro/v1"
@@ -56,6 +57,15 @@ type Authenticator interface {
 	Authenticate(ctx context.Context, secret, audience string) (accesstoken.Principal, error)
 }
 
+// Accounts is the account state usersrv holds. Every tool call asks it, so a
+// token never outlives its owner's account, password version or role.
+type Accounts interface {
+	AuthState(ctx context.Context, userID string) (usersrv.AuthState, error)
+}
+
+// AdminRole is the role every tool of this endpoint needs.
+const AdminRole = "metro-admin"
+
 // Limiter is a fixed-window counter shared across BFF replicas.
 type Limiter interface {
 	Allow(ctx context.Context, key string, limit int64, window time.Duration) (bool, error)
@@ -63,9 +73,10 @@ type Limiter interface {
 
 // Config wires a Server.
 type Config struct {
-	Admin   metrov1.AdminServiceClient
-	Tokens  Authenticator
-	Limiter Limiter
+	Admin    metrov1.AdminServiceClient
+	Tokens   Authenticator
+	Accounts Accounts
+	Limiter  Limiter
 	// RatePerMinute is the per-token limit; zero means DefaultRatePerMinute.
 	RatePerMinute int
 	// ClientIPHeader is the trusted proxy header carrying the client address.
@@ -351,6 +362,10 @@ func (s *Server) callTool(ctx context.Context, params json.RawMessage, p accesst
 		return textResult((&toolError{Code: "PERMISSION_DENIED",
 			Message: "this token does not have the " + t.scope + " scope"}).text(), true), nil
 	}
+	roles, terr := s.effectiveRoles(ctx, p)
+	if terr != nil {
+		return textResult(terr.text(), true), nil
+	}
 	limit := callTimeout
 	if t.heavy {
 		limit = heavyCallTimeout
@@ -360,7 +375,7 @@ func (s *Server) callTool(ctx context.Context, params json.RawMessage, p accesst
 	// The credential the metro service verifies: the token's owner and role
 	// snapshot, on the mcp channel, tagged with the token for the audit trail.
 	ctx = rpcauth.WithCall(ctx, rpcauth.Call{
-		UserID: p.UserID, Roles: p.Roles, Channel: rpcauth.ChannelMCP, TokenID: p.TokenID,
+		UserID: p.UserID, Roles: roles, Channel: rpcauth.ChannelMCP, TokenID: p.TokenID,
 		RequestID: rpcauth.NewRequestID(), ClientIP: clientIP,
 	})
 	out, terr := s.run(ctx, t, in.Arguments)
@@ -369,6 +384,34 @@ func (s *Server) callTool(ctx context.Context, params json.RawMessage, p accesst
 		return textResult(terr.text(), true), nil
 	}
 	return textResult(out, false), nil
+}
+
+// effectiveRoles asks usersrv about the token's owner for this very call. The
+// account must be active at the auth_version the token was created at, and the
+// roles are the token's snapshot narrowed to what the account holds now. When
+// usersrv cannot answer, the call fails and nothing is forwarded.
+func (s *Server) effectiveRoles(ctx context.Context, p accesstoken.Principal) ([]string, *toolError) {
+	state, err := s.cfg.Accounts.AuthState(ctx, p.UserID)
+	if err != nil {
+		if errors.Is(err, usersrv.ErrNotFound) {
+			return nil, &toolError{Code: "UNAUTHENTICATED", Message: "this token is no longer valid"}
+		}
+		slog.Error("mcp account check", "error", err)
+		return nil, &toolError{Code: "UNAVAILABLE", Message: "the account service is unavailable; retry"}
+	}
+	if state.Status != usersrv.StatusActive || state.AuthVersion != p.AuthVersion {
+		return nil, &toolError{Code: "UNAUTHENTICATED", Message: "this token is no longer valid"}
+	}
+	var roles []string
+	for _, r := range p.Roles {
+		if slices.Contains(state.Roles, r) {
+			roles = append(roles, r)
+		}
+	}
+	if !slices.Contains(roles, AdminRole) {
+		return nil, &toolError{Code: "PERMISSION_DENIED", Message: "the token's owner no longer holds the " + AdminRole + " role"}
+	}
+	return roles, nil
 }
 
 var marshalOpts = protojson.MarshalOptions{}

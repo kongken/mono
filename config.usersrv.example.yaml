@@ -1,0 +1,156 @@
+# Local-only sample. Copy to ignored config.usersrv.yaml; replace every credential for deployment.
+# Butterfly reads literal YAML; ${VAR} substitutions are not supported.
+#
+# usersrv is the internal account service (email + password accounts, roles, account
+# security state, account mail). It is not user-facing: only the BFF calls it, over gRPC.
+# Deploying it: docs/deployment.md#usersrv-的部署. Every credential and key below is a public
+# local sample; allow_loopback_http, allow_insecure_loopback and h2c are local-only settings.
+log:
+  level: info
+  format: text
+  add_source: false
+
+# usersrv owns its own PostgreSQL database (create it first, for example: createdb usersrv).
+db_store: main
+# Required: rate-limit counters live in Redis and fail closed when it is unreachable.
+redis_store: main
+# Every Redis key starts with this prefix; tests and neighbours use their own.
+key_prefix: "usersrv:"
+# Ent creates/adds tables locally. Disable this in production and apply migrations/usersrv/.
+auto_migrate: true
+
+# Internal gRPC only (TLS by default); HTTP is /ping and /readyz (internal).
+# Do not expose 18086/18087 publicly.
+grpc:
+  # Local loopback only: no encryption or server authentication; signatures still required.
+  # Passwords travel on this link: in production use TLS (or an explicitly approved
+  # encrypted tunnel / service mesh), never plaintext across hosts.
+  transport: h2c
+  listen: 127.0.0.1:18087
+  # cert_file: dev-secrets/usersrv.pem
+  # key_file: dev-secrets/usersrv.key
+
+# Only calls carrying a credential signed by one of these BFF keys are accepted.
+# audience must be "usersrv". During rotation list the old and the new key together.
+internal_auth:
+  issuer: tripmap-bff
+  audience: usersrv
+  trusted_keys:
+    - kid: dev-1
+      public_key_file: dev-secrets/bff.pub
+  # clock_skew: 10s
+
+auth:
+  # Set false to refuse new sign-ups (requests and completions are refused); login and reset are unaffected.
+  registration_enabled: true
+  # Mail links are built only from these exact origins and fixed paths.
+  # Both entries are required and must match the BFF's allowed origins.
+  # http is accepted for loopback only, and only with allow_loopback_http.
+  allow_loopback_http: true
+  apps:
+    trip-map:
+      origin: http://localhost:5173
+    metro:
+      origin: http://localhost:5174
+  registration_ttl: 30m
+  reset_ttl: 15m
+  # Argon2id budget. Defaults: 64 MiB, 3 iterations, 1 lane, 2 hashes at once. Measured cost
+  # of the defaults is in docs/backend.md. Do not lower a deployed value without recording why.
+  password_hash:
+    memory_kib: 65536
+    iterations: 3
+    parallelism: 1
+    max_concurrent: 2
+    wait_timeout: 2s
+  # Keys the digests of rate-limit subjects in Redis (>= 32 random bytes, standard base64).
+  # Independent of the BFF signing key and of the mail encryption key. Generate with:
+  #   head -c 32 /dev/urandom | base64
+  # This value is a public local sample: replace it, or use hmac_key_file instead.
+  hmac_key: bG9jYWwtZGV2LW9ubHktdXNlcnNydi1obWFjLWtleSE=
+
+# Account mail. Exactly one provider is active, and only its section may carry settings;
+# a missing setting, an unknown provider or the leftovers of another vendor stop the start.
+# usersrv never contacts the vendor at start-up and never sends a probe mail.
+mail:
+  # mailgun | sendgrid | smtp | smtp2go. There is no automatic failover between vendors.
+  provider: smtp
+  # Bump this when you switch provider: queued jobs are pinned to the provider and generation
+  # they were issued under and are cancelled (never re-routed) if either no longer matches.
+  # Drain the queue before switching and let users request their mail again afterwards.
+  generation: 1
+  from_email: no-reply@example.com
+  from_name: 山海足迹
+  # reply_to: support@example.com
+  # Deadline of one send (default 10s, at most 1m).
+  timeout: 10s
+  # Local development only: allows smtp.tls_mode "plain" towards a loopback mail catcher.
+  allow_insecure_loopback: true
+
+  # Local sample: a mail catcher on loopback. For a real SMTP server use tls_mode
+  # implicit_tls (usually port 465) or starttls (usually 587); certificates are always verified.
+  smtp:
+    host: 127.0.0.1
+    port: 1025
+    tls_mode: plain
+    # username: ...
+    # password: ...
+
+  # mailgun:                      # native HTTP API; region picks api.mailgun.net or api.eu.mailgun.net
+  #   api_key: ...
+  #   domain: mg.example.com
+  #   region: us                  # us | eu
+  # sendgrid:                     # native HTTP API, api.sendgrid.com; use a "Mail Send"-only key
+  #   api_key: ...
+  # smtp2go:                      # native HTTP API (not the SMTP relay)
+  #   api_key: ...
+
+  # Keys that encrypt the recipient, the template parameters and the token of queued jobs
+  # (AES-256-GCM). Keep them outside the database: configuration or a mounted Secret. Each
+  # is 32 random bytes in standard base64 (head -c 32 /dev/urandom | base64), independent of
+  # auth.hmac_key and of the BFF signing key. To rotate: add a key, make it active_key_id,
+  # keep the old one listed until no job encrypted with it can still be queued (a queued job
+  # whose key is missing stops usersrv from starting; it is never dropped silently).
+  # These values are public local samples: replace them, or use key_file instead of key.
+  encryption:
+    active_key_id: local-1
+    keys:
+      - id: local-1
+        key: bG9jYWwtZGV2LW9ubHktbWFpbC1lbmNyeXB0aW9uLWs=
+        # key_file: dev-secrets/mail-encryption.key
+
+# Defaults shown; all are "limit attempts per window". Counters fail closed.
+rate_limit:
+  password_per_account: {limit: 10, window: 15m}
+  password_per_ip: {limit: 40, window: 15m}
+  profile_write_per_user: {limit: 30, window: 1m}
+  deletion_per_user: {limit: 10, window: 15m}
+  # Registration completion and password reset submissions; errors and successes both count.
+  token_submit_per_ip: {limit: 30, window: 15m}
+  token_submit_per_token: {limit: 5, window: 15m}
+  # Account mail requests. Over a per-address limit the request still gets the neutral
+  # success answer and nothing is sent; over a per-client-address or service-wide limit it is
+  # refused with RESOURCE_EXHAUSTED. Adjust mail_global to the vendor's real quota.
+  registration_mail_per_ip: {limit: 20, window: 1h}
+  reset_mail_per_ip: {limit: 20, window: 1h}
+  registration_mail_cooldown: {limit: 1, window: 60s}
+  registration_mail_per_email: {limit: 5, window: 1h}
+  reset_mail_cooldown: {limit: 1, window: 60s}
+  reset_mail_per_email: {limit: 5, window: 1h}
+  mail_per_email: {limit: 8, window: 1h}
+  mail_global: {limit: 200, window: 1h}
+
+store:
+  db:
+    main:
+      driver: postgres
+      host: 127.0.0.1
+      port: 15432
+      user: tripmap
+      password: tripmap-local
+      db_name: usersrv
+      ssl_mode: disable
+  redis:
+    main:
+      addr: 127.0.0.1:16379
+      password: tripmap-local
+      db: 0

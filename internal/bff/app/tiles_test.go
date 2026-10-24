@@ -52,7 +52,7 @@ func (u *tileUpstream) requests() []*http.Request {
 
 func TestTilePathIsForwardedToTripmapWithoutCredentials(t *testing.T) {
 	up := newTileUpstream(t)
-	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": up.URL}, CORSAllowedOrigins: []string{"https://trip.example.com"}, ClientIPHeader: "X-Forwarded-Client"}, nil)
+	r := newBFF(t, &config.Config{Upstreams: map[string]string{"usersrv": "http://127.0.0.1:1", "tripmap": up.URL}, CORSAllowedOrigins: []string{"https://trip.example.com"}, ClientIPHeader: "X-Forwarded-Client"}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/tiles/3/5/2.png", nil)
 	req.RemoteAddr = "192.0.2.50:4000"
@@ -97,7 +97,7 @@ func TestTilePathIsForwardedToTripmapWithoutCredentials(t *testing.T) {
 
 func TestTileStatusesAndErrorsPassThroughUncached(t *testing.T) {
 	up := newTileUpstream(t)
-	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": up.URL}}, nil)
+	r := newBFF(t, &config.Config{Upstreams: map[string]string{"usersrv": "http://127.0.0.1:1", "tripmap": up.URL}}, nil)
 	for _, status := range []int{http.StatusNotFound, http.StatusTooManyRequests, http.StatusBadGateway, http.StatusGatewayTimeout} {
 		up.reply = func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")
@@ -112,7 +112,7 @@ func TestTileStatusesAndErrorsPassThroughUncached(t *testing.T) {
 
 func TestTileRouteRejectsUncleanPathsAndUnreachableUpstream(t *testing.T) {
 	up := newTileUpstream(t)
-	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": up.URL}}, nil)
+	r := newBFF(t, &config.Config{Upstreams: map[string]string{"usersrv": "http://127.0.0.1:1", "tripmap": up.URL}}, nil)
 	for _, target := range []string{"/api/tiles/../bff.v1.X/y", "/api/tiles//3/5/2.png", "/api/tiles/3/5/../2.png", "/api/tilesx/3/5/2.png", "/api/tile/3/5/2.png"} {
 		if rec := serve(r, httptest.NewRequest(http.MethodGet, target, nil)); rec.Code != http.StatusNotFound {
 			t.Errorf("%s: %d, want 404", target, rec.Code)
@@ -123,7 +123,7 @@ func TestTileRouteRejectsUncleanPathsAndUnreachableUpstream(t *testing.T) {
 	}
 
 	down := newTileUpstream(t)
-	r = newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": down.URL}}, nil)
+	r = newBFF(t, &config.Config{Upstreams: map[string]string{"usersrv": "http://127.0.0.1:1", "tripmap": down.URL}}, nil)
 	down.Close()
 	rec := serve(r, httptest.NewRequest(http.MethodGet, "/api/tiles/3/5/2.png", nil))
 	if rec.Code != http.StatusBadGateway || rec.Header().Get("Cache-Control") != "no-store" || strings.Contains(rec.Body.String(), "127.0.0.1") {
@@ -145,7 +145,7 @@ func TestTileValidatorsAndStatusesAreForwardedBothWays(t *testing.T) {
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = io.WriteString(w, "PNGBYTES")
 	}
-	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": up.URL}}, nil)
+	r := newBFF(t, &config.Config{Upstreams: map[string]string{"usersrv": "http://127.0.0.1:1", "tripmap": up.URL}}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/tiles/3/5/2.png?v=2026-10", nil)
 	req.Header.Set("If-None-Match", `"tile-1"`)

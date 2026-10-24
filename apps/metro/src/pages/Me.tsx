@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import type { ProfileInput } from "@kongken/api-client/bff/metro/v1/rider_pb";
 import { Button } from "@kongken/ui/button";
 import { Input } from "@kongken/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@kongken/ui/dialog";
-import { auth, rider, write } from "@/lib/rpc";
+import { rider, write } from "@/lib/rpc";
 import { describeError, fieldProblems } from "@/lib/errors";
 import { formatKm, lines as splitLines, parseYear } from "@/lib/format";
 import { useAsync } from "@/lib/useAsync";
@@ -59,7 +58,9 @@ function SignedInMe() {
         )}
       </section>
       <ProfileForm onSaved={(t) => setMessage({ kind: "success", text: t })} />
-      <DeleteData />
+      <p className="border-t pt-4 text-sm text-muted-foreground">
+        登录邮箱、昵称、密码、登录设备和注销账号，请到 <Link to="/account" className="text-primary underline">账号设置</Link>。
+      </p>
     </>
   );
 }
@@ -174,41 +175,3 @@ function ProfileForm({ onSaved }: { onSaved: (text: string) => void }) {
     </section>
   );
 }
-
-function DeleteData() {
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | undefined>();
-  const confirm = async () => {
-    setBusy(true);
-    setError(undefined);
-    try {
-      await write(() => auth.deleteAccount({ confirmation: "DELETE" }));
-      window.location.assign("/");
-    } catch (e) {
-      setError(describeError(e));
-      setBusy(false);
-    }
-  };
-  return (
-    <section aria-labelledby="danger" className="border-t pt-6">
-      <h2 id="danger" className="mb-2 text-lg font-semibold">删除我的数据</h2>
-      <p className="mb-3 max-w-xl text-sm text-muted-foreground">删除你在本站的资料和乘坐记录，不可恢复。这不会删除你的登录账号。为了安全，需要在最近 15 分钟内重新登录过。</p>
-      <Button variant="destructive" onClick={() => setOpen(true)}>删除我的数据</Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>确认删除</DialogTitle>
-            <DialogDescription>资料和乘坐记录会被永久删除。</DialogDescription>
-          </DialogHeader>
-          {error ? <Alert>{error}</Alert> : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>取消</Button>
-            <Button variant="destructive" disabled={busy} onClick={() => void confirm()}>永久删除</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </section>
-  );
-}
-

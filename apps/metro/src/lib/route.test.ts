@@ -9,6 +9,10 @@ test("matches the public and admin routes", () => {
   assert.deepEqual(matchRoute("/topics/six-cars"), { name: "topic", slug: "six-cars" });
   assert.deepEqual(matchRoute("/u/alice"), { name: "profile", handle: "alice" });
   assert.deepEqual(matchRoute("/me"), { name: "me" });
+  assert.deepEqual(matchRoute("/login"), { name: "login" });
+  assert.deepEqual(matchRoute("/account"), { name: "account" });
+  // The mail landing pages are rendered before the router starts, so they are not routes.
+  assert.deepEqual(matchRoute("/account/verify-email"), { name: "notfound" });
   assert.deepEqual(matchRoute("/admin"), { name: "admin", section: "cities" });
   assert.deepEqual(matchRoute("/admin/tokens"), { name: "admin", section: "tokens" });
 });

@@ -114,13 +114,16 @@ func TestChainAccountDeletionCleansMetroAndRetries(t *testing.T) {
 	}
 	h.TripmapDB.CityVisit.Create().SetUserID(aID).SetRegionCode("330100").SetRegionName("杭州市").SetProvinceCode("330000").SetColor("#4b937d").SaveX(ctx)
 
-	req := &bffv1.DeleteAccountRequest{Confirmation: "DELETE"}
+	req := &bffv1.DeleteAccountRequest{Confirmation: "DELETE", MutationId: "metro-del-1"}
 	if err = a.DeleteAccount(ctx, req, aID); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("a failing product must fail the deletion: %v", err)
 	}
-	me, err := a.Me(ctx)
-	if err != nil || !me.GetDeletionPending() {
-		t.Fatalf("account must stay pending: %v %v", me, err)
+	// The account stays closed: no access in either product until the deletion ends.
+	if _, err = a.Me(ctx); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("a half-deleted account kept its session: %v", err)
+	}
+	if d, err := a.GetAccountDeletion(ctx); err != nil || len(d.GetProducts()) != 2 {
+		t.Fatalf("the products of the deletion: %v %v", d, err)
 	}
 	failCleanup.Store(false)
 	if err = a.DeleteAccount(ctx, req, aID); err != nil {

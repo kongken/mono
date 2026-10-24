@@ -8,13 +8,16 @@
 | [数据与地图说明](trip-map/data-and-maps.md) | 足迹结构、本地保存、备份格式、地图来源及区域索引 | 存储、备份或地图数据发生变化时 |
 | [公开分享页与预览图](trip-map/sharing.md) | F6 的快照模型、公开接口、隐私规则、预览图资源、部署配置、限制和测试覆盖 | 分享功能、配置或限制变化时 |
 | [前后端 monorepo 布局](monorepo.md) | 前端 workspaces（`apps/`、`packages/`）与 Go 服务的目录约定、共享包职责、新增应用步骤、Cloudflare Pages 构建设置 | 目录结构、workspace 包或静态托管构建设置变化时 |
-| [Docker 镜像与 Actions](docker-images.md) | 前端、BFF、tripmap 与 metro 镜像，构建发布触发和运行配置 | 镜像或发布流程变化时 |
+| [Docker 镜像与 Actions](docker-images.md) | 前端、BFF、tripmap、metro 与 usersrv 镜像，构建发布触发和运行配置 | 镜像或发布流程变化时 |
 | [部署与发布](deployment.md) | 同源反代、Secret、密钥轮换、内网监听、健康探针、Legacy 导入 | 部署拓扑或运维流程变化时 |
 | [BFF（公网入口）](bff.md) | 公网 Connect、内部 gRPC 与 Ed25519 凭证、跨域与配置 | BFF 路由、配置或拓扑变化时 |
 | [后端初始化](backend.md) | 已确定的技术栈、开发环境、文件与 Consul 配置及路径前缀、健康接口、数据库模型、版本化数据库迁移（`migrations/tripmap/`）和验证方式 | 后端基础设施、接口、schema 或迁移文件变化时 |
 | [后端功能调研](trip-map/backend-research.md) | 引入后端后可扩展的功能、数据模型与接口草案、同步与迁移、技术选型倾向、分阶段交付和待决问题（待实现，非当前行为） | 后端方向的决策或范围发生变化时 |
 | [地铁足迹功能描述](metro/features.md) | 页面与登录、标记与公开主页、管理后台、导入导出、管理令牌与 MCP 的用户可见规则、验收场景（前端 17–21）与限制 | 用户可见功能发生变化时 |
-| [地铁足迹（metro）规格](metro/spec.md) | 第二个产品的目标、决策、数据模型、接口、Logto 角色授权、admin 与 MCP、`apps/metro`、分阶段交付、验收场景与待决问题（P0–P7 均已实现；实现后的当前行为以功能描述、[后端初始化](backend.md#metro-服务地铁足迹) 与 [BFF](bff.md) 为准） | 规格范围或决策变化时 |
+| [usersrv 自建用户系统规格](usersrv/spec.md) | 取代 Logto 的邮箱＋密码用户系统：已确认要求、数据与安全参数、分阶段交付（P1–P6，均已实现）、逐阶段实现状态登记与验证状态（实现后的当前行为以 [后端初始化](backend.md#usersrv-服务账号核心p1)、[邮件模块](backend.md#usersrv-邮件模块p2)与[账号流程](backend.md#usersrv-账号流程p3)为准） | 规格范围或阶段状态变化时 |
+| [Logto 退役与手动清理](usersrv/retirement.md) | 退役的外部资源、旧表、Redis 状态、测试数据与 S3 对象：目标、范围、顺序、回滚与验证状态；全部手动执行 | 退役对象或脚本变化时 |
+| [usersrv 邮件厂商手动冒烟测试](usersrv/mail-smoke-test.md) | 启用 Mailgun、SendGrid、SMTP、SMTP2GO 前由运维手动执行的验证步骤；自动化测试只连本地假服务，不连真实厂商 | 邮件 adapter、跟踪或配置要求变化时 |
+| [地铁足迹（metro）规格](metro/spec.md) | 第二个产品的目标、决策、数据模型、接口、admin 与 MCP（账号与角色已改由 usersrv 提供）、`apps/metro`、分阶段交付、验收场景与待决问题（P0–P7 均已实现；实现后的当前行为以功能描述、[后端初始化](backend.md#metro-服务地铁足迹) 与 [BFF](bff.md) 为准） | 规格范围或决策变化时 |
 | [项目协作说明](../AGENTS.md) | 开发约定、文档同步和验证要求 | 协作流程发生变化时 |
 | [Issue tracker](agents/issue-tracker.md) | GitHub Issues 操作、父子任务和依赖约定 | 任务跟踪方式变化时 |
 | [Triage labels](agents/triage-labels.md) | 五类标准分流角色与 GitHub 标签映射 | 标签词汇变化时 |

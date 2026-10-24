@@ -37,10 +37,10 @@ export function roleLabel(role: string): string {
 }
 
 export function friendLabel(
-  user?: { displayName?: string; username?: string; id?: string } | null,
+  user?: { displayName?: string; id?: string } | null,
 ): string {
   if (!user) return "未知用户";
-  return user.displayName || user.username || user.id || "未知用户";
+  return user.displayName || user.id || "未知用户";
 }
 
 const provinceMap = new Map<string, string>(
