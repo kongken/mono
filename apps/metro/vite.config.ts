@@ -1,3 +1,4 @@
+import { accountLandingHeaders } from "@kongken/account/vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
@@ -17,6 +18,6 @@ const proxy = {
 export default defineConfig({
   server: { port: 5174, strictPort: true, proxy },
   preview: { proxy },
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), accountLandingHeaders()],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
 });

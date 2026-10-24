@@ -1,18 +1,24 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { auth, write } from "./rpc";
+import { account } from "./rpc";
 import { isUnauthenticated } from "./errors";
 import { navigate } from "./router";
+import { loginPath } from "./next";
 
-export type Account = { id: string; displayName: string; roles: string[] };
+export type Account = { id: string; displayName: string; avatarUrl: string; roles: string[] };
 export type SessionState = { status: "loading" } | { status: "anonymous" } | { status: "signed-in"; account: Account };
 
 type Ctx = {
   session: SessionState;
   isAdmin: boolean;
-  /** Sends the browser to the login page and back to the current page afterwards. */
+  /** Sends the browser to the sign-in page and back to the current page afterwards. */
   signIn: () => void;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** The signed-in account's profile changed (nickname, avatar). */
+  updateAccount: (patch: Partial<Pick<Account, "displayName" | "avatarUrl">>) => void;
+  /** An account deletion was started in this browser and has not been confirmed finished. */
+  deletionPending: boolean;
+  setDeletionPending: (pending: boolean) => void;
 };
 
 const SessionContext = createContext<Ctx | null>(null);
@@ -24,21 +30,40 @@ export const useSession = () => {
 };
 
 /**
- * The email and password forms arrive with the front-end stage of the account
- * system; until then there is no browser sign-in to start.
+ * A deletion whose end was not confirmed leaves the account closed ("deleting") and the
+ * session unusable, so the page cannot learn about it from Me. This flag is the only
+ * thing kept in the browser: it makes the retry offer survive a reload. It holds no
+ * identity and is cleared once the deletion is confirmed.
  */
-export function signIn() {}
+const PENDING_KEY = "metro-account-deletion-pending";
+const readPending = () => {
+  try {
+    return localStorage.getItem(PENDING_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionState>({ status: "loading" });
+  const [deletionPending, setPending] = useState(readPending);
+
+  const setDeletionPending = useCallback((pending: boolean) => {
+    try {
+      if (pending) localStorage.setItem(PENDING_KEY, "1");
+      else localStorage.removeItem(PENDING_KEY);
+    } catch {
+      /* Without storage the offer simply does not survive a reload. */
+    }
+    setPending(pending);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
-      const me = await auth.me({});
-      if (!me.user) throw new Error("incomplete user");
+      const me = await account.me();
       setSession({
         status: "signed-in",
-        account: { id: me.user.id, displayName: me.user.displayName, roles: me.roles },
+        account: { id: me.user.id, displayName: me.user.displayName, avatarUrl: me.user.avatarUrl, roles: me.roles },
       });
     } catch (e) {
       if (!isUnauthenticated(e)) console.warn("me failed", e);
@@ -54,15 +79,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       isAdmin: session.status === "signed-in" && session.account.roles.includes("metro-admin"),
-      signIn,
+      signIn: () => navigate(loginPath(window.location.pathname + window.location.search)),
       signOut: async () => {
-        await write(() => auth.logout({}));
+        await account.logout();
         setSession({ status: "anonymous" });
         navigate("/");
       },
       refresh,
+      updateAccount: (patch) =>
+        setSession((s) => (s.status === "signed-in" ? { status: "signed-in", account: { ...s.account, ...patch } } : s)),
+      deletionPending,
+      setDeletionPending,
     }),
-    [session, refresh],
+    [session, refresh, deletionPending, setDeletionPending],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

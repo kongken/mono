@@ -13,6 +13,7 @@ packages/
   api-client/           buf 生成的 ConnectRPC TypeScript 契约：@kongken/api-client/<包>/v1/<文件>_pb（`bff/v1` 为共用的账号契约，`bff/<产品>/v1` 如 `bff/tripmap/v1` 为各产品的浏览器契约，`tripmap/v1` 为业务服务契约，`platform/v1` 为共享选项）
   geo-data/             区域索引、城市坐标、区域目录、搜索索引、省份邻接表：@kongken/geo-data/<名称>.json（文件在 data/）
   fixtures/             前端与 Go 后端共同验证的 JSON 夹具
+  account/              两个前端共用的邮箱账号流程：`createAccountApi`（经 `bff.v1` 的 Connect 客户端）、错误文案、登录/注册/资料/改密码/设备/注销表单、邮件落地页、落地页响应头的 Vite 插件，以及测试用的假账号服务与 SMTP 接收器（`@kongken/account/<模块>`）
 cmd/ internal/ pkg/ proto/ migrations/   Go 后端，规则见 AGENTS.md 与 backend.md、bff.md
 deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deployment.md）
 ```
@@ -35,7 +36,7 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 
 - 所有 npm 命令在仓库根目录执行，根 `package.json` 的脚本转发到各应用（应用生命周期脚本按应用命名：`dev:trip-map`、`build:trip-map`、`test:trip-map`、`preview:trip-map`、`test:e2e:trip-map`，metro 同理 `dev:metro`、`build:metro`、`test:metro`、`preview:metro`、`test:e2e:metro`；`build`、`test` 对所有应用运行；地图数据脚本 `check:maps`、`prepare:*`、`download:maps` 因属于 `packages/geo-data` 的数据流程，名称不带应用前缀，目前转发到 `@kongken/trip-map`）。依赖由根目录统一安装与锁定（单个 `package-lock.json`）。
 - `apps/*` 之间不互相 import；共用的代码放进 `packages/*`。包以源码形式发布（`exports` 指向 `.ts`、`.tsx`、`.json`），不单独构建，由使用它的应用的 Vite 与 `tsc` 一起编译。只被一个应用使用的代码留在该应用里，出现第二个使用方时再抽出。
-- `packages/ui` 的 Tailwind 类名需要被扫描：应用的 CSS 入口用 `@source` 指向它（`apps/trip-map/src/index.css`、`apps/metro/src/index.css`）。新增应用时同样要加。
+- `packages/ui` 与 `packages/account` 的 Tailwind 类名需要被扫描：应用的 CSS 入口用 `@source` 指向它们（`apps/trip-map/src/index.css`、`apps/metro/src/index.css`）。新增应用时同样要加。`packages/account` 的落地页响应头插件 `accountLandingHeaders()` 也要加进应用的 `vite.config.ts`，应用入口 `main.tsx` 在渲染前先调用 `captureLandingToken()`。
 - `packages/api-client/src/` 由 `make buf` 生成（`buf.gen.yaml`），不手改。
 - `packages/geo-data/data/regions.json`、`region-catalog.json` 在后端各有一份必须逐字一致的副本（`internal/tripmap/regions/`、`internal/tripmap/itinerary/coords.json`），因为 Go 用 `embed` 内嵌；Go 测试和 `npm run check:maps` 会比对。更新流程见 [数据与地图说明](trip-map/data-and-maps.md)。
 - `packages/fixtures` 的夹具由前端 `npm test` 与 Go 测试同时读取。

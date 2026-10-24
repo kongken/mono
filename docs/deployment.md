@@ -7,7 +7,7 @@
 ```
 浏览器 ──HTTPS──► 边缘（Nginx 前端镜像 / Caddy 等）
                       ├─ 静态 SPA（/、/assets、/maps）
-                      └─ /auth/、/api（含 /api/tiles/）、/ping、/readyz、/s/、/api/share/、/api/notifications/ ──► BFF :18081
+                      └─ /api（含 /api/tiles/）、/ping、/readyz、/s/、/api/share/、/api/notifications/ ──► BFF :18081
                                                                                               │
                                                                                               ├─ PostgreSQL（BFF 认证库）
                                                                                               ├─ Redis（限流、OAuth state、CSRF）
@@ -120,7 +120,7 @@ tripmap、BFF、metro 与各前端为独立镜像（见 [Docker 镜像](docker-i
 5. 验证注册、登录、`Me`、业务读写、退出、会话撤销和注销后，**BFF 数据库**可手动执行 `deploy/sql/bff/retire_logto_identities.sql`，删除旧的 `auth_identities`、`account_deletion_receipts`（以及更早的 `auth_sessions`、`auth_users`）。该脚本会先检查新的 `bff_account_deletions` 已存在、没有未完成的旧注销回执依赖。
 6. 恢复流量。清理后不能直接回滚至旧版本；需要恢复数据库备份。
 
-退出仅撤销当前 BFF 会话。会话在每个请求都和 usersrv 的账号状态、`auth_version`、角色核对：禁用账号、改密码、撤销角色在下一个请求生效。邮件厂商与浏览器登录页的发布步骤属于后续阶段（P5、P6）。
+退出仅撤销当前 BFF 会话。会话在每个请求都和 usersrv 的账号状态、`auth_version`、角色核对：禁用账号、改密码、撤销角色在下一个请求生效。浏览器登录、注册与邮件落地页已在两个前端实现（P5）；邮件厂商与发布步骤属于后续阶段（P6）。落地页 `/account/verify-email`、`/account/reset-password` 在 Nginx 与 Caddy 示例里带 `Referrer-Policy: no-referrer`、`Cache-Control: no-store` 并回退到 `index.html`，自建边缘需保持这三点。
 
 ## 验证清单
 

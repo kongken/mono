@@ -38,13 +38,18 @@ example.com {
 		}
 	}
 
-	# Keep OAuth query strings out of access/error logging at every edge.
-	handle /auth/* {
-		reverse_proxy bff:18081 {
-			header_up Host {host}
-			header_up X-Real-IP {remote_host}
-			header_up Referer ""
+	# Mail landing pages: the one-time token is in the URL fragment (never sent to the server);
+	# no caching, no Referer, scripts only from this origin.
+	@landing path /account/verify-email /account/reset-password
+	handle @landing {
+		header {
+			Referrer-Policy no-referrer
+			Cache-Control no-store
+			Content-Security-Policy "script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'"
 		}
+		rewrite * /index.html
+		root * /srv/www
+		file_server
 	}
 
 	# BFF Connect, health and probes (do not strip Connect or CSRF headers).
@@ -86,13 +91,20 @@ metro.example.com {
 		-Server
 	}
 
-	handle /auth/* {
-		reverse_proxy bff:18081 {
-			header_up Host {host}
-			header_up X-Real-IP {remote_host}
-			header_up Referer ""
+	# Mail landing pages: the one-time token is in the URL fragment (never sent to the server);
+	# no caching, no Referer, scripts only from this origin.
+	@landing path /account/verify-email /account/reset-password
+	handle @landing {
+		header {
+			Referrer-Policy no-referrer
+			Cache-Control no-store
+			Content-Security-Policy "script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'"
 		}
+		rewrite * /index.html
+		root * /srv/metro
+		file_server
 	}
+
 	handle /mcp/metro {
 		log_skip
 		request_body {

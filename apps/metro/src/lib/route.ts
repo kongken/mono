@@ -5,6 +5,8 @@ export type Route =
   | { name: "topic"; slug: string }
   | { name: "profile"; handle: string }
   | { name: "me" }
+  | { name: "login" }
+  | { name: "account" }
   | { name: "admin"; section: string }
   | { name: "notfound" };
 
@@ -26,6 +28,8 @@ export function matchRoute(pathname: string): Route {
   if (parts.length === 2 && a === "topics") return { name: "topic", slug: b };
   if (parts.length === 2 && a === "u") return { name: "profile", handle: b };
   if (parts.length === 1 && a === "me") return { name: "me" };
+  if (parts.length === 1 && a === "login") return { name: "login" };
+  if (parts.length === 1 && a === "account") return { name: "account" };
   if (a === "admin" && parts.length <= 2 && c === undefined) {
     if (b === undefined) return { name: "admin", section: "cities" };
     if ((adminSections as readonly string[]).includes(b)) return { name: "admin", section: b };

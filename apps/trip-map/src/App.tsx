@@ -385,6 +385,16 @@ function App() {
       }
     },
   });
+
+  // "Log in" on the mail landing pages leads here: open the account window on the sign-in form.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("signin") !== "1") return;
+    params.delete("signin");
+    const rest = params.toString();
+    history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
+    if (cloud.enabled) setAccountOpen(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // All user edits go through here so cloud mode can sync them, and refuse
   // them while the cloud copy is not loaded and confirmed.
   const commit = (update: (s: Saved) => Saved, atomic = false) => {

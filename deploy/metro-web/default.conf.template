@@ -14,15 +14,18 @@ server {
     resolver 127.0.0.11 valid=10s;
     set $backend_upstream "${BACKEND_UPSTREAM}";
 
-    # OAuth callback queries contain credentials; never log them.
-    location ^~ /auth/ {
-        access_log off;
-        error_log /dev/stderr crit;
-        proxy_pass http://$backend_upstream$request_uri;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header Referer "";
-        proxy_read_timeout 15s;
+    # Mail landing pages (verify email, reset password). The one-time token is in the URL
+    # fragment, which the browser never sends; these pages must not be cached, must not leak
+    # a Referer, and may only load scripts from this origin. add_header does not inherit once a
+    # location sets its own, so the common headers are repeated.
+    location ~ ^/account/(verify-email|reset-password)/?$ {
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options SAMEORIGIN always;
+        add_header Referrer-Policy no-referrer always;
+        add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+        add_header Cache-Control "no-store" always;
+        add_header Content-Security-Policy "script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'" always;
+        try_files /index.html =404;
     }
 
     # MCP endpoint for AI clients. The Bearer token is a credential, so no

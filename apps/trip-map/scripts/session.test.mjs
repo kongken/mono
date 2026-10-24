@@ -106,14 +106,9 @@ test("API errors are described in Chinese, never with raw server text", () => {
     describeApiError(e(Code.PermissionDenied, "registration is closed")),
     "当前无法执行此操作",
   );
-  assert.match(
-    describeApiError(e(Code.Unimplemented, "password accounts are retired; use Logto")),
-    /前往用户中心登录/,
-  );
-  const freshLogin = describeApiError(e(Code.FailedPrecondition, "sign in again before deleting cloud data"));
-  assert.match(freshLogin, /通过用户中心重新登录/);
-  assert.match(freshLogin, /最近 15 分钟/);
-  assert.doesNotMatch(freshLogin, /Logto/i);
+  // The retired login texts are gone: those messages no longer reach the person, who gets the generic line.
+  for (const gone of ["password accounts are retired; use Logto", "sign in again before deleting cloud data", "oauth sign-in failed"])
+    assert.doesNotMatch(describeApiError(e(Code.FailedPrecondition, gone)), /Logto|用户中心|OAuth/i);
   assert.match(
     describeApiError(e(Code.InvalidArgument, "something odd")),
     /不符合要求/,

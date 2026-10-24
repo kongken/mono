@@ -3,8 +3,10 @@ import { Spinner } from "@/components/extras";
 import { Layout } from "@/components/Layout";
 import { useRoute } from "@/lib/router";
 import { SessionProvider } from "@/lib/session";
+import AccountPage from "@/pages/Account";
 import CityPage from "@/pages/City";
 import Home from "@/pages/Home";
+import LoginPage from "@/pages/Login";
 import MePage from "@/pages/Me";
 import NotFound from "@/pages/NotFound";
 import PublicProfilePage from "@/pages/PublicProfile";
@@ -26,6 +28,10 @@ function Routes() {
       return <PublicProfilePage key={route.handle} handle={route.handle} />;
     case "me":
       return <MePage />;
+    case "login":
+      return <LoginPage />;
+    case "account":
+      return <AccountPage />;
     case "admin":
       return (
         <Suspense fallback={<Spinner />}>

@@ -1,5 +1,6 @@
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
+import { createAccountApi } from "@kongken/account/api";
 import { AuthService } from "@kongken/api-client/bff/v1/auth_pb";
 import { AccessTokenService } from "@kongken/api-client/bff/v1/access_token_pb";
 import { AdminService } from "@kongken/api-client/bff/metro/v1/admin_pb";
@@ -23,6 +24,16 @@ const transport = createConnectTransport({
 });
 
 export const auth = createClient(AuthService, transport);
+
+/** The id usersrv knows this app by; it picks the origin of the links in account mails. */
+export const APP_ID = "metro";
+
+async function ensureCsrf() {
+  csrf = (await auth.issueCSRFToken({})).token;
+}
+
+/** The shared account client: sign-in, registration, password reset, profile, devices, deletion. */
+export const account = createAccountApi({ transport, appId: APP_ID, ensureCsrf });
 export const tokens = createClient(AccessTokenService, transport);
 export const admin = createClient(AdminService, transport);
 export const catalog = createClient(CatalogService, transport);
@@ -33,7 +44,7 @@ export const rider = createClient(RiderService, transport);
  * check). Reads never need it.
  */
 export async function write<T>(call: () => Promise<T>): Promise<T> {
-  csrf = (await auth.issueCSRFToken({})).token;
+  await ensureCsrf();
   return call();
 }
 

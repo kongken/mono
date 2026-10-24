@@ -121,7 +121,7 @@ npm install
 npm run dev:trip-map
 ```
 
-联调后端时在 `.env.local` 设置 `VITE_API_BASE_URL=/api` 并重启 Vite；不设置则前端保持纯本地模式。开发代理默认转发到 BFF `http://127.0.0.1:18081`，BFF 在其他端口时用环境变量 `TRIPMAP_DEV_BACKEND=http://127.0.0.1:端口` 启动 Vite。登录由 BFF 的 `bff.v1.AuthService` 完成（Cookie 会话），本地 Vite 只代理 `/api`；生产使用精确的 CORS origins，配置见 [BFF](bff.md#配置)。登录表单属于前端阶段（P5），目前前端没有登录入口。
+联调后端时在 `.env.local` 设置 `VITE_API_BASE_URL=/api` 并重启 Vite；不设置则前端保持纯本地模式。开发代理默认转发到 BFF `http://127.0.0.1:18081`，BFF 在其他端口时用环境变量 `TRIPMAP_DEV_BACKEND=http://127.0.0.1:端口` 启动 Vite。登录由 BFF 的 `bff.v1.AuthService` 完成（Cookie 会话），本地 Vite 只代理 `/api`；生产使用精确的 CORS origins，配置见 [BFF](bff.md#配置)。登录、注册与找回密码表单在两个前端的账号弹窗/页面里（P5）。
 
 Compose 只启动本项目的开发依赖，使用命名卷保存数据。S3 开发实例使用 [RustFS 官方容器](https://docs.rustfs.com/en/installation/container/docker)，提供持久化 S3 兼容接口；生产环境可配置 AWS S3 或其他兼容供应方，服务代码无需更换。
 
@@ -556,7 +556,7 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 ## usersrv 服务（账号核心，P1）
 
-规格见 [usersrv 规格](usersrv/spec.md)（阶段状态也登记在那里）。**当前实现 P1（账号核心）、P2（邮件模块，见[下一节](#usersrv-邮件模块p2)）、P3（账号流程，见[其后](#usersrv-账号流程p3)）与 P4（BFF 与产品鉴权，见 [BFF](bff.md#账号会话与注销p4)）。** BFF 已登记 usersrv 为必需上游并经内部 gRPC 调用它；浏览器登录表单、邮件落地页（P5）与发布（P6）尚未完成，整条账号链完成前不要在正式环境开放。
+规格见 [usersrv 规格](usersrv/spec.md)（阶段状态也登记在那里）。**当前实现 P1（账号核心）、P2（邮件模块，见[下一节](#usersrv-邮件模块p2)）、P3（账号流程，见[其后](#usersrv-账号流程p3)）与 P4（BFF 与产品鉴权，见 [BFF](bff.md#账号会话与注销p4)）。** BFF 已登记 usersrv 为必需上游并经内部 gRPC 调用它；浏览器登录表单与邮件落地页（P5）已在两个前端实现，发布（P6）尚未完成，整条账号链完成前不要在正式环境开放。
 
 **运行**：`config.usersrv.example.yaml` 复制为被忽略的 `config.usersrv.yaml`，准备 usersrv 独占的 PostgreSQL 库（例如 `createdb usersrv`）和 Redis（必需；限流计数在 Redis，不可用时拒绝而不是放行）；Redis key 都以 `key_prefix`（默认 `usersrv:`）开头。`make dev-usersrv` 以 HTTP 18086（`/ping`、`/readyz`，内网）与 gRPC 18087 启动。`/readyz` 报告 `postgres`、`redis` 与 `worker`（后台清理的本地状态）。gRPC 默认 TLS，本机可显式 `transport: h2c`（密码走这条链路，跨主机必须用 TLS）；只接受 `internal_auth.trusted_keys` 里 BFF 公钥签发、`aud=usersrv`、绑定方法且 60 秒内的凭证，所有方法（包括匿名标注的）都要求有效凭证，本人方法只取凭证里的 `sub`。生产关闭 `auto_migrate`，执行 `migrations/usersrv/`；新迁移用 `make usersrv-migration NAME=… DEV_DSN=…`（先 `make ent-usersrv`），规则同 tripmap。
 
@@ -631,7 +631,7 @@ bin/usersrv-admin -config config.usersrv.yaml disable -user-id <uuid> -operator 
 
 ## usersrv 账号流程（P3）
 
-规格见 [usersrv 规格](usersrv/spec.md)（§5.1–5.4、§10）。流程在 `internal/usersrv/account/flows.go` 与 `internal/usersrv/application/account.go`，由 BFF 经内部 gRPC 调用（P4）；浏览器表单是 P5。五个匿名方法同样要求有效 BFF 凭证；请求的客户端 IP 与请求 ID 只取自凭证。
+规格见 [usersrv 规格](usersrv/spec.md)（§5.1–5.4、§10）。流程在 `internal/usersrv/account/flows.go` 与 `internal/usersrv/application/account.go`，由 BFF 经内部 gRPC 调用（P4）；浏览器表单与邮件落地页是 P5（已实现）。五个匿名方法同样要求有效 BFF 凭证；请求的客户端 IP 与请求 ID 只取自凭证。
 
 **注册验证**（先验证邮箱再设置密码，不自动登录）：
 
@@ -697,7 +697,7 @@ PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 
 
 当前 BFF 使用 `auth_identities.deletion_requested_at` 和无身份外键的短期 `account_deletion_receipts`；tripmap 保存 `footprint_changes`、`sync_receipts`，不再保存认证或删除状态列。F3 再新增 `snapshots` 表和 `sync_receipts.snapshot_id`（可空列），应在部署前审核 Ent 迁移并**先升级后端，再部署前端**。旧 RPC 保留原语义并自动记录变化。旧数据不会被清空，也不会被服务端自动迁移上云（由用户在前端主动迁移），缺失旧日志时走全量快照。
 
-CI 现在启动 PostgreSQL、Redis 和 S3 兼容测试服务，执行真实处理器/race 与对象读写检查。前端 CI 构建启用 `/api`，自动执行桌面及手机删除云端数据界面验收（模拟 RPC）。真实邮件厂商、生产凭据和生产数据不进入 CI；前端发布镜像仍保持默认纯本地模式，部署云端能力需设置构建参数。
+CI 现在启动 PostgreSQL、Redis 和 S3 兼容测试服务，执行真实处理器/race 与对象读写检查。前端 CI 构建启用 `/api`，自动执行桌面及手机的账号界面验收（登录、注册、邮件落地页、账号设置、注销；模拟 RPC）。真实邮件厂商、生产凭据和生产数据不进入 CI；前端发布镜像仍保持默认纯本地模式，部署云端能力需设置构建参数。
 
 F1 代码范围已覆盖云端数据删除与增量同步；真实邮件厂商验收仍未完成。F2 迁移不新增接口；F5 把批量上限提到 2000、批量限流预算提到每分钟 6000 项。
 

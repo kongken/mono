@@ -700,9 +700,9 @@ export async function seedLocal(page: Page, visits: V[], provinces: Record<strin
 }
 
 /**
- * Signs in as the fixture account. The password and registration forms belong to a
- * later stage, so the fixture starts from a stored session; the fake backend answers
- * Me as authenticated and the page restores from it.
+ * Signs in as the fixture account without going through the sign-in form (tests/account.spec.ts
+ * covers that): the fixture starts from a stored session, the fake backend answers Me as
+ * authenticated and the page restores from it.
  */
 export async function login(page: Page) {
   await page.goto("/");

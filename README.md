@@ -11,7 +11,7 @@
 | trip-map（山海足迹） | `apps/trip-map/` | React、Vite、TypeScript、Tailwind CSS、shadcn/ui 前端 | Vite 输出地址，通常为 `http://localhost:5173` |
 | bff | `cmd/bff/`、`internal/bff/` | 唯一公网 API 入口；账号接口（经 usersrv）、Cookie 会话、CSRF、账号注销工作流和业务接口适配 | HTTP `127.0.0.1:18081` |
 | tripmap | `cmd/tripmap/`、`internal/tripmap/` | 足迹、行程、媒体、分享等旅行领域业务 | 内网 HTTP `127.0.0.1:18082`；内部 gRPC `127.0.0.1:18083`（默认 TLS，可显式选 h2c） |
-| usersrv（自建用户系统，**开发中**，P1–P4 已实现） | `cmd/usersrv/`、`internal/usersrv/`、`cmd/usersrv-admin/` | 邮箱＋密码账号、注册验证与找回密码流程、角色与账号安全状态、邮件发送模块（四种 adapter）；只有内部 gRPC，由 BFF 调用；前端登录表单（P5）与发布（P6）未完成，整条账号链完成前不要在正式环境开放（见 [规格](docs/usersrv/spec.md)） | 仅内网：HTTP `127.0.0.1:18086`、gRPC `127.0.0.1:18087`（需自己的数据库与 Redis） |
+| usersrv（自建用户系统，**开发中**，P1–P5 已实现） | `cmd/usersrv/`、`internal/usersrv/`、`cmd/usersrv-admin/` | 邮箱＋密码账号、注册验证与找回密码流程、角色与账号安全状态、邮件发送模块（四种 adapter）；只有内部 gRPC，由 BFF 调用；两个前端的登录、注册、找回密码与账号设置已实现（P5，共用代码在 `packages/account`），发布（P6）未完成，整条账号链完成前不要在正式环境开放（见 [规格](docs/usersrv/spec.md)） | 仅内网：HTTP `127.0.0.1:18086`、gRPC `127.0.0.1:18087`（需自己的数据库与 Redis） |
 | metro（地铁足迹，第二个产品，可选） | `apps/metro/`、`cmd/metro/`、`internal/metro/` | 城市、线路、车型目录与骑行者记录；管理后台；BFF 上的 MCP 端点（见 [功能描述](docs/metro/features.md)） | 前端 `http://localhost:5174`；内网 HTTP `127.0.0.1:18084`、gRPC `127.0.0.1:18085` |
 
 浏览器经 BFF 的 Connect 接口访问后端（账号与会话是共用的 `bff.v1`，山海足迹业务是 `bff.tripmap.v1`）；BFF 使用内部凭证，通过内部 gRPC（默认 TLS；可信内网可显式配置 h2c，见 [BFF](docs/bff.md#内部-grpc-与凭证)）调用 tripmap。tripmap 的 HTTP 端口提供 `/ping`、`/readyz` 健康检查；启用 Mapbox 底图时还提供匿名的 `GET /api/tiles/…`，由 BFF 转发。账号与会话保存在 BFF 的独立数据库，旅行数据由 tripmap 管理。当前有两个后端服务，其中 tripmap 是唯一的业务服务，详见 [BFF](docs/bff.md)。
@@ -26,6 +26,7 @@ packages/
   api-client/         Buf 生成的 TypeScript RPC 契约
   geo-data/           区域索引、坐标与地图辅助数据
   fixtures/           前后端共同验证的测试夹具
+  account/            两个前端共用的邮箱账号流程（RPC 客户端、表单、邮件落地页）
 cmd/
   bff/                BFF 服务入口
   tripmap/            旅行业务服务入口
@@ -82,7 +83,7 @@ make dev-secrets
 make dev
 ```
 
-也可在不同终端分别运行 `make dev-bff`、`make dev-tripmap` 和 `make dev-metro`。地铁足迹的前端另开终端运行 `make dev-metro-web`（等价 `npm run dev:metro`，端口 5174，把 `/api` 代理到 BFF；管理需要 `metro-admin` 角色，登录表单是 P5，见 [部署](docs/deployment.md#地铁足迹metro可选)）。另开终端启用前端后端连接：
+也可在不同终端分别运行 `make dev-bff`、`make dev-tripmap` 和 `make dev-metro`。地铁足迹的前端另开终端运行 `make dev-metro-web`（等价 `npm run dev:metro`，端口 5174，把 `/api` 代理到 BFF；管理需要 `metro-admin` 角色，登录与注册在 `/login`，见 [部署](docs/deployment.md#地铁足迹metro可选)）。另开终端启用前端后端连接：
 
 ```bash
 npm install

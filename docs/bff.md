@@ -41,7 +41,7 @@
 
 - 浏览器 RPC 仅 `/api/bff.*`（共用的 `bff.v1`、各产品的 `bff.<产品>.v1`）；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/unsubscribe 由 BFF `publichttp` 提供）。
 - 前端的业务 RPC（含分享 API）使用 `bff.tripmap.v1`；账号与会话管理使用 `bff.v1`。BFF 会话和注销工作流在 BFF 独立库；tripmap `users` 只保存用户 UUID 对应的展示投影与产品数据，好友只能凭 `fc_` 邀请码添加（没有按用户名查找）。
-- 浏览器登录与注册表单属于前端阶段（P5）：两个前端已移除第三方登录入口，**还没有新的登录界面**，账号链目前只能经 RPC 或 e2e 验证。整条账号链完成前不要在正式环境开放。
+- 浏览器登录、注册、找回密码、账号设置与邮件落地页已在两个前端实现（P5，见 [usersrv 规格](usersrv/spec.md#p5-已实现内容)）；发布与手动退役（P6）未做，整条账号链完成前不要在正式环境开放。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）
@@ -148,7 +148,7 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 - `db_store` / `redis_store` / `key_prefix` / `auto_migrate`：BFF 认证库与 Redis 限流（见 example 内 `store` 段）。
 - `mcp.rate_limit_per_minute`（每个管理令牌每分钟的 MCP 调用数，默认 60；失败认证的按地址限流固定为每分钟 30 次）。
-- `auth.session_ttl`、`auth.admin_session_max_age`（默认 12h，声明了 `required_role` 的方法要求会话在此时间内签发）、`auth.account_cleanup`（启用“删除云端数据”清理的产品，默认 `[tripmap]`）、`auth.cookie_secure`、`auth.csrf_token_ttl`。`auth.oauth_apps`、`auth.oauth_providers`、`auth.oauth_development` 已删除（不再读取）；注册开关与邮件链接来源属于 usersrv 配置（`config.usersrv.example.yaml`）。`auth.admin_session_max_age` 现在从真实的密码验证时间起算。
+- `auth.session_ttl`、`auth.admin_session_max_age`（默认 12h，声明了 `required_role` 的方法要求会话在此时间内签发）、`auth.account_cleanup`（账号注销时清理数据的产品，默认 `[tripmap]`）、`auth.cookie_secure`、`auth.csrf_token_ttl`。`auth.oauth_apps`、`auth.oauth_providers`、`auth.oauth_development` 已删除（不再读取）；注册开关与邮件链接来源属于 usersrv 配置（`config.usersrv.example.yaml`）。`auth.admin_session_max_age` 现在从真实的密码验证时间起算。
 - `upstreams.usersrv` 与 `grpc.services.usersrv`：必填，BFF 通过它做账号认证与每个请求的 `GetAuthState`；用户系统不可用时受保护请求返回 `unavailable` 且不转发任何业务调用。
 - `upstreams.<服务>`（`metro` 可选：不写则 BFF 不启用地铁足迹，也不需要 `grpc.services.metro`）、`grpc.*`、`internal_auth.*`、`client_ip_header`、`cors_allowed_origins`：同前。`grpc.services.<名称>.transport` 为 `tls`（默认）或 `h2c`，见 [内部 gRPC 与凭证](#内部-grpc-与凭证)。
 
@@ -257,7 +257,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 **重试工具**：运维没有单独的命令行；排查时可对工作流行读取 `stage`、`attempts`、`last_error`，后台任务会自动重试（间隔 30 秒起指数退避，最长 15 分钟）。
 
-**限制**：浏览器登录表单、邮件落地页与注册界面是 P5；发布与手动退役脚本是 P6。
+**限制**：浏览器登录表单、邮件落地页与注册界面已在 P5 实现；发布与手动退役脚本是 P6。
 
 ## 多 Web App 登录与跨域
 

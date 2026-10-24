@@ -36,3 +36,4 @@ coverage.out
 playwright-report/
 test-results/
 /dev-secrets/
+/.real-stack/
