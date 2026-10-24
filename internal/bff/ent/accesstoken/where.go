@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kongken/mono/internal/bff/ent/predicate"
 )
 
@@ -83,6 +82,11 @@ func TokenHash(v string) predicate.AccessToken {
 // Audience applies equality check predicate on the "audience" field. It's identical to AudienceEQ.
 func Audience(v string) predicate.AccessToken {
 	return predicate.AccessToken(sql.FieldEQ(FieldAudience, v))
+}
+
+// AuthVersion applies equality check predicate on the "auth_version" field. It's identical to AuthVersionEQ.
+func AuthVersion(v int64) predicate.AccessToken {
+	return predicate.AccessToken(sql.FieldEQ(FieldAuthVersion, v))
 }
 
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
@@ -365,6 +369,46 @@ func AudienceContainsFold(v string) predicate.AccessToken {
 	return predicate.AccessToken(sql.FieldContainsFold(FieldAudience, v))
 }
 
+// AuthVersionEQ applies the EQ predicate on the "auth_version" field.
+func AuthVersionEQ(v int64) predicate.AccessToken {
+	return predicate.AccessToken(sql.FieldEQ(FieldAuthVersion, v))
+}
+
+// AuthVersionNEQ applies the NEQ predicate on the "auth_version" field.
+func AuthVersionNEQ(v int64) predicate.AccessToken {
+	return predicate.AccessToken(sql.FieldNEQ(FieldAuthVersion, v))
+}
+
+// AuthVersionIn applies the In predicate on the "auth_version" field.
+func AuthVersionIn(vs ...int64) predicate.AccessToken {
+	return predicate.AccessToken(sql.FieldIn(FieldAuthVersion, vs...))
+}
+
+// AuthVersionNotIn applies the NotIn predicate on the "auth_version" field.
+func AuthVersionNotIn(vs ...int64) predicate.AccessToken {
+	return predicate.AccessToken(sql.FieldNotIn(FieldAuthVersion, vs...))
+}
+
+// AuthVersionGT applies the GT predicate on the "auth_version" field.
+func AuthVersionGT(v int64) predicate.AccessToken {
+	return predicate.AccessToken(sql.FieldGT(FieldAuthVersion, v))
+}
+
+// AuthVersionGTE applies the GTE predicate on the "auth_version" field.
+func AuthVersionGTE(v int64) predicate.AccessToken {
+	return predicate.AccessToken(sql.FieldGTE(FieldAuthVersion, v))
+}
+
+// AuthVersionLT applies the LT predicate on the "auth_version" field.
+func AuthVersionLT(v int64) predicate.AccessToken {
+	return predicate.AccessToken(sql.FieldLT(FieldAuthVersion, v))
+}
+
+// AuthVersionLTE applies the LTE predicate on the "auth_version" field.
+func AuthVersionLTE(v int64) predicate.AccessToken {
+	return predicate.AccessToken(sql.FieldLTE(FieldAuthVersion, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.AccessToken {
 	return predicate.AccessToken(sql.FieldEQ(FieldCreatedAt, v))
@@ -543,29 +587,6 @@ func RevokedAtIsNil() predicate.AccessToken {
 // RevokedAtNotNil applies the NotNil predicate on the "revoked_at" field.
 func RevokedAtNotNil() predicate.AccessToken {
 	return predicate.AccessToken(sql.FieldNotNull(FieldRevokedAt))
-}
-
-// HasUser applies the HasEdge predicate on the "user" edge.
-func HasUser() predicate.AccessToken {
-	return predicate.AccessToken(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, UserTable, UserColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasUserWith applies the HasEdge predicate on the "user" edge with a given conditions (other predicates).
-func HasUserWith(preds ...predicate.User) predicate.AccessToken {
-	return predicate.AccessToken(func(s *sql.Selector) {
-		step := newUserStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
 }
 
 // And groups predicates with the AND operator between them.

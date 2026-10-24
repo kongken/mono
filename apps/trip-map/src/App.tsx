@@ -1430,7 +1430,7 @@ function App() {
             >
               {cloud.user ? (
                 <span className="account-initial">
-                  {(cloud.user.displayName || cloud.user.username || "?")
+                  {(cloud.user.displayName || "?")
                     .slice(0, 1)
                     .toUpperCase()}
                 </span>

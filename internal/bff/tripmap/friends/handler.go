@@ -106,7 +106,7 @@ func mapFriendUser(in *tripmapv1.FriendUser) *bfftripmapv1.FriendUser {
 		return &bfftripmapv1.FriendUser{}
 	}
 	return &bfftripmapv1.FriendUser{
-		Id: in.GetId(), Username: in.GetUsername(), DisplayName: in.GetDisplayName(), AvatarUrl: in.GetAvatarUrl(),
+		Id: in.GetId(), DisplayName: in.GetDisplayName(), AvatarUrl: in.GetAvatarUrl(),
 	}
 }
 

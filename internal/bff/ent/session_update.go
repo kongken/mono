@@ -10,7 +10,6 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/kongken/mono/internal/bff/ent/predicate"
 	"github.com/kongken/mono/internal/bff/ent/session"
@@ -77,21 +76,23 @@ func (_u *SessionUpdate) SetNillableRevoked(v *bool) *SessionUpdate {
 	return _u
 }
 
-// SetRoles sets the "roles" field.
-func (_u *SessionUpdate) SetRoles(v []string) *SessionUpdate {
-	_u.mutation.SetRoles(v)
+// SetAuthenticatedAt sets the "authenticated_at" field.
+func (_u *SessionUpdate) SetAuthenticatedAt(v time.Time) *SessionUpdate {
+	_u.mutation.SetAuthenticatedAt(v)
 	return _u
 }
 
-// AppendRoles appends value to the "roles" field.
-func (_u *SessionUpdate) AppendRoles(v []string) *SessionUpdate {
-	_u.mutation.AppendRoles(v)
+// SetNillableAuthenticatedAt sets the "authenticated_at" field if the given value is not nil.
+func (_u *SessionUpdate) SetNillableAuthenticatedAt(v *time.Time) *SessionUpdate {
+	if v != nil {
+		_u.SetAuthenticatedAt(*v)
+	}
 	return _u
 }
 
-// ClearRoles clears the value of the "roles" field.
-func (_u *SessionUpdate) ClearRoles() *SessionUpdate {
-	_u.mutation.ClearRoles()
+// ClearAuthenticatedAt clears the value of the "authenticated_at" field.
+func (_u *SessionUpdate) ClearAuthenticatedAt() *SessionUpdate {
+	_u.mutation.ClearAuthenticatedAt()
 	return _u
 }
 
@@ -127,18 +128,7 @@ func (_u *SessionUpdate) ExecX(ctx context.Context) {
 	}
 }
 
-// check runs all checks and user-defined validators on the builder.
-func (_u *SessionUpdate) check() error {
-	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
-		return errors.New(`ent: clearing a required unique edge "Session.user"`)
-	}
-	return nil
-}
-
 func (_u *SessionUpdate) sqlSave(ctx context.Context) (_node int, err error) {
-	if err := _u.check(); err != nil {
-		return _node, err
-	}
 	_spec := sqlgraph.NewUpdateSpec(session.Table, session.Columns, sqlgraph.NewFieldSpec(session.FieldID, field.TypeString))
 	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
@@ -159,16 +149,8 @@ func (_u *SessionUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Revoked(); ok {
 		_spec.SetField(session.FieldRevoked, field.TypeBool, value)
 	}
-	if value, ok := _u.mutation.Roles(); ok {
-		_spec.SetField(session.FieldRoles, field.TypeJSON, value)
-	}
-	if value, ok := _u.mutation.AppendedRoles(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, session.FieldRoles, value)
-		})
-	}
-	if _u.mutation.RolesCleared() {
-		_spec.ClearField(session.FieldRoles, field.TypeJSON)
+	if value, ok := _u.mutation.AuthenticatedAt(); ok {
+		_spec.SetField(session.FieldAuthenticatedAt, field.TypeTime, value)
 	}
 	if _u.mutation.AuthenticatedAtCleared() {
 		_spec.ClearField(session.FieldAuthenticatedAt, field.TypeTime)
@@ -241,21 +223,23 @@ func (_u *SessionUpdateOne) SetNillableRevoked(v *bool) *SessionUpdateOne {
 	return _u
 }
 
-// SetRoles sets the "roles" field.
-func (_u *SessionUpdateOne) SetRoles(v []string) *SessionUpdateOne {
-	_u.mutation.SetRoles(v)
+// SetAuthenticatedAt sets the "authenticated_at" field.
+func (_u *SessionUpdateOne) SetAuthenticatedAt(v time.Time) *SessionUpdateOne {
+	_u.mutation.SetAuthenticatedAt(v)
 	return _u
 }
 
-// AppendRoles appends value to the "roles" field.
-func (_u *SessionUpdateOne) AppendRoles(v []string) *SessionUpdateOne {
-	_u.mutation.AppendRoles(v)
+// SetNillableAuthenticatedAt sets the "authenticated_at" field if the given value is not nil.
+func (_u *SessionUpdateOne) SetNillableAuthenticatedAt(v *time.Time) *SessionUpdateOne {
+	if v != nil {
+		_u.SetAuthenticatedAt(*v)
+	}
 	return _u
 }
 
-// ClearRoles clears the value of the "roles" field.
-func (_u *SessionUpdateOne) ClearRoles() *SessionUpdateOne {
-	_u.mutation.ClearRoles()
+// ClearAuthenticatedAt clears the value of the "authenticated_at" field.
+func (_u *SessionUpdateOne) ClearAuthenticatedAt() *SessionUpdateOne {
+	_u.mutation.ClearAuthenticatedAt()
 	return _u
 }
 
@@ -304,18 +288,7 @@ func (_u *SessionUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
-// check runs all checks and user-defined validators on the builder.
-func (_u *SessionUpdateOne) check() error {
-	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
-		return errors.New(`ent: clearing a required unique edge "Session.user"`)
-	}
-	return nil
-}
-
 func (_u *SessionUpdateOne) sqlSave(ctx context.Context) (_node *Session, err error) {
-	if err := _u.check(); err != nil {
-		return _node, err
-	}
 	_spec := sqlgraph.NewUpdateSpec(session.Table, session.Columns, sqlgraph.NewFieldSpec(session.FieldID, field.TypeString))
 	id, ok := _u.mutation.ID()
 	if !ok {
@@ -353,16 +326,8 @@ func (_u *SessionUpdateOne) sqlSave(ctx context.Context) (_node *Session, err er
 	if value, ok := _u.mutation.Revoked(); ok {
 		_spec.SetField(session.FieldRevoked, field.TypeBool, value)
 	}
-	if value, ok := _u.mutation.Roles(); ok {
-		_spec.SetField(session.FieldRoles, field.TypeJSON, value)
-	}
-	if value, ok := _u.mutation.AppendedRoles(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, session.FieldRoles, value)
-		})
-	}
-	if _u.mutation.RolesCleared() {
-		_spec.ClearField(session.FieldRoles, field.TypeJSON)
+	if value, ok := _u.mutation.AuthenticatedAt(); ok {
+		_spec.SetField(session.FieldAuthenticatedAt, field.TypeTime, value)
 	}
 	if _u.mutation.AuthenticatedAtCleared() {
 		_spec.ClearField(session.FieldAuthenticatedAt, field.TypeTime)

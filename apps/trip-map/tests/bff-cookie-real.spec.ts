@@ -2,12 +2,12 @@ import { test, expect, type Page } from "@playwright/test";
 
 /**
  * Real-stack session smoke. Requires BFF + tripmap and a Playwright storage
- * state captured after a real Logto login. Keep that file outside the repo.
- * E2E_REAL_BFF=1 E2E_LOGTO_STORAGE_STATE=/private/path/state.json; see docs/bff.md.
+ * state captured after a real sign-in. Keep that file outside the repo.
+ * E2E_REAL_BFF=1 E2E_STORAGE_STATE=/private/path/state.json; see docs/bff.md.
  * Not run in default CI (Playwright uses the fake backend elsewhere).
  */
-const enabled = process.env.E2E_REAL_BFF === "1" && !!process.env.E2E_LOGTO_STORAGE_STATE;
-test.use({ storageState: process.env.E2E_LOGTO_STORAGE_STATE });
+const enabled = process.env.E2E_REAL_BFF === "1" && !!process.env.E2E_STORAGE_STATE;
+test.use({ storageState: process.env.E2E_STORAGE_STATE });
 
 const LOCAL_KEY = "shanhai-travel-v2";
 const SESSION_KEY = "shanhai-session-v1";
@@ -27,13 +27,13 @@ const localSeed = {
   marks: {},
 };
 
-async function restoreLogtoSession(page: Page) {
+async function restoreSession(page: Page) {
   await page.goto("/");
   await expect(page.getByRole("button", { name: "账号", exact: true })).toBeVisible();
 }
 
 test.describe("real BFF cookie auth", () => {
-  test.skip(!enabled, "set E2E_REAL_BFF=1 and E2E_LOGTO_STORAGE_STATE with BFF+tripmap up");
+  test.skip(!enabled, "set E2E_REAL_BFF=1 and E2E_STORAGE_STATE with BFF+tripmap up");
 
   test("desktop: login/logout, HttpOnly cookie, no token in storage", async ({
     page,
@@ -53,7 +53,7 @@ test.describe("real BFF cookie auth", () => {
       ["shanhai-cloud-v2:someone-else", otherCache],
     );
 
-    await restoreLogtoSession(page);
+    await restoreSession(page);
 
     const cookies = await context.cookies();
     const sid = cookies.find((c) => c.name === "kongken_sid");
@@ -84,8 +84,8 @@ test.describe("real BFF cookie auth", () => {
     ).toBe(otherCache);
   });
 
-  test("mobile viewport: restore Logto session cookie", async ({ page, context }) => {
-    await restoreLogtoSession(page);
+  test("mobile viewport: restore session cookie", async ({ page, context }) => {
+    await restoreSession(page);
     const sid = (await context.cookies()).find((c) => c.name === "kongken_sid");
     expect(sid?.httpOnly).toBe(true);
   });

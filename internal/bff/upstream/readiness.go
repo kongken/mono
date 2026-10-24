@@ -2,10 +2,12 @@ package upstream
 
 import (
 	"context"
+	"errors"
 
 	"github.com/kongken/mono/internal/platform/health"
 	metrov1 "github.com/kongken/mono/pkg/proto/metro/v1"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
+	usersrvv1 "github.com/kongken/mono/pkg/proto/usersrv/v1"
 )
 
 // GRPCProbes returns readiness checks that call each configured service over its
@@ -24,6 +26,17 @@ func GRPCProbes(clients *Clients, serviceNames []string) []health.Probe {
 		// is only probed over HTTP /readyz.
 		var check func(context.Context) error
 		switch name {
+		case "usersrv":
+			check = func(ctx context.Context) error {
+				res, err := usersrvv1.NewSystemServiceClient(conn).GetStatus(ctx, &usersrvv1.GetStatusRequest{})
+				if err != nil {
+					return err
+				}
+				if !res.GetReady() {
+					return errors.New("usersrv reports it is not ready")
+				}
+				return nil
+			}
 		case "tripmap":
 			check = func(ctx context.Context) error {
 				_, err := tripmapv1.NewSystemServiceClient(conn).GetStatus(ctx, &tripmapv1.GetStatusRequest{})

@@ -32,7 +32,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-2">
             {session.status === "signed-in" ? (
               <>
-                <span className="max-w-32 truncate text-sm text-muted-foreground">{session.account.displayName || session.account.username}</span>
+                <span className="max-w-32 truncate text-sm text-muted-foreground">{session.account.displayName}</span>
                 <Button variant="outline" size="sm" onClick={() => void signOut()}>
                   退出
                 </Button>

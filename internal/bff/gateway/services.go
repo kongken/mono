@@ -40,6 +40,13 @@ type Route struct {
 // BFF; upstream entries serve health probes, internal gRPC and the plain HTTP
 // Routes listed here.
 var Services = []Service{{
+	// usersrv is the account service (email accounts, passwords, roles, account mail).
+	// It has no browser routes and no HTTP routes: the BFF reaches it over internal gRPC
+	// only, for every sign-in and for the re-check before each protected request. It is
+	// required: without it nobody can sign in, so the BFF refuses to start without it.
+	Name: "usersrv",
+	GRPC: true,
+}, {
 	Name: "tripmap",
 	GRPC: true,
 	Routes: []Route{
@@ -91,10 +98,10 @@ func GRPCNames(services []Service) []string {
 }
 
 // BFFOwnedRoutes inventories credential-bearing HTTP routes handled by the BFF
-// itself. They are mounted locally, never forwarded to a business upstream.
+// itself. They are mounted locally, never forwarded to a business upstream. Account
+// flows are Connect RPCs (bff.v1.AuthService), not HTTP routes: there is no browser
+// login redirect and no OAuth callback.
 var BFFOwnedRoutes = []Route{
-	{Path: "/auth/login", Trace: "/auth/login"},
-	{Path: "/auth/callback/:provider", Trace: "/auth/callback/:provider"},
 	// The metro MCP endpoint (MCP Streamable HTTP, stateless). It takes a Bearer
 	// management token only and ignores Cookies; the handler is internal/bff/metro/mcp.
 	{Path: "/mcp/metro", Method: "POST"},

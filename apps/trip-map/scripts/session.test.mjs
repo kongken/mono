@@ -12,9 +12,6 @@ import {
   saveCloudCache,
   saveSession,
 } from "../src/lib/session.ts";
-import {
-  oauthLoginURL,
-} from "../src/lib/oauth.ts";
 
 function memory(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -91,12 +88,6 @@ test("switching accounts keeps only the new user's cache", () => {
   clearOtherCaches(s, "u2");
   assert.deepEqual([...s.data.keys()].sort(), [cacheKey("u2"), legacyCacheSeenKey("u2")].sort());
 });
-
-test("OAuth navigation uses BFF host and an app identifier", () => {
-  assert.equal(oauthLoginURL("https://api.example.com/api", "https://a.example.com", "trip-map", "logto"), "https://api.example.com/auth/login?app=trip-map&provider=logto");
-  assert.equal(oauthLoginURL("/api", "http://localhost:5173", "trip-map", "logto"), "http://localhost:5173/auth/login?app=trip-map&provider=logto");
-});
-
 
 import { Code, ConnectError } from "@connectrpc/connect";
 import { describeApiError, isUnauthenticated } from "../src/lib/errors.ts";

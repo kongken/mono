@@ -33,7 +33,7 @@ func TestChainFriendLifecycleAndFootprintVisibility(t *testing.T) {
 	}
 
 	csrf := a.refreshCSRF(ctx)
-	sendReq := connect.NewRequest(&bfftripmapv1.SendFriendRequestRequest{Target: "friend_bob"})
+	sendReq := connect.NewRequest(&bfftripmapv1.SendFriendRequestRequest{Target: ovB.GetMyFriendCode()})
 	a.writeHeaders(sendReq, csrf, a.Origin)
 	sendRes, err := a.Friends.SendFriendRequest(ctx, sendReq)
 	if err != nil {

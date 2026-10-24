@@ -30,11 +30,17 @@ const (
 //
 // AccessTokenService manages the management tokens that non-browser clients (the
 // metro MCP endpoint) present as a Bearer credential. A token acts as the
-// administrator who created it, with the roles that administrator had at creation
-// time. It lives in the BFF because it is part of the identity layer; the audience
-// field says which product's endpoint accepts it.
+// administrator who created it. It carries the account's auth_version and a role
+// snapshot from creation time; every tool call re-checks the account with usersrv,
+// and the token acts with the roles that are in both the snapshot and the account's
+// current roles. A revoked role, a password change or reset, a disable and an
+// account deletion therefore stop it at its next call, and granting the role again
+// does not bring it back. It lives in the BFF because it is part of the identity
+// layer; the audience field says which product's endpoint accepts it.
 //
 // Every method needs the metro-admin role: metro is the only audience in v1.
+// Creating a token also needs a password check on the session within the last 15
+// minutes (AuthService.Reauthenticate), else FAILED_PRECONDITION.
 type AccessTokenServiceClient interface {
 	// CreateAccessToken returns the plaintext secret once; only its digest is kept.
 	CreateAccessToken(ctx context.Context, in *CreateAccessTokenRequest, opts ...grpc.CallOption) (*CreateAccessTokenResponse, error)
@@ -91,11 +97,17 @@ func (c *accessTokenServiceClient) RevokeAccessToken(ctx context.Context, in *Re
 //
 // AccessTokenService manages the management tokens that non-browser clients (the
 // metro MCP endpoint) present as a Bearer credential. A token acts as the
-// administrator who created it, with the roles that administrator had at creation
-// time. It lives in the BFF because it is part of the identity layer; the audience
-// field says which product's endpoint accepts it.
+// administrator who created it. It carries the account's auth_version and a role
+// snapshot from creation time; every tool call re-checks the account with usersrv,
+// and the token acts with the roles that are in both the snapshot and the account's
+// current roles. A revoked role, a password change or reset, a disable and an
+// account deletion therefore stop it at its next call, and granting the role again
+// does not bring it back. It lives in the BFF because it is part of the identity
+// layer; the audience field says which product's endpoint accepts it.
 //
 // Every method needs the metro-admin role: metro is the only audience in v1.
+// Creating a token also needs a password check on the session within the last 15
+// minutes (AuthService.Reauthenticate), else FAILED_PRECONDITION.
 type AccessTokenServiceServer interface {
 	// CreateAccessToken returns the plaintext secret once; only its digest is kept.
 	CreateAccessToken(context.Context, *CreateAccessTokenRequest) (*CreateAccessTokenResponse, error)

@@ -1,6 +1,6 @@
 # 部署与发布
 
-本文描述**当前已实现**的同源代理与 HTTPS 同站点多 Web App/BFF 拓扑、密钥与 TLS 布局、健康探针和运维轮换步骤。真实 Logto OAuth、SMTP、Web Push、生产 S3 策略与社交平台抓取在本仓库 CI 中**未**端到端验收；浏览器真实栈 Playwright 见 [BFF 验证](bff.md#验证)（默认跳过，需本地 `make dev` 与 `E2E_REAL_BFF=1`）。
+本文描述**当前已实现**的同源代理与 HTTPS 同站点多 Web App/BFF 拓扑、密钥与 TLS 布局、健康探针和运维轮换步骤。真实邮件厂商、SMTP、Web Push、生产 S3 策略与社交平台抓取在本仓库 CI 中**未**端到端验收；浏览器真实栈 Playwright 见 [BFF 验证](bff.md#验证)（默认跳过，需本地 `make dev` 与 `E2E_REAL_BFF=1`）。
 
 ## 拓扑
 
@@ -105,22 +105,22 @@ tripmap、BFF、metro 与各前端为独立镜像（见 [Docker 镜像](docker-i
 示例见 `deploy/compose.stack.example.yaml`（`metro`、`metro-web` 服务）与 `deploy/reverse-proxy/Caddyfile.example`（`metro.example.com` 站点）。步骤：
 
 1. 在同一个 PostgreSQL 实例创建独立数据库 `metro`，复制 `config.metro.example.yaml` 为 `config.metro.yaml`，生产环境关闭 `auto_migrate` 并按文件名顺序执行 `migrations/metro/`；BFF 库另需执行新的 `migrations/bff/*_access_tokens.sql`。
-2. `config.bff.yaml` 加 `upstreams.metro`、`grpc.services.metro`，`auth.account_cleanup` 列入 `metro`，`auth.oauth_apps.metro` 填 metro 站点的 origin 与 `allowed_paths: [/, /me, /admin]`，按需调整 `mcp.rate_limit_per_minute`。不部署 metro 时去掉这些项，BFF 不会挂载 metro 的任何路由。
-3. Logto：创建角色 `metro-admin` 并授予管理员，应用需允许 `roles` scope；BFF 的回调 URI 不变。**角色声明按 Logto 源码核实、未对真实租户验证**，上线前先让一个管理员登录并确认 `Me` 返回 `metro-admin`。
+2. `config.bff.yaml` 加 `upstreams.metro`、`grpc.services.metro`，`auth.account_cleanup` 列入 `metro`，按需调整 `mcp.rate_limit_per_minute`。不部署 metro 时去掉这些项，BFF 不会挂载 metro 的任何路由。
+3. 管理员角色：在 usersrv 配置 `auth.apps.metro.origin`，用 `usersrv-admin` 给管理员账号授予 `metro-admin`；BFF 每次请求读取当前角色，上线前先让一个管理员登录并确认 `Me` 返回 `metro-admin`。
 4. 边缘网关对 `/mcp/metro` 不记录请求头与访问日志（Bearer 令牌），并保证 `client_ip_header` 由网关覆盖（MCP 失败认证按该地址限流）。MCP 令牌由管理员在 `/admin/tokens` 创建，最长 90 天，明文只显示一次。
 
-## Logto-only 身份迁移
+## 自建用户系统的数据迁移
 
-本项目不迁移旧密码账号或测试云端数据。备份数据库并暂停登录与业务写入后，按以下顺序操作；所有清理 SQL 均由运维手动执行，不由服务启动调用：
+本项目不迁移旧的 Logto 账号、测试云端数据或会话。备份数据库并暂停登录与业务写入后，按以下顺序操作；所有清理 SQL 均由运维手动执行，不由服务启动调用：
 
-1. **BFF 数据库**：按版本顺序应用尚未执行的迁移，包括 `migrations/bff/20261023095053_logto_identity_mapping.sql`。它只新增 `auth_identities`、`auth_browser_sessions`，不复制旧账号或会话；旧 Cookie 会话失效。
-2. 部署所有 BFF、tripmap 与前端实例。移除旧 provider 配置及 `registration_disabled`，仅配置 Logto；确认没有旧版本副本后才清理列，旧 Ent 客户端依赖它们。
-3. **tripmap 业务数据库（可选，且必须在开放新登录前）**：若整库业务数据均可丢弃，手动执行 `deploy/sql/tripmap/reset_test_profiles.sql`，删除旧测试 profile 及其级联业务数据。它不会清理 S3 实体对象；如需物理删除，应在删除元数据之前单独核对、备份并清理测试对象，不能影响其他应用对象。开放新登录后不要运行此脚本，否则新用户数据也会删除。
-4. **tripmap 业务数据库**：手动执行 `deploy/sql/tripmap/post_import_drop_legacy_auth_columns.sql`，删除认证遗留列及旧用户名唯一索引。文件名仅为历史兼容，不需要账号导入。此步骤在开放新登录前完成，避免不同 Logto subject 的相同资料名发生冲突；保留业务 `users` 表及所有业务结构。
-5. 验证 Logto 登录、`Me`、业务读写、退出、会话撤销和删除云端数据后，**BFF 数据库**可手动执行 `deploy/sql/bff/retire_password_accounts.sql`，仅删除旧 `auth_sessions` / `auth_users`。保留新身份映射、浏览器会话及 `account_deletion_receipts`。
-6. 恢复流量。清理后不能直接回滚至旧版本；需要恢复数据库备份。以上操作不连接或修改 **Logto 数据库**，也不会删除 Logto 用户。
+1. 部署 usersrv（`config.usersrv.example.yaml`，独立数据库 `usersrv`，生产关闭 `auto_migrate` 并按文件名顺序执行 `migrations/usersrv/`）；在 BFF 配置 `upstreams.usersrv`、`grpc.services.usersrv`（见 [BFF](bff.md#配置)）。
+2. **BFF 数据库**：按版本顺序应用迁移，包括 `migrations/bff/20261024161800_usersrv_sessions.sql`（会话增加 `auth_version`、新建 `bff_account_deletions`）。旧 Cookie 会话在第一次使用时被撤销，用户须重新登录。BFF 与 tripmap 的所有副本升级完成后，旧版本副本才不会再读旧表。
+3. **tripmap 业务数据库（可选，且必须在开放新登录前）**：若整库业务数据均可丢弃，手动执行 `deploy/sql/tripmap/reset_test_profiles.sql`，删除旧测试 profile 及其级联业务数据。它不会清理 S3 实体对象；开放新登录后不要运行此脚本。
+4. **tripmap 业务数据库**：手动执行 `deploy/sql/tripmap/post_import_drop_legacy_auth_columns.sql`，删除认证遗留列及旧用户名唯一索引；保留业务 `users` 表及所有业务结构。
+5. 验证注册、登录、`Me`、业务读写、退出、会话撤销和注销后，**BFF 数据库**可手动执行 `deploy/sql/bff/retire_logto_identities.sql`，删除旧的 `auth_identities`、`account_deletion_receipts`（以及更早的 `auth_sessions`、`auth_users`）。该脚本会先检查新的 `bff_account_deletions` 已存在、没有未完成的旧注销回执依赖。
+6. 恢复流量。清理后不能直接回滚至旧版本；需要恢复数据库备份。
 
-退出仅撤销当前 BFF 会话，不执行 Logto 全局退出。Logto 远端禁用、删除账号或修改资料尚不会实时撤销/刷新既有 BFF 会话；资料在再次登录时刷新，会话依本地过期和撤销规则处理。最近 15 分钟的 BFF 会话不代表 Logto 强制重新输入凭据（SSO 可能直接完成登录）。
+退出仅撤销当前 BFF 会话。会话在每个请求都和 usersrv 的账号状态、`auth_version`、角色核对：禁用账号、改密码、撤销角色在下一个请求生效。邮件厂商与浏览器登录页的发布步骤属于后续阶段（P5、P6）。
 
 ## 验证清单
 
@@ -129,10 +129,8 @@ tripmap、BFF、metro 与各前端为独立镜像（见 [Docker 镜像](docker-i
 - 有隔离存储时 `make test-integration`。
 - 文档链接：`make check-docs`。
 
-## 多前端共用 BFF 的部署（#54）
+## 多前端共用 BFF 的部署
 
-完整配置、回调迁移与验证命令见 [BFF 多 Web App 登录](bff.md#多-web-app-登录与迁移54)。公网 API 域名同时提供 `/api/bff.*`、`/auth/login` 与 `/auth/callback/*`；OAuth callback 只由 BFF 处理，不回退 SPA。所有网关禁止记录回调查询串；Nginx 示例已覆盖 `/auth/`。不更改 DNS、Ingress 或生产资源的自动配置。
+公网 API 域名提供 `/api/bff.*` 与 `/mcp/metro`；不再有 `/auth/login` 或 `/auth/callback/*`。多个 HTTPS 同站点应用分别构建 `VITE_API_BASE_URL=https://api.example.com/api`；BFF 配置精确的 `cors_allowed_origins`，生产 `cookie_secure: true`。邮件里的链接来源由 usersrv 的 `auth.apps.<app_id>.origin` 决定。API 主机保存 host-only Cookie，应用用 credentials include 和 CSRF 响应体 token 调用；不要扩大 Domain。任意跨站点及第三方 Cookie 限制不属于支持承诺。
 
-多个 HTTPS 同站点应用分别构建 `VITE_API_BASE_URL=https://api.example.com/api` 与自身 `VITE_OAUTH_APP_ID`；BFF 增加两个精确 app origin/落点和 CORS origins，生产 `cookie_secure: true`，关闭开发例外。Logto 登记固定 `https://api.example.com/auth/callback/logto`；新增 app 不改变该 URI。API 主机保存 host-only Cookie，应用用 credentials include 和 CSRF 响应体 token 调用；不要扩大 Domain。任意跨站点及第三方 Cookie 限制不属于支持承诺。
-
-同源 `/api` 模式仍须同时代理 `/auth/`，callback 和 API 的浏览器主机一致。独立前端代理会得到各自的 Cookie，不能与直连共享 BFF 主机会话混为一谈。`client_ip_header` 只信任已覆盖客户端同名头的网关；BFF 不按 Host/Referer 推导可信回调或落点。当前退出撤销 BFF 会话，不注销 Logto；删除云端数据也不删除 Logto 账号。旧测试账号和业务数据按迁移说明处理，不自动导入或清空。
+同源 `/api` 模式把 `/api` 代理到 BFF。独立前端代理会得到各自的 Cookie，不能与直连共享 BFF 主机会话混为一谈。`client_ip_header` 只信任已覆盖客户端同名头的网关；BFF 不按 Host/Referer 推导可信来源。

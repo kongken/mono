@@ -13,7 +13,6 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/kongken/mono/internal/bff/ent/accesstoken"
-	"github.com/kongken/mono/internal/bff/ent/user"
 )
 
 // AccessTokenCreate is the builder for creating a AccessToken entity.
@@ -57,6 +56,20 @@ func (_c *AccessTokenCreate) SetScopes(v []string) *AccessTokenCreate {
 // SetRoles sets the "roles" field.
 func (_c *AccessTokenCreate) SetRoles(v []string) *AccessTokenCreate {
 	_c.mutation.SetRoles(v)
+	return _c
+}
+
+// SetAuthVersion sets the "auth_version" field.
+func (_c *AccessTokenCreate) SetAuthVersion(v int64) *AccessTokenCreate {
+	_c.mutation.SetAuthVersion(v)
+	return _c
+}
+
+// SetNillableAuthVersion sets the "auth_version" field if the given value is not nil.
+func (_c *AccessTokenCreate) SetNillableAuthVersion(v *int64) *AccessTokenCreate {
+	if v != nil {
+		_c.SetAuthVersion(*v)
+	}
 	return _c
 }
 
@@ -122,11 +135,6 @@ func (_c *AccessTokenCreate) SetNillableID(v *string) *AccessTokenCreate {
 	return _c
 }
 
-// SetUser sets the "user" edge to the User entity.
-func (_c *AccessTokenCreate) SetUser(v *User) *AccessTokenCreate {
-	return _c.SetUserID(v.ID)
-}
-
 // Mutation returns the AccessTokenMutation object of the builder.
 func (_c *AccessTokenCreate) Mutation() *AccessTokenMutation {
 	return _c.mutation
@@ -162,6 +170,10 @@ func (_c *AccessTokenCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *AccessTokenCreate) defaults() {
+	if _, ok := _c.mutation.AuthVersion(); !ok {
+		v := accesstoken.DefaultAuthVersion
+		_c.mutation.SetAuthVersion(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := accesstoken.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -176,6 +188,11 @@ func (_c *AccessTokenCreate) defaults() {
 func (_c *AccessTokenCreate) check() error {
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "AccessToken.user_id"`)}
+	}
+	if v, ok := _c.mutation.UserID(); ok {
+		if err := accesstoken.UserIDValidator(v); err != nil {
+			return &ValidationError{Name: "user_id", err: fmt.Errorf(`ent: validator failed for field "AccessToken.user_id": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.Name(); !ok {
 		return &ValidationError{Name: "name", err: errors.New(`ent: missing required field "AccessToken.name"`)}
@@ -207,14 +224,14 @@ func (_c *AccessTokenCreate) check() error {
 	if _, ok := _c.mutation.Roles(); !ok {
 		return &ValidationError{Name: "roles", err: errors.New(`ent: missing required field "AccessToken.roles"`)}
 	}
+	if _, ok := _c.mutation.AuthVersion(); !ok {
+		return &ValidationError{Name: "auth_version", err: errors.New(`ent: missing required field "AccessToken.auth_version"`)}
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "AccessToken.created_at"`)}
 	}
 	if _, ok := _c.mutation.ExpiresAt(); !ok {
 		return &ValidationError{Name: "expires_at", err: errors.New(`ent: missing required field "AccessToken.expires_at"`)}
-	}
-	if len(_c.mutation.UserIDs()) == 0 {
-		return &ValidationError{Name: "user", err: errors.New(`ent: missing required edge "AccessToken.user"`)}
 	}
 	return nil
 }
@@ -252,6 +269,10 @@ func (_c *AccessTokenCreate) createSpec() (*AccessToken, *sqlgraph.CreateSpec) {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
+	if value, ok := _c.mutation.UserID(); ok {
+		_spec.SetField(accesstoken.FieldUserID, field.TypeString, value)
+		_node.UserID = value
+	}
 	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(accesstoken.FieldName, field.TypeString, value)
 		_node.Name = value
@@ -272,6 +293,10 @@ func (_c *AccessTokenCreate) createSpec() (*AccessToken, *sqlgraph.CreateSpec) {
 		_spec.SetField(accesstoken.FieldRoles, field.TypeJSON, value)
 		_node.Roles = value
 	}
+	if value, ok := _c.mutation.AuthVersion(); ok {
+		_spec.SetField(accesstoken.FieldAuthVersion, field.TypeInt64, value)
+		_node.AuthVersion = value
+	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(accesstoken.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
@@ -287,23 +312,6 @@ func (_c *AccessTokenCreate) createSpec() (*AccessToken, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.RevokedAt(); ok {
 		_spec.SetField(accesstoken.FieldRevokedAt, field.TypeTime, value)
 		_node.RevokedAt = &value
-	}
-	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   accesstoken.UserTable,
-			Columns: []string{accesstoken.UserColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeString),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_node.UserID = nodes[0]
-		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
 }
@@ -427,6 +435,9 @@ func (u *AccessTokenUpsertOne) UpdateNewValues() *AccessTokenUpsertOne {
 		}
 		if _, exists := u.create.mutation.Roles(); exists {
 			s.SetIgnore(accesstoken.FieldRoles)
+		}
+		if _, exists := u.create.mutation.AuthVersion(); exists {
+			s.SetIgnore(accesstoken.FieldAuthVersion)
 		}
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(accesstoken.FieldCreatedAt)
@@ -707,6 +718,9 @@ func (u *AccessTokenUpsertBulk) UpdateNewValues() *AccessTokenUpsertBulk {
 			}
 			if _, exists := b.mutation.Roles(); exists {
 				s.SetIgnore(accesstoken.FieldRoles)
+			}
+			if _, exists := b.mutation.AuthVersion(); exists {
+				s.SetIgnore(accesstoken.FieldAuthVersion)
 			}
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(accesstoken.FieldCreatedAt)

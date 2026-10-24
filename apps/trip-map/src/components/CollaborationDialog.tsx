@@ -572,9 +572,6 @@ export default function CollaborationDialog({
                       <li key={f.id} className="collab-item">
                         <div className="collab-item-info">
                           <strong>{friendLabel(f.friend)}</strong>
-                          {f.friend?.username && (
-                            <small>@{f.friend.username}</small>
-                          )}
                         </div>
                         <div className="collab-item-actions">
                           <Button

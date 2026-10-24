@@ -60,7 +60,7 @@ dev-secrets:
 # product: 18084 (HTTP) and 18085 (gRPC); it needs its own database (see config.metro.example.yaml).
 # Run `make dev-secrets` first, or configure matching inline signing keys.
 dev:
-	$(MAKE) -j3 dev-bff dev-tripmap dev-metro
+	$(MAKE) -j4 dev-bff dev-tripmap dev-metro dev-usersrv
 
 dev-bff:
 	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.bff.yaml PORT=18081 go run ./cmd/bff
@@ -72,12 +72,12 @@ dev-metro:
 	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.metro.yaml PORT=18084 go run ./cmd/metro
 
 # The internal account service (usersrv): HTTP 18086 (/ping, /readyz) and gRPC 18087. It needs its
-# own database and Redis (see config.usersrv.example.yaml). Stage P1 of docs/usersrv/spec.md: the BFF
-# does not call it yet and it opens no sign-in, so it is deliberately not part of `make dev`.
+# own database and Redis (see config.usersrv.example.yaml). The BFF requires it (upstreams.usersrv),
+# so `make dev` starts it too.
 dev-usersrv:
 	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.usersrv.yaml PORT=18086 go run ./cmd/usersrv
 
-# The metro web app (Vite on 5174, proxying /api and /auth to the BFF on 18081).
+# The metro web app (Vite on 5174, proxying /api to the BFF on 18081).
 # Run it next to `make dev`.
 dev-metro-web:
 	npm run dev:metro

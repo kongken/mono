@@ -30,7 +30,7 @@
 - 修改 `proto/` 后运行 `make buf`，修改 `internal/<业务>/ent/schema/` 后运行 `make ent`，将生成的 Go / TypeScript / Ent 文件一起提交；生成文件只通过生成器更新。版本化迁移按业务放在 `migrations/<业务>/`。
 - 私有业务接口先实现认证与用户隔离，当前公共接口除健康状态外，只有可选的匿名瓦片代理 `GET /api/tiles/{z}/{x}/{y}.png`（默认关闭，见 [后端初始化](docs/backend.md)）；城市区域 ID 规则与前端一致。
 - 配置示例使用本地开发值，真实凭据放在忽略的 `config.tripmap.yaml` 或挂载 Secret 中。
-- `usersrv`（自建用户系统，阶段状态见 [规格](docs/usersrv/spec.md)）是内部账号服务：`internal/usersrv` 不 import 其他业务，BFF 不 import `internal/usersrv`，只经 `usersrv.v1` 内部 gRPC 调用；目前实现 P1（账号核心）、P2（邮件 adapter 与加密 outbox）与 P3（注册验证、邮箱密码登录、找回密码等账号流程，仅内部 gRPC，无浏览器入口），BFF 未接入；邮件的真实厂商只做手动冒烟验证，自动化测试只连本地假服务。修改其 Ent schema 用 `make ent-usersrv`，迁移用 `make usersrv-migration`，测试用 `make test-integration-usersrv`。
+- `usersrv`（自建用户系统，阶段状态见 [规格](docs/usersrv/spec.md)）是内部账号服务：`internal/usersrv` 不 import 其他业务，BFF 不 import `internal/usersrv`，只经 `usersrv.v1` 内部 gRPC 调用（`internal/bff/usersrv` 只放错误映射）；目前实现 P1（账号核心）、P2（邮件 adapter 与加密 outbox）、P3（注册验证、邮箱密码登录、找回密码）与 P4（BFF 会话、每请求 `GetAuthState`、注销工作流、产品鉴权），浏览器表单（P5）与发布（P6）未完成。BFF 不保存密码，运行时没有 Logto 或 OAuth 代码。邮件的真实厂商只做手动冒烟验证，自动化测试只连本地假服务。修改其 Ent schema 用 `make ent-usersrv`，迁移用 `make usersrv-migration`，测试用 `make test-integration-usersrv`。
 
 ## 文档同步
 

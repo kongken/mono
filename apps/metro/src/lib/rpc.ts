@@ -37,14 +37,6 @@ export async function write<T>(call: () => Promise<T>): Promise<T> {
   return call();
 }
 
-/** Top-level navigation target of the login flow; the BFF redirects back to returnTo. */
-export function loginURL(returnTo: string): string {
-  const url = new URL("/auth/login", new URL(apiBase, window.location.origin));
-  url.searchParams.set("app", "metro");
-  url.searchParams.set("return_to", returnTo);
-  return url.toString();
-}
-
 /** Public address of the MCP endpoint on the BFF host. */
 export function mcpEndpoint(): string {
   return new URL("/mcp/metro", new URL(apiBase, window.location.origin)).toString();

@@ -1,13 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { auth, loginURL, write } from "./rpc";
+import { auth, write } from "./rpc";
 import { isUnauthenticated } from "./errors";
-import { loginReturnPaths } from "./route";
 import { navigate } from "./router";
 
-export type Account = { id: string; displayName: string; username: string; roles: string[] };
+export type Account = { id: string; displayName: string; roles: string[] };
 export type SessionState = { status: "loading" } | { status: "anonymous" } | { status: "signed-in"; account: Account };
-
-const RETURN_KEY = "metro.return";
 
 type Ctx = {
   session: SessionState;
@@ -26,17 +23,11 @@ export const useSession = () => {
   return v;
 };
 
-/** The BFF only returns to a few fixed paths; the page the user came from is restored on arrival. */
-export function signIn() {
-  const here = window.location.pathname + window.location.search;
-  const target = loginReturnPaths.includes(window.location.pathname) ? window.location.pathname : "/";
-  try {
-    if (here !== target) sessionStorage.setItem(RETURN_KEY, here);
-  } catch {
-    // Storage may be unavailable; the user simply lands on the fixed path.
-  }
-  window.location.assign(loginURL(target));
-}
+/**
+ * The email and password forms arrive with the front-end stage of the account
+ * system; until then there is no browser sign-in to start.
+ */
+export function signIn() {}
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionState>({ status: "loading" });
@@ -47,7 +38,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!me.user) throw new Error("incomplete user");
       setSession({
         status: "signed-in",
-        account: { id: me.user.id, displayName: me.user.displayName, username: me.user.username, roles: me.roles },
+        account: { id: me.user.id, displayName: me.user.displayName, roles: me.roles },
       });
     } catch (e) {
       if (!isUnauthenticated(e)) console.warn("me failed", e);
@@ -58,20 +49,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  // Back from the login redirect: go on to the page the user started from.
-  useEffect(() => {
-    if (session.status !== "signed-in") return;
-    try {
-      const back = sessionStorage.getItem(RETURN_KEY);
-      if (back) {
-        sessionStorage.removeItem(RETURN_KEY);
-        if (back.startsWith("/") && !back.startsWith("//")) navigate(back, true);
-      }
-    } catch {
-      // ignore
-    }
-  }, [session.status]);
 
   const value = useMemo<Ctx>(
     () => ({

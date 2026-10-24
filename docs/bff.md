@@ -9,9 +9,10 @@
 **当前已实现**
 
 - `bff.tripmap.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
-- `bff.v1.AuthService` 使用 Logto 作为唯一身份来源。BFF 只保存 `(issuer, sub)` 到本地业务用户 ID 的映射、展示资料缓存和浏览器 Cookie 会话；账号密码、注册、找回密码、社交连接和 Passkey 由 Logto 管理。旧 `Register`、`Login` 和 SPA OAuth RPC 保留 deprecated 契约但返回 `unimplemented`，不会在 BFF 写入或验证密码。会话、CSRF、OAuth state 和固定回调仍由 BFF 负责。
-- OAuth 提供方只允许 `logto`；GitHub、Google 等社交连接应在 Logto 中配置，不再作为 BFF 的平行身份提供方。
-- `bff.tripmap.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。Logto 登录后调用 `ProfileService/EnsureProfile` 同步业务档案（同一 `user_id`）。
+- `bff.v1.AuthService`（账号与会话）与 `bff.v1.UserService`：BFF 不保存密码，也不再有任何第三方登录。注册、登录、找回/重置密码、改密码、资料与注销都经内部 gRPC 调用 usersrv（`usersrv.v1.AccountService`），BFF 自己只负责浏览器会话、CSRF、入口策略和注销工作流。详见下文「账号、会话与注销（P4）」。
+- `bff.v1` 的 RPC：`RequestRegistration`、`CompleteRegistration`、`LoginWithEmail`、`RequestPasswordReset`、`ResetPassword`（匿名）；`Me`、`ListSessions`、`Logout`、`RevokeSession`、`Reauthenticate`、`ChangePassword`、`UpdateMyProfile`、`DeleteAccount`、`GetAccountDeletion`、`RetryAccountDeletion`（登录后）。旧的 Register/Login/OAuth RPC 已从契约删除，字段编号用 protobuf `reserved` 保留。
+- usersrv 已登记为上游服务（`gateway.Services`，`upstreams.usersrv`、`grpc.services.usersrv`），是必需的：不配置则启动失败。`/readyz` 增加 `usersrv_grpc`。
+- `bff.tripmap.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。tripmap 的展示投影（用户 ID、昵称、头像）在首次调用 `bff.tripmap.v1.*` 时由 BFF 按需确保：读 usersrv 的账号后调用 `ProfileService/EnsureProfile`，并在 Redis 记下已投影的 `profile_version`（24 小时），昵称或头像变化后下一次调用重新投影；Redis 故障不致命，只多做一次幂等调用。投影只含用户 ID、昵称、头像，不含邮箱。
 - `bff.tripmap.v1.NotificationService`（全部提醒设置 RPC）→ tripmap gRPC `NotificationService`；浏览器经 Cookie 会话，业务仍只认 BFF 签发的内部凭证与用户 ID。
 - 公开 HTTP：`GET/HEAD/POST /api/notifications/unsubscribe` 在 BFF 显式注册（`internal/bff/publichttp`），边缘限流与追踪路径模板 `/api/notifications/unsubscribe`（不含查询令牌），再调用 tripmap gRPC `NotificationPublicService/ProcessEmailUnsubscribe`（匿名内部凭证 + 退订签名令牌）；不使用 Cookie CSRF。
 - `bff.tripmap.v1.ShareService`（#36：`GetShare`、`PreviewShare`、`SaveShare`、`RevokeShare`）→ tripmap gRPC `ShareService` 同名方法；浏览器经 Cookie 会话。
@@ -24,23 +25,23 @@
 - `bff.tripmap.v1.ReportService/GetReport`（#39）→ tripmap gRPC `ReportService/GetReport`；`bff.tripmap.v1.SearchService/SearchNotes` → tripmap gRPC `SearchService/SearchNotes`（Connect 读上限 4 KiB）。tripmap 公网 Connect 上的 `ReportService` / `SearchService` 已移除。
 - `bff.tripmap.v1.RegionService`（#40：`GetRegionIndex`、`PreviewRegionUpgrade`、`ApplyRegionUpgrade`）→ tripmap gRPC `RegionService` 同名方法；`ApplyRegionUpgrade` 校验 Origin/CSRF；`X-Tripmap-Regions` 白名单下传。tripmap 公网 Connect 上的 `RegionService` 已移除。
 - 可选 Mapbox 底图瓦片：`GET /api/tiles/{z}/{x}/{y}.png`（匿名）在 `gateway.Services` 登记为 tripmap 的 HTTP 路由，BFF 透明转发到 `upstreams.tripmap`（需要 tripmap 的 `mapbox_tiles.enabled`，见 [后端初始化](backend.md#mapbox-瓦片代理可选)）。BFF 不持有 Mapbox token、样式或限流配置；转发时只保留 `Accept`、`User-Agent` 与缓存验证头 `If-None-Match`、`If-Modified-Since`（查询串原样转发，由 tripmap 校验），丢弃 Cookie、Authorization、CSRF、Origin 等其余浏览器头，并覆盖写入 `X-Real-IP`；保留 tripmap 的图片、缓存与验证响应头及 304 状态，去掉 `Access-Control-*` 并按 `cors_allowed_origins` 应答；tripmap 不可达时返回不缓存的 502。
-- **角色与管理员（#64 P0）**：登录时 BFF 向 Logto 请求 `roles` scope，把 userinfo 的 `roles` 与签发时间（`authenticated_at`）随会话保存（`auth_browser_sessions` 的 `roles`、`authenticated_at` 列，见 `migrations/bff/20261023161947_session_roles.sql`）；`MeResponse.roles` 返回它们，旧会话没有角色，视为非管理员。proto 方法选项 `platform.v1.required_role`（`proto/platform/v1/options.proto`）声明方法所需的角色：BFF ingress 在认证后检查（未登录 `UNAUTHENTICATED`，缺角色 `PERMISSION_DENIED`，会话签发超过 `auth.admin_session_max_age`（默认 12h）`UNAUTHENTICATED`），业务服务的拦截器再从内部凭证独立检查一次。角色只在声明了 `required_role` 的方法的凭证里签入（`rol` claim），其他调用看不到。角色在登录时读取、不会实时撤销，所以管理会话要定期重新登录。
-- **账号清理多产品化**：“删除云端数据”依次调用 `auth.account_cleanup` 列出的各产品清理器（默认只有 tripmap；示例配置为 `[tripmap, metro]`），每个都幂等；任一产品失败则账号仍为“待删除”，重试时对已成功的产品重复调用无副作用。未部署的产品不能列入。
+- **角色与管理员**：角色只存在于 usersrv（`user_roles`，当前唯一的白名单角色是 `metro-admin`，只能用 `usersrv-admin` 授予/撤销），会话里不再保存角色快照。BFF 每个受保护请求都调用 usersrv `GetAuthState`（账号 active、`auth_version` 与会话相同、当前角色），`MeResponse.roles` 返回的就是当前角色。proto 方法选项 `platform.v1.required_role`（`proto/platform/v1/options.proto`）声明方法所需的角色：BFF ingress 在认证后检查（未登录 `UNAUTHENTICATED`，缺角色 `PERMISSION_DENIED`，会话的 `authenticated_at`（真实的密码验证时间）超过 `auth.admin_session_max_age`（默认 12h）`UNAUTHENTICATED`），业务服务的拦截器再从内部凭证独立检查一次（`rol` claim，只在声明了 `required_role` 的方法里签入）。角色撤销因此在下一次请求就生效。
+- **账号注销多产品化**：注销工作流（见下文）依次调用 `auth.account_cleanup` 列出的各产品清理器（默认只有 tripmap；示例配置为 `[tripmap, metro]`），每个都幂等；工作流创建时固定这份产品清单，之后配置移除了某个产品会报错而不是悄悄跳过。未部署的产品不能列入。
 - **可选上游**：`gateway.Service.Optional`（metro）使该产品在 `upstreams` 没有对应项时整体不启用：不校验、不挂路由、不探测、不清理；已配置则与 tripmap 一样校验 `grpc.services`。
 - **metro（#64 P1–P3）**：`bff.metro.v1.CatalogService`（城市、线路、车型专题；全部匿名只读，`ListCities` 支持 `known_version`）→ `metro.v1.CatalogService`（按字段手写映射）；`bff.metro.v1.RiderService`（`GetPublicProfile` 匿名；`GetMyProfile`、`UpdateMyProfile`、`ListMyLines`、`MarkLine`、`UnmarkLine` 需登录）→ `metro.v1.RiderService`；`bff.metro.v1.AdminService`（城市/车型/线路/车型专题的增删改与列表、`ImportCatalog`、`ExportCatalog`、`ListAuditLogs`；全部 `required_role = "metro-admin"`）→ `metro.v1.AdminService`。管理读（`ListAdmin*`、`ExportCatalog`、`ListAuditLogs`）与登录读登记为只读过程，其余写过程校验 Origin/CSRF；`ImportCatalog`、`ExportCatalog` 登记为 25 秒重任务；管理接口 Connect 读上限 2 MiB（导入文档上限 1 MiB）。管理与骑行者契约与内部契约同形，由 `internal/bff/metro/relay` 经 protobuf 线格式转换，`TestContractsStayWireCompatible`（`internal/bff/metro/admin`、`rider`）在两边字段、编号、类型或方法不一致时失败；域错误（`INVALID_ARGUMENT` 字段错误、`FAILED_PRECONDITION` 的当前 revision 或引用数量、`ALREADY_EXISTS`）连同类型化 detail（`ValidationDetail`、`RevisionConflictDetail`、`ReferencedDetail`）原样返回浏览器。BFF 下传审计所需的 `x-bff-channel`（`web`）与（MCP 渠道的）`x-bff-token-id`，只在声明了 `required_role` 的方法上发送。
-- **管理令牌与 MCP（#64 P4）**：共用契约 `bff.v1.AccessTokenService`（`CreateAccessToken`、`ListAccessTokens`、`RevokeAccessToken`）在 BFF 自己的库表 `bff_access_tokens`（`migrations/bff/*_access_tokens.sql`）里管理令牌：明文 `mcp_` + 64 位十六进制只在创建响应里出现一次，库里只存 SHA-256 摘要；字段有 `audience`（`metro`）、`scopes`（`metro:read`、`metro:write`，写隐含读）、创建时的 `roles` 快照、`expires_at`（必填，最长 90 天）、`last_used_at`、`revoked_at`；每个用户最多 10 个有效令牌；创建要求会话 + CSRF + `metro-admin`（且在 `admin_session_max_age` 内签发），创建者或任何管理员可吊销，每次使用都查库，吊销立即生效。令牌的创建与吊销只写 BFF 的 `slog`（令牌 ID、用户、名称、作用域；不含明文），**不进入 metro 的 `admin_audit`**（审计表属于 metro，BFF 不写它）。MCP 端点 `POST /mcp/metro`（`internal/bff/metro/mcp`，在 `gateway.BFFOwnedRoutes` 登记为 `Method: "POST"` 的自有路由，仅当配置了 `upstreams.metro` 时挂载）是无状态的 MCP Streamable HTTP：只实现 `initialize`、`ping`、`tools/list`、`tools/call`（含批量；通知返回 202；协议版本接受 2025-06-18、2025-03-26、2024-11-05），不提供 SSE、resources、prompts。只认 `Authorization: Bearer`，**忽略 Cookie、不设 CORS**；失败认证按客户端地址限流（每分钟 30 次），成功请求按令牌在 Redis 限流（`mcp.rate_limit_per_minute`，默认 60）。20 个工具（读 7：`metro_list_cities`、`metro_list_lines`、`metro_list_rolling_stocks`、`metro_list_topics`、`metro_get_entity`、`metro_export_catalog`、`metro_list_audit_logs`；写 13：城市、车型、线路、专题各 create/update/delete，加 `metro_import_catalog`）直接调用同一个内部 `AdminService`，凭证里带令牌创建者的 `sub` 与角色快照，审计行记 `channel=mcp` 与令牌 ID。`dryRun` 默认 `true`，update/delete 必须带 `expectedRevision`，工具错误以 `isError` 结果返回（含字段级问题或当前 revision 的 JSON）。**MCP 协议层是手写的**（JSON-RPC 约 400 行，约束见上），没有引入 Go MCP 库：无状态 Streamable HTTP 只需这四个方法，官方库的会话与 SSE 模型对 BFF 的无状态路由是多余的依赖；将来需要 resources 或服务端推送时再评估（规格待决问题 7）。
+- **管理令牌与 MCP（#64 P4）**：共用契约 `bff.v1.AccessTokenService`（`CreateAccessToken`、`ListAccessTokens`、`RevokeAccessToken`）在 BFF 自己的库表 `bff_access_tokens`（`migrations/bff/*_access_tokens.sql`）里管理令牌：明文 `mcp_` + 64 位十六进制只在创建响应里出现一次，库里只存 SHA-256 摘要；字段有 `audience`（`metro`）、`scopes`（`metro:read`、`metro:write`，写隐含读）、创建时的 `roles` 快照与 `auth_version`、`expires_at`（必填，最长 90 天）、`last_used_at`、`revoked_at`；每个用户最多 10 个有效令牌；创建要求会话 + CSRF + `metro-admin`（且在 `admin_session_max_age` 内签发），并且会话的密码验证时间在 15 分钟内（否则 `FAILED_PRECONDITION`，先调 `Reauthenticate`），同一用户的创建用 advisory 锁串行以守住上限；创建者或任何管理员可吊销，每次使用都查库，吊销立即生效。**每个工具调用都会再向 usersrv 取 `GetAuthState`**：账号非 active、`auth_version` 与令牌创建时不同，工具返回 `UNAUTHENTICATED`；usersrv 不可用返回 `UNAVAILABLE` 且不转发；有效角色是令牌快照与当前角色的交集，缺 `metro-admin` 为 `PERMISSION_DENIED`。角色撤销后重新授予也不会让旧令牌复活，需重新创建。令牌的创建与吊销只写 BFF 的 `slog`（令牌 ID、用户、名称、作用域；不含明文），**不进入 metro 的 `admin_audit`**（审计表属于 metro，BFF 不写它）。MCP 端点 `POST /mcp/metro`（`internal/bff/metro/mcp`，在 `gateway.BFFOwnedRoutes` 登记为 `Method: "POST"` 的自有路由，仅当配置了 `upstreams.metro` 时挂载）是无状态的 MCP Streamable HTTP：只实现 `initialize`、`ping`、`tools/list`、`tools/call`（含批量；通知返回 202；协议版本接受 2025-06-18、2025-03-26、2024-11-05），不提供 SSE、resources、prompts。只认 `Authorization: Bearer`，**忽略 Cookie、不设 CORS**；失败认证按客户端地址限流（每分钟 30 次），成功请求按令牌在 Redis 限流（`mcp.rate_limit_per_minute`，默认 60）。20 个工具（读 7：`metro_list_cities`、`metro_list_lines`、`metro_list_rolling_stocks`、`metro_list_topics`、`metro_get_entity`、`metro_export_catalog`、`metro_list_audit_logs`；写 13：城市、车型、线路、专题各 create/update/delete，加 `metro_import_catalog`）直接调用同一个内部 `AdminService`，凭证里带令牌创建者的 `sub` 与有效角色，审计行记 `channel=mcp` 与令牌 ID。`dryRun` 默认 `true`，update/delete 必须带 `expectedRevision`，工具错误以 `isError` 结果返回（含字段级问题或当前 revision 的 JSON）。**MCP 协议层是手写的**（JSON-RPC 约 400 行，约束见上），没有引入 Go MCP 库：无状态 Streamable HTTP 只需这四个方法，官方库的会话与 SSE 模型对 BFF 的无状态路由是多余的依赖；将来需要 resources 或服务端推送时再评估（规格待决问题 7）。
 - 本地：`config.bff.example.yaml` 配置 `store.db`（建议库名 `bff`）、`store.redis`；Vite 代理 `/api` 至 BFF `:18081`（同源 Cookie）。
 
 **测试数据清理与升级**
 
-当前约定不迁移旧的测试账号或云端足迹。BFF 新增身份映射迁移，旧会话失效。手动清理 SQL 的目标库和顺序见 [Logto-only 身份迁移](deployment.md#logto-only-身份迁移)：所有副本更新后、开放新登录前清理 tripmap 认证遗留列与旧用户名唯一索引，可选清空测试业务数据；验证后再删除 BFF 旧账号表。保留新身份映射、会话及删除回执。这些脚本不会由启动流程自动调用，也不删除 Logto 租户中的用户。
+不迁移旧的测试账号、Logto 身份映射或云端足迹。BFF 的版本化迁移（`migrations/bff`）只做加法与必要的改表：会话表增加 `auth_version`，旧会话行（无版本或用户 ID 不是 UUID）在第一次使用时被撤销，须重新登录；`bff_account_deletions` 保存注销工作流。旧表 `auth_identities`、`account_deletion_receipts` 不会被迁移删除，验证新栈后由手动脚本 `deploy/sql/bff/retire_logto_identities.sql` 清理（见[部署与发布](deployment.md)）。这些脚本不会由启动流程自动调用。
 
 
 **当前限制**
 
 - 浏览器 RPC 仅 `/api/bff.*`（共用的 `bff.v1`、各产品的 `bff.<产品>.v1`）；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/unsubscribe 由 BFF `publichttp` 提供）。
-- 前端的业务 RPC（含分享 API）使用 `bff.tripmap.v1`；OAuth/会话管理使用 `bff.v1`。Logto 的 `(issuer, sub)` 映射和 BFF 会话在 BFF 独立库；tripmap `users` 只保存业务 profile，不再保存认证遗留字段。
-- 真实 Logto 授权端到端验收仍依赖部署凭据；CI 使用受控 fake Logto 提供方。GitHub/Google 不再由本项目直接验收。
+- 前端的业务 RPC（含分享 API）使用 `bff.tripmap.v1`；账号与会话管理使用 `bff.v1`。BFF 会话和注销工作流在 BFF 独立库；tripmap `users` 只保存用户 UUID 对应的展示投影与产品数据，好友只能凭 `fc_` 邀请码添加（没有按用户名查找）。
+- 浏览器登录与注册表单属于前端阶段（P5）：两个前端已移除第三方登录入口，**还没有新的登录界面**，账号链目前只能经 RPC 或 e2e 验证。整条账号链完成前不要在正式环境开放。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）
@@ -49,11 +50,10 @@
 
 ## 路由
 
-`internal/bff/gateway/services.go` 的 `Services` 登记**上游业务服务名**与是否经 gRPC 调用（当前 tripmap：`GRPC: true`），供 `upstreams` 健康探测与 `grpc.services` 配置对齐；**不再**按 proto 包名透明转发 HTTP；仅 `Service.Routes` 中显式登记的 HTTP 路径会转发（目前只有 `/api/tiles/`）。BFF 自有登录路径和凭据追踪模板另在同文件 `BFFOwnedRoutes` 登记，浏览器额外请求头由 `BrowserHeaders` 登记。
+`internal/bff/gateway/services.go` 的 `Services` 登记**上游业务服务名**与是否经 gRPC 调用（tripmap、metro、usersrv 均 `GRPC: true`），供 `upstreams` 健康探测与 `grpc.services` 配置对齐；**不再**按 proto 包名透明转发 HTTP；仅 `Service.Routes` 中显式登记的 HTTP 路径会转发（目前只有 `/api/tiles/`）。BFF 自己应答的 HTTP 路径（目前只有 MCP 端点）另在同文件 `BFFOwnedRoutes` 登记，浏览器额外请求头由 `BrowserHeaders` 登记。
 
 | 入口 | 登记位置 | 说明 |
 | --- | --- | --- |
-| `GET /auth/login`、`GET /auth/callback/:provider` | `app.go` → `auth.ServeOAuthHTTP` | BFF 自有登录路由，回调查询串追踪脱敏，无业务上游转发 |
 | `/ping`、`/readyz` | `internal/bff/app/app.go` | BFF 自身与依赖就绪 |
 | `/api/bff.v1.<Service>/<Method>` | `app.go` `publicAPI` + `bffv1connect.New*Handler` | 共用的账号与会话 Connect RPC；`NoRoute` 下前缀 `/api/bff.` 进入此 mux |
 | `/api/bff.tripmap.v1.<Service>/<Method>` | `internal/bff/tripmap/tripmap.go` `MountStatus`、`MountRPC` | 山海足迹业务 Connect RPC，同一个 mux |
@@ -138,7 +138,7 @@ BFF 以生成的 grpc-go 客户端（`pkg/proto/<包>/*_grpc.pb.go`）逐方法�
 | 路径 | 行为 |
 | --- | --- |
 | `GET /ping` | BFF 存活，返回 `{"message":"pong"}` |
-| `GET /readyz` | upstream HTTP `/readyz`、`bff_postgres`、`bff_redis`、各 `{name}_grpc`（按该上游所选传输 tls / h2c，签名 `GetStatus`；`tripmap_grpc`、`metro_grpc`）；2 秒超时，全部就绪 200，否则 503 |
+| `GET /readyz` | upstream HTTP `/readyz`、`bff_postgres`、`bff_redis`、各 `{name}_grpc`（按该上游所选传输 tls / h2c，签名 `GetStatus`；`usersrv_grpc`、`tripmap_grpc`、`metro_grpc`）；2 秒超时，全部就绪 200，否则 503 |
 
 BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
@@ -148,7 +148,8 @@ BFF 启动时不要求业务服务已经可用，只在 `/readyz` 中反映。
 
 - `db_store` / `redis_store` / `key_prefix` / `auto_migrate`：BFF 认证库与 Redis 限流（见 example 内 `store` 段）。
 - `mcp.rate_limit_per_minute`（每个管理令牌每分钟的 MCP 调用数，默认 60；失败认证的按地址限流固定为每分钟 30 次）。
-- `auth.session_ttl`、`auth.admin_session_max_age`（默认 12h，声明了 `required_role` 的方法要求会话在此时间内签发）、`auth.account_cleanup`（启用“删除云端数据”清理的产品，默认 `[tripmap]`）、`auth.cookie_secure`、`auth.csrf_token_ttl`、`auth.oauth_apps`（含 `metro` 前端应用）、`auth.oauth_providers.logto`。不再支持 `auth.registration_disabled` 或 GitHub/Google provider；Logto 的注册和账号策略在 Logto 管理。
+- `auth.session_ttl`、`auth.admin_session_max_age`（默认 12h，声明了 `required_role` 的方法要求会话在此时间内签发）、`auth.account_cleanup`（启用“删除云端数据”清理的产品，默认 `[tripmap]`）、`auth.cookie_secure`、`auth.csrf_token_ttl`。`auth.oauth_apps`、`auth.oauth_providers`、`auth.oauth_development` 已删除（不再读取）；注册开关与邮件链接来源属于 usersrv 配置（`config.usersrv.example.yaml`）。`auth.admin_session_max_age` 现在从真实的密码验证时间起算。
+- `upstreams.usersrv` 与 `grpc.services.usersrv`：必填，BFF 通过它做账号认证与每个请求的 `GetAuthState`；用户系统不可用时受保护请求返回 `unavailable` 且不转发任何业务调用。
 - `upstreams.<服务>`（`metro` 可选：不写则 BFF 不启用地铁足迹，也不需要 `grpc.services.metro`）、`grpc.*`、`internal_auth.*`、`client_ip_header`、`cors_allowed_origins`：同前。`grpc.services.<名称>.transport` 为 `tls`（默认）或 `h2c`，见 [内部 gRPC 与凭证](#内部-grpc-与凭证)。
 
 配置示例（`grpc.ca_file` 仅 TLS 上游需要；`internal_auth` 在所有模式下必填）：
@@ -213,7 +214,7 @@ internal_auth:
 
 ## 本地开发与部署
 
-首次 `make dev-secrets`（或配置配套的内联签名 PEM）；创建库 `bff`。`make dev` 启动 BFF（18081）、tripmap（18082/18083 内网）与 metro（18084/18085 内网，需要自己的数据库 `metro`，见 [后端初始化](backend.md#metro-服务地铁足迹)；不用 metro 时在两个终端分别运行 `make dev-bff`、`make dev-tripmap`，并去掉 BFF 配置里的 `upstreams.metro`）。生产见 [部署与发布](deployment.md)。
+首次 `make dev-secrets`（或配置配套的内联签名 PEM）；创建库 `bff` 与 `usersrv`。`make dev` 启动 BFF（18081）、usersrv（18086/18087 内网，需要自己的数据库与 Redis，见 `config.usersrv.example.yaml`）、tripmap（18082/18083 内网）与 metro（18084/18085 内网，需要自己的数据库 `metro`，见 [后端初始化](backend.md#metro-服务地铁足迹)；不用 metro 时在两个终端分别运行 `make dev-bff`、`make dev-usersrv`、`make dev-tripmap`，并去掉 BFF 配置里的 `upstreams.metro`）。生产见 [部署与发布](deployment.md)。
 
 ## 新增业务
 
@@ -232,72 +233,34 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 ## 验证
 
-- `internal/bff/auth`：注册/登录/会话/CSRF（需 `TRIPMAP_TEST_*`）；多产品清理与角色写入会话。
+- `internal/bff/auth`：账号服务（会话解析各状态、注销工作流阶段与重试、错误映射）；`internal/bff/ingress`：会话检查失败保持各自含义（`unavailable` 不变成 `unauthenticated`）、注销 Cookie 的例外、投影钩子；`internal/bff/usersrv`：usersrv 错误映射。
 - metro 经 BFF 的链路测试（`internal/e2e/metro_*_chain_test.go`，`ChainMetro`）：匿名目录与 `known_version`、`metro_grpc` 就绪、无 `upstreams.metro` 时无 metro 路由、管理接口的角色要求（匿名 / 无角色 / 其他角色 / 管理员 / 缺 CSRF）、校验与 revision 冲突 detail 抵达浏览器、导入预览与写入、审计渠道与执行者、绕过 BFF 直连 metro 时仅含 `sub` 的凭证被拒、骑行者资料与乘坐记录、云端数据删除同时清理 tripmap 与 metro 且单个产品失败时保持待删除并可重试。
 - `internal/bff/accesstoken`：令牌创建/校验/吊销/过期/数量上限/只存摘要（用 `SetClock` 覆盖过期）；`internal/bff/metro/mcp`：工具表与 JSON Schema（读 7、写 13）。MCP 链路测试在 `internal/e2e/metro_mcp_chain_test.go`：令牌与作用域（只读令牌调写工具被拒；写令牌 `metro_import_catalog` 不传 `dryRun` 只预览）、吊销/过期/只带 Cookie 的请求失败、令牌数量上限、MCP 写入与 Web 写入共用 `expectedRevision` 与审计（`channel=mcp`、令牌 ID）、限流、协议（批量、通知、未知方法）。
 - `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与内部 gRPC（TLS 与 h2c）信任。
-- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：Logto HTTP 登录、Cookie 会话、Me、Logout、`ListSessions`/`RevokeSession`（跨设备撤销与 CSRF）、A/B 足迹隔离、`SyncChanges` 幂等与 revision 冲突、行程增删改读、提醒设置、公开退订 HTTP、**#43** 云端数据删除重试/S3 故障/完成回执/跨用户隔离、错误 Origin/CSRF、过期/撤销/禁用/删除待完成会话、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。浏览器云端数据删除 UI 使用 Playwright 模拟 RPC（`apps/trip-map/tests/account-deletion.spec.ts`），真实 Cookie 链路以 e2e 为准。
-- **Playwright 真实栈**（默认跳过）：`apps/trip-map/tests/bff-cookie-real.spec.ts`；先 `make dev`（或等价 BFF+tripmap），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @kongken/trip-map -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
+- **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：真实 BFF + 真实 usersrv + PostgreSQL/Redis + tripmap/metro，只把邮件远端换成本地收件箱。覆盖：邮件注册（统一应答）、登录失败统一、Cookie 会话与跨设备撤销、改密码/重置密码使全部会话失效、敏感操作要求最近的密码验证、usersrv 不可用时受保护调用 `unavailable` 且业务无调用、角色只能由运维授予并实时生效（撤销后重新授予也不恢复旧令牌）、tripmap 展示投影与好友码、metro 管理接口与 MCP（每次调用重新校验）、注销工作流（每个阶段失败/响应丢失后可恢复、产品清理失败时保持“删除中”、回执 24 小时内可重放、跨用户隔离）、错误 Origin/CSRF、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。浏览器注销 UI 使用 Playwright 模拟 RPC（`apps/trip-map/tests/account-deletion.spec.ts`），真实 Cookie 链路以 e2e 为准。
+- **Playwright 真实栈**（默认跳过）：`apps/trip-map/tests/bff-cookie-real.spec.ts`；先 `make dev`（BFF、usersrv、tripmap 等价组合），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @kongken/trip-map -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
 - 其余 UI：Playwright 模拟后端覆盖登录骨架与业务场景。
 
 ## 当前限制
 
 - 见上文「当前限制」；Butterfly 指标端口 `:2223` 本地双进程冲突同前。
 
-## 待实现
+## 账号、会话与注销（P4）
 
-usersrv（自建用户系统）的 P1 账号核心、P2 邮件模块与 P3 账号流程已存在（[后端初始化](backend.md#usersrv-服务账号核心p1)），但 BFF 尚未登记也不调用它，上述 Logto 登录与会话保持不变；BFF 适配在该规格的 P4。
+**会话**。登录（`LoginWithEmail`）成功后，BFF 生成新的随机令牌放进 host-only、HttpOnly Cookie，库里只存它的摘要；会话行记录用户 UUID、usersrv 的 `auth_version`、真实的密码验证时间（`authenticated_at`）和过期时间。每个受保护请求先用令牌摘要找到会话，再调用 usersrv `GetAuthState`：账号必须 `active` 且 `auth_version` 与会话一致，否则会话被撤销并返回 `unauthenticated`；usersrv 不可用则返回 `unavailable`，不转发。改密码或重置密码会撤销该用户的全部会话。`Reauthenticate` 用 usersrv 的 `VerifyPassword` 刷新 `authenticated_at`；管理接口（`required_role`）、创建管理令牌、注销与创建管理令牌要求最近一次验证（管理接口见 `auth.admin_session_max_age`，其余 15 分钟）；改密码要求提交当前密码，由 usersrv 校验。
 
-真实 OAuth/SMTP/Web Push/生产 S3 端到端验收依赖部署环境；Playwright 真实 Cookie 栈见「验证」，默认跳过。
+**在途窗口**。BFF 对 usersrv 的 `GetAuthState` 在每个请求开头检查一次，通过后签发的内部凭证有效期最长 60 秒（`servicetoken.Lifetime`，另有 10 秒时钟偏差容忍）：在这之前已经发往产品服务的请求，即使账号随后被禁用、改密或撤销角色，仍可能在该窗口内执行完毕——不宣称即时中断。登录与改密并发时，会话记录的是登录时读到的 `auth_version`，之后版本变化的会话在下一次检查就失效。
 
-## 多 Web App 登录与迁移（#54）
+**错误**。usersrv 的认证失败返回给浏览器的是 `unauthenticated` 与固定提示；BFF 自己的服务凭证被拒（签名或配置错误）是 `internal`，不会被当成“请重新登录”。其余业务错误保留 usersrv 写好的固定文案。
 
-Logto 使用 BFF HTTP 回调与 S256 PKCE；社交连接全部由 Logto 管理。浏览器顶层导航到 `/auth/login?app=trip-map&provider=logto`（provider 默认 logto），可选 `return_to` 只接受该 app 的精确允许路径。未知 app、绝对/协议相对地址、百分号编码、反斜线、非规范路径、查询串和片段均拒绝。客户端不能选择 issuer、callback 或 origin。
+**注销工作流**（`bff_account_deletions`，按会话 Cookie 的摘要而不是会话 ID 记录，因为 `BeginDeletion` 会递增 `auth_version`，使自己的会话立即失效）：`DeleteAccount`（确认词 `DELETE` + 幂等键）先落库，再依次执行 `begin`（usersrv `BeginDeletion`：账号变为 deleting，所有会话和 MCP 令牌失效）→ `cleanup`（工作流创建时固定的产品清单，逐个调用幂等的 `CleanupUserData`，含 S3）→ `finish`（usersrv `FinishDeletion`，留 24 小时 tombstone）→ `local`（一个事务内删除本地会话与管理令牌、记录完成与回执过期时间）。每个阶段都可重放：失败只记录次数、错误与退避时间，账号保持“删除中”，调用返回 `unavailable`；`RetryAccountDeletion`（只有发起注销的那个 Cookie 可用，仅凭工作流 ID 不行）与后台每 30 秒一次的恢复任务都能继续，数据库租约保证同一时刻只有一个执行者。回执保留 24 小时，之后被清理。清单中缺少某个产品的清理器是错误，不会跳过。
 
-每次尝试在 Redis 保存随机 192-bit state（10 分钟、GETDEL 单次消费）、app、完整返回地址、固定 redirect URI、PKCE verifier 和独立随机浏览器 Cookie 的 SHA-256 摘要。每个 state 有独立短期 HttpOnly、Secure、SameSite=Lax、host-only Cookie，生产使用 `__Host-` 前缀；标签页并发不会覆盖绑定。回调先消费 state，再校验 provider、绑定和配置中的 redirect URI/返回白名单；成功才建会话并 303 返回干净的应用地址，清除该次 Cookie。取消、缺参、过期、重放、上游失败只显示中文错误，要求重新发起，不建立新会话、不回显上游错误/授权码。未完成尝试的 Cookie 自行在 10 分钟后过期。
+**重试工具**：运维没有单独的命令行；排查时可对工作流行读取 `stage`、`attempts`、`last_error`，后台任务会自动重试（间隔 30 秒起指数退避，最长 15 分钟）。
 
-生产示例（示意域名，secret 只放忽略配置或 Secret）：
+**限制**：浏览器登录表单、邮件落地页与注册界面是 P5；发布与手动退役脚本是 P6。
 
-```yaml
-cors_allowed_origins: [https://app-a.example.com, https://app-b.example.com]
-auth:
-  cookie_secure: true
-  oauth_apps:
-    trip-map:
-      origin: https://app-a.example.com
-      default_path: /
-      allowed_paths: [/]
-    app-b:
-      origin: https://app-b.example.com
-      default_path: /map
-      allowed_paths: [/map, /]
-  oauth_providers:
-    logto:
-      issuer_url: https://tenant.logto.app/oidc
-      client_id: example-client
-      client_secret: replace-in-secret
-      redirect_url: https://api.example.com/auth/callback/logto
-```
+## 多 Web App 登录与跨域
 
-迁移步骤：
-
-1. 在 Logto Traditional web 应用登记唯一固定 BFF callback `https://api.example.com/auth/callback/logto`，并在 Logto 内配置注册、密码、邮箱验证、社交连接和 Passkey 策略。BFF 增加 `oauth_apps` 与精确 `cors_allowed_origins`，不再登记 GitHub/Google 的本项目 callback。部署者仍须确认 callback URL 实际路由到 BFF；同源代理可保持前端主机地址。
-2. 公网网关将 `/auth/login` 和 `/auth/callback/*` 转发给 BFF；所有层的访问日志、错误日志、追踪/APM 均排除 OAuth 查询串。BFF 回调响应 `Cache-Control: no-store`、`Referrer-Policy: no-referrer`；随仓库的 Nginx 示例对 `/auth/` 禁止访问日志并限制错误日志。只允许受信网关访问 BFF；由网关覆盖 `X-Real-IP` 后才配置 `client_ip_header`，直连则留空；不依赖请求 Host/Referer 生成返回地址。
-3. 山海足迹构建 `VITE_API_BASE_URL=https://api.example.com/api`、`VITE_OAUTH_APP_ID=trip-map`（默认 trip-map）。其他应用使用各自 app ID，通过同一 BFF 顶层入口登录，返回后用 Me 恢复身份。前端不处理授权码、不持久化 state/token。旧 Begin/Complete RPC 保留契约占位但返回 unimplemented；不存在可用的平行认证链。旧 SPA 登录临时 sessionStorage 键在加载时清理。
-4. 同源模式仍可构建 `VITE_API_BASE_URL=/api`，通过同一个前端网关代理 `/api` 和 `/auth/`，callback 也登记这个网关地址，使登录与 API Cookie 在同一主机；Vite 和 Nginx 示例都已代理 `/auth/`。共享 BFF 多前端模式则让所有应用直连同一个 API 主机，不能混用独立代理的 Cookie。前端挂在子路径时把服务端默认落点和允许路径同步设为该路径。
-5. 本地开发可以显式设置 `auth.oauth_development: true`：仅为 loopback/localhost origin 和 callback 允许 HTTP，配合 `cookie_secure: false`。生产移除此开关并使用 HTTPS/Secure；配置错误在启动时拒绝。账号注册与密码策略统一由 Logto 管理。
-
-CORS 由统一中间件应答：精确允许 Origin 的正常、错误与 OPTIONS 响应均带 Allow-Origin、Allow-Credentials 与 Vary，预检包含 Connect/CSRF/区域头及 X-Kongken-User；不允许 `*` 或任意回显。读取授权不会免除写入的 Origin/CSRF 验证。CSRF token 从 IssueCSRFToken 响应体取得，并在凭据请求中放入 X-CSRF-Token（不要求前端读取 BFF Cookie）。退出只撤销当前 BFF 会话，不调用 Logto 全局退出；其他设备会话按原规则保留。Logto 远端账号禁用或删除不会实时撤销现有 BFF 会话；资料仅在再次登录时刷新。删除云端数据也不删除 Logto 账号；再次登录会创建新的本地业务映射。
-
-受控真实栈验证：
-
-```bash
-# make deps-up 后，以下环境只指向独立本地开发依赖
-TRIPMAP_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
-TRIPMAP_TEST_REDIS_ADDR=127.0.0.1:16379 TRIPMAP_TEST_REDIS_PASSWORD=tripmap-local \
-E2E_OAUTH_BROWSER=1 go test -v ./internal/e2e -run TestOAuthHTTPSCrossOriginBrowser -count=1
-```
-
-需要 Node 和 Playwright Chromium（`npx playwright install chromium`）。测试创建独立 PostgreSQL schema、Redis 前缀和临时 HTTPS 监听器；Chromium 映射 `.example.test` 到 loopback，两个不同 app 子域名经同一 BFF 与固定 callback，真实跳转并校验 S256 verifier、Cookie/Me、凭据化预检、成功/错误响应、错误 CSRF、退出、未允许 Origin 和无浏览器 token。它不替代真实 Logto 验收：后者需已登记的 HTTPS callback、有效客户端凭据、受信代理/证书、两个同站点应用与允许 Origin，逐个完成登录、Me、写操作、退出与并发流程。
+账号 Cookie 是 host-only，跨域只靠精确的 `cors_allowed_origins`：精确允许 Origin 的正常、错误与 OPTIONS 响应均带 Allow-Origin、Allow-Credentials 与 Vary，预检包含 Connect/CSRF/区域头及 X-Kongken-User；不允许 `*` 或任意回显。读取授权不会免除写入的 Origin/CSRF 验证。CSRF token 从 IssueCSRFToken 响应体取得，并在凭据请求中放入 X-CSRF-Token（不要求前端读取 BFF Cookie）。退出只撤销当前 BFF 会话；其他设备会话保留。邮件里的链接来源由 usersrv 的 `auth.apps.<app_id>.origin` 决定，不由请求决定。
 
 共享 Cookie 换账号保护：页面为已确定身份的请求携带 `X-Kongken-User`，足迹引擎把该值绑定到自身账号。BFF 在同一请求内解析 Cookie 后比较预期 ID，不相符即 unauthenticated，旧缓存不会写入新账号。该头只能收窄会话身份，不能代替认证或选择其他账号；Me 恢复时不发送它。未升级客户端不发送该头仍按原会话认证，但不能获得这一并发账号切换保护，运营方应同步升级各共享 Cookie 的应用。

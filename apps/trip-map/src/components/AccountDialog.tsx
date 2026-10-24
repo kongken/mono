@@ -4,7 +4,6 @@ import {
   ClockCounterClockwise,
   CloudCheck,
   ShareNetwork,
-  ShieldCheck,
   SignOut,
   UserCircle,
   Users,
@@ -60,7 +59,6 @@ export default function AccountDialog({
   const [deleteWord, setDeleteWord] = useState("");
   const [confirmLogout, setConfirmLogout] = useState(false);
   const signedIn = !!cloud.user;
-  const { loadProviders } = cloud;
 
   useEffect(() => {
     if (!open) return;
@@ -68,8 +66,7 @@ export default function AccountDialog({
     setConfirmLogout(false);
     setConfirmDelete(false);
     setDeleteWord("");
-    if (!signedIn) void loadProviders();
-  }, [open, signedIn, loadProviders]);
+  }, [open]);
 
   const loadSessions = () =>
     authApi
@@ -121,11 +118,10 @@ export default function AccountDialog({
                 <UserCircle size={22} />
               </span>
               <DialogTitle>
-                {cloud.user.displayName || cloud.user.username}
+                {cloud.user.displayName}
               </DialogTitle>
               <DialogDescription>
-                {cloud.user.username ? `@${cloud.user.username}` : "用户中心账号"}
-                ，同步完成的足迹可在其他设备登录查看。
+                同步完成的足迹可在其他设备登录查看。
               </DialogDescription>
             </DialogHeader>
             <p className="account-sync" role="status">
@@ -327,24 +323,12 @@ export default function AccountDialog({
               <span className="dialog-icon"><UserCircle size={22} /></span>
               <DialogTitle>登录山海足迹</DialogTitle>
               <DialogDescription>
-                使用用户中心账号登录，让旅途足迹跨设备同步。注册、找回密码和第三方登录将在用户中心完成；也可以暂不登录，继续在本机记录。
+                账号登录与注册入口正在升级，暂时无法登录；本地足迹不受影响，可继续在本机记录。
               </DialogDescription>
             </DialogHeader>
             {error && <p className="unreadable-note unreadable-error" role="alert">{error}</p>}
-            <div className="account-oauth">
-              {cloud.providers.filter((p) => p.name === "logto").map((p) => (
-                <Button key={p.name} disabled={pending} onClick={() => void run(() => cloud.startOAuth("logto"))}>
-                  <ShieldCheck size={17} />
-                  前往用户中心登录
-                </Button>
-              ))}
-              {!cloud.providers.some((p) => p.name === "logto") && (
-                <p role="status">统一登录暂不可用，请稍后重试；本地足迹不受影响。</p>
-              )}
-            </div>
             <div className="dialog-actions">
               <Button variant="outline" onClick={() => onOpenChange(false)}>暂不登录</Button>
-              <Button variant="outline" disabled={pending} onClick={() => void run(loadProviders)}>刷新登录入口</Button>
             </div>
           </>
         )}

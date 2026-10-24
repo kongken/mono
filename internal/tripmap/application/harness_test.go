@@ -12,6 +12,7 @@ import (
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/tripmap/application"
 	"github.com/kongken/mono/internal/tripmap/config"
+	entuser "github.com/kongken/mono/internal/tripmap/ent/user"
 	"github.com/kongken/mono/internal/tripmap/regions"
 	"github.com/kongken/mono/internal/tripmap/testutil"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
@@ -106,7 +107,7 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 		t: t, store: src.st, cfg: cfg, reportSvc: reportSvc,
 		notify:   tripmapv1connect.NewNotificationServiceClient(server.Client(), server.URL),
 		notifier: notifier, mailer: mailer, pusher: pusher, clock: clock,
-		public: application.NewNotificationPublic(cfg, src, notifier),
+		public:    application.NewNotificationPublic(cfg, src, notifier),
 		foot:      tripmapv1connect.NewFootprintServiceClient(server.Client(), server.URL),
 		snap:      tripmapv1connect.NewSnapshotServiceClient(server.Client(), server.URL),
 		media:     tripmapv1connect.NewMediaServiceClient(server.Client(), server.URL),
@@ -159,4 +160,19 @@ func wantCode(t *testing.T, err error, code connect.Code) {
 	if connect.CodeOf(err) != code {
 		t.Fatalf("want %v, got %v", code, err)
 	}
+}
+
+// friendCode returns the invite code of the user registered under the test label
+// username. Friends are found only by code, never by name.
+func (e *env) friendCode(username string) string {
+	e.t.Helper()
+	u, err := e.store.DB.User.Query().Where(entuser.Username(username)).Only(context.Background())
+	if err != nil {
+		e.t.Fatalf("friendCode %s: %v", username, err)
+	}
+	ov, err := e.collab.GetCollaborationOverview(context.Background(), bearer(u.ID, &tripmapv1.GetCollaborationOverviewRequest{}))
+	if err != nil {
+		e.t.Fatalf("friendCode %s: %v", username, err)
+	}
+	return ov.Msg.MyFriendCode
 }

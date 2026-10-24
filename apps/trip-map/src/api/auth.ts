@@ -16,10 +16,8 @@ function toUser(u: User | undefined): StoredSession["user"] {
   if (!u?.id) throw new Error("incomplete user");
   return {
     id: u.id,
-    username: u.username,
     displayName: u.displayName,
     avatarUrl: u.avatarUrl,
-    ...(u.deletionPending ? { deletionPending: true } : {}),
   };
 }
 
@@ -58,14 +56,6 @@ export const authApi = {
     await refreshCSRF();
     await client().revokeSession({ id });
   },
-  listProviders: async (): Promise<ProviderInfo[]> => {
-    const res = await client().listOAuthProviders({});
-    return (res.providers ?? []).map((p) => ({
-      name: p.name,
-      displayName: p.displayName,
-    }));
-  },
-
 };
 
 export type SessionInfo = {
@@ -74,4 +64,3 @@ export type SessionInfo = {
   createdAt: Date | null;
   lastUsedAt: Date | null;
 };
-export type ProviderInfo = { name: string; displayName: string };

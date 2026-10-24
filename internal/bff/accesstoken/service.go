@@ -1,8 +1,11 @@
 // Package accesstoken issues and checks the management tokens that non-browser
 // clients (the metro MCP endpoint) present as a Bearer credential.
 //
-// A token acts as the administrator who created it, with the roles that
-// administrator had at that moment. Only the SHA-256 digest of the secret is
+// A token acts as the administrator who created it, with at most the roles that
+// administrator had at that moment and the auth_version the account had then. The
+// holder of a token is not trusted on its own: the MCP endpoint asks usersrv, on
+// every tool call, whether the account is still active at that version and still
+// holds the role. Only the SHA-256 digest of the secret is
 // stored, like a browser session token. Revocation is read from the database on
 // every request, so it takes effect immediately.
 package accesstoken
@@ -22,7 +25,6 @@ import (
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/bff/ent"
 	entaccesstoken "github.com/kongken/mono/internal/bff/ent/accesstoken"
-	entuser "github.com/kongken/mono/internal/bff/ent/user"
 	"github.com/kongken/mono/internal/bff/session"
 )
 
@@ -60,8 +62,12 @@ type Principal struct {
 	TokenID  string
 	UserID   string
 	Audience string
-	Roles    []string
-	Scopes   []string
+	// AuthVersion is the account auth_version the token was created at.
+	AuthVersion int64
+	// Roles is the snapshot taken at creation; the effective roles of a call are
+	// this set intersected with the account's current roles.
+	Roles  []string
+	Scopes []string
 }
 
 // Allows reports whether the token holds scope; metro:write includes metro:read.
@@ -94,9 +100,13 @@ type CreateInput struct {
 	ExpiresInDays int
 }
 
-// Create issues a token for owner and returns the plaintext secret, which is not
+// Create issues a token for owner, whose password must have been checked within
+// session.SensitiveAuthMaxAge, and returns the plaintext secret, which is not
 // stored and cannot be shown again.
 func (s *Service) Create(ctx context.Context, owner session.BrowserSession, in CreateInput) (*ent.AccessToken, string, error) {
+	if s.now().Sub(owner.AuthenticatedAt) > session.SensitiveAuthMaxAge {
+		return nil, "", connect.NewError(connect.CodeFailedPrecondition, errors.New("enter your password again to create an access token"))
+	}
 	name := strings.TrimSpace(in.Name)
 	if n := utf8.RuneCountInString(name); n < 1 || n > maxNameRunes || strings.ContainsFunc(name, unicode.IsControl) {
 		return nil, "", invalid("name must be 1 to 64 characters without control characters")
@@ -126,11 +136,9 @@ func (s *Service) Create(ctx context.Context, owner session.BrowserSession, in C
 		return nil, "", internal(err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	// Serialise this user's creations so the cap cannot be raced past.
-	if _, err = tx.User.Query().Where(entuser.ID(owner.UserID)).ForUpdate().Only(ctx); err != nil {
-		if ent.IsNotFound(err) {
-			return nil, "", connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
-		}
+	// Serialise this user's creations so the cap cannot be raced past. The
+	// account lives in usersrv, so there is no row of ours to lock.
+	if _, err = tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtext($1))", "bff_access_token:"+owner.UserID); err != nil {
 		return nil, "", internal(err)
 	}
 	active, err := tx.AccessToken.Query().Where(
@@ -143,7 +151,7 @@ func (s *Service) Create(ctx context.Context, owner session.BrowserSession, in C
 			errors.New("too many active tokens; revoke one first (at most 10)"))
 	}
 	row, err := tx.AccessToken.Create().
-		SetUserID(owner.UserID).SetName(name).SetTokenHash(session.HashToken(secret)).
+		SetUserID(owner.UserID).SetAuthVersion(owner.AuthVersion).SetName(name).SetTokenHash(session.HashToken(secret)).
 		SetAudience(audience).SetScopes(scopes).SetRoles(slices.Clone(owner.Roles)).
 		SetCreatedAt(now).SetExpiresAt(now.AddDate(0, 0, in.ExpiresInDays)).Save(ctx)
 	if err != nil {
@@ -202,15 +210,14 @@ func (s *Service) Authenticate(ctx context.Context, secret, audience string) (Pr
 	now := s.now()
 	row, err := s.db.AccessToken.Query().
 		Where(entaccesstoken.TokenHash(session.HashToken(secret)), entaccesstoken.RevokedAtIsNil(), entaccesstoken.ExpiresAtGT(now)).
-		WithUser().Only(ctx)
+		Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
 			return Principal{}, ErrInvalidToken
 		}
 		return Principal{}, err
 	}
-	u := row.Edges.User
-	if row.Audience != audience || u == nil || u.Disabled || u.DeletionRequestedAt != nil {
+	if row.Audience != audience || row.AuthVersion <= 0 {
 		return Principal{}, ErrInvalidToken
 	}
 	if row.LastUsedAt == nil || now.Sub(*row.LastUsedAt) > touchInterval {
@@ -219,7 +226,7 @@ func (s *Service) Authenticate(ctx context.Context, secret, audience string) (Pr
 		}
 	}
 	return Principal{
-		TokenID: row.ID, UserID: row.UserID, Audience: row.Audience,
+		TokenID: row.ID, UserID: row.UserID, Audience: row.Audience, AuthVersion: row.AuthVersion,
 		Roles: slices.Clone(row.Roles), Scopes: slices.Clone(row.Scopes),
 	}, nil
 }

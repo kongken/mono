@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file tripmap/v1/profile.proto.
  */
 export const file_tripmap_v1_profile: GenFile = /*@__PURE__*/
-  fileDesc("Chh0cmlwbWFwL3YxL3Byb2ZpbGUucHJvdG8SCnRyaXBtYXAudjEiYwoURW5zdXJlUHJvZmlsZVJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIQCgh1c2VybmFtZRgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSEgoKYXZhdGFyX3VybBgEIAEoCSIoChVFbnN1cmVQcm9maWxlUmVzcG9uc2USDwoHY3JlYXRlZBgBIAEoCDJmCg5Qcm9maWxlU2VydmljZRJUCg1FbnN1cmVQcm9maWxlEiAudHJpcG1hcC52MS5FbnN1cmVQcm9maWxlUmVxdWVzdBohLnRyaXBtYXAudjEuRW5zdXJlUHJvZmlsZVJlc3BvbnNlQjhaNmdpdGh1Yi5jb20va29uZ2tlbi9tb25vL3BrZy9wcm90by90cmlwbWFwL3YxO3RyaXBtYXB2MWIGcHJvdG8z");
+  fileDesc("Chh0cmlwbWFwL3YxL3Byb2ZpbGUucHJvdG8SCnRyaXBtYXAudjEiYQoURW5zdXJlUHJvZmlsZVJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSEgoKYXZhdGFyX3VybBgEIAEoCUoECAIQA1IIdXNlcm5hbWUiKAoVRW5zdXJlUHJvZmlsZVJlc3BvbnNlEg8KB2NyZWF0ZWQYASABKAgyZgoOUHJvZmlsZVNlcnZpY2USVAoNRW5zdXJlUHJvZmlsZRIgLnRyaXBtYXAudjEuRW5zdXJlUHJvZmlsZVJlcXVlc3QaIS50cmlwbWFwLnYxLkVuc3VyZVByb2ZpbGVSZXNwb25zZUI4WjZnaXRodWIuY29tL2tvbmdrZW4vbW9uby9wa2cvcHJvdG8vdHJpcG1hcC92MTt0cmlwbWFwdjFiBnByb3RvMw");
 
 /**
  * @generated from message tripmap.v1.EnsureProfileRequest
@@ -20,11 +20,6 @@ export type EnsureProfileRequest = Message<"tripmap.v1.EnsureProfileRequest"> & 
    * @generated from field: string user_id = 1;
    */
   userId: string;
-
-  /**
-   * @generated from field: string username = 2;
-   */
-  username: string;
 
   /**
    * @generated from field: string display_name = 3;
@@ -62,8 +57,10 @@ export const EnsureProfileResponseSchema: GenMessage<EnsureProfileResponse> = /*
   messageDesc(file_tripmap_v1_profile, 1);
 
 /**
- * ProfileService keeps tripmap business user rows in sync with BFF identity.
- * Only the BFF calls these methods over internal gRPC.
+ * ProfileService keeps tripmap's display projection of an account: the user ID,
+ * nickname and avatar from usersrv, nothing else (no email, no login name). Only
+ * the BFF calls it over internal gRPC, before a signed-in tripmap request whose
+ * projection is behind the account's profile_version.
  *
  * @generated from service tripmap.v1.ProfileService
  */

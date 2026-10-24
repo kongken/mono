@@ -8,7 +8,6 @@ import { projectRegionOps } from "./region-operations.ts";
 
 export type StoredUser = {
   id: string;
-  username: string;
   displayName: string;
   avatarUrl: string;
   deletionPending?: boolean;
@@ -86,7 +85,6 @@ export function loadSession(
       ...(typeof data.expiresAt === "number" ? { expiresAt: data.expiresAt } : {}),
       user: {
         id: user.id,
-        username: isString(user.username) ? user.username : "",
         displayName: isString(user.displayName) ? user.displayName : "",
         avatarUrl: isString(user.avatarUrl) ? user.avatarUrl : "",
         ...(user.deletionPending === true ? { deletionPending: true } : {}),

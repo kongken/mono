@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"path"
 	"strings"
@@ -26,21 +27,23 @@ import (
 	"github.com/kongken/mono/internal/bff/ingress"
 	bffmetro "github.com/kongken/mono/internal/bff/metro"
 	"github.com/kongken/mono/internal/bff/metro/mcp"
-	"github.com/kongken/mono/internal/bff/oauth"
-	"github.com/kongken/mono/internal/bff/oauth/provider"
 	"github.com/kongken/mono/internal/bff/ratelimit"
 	"github.com/kongken/mono/internal/bff/session"
 	bfftripmap "github.com/kongken/mono/internal/bff/tripmap"
 	"github.com/kongken/mono/internal/bff/upstream"
+	"github.com/kongken/mono/internal/bff/usersrv"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
-	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	redisclient "github.com/redis/go-redis/v9"
 )
 
 const publicPrefix = "/api/bff."
+
+// authReadMaxBytes bounds a request to the account, profile and access-token
+// services.
+const authReadMaxBytes = 16 << 10
 
 type Resources struct {
 	DB        *ent.Client
@@ -49,15 +52,17 @@ type Resources struct {
 }
 
 type Handlers struct {
-	cfg       *config.Config
-	services  []gateway.Service
-	gateway   atomic.Pointer[gateway.Gateway]
-	health    atomic.Pointer[health.Checker]
-	public    atomic.Pointer[http.Handler]
-	upstreams atomic.Pointer[upstream.Clients]
-	resources atomic.Pointer[Resources]
-	auth      atomic.Pointer[bffauth.Handler]
-	oauthReg  atomic.Pointer[provider.Registry]
+	cfg         *config.Config
+	services    []gateway.Service
+	gateway     atomic.Pointer[gateway.Gateway]
+	health      atomic.Pointer[health.Checker]
+	public      atomic.Pointer[http.Handler]
+	upstreams   atomic.Pointer[upstream.Clients]
+	resources   atomic.Pointer[Resources]
+	auth        atomic.Pointer[bffauth.Handler]
+	authSvc     atomic.Pointer[bffauth.Service]
+	usersClient atomic.Pointer[usersrv.Client]
+	stopRunner  atomic.Pointer[context.CancelFunc]
 }
 
 func New(cfg *config.Config) *Handlers {
@@ -66,9 +71,6 @@ func New(cfg *config.Config) *Handlers {
 
 func (h *Handlers) SetServices(services []gateway.Service) { h.services = services }
 func (h *Handlers) SetResources(r *Resources)              { h.resources.Store(r) }
-
-// SetOAuthRegistry overrides configured OAuth providers (tests).
-func (h *Handlers) SetOAuthRegistry(reg *provider.Registry) { h.oauthReg.Store(reg) }
 
 func (h *Handlers) Bootstrap() error {
 	services := gateway.Active(h.services, h.cfg.Upstreams)
@@ -101,11 +103,12 @@ func (h *Handlers) Bootstrap() error {
 	if clients != nil {
 		public := h.publicAPI(clients)
 		h.public.Store(&public)
+		h.startDeletionRunner()
 	}
 	probes := gw.Probes()
 	if r := h.resources.Load(); r != nil && r.DB != nil {
 		probes = append(probes, health.Probe{Name: "bff_postgres", Check: func(ctx context.Context) error {
-			_, err := r.DB.User.Query().Exist(ctx)
+			_, err := r.DB.Session.Query().Exist(ctx)
 			return err
 		}})
 		if r.Redis != nil {
@@ -160,7 +163,7 @@ func (h *Handlers) bootstrapStores(ctx context.Context) error {
 // heavyProcedures are the procedures that get the long request deadline: account
 // deletion plus each product's own.
 func heavyProcedures() map[string]bool {
-	heavy := map[string]bool{bffv1connect.AuthServiceDeleteAccountProcedure: true}
+	heavy := map[string]bool{bffv1connect.AuthServiceDeleteAccountProcedure: true, bffv1connect.AuthServiceRetryAccountDeletionProcedure: true}
 	for procedure := range bfftripmap.HeavyProcedures() {
 		heavy[procedure] = true
 	}
@@ -172,26 +175,28 @@ func heavyProcedures() map[string]bool {
 
 func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 	conn := clients.Conn(bfftripmap.Service)
+	usersConn := clients.Conn(usersrv.Service)
 	policy := ingress.Policy{
 		ClientIPHeader:     h.cfg.ClientIPHeader,
 		AllowedOrigins:     h.cfg.CORSAllowedOrigins,
 		Heavy:              heavyProcedures(),
 		AdminSessionMaxAge: h.cfg.Auth.AdminSessionLimit(),
 	}
-	if r := h.resources.Load(); r != nil && conn != nil {
+	if r := h.resources.Load(); r != nil && usersConn != nil {
 		cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode, Secure: h.cfg.Auth.CookieSecure}
-		oauthState := oauth.NewStateStore(r.Redis, r.KeyPrefix)
-		var reg *provider.Registry
-		if custom := h.oauthReg.Load(); custom != nil {
-			reg = custom
-		}
-		oauthDeps := bffauth.OAuthDeps{State: oauthState, Registry: reg}
-		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix),
-			tripmapv1.NewProfileServiceClient(conn), h.cleaners(clients), oauthDeps)
-		authHandler := bffauth.NewHandler(svc, h.cfg.CORSAllowedOrigins, h.cfg.Auth.CSRFTokenTTL)
+		users := usersrv.New(usersConn)
+		h.usersClient.Store(users)
+		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix), users, h.cleaners(clients))
+		h.authSvc.Store(svc)
+		authHandler := bffauth.NewHandler(svc, h.cfg.Auth.CSRFTokenTTL)
 		h.auth.Store(authHandler)
 		policy.Authenticate = authHandler.Authenticate
-		policy.DeletionReceiptValid = svc.CompletionReceiptValid
+		policy.DeletionKnown = authHandler.DeletionKnown
+		if conn != nil {
+			// tripmap keeps a display projection of the account, ensured before a
+			// signed-in tripmap request.
+			policy.Projection = bfftripmap.NewProjector(r.Redis, r.KeyPrefix, users, tripmapv1.NewProfileServiceClient(conn)).Ensure
+		}
 	}
 	opts := []connect.HandlerOption{
 		connect.WithInterceptors(ingress.Interceptor(policy)),
@@ -201,17 +206,24 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 	mux := http.NewServeMux()
 	if conn != nil {
 		bfftripmap.MountStatus(mux, conn, opts)
-		if auth := h.auth.Load(); auth != nil {
-			route, handler := bffv1connect.NewAuthServiceHandler(auth, opts...)
+	}
+	if auth := h.auth.Load(); auth != nil {
+		// Account requests are tiny (a password, a token, a nickname); a small read
+		// limit keeps them from being used to push bytes at usersrv.
+		authOpts := append(opts[:len(opts):len(opts)], connect.WithReadMaxBytes(authReadMaxBytes))
+		route, handler := bffv1connect.NewAuthServiceHandler(auth, authOpts...)
+		mux.Handle(route, ingress.ConnectOnly(handler))
+		route, handler = bffv1connect.NewUserServiceHandler(auth, authOpts...)
+		mux.Handle(route, ingress.ConnectOnly(handler))
+		if r := h.resources.Load(); r != nil {
+			route, handler = bffv1connect.NewAccessTokenServiceHandler(accesstoken.NewHandler(accesstoken.New(r.DB)), authOpts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
-			if r := h.resources.Load(); r != nil {
-				route, handler = bffv1connect.NewAccessTokenServiceHandler(accesstoken.NewHandler(accesstoken.New(r.DB)), opts...)
-				mux.Handle(route, ingress.ConnectOnly(handler))
-			}
+		}
+		if conn != nil {
 			bfftripmap.MountRPC(mux, conn, opts)
-			if metroConn := clients.Conn(bffmetro.Service); metroConn != nil {
-				bffmetro.MountRPC(mux, metroConn, opts)
-			}
+		}
+		if metroConn := clients.Conn(bffmetro.Service); metroConn != nil {
+			bffmetro.MountRPC(mux, metroConn, opts)
 		}
 	}
 	return http.StripPrefix("/api", mux)
@@ -239,6 +251,37 @@ func (h *Handlers) cleaners(clients *upstream.Clients) []bffauth.UserDataCleaner
 // mountMCP serves the metro MCP endpoint when metro is deployed and the BFF has
 // its database and Redis. Every method is routed so that anything but POST gets
 // a clear 405 from the handler.
+// DeletionInterval is how often the background runner looks for account deletions
+// that have to be continued.
+const DeletionInterval = 30 * time.Second
+
+// startDeletionRunner advances persisted account deletions in the background: a
+// deletion whose browser never came back, or whose Cookie expired, still finishes.
+func (h *Handlers) startDeletionRunner() {
+	svc := h.authSvc.Load()
+	if svc == nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	if old := h.stopRunner.Swap(&cancel); old != nil {
+		(*old)()
+	}
+	go func() {
+		ticker := time.NewTicker(DeletionInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if _, err := svc.RunDeletionsOnce(ctx); err != nil && ctx.Err() == nil {
+					slog.Warn("account deletion runner", "error", err)
+				}
+			}
+		}
+	}()
+}
+
 func (h *Handlers) mountMCP(r *gin.Engine) {
 	clients, res := h.upstreams.Load(), h.resources.Load()
 	if clients == nil || res == nil {
@@ -248,7 +291,11 @@ func (h *Handlers) mountMCP(r *gin.Engine) {
 	if conn == nil {
 		return
 	}
-	handler := bffmetro.NewMCP(conn, accesstoken.New(res.DB), ratelimit.New(res.Redis, res.KeyPrefix),
+	users := h.usersClient.Load()
+	if users == nil {
+		return
+	}
+	handler := bffmetro.NewMCP(conn, accesstoken.New(res.DB), users, ratelimit.New(res.Redis, res.KeyPrefix),
 		h.cfg.MCP.RateLimit(), h.cfg.ClientIPHeader)
 	r.Any(mcp.Path, gin.WrapH(handler))
 }
@@ -271,6 +318,9 @@ func (h *Handlers) mountPublicHTTP(r *gin.Engine) {
 
 func (h *Handlers) Shutdown() error {
 	var errs []error
+	if stop := h.stopRunner.Swap(nil); stop != nil {
+		(*stop)()
+	}
 	if c := h.upstreams.Swap(nil); c != nil {
 		errs = append(errs, c.Close())
 	}
@@ -301,18 +351,6 @@ func (h *Handlers) Routes(r *gin.Engine) {
 		}
 		c.JSON(code, gin.H{"ready": health.Ready(statuses), "dependencies": statuses})
 	})
-	for _, route := range gateway.BFFOwnedRoutes {
-		if route.Method != "" {
-			continue // mounted by its own handler, such as mountMCP
-		}
-		r.GET(route.Path, httpx.RedactTrace(route.Trace), func(c *gin.Context) {
-			if auth := h.auth.Load(); auth != nil {
-				auth.ServeOAuthHTTP(c.Writer, c.Request, h.cfg.ClientIPHeader)
-			} else {
-				c.AbortWithStatus(http.StatusServiceUnavailable)
-			}
-		})
-	}
 	h.mountPublicHTTP(r)
 	h.mountMCP(r)
 	r.NoRoute(func(c *gin.Context) {
@@ -358,4 +396,15 @@ func (h *Handlers) AuthHandler() *bffauth.Handler {
 // CORSHeaders returns extra allowed headers for bff browser clients.
 func CORSHeaders() []string {
 	return gateway.BrowserHeaders()
+}
+
+// RunDeletionsOnce advances the persisted account deletions that are due, as the
+// background runner does on its interval; tests and operators use it to continue
+// without waiting.
+func (h *Handlers) RunDeletionsOnce(ctx context.Context) (int, error) {
+	svc := h.authSvc.Load()
+	if svc == nil {
+		return 0, nil
+	}
+	return svc.RunDeletionsOnce(ctx)
 }

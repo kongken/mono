@@ -1,12 +1,11 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { authApi, type ProviderInfo } from "@/api/auth";
+import { authApi } from "@/api/auth";
 import { detachThisDevice } from "@/api/notification";
 import { createFootprintApi } from "@/api/footprints";
-import { apiConfig, backendEnabled, setTransportAccount } from "@/api/transport";
+import { backendEnabled, setTransportAccount } from "@/api/transport";
 import { refreshCSRF } from "@/api/csrf";
 import { describeApiError, isUnauthenticated } from "@/lib/errors";
-import { oauthLoginURL } from "@/lib/oauth";
 import {
   acknowledgeLegacyCache,
   clearAccountData,
@@ -107,12 +106,11 @@ export function useCloud(options: Options) {
   // True once this session has confirmed the cloud state, not just the cache.
   const [fresh, setFresh] = useState(false);
   const sawSync = useRef(false);
-  const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [busy, setBusy] = useState("");
   const engineRef = useRef<SyncEngine | null>(null);
   const editSeq = useRef(0);
   const lastRefresh = useRef(0);
-  const callbackHandled = useRef(false);
+  const restoreStarted = useRef(false);
 
   const setSession = (next: StoredSession | null) => {
     setTransportAccount(next?.user.id);
@@ -416,18 +414,12 @@ export function useCloud(options: Options) {
     };
   }, [session, refresh]);
 
-  // The BFF callback sets its host-only session cookie. Restore from Me;
-  // authorization codes and state never enter the SPA or browser storage.
+  // Restore the session from Me: the HttpOnly session cookie is authoritative.
   useEffect(() => {
-    if (!backendEnabled || callbackHandled.current) return;
-    callbackHandled.current = true;
-    // Discard material left by a pre-migration SPA without accepting its callback.
+    if (!backendEnabled || restoreStarted.current) return;
+    restoreStarted.current = true;
+    // Discard material left by a pre-migration SPA.
     sessionStorage.removeItem("shanhai-oauth-pending-v1");
-    if (location.pathname.includes("/auth/callback/")) {
-      history.replaceState(null, "", import.meta.env.BASE_URL);
-      opts.current.notify("登录入口已更新，请重新发起登录");
-      return;
-    }
     setBusy("正在恢复登录…");
     authApi.me().then((user) => {
       if (sessionRef.current?.user.id !== user.id) enter({ user });
@@ -448,14 +440,6 @@ export function useCloud(options: Options) {
     () => engineRef.current?.confirmed.saved ?? null,
     [],
   );
-
-  const loadProviders = useCallback(async () => {
-    try {
-      setProviders(await authApi.listProviders());
-    } catch {
-      setProviders([]);
-    }
-  }, []);
 
   return {
     enabled: backendEnabled,
@@ -528,7 +512,6 @@ export function useCloud(options: Options) {
       if (old !== null) download(old, "山海足迹-旧版账号缓存.json");
     },
     busy,
-    providers,
     retry: () => refresh(true),
     /** Hand a user edit to the sync engine; call only in cloud mode. */
     push: (next: Saved, atomic = false) => {
@@ -560,16 +543,6 @@ export function useCloud(options: Options) {
       if (atomic) engine.pushAtomic(next);
       else engine.push(next);
       return true;
-    },
-    loadProviders,
-    startOAuth: async (provider: string) => {
-      if (!apiConfig.enabled) throw new Error("backend not configured");
-      location.assign(oauthLoginURL(
-        apiConfig.baseUrl,
-        location.origin,
-        import.meta.env.VITE_OAUTH_APP_ID || "trip-map",
-        provider,
-      ));
     },
     deleteAccount: async () => {
       const s = sessionRef.current;

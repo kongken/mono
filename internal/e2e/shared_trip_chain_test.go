@@ -129,10 +129,16 @@ func TestChainSharedTripViewerWriteDeniedAndSharedMedia(t *testing.T) {
 	_ = ownerID
 }
 
-func becomeFriends(t *testing.T, ctx context.Context, a, b *Browser, bUsername string) {
+// becomeFriends has a send b a friend request with b's invite code (friends are
+// never found by name) and b accept it.
+func becomeFriends(t *testing.T, ctx context.Context, a, b *Browser, _ string) {
 	t.Helper()
+	ov, err := b.GetCollaborationOverview(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	csrf := a.refreshCSRF(ctx)
-	send := connect.NewRequest(&bfftripmapv1.SendFriendRequestRequest{Target: bUsername})
+	send := connect.NewRequest(&bfftripmapv1.SendFriendRequestRequest{Target: ov.GetMyFriendCode()})
 	a.writeHeaders(send, csrf, a.Origin)
 	sendRes, err := a.Friends.SendFriendRequest(ctx, send)
 	if err != nil {

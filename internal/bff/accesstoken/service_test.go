@@ -1,12 +1,15 @@
 package accesstoken_test
 
 import (
+	"context"
 	"errors"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/bff/accesstoken"
 	"github.com/kongken/mono/internal/bff/ent"
 	"github.com/kongken/mono/internal/bff/session"
@@ -16,11 +19,11 @@ import (
 func setup(t *testing.T) (*accesstoken.Service, *ent.Client, session.BrowserSession, *time.Time) {
 	t.Helper()
 	db, _, _ := testutil.Backing(t)
-	u := db.User.Create().SetIssuer("https://idp").SetExternalID("root").SaveX(t.Context())
 	svc := accesstoken.New(db)
 	now := time.Now().UTC().Truncate(time.Second)
 	svc.SetClock(func() time.Time { return now })
-	return svc, db, session.BrowserSession{UserID: u.ID, Roles: []string{"metro-admin"}}, &now
+	owner := session.BrowserSession{UserID: uuid.NewString(), AuthVersion: 3, AuthenticatedAt: now, Roles: []string{"metro-admin"}}
+	return svc, db, owner, &now
 }
 
 func TestCreateStoresOnlyTheDigestAndSnapshotsRoles(t *testing.T) {
@@ -56,7 +59,7 @@ func TestAuthenticateRejectsEveryUnusableToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	p, err := svc.Authenticate(ctx, secret, "metro")
-	if err != nil || p.TokenID != row.ID || p.UserID != owner.UserID || !p.Allows("metro:read") || !p.Allows("metro:write") || !slices.Equal(p.Roles, owner.Roles) {
+	if err != nil || p.TokenID != row.ID || p.UserID != owner.UserID || p.AuthVersion != owner.AuthVersion || !p.Allows("metro:read") || !p.Allows("metro:write") || !slices.Equal(p.Roles, owner.Roles) {
 		t.Fatalf("principal: %+v %v", p, err)
 	}
 	for name, bad := range map[string]string{"empty": "", "short": "mcp_abc", "wrong prefix": "xyz_" + secret[4:], "unknown": "mcp_" + secret[4:len(secret)-1] + "0"} {
@@ -74,17 +77,6 @@ func TestAuthenticateRejectsEveryUnusableToken(t *testing.T) {
 		t.Errorf("expired: %v", err)
 	}
 	*now = now.Add(-25 * time.Hour)
-
-	// A user who asked to delete their data, or was disabled, keeps no access.
-	db.User.UpdateOneID(owner.UserID).SetDeletionRequestedAt(*now).ExecX(ctx)
-	if _, err := svc.Authenticate(ctx, secret, "metro"); !errors.Is(err, accesstoken.ErrInvalidToken) {
-		t.Errorf("deletion pending: %v", err)
-	}
-	db.User.UpdateOneID(owner.UserID).ClearDeletionRequestedAt().SetDisabled(true).ExecX(ctx)
-	if _, err := svc.Authenticate(ctx, secret, "metro"); !errors.Is(err, accesstoken.ErrInvalidToken) {
-		t.Errorf("disabled: %v", err)
-	}
-	db.User.UpdateOneID(owner.UserID).SetDisabled(false).ExecX(ctx)
 
 	// Revocation, and revoking twice keeps the first time.
 	if err := svc.Revoke(ctx, owner.UserID, row.ID); err != nil {
@@ -106,8 +98,8 @@ func TestAuthenticateRejectsEveryUnusableToken(t *testing.T) {
 	}
 }
 
-func TestCapCountsOnlyValidTokensAndDeletingTheUserRemovesTokens(t *testing.T) {
-	svc, db, owner, now := setup(t)
+func TestCapCountsOnlyValidTokens(t *testing.T) {
+	svc, _, owner, now := setup(t)
 	ctx := t.Context()
 	var ids []string
 	for i := 0; i < accesstoken.MaxActivePerUser; i++ {
@@ -127,15 +119,12 @@ func TestCapCountsOnlyValidTokensAndDeletingTheUserRemovesTokens(t *testing.T) {
 		t.Fatalf("a revoked token still counts: %v", err)
 	}
 	*now = now.Add(48 * time.Hour) // everything expires
+	owner.AuthenticatedAt = *now
 	if _, _, err := svc.Create(ctx, owner, accesstoken.CreateInput{Name: "after expiry", ExpiresInDays: 1}); err != nil {
 		t.Fatalf("expired tokens still count: %v", err)
 	}
 	if rows, err := svc.List(ctx, owner.UserID, false); err != nil || len(rows) != 12 {
 		t.Fatalf("list: %d %v", len(rows), err)
-	}
-	db.User.DeleteOneID(owner.UserID).ExecX(ctx)
-	if n := db.AccessToken.Query().CountX(ctx); n != 0 {
-		t.Fatalf("tokens outlived their owner: %d", n)
 	}
 }
 
@@ -157,5 +146,37 @@ func TestCreateValidatesInput(t *testing.T) {
 		if _, _, err := svc.Create(t.Context(), owner, in); connect.CodeOf(err) != connect.CodeInvalidArgument {
 			t.Errorf("%s: %v", name, err)
 		}
+	}
+}
+
+func TestCreateNeedsARecentPasswordCheck(t *testing.T) {
+	svc, db, owner, now := setup(t)
+	owner.AuthenticatedAt = now.Add(-session.SensitiveAuthMaxAge - time.Second)
+	_, _, err := svc.Create(t.Context(), owner, accesstoken.CreateInput{Name: "a", ExpiresInDays: 1})
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("stale password check: %v", err)
+	}
+	if n := db.AccessToken.Query().CountX(t.Context()); n != 0 {
+		t.Fatalf("a token was stored: %d", n)
+	}
+	owner.AuthenticatedAt = now.Add(-session.SensitiveAuthMaxAge + time.Second)
+	if _, _, err = svc.Create(t.Context(), owner, accesstoken.CreateInput{Name: "a", ExpiresInDays: 1}); err != nil {
+		t.Fatalf("fresh password check: %v", err)
+	}
+}
+
+func TestConcurrentCreatesCannotPassTheCap(t *testing.T) {
+	svc, db, owner, _ := setup(t)
+	var wg sync.WaitGroup
+	for i := 0; i < accesstoken.MaxActivePerUser+8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _, _ = svc.Create(context.Background(), owner, accesstoken.CreateInput{Name: "c", ExpiresInDays: 1})
+		}()
+	}
+	wg.Wait()
+	if n := db.AccessToken.Query().CountX(t.Context()); n != accesstoken.MaxActivePerUser {
+		t.Fatalf("tokens: %d, want exactly %d", n, accesstoken.MaxActivePerUser)
 	}
 }

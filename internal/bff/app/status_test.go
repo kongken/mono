@@ -103,9 +103,9 @@ func newStack(t *testing.T, mutate ...func(*config.Config)) *stack {
 	t.Cleanup(func() { srv.Shutdown(time.Second) })
 	trip := newFake(t, "tripmap")
 	cfg := &config.Config{
-		Upstreams:    map[string]string{"tripmap": trip.URL},
+		Upstreams:    map[string]string{"usersrv": "http://127.0.0.1:1", "tripmap": trip.URL},
 		InternalAuth: config.InternalAuth{Issuer: "bff", KID: "k1", PrivateKeyFile: keys.PrivateFile},
-		GRPC:         config.GRPCConfig{CAFile: ca.CAFile, Services: map[string]config.GRPCService{"tripmap": {Address: srv.Addr()}}},
+		GRPC:         config.GRPCConfig{CAFile: ca.CAFile, Services: map[string]config.GRPCService{"usersrv": {Address: "127.0.0.1:1"}, "tripmap": {Address: srv.Addr()}}},
 	}
 	for _, m := range mutate {
 		m(cfg)

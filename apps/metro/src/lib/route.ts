@@ -33,5 +33,3 @@ export function matchRoute(pathname: string): Route {
   return { name: "notfound" };
 }
 
-/** Paths the BFF accepts as a login return target (auth.oauth_apps.metro.allowed_paths). */
-export const loginReturnPaths = ["/", "/me", "/admin"];

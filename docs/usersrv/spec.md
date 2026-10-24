@@ -1,6 +1,6 @@
 # usersrv 自建用户系统规格
 
-> **状态：实现中（P1–P3 已实现，P4–P6 待实现）。** 当前主干的浏览器登录仍使用 Logto；`usersrv` 目前提供账号核心、邮件模块与账号流程（见下方“实现状态登记”，仅内部 gRPC），BFF 尚未调用它，**不开放任何新登录或注册**。实现期间不得把本文中尚未登记为已实现的目标能力写成已经上线。
+> **状态：实现中（P1–P4 已实现，P5–P6 待实现）。** BFF 已接入 `usersrv`（经内部 gRPC 完成注册、登录、改密码、注销、每请求认证状态与角色）并移除了运行时 Logto/OAuth 代码；但两个前端还没有新的登录与注册表单（P5），发布与手动退役（P6）未做，所以**整条账号链完成前不得在正式环境开放**。实现期间不得把本文中尚未登记为已实现的目标能力写成已经上线。
 >
 > 规格与评审：[GitHub Issue #75](https://github.com/kongken/mono/issues/75)。本文是实现规格的仓库副本，评审修改同步到该 Issue。具体安全参数、流程细节及交付拆分是本规格提出的工程默认值，不代表用户逐项确认；第 1 节单列已确认要求。实现后同步各产品的当前行为文档，并在本文逐阶段登记状态。
 
@@ -11,9 +11,9 @@
 | P1 usersrv 骨架与账号核心 | **已实现** | 见下文“P1 已实现内容”；单元与集成测试通过，不开放新登录 | 已实现 |
 | P2 邮件模块 | **已实现** | 见下文“P2 已实现内容”；四 adapter 通过本地假 HTTP/SMTP 服务的契约测试，真实厂商只有[手动冒烟文档](mail-smoke-test.md)，尚未对真实服务验证；邮件由 P3 的注册/找回流程签发，仍只有内部 gRPC 入口 | 已实现 |
 | P3 账号流程 | **已实现** | 见下文“P3 已实现内容”；`RequestRegistration`、`CompleteRegistration`、`AuthenticateWithEmail`、`RequestPasswordReset`、`ResetPassword` 在 usersrv 内部 gRPC 上可用，真实 usersrv＋本地假邮件接收器的集成闭环通过；BFF 与前端尚未接入，不开放新登录 | 已实现 |
-| P4 BFF 与产品鉴权 | 待实现 | BFF 尚未登记或调用 usersrv；`bff.v1` 仍是 Logto 契约 | 待实现 |
-| P5 前端 | 待实现 | 两个前端应用仍使用 Logto 登录 |
-| P6 发布与彻底退役 | 待实现 | 镜像、CI 发布矩阵、`deploy/usersrv/` 与 Logto 退役均未做 | 待实现 |
+| P4 BFF 与产品鉴权 | **已实现** | 见 [BFF](../bff.md#账号会话与注销p4)；`bff.v1` 为新契约（旧 Register/Login/OAuth RPC 已删除并 `reserved`）；会话保存 `auth_version` 与真实认证时间，每个受保护请求和 MCP 工具调用都调用 `GetAuthState`；usersrv 不可用返回 `unavailable` 且不转发；注销工作流持久化并可重试；tripmap 展示投影按需确保，好友只凭 `fc_` 邀请码；metro 管理与 MCP 角色取自 usersrv，`required_role` 两端校验；真实 BFF + usersrv + PostgreSQL/Redis + 两个产品服务的 e2e 通过（§14 场景 5–12、19–21 的后端部分） | 已实现 |
+| P5 前端 | 待实现 | 两个前端已移除第三方登录入口并能通过编译，但没有登录/注册表单，账号弹窗只提示登录入口升级中 | 待实现 |
+| P6 发布与彻底退役 | 待实现 | 镜像、CI 发布矩阵、`deploy/usersrv/`、反向代理与部署示例中残留的 `/auth/` 配置均未做；手动退役脚本 `deploy/sql/bff/retire_logto_identities.sql` 已提供 | 待实现 |
 
 ### P1 已实现内容
 
@@ -371,9 +371,9 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 | P1 usersrv 骨架与账号核心 | 独立库、配置、健康、契约、邮箱规范化、Argon2id、状态/版本、角色 CLI、import 检查 | 本规格评审；可单测/集成测试，不开放新登录 | 已实现 |
 | P2 邮件模块 | 四 adapter、统一模板、加密 outbox、lease、失败分类、限流、固定链接 | P1 存储；四种假服务契约测试通过 | 已实现 |
 | P3 账号流程 | 注册验证、邮箱密码认证、找回/改密、资料、重新认证、令牌并发 | P1/P2；真实 usersrv＋假邮件集成闭环 | 已实现 |
-| P4 BFF 与产品鉴权 | 新浏览器契约、会话版本复核、MCP 版本/角色复核、tripmap 投影/好友入口、注销工作流 | P3；真实 BFF→usersrv→两产品 E2E 通过 | 待实现 |
-| P5 前端 | 两应用表单、邮件落地页、设备/资料/改密/注销、错误/离线保护、共用包 | P4 契约；桌面/手机 Playwright 和真实账号链 | 待实现 |
-| P6 发布与彻底退役 | 镜像、配置、CI、Secret/手动清理文档、删除全部运行时 Logto 入口及测试依赖 | P1–P5；禁旧认证、文档同步、隔离环境演练 | 待实现 |
+| P4 BFF 与产品鉴权 | **已实现** | 见 [BFF](../bff.md#账号会话与注销p4)；`bff.v1` 为新契约（旧 Register/Login/OAuth RPC 已删除并 `reserved`）；会话保存 `auth_version` 与真实认证时间，每个受保护请求和 MCP 工具调用都调用 `GetAuthState`；usersrv 不可用返回 `unavailable` 且不转发；注销工作流持久化并可重试；tripmap 展示投影按需确保，好友只凭 `fc_` 邀请码；metro 管理与 MCP 角色取自 usersrv，`required_role` 两端校验；真实 BFF + usersrv + PostgreSQL/Redis + 两个产品服务的 e2e 通过（§14 场景 5–12、19–21 的后端部分） | 已实现 |
+| P5 前端 | 待实现 | 两个前端已移除第三方登录入口并能通过编译，但没有登录/注册表单，账号弹窗只提示登录入口升级中 | 待实现 |
+| P6 发布与彻底退役 | 待实现 | 镜像、CI 发布矩阵、`deploy/usersrv/`、反向代理与部署示例中残留的 `/auth/` 配置均未做；手动退役脚本 `deploy/sql/bff/retire_logto_identities.sql` 已提供 | 待实现 |
 
 P1–P5 可分支递进验证，不能以临时保留 Logto 为最终兼容方案；整条账号链完成前不得在正式环境开启半套注册/登录。
 

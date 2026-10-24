@@ -13,9 +13,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kongken/mono/internal/bff/ent/accesstoken"
-	"github.com/kongken/mono/internal/bff/ent/accountdeletionreceipt"
+	"github.com/kongken/mono/internal/bff/ent/accountdeletion"
 	"github.com/kongken/mono/internal/bff/ent/session"
-	"github.com/kongken/mono/internal/bff/ent/user"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -76,10 +75,9 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			accesstoken.Table:            accesstoken.ValidColumn,
-			accountdeletionreceipt.Table: accountdeletionreceipt.ValidColumn,
-			session.Table:                session.ValidColumn,
-			user.Table:                   user.ValidColumn,
+			accesstoken.Table:     accesstoken.ValidColumn,
+			accountdeletion.Table: accountdeletion.ValidColumn,
+			session.Table:         session.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

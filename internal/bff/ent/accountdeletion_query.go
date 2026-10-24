@@ -12,69 +12,69 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/kongken/mono/internal/bff/ent/accountdeletionreceipt"
+	"github.com/kongken/mono/internal/bff/ent/accountdeletion"
 	"github.com/kongken/mono/internal/bff/ent/predicate"
 )
 
-// AccountDeletionReceiptQuery is the builder for querying AccountDeletionReceipt entities.
-type AccountDeletionReceiptQuery struct {
+// AccountDeletionQuery is the builder for querying AccountDeletion entities.
+type AccountDeletionQuery struct {
 	config
 	ctx        *QueryContext
-	order      []accountdeletionreceipt.OrderOption
+	order      []accountdeletion.OrderOption
 	inters     []Interceptor
-	predicates []predicate.AccountDeletionReceipt
+	predicates []predicate.AccountDeletion
 	modifiers  []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
 }
 
-// Where adds a new predicate for the AccountDeletionReceiptQuery builder.
-func (_q *AccountDeletionReceiptQuery) Where(ps ...predicate.AccountDeletionReceipt) *AccountDeletionReceiptQuery {
+// Where adds a new predicate for the AccountDeletionQuery builder.
+func (_q *AccountDeletionQuery) Where(ps ...predicate.AccountDeletion) *AccountDeletionQuery {
 	_q.predicates = append(_q.predicates, ps...)
 	return _q
 }
 
 // Limit the number of records to be returned by this query.
-func (_q *AccountDeletionReceiptQuery) Limit(limit int) *AccountDeletionReceiptQuery {
+func (_q *AccountDeletionQuery) Limit(limit int) *AccountDeletionQuery {
 	_q.ctx.Limit = &limit
 	return _q
 }
 
 // Offset to start from.
-func (_q *AccountDeletionReceiptQuery) Offset(offset int) *AccountDeletionReceiptQuery {
+func (_q *AccountDeletionQuery) Offset(offset int) *AccountDeletionQuery {
 	_q.ctx.Offset = &offset
 	return _q
 }
 
 // Unique configures the query builder to filter duplicate records on query.
 // By default, unique is set to true, and can be disabled using this method.
-func (_q *AccountDeletionReceiptQuery) Unique(unique bool) *AccountDeletionReceiptQuery {
+func (_q *AccountDeletionQuery) Unique(unique bool) *AccountDeletionQuery {
 	_q.ctx.Unique = &unique
 	return _q
 }
 
 // Order specifies how the records should be ordered.
-func (_q *AccountDeletionReceiptQuery) Order(o ...accountdeletionreceipt.OrderOption) *AccountDeletionReceiptQuery {
+func (_q *AccountDeletionQuery) Order(o ...accountdeletion.OrderOption) *AccountDeletionQuery {
 	_q.order = append(_q.order, o...)
 	return _q
 }
 
-// First returns the first AccountDeletionReceipt entity from the query.
-// Returns a *NotFoundError when no AccountDeletionReceipt was found.
-func (_q *AccountDeletionReceiptQuery) First(ctx context.Context) (*AccountDeletionReceipt, error) {
+// First returns the first AccountDeletion entity from the query.
+// Returns a *NotFoundError when no AccountDeletion was found.
+func (_q *AccountDeletionQuery) First(ctx context.Context) (*AccountDeletion, error) {
 	nodes, err := _q.Limit(1).All(setContextOp(ctx, _q.ctx, ent.OpQueryFirst))
 	if err != nil {
 		return nil, err
 	}
 	if len(nodes) == 0 {
-		return nil, &NotFoundError{accountdeletionreceipt.Label}
+		return nil, &NotFoundError{accountdeletion.Label}
 	}
 	return nodes[0], nil
 }
 
 // FirstX is like First, but panics if an error occurs.
-func (_q *AccountDeletionReceiptQuery) FirstX(ctx context.Context) *AccountDeletionReceipt {
+func (_q *AccountDeletionQuery) FirstX(ctx context.Context) *AccountDeletion {
 	node, err := _q.First(ctx)
 	if err != nil && !IsNotFound(err) {
 		panic(err)
@@ -82,22 +82,22 @@ func (_q *AccountDeletionReceiptQuery) FirstX(ctx context.Context) *AccountDelet
 	return node
 }
 
-// FirstID returns the first AccountDeletionReceipt ID from the query.
-// Returns a *NotFoundError when no AccountDeletionReceipt ID was found.
-func (_q *AccountDeletionReceiptQuery) FirstID(ctx context.Context) (id string, err error) {
+// FirstID returns the first AccountDeletion ID from the query.
+// Returns a *NotFoundError when no AccountDeletion ID was found.
+func (_q *AccountDeletionQuery) FirstID(ctx context.Context) (id string, err error) {
 	var ids []string
 	if ids, err = _q.Limit(1).IDs(setContextOp(ctx, _q.ctx, ent.OpQueryFirstID)); err != nil {
 		return
 	}
 	if len(ids) == 0 {
-		err = &NotFoundError{accountdeletionreceipt.Label}
+		err = &NotFoundError{accountdeletion.Label}
 		return
 	}
 	return ids[0], nil
 }
 
 // FirstIDX is like FirstID, but panics if an error occurs.
-func (_q *AccountDeletionReceiptQuery) FirstIDX(ctx context.Context) string {
+func (_q *AccountDeletionQuery) FirstIDX(ctx context.Context) string {
 	id, err := _q.FirstID(ctx)
 	if err != nil && !IsNotFound(err) {
 		panic(err)
@@ -105,10 +105,10 @@ func (_q *AccountDeletionReceiptQuery) FirstIDX(ctx context.Context) string {
 	return id
 }
 
-// Only returns a single AccountDeletionReceipt entity found by the query, ensuring it only returns one.
-// Returns a *NotSingularError when more than one AccountDeletionReceipt entity is found.
-// Returns a *NotFoundError when no AccountDeletionReceipt entities are found.
-func (_q *AccountDeletionReceiptQuery) Only(ctx context.Context) (*AccountDeletionReceipt, error) {
+// Only returns a single AccountDeletion entity found by the query, ensuring it only returns one.
+// Returns a *NotSingularError when more than one AccountDeletion entity is found.
+// Returns a *NotFoundError when no AccountDeletion entities are found.
+func (_q *AccountDeletionQuery) Only(ctx context.Context) (*AccountDeletion, error) {
 	nodes, err := _q.Limit(2).All(setContextOp(ctx, _q.ctx, ent.OpQueryOnly))
 	if err != nil {
 		return nil, err
@@ -117,14 +117,14 @@ func (_q *AccountDeletionReceiptQuery) Only(ctx context.Context) (*AccountDeleti
 	case 1:
 		return nodes[0], nil
 	case 0:
-		return nil, &NotFoundError{accountdeletionreceipt.Label}
+		return nil, &NotFoundError{accountdeletion.Label}
 	default:
-		return nil, &NotSingularError{accountdeletionreceipt.Label}
+		return nil, &NotSingularError{accountdeletion.Label}
 	}
 }
 
 // OnlyX is like Only, but panics if an error occurs.
-func (_q *AccountDeletionReceiptQuery) OnlyX(ctx context.Context) *AccountDeletionReceipt {
+func (_q *AccountDeletionQuery) OnlyX(ctx context.Context) *AccountDeletion {
 	node, err := _q.Only(ctx)
 	if err != nil {
 		panic(err)
@@ -132,10 +132,10 @@ func (_q *AccountDeletionReceiptQuery) OnlyX(ctx context.Context) *AccountDeleti
 	return node
 }
 
-// OnlyID is like Only, but returns the only AccountDeletionReceipt ID in the query.
-// Returns a *NotSingularError when more than one AccountDeletionReceipt ID is found.
+// OnlyID is like Only, but returns the only AccountDeletion ID in the query.
+// Returns a *NotSingularError when more than one AccountDeletion ID is found.
 // Returns a *NotFoundError when no entities are found.
-func (_q *AccountDeletionReceiptQuery) OnlyID(ctx context.Context) (id string, err error) {
+func (_q *AccountDeletionQuery) OnlyID(ctx context.Context) (id string, err error) {
 	var ids []string
 	if ids, err = _q.Limit(2).IDs(setContextOp(ctx, _q.ctx, ent.OpQueryOnlyID)); err != nil {
 		return
@@ -144,15 +144,15 @@ func (_q *AccountDeletionReceiptQuery) OnlyID(ctx context.Context) (id string, e
 	case 1:
 		id = ids[0]
 	case 0:
-		err = &NotFoundError{accountdeletionreceipt.Label}
+		err = &NotFoundError{accountdeletion.Label}
 	default:
-		err = &NotSingularError{accountdeletionreceipt.Label}
+		err = &NotSingularError{accountdeletion.Label}
 	}
 	return
 }
 
 // OnlyIDX is like OnlyID, but panics if an error occurs.
-func (_q *AccountDeletionReceiptQuery) OnlyIDX(ctx context.Context) string {
+func (_q *AccountDeletionQuery) OnlyIDX(ctx context.Context) string {
 	id, err := _q.OnlyID(ctx)
 	if err != nil {
 		panic(err)
@@ -160,18 +160,18 @@ func (_q *AccountDeletionReceiptQuery) OnlyIDX(ctx context.Context) string {
 	return id
 }
 
-// All executes the query and returns a list of AccountDeletionReceipts.
-func (_q *AccountDeletionReceiptQuery) All(ctx context.Context) ([]*AccountDeletionReceipt, error) {
+// All executes the query and returns a list of AccountDeletions.
+func (_q *AccountDeletionQuery) All(ctx context.Context) ([]*AccountDeletion, error) {
 	ctx = setContextOp(ctx, _q.ctx, ent.OpQueryAll)
 	if err := _q.prepareQuery(ctx); err != nil {
 		return nil, err
 	}
-	qr := querierAll[[]*AccountDeletionReceipt, *AccountDeletionReceiptQuery]()
-	return withInterceptors[[]*AccountDeletionReceipt](ctx, _q, qr, _q.inters)
+	qr := querierAll[[]*AccountDeletion, *AccountDeletionQuery]()
+	return withInterceptors[[]*AccountDeletion](ctx, _q, qr, _q.inters)
 }
 
 // AllX is like All, but panics if an error occurs.
-func (_q *AccountDeletionReceiptQuery) AllX(ctx context.Context) []*AccountDeletionReceipt {
+func (_q *AccountDeletionQuery) AllX(ctx context.Context) []*AccountDeletion {
 	nodes, err := _q.All(ctx)
 	if err != nil {
 		panic(err)
@@ -179,20 +179,20 @@ func (_q *AccountDeletionReceiptQuery) AllX(ctx context.Context) []*AccountDelet
 	return nodes
 }
 
-// IDs executes the query and returns a list of AccountDeletionReceipt IDs.
-func (_q *AccountDeletionReceiptQuery) IDs(ctx context.Context) (ids []string, err error) {
+// IDs executes the query and returns a list of AccountDeletion IDs.
+func (_q *AccountDeletionQuery) IDs(ctx context.Context) (ids []string, err error) {
 	if _q.ctx.Unique == nil && _q.path != nil {
 		_q.Unique(true)
 	}
 	ctx = setContextOp(ctx, _q.ctx, ent.OpQueryIDs)
-	if err = _q.Select(accountdeletionreceipt.FieldID).Scan(ctx, &ids); err != nil {
+	if err = _q.Select(accountdeletion.FieldID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
 	return ids, nil
 }
 
 // IDsX is like IDs, but panics if an error occurs.
-func (_q *AccountDeletionReceiptQuery) IDsX(ctx context.Context) []string {
+func (_q *AccountDeletionQuery) IDsX(ctx context.Context) []string {
 	ids, err := _q.IDs(ctx)
 	if err != nil {
 		panic(err)
@@ -201,16 +201,16 @@ func (_q *AccountDeletionReceiptQuery) IDsX(ctx context.Context) []string {
 }
 
 // Count returns the count of the given query.
-func (_q *AccountDeletionReceiptQuery) Count(ctx context.Context) (int, error) {
+func (_q *AccountDeletionQuery) Count(ctx context.Context) (int, error) {
 	ctx = setContextOp(ctx, _q.ctx, ent.OpQueryCount)
 	if err := _q.prepareQuery(ctx); err != nil {
 		return 0, err
 	}
-	return withInterceptors[int](ctx, _q, querierCount[*AccountDeletionReceiptQuery](), _q.inters)
+	return withInterceptors[int](ctx, _q, querierCount[*AccountDeletionQuery](), _q.inters)
 }
 
 // CountX is like Count, but panics if an error occurs.
-func (_q *AccountDeletionReceiptQuery) CountX(ctx context.Context) int {
+func (_q *AccountDeletionQuery) CountX(ctx context.Context) int {
 	count, err := _q.Count(ctx)
 	if err != nil {
 		panic(err)
@@ -219,7 +219,7 @@ func (_q *AccountDeletionReceiptQuery) CountX(ctx context.Context) int {
 }
 
 // Exist returns true if the query has elements in the graph.
-func (_q *AccountDeletionReceiptQuery) Exist(ctx context.Context) (bool, error) {
+func (_q *AccountDeletionQuery) Exist(ctx context.Context) (bool, error) {
 	ctx = setContextOp(ctx, _q.ctx, ent.OpQueryExist)
 	switch _, err := _q.FirstID(ctx); {
 	case IsNotFound(err):
@@ -232,7 +232,7 @@ func (_q *AccountDeletionReceiptQuery) Exist(ctx context.Context) (bool, error) 
 }
 
 // ExistX is like Exist, but panics if an error occurs.
-func (_q *AccountDeletionReceiptQuery) ExistX(ctx context.Context) bool {
+func (_q *AccountDeletionQuery) ExistX(ctx context.Context) bool {
 	exist, err := _q.Exist(ctx)
 	if err != nil {
 		panic(err)
@@ -240,18 +240,18 @@ func (_q *AccountDeletionReceiptQuery) ExistX(ctx context.Context) bool {
 	return exist
 }
 
-// Clone returns a duplicate of the AccountDeletionReceiptQuery builder, including all associated steps. It can be
+// Clone returns a duplicate of the AccountDeletionQuery builder, including all associated steps. It can be
 // used to prepare common query builders and use them differently after the clone is made.
-func (_q *AccountDeletionReceiptQuery) Clone() *AccountDeletionReceiptQuery {
+func (_q *AccountDeletionQuery) Clone() *AccountDeletionQuery {
 	if _q == nil {
 		return nil
 	}
-	return &AccountDeletionReceiptQuery{
+	return &AccountDeletionQuery{
 		config:     _q.config,
 		ctx:        _q.ctx.Clone(),
-		order:      append([]accountdeletionreceipt.OrderOption{}, _q.order...),
+		order:      append([]accountdeletion.OrderOption{}, _q.order...),
 		inters:     append([]Interceptor{}, _q.inters...),
-		predicates: append([]predicate.AccountDeletionReceipt{}, _q.predicates...),
+		predicates: append([]predicate.AccountDeletion{}, _q.predicates...),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -264,19 +264,19 @@ func (_q *AccountDeletionReceiptQuery) Clone() *AccountDeletionReceiptQuery {
 // Example:
 //
 //	var v []struct {
-//		TokenHash string `json:"token_hash,omitempty"`
+//		UserID string `json:"user_id,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
-//	client.AccountDeletionReceipt.Query().
-//		GroupBy(accountdeletionreceipt.FieldTokenHash).
+//	client.AccountDeletion.Query().
+//		GroupBy(accountdeletion.FieldUserID).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
-func (_q *AccountDeletionReceiptQuery) GroupBy(field string, fields ...string) *AccountDeletionReceiptGroupBy {
+func (_q *AccountDeletionQuery) GroupBy(field string, fields ...string) *AccountDeletionGroupBy {
 	_q.ctx.Fields = append([]string{field}, fields...)
-	grbuild := &AccountDeletionReceiptGroupBy{build: _q}
+	grbuild := &AccountDeletionGroupBy{build: _q}
 	grbuild.flds = &_q.ctx.Fields
-	grbuild.label = accountdeletionreceipt.Label
+	grbuild.label = accountdeletion.Label
 	grbuild.scan = grbuild.Scan
 	return grbuild
 }
@@ -287,26 +287,26 @@ func (_q *AccountDeletionReceiptQuery) GroupBy(field string, fields ...string) *
 // Example:
 //
 //	var v []struct {
-//		TokenHash string `json:"token_hash,omitempty"`
+//		UserID string `json:"user_id,omitempty"`
 //	}
 //
-//	client.AccountDeletionReceipt.Query().
-//		Select(accountdeletionreceipt.FieldTokenHash).
+//	client.AccountDeletion.Query().
+//		Select(accountdeletion.FieldUserID).
 //		Scan(ctx, &v)
-func (_q *AccountDeletionReceiptQuery) Select(fields ...string) *AccountDeletionReceiptSelect {
+func (_q *AccountDeletionQuery) Select(fields ...string) *AccountDeletionSelect {
 	_q.ctx.Fields = append(_q.ctx.Fields, fields...)
-	sbuild := &AccountDeletionReceiptSelect{AccountDeletionReceiptQuery: _q}
-	sbuild.label = accountdeletionreceipt.Label
+	sbuild := &AccountDeletionSelect{AccountDeletionQuery: _q}
+	sbuild.label = accountdeletion.Label
 	sbuild.flds, sbuild.scan = &_q.ctx.Fields, sbuild.Scan
 	return sbuild
 }
 
-// Aggregate returns a AccountDeletionReceiptSelect configured with the given aggregations.
-func (_q *AccountDeletionReceiptQuery) Aggregate(fns ...AggregateFunc) *AccountDeletionReceiptSelect {
+// Aggregate returns a AccountDeletionSelect configured with the given aggregations.
+func (_q *AccountDeletionQuery) Aggregate(fns ...AggregateFunc) *AccountDeletionSelect {
 	return _q.Select().Aggregate(fns...)
 }
 
-func (_q *AccountDeletionReceiptQuery) prepareQuery(ctx context.Context) error {
+func (_q *AccountDeletionQuery) prepareQuery(ctx context.Context) error {
 	for _, inter := range _q.inters {
 		if inter == nil {
 			return fmt.Errorf("ent: uninitialized interceptor (forgotten import ent/runtime?)")
@@ -318,7 +318,7 @@ func (_q *AccountDeletionReceiptQuery) prepareQuery(ctx context.Context) error {
 		}
 	}
 	for _, f := range _q.ctx.Fields {
-		if !accountdeletionreceipt.ValidColumn(f) {
+		if !accountdeletion.ValidColumn(f) {
 			return &ValidationError{Name: f, err: fmt.Errorf("ent: invalid field %q for query", f)}
 		}
 	}
@@ -332,16 +332,16 @@ func (_q *AccountDeletionReceiptQuery) prepareQuery(ctx context.Context) error {
 	return nil
 }
 
-func (_q *AccountDeletionReceiptQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*AccountDeletionReceipt, error) {
+func (_q *AccountDeletionQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*AccountDeletion, error) {
 	var (
-		nodes = []*AccountDeletionReceipt{}
+		nodes = []*AccountDeletion{}
 		_spec = _q.querySpec()
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
-		return (*AccountDeletionReceipt).scanValues(nil, columns)
+		return (*AccountDeletion).scanValues(nil, columns)
 	}
 	_spec.Assign = func(columns []string, values []any) error {
-		node := &AccountDeletionReceipt{config: _q.config}
+		node := &AccountDeletion{config: _q.config}
 		nodes = append(nodes, node)
 		return node.assignValues(columns, values)
 	}
@@ -360,7 +360,7 @@ func (_q *AccountDeletionReceiptQuery) sqlAll(ctx context.Context, hooks ...quer
 	return nodes, nil
 }
 
-func (_q *AccountDeletionReceiptQuery) sqlCount(ctx context.Context) (int, error) {
+func (_q *AccountDeletionQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := _q.querySpec()
 	if len(_q.modifiers) > 0 {
 		_spec.Modifiers = _q.modifiers
@@ -372,8 +372,8 @@ func (_q *AccountDeletionReceiptQuery) sqlCount(ctx context.Context) (int, error
 	return sqlgraph.CountNodes(ctx, _q.driver, _spec)
 }
 
-func (_q *AccountDeletionReceiptQuery) querySpec() *sqlgraph.QuerySpec {
-	_spec := sqlgraph.NewQuerySpec(accountdeletionreceipt.Table, accountdeletionreceipt.Columns, sqlgraph.NewFieldSpec(accountdeletionreceipt.FieldID, field.TypeString))
+func (_q *AccountDeletionQuery) querySpec() *sqlgraph.QuerySpec {
+	_spec := sqlgraph.NewQuerySpec(accountdeletion.Table, accountdeletion.Columns, sqlgraph.NewFieldSpec(accountdeletion.FieldID, field.TypeString))
 	_spec.From = _q.sql
 	if unique := _q.ctx.Unique; unique != nil {
 		_spec.Unique = *unique
@@ -382,9 +382,9 @@ func (_q *AccountDeletionReceiptQuery) querySpec() *sqlgraph.QuerySpec {
 	}
 	if fields := _q.ctx.Fields; len(fields) > 0 {
 		_spec.Node.Columns = make([]string, 0, len(fields))
-		_spec.Node.Columns = append(_spec.Node.Columns, accountdeletionreceipt.FieldID)
+		_spec.Node.Columns = append(_spec.Node.Columns, accountdeletion.FieldID)
 		for i := range fields {
-			if fields[i] != accountdeletionreceipt.FieldID {
+			if fields[i] != accountdeletion.FieldID {
 				_spec.Node.Columns = append(_spec.Node.Columns, fields[i])
 			}
 		}
@@ -412,12 +412,12 @@ func (_q *AccountDeletionReceiptQuery) querySpec() *sqlgraph.QuerySpec {
 	return _spec
 }
 
-func (_q *AccountDeletionReceiptQuery) sqlQuery(ctx context.Context) *sql.Selector {
+func (_q *AccountDeletionQuery) sqlQuery(ctx context.Context) *sql.Selector {
 	builder := sql.Dialect(_q.driver.Dialect())
-	t1 := builder.Table(accountdeletionreceipt.Table)
+	t1 := builder.Table(accountdeletion.Table)
 	columns := _q.ctx.Fields
 	if len(columns) == 0 {
-		columns = accountdeletionreceipt.Columns
+		columns = accountdeletion.Columns
 	}
 	selector := builder.Select(t1.Columns(columns...)...).From(t1)
 	if _q.sql != nil {
@@ -450,7 +450,7 @@ func (_q *AccountDeletionReceiptQuery) sqlQuery(ctx context.Context) *sql.Select
 // ForUpdate locks the selected rows against concurrent updates, and prevent them from being
 // updated, deleted or "selected ... for update" by other sessions, until the transaction is
 // either committed or rolled-back.
-func (_q *AccountDeletionReceiptQuery) ForUpdate(opts ...sql.LockOption) *AccountDeletionReceiptQuery {
+func (_q *AccountDeletionQuery) ForUpdate(opts ...sql.LockOption) *AccountDeletionQuery {
 	if _q.driver.Dialect() == dialect.Postgres {
 		_q.Unique(false)
 	}
@@ -463,7 +463,7 @@ func (_q *AccountDeletionReceiptQuery) ForUpdate(opts ...sql.LockOption) *Accoun
 // ForShare behaves similarly to ForUpdate, except that it acquires a shared mode lock
 // on any rows that are read. Other sessions can read the rows, but cannot modify them
 // until your transaction commits.
-func (_q *AccountDeletionReceiptQuery) ForShare(opts ...sql.LockOption) *AccountDeletionReceiptQuery {
+func (_q *AccountDeletionQuery) ForShare(opts ...sql.LockOption) *AccountDeletionQuery {
 	if _q.driver.Dialect() == dialect.Postgres {
 		_q.Unique(false)
 	}
@@ -473,28 +473,28 @@ func (_q *AccountDeletionReceiptQuery) ForShare(opts ...sql.LockOption) *Account
 	return _q
 }
 
-// AccountDeletionReceiptGroupBy is the group-by builder for AccountDeletionReceipt entities.
-type AccountDeletionReceiptGroupBy struct {
+// AccountDeletionGroupBy is the group-by builder for AccountDeletion entities.
+type AccountDeletionGroupBy struct {
 	selector
-	build *AccountDeletionReceiptQuery
+	build *AccountDeletionQuery
 }
 
 // Aggregate adds the given aggregation functions to the group-by query.
-func (_g *AccountDeletionReceiptGroupBy) Aggregate(fns ...AggregateFunc) *AccountDeletionReceiptGroupBy {
+func (_g *AccountDeletionGroupBy) Aggregate(fns ...AggregateFunc) *AccountDeletionGroupBy {
 	_g.fns = append(_g.fns, fns...)
 	return _g
 }
 
 // Scan applies the selector query and scans the result into the given value.
-func (_g *AccountDeletionReceiptGroupBy) Scan(ctx context.Context, v any) error {
+func (_g *AccountDeletionGroupBy) Scan(ctx context.Context, v any) error {
 	ctx = setContextOp(ctx, _g.build.ctx, ent.OpQueryGroupBy)
 	if err := _g.build.prepareQuery(ctx); err != nil {
 		return err
 	}
-	return scanWithInterceptors[*AccountDeletionReceiptQuery, *AccountDeletionReceiptGroupBy](ctx, _g.build, _g, _g.build.inters, v)
+	return scanWithInterceptors[*AccountDeletionQuery, *AccountDeletionGroupBy](ctx, _g.build, _g, _g.build.inters, v)
 }
 
-func (_g *AccountDeletionReceiptGroupBy) sqlScan(ctx context.Context, root *AccountDeletionReceiptQuery, v any) error {
+func (_g *AccountDeletionGroupBy) sqlScan(ctx context.Context, root *AccountDeletionQuery, v any) error {
 	selector := root.sqlQuery(ctx).Select()
 	aggregation := make([]string, 0, len(_g.fns))
 	for _, fn := range _g.fns {
@@ -521,28 +521,28 @@ func (_g *AccountDeletionReceiptGroupBy) sqlScan(ctx context.Context, root *Acco
 	return sql.ScanSlice(rows, v)
 }
 
-// AccountDeletionReceiptSelect is the builder for selecting fields of AccountDeletionReceipt entities.
-type AccountDeletionReceiptSelect struct {
-	*AccountDeletionReceiptQuery
+// AccountDeletionSelect is the builder for selecting fields of AccountDeletion entities.
+type AccountDeletionSelect struct {
+	*AccountDeletionQuery
 	selector
 }
 
 // Aggregate adds the given aggregation functions to the selector query.
-func (_s *AccountDeletionReceiptSelect) Aggregate(fns ...AggregateFunc) *AccountDeletionReceiptSelect {
+func (_s *AccountDeletionSelect) Aggregate(fns ...AggregateFunc) *AccountDeletionSelect {
 	_s.fns = append(_s.fns, fns...)
 	return _s
 }
 
 // Scan applies the selector query and scans the result into the given value.
-func (_s *AccountDeletionReceiptSelect) Scan(ctx context.Context, v any) error {
+func (_s *AccountDeletionSelect) Scan(ctx context.Context, v any) error {
 	ctx = setContextOp(ctx, _s.ctx, ent.OpQuerySelect)
 	if err := _s.prepareQuery(ctx); err != nil {
 		return err
 	}
-	return scanWithInterceptors[*AccountDeletionReceiptQuery, *AccountDeletionReceiptSelect](ctx, _s.AccountDeletionReceiptQuery, _s, _s.inters, v)
+	return scanWithInterceptors[*AccountDeletionQuery, *AccountDeletionSelect](ctx, _s.AccountDeletionQuery, _s, _s.inters, v)
 }
 
-func (_s *AccountDeletionReceiptSelect) sqlScan(ctx context.Context, root *AccountDeletionReceiptQuery, v any) error {
+func (_s *AccountDeletionSelect) sqlScan(ctx context.Context, root *AccountDeletionQuery, v any) error {
 	selector := root.sqlQuery(ctx)
 	aggregation := make([]string, 0, len(_s.fns))
 	for _, fn := range _s.fns {

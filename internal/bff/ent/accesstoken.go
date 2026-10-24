@@ -11,7 +11,6 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/kongken/mono/internal/bff/ent/accesstoken"
-	"github.com/kongken/mono/internal/bff/ent/user"
 )
 
 // AccessToken is the model entity for the AccessToken schema.
@@ -31,6 +30,8 @@ type AccessToken struct {
 	Scopes []string `json:"scopes,omitempty"`
 	// Roles holds the value of the "roles" field.
 	Roles []string `json:"roles,omitempty"`
+	// AuthVersion holds the value of the "auth_version" field.
+	AuthVersion int64 `json:"auth_version,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// ExpiresAt holds the value of the "expires_at" field.
@@ -38,31 +39,8 @@ type AccessToken struct {
 	// LastUsedAt holds the value of the "last_used_at" field.
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 	// RevokedAt holds the value of the "revoked_at" field.
-	RevokedAt *time.Time `json:"revoked_at,omitempty"`
-	// Edges holds the relations/edges for other nodes in the graph.
-	// The values are being populated by the AccessTokenQuery when eager-loading is set.
-	Edges        AccessTokenEdges `json:"edges"`
+	RevokedAt    *time.Time `json:"revoked_at,omitempty"`
 	selectValues sql.SelectValues
-}
-
-// AccessTokenEdges holds the relations/edges for other nodes in the graph.
-type AccessTokenEdges struct {
-	// User holds the value of the user edge.
-	User *User `json:"user,omitempty"`
-	// loadedTypes holds the information for reporting if a
-	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
-}
-
-// UserOrErr returns the User value or an error if the edge
-// was not loaded in eager-loading, or loaded but was not found.
-func (e AccessTokenEdges) UserOrErr() (*User, error) {
-	if e.User != nil {
-		return e.User, nil
-	} else if e.loadedTypes[0] {
-		return nil, &NotFoundError{label: user.Label}
-	}
-	return nil, &NotLoadedError{edge: "user"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -72,6 +50,8 @@ func (*AccessToken) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case accesstoken.FieldScopes, accesstoken.FieldRoles:
 			values[i] = new([]byte)
+		case accesstoken.FieldAuthVersion:
+			values[i] = new(sql.NullInt64)
 		case accesstoken.FieldID, accesstoken.FieldUserID, accesstoken.FieldName, accesstoken.FieldTokenHash, accesstoken.FieldAudience:
 			values[i] = new(sql.NullString)
 		case accesstoken.FieldCreatedAt, accesstoken.FieldExpiresAt, accesstoken.FieldLastUsedAt, accesstoken.FieldRevokedAt:
@@ -137,6 +117,12 @@ func (_m *AccessToken) assignValues(columns []string, values []any) error {
 					return fmt.Errorf("unmarshal field roles: %w", err)
 				}
 			}
+		case accesstoken.FieldAuthVersion:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field auth_version", values[i])
+			} else if value.Valid {
+				_m.AuthVersion = value.Int64
+			}
 		case accesstoken.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -174,11 +160,6 @@ func (_m *AccessToken) assignValues(columns []string, values []any) error {
 // This includes values selected through modifiers, order, etc.
 func (_m *AccessToken) Value(name string) (ent.Value, error) {
 	return _m.selectValues.Get(name)
-}
-
-// QueryUser queries the "user" edge of the AccessToken entity.
-func (_m *AccessToken) QueryUser() *UserQuery {
-	return NewAccessTokenClient(_m.config).QueryUser(_m)
 }
 
 // Update returns a builder for updating this AccessToken.
@@ -220,6 +201,9 @@ func (_m *AccessToken) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("roles=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Roles))
+	builder.WriteString(", ")
+	builder.WriteString("auth_version=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AuthVersion))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

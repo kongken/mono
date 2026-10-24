@@ -13,7 +13,7 @@
 | 乘坐记录 | 用户标记“坐过”某条线路，可带年份 |
 | 骑行者资料 | 用户的公开主页资料：昵称、简介、社交链接、是否公开 |
 | 目录 | 城市、线路、车型、车型专题的统称，由管理员维护；变化时目录版本（`catalog_state.version`）加一 |
-| 管理员 | 持有 Logto 角色 `metro-admin` 的用户 |
+| 管理员 | 持有 usersrv 角色 `metro-admin` 的用户 |
 | 管理令牌 | 供 MCP 客户端使用的长期凭证，由管理员创建，可吊销；以 `mcp_` 开头，BFF 只存摘要 |
 
 详见 [metro 规格](docs/metro/spec.md) 与 [功能描述](docs/metro/features.md)。

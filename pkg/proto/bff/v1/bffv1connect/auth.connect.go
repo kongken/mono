@@ -23,6 +23,8 @@ const _ = connect.IsAtLeastVersion1_13_0
 const (
 	// AuthServiceName is the fully-qualified name of the AuthService service.
 	AuthServiceName = "bff.v1.AuthService"
+	// UserServiceName is the fully-qualified name of the UserService service.
+	UserServiceName = "bff.v1.UserService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -33,59 +35,102 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// AuthServiceRegisterProcedure is the fully-qualified name of the AuthService's Register RPC.
-	AuthServiceRegisterProcedure = "/bff.v1.AuthService/Register"
-	// AuthServiceLoginProcedure is the fully-qualified name of the AuthService's Login RPC.
-	AuthServiceLoginProcedure = "/bff.v1.AuthService/Login"
-	// AuthServiceLogoutProcedure is the fully-qualified name of the AuthService's Logout RPC.
-	AuthServiceLogoutProcedure = "/bff.v1.AuthService/Logout"
+	// AuthServiceIssueCSRFTokenProcedure is the fully-qualified name of the AuthService's
+	// IssueCSRFToken RPC.
+	AuthServiceIssueCSRFTokenProcedure = "/bff.v1.AuthService/IssueCSRFToken"
+	// AuthServiceRequestRegistrationProcedure is the fully-qualified name of the AuthService's
+	// RequestRegistration RPC.
+	AuthServiceRequestRegistrationProcedure = "/bff.v1.AuthService/RequestRegistration"
+	// AuthServiceCompleteRegistrationProcedure is the fully-qualified name of the AuthService's
+	// CompleteRegistration RPC.
+	AuthServiceCompleteRegistrationProcedure = "/bff.v1.AuthService/CompleteRegistration"
+	// AuthServiceLoginWithEmailProcedure is the fully-qualified name of the AuthService's
+	// LoginWithEmail RPC.
+	AuthServiceLoginWithEmailProcedure = "/bff.v1.AuthService/LoginWithEmail"
+	// AuthServiceRequestPasswordResetProcedure is the fully-qualified name of the AuthService's
+	// RequestPasswordReset RPC.
+	AuthServiceRequestPasswordResetProcedure = "/bff.v1.AuthService/RequestPasswordReset"
+	// AuthServiceResetPasswordProcedure is the fully-qualified name of the AuthService's ResetPassword
+	// RPC.
+	AuthServiceResetPasswordProcedure = "/bff.v1.AuthService/ResetPassword"
 	// AuthServiceMeProcedure is the fully-qualified name of the AuthService's Me RPC.
 	AuthServiceMeProcedure = "/bff.v1.AuthService/Me"
 	// AuthServiceListSessionsProcedure is the fully-qualified name of the AuthService's ListSessions
 	// RPC.
 	AuthServiceListSessionsProcedure = "/bff.v1.AuthService/ListSessions"
+	// AuthServiceLogoutProcedure is the fully-qualified name of the AuthService's Logout RPC.
+	AuthServiceLogoutProcedure = "/bff.v1.AuthService/Logout"
 	// AuthServiceRevokeSessionProcedure is the fully-qualified name of the AuthService's RevokeSession
 	// RPC.
 	AuthServiceRevokeSessionProcedure = "/bff.v1.AuthService/RevokeSession"
+	// AuthServiceReauthenticateProcedure is the fully-qualified name of the AuthService's
+	// Reauthenticate RPC.
+	AuthServiceReauthenticateProcedure = "/bff.v1.AuthService/Reauthenticate"
+	// AuthServiceChangePasswordProcedure is the fully-qualified name of the AuthService's
+	// ChangePassword RPC.
+	AuthServiceChangePasswordProcedure = "/bff.v1.AuthService/ChangePassword"
 	// AuthServiceDeleteAccountProcedure is the fully-qualified name of the AuthService's DeleteAccount
 	// RPC.
 	AuthServiceDeleteAccountProcedure = "/bff.v1.AuthService/DeleteAccount"
-	// AuthServiceIssueCSRFTokenProcedure is the fully-qualified name of the AuthService's
-	// IssueCSRFToken RPC.
-	AuthServiceIssueCSRFTokenProcedure = "/bff.v1.AuthService/IssueCSRFToken"
-	// AuthServiceListOAuthProvidersProcedure is the fully-qualified name of the AuthService's
-	// ListOAuthProviders RPC.
-	AuthServiceListOAuthProvidersProcedure = "/bff.v1.AuthService/ListOAuthProviders"
-	// AuthServiceBeginOAuthFlowProcedure is the fully-qualified name of the AuthService's
-	// BeginOAuthFlow RPC.
-	AuthServiceBeginOAuthFlowProcedure = "/bff.v1.AuthService/BeginOAuthFlow"
-	// AuthServiceCompleteOAuthFlowProcedure is the fully-qualified name of the AuthService's
-	// CompleteOAuthFlow RPC.
-	AuthServiceCompleteOAuthFlowProcedure = "/bff.v1.AuthService/CompleteOAuthFlow"
+	// AuthServiceGetAccountDeletionProcedure is the fully-qualified name of the AuthService's
+	// GetAccountDeletion RPC.
+	AuthServiceGetAccountDeletionProcedure = "/bff.v1.AuthService/GetAccountDeletion"
+	// AuthServiceRetryAccountDeletionProcedure is the fully-qualified name of the AuthService's
+	// RetryAccountDeletion RPC.
+	AuthServiceRetryAccountDeletionProcedure = "/bff.v1.AuthService/RetryAccountDeletion"
+	// UserServiceUpdateMyProfileProcedure is the fully-qualified name of the UserService's
+	// UpdateMyProfile RPC.
+	UserServiceUpdateMyProfileProcedure = "/bff.v1.UserService/UpdateMyProfile"
 )
 
 // AuthServiceClient is a client for the bff.v1.AuthService service.
 type AuthServiceClient interface {
-	// Deprecated: do not use.
-	Register(context.Context, *connect.Request[v1.RegisterRequest]) (*connect.Response[v1.RegisterResponse], error)
-	// Deprecated: do not use.
-	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
-	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
+	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
+	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
+	// RequestRegistration asks for a verification mail. A well-formed address always
+	// gets the same answer, whether or not it can register; no user, session or token
+	// is returned and no password is accepted here.
+	RequestRegistration(context.Context, *connect.Request[v1.RequestRegistrationRequest]) (*connect.Response[v1.RequestRegistrationResponse], error)
+	// CompleteRegistration consumes the mailed token and creates the account with the
+	// chosen password and nickname. It signs nobody in.
+	CompleteRegistration(context.Context, *connect.Request[v1.CompleteRegistrationRequest]) (*connect.Response[v1.CompleteRegistrationResponse], error)
+	// LoginWithEmail checks email and password and, on success only, sets a new
+	// random session Cookie. The response carries the profile and expiry, never the token.
+	LoginWithEmail(context.Context, *connect.Request[v1.LoginWithEmailRequest]) (*connect.Response[v1.LoginWithEmailResponse], error)
+	// RequestPasswordReset always answers the same way for a well-formed address.
+	RequestPasswordReset(context.Context, *connect.Request[v1.RequestPasswordResetRequest]) (*connect.Response[v1.RequestPasswordResetResponse], error)
+	// ResetPassword consumes the mailed token and sets a new password. Every existing
+	// session and management token stops working; the caller is not signed in.
+	ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error)
+	// Me returns the caller's account, including the login email. The roles are the
+	// account's current roles, not a snapshot.
 	Me(context.Context, *connect.Request[v1.MeRequest]) (*connect.Response[v1.MeResponse], error)
 	// ListSessions lists the caller's active browser sessions in BFF storage.
 	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
+	// Logout revokes the session of the Cookie and clears it. It is idempotent: it
+	// succeeds, and clears the Cookie, even when the session is already gone.
+	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
 	// RevokeSession revokes one of the caller's own sessions.
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
-	// DeleteAccount deletes application cloud data, NOT the Logto account.
-	// Requires a BFF session issued within 15 minutes; cleanup retries are exempt.
+	// Reauthenticate re-checks the current password and, only then, records a fresh
+	// authentication time on this session. Sensitive actions (DeleteAccount, creating
+	// a management token) need it within the last 15 minutes.
+	Reauthenticate(context.Context, *connect.Request[v1.ReauthenticateRequest]) (*connect.Response[v1.ReauthenticateResponse], error)
+	// ChangePassword needs the current password. On success every session and
+	// management token of the account, this one included, stops working.
+	ChangePassword(context.Context, *connect.Request[v1.ChangePasswordRequest]) (*connect.Response[v1.ChangePasswordResponse], error)
+	// DeleteAccount closes the shared account and removes the data of every enabled
+	// product. It needs a session that checked its password within 15 minutes, the
+	// confirmation "DELETE" and an idempotency key. The workflow is stored before
+	// anything is removed and every step can be retried: while a product cleanup
+	// fails the account stays "deleting" and the call is UNAVAILABLE.
 	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
-	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
-	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
-	ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error)
-	// Deprecated: do not use.
-	BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error)
-	// Deprecated: do not use.
-	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error)
+	// GetAccountDeletion reads the state of the deletion started by the caller's
+	// Cookie. Only that Cookie can read it; a workflow ID alone opens nothing.
+	GetAccountDeletion(context.Context, *connect.Request[v1.GetAccountDeletionRequest]) (*connect.Response[v1.GetAccountDeletionResponse], error)
+	// RetryAccountDeletion continues the deletion started by the caller's Cookie. It
+	// is idempotent, and once finished it replays the result for 24 hours.
+	RetryAccountDeletion(context.Context, *connect.Request[v1.RetryAccountDeletionRequest]) (*connect.Response[v1.RetryAccountDeletionResponse], error)
 }
 
 // NewAuthServiceClient constructs a client for the bff.v1.AuthService service. By default, it uses
@@ -99,22 +144,40 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 	baseURL = strings.TrimRight(baseURL, "/")
 	authServiceMethods := v1.File_bff_v1_auth_proto.Services().ByName("AuthService").Methods()
 	return &authServiceClient{
-		register: connect.NewClient[v1.RegisterRequest, v1.RegisterResponse](
+		issueCSRFToken: connect.NewClient[v1.IssueCSRFTokenRequest, v1.IssueCSRFTokenResponse](
 			httpClient,
-			baseURL+AuthServiceRegisterProcedure,
-			connect.WithSchema(authServiceMethods.ByName("Register")),
+			baseURL+AuthServiceIssueCSRFTokenProcedure,
+			connect.WithSchema(authServiceMethods.ByName("IssueCSRFToken")),
 			connect.WithClientOptions(opts...),
 		),
-		login: connect.NewClient[v1.LoginRequest, v1.LoginResponse](
+		requestRegistration: connect.NewClient[v1.RequestRegistrationRequest, v1.RequestRegistrationResponse](
 			httpClient,
-			baseURL+AuthServiceLoginProcedure,
-			connect.WithSchema(authServiceMethods.ByName("Login")),
+			baseURL+AuthServiceRequestRegistrationProcedure,
+			connect.WithSchema(authServiceMethods.ByName("RequestRegistration")),
 			connect.WithClientOptions(opts...),
 		),
-		logout: connect.NewClient[v1.LogoutRequest, v1.LogoutResponse](
+		completeRegistration: connect.NewClient[v1.CompleteRegistrationRequest, v1.CompleteRegistrationResponse](
 			httpClient,
-			baseURL+AuthServiceLogoutProcedure,
-			connect.WithSchema(authServiceMethods.ByName("Logout")),
+			baseURL+AuthServiceCompleteRegistrationProcedure,
+			connect.WithSchema(authServiceMethods.ByName("CompleteRegistration")),
+			connect.WithClientOptions(opts...),
+		),
+		loginWithEmail: connect.NewClient[v1.LoginWithEmailRequest, v1.LoginWithEmailResponse](
+			httpClient,
+			baseURL+AuthServiceLoginWithEmailProcedure,
+			connect.WithSchema(authServiceMethods.ByName("LoginWithEmail")),
+			connect.WithClientOptions(opts...),
+		),
+		requestPasswordReset: connect.NewClient[v1.RequestPasswordResetRequest, v1.RequestPasswordResetResponse](
+			httpClient,
+			baseURL+AuthServiceRequestPasswordResetProcedure,
+			connect.WithSchema(authServiceMethods.ByName("RequestPasswordReset")),
+			connect.WithClientOptions(opts...),
+		),
+		resetPassword: connect.NewClient[v1.ResetPasswordRequest, v1.ResetPasswordResponse](
+			httpClient,
+			baseURL+AuthServiceResetPasswordProcedure,
+			connect.WithSchema(authServiceMethods.ByName("ResetPassword")),
 			connect.WithClientOptions(opts...),
 		),
 		me: connect.NewClient[v1.MeRequest, v1.MeResponse](
@@ -129,10 +192,28 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("ListSessions")),
 			connect.WithClientOptions(opts...),
 		),
+		logout: connect.NewClient[v1.LogoutRequest, v1.LogoutResponse](
+			httpClient,
+			baseURL+AuthServiceLogoutProcedure,
+			connect.WithSchema(authServiceMethods.ByName("Logout")),
+			connect.WithClientOptions(opts...),
+		),
 		revokeSession: connect.NewClient[v1.RevokeSessionRequest, v1.RevokeSessionResponse](
 			httpClient,
 			baseURL+AuthServiceRevokeSessionProcedure,
 			connect.WithSchema(authServiceMethods.ByName("RevokeSession")),
+			connect.WithClientOptions(opts...),
+		),
+		reauthenticate: connect.NewClient[v1.ReauthenticateRequest, v1.ReauthenticateResponse](
+			httpClient,
+			baseURL+AuthServiceReauthenticateProcedure,
+			connect.WithSchema(authServiceMethods.ByName("Reauthenticate")),
+			connect.WithClientOptions(opts...),
+		),
+		changePassword: connect.NewClient[v1.ChangePasswordRequest, v1.ChangePasswordResponse](
+			httpClient,
+			baseURL+AuthServiceChangePasswordProcedure,
+			connect.WithSchema(authServiceMethods.ByName("ChangePassword")),
 			connect.WithClientOptions(opts...),
 		),
 		deleteAccount: connect.NewClient[v1.DeleteAccountRequest, v1.DeleteAccountResponse](
@@ -141,28 +222,16 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("DeleteAccount")),
 			connect.WithClientOptions(opts...),
 		),
-		issueCSRFToken: connect.NewClient[v1.IssueCSRFTokenRequest, v1.IssueCSRFTokenResponse](
+		getAccountDeletion: connect.NewClient[v1.GetAccountDeletionRequest, v1.GetAccountDeletionResponse](
 			httpClient,
-			baseURL+AuthServiceIssueCSRFTokenProcedure,
-			connect.WithSchema(authServiceMethods.ByName("IssueCSRFToken")),
+			baseURL+AuthServiceGetAccountDeletionProcedure,
+			connect.WithSchema(authServiceMethods.ByName("GetAccountDeletion")),
 			connect.WithClientOptions(opts...),
 		),
-		listOAuthProviders: connect.NewClient[v1.ListOAuthProvidersRequest, v1.ListOAuthProvidersResponse](
+		retryAccountDeletion: connect.NewClient[v1.RetryAccountDeletionRequest, v1.RetryAccountDeletionResponse](
 			httpClient,
-			baseURL+AuthServiceListOAuthProvidersProcedure,
-			connect.WithSchema(authServiceMethods.ByName("ListOAuthProviders")),
-			connect.WithClientOptions(opts...),
-		),
-		beginOAuthFlow: connect.NewClient[v1.BeginOAuthFlowRequest, v1.BeginOAuthFlowResponse](
-			httpClient,
-			baseURL+AuthServiceBeginOAuthFlowProcedure,
-			connect.WithSchema(authServiceMethods.ByName("BeginOAuthFlow")),
-			connect.WithClientOptions(opts...),
-		),
-		completeOAuthFlow: connect.NewClient[v1.CompleteOAuthFlowRequest, v1.CompleteOAuthFlowResponse](
-			httpClient,
-			baseURL+AuthServiceCompleteOAuthFlowProcedure,
-			connect.WithSchema(authServiceMethods.ByName("CompleteOAuthFlow")),
+			baseURL+AuthServiceRetryAccountDeletionProcedure,
+			connect.WithSchema(authServiceMethods.ByName("RetryAccountDeletion")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -170,36 +239,51 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 
 // authServiceClient implements AuthServiceClient.
 type authServiceClient struct {
-	register           *connect.Client[v1.RegisterRequest, v1.RegisterResponse]
-	login              *connect.Client[v1.LoginRequest, v1.LoginResponse]
-	logout             *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
-	me                 *connect.Client[v1.MeRequest, v1.MeResponse]
-	listSessions       *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
-	revokeSession      *connect.Client[v1.RevokeSessionRequest, v1.RevokeSessionResponse]
-	deleteAccount      *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
-	issueCSRFToken     *connect.Client[v1.IssueCSRFTokenRequest, v1.IssueCSRFTokenResponse]
-	listOAuthProviders *connect.Client[v1.ListOAuthProvidersRequest, v1.ListOAuthProvidersResponse]
-	beginOAuthFlow     *connect.Client[v1.BeginOAuthFlowRequest, v1.BeginOAuthFlowResponse]
-	completeOAuthFlow  *connect.Client[v1.CompleteOAuthFlowRequest, v1.CompleteOAuthFlowResponse]
+	issueCSRFToken       *connect.Client[v1.IssueCSRFTokenRequest, v1.IssueCSRFTokenResponse]
+	requestRegistration  *connect.Client[v1.RequestRegistrationRequest, v1.RequestRegistrationResponse]
+	completeRegistration *connect.Client[v1.CompleteRegistrationRequest, v1.CompleteRegistrationResponse]
+	loginWithEmail       *connect.Client[v1.LoginWithEmailRequest, v1.LoginWithEmailResponse]
+	requestPasswordReset *connect.Client[v1.RequestPasswordResetRequest, v1.RequestPasswordResetResponse]
+	resetPassword        *connect.Client[v1.ResetPasswordRequest, v1.ResetPasswordResponse]
+	me                   *connect.Client[v1.MeRequest, v1.MeResponse]
+	listSessions         *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
+	logout               *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
+	revokeSession        *connect.Client[v1.RevokeSessionRequest, v1.RevokeSessionResponse]
+	reauthenticate       *connect.Client[v1.ReauthenticateRequest, v1.ReauthenticateResponse]
+	changePassword       *connect.Client[v1.ChangePasswordRequest, v1.ChangePasswordResponse]
+	deleteAccount        *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
+	getAccountDeletion   *connect.Client[v1.GetAccountDeletionRequest, v1.GetAccountDeletionResponse]
+	retryAccountDeletion *connect.Client[v1.RetryAccountDeletionRequest, v1.RetryAccountDeletionResponse]
 }
 
-// Register calls bff.v1.AuthService.Register.
-//
-// Deprecated: do not use.
-func (c *authServiceClient) Register(ctx context.Context, req *connect.Request[v1.RegisterRequest]) (*connect.Response[v1.RegisterResponse], error) {
-	return c.register.CallUnary(ctx, req)
+// IssueCSRFToken calls bff.v1.AuthService.IssueCSRFToken.
+func (c *authServiceClient) IssueCSRFToken(ctx context.Context, req *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {
+	return c.issueCSRFToken.CallUnary(ctx, req)
 }
 
-// Login calls bff.v1.AuthService.Login.
-//
-// Deprecated: do not use.
-func (c *authServiceClient) Login(ctx context.Context, req *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error) {
-	return c.login.CallUnary(ctx, req)
+// RequestRegistration calls bff.v1.AuthService.RequestRegistration.
+func (c *authServiceClient) RequestRegistration(ctx context.Context, req *connect.Request[v1.RequestRegistrationRequest]) (*connect.Response[v1.RequestRegistrationResponse], error) {
+	return c.requestRegistration.CallUnary(ctx, req)
 }
 
-// Logout calls bff.v1.AuthService.Logout.
-func (c *authServiceClient) Logout(ctx context.Context, req *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error) {
-	return c.logout.CallUnary(ctx, req)
+// CompleteRegistration calls bff.v1.AuthService.CompleteRegistration.
+func (c *authServiceClient) CompleteRegistration(ctx context.Context, req *connect.Request[v1.CompleteRegistrationRequest]) (*connect.Response[v1.CompleteRegistrationResponse], error) {
+	return c.completeRegistration.CallUnary(ctx, req)
+}
+
+// LoginWithEmail calls bff.v1.AuthService.LoginWithEmail.
+func (c *authServiceClient) LoginWithEmail(ctx context.Context, req *connect.Request[v1.LoginWithEmailRequest]) (*connect.Response[v1.LoginWithEmailResponse], error) {
+	return c.loginWithEmail.CallUnary(ctx, req)
+}
+
+// RequestPasswordReset calls bff.v1.AuthService.RequestPasswordReset.
+func (c *authServiceClient) RequestPasswordReset(ctx context.Context, req *connect.Request[v1.RequestPasswordResetRequest]) (*connect.Response[v1.RequestPasswordResetResponse], error) {
+	return c.requestPasswordReset.CallUnary(ctx, req)
+}
+
+// ResetPassword calls bff.v1.AuthService.ResetPassword.
+func (c *authServiceClient) ResetPassword(ctx context.Context, req *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error) {
+	return c.resetPassword.CallUnary(ctx, req)
 }
 
 // Me calls bff.v1.AuthService.Me.
@@ -212,9 +296,24 @@ func (c *authServiceClient) ListSessions(ctx context.Context, req *connect.Reque
 	return c.listSessions.CallUnary(ctx, req)
 }
 
+// Logout calls bff.v1.AuthService.Logout.
+func (c *authServiceClient) Logout(ctx context.Context, req *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error) {
+	return c.logout.CallUnary(ctx, req)
+}
+
 // RevokeSession calls bff.v1.AuthService.RevokeSession.
 func (c *authServiceClient) RevokeSession(ctx context.Context, req *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error) {
 	return c.revokeSession.CallUnary(ctx, req)
+}
+
+// Reauthenticate calls bff.v1.AuthService.Reauthenticate.
+func (c *authServiceClient) Reauthenticate(ctx context.Context, req *connect.Request[v1.ReauthenticateRequest]) (*connect.Response[v1.ReauthenticateResponse], error) {
+	return c.reauthenticate.CallUnary(ctx, req)
+}
+
+// ChangePassword calls bff.v1.AuthService.ChangePassword.
+func (c *authServiceClient) ChangePassword(ctx context.Context, req *connect.Request[v1.ChangePasswordRequest]) (*connect.Response[v1.ChangePasswordResponse], error) {
+	return c.changePassword.CallUnary(ctx, req)
 }
 
 // DeleteAccount calls bff.v1.AuthService.DeleteAccount.
@@ -222,52 +321,64 @@ func (c *authServiceClient) DeleteAccount(ctx context.Context, req *connect.Requ
 	return c.deleteAccount.CallUnary(ctx, req)
 }
 
-// IssueCSRFToken calls bff.v1.AuthService.IssueCSRFToken.
-func (c *authServiceClient) IssueCSRFToken(ctx context.Context, req *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {
-	return c.issueCSRFToken.CallUnary(ctx, req)
+// GetAccountDeletion calls bff.v1.AuthService.GetAccountDeletion.
+func (c *authServiceClient) GetAccountDeletion(ctx context.Context, req *connect.Request[v1.GetAccountDeletionRequest]) (*connect.Response[v1.GetAccountDeletionResponse], error) {
+	return c.getAccountDeletion.CallUnary(ctx, req)
 }
 
-// ListOAuthProviders calls bff.v1.AuthService.ListOAuthProviders.
-func (c *authServiceClient) ListOAuthProviders(ctx context.Context, req *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error) {
-	return c.listOAuthProviders.CallUnary(ctx, req)
-}
-
-// BeginOAuthFlow calls bff.v1.AuthService.BeginOAuthFlow.
-//
-// Deprecated: do not use.
-func (c *authServiceClient) BeginOAuthFlow(ctx context.Context, req *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error) {
-	return c.beginOAuthFlow.CallUnary(ctx, req)
-}
-
-// CompleteOAuthFlow calls bff.v1.AuthService.CompleteOAuthFlow.
-//
-// Deprecated: do not use.
-func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, req *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error) {
-	return c.completeOAuthFlow.CallUnary(ctx, req)
+// RetryAccountDeletion calls bff.v1.AuthService.RetryAccountDeletion.
+func (c *authServiceClient) RetryAccountDeletion(ctx context.Context, req *connect.Request[v1.RetryAccountDeletionRequest]) (*connect.Response[v1.RetryAccountDeletionResponse], error) {
+	return c.retryAccountDeletion.CallUnary(ctx, req)
 }
 
 // AuthServiceHandler is an implementation of the bff.v1.AuthService service.
 type AuthServiceHandler interface {
-	// Deprecated: do not use.
-	Register(context.Context, *connect.Request[v1.RegisterRequest]) (*connect.Response[v1.RegisterResponse], error)
-	// Deprecated: do not use.
-	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
-	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
+	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
+	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
+	// RequestRegistration asks for a verification mail. A well-formed address always
+	// gets the same answer, whether or not it can register; no user, session or token
+	// is returned and no password is accepted here.
+	RequestRegistration(context.Context, *connect.Request[v1.RequestRegistrationRequest]) (*connect.Response[v1.RequestRegistrationResponse], error)
+	// CompleteRegistration consumes the mailed token and creates the account with the
+	// chosen password and nickname. It signs nobody in.
+	CompleteRegistration(context.Context, *connect.Request[v1.CompleteRegistrationRequest]) (*connect.Response[v1.CompleteRegistrationResponse], error)
+	// LoginWithEmail checks email and password and, on success only, sets a new
+	// random session Cookie. The response carries the profile and expiry, never the token.
+	LoginWithEmail(context.Context, *connect.Request[v1.LoginWithEmailRequest]) (*connect.Response[v1.LoginWithEmailResponse], error)
+	// RequestPasswordReset always answers the same way for a well-formed address.
+	RequestPasswordReset(context.Context, *connect.Request[v1.RequestPasswordResetRequest]) (*connect.Response[v1.RequestPasswordResetResponse], error)
+	// ResetPassword consumes the mailed token and sets a new password. Every existing
+	// session and management token stops working; the caller is not signed in.
+	ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error)
+	// Me returns the caller's account, including the login email. The roles are the
+	// account's current roles, not a snapshot.
 	Me(context.Context, *connect.Request[v1.MeRequest]) (*connect.Response[v1.MeResponse], error)
 	// ListSessions lists the caller's active browser sessions in BFF storage.
 	ListSessions(context.Context, *connect.Request[v1.ListSessionsRequest]) (*connect.Response[v1.ListSessionsResponse], error)
+	// Logout revokes the session of the Cookie and clears it. It is idempotent: it
+	// succeeds, and clears the Cookie, even when the session is already gone.
+	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
 	// RevokeSession revokes one of the caller's own sessions.
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
-	// DeleteAccount deletes application cloud data, NOT the Logto account.
-	// Requires a BFF session issued within 15 minutes; cleanup retries are exempt.
+	// Reauthenticate re-checks the current password and, only then, records a fresh
+	// authentication time on this session. Sensitive actions (DeleteAccount, creating
+	// a management token) need it within the last 15 minutes.
+	Reauthenticate(context.Context, *connect.Request[v1.ReauthenticateRequest]) (*connect.Response[v1.ReauthenticateResponse], error)
+	// ChangePassword needs the current password. On success every session and
+	// management token of the account, this one included, stops working.
+	ChangePassword(context.Context, *connect.Request[v1.ChangePasswordRequest]) (*connect.Response[v1.ChangePasswordResponse], error)
+	// DeleteAccount closes the shared account and removes the data of every enabled
+	// product. It needs a session that checked its password within 15 minutes, the
+	// confirmation "DELETE" and an idempotency key. The workflow is stored before
+	// anything is removed and every step can be retried: while a product cleanup
+	// fails the account stays "deleting" and the call is UNAVAILABLE.
 	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
-	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
-	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
-	ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error)
-	// Deprecated: do not use.
-	BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error)
-	// Deprecated: do not use.
-	CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error)
+	// GetAccountDeletion reads the state of the deletion started by the caller's
+	// Cookie. Only that Cookie can read it; a workflow ID alone opens nothing.
+	GetAccountDeletion(context.Context, *connect.Request[v1.GetAccountDeletionRequest]) (*connect.Response[v1.GetAccountDeletionResponse], error)
+	// RetryAccountDeletion continues the deletion started by the caller's Cookie. It
+	// is idempotent, and once finished it replays the result for 24 hours.
+	RetryAccountDeletion(context.Context, *connect.Request[v1.RetryAccountDeletionRequest]) (*connect.Response[v1.RetryAccountDeletionResponse], error)
 }
 
 // NewAuthServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -277,22 +388,40 @@ type AuthServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	authServiceMethods := v1.File_bff_v1_auth_proto.Services().ByName("AuthService").Methods()
-	authServiceRegisterHandler := connect.NewUnaryHandler(
-		AuthServiceRegisterProcedure,
-		svc.Register,
-		connect.WithSchema(authServiceMethods.ByName("Register")),
+	authServiceIssueCSRFTokenHandler := connect.NewUnaryHandler(
+		AuthServiceIssueCSRFTokenProcedure,
+		svc.IssueCSRFToken,
+		connect.WithSchema(authServiceMethods.ByName("IssueCSRFToken")),
 		connect.WithHandlerOptions(opts...),
 	)
-	authServiceLoginHandler := connect.NewUnaryHandler(
-		AuthServiceLoginProcedure,
-		svc.Login,
-		connect.WithSchema(authServiceMethods.ByName("Login")),
+	authServiceRequestRegistrationHandler := connect.NewUnaryHandler(
+		AuthServiceRequestRegistrationProcedure,
+		svc.RequestRegistration,
+		connect.WithSchema(authServiceMethods.ByName("RequestRegistration")),
 		connect.WithHandlerOptions(opts...),
 	)
-	authServiceLogoutHandler := connect.NewUnaryHandler(
-		AuthServiceLogoutProcedure,
-		svc.Logout,
-		connect.WithSchema(authServiceMethods.ByName("Logout")),
+	authServiceCompleteRegistrationHandler := connect.NewUnaryHandler(
+		AuthServiceCompleteRegistrationProcedure,
+		svc.CompleteRegistration,
+		connect.WithSchema(authServiceMethods.ByName("CompleteRegistration")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceLoginWithEmailHandler := connect.NewUnaryHandler(
+		AuthServiceLoginWithEmailProcedure,
+		svc.LoginWithEmail,
+		connect.WithSchema(authServiceMethods.ByName("LoginWithEmail")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceRequestPasswordResetHandler := connect.NewUnaryHandler(
+		AuthServiceRequestPasswordResetProcedure,
+		svc.RequestPasswordReset,
+		connect.WithSchema(authServiceMethods.ByName("RequestPasswordReset")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceResetPasswordHandler := connect.NewUnaryHandler(
+		AuthServiceResetPasswordProcedure,
+		svc.ResetPassword,
+		connect.WithSchema(authServiceMethods.ByName("ResetPassword")),
 		connect.WithHandlerOptions(opts...),
 	)
 	authServiceMeHandler := connect.NewUnaryHandler(
@@ -307,10 +436,28 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("ListSessions")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceLogoutHandler := connect.NewUnaryHandler(
+		AuthServiceLogoutProcedure,
+		svc.Logout,
+		connect.WithSchema(authServiceMethods.ByName("Logout")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceRevokeSessionHandler := connect.NewUnaryHandler(
 		AuthServiceRevokeSessionProcedure,
 		svc.RevokeSession,
 		connect.WithSchema(authServiceMethods.ByName("RevokeSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceReauthenticateHandler := connect.NewUnaryHandler(
+		AuthServiceReauthenticateProcedure,
+		svc.Reauthenticate,
+		connect.WithSchema(authServiceMethods.ByName("Reauthenticate")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceChangePasswordHandler := connect.NewUnaryHandler(
+		AuthServiceChangePasswordProcedure,
+		svc.ChangePassword,
+		connect.WithSchema(authServiceMethods.ByName("ChangePassword")),
 		connect.WithHandlerOptions(opts...),
 	)
 	authServiceDeleteAccountHandler := connect.NewUnaryHandler(
@@ -319,54 +466,50 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("DeleteAccount")),
 		connect.WithHandlerOptions(opts...),
 	)
-	authServiceIssueCSRFTokenHandler := connect.NewUnaryHandler(
-		AuthServiceIssueCSRFTokenProcedure,
-		svc.IssueCSRFToken,
-		connect.WithSchema(authServiceMethods.ByName("IssueCSRFToken")),
+	authServiceGetAccountDeletionHandler := connect.NewUnaryHandler(
+		AuthServiceGetAccountDeletionProcedure,
+		svc.GetAccountDeletion,
+		connect.WithSchema(authServiceMethods.ByName("GetAccountDeletion")),
 		connect.WithHandlerOptions(opts...),
 	)
-	authServiceListOAuthProvidersHandler := connect.NewUnaryHandler(
-		AuthServiceListOAuthProvidersProcedure,
-		svc.ListOAuthProviders,
-		connect.WithSchema(authServiceMethods.ByName("ListOAuthProviders")),
-		connect.WithHandlerOptions(opts...),
-	)
-	authServiceBeginOAuthFlowHandler := connect.NewUnaryHandler(
-		AuthServiceBeginOAuthFlowProcedure,
-		svc.BeginOAuthFlow,
-		connect.WithSchema(authServiceMethods.ByName("BeginOAuthFlow")),
-		connect.WithHandlerOptions(opts...),
-	)
-	authServiceCompleteOAuthFlowHandler := connect.NewUnaryHandler(
-		AuthServiceCompleteOAuthFlowProcedure,
-		svc.CompleteOAuthFlow,
-		connect.WithSchema(authServiceMethods.ByName("CompleteOAuthFlow")),
+	authServiceRetryAccountDeletionHandler := connect.NewUnaryHandler(
+		AuthServiceRetryAccountDeletionProcedure,
+		svc.RetryAccountDeletion,
+		connect.WithSchema(authServiceMethods.ByName("RetryAccountDeletion")),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/bff.v1.AuthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case AuthServiceRegisterProcedure:
-			authServiceRegisterHandler.ServeHTTP(w, r)
-		case AuthServiceLoginProcedure:
-			authServiceLoginHandler.ServeHTTP(w, r)
-		case AuthServiceLogoutProcedure:
-			authServiceLogoutHandler.ServeHTTP(w, r)
+		case AuthServiceIssueCSRFTokenProcedure:
+			authServiceIssueCSRFTokenHandler.ServeHTTP(w, r)
+		case AuthServiceRequestRegistrationProcedure:
+			authServiceRequestRegistrationHandler.ServeHTTP(w, r)
+		case AuthServiceCompleteRegistrationProcedure:
+			authServiceCompleteRegistrationHandler.ServeHTTP(w, r)
+		case AuthServiceLoginWithEmailProcedure:
+			authServiceLoginWithEmailHandler.ServeHTTP(w, r)
+		case AuthServiceRequestPasswordResetProcedure:
+			authServiceRequestPasswordResetHandler.ServeHTTP(w, r)
+		case AuthServiceResetPasswordProcedure:
+			authServiceResetPasswordHandler.ServeHTTP(w, r)
 		case AuthServiceMeProcedure:
 			authServiceMeHandler.ServeHTTP(w, r)
 		case AuthServiceListSessionsProcedure:
 			authServiceListSessionsHandler.ServeHTTP(w, r)
+		case AuthServiceLogoutProcedure:
+			authServiceLogoutHandler.ServeHTTP(w, r)
 		case AuthServiceRevokeSessionProcedure:
 			authServiceRevokeSessionHandler.ServeHTTP(w, r)
+		case AuthServiceReauthenticateProcedure:
+			authServiceReauthenticateHandler.ServeHTTP(w, r)
+		case AuthServiceChangePasswordProcedure:
+			authServiceChangePasswordHandler.ServeHTTP(w, r)
 		case AuthServiceDeleteAccountProcedure:
 			authServiceDeleteAccountHandler.ServeHTTP(w, r)
-		case AuthServiceIssueCSRFTokenProcedure:
-			authServiceIssueCSRFTokenHandler.ServeHTTP(w, r)
-		case AuthServiceListOAuthProvidersProcedure:
-			authServiceListOAuthProvidersHandler.ServeHTTP(w, r)
-		case AuthServiceBeginOAuthFlowProcedure:
-			authServiceBeginOAuthFlowHandler.ServeHTTP(w, r)
-		case AuthServiceCompleteOAuthFlowProcedure:
-			authServiceCompleteOAuthFlowHandler.ServeHTTP(w, r)
+		case AuthServiceGetAccountDeletionProcedure:
+			authServiceGetAccountDeletionHandler.ServeHTTP(w, r)
+		case AuthServiceRetryAccountDeletionProcedure:
+			authServiceRetryAccountDeletionHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -376,16 +519,28 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 // UnimplementedAuthServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedAuthServiceHandler struct{}
 
-func (UnimplementedAuthServiceHandler) Register(context.Context, *connect.Request[v1.RegisterRequest]) (*connect.Response[v1.RegisterResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.Register is not implemented"))
+func (UnimplementedAuthServiceHandler) IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.IssueCSRFToken is not implemented"))
 }
 
-func (UnimplementedAuthServiceHandler) Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.Login is not implemented"))
+func (UnimplementedAuthServiceHandler) RequestRegistration(context.Context, *connect.Request[v1.RequestRegistrationRequest]) (*connect.Response[v1.RequestRegistrationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.RequestRegistration is not implemented"))
 }
 
-func (UnimplementedAuthServiceHandler) Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.Logout is not implemented"))
+func (UnimplementedAuthServiceHandler) CompleteRegistration(context.Context, *connect.Request[v1.CompleteRegistrationRequest]) (*connect.Response[v1.CompleteRegistrationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.CompleteRegistration is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) LoginWithEmail(context.Context, *connect.Request[v1.LoginWithEmailRequest]) (*connect.Response[v1.LoginWithEmailResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.LoginWithEmail is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) RequestPasswordReset(context.Context, *connect.Request[v1.RequestPasswordResetRequest]) (*connect.Response[v1.RequestPasswordResetResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.RequestPasswordReset is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.ResetPassword is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) Me(context.Context, *connect.Request[v1.MeRequest]) (*connect.Response[v1.MeResponse], error) {
@@ -396,26 +551,106 @@ func (UnimplementedAuthServiceHandler) ListSessions(context.Context, *connect.Re
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.ListSessions is not implemented"))
 }
 
+func (UnimplementedAuthServiceHandler) Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.Logout is not implemented"))
+}
+
 func (UnimplementedAuthServiceHandler) RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.RevokeSession is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) Reauthenticate(context.Context, *connect.Request[v1.ReauthenticateRequest]) (*connect.Response[v1.ReauthenticateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.Reauthenticate is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) ChangePassword(context.Context, *connect.Request[v1.ChangePasswordRequest]) (*connect.Response[v1.ChangePasswordResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.ChangePassword is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.DeleteAccount is not implemented"))
 }
 
-func (UnimplementedAuthServiceHandler) IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.IssueCSRFToken is not implemented"))
+func (UnimplementedAuthServiceHandler) GetAccountDeletion(context.Context, *connect.Request[v1.GetAccountDeletionRequest]) (*connect.Response[v1.GetAccountDeletionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.GetAccountDeletion is not implemented"))
 }
 
-func (UnimplementedAuthServiceHandler) ListOAuthProviders(context.Context, *connect.Request[v1.ListOAuthProvidersRequest]) (*connect.Response[v1.ListOAuthProvidersResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.ListOAuthProviders is not implemented"))
+func (UnimplementedAuthServiceHandler) RetryAccountDeletion(context.Context, *connect.Request[v1.RetryAccountDeletionRequest]) (*connect.Response[v1.RetryAccountDeletionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.RetryAccountDeletion is not implemented"))
 }
 
-func (UnimplementedAuthServiceHandler) BeginOAuthFlow(context.Context, *connect.Request[v1.BeginOAuthFlowRequest]) (*connect.Response[v1.BeginOAuthFlowResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.BeginOAuthFlow is not implemented"))
+// UserServiceClient is a client for the bff.v1.UserService service.
+type UserServiceClient interface {
+	// UpdateMyProfile replaces the nickname and avatar. It takes no user, role, email
+	// or status: the account is the session's. It does not touch any product's own
+	// profile; products pick the change up on the caller's next request.
+	UpdateMyProfile(context.Context, *connect.Request[v1.UpdateMyProfileRequest]) (*connect.Response[v1.UpdateMyProfileResponse], error)
 }
 
-func (UnimplementedAuthServiceHandler) CompleteOAuthFlow(context.Context, *connect.Request[v1.CompleteOAuthFlowRequest]) (*connect.Response[v1.CompleteOAuthFlowResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.CompleteOAuthFlow is not implemented"))
+// NewUserServiceClient constructs a client for the bff.v1.UserService service. By default, it uses
+// the Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and sends
+// uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the connect.WithGRPC() or
+// connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewUserServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) UserServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	userServiceMethods := v1.File_bff_v1_auth_proto.Services().ByName("UserService").Methods()
+	return &userServiceClient{
+		updateMyProfile: connect.NewClient[v1.UpdateMyProfileRequest, v1.UpdateMyProfileResponse](
+			httpClient,
+			baseURL+UserServiceUpdateMyProfileProcedure,
+			connect.WithSchema(userServiceMethods.ByName("UpdateMyProfile")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// userServiceClient implements UserServiceClient.
+type userServiceClient struct {
+	updateMyProfile *connect.Client[v1.UpdateMyProfileRequest, v1.UpdateMyProfileResponse]
+}
+
+// UpdateMyProfile calls bff.v1.UserService.UpdateMyProfile.
+func (c *userServiceClient) UpdateMyProfile(ctx context.Context, req *connect.Request[v1.UpdateMyProfileRequest]) (*connect.Response[v1.UpdateMyProfileResponse], error) {
+	return c.updateMyProfile.CallUnary(ctx, req)
+}
+
+// UserServiceHandler is an implementation of the bff.v1.UserService service.
+type UserServiceHandler interface {
+	// UpdateMyProfile replaces the nickname and avatar. It takes no user, role, email
+	// or status: the account is the session's. It does not touch any product's own
+	// profile; products pick the change up on the caller's next request.
+	UpdateMyProfile(context.Context, *connect.Request[v1.UpdateMyProfileRequest]) (*connect.Response[v1.UpdateMyProfileResponse], error)
+}
+
+// NewUserServiceHandler builds an HTTP handler from the service implementation. It returns the path
+// on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	userServiceMethods := v1.File_bff_v1_auth_proto.Services().ByName("UserService").Methods()
+	userServiceUpdateMyProfileHandler := connect.NewUnaryHandler(
+		UserServiceUpdateMyProfileProcedure,
+		svc.UpdateMyProfile,
+		connect.WithSchema(userServiceMethods.ByName("UpdateMyProfile")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/bff.v1.UserService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case UserServiceUpdateMyProfileProcedure:
+			userServiceUpdateMyProfileHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedUserServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedUserServiceHandler struct{}
+
+func (UnimplementedUserServiceHandler) UpdateMyProfile(context.Context, *connect.Request[v1.UpdateMyProfileRequest]) (*connect.Response[v1.UpdateMyProfileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.UserService.UpdateMyProfile is not implemented"))
 }

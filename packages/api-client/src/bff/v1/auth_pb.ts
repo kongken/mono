@@ -2,8 +2,8 @@
 // @generated from file bff/v1/auth.proto (package bff.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import { file_platform_v1_options } from "../../platform/v1/options_pb";
@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file bff/v1/auth.proto.
  */
 export const file_bff_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChFiZmYvdjEvYXV0aC5wcm90bxIGYmZmLnYxIrgBCgdTZXNzaW9uEgoKAmlkGAEgASgJEi4KCmNyZWF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3RfdXNlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHY3VycmVudBgFIAEoCCKYAQoEVXNlchIKCgJpZBgBIAEoCRIQCgh1c2VybmFtZRgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSEgoKYXZhdGFyX3VybBgEIAEoCRIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIYChBkZWxldGlvbl9wZW5kaW5nGAYgASgIIksKD1JlZ2lzdGVyUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkiXgoQUmVnaXN0ZXJSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiMgoMTG9naW5SZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIlsKDUxvZ2luUmVzcG9uc2USGgoEdXNlchgBIAEoCzIMLmJmZi52MS5Vc2VyEi4KCmV4cGlyZXNfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIg8KDUxvZ291dFJlcXVlc3QiEAoOTG9nb3V0UmVzcG9uc2UiCwoJTWVSZXF1ZXN0IjcKCk1lUmVzcG9uc2USGgoEdXNlchgBIAEoCzIMLmJmZi52MS5Vc2VyEg0KBXJvbGVzGAIgAygJIhUKE0xpc3RTZXNzaW9uc1JlcXVlc3QiOQoUTGlzdFNlc3Npb25zUmVzcG9uc2USIQoIc2Vzc2lvbnMYASADKAsyDy5iZmYudjEuU2Vzc2lvbiIiChRSZXZva2VTZXNzaW9uUmVxdWVzdBIKCgJpZBgBIAEoCSIXChVSZXZva2VTZXNzaW9uUmVzcG9uc2UiPAoURGVsZXRlQWNjb3VudFJlcXVlc3QSFAoMY29uZmlybWF0aW9uGAEgASgJSgQIAhADUghwYXNzd29yZCIXChVEZWxldGVBY2NvdW50UmVzcG9uc2UiFwoVSXNzdWVDU1JGVG9rZW5SZXF1ZXN0IicKFklzc3VlQ1NSRlRva2VuUmVzcG9uc2USDQoFdG9rZW4YASABKAkiMwoNT0F1dGhQcm92aWRlchIMCgRuYW1lGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgCIAEoCSIbChlMaXN0T0F1dGhQcm92aWRlcnNSZXF1ZXN0IkYKGkxpc3RPQXV0aFByb3ZpZGVyc1Jlc3BvbnNlEigKCXByb3ZpZGVycxgBIAMoCzIVLmJmZi52MS5PQXV0aFByb3ZpZGVyIikKFUJlZ2luT0F1dGhGbG93UmVxdWVzdBIQCghwcm92aWRlchgBIAEoCSI+ChZCZWdpbk9BdXRoRmxvd1Jlc3BvbnNlEhUKDWF1dGhvcml6ZV91cmwYASABKAkSDQoFc3RhdGUYAiABKAkiSQoYQ29tcGxldGVPQXV0aEZsb3dSZXF1ZXN0EhAKCHByb3ZpZGVyGAEgASgJEgwKBGNvZGUYAiABKAkSDQoFc3RhdGUYAyABKAkiZwoZQ29tcGxldGVPQXV0aEZsb3dSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXISLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAy2AYKC0F1dGhTZXJ2aWNlEkYKCFJlZ2lzdGVyEhcuYmZmLnYxLlJlZ2lzdGVyUmVxdWVzdBoYLmJmZi52MS5SZWdpc3RlclJlc3BvbnNlIgeIAgGguxgBEj0KBUxvZ2luEhQuYmZmLnYxLkxvZ2luUmVxdWVzdBoVLmJmZi52MS5Mb2dpblJlc3BvbnNlIgeIAgGguxgBEjcKBkxvZ291dBIVLmJmZi52MS5Mb2dvdXRSZXF1ZXN0GhYuYmZmLnYxLkxvZ291dFJlc3BvbnNlEisKAk1lEhEuYmZmLnYxLk1lUmVxdWVzdBoSLmJmZi52MS5NZVJlc3BvbnNlEkkKDExpc3RTZXNzaW9ucxIbLmJmZi52MS5MaXN0U2Vzc2lvbnNSZXF1ZXN0GhwuYmZmLnYxLkxpc3RTZXNzaW9uc1Jlc3BvbnNlEkwKDVJldm9rZVNlc3Npb24SHC5iZmYudjEuUmV2b2tlU2Vzc2lvblJlcXVlc3QaHS5iZmYudjEuUmV2b2tlU2Vzc2lvblJlc3BvbnNlEkwKDURlbGV0ZUFjY291bnQSHC5iZmYudjEuRGVsZXRlQWNjb3VudFJlcXVlc3QaHS5iZmYudjEuRGVsZXRlQWNjb3VudFJlc3BvbnNlElUKDklzc3VlQ1NSRlRva2VuEh0uYmZmLnYxLklzc3VlQ1NSRlRva2VuUmVxdWVzdBoeLmJmZi52MS5Jc3N1ZUNTUkZUb2tlblJlc3BvbnNlIgSguxgBEmEKEkxpc3RPQXV0aFByb3ZpZGVycxIhLmJmZi52MS5MaXN0T0F1dGhQcm92aWRlcnNSZXF1ZXN0GiIuYmZmLnYxLkxpc3RPQXV0aFByb3ZpZGVyc1Jlc3BvbnNlIgSguxgBElgKDkJlZ2luT0F1dGhGbG93Eh0uYmZmLnYxLkJlZ2luT0F1dGhGbG93UmVxdWVzdBoeLmJmZi52MS5CZWdpbk9BdXRoRmxvd1Jlc3BvbnNlIgeIAgGguxgBEmEKEUNvbXBsZXRlT0F1dGhGbG93EiAuYmZmLnYxLkNvbXBsZXRlT0F1dGhGbG93UmVxdWVzdBohLmJmZi52MS5Db21wbGV0ZU9BdXRoRmxvd1Jlc3BvbnNlIgeIAgGguxgBQjBaLmdpdGh1Yi5jb20va29uZ2tlbi9tb25vL3BrZy9wcm90by9iZmYvdjE7YmZmdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_platform_v1_options]);
+  fileDesc("ChFiZmYvdjEvYXV0aC5wcm90bxIGYmZmLnYxIrgBCgdTZXNzaW9uEgoKAmlkGAEgASgJEi4KCmNyZWF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3RfdXNlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHY3VycmVudBgFIAEoCCJ2CgRVc2VyEgoKAmlkGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRISCgphdmF0YXJfdXJsGAQgASgJSgQIAhADSgQIBRAGSgQIBhAHUgh1c2VybmFtZVIKY3JlYXRlZF9hdFIQZGVsZXRpb25fcGVuZGluZyI7ChpSZXF1ZXN0UmVnaXN0cmF0aW9uUmVxdWVzdBINCgVlbWFpbBgBIAEoCRIOCgZhcHBfaWQYAiABKAkiLgobUmVxdWVzdFJlZ2lzdHJhdGlvblJlc3BvbnNlEg8KB21lc3NhZ2UYASABKAkiVAobQ29tcGxldGVSZWdpc3RyYXRpb25SZXF1ZXN0Eg0KBXRva2VuGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCSIeChxDb21wbGV0ZVJlZ2lzdHJhdGlvblJlc3BvbnNlIjgKFUxvZ2luV2l0aEVtYWlsUmVxdWVzdBINCgVlbWFpbBgBIAEoCRIQCghwYXNzd29yZBgCIAEoCSJkChZMb2dpbldpdGhFbWFpbFJlc3BvbnNlEhoKBHVzZXIYASABKAsyDC5iZmYudjEuVXNlchIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCI8ChtSZXF1ZXN0UGFzc3dvcmRSZXNldFJlcXVlc3QSDQoFZW1haWwYASABKAkSDgoGYXBwX2lkGAIgASgJIi8KHFJlcXVlc3RQYXNzd29yZFJlc2V0UmVzcG9uc2USDwoHbWVzc2FnZRgBIAEoCSI7ChRSZXNldFBhc3N3b3JkUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIUCgxuZXdfcGFzc3dvcmQYAiABKAkiFwoVUmVzZXRQYXNzd29yZFJlc3BvbnNlIg8KDUxvZ291dFJlcXVlc3QiEAoOTG9nb3V0UmVzcG9uc2UiCwoJTWVSZXF1ZXN0IrQBCgpNZVJlc3BvbnNlEhoKBHVzZXIYASABKAsyDC5iZmYudjEuVXNlchINCgVyb2xlcxgCIAMoCRINCgVlbWFpbBgDIAEoCRI0ChBhdXRoZW50aWNhdGVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBI2ChJzZXNzaW9uX2V4cGlyZXNfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIhUKE0xpc3RTZXNzaW9uc1JlcXVlc3QiOQoUTGlzdFNlc3Npb25zUmVzcG9uc2USIQoIc2Vzc2lvbnMYASADKAsyDy5iZmYudjEuU2Vzc2lvbiIiChRSZXZva2VTZXNzaW9uUmVxdWVzdBIKCgJpZBgBIAEoCSIXChVSZXZva2VTZXNzaW9uUmVzcG9uc2UiKQoVUmVhdXRoZW50aWNhdGVSZXF1ZXN0EhAKCHBhc3N3b3JkGAEgASgJIk4KFlJlYXV0aGVudGljYXRlUmVzcG9uc2USNAoQYXV0aGVudGljYXRlZF9hdBgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiRwoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EhgKEGN1cnJlbnRfcGFzc3dvcmQYASABKAkSFAoMbmV3X3Bhc3N3b3JkGAIgASgJIhgKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2UiQgoWVXBkYXRlTXlQcm9maWxlUmVxdWVzdBIUCgxkaXNwbGF5X25hbWUYASABKAkSEgoKYXZhdGFyX3VybBgCIAEoCSI1ChdVcGRhdGVNeVByb2ZpbGVSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXIiUQoURGVsZXRlQWNjb3VudFJlcXVlc3QSFAoMY29uZmlybWF0aW9uGAEgASgJEhMKC211dGF0aW9uX2lkGAMgASgJSgQIAhADUghwYXNzd29yZCJCChVEZWxldGVBY2NvdW50UmVzcG9uc2USKQoIZGVsZXRpb24YASABKAsyFy5iZmYudjEuQWNjb3VudERlbGV0aW9uIrkBCg9BY2NvdW50RGVsZXRpb24SKwoFc3RhdGUYASABKA4yHC5iZmYudjEuQWNjb3VudERlbGV0aW9uU3RhdGUSEwoLbXV0YXRpb25faWQYAiABKAkSEAoIcHJvZHVjdHMYAyADKAkSGgoSY29tcGxldGVkX3Byb2R1Y3RzGAQgAygJEjYKEnJlY2VpcHRfZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiGwoZR2V0QWNjb3VudERlbGV0aW9uUmVxdWVzdCJHChpHZXRBY2NvdW50RGVsZXRpb25SZXNwb25zZRIpCghkZWxldGlvbhgBIAEoCzIXLmJmZi52MS5BY2NvdW50RGVsZXRpb24iHQobUmV0cnlBY2NvdW50RGVsZXRpb25SZXF1ZXN0IkkKHFJldHJ5QWNjb3VudERlbGV0aW9uUmVzcG9uc2USKQoIZGVsZXRpb24YASABKAsyFy5iZmYudjEuQWNjb3VudERlbGV0aW9uIhcKFUlzc3VlQ1NSRlRva2VuUmVxdWVzdCInChZJc3N1ZUNTUkZUb2tlblJlc3BvbnNlEg0KBXRva2VuGAEgASgJKogBChRBY2NvdW50RGVsZXRpb25TdGF0ZRImCiJBQ0NPVU5UX0RFTEVUSU9OX1NUQVRFX1VOU1BFQ0lGSUVEEAASIgoeQUNDT1VOVF9ERUxFVElPTl9TVEFURV9QRU5ESU5HEAESJAogQUNDT1VOVF9ERUxFVElPTl9TVEFURV9DT01QTEVURUQQAjKICgoLQXV0aFNlcnZpY2USVQoOSXNzdWVDU1JGVG9rZW4SHS5iZmYudjEuSXNzdWVDU1JGVG9rZW5SZXF1ZXN0Gh4uYmZmLnYxLklzc3VlQ1NSRlRva2VuUmVzcG9uc2UiBKC7GAESZAoTUmVxdWVzdFJlZ2lzdHJhdGlvbhIiLmJmZi52MS5SZXF1ZXN0UmVnaXN0cmF0aW9uUmVxdWVzdBojLmJmZi52MS5SZXF1ZXN0UmVnaXN0cmF0aW9uUmVzcG9uc2UiBKC7GAESZwoUQ29tcGxldGVSZWdpc3RyYXRpb24SIy5iZmYudjEuQ29tcGxldGVSZWdpc3RyYXRpb25SZXF1ZXN0GiQuYmZmLnYxLkNvbXBsZXRlUmVnaXN0cmF0aW9uUmVzcG9uc2UiBKC7GAESVQoOTG9naW5XaXRoRW1haWwSHS5iZmYudjEuTG9naW5XaXRoRW1haWxSZXF1ZXN0Gh4uYmZmLnYxLkxvZ2luV2l0aEVtYWlsUmVzcG9uc2UiBKC7GAESZwoUUmVxdWVzdFBhc3N3b3JkUmVzZXQSIy5iZmYudjEuUmVxdWVzdFBhc3N3b3JkUmVzZXRSZXF1ZXN0GiQuYmZmLnYxLlJlcXVlc3RQYXNzd29yZFJlc2V0UmVzcG9uc2UiBKC7GAESUgoNUmVzZXRQYXNzd29yZBIcLmJmZi52MS5SZXNldFBhc3N3b3JkUmVxdWVzdBodLmJmZi52MS5SZXNldFBhc3N3b3JkUmVzcG9uc2UiBKC7GAESKwoCTWUSES5iZmYudjEuTWVSZXF1ZXN0GhIuYmZmLnYxLk1lUmVzcG9uc2USSQoMTGlzdFNlc3Npb25zEhsuYmZmLnYxLkxpc3RTZXNzaW9uc1JlcXVlc3QaHC5iZmYudjEuTGlzdFNlc3Npb25zUmVzcG9uc2USPQoGTG9nb3V0EhUuYmZmLnYxLkxvZ291dFJlcXVlc3QaFi5iZmYudjEuTG9nb3V0UmVzcG9uc2UiBKC7GAESTAoNUmV2b2tlU2Vzc2lvbhIcLmJmZi52MS5SZXZva2VTZXNzaW9uUmVxdWVzdBodLmJmZi52MS5SZXZva2VTZXNzaW9uUmVzcG9uc2USTwoOUmVhdXRoZW50aWNhdGUSHS5iZmYudjEuUmVhdXRoZW50aWNhdGVSZXF1ZXN0Gh4uYmZmLnYxLlJlYXV0aGVudGljYXRlUmVzcG9uc2USTwoOQ2hhbmdlUGFzc3dvcmQSHS5iZmYudjEuQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0Gh4uYmZmLnYxLkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USTAoNRGVsZXRlQWNjb3VudBIcLmJmZi52MS5EZWxldGVBY2NvdW50UmVxdWVzdBodLmJmZi52MS5EZWxldGVBY2NvdW50UmVzcG9uc2USYQoSR2V0QWNjb3VudERlbGV0aW9uEiEuYmZmLnYxLkdldEFjY291bnREZWxldGlvblJlcXVlc3QaIi5iZmYudjEuR2V0QWNjb3VudERlbGV0aW9uUmVzcG9uc2UiBKC7GAESZwoUUmV0cnlBY2NvdW50RGVsZXRpb24SIy5iZmYudjEuUmV0cnlBY2NvdW50RGVsZXRpb25SZXF1ZXN0GiQuYmZmLnYxLlJldHJ5QWNjb3VudERlbGV0aW9uUmVzcG9uc2UiBKC7GAEyYQoLVXNlclNlcnZpY2USUgoPVXBkYXRlTXlQcm9maWxlEh4uYmZmLnYxLlVwZGF0ZU15UHJvZmlsZVJlcXVlc3QaHy5iZmYudjEuVXBkYXRlTXlQcm9maWxlUmVzcG9uc2VCMFouZ2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL2JmZi92MTtiZmZ2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_platform_v1_options]);
 
 /**
  * @generated from message bff.v1.Session
@@ -55,6 +55,8 @@ export const SessionSchema: GenMessage<Session> = /*@__PURE__*/
   messageDesc(file_bff_v1_auth, 0);
 
 /**
+ * User is the cross-product public face of an account: no email, no roles.
+ *
  * @generated from message bff.v1.User
  */
 export type User = Message<"bff.v1.User"> & {
@@ -62,11 +64,6 @@ export type User = Message<"bff.v1.User"> & {
    * @generated from field: string id = 1;
    */
   id: string;
-
-  /**
-   * @generated from field: string username = 2;
-   */
-  username: string;
 
   /**
    * @generated from field: string display_name = 3;
@@ -77,16 +74,6 @@ export type User = Message<"bff.v1.User"> & {
    * @generated from field: string avatar_url = 4;
    */
   avatarUrl: string;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp created_at = 5;
-   */
-  createdAt?: Timestamp;
-
-  /**
-   * @generated from field: bool deletion_pending = 6;
-   */
-  deletionPending: boolean;
 };
 
 /**
@@ -97,13 +84,56 @@ export const UserSchema: GenMessage<User> = /*@__PURE__*/
   messageDesc(file_bff_v1_auth, 1);
 
 /**
- * @generated from message bff.v1.RegisterRequest
+ * @generated from message bff.v1.RequestRegistrationRequest
  */
-export type RegisterRequest = Message<"bff.v1.RegisterRequest"> & {
+export type RequestRegistrationRequest = Message<"bff.v1.RequestRegistrationRequest"> & {
   /**
-   * @generated from field: string username = 1;
+   * @generated from field: string email = 1;
    */
-  username: string;
+  email: string;
+
+  /**
+   * An app configured in usersrv (trip-map, metro); it picks the link origin.
+   *
+   * @generated from field: string app_id = 2;
+   */
+  appId: string;
+};
+
+/**
+ * Describes the message bff.v1.RequestRegistrationRequest.
+ * Use `create(RequestRegistrationRequestSchema)` to create a new message.
+ */
+export const RequestRegistrationRequestSchema: GenMessage<RequestRegistrationRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 2);
+
+/**
+ * @generated from message bff.v1.RequestRegistrationResponse
+ */
+export type RequestRegistrationResponse = Message<"bff.v1.RequestRegistrationResponse"> & {
+  /**
+   * The same neutral notice for every well-formed address.
+   *
+   * @generated from field: string message = 1;
+   */
+  message: string;
+};
+
+/**
+ * Describes the message bff.v1.RequestRegistrationResponse.
+ * Use `create(RequestRegistrationResponseSchema)` to create a new message.
+ */
+export const RequestRegistrationResponseSchema: GenMessage<RequestRegistrationResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 3);
+
+/**
+ * @generated from message bff.v1.CompleteRegistrationRequest
+ */
+export type CompleteRegistrationRequest = Message<"bff.v1.CompleteRegistrationRequest"> & {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token: string;
 
   /**
    * @generated from field: string password = 2;
@@ -117,42 +147,33 @@ export type RegisterRequest = Message<"bff.v1.RegisterRequest"> & {
 };
 
 /**
- * Describes the message bff.v1.RegisterRequest.
- * Use `create(RegisterRequestSchema)` to create a new message.
+ * Describes the message bff.v1.CompleteRegistrationRequest.
+ * Use `create(CompleteRegistrationRequestSchema)` to create a new message.
  */
-export const RegisterRequestSchema: GenMessage<RegisterRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 2);
+export const CompleteRegistrationRequestSchema: GenMessage<CompleteRegistrationRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 4);
 
 /**
- * @generated from message bff.v1.RegisterResponse
+ * @generated from message bff.v1.CompleteRegistrationResponse
  */
-export type RegisterResponse = Message<"bff.v1.RegisterResponse"> & {
-  /**
-   * @generated from field: bff.v1.User user = 1;
-   */
-  user?: User;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp expires_at = 2;
-   */
-  expiresAt?: Timestamp;
+export type CompleteRegistrationResponse = Message<"bff.v1.CompleteRegistrationResponse"> & {
 };
 
 /**
- * Describes the message bff.v1.RegisterResponse.
- * Use `create(RegisterResponseSchema)` to create a new message.
+ * Describes the message bff.v1.CompleteRegistrationResponse.
+ * Use `create(CompleteRegistrationResponseSchema)` to create a new message.
  */
-export const RegisterResponseSchema: GenMessage<RegisterResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 3);
+export const CompleteRegistrationResponseSchema: GenMessage<CompleteRegistrationResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 5);
 
 /**
- * @generated from message bff.v1.LoginRequest
+ * @generated from message bff.v1.LoginWithEmailRequest
  */
-export type LoginRequest = Message<"bff.v1.LoginRequest"> & {
+export type LoginWithEmailRequest = Message<"bff.v1.LoginWithEmailRequest"> & {
   /**
-   * @generated from field: string username = 1;
+   * @generated from field: string email = 1;
    */
-  username: string;
+  email: string;
 
   /**
    * @generated from field: string password = 2;
@@ -161,16 +182,16 @@ export type LoginRequest = Message<"bff.v1.LoginRequest"> & {
 };
 
 /**
- * Describes the message bff.v1.LoginRequest.
- * Use `create(LoginRequestSchema)` to create a new message.
+ * Describes the message bff.v1.LoginWithEmailRequest.
+ * Use `create(LoginWithEmailRequestSchema)` to create a new message.
  */
-export const LoginRequestSchema: GenMessage<LoginRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 4);
+export const LoginWithEmailRequestSchema: GenMessage<LoginWithEmailRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 6);
 
 /**
- * @generated from message bff.v1.LoginResponse
+ * @generated from message bff.v1.LoginWithEmailResponse
  */
-export type LoginResponse = Message<"bff.v1.LoginResponse"> & {
+export type LoginWithEmailResponse = Message<"bff.v1.LoginWithEmailResponse"> & {
   /**
    * @generated from field: bff.v1.User user = 1;
    */
@@ -183,11 +204,85 @@ export type LoginResponse = Message<"bff.v1.LoginResponse"> & {
 };
 
 /**
- * Describes the message bff.v1.LoginResponse.
- * Use `create(LoginResponseSchema)` to create a new message.
+ * Describes the message bff.v1.LoginWithEmailResponse.
+ * Use `create(LoginWithEmailResponseSchema)` to create a new message.
  */
-export const LoginResponseSchema: GenMessage<LoginResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 5);
+export const LoginWithEmailResponseSchema: GenMessage<LoginWithEmailResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 7);
+
+/**
+ * @generated from message bff.v1.RequestPasswordResetRequest
+ */
+export type RequestPasswordResetRequest = Message<"bff.v1.RequestPasswordResetRequest"> & {
+  /**
+   * @generated from field: string email = 1;
+   */
+  email: string;
+
+  /**
+   * @generated from field: string app_id = 2;
+   */
+  appId: string;
+};
+
+/**
+ * Describes the message bff.v1.RequestPasswordResetRequest.
+ * Use `create(RequestPasswordResetRequestSchema)` to create a new message.
+ */
+export const RequestPasswordResetRequestSchema: GenMessage<RequestPasswordResetRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 8);
+
+/**
+ * @generated from message bff.v1.RequestPasswordResetResponse
+ */
+export type RequestPasswordResetResponse = Message<"bff.v1.RequestPasswordResetResponse"> & {
+  /**
+   * @generated from field: string message = 1;
+   */
+  message: string;
+};
+
+/**
+ * Describes the message bff.v1.RequestPasswordResetResponse.
+ * Use `create(RequestPasswordResetResponseSchema)` to create a new message.
+ */
+export const RequestPasswordResetResponseSchema: GenMessage<RequestPasswordResetResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 9);
+
+/**
+ * @generated from message bff.v1.ResetPasswordRequest
+ */
+export type ResetPasswordRequest = Message<"bff.v1.ResetPasswordRequest"> & {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token: string;
+
+  /**
+   * @generated from field: string new_password = 2;
+   */
+  newPassword: string;
+};
+
+/**
+ * Describes the message bff.v1.ResetPasswordRequest.
+ * Use `create(ResetPasswordRequestSchema)` to create a new message.
+ */
+export const ResetPasswordRequestSchema: GenMessage<ResetPasswordRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 10);
+
+/**
+ * @generated from message bff.v1.ResetPasswordResponse
+ */
+export type ResetPasswordResponse = Message<"bff.v1.ResetPasswordResponse"> & {
+};
+
+/**
+ * Describes the message bff.v1.ResetPasswordResponse.
+ * Use `create(ResetPasswordResponseSchema)` to create a new message.
+ */
+export const ResetPasswordResponseSchema: GenMessage<ResetPasswordResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 11);
 
 /**
  * @generated from message bff.v1.LogoutRequest
@@ -200,7 +295,7 @@ export type LogoutRequest = Message<"bff.v1.LogoutRequest"> & {
  * Use `create(LogoutRequestSchema)` to create a new message.
  */
 export const LogoutRequestSchema: GenMessage<LogoutRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 6);
+  messageDesc(file_bff_v1_auth, 12);
 
 /**
  * @generated from message bff.v1.LogoutResponse
@@ -213,7 +308,7 @@ export type LogoutResponse = Message<"bff.v1.LogoutResponse"> & {
  * Use `create(LogoutResponseSchema)` to create a new message.
  */
 export const LogoutResponseSchema: GenMessage<LogoutResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 7);
+  messageDesc(file_bff_v1_auth, 13);
 
 /**
  * @generated from message bff.v1.MeRequest
@@ -226,7 +321,7 @@ export type MeRequest = Message<"bff.v1.MeRequest"> & {
  * Use `create(MeRequestSchema)` to create a new message.
  */
 export const MeRequestSchema: GenMessage<MeRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 8);
+  messageDesc(file_bff_v1_auth, 14);
 
 /**
  * @generated from message bff.v1.MeResponse
@@ -238,14 +333,31 @@ export type MeResponse = Message<"bff.v1.MeResponse"> & {
   user?: User;
 
   /**
-   * Roles the Logto account held when this session was signed in, such as
-   * "metro-admin". Clients may use them to show or hide entry points only;
-   * every server call checks the role again. Sessions created before roles were
-   * recorded have none.
+   * The account's current roles, such as "metro-admin". Clients may use them to
+   * show or hide entry points only; every server call checks the role again.
    *
    * @generated from field: repeated string roles = 2;
    */
   roles: string[];
+
+  /**
+   * The canonical login email, for the owner's own account screen only.
+   *
+   * @generated from field: string email = 3;
+   */
+  email: string;
+
+  /**
+   * When the password was last checked on this session (login or reauthentication).
+   *
+   * @generated from field: google.protobuf.Timestamp authenticated_at = 4;
+   */
+  authenticatedAt?: Timestamp;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp session_expires_at = 5;
+   */
+  sessionExpiresAt?: Timestamp;
 };
 
 /**
@@ -253,7 +365,7 @@ export type MeResponse = Message<"bff.v1.MeResponse"> & {
  * Use `create(MeResponseSchema)` to create a new message.
  */
 export const MeResponseSchema: GenMessage<MeResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 9);
+  messageDesc(file_bff_v1_auth, 15);
 
 /**
  * @generated from message bff.v1.ListSessionsRequest
@@ -266,7 +378,7 @@ export type ListSessionsRequest = Message<"bff.v1.ListSessionsRequest"> & {
  * Use `create(ListSessionsRequestSchema)` to create a new message.
  */
 export const ListSessionsRequestSchema: GenMessage<ListSessionsRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 10);
+  messageDesc(file_bff_v1_auth, 16);
 
 /**
  * @generated from message bff.v1.ListSessionsResponse
@@ -283,7 +395,7 @@ export type ListSessionsResponse = Message<"bff.v1.ListSessionsResponse"> & {
  * Use `create(ListSessionsResponseSchema)` to create a new message.
  */
 export const ListSessionsResponseSchema: GenMessage<ListSessionsResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 11);
+  messageDesc(file_bff_v1_auth, 17);
 
 /**
  * @generated from message bff.v1.RevokeSessionRequest
@@ -300,7 +412,7 @@ export type RevokeSessionRequest = Message<"bff.v1.RevokeSessionRequest"> & {
  * Use `create(RevokeSessionRequestSchema)` to create a new message.
  */
 export const RevokeSessionRequestSchema: GenMessage<RevokeSessionRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 12);
+  messageDesc(file_bff_v1_auth, 18);
 
 /**
  * @generated from message bff.v1.RevokeSessionResponse
@@ -313,7 +425,115 @@ export type RevokeSessionResponse = Message<"bff.v1.RevokeSessionResponse"> & {
  * Use `create(RevokeSessionResponseSchema)` to create a new message.
  */
 export const RevokeSessionResponseSchema: GenMessage<RevokeSessionResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 13);
+  messageDesc(file_bff_v1_auth, 19);
+
+/**
+ * @generated from message bff.v1.ReauthenticateRequest
+ */
+export type ReauthenticateRequest = Message<"bff.v1.ReauthenticateRequest"> & {
+  /**
+   * @generated from field: string password = 1;
+   */
+  password: string;
+};
+
+/**
+ * Describes the message bff.v1.ReauthenticateRequest.
+ * Use `create(ReauthenticateRequestSchema)` to create a new message.
+ */
+export const ReauthenticateRequestSchema: GenMessage<ReauthenticateRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 20);
+
+/**
+ * @generated from message bff.v1.ReauthenticateResponse
+ */
+export type ReauthenticateResponse = Message<"bff.v1.ReauthenticateResponse"> & {
+  /**
+   * @generated from field: google.protobuf.Timestamp authenticated_at = 1;
+   */
+  authenticatedAt?: Timestamp;
+};
+
+/**
+ * Describes the message bff.v1.ReauthenticateResponse.
+ * Use `create(ReauthenticateResponseSchema)` to create a new message.
+ */
+export const ReauthenticateResponseSchema: GenMessage<ReauthenticateResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 21);
+
+/**
+ * @generated from message bff.v1.ChangePasswordRequest
+ */
+export type ChangePasswordRequest = Message<"bff.v1.ChangePasswordRequest"> & {
+  /**
+   * @generated from field: string current_password = 1;
+   */
+  currentPassword: string;
+
+  /**
+   * @generated from field: string new_password = 2;
+   */
+  newPassword: string;
+};
+
+/**
+ * Describes the message bff.v1.ChangePasswordRequest.
+ * Use `create(ChangePasswordRequestSchema)` to create a new message.
+ */
+export const ChangePasswordRequestSchema: GenMessage<ChangePasswordRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 22);
+
+/**
+ * @generated from message bff.v1.ChangePasswordResponse
+ */
+export type ChangePasswordResponse = Message<"bff.v1.ChangePasswordResponse"> & {
+};
+
+/**
+ * Describes the message bff.v1.ChangePasswordResponse.
+ * Use `create(ChangePasswordResponseSchema)` to create a new message.
+ */
+export const ChangePasswordResponseSchema: GenMessage<ChangePasswordResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 23);
+
+/**
+ * @generated from message bff.v1.UpdateMyProfileRequest
+ */
+export type UpdateMyProfileRequest = Message<"bff.v1.UpdateMyProfileRequest"> & {
+  /**
+   * @generated from field: string display_name = 1;
+   */
+  displayName: string;
+
+  /**
+   * @generated from field: string avatar_url = 2;
+   */
+  avatarUrl: string;
+};
+
+/**
+ * Describes the message bff.v1.UpdateMyProfileRequest.
+ * Use `create(UpdateMyProfileRequestSchema)` to create a new message.
+ */
+export const UpdateMyProfileRequestSchema: GenMessage<UpdateMyProfileRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 24);
+
+/**
+ * @generated from message bff.v1.UpdateMyProfileResponse
+ */
+export type UpdateMyProfileResponse = Message<"bff.v1.UpdateMyProfileResponse"> & {
+  /**
+   * @generated from field: bff.v1.User user = 1;
+   */
+  user?: User;
+};
+
+/**
+ * Describes the message bff.v1.UpdateMyProfileResponse.
+ * Use `create(UpdateMyProfileResponseSchema)` to create a new message.
+ */
+export const UpdateMyProfileResponseSchema: GenMessage<UpdateMyProfileResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 25);
 
 /**
  * @generated from message bff.v1.DeleteAccountRequest
@@ -325,6 +545,14 @@ export type DeleteAccountRequest = Message<"bff.v1.DeleteAccountRequest"> & {
    * @generated from field: string confirmation = 1;
    */
   confirmation: string;
+
+  /**
+   * Idempotency key of this deletion: 1-64 characters of [A-Za-z0-9._-]. Repeating the
+   * call with the same key (for example after a lost response) continues the same deletion.
+   *
+   * @generated from field: string mutation_id = 3;
+   */
+  mutationId: string;
 };
 
 /**
@@ -332,12 +560,16 @@ export type DeleteAccountRequest = Message<"bff.v1.DeleteAccountRequest"> & {
  * Use `create(DeleteAccountRequestSchema)` to create a new message.
  */
 export const DeleteAccountRequestSchema: GenMessage<DeleteAccountRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 14);
+  messageDesc(file_bff_v1_auth, 26);
 
 /**
  * @generated from message bff.v1.DeleteAccountResponse
  */
 export type DeleteAccountResponse = Message<"bff.v1.DeleteAccountResponse"> & {
+  /**
+   * @generated from field: bff.v1.AccountDeletion deletion = 1;
+   */
+  deletion?: AccountDeletion;
 };
 
 /**
@@ -345,7 +577,110 @@ export type DeleteAccountResponse = Message<"bff.v1.DeleteAccountResponse"> & {
  * Use `create(DeleteAccountResponseSchema)` to create a new message.
  */
 export const DeleteAccountResponseSchema: GenMessage<DeleteAccountResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 15);
+  messageDesc(file_bff_v1_auth, 27);
+
+/**
+ * @generated from message bff.v1.AccountDeletion
+ */
+export type AccountDeletion = Message<"bff.v1.AccountDeletion"> & {
+  /**
+   * @generated from field: bff.v1.AccountDeletionState state = 1;
+   */
+  state: AccountDeletionState;
+
+  /**
+   * @generated from field: string mutation_id = 2;
+   */
+  mutationId: string;
+
+  /**
+   * The products whose data this deletion removes, fixed when it started.
+   *
+   * @generated from field: repeated string products = 3;
+   */
+  products: string[];
+
+  /**
+   * The products already cleaned.
+   *
+   * @generated from field: repeated string completed_products = 4;
+   */
+  completedProducts: string[];
+
+  /**
+   * Set once completed: until then a replay with the same Cookie returns the result.
+   *
+   * @generated from field: google.protobuf.Timestamp receipt_expires_at = 5;
+   */
+  receiptExpiresAt?: Timestamp;
+};
+
+/**
+ * Describes the message bff.v1.AccountDeletion.
+ * Use `create(AccountDeletionSchema)` to create a new message.
+ */
+export const AccountDeletionSchema: GenMessage<AccountDeletion> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 28);
+
+/**
+ * @generated from message bff.v1.GetAccountDeletionRequest
+ */
+export type GetAccountDeletionRequest = Message<"bff.v1.GetAccountDeletionRequest"> & {
+};
+
+/**
+ * Describes the message bff.v1.GetAccountDeletionRequest.
+ * Use `create(GetAccountDeletionRequestSchema)` to create a new message.
+ */
+export const GetAccountDeletionRequestSchema: GenMessage<GetAccountDeletionRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 29);
+
+/**
+ * @generated from message bff.v1.GetAccountDeletionResponse
+ */
+export type GetAccountDeletionResponse = Message<"bff.v1.GetAccountDeletionResponse"> & {
+  /**
+   * @generated from field: bff.v1.AccountDeletion deletion = 1;
+   */
+  deletion?: AccountDeletion;
+};
+
+/**
+ * Describes the message bff.v1.GetAccountDeletionResponse.
+ * Use `create(GetAccountDeletionResponseSchema)` to create a new message.
+ */
+export const GetAccountDeletionResponseSchema: GenMessage<GetAccountDeletionResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 30);
+
+/**
+ * @generated from message bff.v1.RetryAccountDeletionRequest
+ */
+export type RetryAccountDeletionRequest = Message<"bff.v1.RetryAccountDeletionRequest"> & {
+};
+
+/**
+ * Describes the message bff.v1.RetryAccountDeletionRequest.
+ * Use `create(RetryAccountDeletionRequestSchema)` to create a new message.
+ */
+export const RetryAccountDeletionRequestSchema: GenMessage<RetryAccountDeletionRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 31);
+
+/**
+ * @generated from message bff.v1.RetryAccountDeletionResponse
+ */
+export type RetryAccountDeletionResponse = Message<"bff.v1.RetryAccountDeletionResponse"> & {
+  /**
+   * @generated from field: bff.v1.AccountDeletion deletion = 1;
+   */
+  deletion?: AccountDeletion;
+};
+
+/**
+ * Describes the message bff.v1.RetryAccountDeletionResponse.
+ * Use `create(RetryAccountDeletionResponseSchema)` to create a new message.
+ */
+export const RetryAccountDeletionResponseSchema: GenMessage<RetryAccountDeletionResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 32);
 
 /**
  * @generated from message bff.v1.IssueCSRFTokenRequest
@@ -358,7 +693,7 @@ export type IssueCSRFTokenRequest = Message<"bff.v1.IssueCSRFTokenRequest"> & {
  * Use `create(IssueCSRFTokenRequestSchema)` to create a new message.
  */
 export const IssueCSRFTokenRequestSchema: GenMessage<IssueCSRFTokenRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 16);
+  messageDesc(file_bff_v1_auth, 33);
 
 /**
  * @generated from message bff.v1.IssueCSRFTokenResponse
@@ -375,182 +710,131 @@ export type IssueCSRFTokenResponse = Message<"bff.v1.IssueCSRFTokenResponse"> & 
  * Use `create(IssueCSRFTokenResponseSchema)` to create a new message.
  */
 export const IssueCSRFTokenResponseSchema: GenMessage<IssueCSRFTokenResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 17);
+  messageDesc(file_bff_v1_auth, 34);
 
 /**
- * @generated from message bff.v1.OAuthProvider
+ * @generated from enum bff.v1.AccountDeletionState
  */
-export type OAuthProvider = Message<"bff.v1.OAuthProvider"> & {
+export enum AccountDeletionState {
   /**
-   * @generated from field: string name = 1;
+   * @generated from enum value: ACCOUNT_DELETION_STATE_UNSPECIFIED = 0;
    */
-  name: string;
-
-  /**
-   * @generated from field: string display_name = 2;
-   */
-  displayName: string;
-};
-
-/**
- * Describes the message bff.v1.OAuthProvider.
- * Use `create(OAuthProviderSchema)` to create a new message.
- */
-export const OAuthProviderSchema: GenMessage<OAuthProvider> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 18);
-
-/**
- * @generated from message bff.v1.ListOAuthProvidersRequest
- */
-export type ListOAuthProvidersRequest = Message<"bff.v1.ListOAuthProvidersRequest"> & {
-};
-
-/**
- * Describes the message bff.v1.ListOAuthProvidersRequest.
- * Use `create(ListOAuthProvidersRequestSchema)` to create a new message.
- */
-export const ListOAuthProvidersRequestSchema: GenMessage<ListOAuthProvidersRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 19);
-
-/**
- * @generated from message bff.v1.ListOAuthProvidersResponse
- */
-export type ListOAuthProvidersResponse = Message<"bff.v1.ListOAuthProvidersResponse"> & {
-  /**
-   * @generated from field: repeated bff.v1.OAuthProvider providers = 1;
-   */
-  providers: OAuthProvider[];
-};
-
-/**
- * Describes the message bff.v1.ListOAuthProvidersResponse.
- * Use `create(ListOAuthProvidersResponseSchema)` to create a new message.
- */
-export const ListOAuthProvidersResponseSchema: GenMessage<ListOAuthProvidersResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 20);
-
-/**
- * @generated from message bff.v1.BeginOAuthFlowRequest
- */
-export type BeginOAuthFlowRequest = Message<"bff.v1.BeginOAuthFlowRequest"> & {
-  /**
-   * @generated from field: string provider = 1;
-   */
-  provider: string;
-};
-
-/**
- * Describes the message bff.v1.BeginOAuthFlowRequest.
- * Use `create(BeginOAuthFlowRequestSchema)` to create a new message.
- */
-export const BeginOAuthFlowRequestSchema: GenMessage<BeginOAuthFlowRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 21);
-
-/**
- * @generated from message bff.v1.BeginOAuthFlowResponse
- */
-export type BeginOAuthFlowResponse = Message<"bff.v1.BeginOAuthFlowResponse"> & {
-  /**
-   * @generated from field: string authorize_url = 1;
-   */
-  authorizeUrl: string;
+  UNSPECIFIED = 0,
 
   /**
-   * @generated from field: string state = 2;
+   * Not finished: some step failed or is running. The account is closed ("deleting")
+   * and the deletion can be retried.
+   *
+   * @generated from enum value: ACCOUNT_DELETION_STATE_PENDING = 1;
    */
-  state: string;
-};
-
-/**
- * Describes the message bff.v1.BeginOAuthFlowResponse.
- * Use `create(BeginOAuthFlowResponseSchema)` to create a new message.
- */
-export const BeginOAuthFlowResponseSchema: GenMessage<BeginOAuthFlowResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 22);
-
-/**
- * @generated from message bff.v1.CompleteOAuthFlowRequest
- */
-export type CompleteOAuthFlowRequest = Message<"bff.v1.CompleteOAuthFlowRequest"> & {
-  /**
-   * @generated from field: string provider = 1;
-   */
-  provider: string;
+  PENDING = 1,
 
   /**
-   * @generated from field: string code = 2;
+   * Finished: the account and the data of every listed product are gone.
+   *
+   * @generated from enum value: ACCOUNT_DELETION_STATE_COMPLETED = 2;
    */
-  code: string;
-
-  /**
-   * @generated from field: string state = 3;
-   */
-  state: string;
-};
+  COMPLETED = 2,
+}
 
 /**
- * Describes the message bff.v1.CompleteOAuthFlowRequest.
- * Use `create(CompleteOAuthFlowRequestSchema)` to create a new message.
+ * Describes the enum bff.v1.AccountDeletionState.
  */
-export const CompleteOAuthFlowRequestSchema: GenMessage<CompleteOAuthFlowRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 23);
+export const AccountDeletionStateSchema: GenEnum<AccountDeletionState> = /*@__PURE__*/
+  enumDesc(file_bff_v1_auth, 0);
 
 /**
- * @generated from message bff.v1.CompleteOAuthFlowResponse
- */
-export type CompleteOAuthFlowResponse = Message<"bff.v1.CompleteOAuthFlowResponse"> & {
-  /**
-   * @generated from field: bff.v1.User user = 1;
-   */
-  user?: User;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp expires_at = 2;
-   */
-  expiresAt?: Timestamp;
-};
-
-/**
- * Describes the message bff.v1.CompleteOAuthFlowResponse.
- * Use `create(CompleteOAuthFlowResponseSchema)` to create a new message.
- */
-export const CompleteOAuthFlowResponseSchema: GenMessage<CompleteOAuthFlowResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 24);
-
-/**
- * AuthService handles Logto-backed browser sessions (HttpOnly Cookie).
- * Password and SPA OAuth RPCs are retired, unimplemented compatibility stubs.
+ * AuthService is the browser account contract (HttpOnly Cookie session). The
+ * account itself (email, password, roles, account mail) lives in usersrv; the BFF
+ * owns the Cookie session, CSRF and the account deletion workflow.
+ *
+ * Every state-changing method, anonymous ones included, passes the Origin and CSRF
+ * check. A protected method re-checks the account with usersrv before it runs
+ * (status active, auth_version equal to the session's, current roles); when usersrv
+ * cannot answer, the call is UNAVAILABLE and nothing is forwarded.
+ *
+ * Errors:
+ *
+ * 	UNAUTHENTICATED      wrong email or password (one text for every login failure), a wrong
+ * 	                     current password, or no valid session
+ * 	INVALID_ARGUMENT     format and password policy only
+ * 	RESOURCE_EXHAUSTED   public client-address or service-wide limit
+ * 	FAILED_PRECONDITION  an unusable registration or reset link, closed sign-ups, or a sensitive
+ * 	                     action that needs a recent password check (reauthenticate first)
+ * 	UNAVAILABLE          usersrv, storage or Redis cannot answer; the request was not carried out
  *
  * @generated from service bff.v1.AuthService
  */
 export const AuthService: GenService<{
   /**
-   * @generated from rpc bff.v1.AuthService.Register
-   * @deprecated
+   * IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
+   *
+   * @generated from rpc bff.v1.AuthService.IssueCSRFToken
    */
-  register: {
+  issueCSRFToken: {
     methodKind: "unary";
-    input: typeof RegisterRequestSchema;
-    output: typeof RegisterResponseSchema;
+    input: typeof IssueCSRFTokenRequestSchema;
+    output: typeof IssueCSRFTokenResponseSchema;
   },
   /**
-   * @generated from rpc bff.v1.AuthService.Login
-   * @deprecated
+   * RequestRegistration asks for a verification mail. A well-formed address always
+   * gets the same answer, whether or not it can register; no user, session or token
+   * is returned and no password is accepted here.
+   *
+   * @generated from rpc bff.v1.AuthService.RequestRegistration
    */
-  login: {
+  requestRegistration: {
     methodKind: "unary";
-    input: typeof LoginRequestSchema;
-    output: typeof LoginResponseSchema;
+    input: typeof RequestRegistrationRequestSchema;
+    output: typeof RequestRegistrationResponseSchema;
   },
   /**
-   * @generated from rpc bff.v1.AuthService.Logout
+   * CompleteRegistration consumes the mailed token and creates the account with the
+   * chosen password and nickname. It signs nobody in.
+   *
+   * @generated from rpc bff.v1.AuthService.CompleteRegistration
    */
-  logout: {
+  completeRegistration: {
     methodKind: "unary";
-    input: typeof LogoutRequestSchema;
-    output: typeof LogoutResponseSchema;
+    input: typeof CompleteRegistrationRequestSchema;
+    output: typeof CompleteRegistrationResponseSchema;
   },
   /**
+   * LoginWithEmail checks email and password and, on success only, sets a new
+   * random session Cookie. The response carries the profile and expiry, never the token.
+   *
+   * @generated from rpc bff.v1.AuthService.LoginWithEmail
+   */
+  loginWithEmail: {
+    methodKind: "unary";
+    input: typeof LoginWithEmailRequestSchema;
+    output: typeof LoginWithEmailResponseSchema;
+  },
+  /**
+   * RequestPasswordReset always answers the same way for a well-formed address.
+   *
+   * @generated from rpc bff.v1.AuthService.RequestPasswordReset
+   */
+  requestPasswordReset: {
+    methodKind: "unary";
+    input: typeof RequestPasswordResetRequestSchema;
+    output: typeof RequestPasswordResetResponseSchema;
+  },
+  /**
+   * ResetPassword consumes the mailed token and sets a new password. Every existing
+   * session and management token stops working; the caller is not signed in.
+   *
+   * @generated from rpc bff.v1.AuthService.ResetPassword
+   */
+  resetPassword: {
+    methodKind: "unary";
+    input: typeof ResetPasswordRequestSchema;
+    output: typeof ResetPasswordResponseSchema;
+  },
+  /**
+   * Me returns the caller's account, including the login email. The roles are the
+   * account's current roles, not a snapshot.
+   *
    * @generated from rpc bff.v1.AuthService.Me
    */
   me: {
@@ -569,6 +853,17 @@ export const AuthService: GenService<{
     output: typeof ListSessionsResponseSchema;
   },
   /**
+   * Logout revokes the session of the Cookie and clears it. It is idempotent: it
+   * succeeds, and clears the Cookie, even when the session is already gone.
+   *
+   * @generated from rpc bff.v1.AuthService.Logout
+   */
+  logout: {
+    methodKind: "unary";
+    input: typeof LogoutRequestSchema;
+    output: typeof LogoutResponseSchema;
+  },
+  /**
    * RevokeSession revokes one of the caller's own sessions.
    *
    * @generated from rpc bff.v1.AuthService.RevokeSession
@@ -579,8 +874,34 @@ export const AuthService: GenService<{
     output: typeof RevokeSessionResponseSchema;
   },
   /**
-   * DeleteAccount deletes application cloud data, NOT the Logto account.
-   * Requires a BFF session issued within 15 minutes; cleanup retries are exempt.
+   * Reauthenticate re-checks the current password and, only then, records a fresh
+   * authentication time on this session. Sensitive actions (DeleteAccount, creating
+   * a management token) need it within the last 15 minutes.
+   *
+   * @generated from rpc bff.v1.AuthService.Reauthenticate
+   */
+  reauthenticate: {
+    methodKind: "unary";
+    input: typeof ReauthenticateRequestSchema;
+    output: typeof ReauthenticateResponseSchema;
+  },
+  /**
+   * ChangePassword needs the current password. On success every session and
+   * management token of the account, this one included, stops working.
+   *
+   * @generated from rpc bff.v1.AuthService.ChangePassword
+   */
+  changePassword: {
+    methodKind: "unary";
+    input: typeof ChangePasswordRequestSchema;
+    output: typeof ChangePasswordResponseSchema;
+  },
+  /**
+   * DeleteAccount closes the shared account and removes the data of every enabled
+   * product. It needs a session that checked its password within 15 minutes, the
+   * confirmation "DELETE" and an idempotency key. The workflow is stored before
+   * anything is removed and every step can be retried: while a product cleanup
+   * fails the account stays "deleting" and the call is UNAVAILABLE.
    *
    * @generated from rpc bff.v1.AuthService.DeleteAccount
    */
@@ -590,41 +911,48 @@ export const AuthService: GenService<{
     output: typeof DeleteAccountResponseSchema;
   },
   /**
-   * IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
+   * GetAccountDeletion reads the state of the deletion started by the caller's
+   * Cookie. Only that Cookie can read it; a workflow ID alone opens nothing.
    *
-   * @generated from rpc bff.v1.AuthService.IssueCSRFToken
+   * @generated from rpc bff.v1.AuthService.GetAccountDeletion
    */
-  issueCSRFToken: {
+  getAccountDeletion: {
     methodKind: "unary";
-    input: typeof IssueCSRFTokenRequestSchema;
-    output: typeof IssueCSRFTokenResponseSchema;
+    input: typeof GetAccountDeletionRequestSchema;
+    output: typeof GetAccountDeletionResponseSchema;
   },
   /**
-   * @generated from rpc bff.v1.AuthService.ListOAuthProviders
+   * RetryAccountDeletion continues the deletion started by the caller's Cookie. It
+   * is idempotent, and once finished it replays the result for 24 hours.
+   *
+   * @generated from rpc bff.v1.AuthService.RetryAccountDeletion
    */
-  listOAuthProviders: {
+  retryAccountDeletion: {
     methodKind: "unary";
-    input: typeof ListOAuthProvidersRequestSchema;
-    output: typeof ListOAuthProvidersResponseSchema;
-  },
-  /**
-   * @generated from rpc bff.v1.AuthService.BeginOAuthFlow
-   * @deprecated
-   */
-  beginOAuthFlow: {
-    methodKind: "unary";
-    input: typeof BeginOAuthFlowRequestSchema;
-    output: typeof BeginOAuthFlowResponseSchema;
-  },
-  /**
-   * @generated from rpc bff.v1.AuthService.CompleteOAuthFlow
-   * @deprecated
-   */
-  completeOAuthFlow: {
-    methodKind: "unary";
-    input: typeof CompleteOAuthFlowRequestSchema;
-    output: typeof CompleteOAuthFlowResponseSchema;
+    input: typeof RetryAccountDeletionRequestSchema;
+    output: typeof RetryAccountDeletionResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_v1_auth, 0);
+
+/**
+ * UserService edits the caller's own cross-product profile.
+ *
+ * @generated from service bff.v1.UserService
+ */
+export const UserService: GenService<{
+  /**
+   * UpdateMyProfile replaces the nickname and avatar. It takes no user, role, email
+   * or status: the account is the session's. It does not touch any product's own
+   * profile; products pick the change up on the caller's next request.
+   *
+   * @generated from rpc bff.v1.UserService.UpdateMyProfile
+   */
+  updateMyProfile: {
+    methodKind: "unary";
+    input: typeof UpdateMyProfileRequestSchema;
+    output: typeof UpdateMyProfileResponseSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_bff_v1_auth, 1);
 

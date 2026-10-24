@@ -21,18 +21,28 @@ const (
 
 type browserKey struct{}
 
-// BrowserSession is the authenticated browser caller on a protected RPC.
+// BrowserSession is the authenticated browser caller on a protected RPC. It is
+// built from the session row and the account state usersrv reported for this very
+// request, so Roles are the account's current roles, not a stored snapshot.
 type BrowserSession struct {
-	UserID          string
-	SessionID       string
-	DeletionPending bool
-	// Roles are the Logto role names recorded when the session was signed in.
+	UserID    string
+	SessionID string
+	// AuthVersion is the account's auth_version, equal to the one the session was
+	// opened with (a session at any other version is never returned).
+	AuthVersion int64
+	// ProfileVersion is the account's profile_version, for products that keep a
+	// display projection.
+	ProfileVersion int64
+	// Roles are the account's current roles at this request.
 	Roles []string
-	// AuthenticatedAt is when the user signed in at Logto.
+	// AuthenticatedAt is when the password was last really checked on this
+	// session: sign-in or Reauthenticate. Cookie refreshes never move it.
 	AuthenticatedAt time.Time
+	// ExpiresAt is the session's fixed expiry.
+	ExpiresAt time.Time
 }
 
-// HasRole reports whether the session holds role.
+// HasRole reports whether the account holds role.
 func (s BrowserSession) HasRole(role string) bool {
 	for _, r := range s.Roles {
 		if r == role {
@@ -41,6 +51,10 @@ func (s BrowserSession) HasRole(role string) bool {
 	}
 	return false
 }
+
+// SensitiveAuthMaxAge is how recently the password must have been checked for a
+// sensitive action: deleting the account or creating a management token.
+const SensitiveAuthMaxAge = 15 * time.Minute
 
 func WithBrowser(ctx context.Context, s BrowserSession) context.Context {
 	return context.WithValue(ctx, browserKey{}, s)

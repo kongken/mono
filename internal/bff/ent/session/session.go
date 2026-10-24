@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
 )
 
 const (
@@ -26,21 +25,12 @@ const (
 	FieldLastUsedAt = "last_used_at"
 	// FieldRevoked holds the string denoting the revoked field in the database.
 	FieldRevoked = "revoked"
-	// FieldRoles holds the string denoting the roles field in the database.
-	FieldRoles = "roles"
+	// FieldAuthVersion holds the string denoting the auth_version field in the database.
+	FieldAuthVersion = "auth_version"
 	// FieldAuthenticatedAt holds the string denoting the authenticated_at field in the database.
 	FieldAuthenticatedAt = "authenticated_at"
-	// EdgeUser holds the string denoting the user edge name in mutations.
-	EdgeUser = "user"
 	// Table holds the table name of the session in the database.
 	Table = "auth_browser_sessions"
-	// UserTable is the table that holds the user relation/edge.
-	UserTable = "auth_browser_sessions"
-	// UserInverseTable is the table name for the User entity.
-	// It exists in this package in order to avoid circular dependency with the "user" package.
-	UserInverseTable = "auth_identities"
-	// UserColumn is the table column denoting the user relation/edge.
-	UserColumn = "user_id"
 )
 
 // Columns holds all SQL columns for session fields.
@@ -52,7 +42,7 @@ var Columns = []string{
 	FieldExpiresAt,
 	FieldLastUsedAt,
 	FieldRevoked,
-	FieldRoles,
+	FieldAuthVersion,
 	FieldAuthenticatedAt,
 }
 
@@ -67,12 +57,16 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	UserIDValidator func(string) error
 	// TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
 	TokenHashValidator func(string) error
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultRevoked holds the default value on creation for the "revoked" field.
 	DefaultRevoked bool
+	// DefaultAuthVersion holds the default value on creation for the "auth_version" field.
+	DefaultAuthVersion int64
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() string
 )
@@ -115,21 +109,12 @@ func ByRevoked(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRevoked, opts...).ToFunc()
 }
 
+// ByAuthVersion orders the results by the auth_version field.
+func ByAuthVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAuthVersion, opts...).ToFunc()
+}
+
 // ByAuthenticatedAt orders the results by the authenticated_at field.
 func ByAuthenticatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAuthenticatedAt, opts...).ToFunc()
-}
-
-// ByUserField orders the results by user field.
-func ByUserField(field string, opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newUserStep(), sql.OrderByField(field, opts...))
-	}
-}
-func newUserStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(UserInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, true, UserTable, UserColumn),
-	)
 }

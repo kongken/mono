@@ -4,17 +4,16 @@ import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 
 // Dev-server proxy target: the BFF (make dev). The BFF is the only backend the
-// browser talks to; /auth/ carries the login redirect and callback.
+// browser talks to.
 const backend = process.env.METRO_DEV_BACKEND ?? "http://127.0.0.1:18081";
 
 const proxy = {
   "/api": backend,
-  "/auth/": backend,
   "/ping": backend,
   "/readyz": backend,
 };
 
-// The port matches auth.oauth_apps.metro.origin in config.bff.example.yaml.
+// The port matches the metro origin in the usersrv app configuration.
 export default defineConfig({
   server: { port: 5174, strictPort: true, proxy },
   preview: { proxy },

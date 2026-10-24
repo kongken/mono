@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/kongken/mono/internal/bff/ent/accesstoken"
-	"github.com/kongken/mono/internal/bff/ent/accountdeletionreceipt"
+	"github.com/kongken/mono/internal/bff/ent/accountdeletion"
 	"github.com/kongken/mono/internal/bff/ent/schema"
 	"github.com/kongken/mono/internal/bff/ent/session"
-	"github.com/kongken/mono/internal/bff/ent/user"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -18,6 +17,10 @@ import (
 func init() {
 	accesstokenFields := schema.AccessToken{}.Fields()
 	_ = accesstokenFields
+	// accesstokenDescUserID is the schema descriptor for user_id field.
+	accesstokenDescUserID := accesstokenFields[1].Descriptor()
+	// accesstoken.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	accesstoken.UserIDValidator = accesstokenDescUserID.Validators[0].(func(string) error)
 	// accesstokenDescName is the schema descriptor for name field.
 	accesstokenDescName := accesstokenFields[2].Descriptor()
 	// accesstoken.NameValidator is a validator for the "name" field. It is called by the builders before save.
@@ -30,22 +33,68 @@ func init() {
 	accesstokenDescAudience := accesstokenFields[4].Descriptor()
 	// accesstoken.AudienceValidator is a validator for the "audience" field. It is called by the builders before save.
 	accesstoken.AudienceValidator = accesstokenDescAudience.Validators[0].(func(string) error)
+	// accesstokenDescAuthVersion is the schema descriptor for auth_version field.
+	accesstokenDescAuthVersion := accesstokenFields[7].Descriptor()
+	// accesstoken.DefaultAuthVersion holds the default value on creation for the auth_version field.
+	accesstoken.DefaultAuthVersion = accesstokenDescAuthVersion.Default.(int64)
 	// accesstokenDescCreatedAt is the schema descriptor for created_at field.
-	accesstokenDescCreatedAt := accesstokenFields[7].Descriptor()
+	accesstokenDescCreatedAt := accesstokenFields[8].Descriptor()
 	// accesstoken.DefaultCreatedAt holds the default value on creation for the created_at field.
 	accesstoken.DefaultCreatedAt = accesstokenDescCreatedAt.Default.(func() time.Time)
 	// accesstokenDescID is the schema descriptor for id field.
 	accesstokenDescID := accesstokenFields[0].Descriptor()
 	// accesstoken.DefaultID holds the default value on creation for the id field.
 	accesstoken.DefaultID = accesstokenDescID.Default.(func() string)
-	accountdeletionreceiptFields := schema.AccountDeletionReceipt{}.Fields()
-	_ = accountdeletionreceiptFields
-	// accountdeletionreceiptDescID is the schema descriptor for id field.
-	accountdeletionreceiptDescID := accountdeletionreceiptFields[0].Descriptor()
-	// accountdeletionreceipt.DefaultID holds the default value on creation for the id field.
-	accountdeletionreceipt.DefaultID = accountdeletionreceiptDescID.Default.(func() string)
+	accountdeletionFields := schema.AccountDeletion{}.Fields()
+	_ = accountdeletionFields
+	// accountdeletionDescUserID is the schema descriptor for user_id field.
+	accountdeletionDescUserID := accountdeletionFields[1].Descriptor()
+	// accountdeletion.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	accountdeletion.UserIDValidator = accountdeletionDescUserID.Validators[0].(func(string) error)
+	// accountdeletionDescMutationID is the schema descriptor for mutation_id field.
+	accountdeletionDescMutationID := accountdeletionFields[2].Descriptor()
+	// accountdeletion.MutationIDValidator is a validator for the "mutation_id" field. It is called by the builders before save.
+	accountdeletion.MutationIDValidator = accountdeletionDescMutationID.Validators[0].(func(string) error)
+	// accountdeletionDescTokenHash is the schema descriptor for token_hash field.
+	accountdeletionDescTokenHash := accountdeletionFields[3].Descriptor()
+	// accountdeletion.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
+	accountdeletion.TokenHashValidator = accountdeletionDescTokenHash.Validators[0].(func(string) error)
+	// accountdeletionDescStage is the schema descriptor for stage field.
+	accountdeletionDescStage := accountdeletionFields[6].Descriptor()
+	// accountdeletion.DefaultStage holds the default value on creation for the stage field.
+	accountdeletion.DefaultStage = accountdeletionDescStage.Default.(string)
+	// accountdeletionDescAttempts is the schema descriptor for attempts field.
+	accountdeletionDescAttempts := accountdeletionFields[7].Descriptor()
+	// accountdeletion.DefaultAttempts holds the default value on creation for the attempts field.
+	accountdeletion.DefaultAttempts = accountdeletionDescAttempts.Default.(int)
+	// accountdeletionDescLastError is the schema descriptor for last_error field.
+	accountdeletionDescLastError := accountdeletionFields[8].Descriptor()
+	// accountdeletion.DefaultLastError holds the default value on creation for the last_error field.
+	accountdeletion.DefaultLastError = accountdeletionDescLastError.Default.(string)
+	// accountdeletionDescNextAttemptAt is the schema descriptor for next_attempt_at field.
+	accountdeletionDescNextAttemptAt := accountdeletionFields[10].Descriptor()
+	// accountdeletion.DefaultNextAttemptAt holds the default value on creation for the next_attempt_at field.
+	accountdeletion.DefaultNextAttemptAt = accountdeletionDescNextAttemptAt.Default.(func() time.Time)
+	// accountdeletionDescCreatedAt is the schema descriptor for created_at field.
+	accountdeletionDescCreatedAt := accountdeletionFields[11].Descriptor()
+	// accountdeletion.DefaultCreatedAt holds the default value on creation for the created_at field.
+	accountdeletion.DefaultCreatedAt = accountdeletionDescCreatedAt.Default.(func() time.Time)
+	// accountdeletionDescUpdatedAt is the schema descriptor for updated_at field.
+	accountdeletionDescUpdatedAt := accountdeletionFields[12].Descriptor()
+	// accountdeletion.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	accountdeletion.DefaultUpdatedAt = accountdeletionDescUpdatedAt.Default.(func() time.Time)
+	// accountdeletion.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	accountdeletion.UpdateDefaultUpdatedAt = accountdeletionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// accountdeletionDescID is the schema descriptor for id field.
+	accountdeletionDescID := accountdeletionFields[0].Descriptor()
+	// accountdeletion.DefaultID holds the default value on creation for the id field.
+	accountdeletion.DefaultID = accountdeletionDescID.Default.(func() string)
 	sessionFields := schema.Session{}.Fields()
 	_ = sessionFields
+	// sessionDescUserID is the schema descriptor for user_id field.
+	sessionDescUserID := sessionFields[1].Descriptor()
+	// session.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	session.UserIDValidator = sessionDescUserID.Validators[0].(func(string) error)
 	// sessionDescTokenHash is the schema descriptor for token_hash field.
 	sessionDescTokenHash := sessionFields[2].Descriptor()
 	// session.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
@@ -58,44 +107,12 @@ func init() {
 	sessionDescRevoked := sessionFields[6].Descriptor()
 	// session.DefaultRevoked holds the default value on creation for the revoked field.
 	session.DefaultRevoked = sessionDescRevoked.Default.(bool)
+	// sessionDescAuthVersion is the schema descriptor for auth_version field.
+	sessionDescAuthVersion := sessionFields[7].Descriptor()
+	// session.DefaultAuthVersion holds the default value on creation for the auth_version field.
+	session.DefaultAuthVersion = sessionDescAuthVersion.Default.(int64)
 	// sessionDescID is the schema descriptor for id field.
 	sessionDescID := sessionFields[0].Descriptor()
 	// session.DefaultID holds the default value on creation for the id field.
 	session.DefaultID = sessionDescID.Default.(func() string)
-	userFields := schema.User{}.Fields()
-	_ = userFields
-	// userDescDisplayName is the schema descriptor for display_name field.
-	userDescDisplayName := userFields[2].Descriptor()
-	// user.DefaultDisplayName holds the default value on creation for the display_name field.
-	user.DefaultDisplayName = userDescDisplayName.Default.(string)
-	// userDescAvatarURL is the schema descriptor for avatar_url field.
-	userDescAvatarURL := userFields[3].Descriptor()
-	// user.DefaultAvatarURL holds the default value on creation for the avatar_url field.
-	user.DefaultAvatarURL = userDescAvatarURL.Default.(string)
-	// userDescIssuer is the schema descriptor for issuer field.
-	userDescIssuer := userFields[4].Descriptor()
-	// user.IssuerValidator is a validator for the "issuer" field. It is called by the builders before save.
-	user.IssuerValidator = userDescIssuer.Validators[0].(func(string) error)
-	// userDescExternalID is the schema descriptor for external_id field.
-	userDescExternalID := userFields[5].Descriptor()
-	// user.ExternalIDValidator is a validator for the "external_id" field. It is called by the builders before save.
-	user.ExternalIDValidator = userDescExternalID.Validators[0].(func(string) error)
-	// userDescDisabled is the schema descriptor for disabled field.
-	userDescDisabled := userFields[6].Descriptor()
-	// user.DefaultDisabled holds the default value on creation for the disabled field.
-	user.DefaultDisabled = userDescDisabled.Default.(bool)
-	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[8].Descriptor()
-	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
-	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
-	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[9].Descriptor()
-	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
-	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
-	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
-	user.UpdateDefaultUpdatedAt = userDescUpdatedAt.UpdateDefault.(func() time.Time)
-	// userDescID is the schema descriptor for id field.
-	userDescID := userFields[0].Descriptor()
-	// user.DefaultID holds the default value on creation for the id field.
-	user.DefaultID = userDescID.Default.(func() string)
 }

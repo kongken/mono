@@ -134,18 +134,9 @@ func toFriendUser(u *ent.User) *tripmapv1.FriendUser {
 	if u == nil {
 		return &tripmapv1.FriendUser{}
 	}
-	username := ""
-	if u.Username != nil {
-		username = *u.Username
-	}
-	display := u.DisplayName
-	if display == "" {
-		display = username
-	}
 	return &tripmapv1.FriendUser{
 		Id:          u.ID,
-		Username:    username,
-		DisplayName: display,
+		DisplayName: u.DisplayName,
 		AvatarUrl:   u.AvatarURL,
 	}
 }
@@ -412,24 +403,15 @@ func (s *CollaborationService) SendFriendRequest(ctx context.Context, req *conne
 	}
 	target := strings.TrimSpace(req.Msg.GetTarget())
 	if target == "" || len(target) > 64 {
-		return nil, invalid("username or friend code is required")
+		return nil, invalid("a friend invite code is required")
 	}
 	lower := strings.ToLower(target)
-	// Invite codes are unique; cached Logto usernames are not. Never pick an
-	// arbitrary identity when several subjects share a display login.
-	targetUser, err := st.DB.User.Query().Where(user.FriendCodeEQ(lower)).Only(ctx)
-	if ent.IsNotFound(err) {
-		matches, lookupErr := st.DB.User.Query().Where(user.UsernameEqualFold(target)).Limit(2).All(ctx)
-		if lookupErr != nil {
-			return nil, internalError(lookupErr)
-		}
-		if len(matches) > 1 {
-			return nil, invalid("ambiguous username; use a friend code")
-		}
-		if len(matches) == 1 {
-			targetUser, err = matches[0], nil
-		}
+	// A friend is found only by invite code: there is no lookup by name, nickname or
+	// email, so an account cannot be discovered by guessing.
+	if !strings.HasPrefix(lower, "fc_") {
+		return nil, invalid("a friend invite code (fc_...) is required")
 	}
+	targetUser, err := st.DB.User.Query().Where(user.FriendCodeEQ(lower)).Only(ctx)
 	if ent.IsNotFound(err) {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
 	}

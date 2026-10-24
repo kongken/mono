@@ -40,8 +40,8 @@ test("labels, province names, comparison colors and active trip index work consi
   assert.equal(roleLabel("owner"), "创建者");
   assert.equal(roleLabel("editor"), "共同编辑");
   assert.equal(roleLabel("viewer"), "只读成员");
-  assert.equal(friendLabel({ displayName: "阿青", username: "aqing" }), "阿青");
-  assert.equal(friendLabel({ displayName: "", username: "aqing" }), "aqing");
+  assert.equal(friendLabel({ displayName: "阿青" }), "阿青");
+  assert.equal(friendLabel({ displayName: "", id: "u-1" }), "u-1");
   assert.equal(provinceNameByCode("330000"), "浙江省");
 
   const colors = friendComparisonColors({

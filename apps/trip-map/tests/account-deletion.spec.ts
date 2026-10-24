@@ -29,10 +29,6 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
         schema = auth.IssueCSRFTokenResponseSchema;
         data = { token: "ci-csrf" };
         break;
-      case "ListOAuthProviders":
-        schema = auth.ListOAuthProvidersResponseSchema;
-        data = { providers: [{ name: "logto", displayName: "Logto" }] };
-        break;
       case "Me":
         if (!authenticated) {
           await route.fulfill({status:401,contentType:"application/json",body:'{"code":"unauthenticated"}'});
@@ -42,7 +38,6 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
         data = {
           user: {
             id: "ci-account",
-            username: "ci_user",
             displayName: "CI 旅行者",
           },
         };
@@ -104,8 +99,10 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
     });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("button", { name: "前往用户中心登录", exact: true }).click();
+  await page.evaluate(() => {
+    localStorage.setItem("shanhai-session-v1", JSON.stringify({ user: { id: "ci-account", displayName: "CI 旅行者", avatarUrl: "" } }));
+  });
+  await page.reload();
   // The local footprint is offered for migration; this test is about deletion.
   await page.getByRole("button", { name: "稍后再说" }).click();
   await expect(

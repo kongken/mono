@@ -13,7 +13,6 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/kongken/mono/internal/bff/ent/session"
-	"github.com/kongken/mono/internal/bff/ent/user"
 )
 
 // SessionCreate is the builder for creating a Session entity.
@@ -84,9 +83,17 @@ func (_c *SessionCreate) SetNillableRevoked(v *bool) *SessionCreate {
 	return _c
 }
 
-// SetRoles sets the "roles" field.
-func (_c *SessionCreate) SetRoles(v []string) *SessionCreate {
-	_c.mutation.SetRoles(v)
+// SetAuthVersion sets the "auth_version" field.
+func (_c *SessionCreate) SetAuthVersion(v int64) *SessionCreate {
+	_c.mutation.SetAuthVersion(v)
+	return _c
+}
+
+// SetNillableAuthVersion sets the "auth_version" field if the given value is not nil.
+func (_c *SessionCreate) SetNillableAuthVersion(v *int64) *SessionCreate {
+	if v != nil {
+		_c.SetAuthVersion(*v)
+	}
 	return _c
 }
 
@@ -116,11 +123,6 @@ func (_c *SessionCreate) SetNillableID(v *string) *SessionCreate {
 		_c.SetID(*v)
 	}
 	return _c
-}
-
-// SetUser sets the "user" edge to the User entity.
-func (_c *SessionCreate) SetUser(v *User) *SessionCreate {
-	return _c.SetUserID(v.ID)
 }
 
 // Mutation returns the SessionMutation object of the builder.
@@ -166,6 +168,10 @@ func (_c *SessionCreate) defaults() {
 		v := session.DefaultRevoked
 		_c.mutation.SetRevoked(v)
 	}
+	if _, ok := _c.mutation.AuthVersion(); !ok {
+		v := session.DefaultAuthVersion
+		_c.mutation.SetAuthVersion(v)
+	}
 	if _, ok := _c.mutation.ID(); !ok {
 		v := session.DefaultID()
 		_c.mutation.SetID(v)
@@ -176,6 +182,11 @@ func (_c *SessionCreate) defaults() {
 func (_c *SessionCreate) check() error {
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "Session.user_id"`)}
+	}
+	if v, ok := _c.mutation.UserID(); ok {
+		if err := session.UserIDValidator(v); err != nil {
+			return &ValidationError{Name: "user_id", err: fmt.Errorf(`ent: validator failed for field "Session.user_id": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.TokenHash(); !ok {
 		return &ValidationError{Name: "token_hash", err: errors.New(`ent: missing required field "Session.token_hash"`)}
@@ -194,8 +205,8 @@ func (_c *SessionCreate) check() error {
 	if _, ok := _c.mutation.Revoked(); !ok {
 		return &ValidationError{Name: "revoked", err: errors.New(`ent: missing required field "Session.revoked"`)}
 	}
-	if len(_c.mutation.UserIDs()) == 0 {
-		return &ValidationError{Name: "user", err: errors.New(`ent: missing required edge "Session.user"`)}
+	if _, ok := _c.mutation.AuthVersion(); !ok {
+		return &ValidationError{Name: "auth_version", err: errors.New(`ent: missing required field "Session.auth_version"`)}
 	}
 	return nil
 }
@@ -233,6 +244,10 @@ func (_c *SessionCreate) createSpec() (*Session, *sqlgraph.CreateSpec) {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
+	if value, ok := _c.mutation.UserID(); ok {
+		_spec.SetField(session.FieldUserID, field.TypeString, value)
+		_node.UserID = value
+	}
 	if value, ok := _c.mutation.TokenHash(); ok {
 		_spec.SetField(session.FieldTokenHash, field.TypeString, value)
 		_node.TokenHash = value
@@ -253,30 +268,13 @@ func (_c *SessionCreate) createSpec() (*Session, *sqlgraph.CreateSpec) {
 		_spec.SetField(session.FieldRevoked, field.TypeBool, value)
 		_node.Revoked = value
 	}
-	if value, ok := _c.mutation.Roles(); ok {
-		_spec.SetField(session.FieldRoles, field.TypeJSON, value)
-		_node.Roles = value
+	if value, ok := _c.mutation.AuthVersion(); ok {
+		_spec.SetField(session.FieldAuthVersion, field.TypeInt64, value)
+		_node.AuthVersion = value
 	}
 	if value, ok := _c.mutation.AuthenticatedAt(); ok {
 		_spec.SetField(session.FieldAuthenticatedAt, field.TypeTime, value)
 		_node.AuthenticatedAt = &value
-	}
-	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   session.UserTable,
-			Columns: []string{session.UserColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeString),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_node.UserID = nodes[0]
-		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
 }
@@ -372,21 +370,21 @@ func (u *SessionUpsert) UpdateRevoked() *SessionUpsert {
 	return u
 }
 
-// SetRoles sets the "roles" field.
-func (u *SessionUpsert) SetRoles(v []string) *SessionUpsert {
-	u.Set(session.FieldRoles, v)
+// SetAuthenticatedAt sets the "authenticated_at" field.
+func (u *SessionUpsert) SetAuthenticatedAt(v time.Time) *SessionUpsert {
+	u.Set(session.FieldAuthenticatedAt, v)
 	return u
 }
 
-// UpdateRoles sets the "roles" field to the value that was provided on create.
-func (u *SessionUpsert) UpdateRoles() *SessionUpsert {
-	u.SetExcluded(session.FieldRoles)
+// UpdateAuthenticatedAt sets the "authenticated_at" field to the value that was provided on create.
+func (u *SessionUpsert) UpdateAuthenticatedAt() *SessionUpsert {
+	u.SetExcluded(session.FieldAuthenticatedAt)
 	return u
 }
 
-// ClearRoles clears the value of the "roles" field.
-func (u *SessionUpsert) ClearRoles() *SessionUpsert {
-	u.SetNull(session.FieldRoles)
+// ClearAuthenticatedAt clears the value of the "authenticated_at" field.
+func (u *SessionUpsert) ClearAuthenticatedAt() *SessionUpsert {
+	u.SetNull(session.FieldAuthenticatedAt)
 	return u
 }
 
@@ -416,8 +414,8 @@ func (u *SessionUpsertOne) UpdateNewValues() *SessionUpsertOne {
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(session.FieldCreatedAt)
 		}
-		if _, exists := u.create.mutation.AuthenticatedAt(); exists {
-			s.SetIgnore(session.FieldAuthenticatedAt)
+		if _, exists := u.create.mutation.AuthVersion(); exists {
+			s.SetIgnore(session.FieldAuthVersion)
 		}
 	}))
 	return u
@@ -499,24 +497,24 @@ func (u *SessionUpsertOne) UpdateRevoked() *SessionUpsertOne {
 	})
 }
 
-// SetRoles sets the "roles" field.
-func (u *SessionUpsertOne) SetRoles(v []string) *SessionUpsertOne {
+// SetAuthenticatedAt sets the "authenticated_at" field.
+func (u *SessionUpsertOne) SetAuthenticatedAt(v time.Time) *SessionUpsertOne {
 	return u.Update(func(s *SessionUpsert) {
-		s.SetRoles(v)
+		s.SetAuthenticatedAt(v)
 	})
 }
 
-// UpdateRoles sets the "roles" field to the value that was provided on create.
-func (u *SessionUpsertOne) UpdateRoles() *SessionUpsertOne {
+// UpdateAuthenticatedAt sets the "authenticated_at" field to the value that was provided on create.
+func (u *SessionUpsertOne) UpdateAuthenticatedAt() *SessionUpsertOne {
 	return u.Update(func(s *SessionUpsert) {
-		s.UpdateRoles()
+		s.UpdateAuthenticatedAt()
 	})
 }
 
-// ClearRoles clears the value of the "roles" field.
-func (u *SessionUpsertOne) ClearRoles() *SessionUpsertOne {
+// ClearAuthenticatedAt clears the value of the "authenticated_at" field.
+func (u *SessionUpsertOne) ClearAuthenticatedAt() *SessionUpsertOne {
 	return u.Update(func(s *SessionUpsert) {
-		s.ClearRoles()
+		s.ClearAuthenticatedAt()
 	})
 }
 
@@ -712,8 +710,8 @@ func (u *SessionUpsertBulk) UpdateNewValues() *SessionUpsertBulk {
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(session.FieldCreatedAt)
 			}
-			if _, exists := b.mutation.AuthenticatedAt(); exists {
-				s.SetIgnore(session.FieldAuthenticatedAt)
+			if _, exists := b.mutation.AuthVersion(); exists {
+				s.SetIgnore(session.FieldAuthVersion)
 			}
 		}
 	}))
@@ -796,24 +794,24 @@ func (u *SessionUpsertBulk) UpdateRevoked() *SessionUpsertBulk {
 	})
 }
 
-// SetRoles sets the "roles" field.
-func (u *SessionUpsertBulk) SetRoles(v []string) *SessionUpsertBulk {
+// SetAuthenticatedAt sets the "authenticated_at" field.
+func (u *SessionUpsertBulk) SetAuthenticatedAt(v time.Time) *SessionUpsertBulk {
 	return u.Update(func(s *SessionUpsert) {
-		s.SetRoles(v)
+		s.SetAuthenticatedAt(v)
 	})
 }
 
-// UpdateRoles sets the "roles" field to the value that was provided on create.
-func (u *SessionUpsertBulk) UpdateRoles() *SessionUpsertBulk {
+// UpdateAuthenticatedAt sets the "authenticated_at" field to the value that was provided on create.
+func (u *SessionUpsertBulk) UpdateAuthenticatedAt() *SessionUpsertBulk {
 	return u.Update(func(s *SessionUpsert) {
-		s.UpdateRoles()
+		s.UpdateAuthenticatedAt()
 	})
 }
 
-// ClearRoles clears the value of the "roles" field.
-func (u *SessionUpsertBulk) ClearRoles() *SessionUpsertBulk {
+// ClearAuthenticatedAt clears the value of the "authenticated_at" field.
+func (u *SessionUpsertBulk) ClearAuthenticatedAt() *SessionUpsertBulk {
 	return u.Update(func(s *SessionUpsert) {
-		s.ClearRoles()
+		s.ClearAuthenticatedAt()
 	})
 }
 
