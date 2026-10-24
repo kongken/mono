@@ -62,12 +62,16 @@ func TestValidConfigGetsTheSpecifiedDefaults(t *testing.T) {
 		"password_per_ip":        {l.PasswordPerIP.Limit, l.PasswordPerIP.Window},
 		"profile_write_per_user": {l.ProfileWritePerUser.Limit, l.ProfileWritePerUser.Window},
 		"deletion_per_user":      {l.DeletionPerUser.Limit, l.DeletionPerUser.Window},
+		"token_submit_per_ip":    {l.TokenSubmitPerIP.Limit, l.TokenSubmitPerIP.Window},
+		"token_submit_per_token": {l.TokenSubmitPerToken.Limit, l.TokenSubmitPerToken.Window},
 	} {
 		want := map[string][2]any{
 			"password_per_account":   {10, 15 * time.Minute},
 			"password_per_ip":        {40, 15 * time.Minute},
 			"profile_write_per_user": {30, time.Minute},
 			"deletion_per_user":      {10, 15 * time.Minute},
+			"token_submit_per_ip":    {30, 15 * time.Minute},
+			"token_submit_per_token": {5, 15 * time.Minute},
 		}[name]
 		if got != want {
 			t.Errorf("%s = %v, want %v", name, got, want)

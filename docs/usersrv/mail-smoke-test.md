@@ -13,7 +13,7 @@ usersrv 的四个邮件 adapter（Mailgun、SendGrid、SMTP、SMTP2GO）只对**
 ## 验证步骤（每个厂商各一遍）
 
 1. 启动 usersrv 并确认 `/readyz` 的 `mail_outbox` 为 ready。
-2. P3 的注册/找回密码流程接入前，usersrv 还没有对外的邮件入口。验证时在隔离环境用一个临时 Go 测试或小程序调用 `outbox.Service.IssueStandalone`（`internal/usersrv/outbox`），向测试邮箱签发一封 `verify_email` 邮件；不要在正式库里操作。
+2. usersrv 发邮件的入口只有 P3 的 `RequestRegistration`/`RequestPasswordReset` 内部 gRPC，调用需要 BFF 签名凭证，BFF 接入（P4）前没有现成的客户端。验证时在隔离环境用一个临时 Go 测试或小程序调用 `outbox.Service.IssueStandalone`（`internal/usersrv/outbox`），向测试邮箱签发一封 `verify_email` 邮件；不要在正式库里操作。
 3. 在 3 分钟内（worker 轮询间隔 3 秒）检查：
    - 测试邮箱收到中文标题和正文，纯文本与 HTML 两部分都正常，发件人、回复地址（若配置了 `reply_to`）正确；
    - 邮件里的链接形如 `https://<auth.apps.<app_id>.origin>/account/verify-email#token=…`，令牌在 `#` 之后；

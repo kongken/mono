@@ -590,17 +590,25 @@ export const AccountStatusSchema: GenEnum<AccountStatus> = /*@__PURE__*/
  * 	RATE_LIMITED         RESOURCE_EXHAUSTED    public IP/user limit, never reveals remaining quota
  * 	INVALID_ARGUMENT     INVALID_ARGUMENT      format or password policy; metadata "field" names it
  * 	DELETION_MISMATCH    FAILED_PRECONDITION   the deletion belongs to another mutation_id
+ * 	TOKEN_INVALID        FAILED_PRECONDITION   a registration or reset token is malformed, unknown,
+ * 	                                           of the other purpose, expired, consumed, or no longer
+ * 	                                           matches its account or address (always the same answer)
+ * 	REGISTRATION_CLOSED  FAILED_PRECONDITION   new sign-ups are switched off (auth.registration_enabled)
  *
  * A store, Redis or quota-store failure is UNAVAILABLE and never lets a request
- * through. The anonymous registration, login and reset methods are defined here
- * so the contract is final; they return UNIMPLEMENTED until stage P3.
+ * through. None of the anonymous registration, login and reset methods signs
+ * anybody in or returns a token or a session.
  *
  * @generated from service usersrv.v1.AccountService
  */
 export const AccountService: GenService<{
   /**
-   * RequestRegistration accepts an address for verification. It always answers
-   * the same way for a well-formed address. Defined in P1, implemented in P3.
+   * RequestRegistration accepts an address for verification. For a well-formed
+   * address it always answers the same (empty success), whether or not the address
+   * has an account and whether or not the mail limits suppressed the mail; only a
+   * public limit (client address, service-wide mail cap) is RESOURCE_EXHAUSTED.
+   * Only an address without any account gets a challenge and a mail. Malformed
+   * email or an unknown app_id is INVALID_ARGUMENT. No password is accepted here.
    *
    * @generated from rpc usersrv.v1.AccountService.RequestRegistration
    */
@@ -610,8 +618,11 @@ export const AccountService: GenService<{
     output: typeof RequestRegistrationResponseSchema;
   },
   /**
-   * CompleteRegistration verifies the token and creates the active account.
-   * It does not sign anybody in. Defined in P1, implemented in P3.
+   * CompleteRegistration consumes a registration token and creates the active
+   * account with the given password and nickname for the address the token was
+   * issued to. Every unusable token is the same FAILED_PRECONDITION TOKEN_INVALID.
+   * Concurrent completions of one token or one address create exactly one account.
+   * It does not sign anybody in.
    *
    * @generated from rpc usersrv.v1.AccountService.CompleteRegistration
    */
@@ -622,8 +633,9 @@ export const AccountService: GenService<{
   },
   /**
    * AuthenticateWithEmail checks an email and password. Unknown address, wrong
-   * password, disabled and deleting accounts are the same UNAUTHENTICATED.
-   * Defined in P1, implemented in P3.
+   * password, disabled and deleting accounts are the same UNAUTHENTICATED
+   * (INVALID_CREDENTIALS). Counted per mailbox and per client address. It returns
+   * the facts the BFF needs to open a session; it opens none itself.
    *
    * @generated from rpc usersrv.v1.AccountService.AuthenticateWithEmail
    */
@@ -633,8 +645,9 @@ export const AccountService: GenService<{
     output: typeof AuthenticateWithEmailResponseSchema;
   },
   /**
-   * RequestPasswordReset always answers the same way for a well-formed address.
-   * Defined in P1, implemented in P3.
+   * RequestPasswordReset always answers the same way for a well-formed address;
+   * only an active account gets a token (bound to its auth_version) and a mail.
+   * Requesting a reset changes neither the password nor any session.
    *
    * @generated from rpc usersrv.v1.AccountService.RequestPasswordReset
    */
@@ -644,8 +657,10 @@ export const AccountService: GenService<{
     output: typeof RequestPasswordResetResponseSchema;
   },
   /**
-   * ResetPassword consumes a reset token. The target user comes from the token.
-   * Defined in P1, implemented in P3.
+   * ResetPassword consumes a reset token and sets the new password. The target
+   * user comes from the token, never from the request. It bumps auth_version and
+   * consumes every reset token of the account; of two concurrent submissions only
+   * one succeeds. It does not sign anybody in.
    *
    * @generated from rpc usersrv.v1.AccountService.ResetPassword
    */

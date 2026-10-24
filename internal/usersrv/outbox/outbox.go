@@ -3,7 +3,6 @@ package outbox
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -96,6 +95,9 @@ func (s *Service) SetClock(now func() time.Time) { s.now = now }
 // ErrUnknownApp is returned when the app ID is not in the link allow list.
 var ErrUnknownApp = mailer.ErrUnknownApp
 
+// HasApp reports whether appID is in the link allow list.
+func (s *Service) HasApp(appID string) bool { return s.links.Has(appID) }
+
 // IssueInput describes one challenge and its mail.
 type IssueInput struct {
 	// Purpose is PurposeRegistration or PurposePasswordReset.
@@ -168,7 +170,7 @@ func (s *Service) Issue(ctx context.Context, tx *ent.Tx, in IssueInput) (Issued,
 		return Issued{}, fmt.Errorf("outbox: random: %w", err)
 	}
 	token := base64.RawURLEncoding.EncodeToString(rawToken)
-	digest := sha256.Sum256([]byte(token))
+	digest, _ := identity.TokenDigest(token)
 
 	now := s.now()
 	expires := now.Add(ttl)
@@ -183,7 +185,7 @@ func (s *Service) Issue(ctx context.Context, tx *ent.Tx, in IssueInput) (Issued,
 		return Issued{}, fmt.Errorf("outbox: seal: %w", err)
 	}
 
-	create := tx.AccountToken.Create().SetID(challengeID).SetTokenHash(digest[:]).SetPurpose(accounttoken.Purpose(in.Purpose)).
+	create := tx.AccountToken.Create().SetID(challengeID).SetTokenHash(digest).SetPurpose(accounttoken.Purpose(in.Purpose)).
 		SetEmailCanonical(email).SetAppID(in.AppID).SetExpiresAt(expires).SetCreatedAt(now)
 	if in.UserID != nil {
 		create.SetUserID(*in.UserID).SetIssuedAuthVersion(*in.AuthVersion)

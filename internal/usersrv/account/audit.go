@@ -63,15 +63,23 @@ func (s *Service) voidTokens(ctx context.Context, tx *ent.Tx, id uuid.UUID, emai
 	if err != nil {
 		return err
 	}
-	if len(ids) > 0 {
-		now := s.now()
-		if _, err = tx.MailJob.Update().Where(mailjob.ChallengeIDIn(ids...), mailjob.StatusEQ(mailjob.StatusPending)).
-			SetStatus(mailjob.StatusCancelled).SetResultClass("account_closed").
-			ClearCiphertext().ClearKeyID().SetFinishedAt(now).Save(ctx); err != nil {
-			return err
-		}
+	if err = s.cancelPendingJobs(ctx, tx, ids, "account_closed"); err != nil {
+		return err
 	}
 	_, err = tx.AccountToken.Delete().Where(match).Exec(ctx)
+	return err
+}
+
+// cancelPendingJobs cancels the mail jobs of the given challenges that no worker
+// has taken yet and erases their ciphertext. A job already being sent cannot be
+// recalled; the challenge it carries is consumed or gone by then.
+func (s *Service) cancelPendingJobs(ctx context.Context, tx *ent.Tx, challengeIDs []uuid.UUID, class string) error {
+	if len(challengeIDs) == 0 {
+		return nil
+	}
+	_, err := tx.MailJob.Update().Where(mailjob.ChallengeIDIn(challengeIDs...), mailjob.StatusEQ(mailjob.StatusPending)).
+		SetStatus(mailjob.StatusCancelled).SetResultClass(class).
+		ClearCiphertext().ClearKeyID().SetFinishedAt(s.now()).Save(ctx)
 	return err
 }
 

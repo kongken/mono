@@ -62,6 +62,14 @@ var (
 	ErrDeletionMismatch = errors.New("deletion belongs to another mutation")
 	// ErrUnavailable: the store or the password budget could not serve the request.
 	ErrUnavailable = errors.New("temporarily unavailable")
+	// ErrTokenInvalid: a registration or reset token is malformed, unknown, of the
+	// other purpose, expired, consumed, or no longer matches its account or
+	// address. One error for all of them, so a probe learns nothing.
+	ErrTokenInvalid = errors.New("link is not usable")
+	// ErrRegistrationClosed: new sign-ups are switched off in configuration.
+	ErrRegistrationClosed = errors.New("registration is closed")
+	// ErrRateLimited: a public limit (client address or the service-wide mail cap) is hit.
+	ErrRateLimited = errors.New("rate limited")
 )
 
 // Service is the account core over one usersrv database.
@@ -69,6 +77,11 @@ type Service struct {
 	db     *ent.Client
 	hasher *passwordhash.Hasher
 	now    func() time.Time
+	// mail and guard serve the registration and reset requests (SetMail);
+	// registrationClosed switches new sign-ups off (SetRegistrationOpen).
+	mail               Mail
+	guard              MailGuard
+	registrationClosed bool
 	// AuditRetention and TokenRetention drive PurgeExpired.
 	AuditRetention time.Duration
 	TokenRetention time.Duration
@@ -105,9 +118,10 @@ type Account struct {
 	AuthState
 }
 
-// NewUser describes an account whose email has been verified. Only the
-// registration completion of stage P3 calls CreateVerifiedUser; an unverified
-// address never becomes a row.
+// NewUser describes an account whose email has been verified. CreateVerifiedUser
+// is for tests and tools that already hold a verified address; the registration
+// flow itself goes through CompleteRegistration, which verifies the token. An
+// unverified address never becomes a row.
 type NewUser struct {
 	Email       string
 	Password    string
@@ -188,34 +202,63 @@ func stateOf(u *ent.User) AuthState {
 // Authenticate checks an email and password. An unknown address, a wrong
 // password, a disabled and a deleting account all return ErrInvalidCredentials,
 // and every path spends the cost of one password verification, so an unknown
-// address has no obviously faster path. Stage P3 puts the rate limits and the
-// RPC around it; nothing calls it from a public path in P1.
+// address has no obviously faster path. The rate limits and the RPC are in
+// package application; Login adds the audit trail.
 func (s *Service) Authenticate(ctx context.Context, email, password string) (uuid.UUID, AuthState, error) {
-	canonical, err := identity.NormalizeEmail(email)
+	u, _, err := s.authenticate(ctx, email, password)
 	if err != nil {
 		return uuid.Nil, AuthState{}, err
 	}
-	if err = identity.CheckPasswordInput("password", password); err != nil {
+	return u.ID, stateOf(u), nil
+}
+
+// Login is Authenticate for the sign-in RPC: the same checks, plus a
+// security_audit row for every attempt that names an existing account (the
+// address itself is never recorded). It signs nobody in: the BFF turns the
+// answer into a session.
+func (s *Service) Login(ctx context.Context, email, password, requestID string) (uuid.UUID, AuthState, error) {
+	u, result, err := s.authenticate(ctx, email, password)
+	if u != nil {
+		s.auditAlone(ctx, auditEntry{userID: &u.ID, actor: userActor(u.ID), action: "login", requestID: requestID, result: result})
+	}
+	if err != nil {
 		return uuid.Nil, AuthState{}, err
+	}
+	return u.ID, stateOf(u), nil
+}
+
+// authenticate returns the account and the audit result ("ok", "wrong_password"
+// or "inactive") when the address has one. The user is nil for an unknown
+// address.
+func (s *Service) authenticate(ctx context.Context, email, password string) (*ent.User, string, error) {
+	canonical, err := identity.NormalizeEmail(email)
+	if err != nil {
+		return nil, "", err
+	}
+	if err = identity.CheckPasswordInput("password", password); err != nil {
+		return nil, "", err
 	}
 	u, err := s.db.User.Query().Where(user.EmailCanonical(canonical)).WithRoles().Only(ctx)
 	if ent.IsNotFound(err) {
 		if err := s.hasher.VerifyDummy(ctx, password); err != nil {
-			return uuid.Nil, AuthState{}, mapStoreError(err)
+			return nil, "", mapStoreError(err)
 		}
-		return uuid.Nil, AuthState{}, ErrInvalidCredentials
+		return nil, "", ErrInvalidCredentials
 	}
 	if err != nil {
-		return uuid.Nil, AuthState{}, mapStoreError(err)
+		return nil, "", mapStoreError(err)
 	}
 	ok, err := s.hasher.Verify(ctx, u.PasswordHash, password)
 	if err != nil {
-		return uuid.Nil, AuthState{}, mapStoreError(err)
+		return nil, "", mapStoreError(err)
 	}
-	if !ok || Status(u.Status) != StatusActive {
-		return uuid.Nil, AuthState{}, ErrInvalidCredentials
+	switch {
+	case !ok:
+		return u, "wrong_password", ErrInvalidCredentials
+	case Status(u.Status) != StatusActive:
+		return u, "inactive", ErrInvalidCredentials
 	}
-	return u.ID, stateOf(u), nil
+	return u, "ok", nil
 }
 
 // VerifyPassword re-checks the current password of an active account and returns
@@ -477,7 +520,8 @@ func mapStoreError(err error) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalidCredentials), errors.Is(err, ErrNotActive), errors.Is(err, ErrEmailTaken),
-		errors.Is(err, ErrConflict), errors.Is(err, ErrDeletionMismatch), errors.Is(err, ErrUnavailable):
+		errors.Is(err, ErrConflict), errors.Is(err, ErrDeletionMismatch), errors.Is(err, ErrUnavailable),
+		errors.Is(err, ErrTokenInvalid), errors.Is(err, ErrRegistrationClosed), errors.Is(err, ErrRateLimited):
 		return err
 	case errors.Is(err, passwordhash.ErrBusy):
 		return fmt.Errorf("%w: password budget", ErrUnavailable)

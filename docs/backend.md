@@ -10,14 +10,14 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 
 ## 项目结构
 
-仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前有 tripmap 与 metro 两个业务，另有自建用户系统 usersrv 的账号核心与邮件模块（P1、P2，BFF 尚未接入）；业务包之间不互相 import，`internal/platform/` 不依赖业务包。公网请求经 BFF（`cmd/bff`）转发到业务服务，见 [BFF（公网入口）](bff.md)。
+仓库按服务组织：`cmd/<服务>/` 为入口，业务代码在 `internal/<业务>/`，跨服务共享代码在 `internal/platform/`，版本化迁移在 `migrations/<业务>/`。当前有 tripmap 与 metro 两个业务，另有自建用户系统 usersrv 的账号核心、邮件模块与账号流程（P1–P3，BFF 尚未接入）；业务包之间不互相 import，`internal/platform/` 不依赖业务包。公网请求经 BFF（`cmd/bff`）转发到业务服务，见 [BFF（公网入口）](bff.md)。
 
 | 路径 | 职责 |
 | --- | --- |
 | `cmd/bff/`、`internal/bff/`（共用的账号与会话；各产品的领域适配在 `internal/bff/<产品>/`，tripmap 的在 `internal/bff/tripmap/`） | BFF：公网唯一浏览器 RPC（`bff.v1` 账号、`bff.<产品>.v1` 业务，Connect、Cookie/CSRF），经内部 gRPC（TLS / h2c）调 tripmap（[说明](bff.md)） |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `cmd/metro/`、`internal/metro/`（`app`、`application`、`config`、`ent`、`testutil`） | 地铁足迹业务服务：入口、装配与内部 gRPC、`CatalogService`/`AdminService`/`RiderService`/`AccountCleanupService`、配置、Ent 模型、隔离 schema 的测试辅助（[说明](#metro-服务地铁足迹)） |
-| `cmd/usersrv/`、`internal/usersrv/`（`app`、`application`、`account`、`identity`、`passwordhash`、`ratelimit`、`worker`、`mailer`、`outbox`、`config`、`ent`、`testutil`、`integration`）、`cmd/usersrv-admin/` | 自建用户系统的账号核心与邮件模块（规格 [usersrv](usersrv/spec.md)，P1、P2）：服务入口、内部 gRPC `usersrv.v1`、账号与角色、Argon2id、限流、邮件 adapter 与加密 outbox、运维命令；BFF 尚未调用（[账号核心](#usersrv-服务账号核心p1)、[邮件模块](#usersrv-邮件模块p2)） |
+| `cmd/usersrv/`、`internal/usersrv/`（`app`、`application`、`account`、`identity`、`passwordhash`、`ratelimit`、`worker`、`mailer`、`outbox`、`config`、`ent`、`testutil`、`integration`）、`cmd/usersrv-admin/` | 自建用户系统的账号核心、邮件模块与账号流程（规格 [usersrv](usersrv/spec.md)，P1–P3）：服务入口、内部 gRPC `usersrv.v1`、账号与角色、Argon2id、限流、邮件 adapter 与加密 outbox、注册/登录/找回密码、运维命令；BFF 尚未调用（[账号核心](#usersrv-服务账号核心p1)、[邮件模块](#usersrv-邮件模块p2)、[账号流程](#usersrv-账号流程p3)） |
 | `proto/usersrv/v1/`、`migrations/usersrv/` | usersrv 的内部契约与版本化迁移 |
 | `internal/bff/metro/` | 地铁足迹的 BFF 适配（目录手写映射；管理与骑行者经 `relay` 线格式转换）与账号清理器 |
 | `proto/metro/v1/`、`proto/bff/metro/v1/`、`migrations/metro/` | metro 的内部与浏览器契约、版本化迁移 |
@@ -558,18 +558,19 @@ BFF 的 `20261023095053_logto_identity_mapping.sql` 新增 Logto 身份映射和
 
 ## usersrv 服务（账号核心，P1）
 
-规格见 [usersrv 规格](usersrv/spec.md)（阶段状态也登记在那里）。**当前实现 P1（账号核心）与 P2（邮件模块，见[下一节](#usersrv-邮件模块p2)）。** BFF 没有登记也不会调用 usersrv，浏览器登录仍然是 Logto；usersrv 不开放任何新登录或注册。注册与找回密码流程、BFF 适配、前端与发布在 P3–P6。
+规格见 [usersrv 规格](usersrv/spec.md)（阶段状态也登记在那里）。**当前实现 P1（账号核心）、P2（邮件模块，见[下一节](#usersrv-邮件模块p2)）与 P3（账号流程，见[其后](#usersrv-账号流程p3)）。** BFF 没有登记也不会调用 usersrv，浏览器登录仍然是 Logto；usersrv 只有内部 gRPC，不开放任何新登录或注册。BFF 适配、前端与发布在 P4–P6。
 
 **运行**：`config.usersrv.example.yaml` 复制为被忽略的 `config.usersrv.yaml`，准备 usersrv 独占的 PostgreSQL 库（例如 `createdb usersrv`）和 Redis（必需；限流计数在 Redis，不可用时拒绝而不是放行）；Redis key 都以 `key_prefix`（默认 `usersrv:`）开头。`make dev-usersrv` 以 HTTP 18086（`/ping`、`/readyz`，内网）与 gRPC 18087 启动。`/readyz` 报告 `postgres`、`redis` 与 `worker`（后台清理的本地状态）。gRPC 默认 TLS，本机可显式 `transport: h2c`（密码走这条链路，跨主机必须用 TLS）；只接受 `internal_auth.trusted_keys` 里 BFF 公钥签发、`aud=usersrv`、绑定方法且 60 秒内的凭证，所有方法（包括匿名标注的）都要求有效凭证，本人方法只取凭证里的 `sub`。生产关闭 `auto_migrate`，执行 `migrations/usersrv/`；新迁移用 `make usersrv-migration NAME=… DEV_DSN=…`（先 `make ent-usersrv`），规则同 tripmap。
 
 **接口**（`usersrv.v1`，仅内部 gRPC）：
 
-| 服务 | 已实现 | 契约已定稿、返回 `UNIMPLEMENTED`（P3） |
-| --- | --- | --- |
-| `SystemService` | `GetStatus` | |
-| `AccountService` | `GetAuthState`（每请求复核用：状态、`auth_version`、角色、昵称与头像，不含邮箱）、`GetMyAccount`（另含登录邮箱）、`VerifyPassword`、`ChangePassword`、`UpdateMyProfile`、`BeginDeletion`、`FinishDeletion` | `RequestRegistration`、`CompleteRegistration`、`AuthenticateWithEmail`、`RequestPasswordReset`、`ResetPassword` |
+| 服务 | 方法 |
+| --- | --- |
+| `SystemService` | `GetStatus` |
+| `AccountService`（匿名，仍需 BFF 凭证；P3） | `RequestRegistration`、`CompleteRegistration`、`AuthenticateWithEmail`、`RequestPasswordReset`、`ResetPassword`，见[账号流程](#usersrv-账号流程p3) |
+| `AccountService`（本人，取凭证里的 `sub`） | `GetAuthState`（每请求复核用：状态、`auth_version`、角色、昵称与头像，不含邮箱）、`GetMyAccount`（另含登录邮箱）、`VerifyPassword`（重新认证）、`ChangePassword`、`UpdateMyProfile`、`BeginDeletion`、`FinishDeletion` |
 
-错误用 `google.rpc.ErrorInfo`（domain `usersrv.v1`，reason 为 `INVALID_CREDENTIALS`、`ACCOUNT_NOT_ACTIVE`、`VERSION_CONFLICT`、`RATE_LIMITED`、`INVALID_ARGUMENT`、`DELETION_MISMATCH`）；错误密码与内部凭证错误因此不会混淆。日志与审计不含邮箱、密码、令牌。
+错误用 `google.rpc.ErrorInfo`（domain `usersrv.v1`，reason 为 `INVALID_CREDENTIALS`、`ACCOUNT_NOT_ACTIVE`、`VERSION_CONFLICT`、`RATE_LIMITED`、`INVALID_ARGUMENT`、`DELETION_MISMATCH`、`TOKEN_INVALID`、`REGISTRATION_CLOSED`）；错误密码与内部凭证错误因此不会混淆。日志与审计不含邮箱、密码、令牌。
 
 **账号规则**（`internal/usersrv/identity`、`account`）：
 
@@ -588,7 +589,7 @@ BFF 的 `20261023095053_logto_identity_mapping.sql` 新增 Logto 身份映射和
 | --- | --- |
 | `users` | UUID 主键、`email_canonical`（唯一）、`email_verified_at`、`password_hash`（Sensitive，PHC 字符串）、`status`、`auth_version`（≥1）、`display_name`、`avatar_url`、`profile_version`、注销标记（`deletion_started_at`、`deletion_mutation_id`）、时间戳 |
 | `user_roles` | `(user_id, role)` 唯一，外键 `ON DELETE CASCADE`；目前只有 `metro-admin` |
-| `account_tokens` | 唯一的 32 字节 `token_hash`（只存哈希）、用途（注册/重置）及与用途绑定的约束、过期与使用时间；由 P2 的 outbox 与 P3 的流程签发/消费 |
+| `account_tokens` | 唯一的 32 字节 `token_hash`（只存哈希）、用途（注册/重置）及与用途绑定的约束、过期与使用时间；由 P2 的 outbox 签发，P3 的注册/重置流程消费 |
 | `security_audit` | 用户 ID（可空）、操作者、动作、结果、请求 ID，以及 CLI 的 `reason`；只增不改，不含邮箱 |
 | `deletion_tombstones` | 用户 UUID、工作流 ID、完成与过期时间；不含邮箱 |
 
@@ -607,7 +608,7 @@ bin/usersrv-admin -config config.usersrv.yaml disable -user-id <uuid> -operator 
 
 ## usersrv 邮件模块（P2）
 
-规格见 [usersrv 规格](usersrv/spec.md)。邮件模块由两个包组成，目前**没有对外的入口**：P3 的注册、找回密码流程才会调用它，浏览器登录仍是 Logto。
+规格见 [usersrv 规格](usersrv/spec.md)。邮件模块由两个包组成，由 [P3 的注册与找回密码流程](#usersrv-账号流程p3)调用，**没有浏览器入口**（BFF 尚未接入，浏览器登录仍是 Logto）。
 
 **配置**（`config.usersrv.example.yaml` 的 `mail:` 段）：只能启用一个 provider（`mailgun`/`sendgrid`/`smtp`/`smtp2go`，不自动故障转移），并配置对应厂商段；未知 provider、缺少必填参数、混入其他厂商参数、非法 `region`（`us`/`eu`）或 `smtp.tls_mode`（`implicit_tls`/`starttls`）都让 usersrv 启动失败。`from_email`/`from_name`/`reply_to` 全局配置，`timeout` 默认 10 秒（最多 1 分钟）。`allow_insecure_loopback` 只允许开发时对回环地址用明文 SMTP。Key 与密码不进日志。`mail.encryption` 的 AES-256-GCM key 是 32 字节标准 base64，用 `key` 或 `key_file` 提供，必须不同于 `auth.hmac_key`；生产放 Secret，不与数据库放在一起。
 
@@ -629,6 +630,31 @@ bin/usersrv-admin -config config.usersrv.yaml disable -user-id <uuid> -operator 
 **日志与指标**：没有指标导出器；`Service.Snapshot()` 提供计数，每次处理一个任务输出结构化日志：任务 ID、provider、模板、状态、错误类、次数、耗时、`code` 与 `alert`，永不含邮箱、令牌、链接、Key 或厂商返回的原文。告警事件：`mail_vendor_auth_failed`、`mail_uncertain`、`mail_permanent_failure`、`mail_decrypt_failed`、`mail_render_failed`、`mail_key_missing`、`mail_backlog`。
 
 **测试与手动验证**：`make test-integration-usersrv` 里四个 adapter 对本地受控的 HTTP/SMTP 假服务做契约测试（认证方式、From/Reply-To、单收件人、中文标题、文本与 HTML、超时/取消、错误分类、拒绝重定向与证书错误、日志脱敏；Mailgun US 与 EU 各一例），outbox 与限流用真实 PostgreSQL/Redis（原子性、无明文落库、加密与轮换、重试与退避、同令牌、多副本只发一次、复核取消、provider 固定、清理、数据库约束、日志无敏感信息）。**自动化不会连接真实厂商**，真实服务的验证步骤见[手动冒烟测试](usersrv/mail-smoke-test.md)；SPF/DKIM/DMARC 由运维在厂商与 DNS 侧配置。已知限制：SMTP 只实现 AUTH PLAIN/LOGIN；厂商 API 按公开文档实现，尚未对真实服务验证。
+
+## usersrv 账号流程（P3）
+
+规格见 [usersrv 规格](usersrv/spec.md)（§5.1–5.4、§10）。流程在 `internal/usersrv/account/flows.go` 与 `internal/usersrv/application/account.go`，仍然只有内部 gRPC：BFF 尚未调用，浏览器登录仍是 Logto，**不开放任何新注册或登录**。五个匿名方法同样要求有效 BFF 凭证；请求的客户端 IP 与请求 ID 只取自凭证。
+
+**注册验证**（先验证邮箱再设置密码，不自动登录）：
+
+- `RequestRegistration(email, app_id)`：邮箱语法错误或 `app_id` 不在 `auth.apps` 是 `INVALID_ARGUMENT`（字段名）；语法正确时**一律返回空成功**。只有该邮箱没有任何账号（含禁用、注销中）时，才在同一事务里写 `registration` 令牌与加密的 `mail_jobs`；已有账号的地址只写一行不带邮箱的 `ignored` 审计。邮箱维度限流（冷却、每小时上限、合计）只抑制不发信、仍返回成功；IP 与全服务限流返回 `RESOURCE_EXHAUSTED`；Redis 不可用返回 `UNAVAILABLE` 且不入队。不接受密码，不创建用户。重发不作废尚未过期的旧链接。
+- `CompleteRegistration(token, password, display_name)`：先校验密码与昵称策略（与令牌无关，失败不消费令牌），再读令牌，最后在一个事务里：按邮箱锁定该地址全部注册令牌（固定顺序，同邮箱完成串行）、确认本令牌存在且未消费未过期、地址仍无账号，创建已验证的 `active` 账号（新 UUID，`auth_version=1`），消费该地址的全部注册令牌并取消它们尚未发出的邮件，审计 `account.create` 同事务。令牌格式错误、不存在、用途不符（如重置令牌）、过期、已消费、邮箱已被注册或并发落败，**全部是同一个** `FAILED_PRECONDITION`/`TOKEN_INVALID`；邮箱唯一索引冲突同样按落败处理。验证成功不返回会话，也不返回任何数据。
+- `auth.registration_enabled: false` 时，请求与完成都返回 `FAILED_PRECONDITION`/`REGISTRATION_CLOSED`（对所有人相同），不影响登录与找回密码；重新开启后尚未过期的链接仍可用。
+
+**登录**（`AuthenticateWithEmail`）：只接受邮箱＋密码。邮箱格式错误是字段错误；未知邮箱（做等成本虚拟校验）、错误密码、禁用、注销中**都返回同一个** `UNAUTHENTICATED`/`INVALID_CREDENTIALS`（文案 `invalid credentials`）。先按规范邮箱（10 次/15 分钟）和客户端 IP（40 次/15 分钟）计数，每次尝试都计，不论邮箱是否存在，超限在做哈希之前就返回 `RESOURCE_EXHAUSTED`。成功返回用户 ID、基础资料、角色与 `auth_version`，供 BFF 建立会话；usersrv 自己不建立会话。对已存在账号的每次尝试写一行 `login` 审计（`ok`/`wrong_password`/`inactive`），不含邮箱与密码。
+
+**找回密码**：
+
+- `RequestPasswordReset(email, app_id)`：与注册申请同样“一律成功”；只有 `active` 账号才在同一事务里（先锁用户行）签发绑定该用户与当时 `auth_version` 的 `password_reset` 令牌与邮件任务。申请本身不改密码、不改版本、不撤销任何会话。
+- `ResetPassword(token, new_password)`：目标用户取自令牌，请求里没有用户 ID。事务里先锁账号再锁令牌（与注销、角色变更的加锁顺序一致，避免死锁），要求令牌未消费未过期、账号仍 `active` 且 `auth_version` 与签发时一致，然后写入新哈希、`auth_version`＋1、消费该账号全部重置令牌并取消其未发邮件，审计 `password.reset` 同事务。过期、已消费、用途错误、账号被禁用/注销、版本变化（改密、授予/撤销角色、禁用再启用等）一律是同一个 `TOKEN_INVALID`；并发提交（同一令牌或同账号的两个令牌）只有一个成功。成功后不自动登录；旧会话与管理令牌在下一次 `GetAuthState` 复核时因版本不符而失效。
+
+**限流**（§10，Redis 原子，Redis 不可用时返回 `UNAVAILABLE`）：令牌提交（注册完成与重置共用计数）每 IP 30 次/15 分钟、每令牌摘要 5 次/15 分钟，成功与失败都计，令牌只以 SHA-256 摘要进入计数 key（再经 HMAC），不论格式或是否存在；`rate_limit.token_submit_per_ip`、`token_submit_per_token` 可配。登录使用既有的 `password_per_account`（按规范邮箱）与 `password_per_ip`。邮件申请限流见[邮件模块](#usersrv-邮件模块p2)。
+
+**审计**：`account.create`、`password.reset`、`password.change`（既有）与状态/凭据变更同事务；`registration.request`、`password_reset.request` 记录 `issued`（重置带用户 ID）、`ignored`（无账号或非 active，无用户 ID）、`suppressed`；都不含邮箱、密码、令牌。
+
+**资料、改密、重新认证**沿用 P1 的 `UpdateMyProfile`（只改昵称与头像，`profile_version`＋1，不动 `auth_version`）、`ChangePassword`（要求当前密码，成功后 `auth_version`＋1，使包括当前设备在内的全部会话和管理令牌在下次复核失效，同时使已签发的重置令牌失效）与 `VerifyPassword`（重新认证，返回当时的 `auth_version`）。
+
+**测试**：`make test-integration-usersrv` 里 `internal/usersrv/app/flows_test.go` 在真实 gRPC 栈（PostgreSQL、Redis、outbox）上以本地假邮件接收器走完整闭环：注册申请→收信→从邮件读出令牌→验证并设置密码→登录→申请重置→收信→重置→旧密码失败、新密码成功；另覆盖统一应答与统一失败（已注册/禁用/注销中/未知地址）、令牌过期/用途错误/已消费/格式错误、攻击者预设密码、并发完成与并发重置（含同邮箱两个令牌）、令牌绑定的 `auth_version` 与账号状态、发送前复核、关闭注册、令牌只存摘要且无明文落库、审计内容、各限流与 Redis 故障时不放行。已知限制：没有浏览器入口（BFF 在 P4）；注册完成时按令牌限流 5 次，连续输入不合规密码会占用该令牌的额度。
 
 ## 生成、构建与验证
 

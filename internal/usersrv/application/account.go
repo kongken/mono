@@ -2,10 +2,13 @@ package application
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 
 	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/usersrv/account"
+	"github.com/kongken/mono/internal/usersrv/identity"
 	"github.com/kongken/mono/internal/usersrv/ratelimit"
 	usersrvv1 "github.com/kongken/mono/pkg/proto/usersrv/v1"
 	"google.golang.org/grpc/codes"
@@ -23,15 +26,19 @@ type Limits struct {
 	PasswordPerIP       ratelimit.Rule
 	ProfileWritePerUser ratelimit.Rule
 	DeletionPerUser     ratelimit.Rule
+	// TokenSubmitPerIP and TokenSubmitPerToken bound CompleteRegistration and
+	// ResetPassword; every submission counts, successful or not.
+	TokenSubmitPerIP    ratelimit.Rule
+	TokenSubmitPerToken ratelimit.Rule
 	// Mail are the limits of account mail requests, applied by the registration
-	// and reset methods of stage P3 through outbox.Guard.
+	// and reset request methods through outbox.Guard.
 	Mail ratelimit.MailRules
 }
 
-// AccountService implements usersrv.v1.AccountService. Stage P1 serves the
-// methods that need no mail: auth state, password check and change, profile and
-// deletion. The registration, login and reset methods are part of the contract
-// but stay UNIMPLEMENTED (the embedded server) until stage P3.
+// AccountService implements usersrv.v1.AccountService: registration with email
+// verification, sign-in, password reset, auth state, password check and change,
+// profile and deletion. Every method applies its rate limits before it does any
+// work, and a limiter failure refuses the request instead of letting it through.
 type AccountService struct {
 	usersrvv1.UnimplementedAccountServiceServer
 	accounts *account.Service
@@ -77,6 +84,95 @@ func (s *AccountService) allowPassword(ctx context.Context, id uuid.UUID) error 
 		return s.allow(ctx, s.limits.PasswordPerIP, ip)
 	}
 	return nil
+}
+
+// clientIP and requestID come from the verified BFF credential; the browser
+// cannot supply either.
+func callMeta(ctx context.Context) (clientIP, requestID string) {
+	call := rpcauth.CallFrom(ctx)
+	return call.ClientIP, call.RequestID
+}
+
+// allowIP counts one attempt against an IP rule when the BFF supplied the address.
+func (s *AccountService) allowIP(ctx context.Context, rule ratelimit.Rule, ip string) error {
+	if ip == "" {
+		return nil
+	}
+	return s.allow(ctx, rule, ip)
+}
+
+// allowToken counts one token submission against the client and the token. The
+// token enters the counter key only as its SHA-256 digest (the limiter HMACs it
+// again), whether or not it is well formed or exists.
+func (s *AccountService) allowToken(ctx context.Context, token string) error {
+	ip, _ := callMeta(ctx)
+	if err := s.allowIP(ctx, s.limits.TokenSubmitPerIP, ip); err != nil {
+		return err
+	}
+	digest := sha256.Sum256([]byte(token))
+	return s.allow(ctx, s.limits.TokenSubmitPerToken, hex.EncodeToString(digest[:]))
+}
+
+// RequestRegistration always answers the same for a well-formed address.
+func (s *AccountService) RequestRegistration(ctx context.Context, req *usersrvv1.RequestRegistrationRequest) (*usersrvv1.RequestRegistrationResponse, error) {
+	ip, requestID := callMeta(ctx)
+	if err := s.accounts.RequestRegistration(ctx, req.GetEmail(), req.GetAppId(), ip, requestID); err != nil {
+		return nil, toStatus("request_registration", err)
+	}
+	return &usersrvv1.RequestRegistrationResponse{}, nil
+}
+
+func (s *AccountService) CompleteRegistration(ctx context.Context, req *usersrvv1.CompleteRegistrationRequest) (*usersrvv1.CompleteRegistrationResponse, error) {
+	if err := s.allowToken(ctx, req.GetToken()); err != nil {
+		return nil, err
+	}
+	_, requestID := callMeta(ctx)
+	if _, err := s.accounts.CompleteRegistration(ctx, req.GetToken(), req.GetPassword(), req.GetDisplayName(), requestID); err != nil {
+		return nil, toStatus("complete_registration", err)
+	}
+	return &usersrvv1.CompleteRegistrationResponse{}, nil
+}
+
+// AuthenticateWithEmail counts the attempt per mailbox and per client address
+// (every attempt, known address or not) before it spends a password hash.
+func (s *AccountService) AuthenticateWithEmail(ctx context.Context, req *usersrvv1.AuthenticateWithEmailRequest) (*usersrvv1.AuthenticateWithEmailResponse, error) {
+	ip, requestID := callMeta(ctx)
+	canonical, err := identity.NormalizeEmail(req.GetEmail())
+	if err != nil {
+		return nil, toStatus("authenticate_with_email", err)
+	}
+	if err = s.allow(ctx, s.limits.PasswordPerAccount, "email", canonical); err != nil {
+		return nil, err
+	}
+	if err = s.allowIP(ctx, s.limits.PasswordPerIP, ip); err != nil {
+		return nil, err
+	}
+	id, st, err := s.accounts.Login(ctx, canonical, req.GetPassword(), requestID)
+	if err != nil {
+		return nil, toStatus("authenticate_with_email", err)
+	}
+	return &usersrvv1.AuthenticateWithEmailResponse{
+		UserId: id.String(), Profile: protoProfile(st.Profile), Roles: st.Roles, AuthVersion: st.AuthVersion,
+	}, nil
+}
+
+func (s *AccountService) RequestPasswordReset(ctx context.Context, req *usersrvv1.RequestPasswordResetRequest) (*usersrvv1.RequestPasswordResetResponse, error) {
+	ip, requestID := callMeta(ctx)
+	if err := s.accounts.RequestPasswordReset(ctx, req.GetEmail(), req.GetAppId(), ip, requestID); err != nil {
+		return nil, toStatus("request_password_reset", err)
+	}
+	return &usersrvv1.RequestPasswordResetResponse{}, nil
+}
+
+func (s *AccountService) ResetPassword(ctx context.Context, req *usersrvv1.ResetPasswordRequest) (*usersrvv1.ResetPasswordResponse, error) {
+	if err := s.allowToken(ctx, req.GetToken()); err != nil {
+		return nil, err
+	}
+	_, requestID := callMeta(ctx)
+	if err := s.accounts.ResetPassword(ctx, req.GetToken(), req.GetNewPassword(), requestID); err != nil {
+		return nil, toStatus("reset_password", err)
+	}
+	return &usersrvv1.ResetPasswordResponse{}, nil
 }
 
 func (s *AccountService) GetAuthState(ctx context.Context, _ *usersrvv1.GetAuthStateRequest) (*usersrvv1.GetAuthStateResponse, error) {

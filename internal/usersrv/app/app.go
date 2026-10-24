@@ -147,7 +147,8 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 		_ = client.Close()
 		return err
 	}
-	res, err := NewResources(client, hasher, cache, h.cfg.KeyPrefix, hmacKey, limitsOf(rules), db.PingContext, WithMail(mail))
+	res, err := NewResources(client, hasher, cache, h.cfg.KeyPrefix, hmacKey, limitsOf(rules), db.PingContext,
+		WithMail(mail), WithRegistrationOpen(h.cfg.Auth.RegistrationOpen()))
 	if err != nil {
 		_ = client.Close()
 		return err
@@ -167,6 +168,7 @@ func limitsOf(l config.Limits) application.Limits {
 	return application.Limits{
 		PasswordPerAccount: l.PasswordPerAccount, PasswordPerIP: l.PasswordPerIP,
 		ProfileWritePerUser: l.ProfileWritePerUser, DeletionPerUser: l.DeletionPerUser,
+		TokenSubmitPerIP: l.TokenSubmitPerIP, TokenSubmitPerToken: l.TokenSubmitPerToken,
 		Mail: l.Mail,
 	}
 }
@@ -205,7 +207,15 @@ func (h *Handlers) buildMail(db *ent.Client) (*outbox.Service, error) {
 // ResourceOption customises NewResources.
 type ResourceOption func(*resourceOptions)
 
-type resourceOptions struct{ mail *outbox.Service }
+type resourceOptions struct {
+	mail               *outbox.Service
+	registrationClosed bool
+}
+
+// WithRegistrationOpen sets auth.registration_enabled (default open).
+func WithRegistrationOpen(open bool) ResourceOption {
+	return func(o *resourceOptions) { o.registrationClosed = !open }
+}
 
 // WithMail adds the mail outbox, its worker and its readiness probe.
 func WithMail(m *outbox.Service) ResourceOption { return func(o *resourceOptions) { o.mail = m } }
@@ -223,6 +233,7 @@ func NewResources(db *ent.Client, hasher *passwordhash.Hasher, rdb redis.Univers
 		return nil, err
 	}
 	accounts := account.NewService(db, hasher)
+	accounts.SetRegistrationOpen(!o.registrationClosed)
 	janitor := worker.New("maintenance", maintenanceInterval, func(ctx context.Context) error {
 		_, err := accounts.PurgeExpired(ctx)
 		if o.mail != nil {
@@ -249,6 +260,7 @@ func NewResources(db *ent.Client, hasher *passwordhash.Hasher, rdb redis.Univers
 		})
 		probes = append(probes, health.Probe{Name: "mail_outbox", Check: sender.Check})
 		res.Mail, res.MailGuard = o.mail, guard
+		accounts.SetMail(AccountMail(o.mail, guard))
 		res.Workers = append(res.Workers, sender)
 	}
 	res.Health = health.New(probes...)

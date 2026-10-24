@@ -24,6 +24,8 @@ const (
 	ReasonRateLimited        = "RATE_LIMITED"
 	ReasonInvalidArgument    = "INVALID_ARGUMENT"
 	ReasonDeletionMismatch   = "DELETION_MISMATCH"
+	ReasonTokenInvalid       = "TOKEN_INVALID"
+	ReasonRegistrationClosed = "REGISTRATION_CLOSED"
 )
 
 func detailed(code codes.Code, message, reason string, metadata map[string]string) error {
@@ -67,6 +69,12 @@ func toStatus(op string, err error) error {
 		return detailed(codes.Aborted, "concurrent change, retry", ReasonVersionConflict, nil)
 	case errors.Is(err, account.ErrDeletionMismatch):
 		return detailed(codes.FailedPrecondition, "deletion belongs to another request", ReasonDeletionMismatch, nil)
+	case errors.Is(err, account.ErrTokenInvalid):
+		return detailed(codes.FailedPrecondition, "link is not usable", ReasonTokenInvalid, nil)
+	case errors.Is(err, account.ErrRegistrationClosed):
+		return detailed(codes.FailedPrecondition, "registration is closed", ReasonRegistrationClosed, nil)
+	case errors.Is(err, account.ErrRateLimited):
+		return errRateLimited()
 	case errors.Is(err, account.ErrEmailTaken):
 		return status.Error(codes.AlreadyExists, "email already registered")
 	case errors.Is(err, account.ErrUnavailable), errors.Is(err, ratelimit.ErrUnavailable),

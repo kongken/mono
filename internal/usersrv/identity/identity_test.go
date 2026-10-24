@@ -189,3 +189,19 @@ func TestMutationID(t *testing.T) {
 		}
 	}
 }
+
+func TestTokenDigestOnlyForIssuedShape(t *testing.T) {
+	tok := strings.Repeat("A", 43)
+	d, ok := TokenDigest(tok)
+	if !ok || len(d) != 32 {
+		t.Fatalf("%x %v", d, ok)
+	}
+	if d2, _ := TokenDigest(tok); string(d2) != string(d) {
+		t.Fatal("digest is not deterministic")
+	}
+	for _, bad := range []string{"", strings.Repeat("A", 42), strings.Repeat("A", 44), strings.Repeat("A", 42) + "=", strings.Repeat("A", 42) + "+", strings.Repeat("A", 42) + "\n", strings.Repeat("é", 43)} {
+		if _, ok := TokenDigest(bad); ok {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+}

@@ -41,9 +41,9 @@ internal_auth:
   # clock_skew: 10s
 
 auth:
-  # Set false to refuse new sign-ups (enforced from stage P3); login and reset are unaffected.
+  # Set false to refuse new sign-ups (requests and completions are refused); login and reset are unaffected.
   registration_enabled: true
-  # Mail links (stages P2/P3) are built only from these exact origins and fixed paths.
+  # Mail links are built only from these exact origins and fixed paths.
   # Both entries are required and must match the BFF's allowed origins.
   # http is accepted for loopback only, and only with allow_loopback_http.
   allow_loopback_http: true
@@ -124,6 +124,9 @@ rate_limit:
   password_per_ip: {limit: 40, window: 15m}
   profile_write_per_user: {limit: 30, window: 1m}
   deletion_per_user: {limit: 10, window: 15m}
+  # Registration completion and password reset submissions; errors and successes both count.
+  token_submit_per_ip: {limit: 30, window: 15m}
+  token_submit_per_token: {limit: 5, window: 15m}
   # Account mail requests. Over a per-address limit the request still gets the neutral
   # success answer and nothing is sent; over a per-client-address or service-wide limit it is
   # refused with RESOURCE_EXHAUSTED. Adjust mail_global to the vendor's real quota.

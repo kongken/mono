@@ -1,6 +1,6 @@
 # usersrv 自建用户系统规格
 
-> **状态：实现中（P1、P2 已实现，P3–P6 待实现）。** 当前主干的浏览器登录仍使用 Logto；`usersrv` 目前提供账号核心与邮件模块（见下方“实现状态登记”，邮件还没有对外入口，注册与找回流程在 P3），BFF 尚未调用它，**不开放任何新登录或注册**。实现期间不得把本文中尚未登记为已实现的目标能力写成已经上线。
+> **状态：实现中（P1–P3 已实现，P4–P6 待实现）。** 当前主干的浏览器登录仍使用 Logto；`usersrv` 目前提供账号核心、邮件模块与账号流程（见下方“实现状态登记”，仅内部 gRPC），BFF 尚未调用它，**不开放任何新登录或注册**。实现期间不得把本文中尚未登记为已实现的目标能力写成已经上线。
 >
 > 规格与评审：[GitHub Issue #75](https://github.com/kongken/mono/issues/75)。本文是实现规格的仓库副本，评审修改同步到该 Issue。具体安全参数、流程细节及交付拆分是本规格提出的工程默认值，不代表用户逐项确认；第 1 节单列已确认要求。实现后同步各产品的当前行为文档，并在本文逐阶段登记状态。
 
@@ -9,8 +9,8 @@
 | 阶段 | 状态 | 说明 |
 | --- | --- | --- |
 | P1 usersrv 骨架与账号核心 | **已实现** | 见下文“P1 已实现内容”；单元与集成测试通过，不开放新登录 | 已实现 |
-| P2 邮件模块 | **已实现** | 见下文“P2 已实现内容”；四 adapter 通过本地假 HTTP/SMTP 服务的契约测试，真实厂商只有[手动冒烟文档](mail-smoke-test.md)，尚未对真实服务验证；邮件还没有对外入口（P3 才会签发） | 已实现 |
-| P3 账号流程 | 待实现 | `RequestRegistration`、`CompleteRegistration`、`AuthenticateWithEmail`、`RequestPasswordReset`、`ResetPassword` 的契约已定稿，服务端返回 `UNIMPLEMENTED` | 待实现 |
+| P2 邮件模块 | **已实现** | 见下文“P2 已实现内容”；四 adapter 通过本地假 HTTP/SMTP 服务的契约测试，真实厂商只有[手动冒烟文档](mail-smoke-test.md)，尚未对真实服务验证；邮件由 P3 的注册/找回流程签发，仍只有内部 gRPC 入口 | 已实现 |
+| P3 账号流程 | **已实现** | 见下文“P3 已实现内容”；`RequestRegistration`、`CompleteRegistration`、`AuthenticateWithEmail`、`RequestPasswordReset`、`ResetPassword` 在 usersrv 内部 gRPC 上可用，真实 usersrv＋本地假邮件接收器的集成闭环通过；BFF 与前端尚未接入，不开放新登录 | 已实现 |
 | P4 BFF 与产品鉴权 | 待实现 | BFF 尚未登记或调用 usersrv；`bff.v1` 仍是 Logto 契约 | 待实现 |
 | P5 前端 | 待实现 | 两个前端应用仍使用 Logto 登录 |
 | P6 发布与彻底退役 | 待实现 | 镜像、CI 发布矩阵、`deploy/usersrv/` 与 Logto 退役均未做 | 待实现 |
@@ -41,6 +41,19 @@
 - 限流（Redis 原子，邮箱用独立 HMAC 摘要；Redis 不可用返回 `UNAVAILABLE`）：每客户端 IP、全服务、每邮箱 60 秒冷却、每邮箱每用途、每邮箱合计，默认值见 `config.usersrv.example.yaml`。超出邮箱维度只“抑制”（调用方仍给统一成功应答，不发信）；超出 IP/全服务维度返回 `RESOURCE_EXHAUSTED`。
 - 日志与指标：没有指标导出器，只有 `Service.Snapshot()` 计数和结构化日志（任务 ID、provider、模板、状态、错误类、次数、耗时、`alert`），不含邮箱、令牌、链接或密钥；告警事件为 `mail_vendor_auth_failed`、`mail_uncertain`、`mail_decrypt_failed`、`mail_key_missing`、`mail_backlog` 等。`/readyz` 增加 `mail_outbox`（worker 本地状态）。
 - 测试：四个 adapter 对本地 HTTP/SMTP 假服务做契约测试（Mailgun US/EU 各一例），outbox 与限流用真实 PostgreSQL/Redis。**没有、也不会在 CI 里连接真实厂商**；手动步骤见 [邮件厂商手动冒烟测试](mail-smoke-test.md)。
+
+### P3 已实现内容
+
+实现说明与命令见 [后端初始化](../backend.md#usersrv-账号流程p3)。对规格的补充（均不改变第 1 节与既定默认值）：
+
+- 五个匿名方法在 `usersrv.v1.AccountService` 上实现，仍要求有效的 BFF 凭证；客户端 IP 与请求 ID 只取自凭证。注册与重置令牌 URL-safe 编码的 32 字节随机数，只存 SHA-256 摘要，与 `mail_jobs` 同事务创建（P2 的 `outbox.Issue`），用途隔离；注册令牌默认 30 分钟，重置令牌 15 分钟并绑定用户与签发时的 `auth_version`。
+- 注册：申请（统一应答）→ 验证后设置密码与昵称（`CompleteRegistration`）。事务内按邮箱锁定该地址的全部注册令牌，使并发完成串行，创建账号后消费同邮箱全部注册令牌并取消其未发邮件；邮箱唯一索引冲突按落败处理。昵称为空时用默认“旅行者”。验证成功不建立会话。
+- 登录：`AuthenticateWithEmail` 对未知邮箱、错误密码、禁用、注销中返回同一错误（`INVALID_CREDENTIALS`），按邮箱与 IP 在哈希之前限流。登录不建立会话，BFF 在 P4 取得用户 ID、资料、角色与 `auth_version` 后建立。
+- 重置：申请（统一应答，只有 active 账号得到令牌）→ `ResetPassword` 事务内先锁账号再锁令牌，要求账号 active 且 `auth_version` 与签发时一致，写入新密码、版本＋1、消费该账号全部重置令牌；并发只有一份成功；成功不自动登录。
+- 所有失效链接（格式错误、不存在、用途错误、过期、已消费、账号状态或版本变化、邮箱已被注册、并发落败）统一为 `FAILED_PRECONDITION`/`TOKEN_INVALID`；注册开关关闭为 `REGISTRATION_CLOSED`。
+- 新增限流 `rate_limit.token_submit_per_ip`（30/15 分钟）与 `token_submit_per_token`（5/15 分钟，按令牌 SHA-256 摘要）。其余按 §10 全表：登录的邮箱/IP、邮件申请的 IP/邮箱/冷却/合计/全服务（P2）、资料写入、注销（P1）；Redis 不可用时一律 `UNAVAILABLE`。
+- `security_audit` 增加 `account.create`（P1 已有）、`password.reset`、`login`、`registration.request`、`password_reset.request` 动作；状态/凭据变更与审计同事务，仅记录用户 UUID，不含邮箱、密码、令牌。
+- 令牌提交限流按令牌计数，因此同一令牌连续提交不合规密码也会消耗额度（5 次/15 分钟）。
 
 ## 1. 已确认要求
 
@@ -357,7 +370,7 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 | --- | --- | --- | --- |
 | P1 usersrv 骨架与账号核心 | 独立库、配置、健康、契约、邮箱规范化、Argon2id、状态/版本、角色 CLI、import 检查 | 本规格评审；可单测/集成测试，不开放新登录 | 已实现 |
 | P2 邮件模块 | 四 adapter、统一模板、加密 outbox、lease、失败分类、限流、固定链接 | P1 存储；四种假服务契约测试通过 | 已实现 |
-| P3 账号流程 | 注册验证、邮箱密码认证、找回/改密、资料、重新认证、令牌并发 | P1/P2；真实 usersrv＋假邮件集成闭环 | 待实现 |
+| P3 账号流程 | 注册验证、邮箱密码认证、找回/改密、资料、重新认证、令牌并发 | P1/P2；真实 usersrv＋假邮件集成闭环 | 已实现 |
 | P4 BFF 与产品鉴权 | 新浏览器契约、会话版本复核、MCP 版本/角色复核、tripmap 投影/好友入口、注销工作流 | P3；真实 BFF→usersrv→两产品 E2E 通过 | 待实现 |
 | P5 前端 | 两应用表单、邮件落地页、设备/资料/改密/注销、错误/离线保护、共用包 | P4 契约；桌面/手机 Playwright 和真实账号链 | 待实现 |
 | P6 发布与彻底退役 | 镜像、配置、CI、Secret/手动清理文档、删除全部运行时 Logto 入口及测试依赖 | P1–P5；禁旧认证、文档同步、隔离环境演练 | 待实现 |

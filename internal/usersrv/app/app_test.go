@@ -18,6 +18,8 @@ import (
 	"github.com/kongken/mono/internal/usersrv/app"
 	"github.com/kongken/mono/internal/usersrv/application"
 	"github.com/kongken/mono/internal/usersrv/config"
+	"github.com/kongken/mono/internal/usersrv/ent"
+	"github.com/kongken/mono/internal/usersrv/outbox"
 	"github.com/kongken/mono/internal/usersrv/ratelimit"
 	"github.com/kongken/mono/internal/usersrv/testutil"
 	usersrvv1 "github.com/kongken/mono/pkg/proto/usersrv/v1"
@@ -36,6 +38,8 @@ const password = "correct horse battery"
 // PostgreSQL and Redis) with a client that signs credentials like the BFF.
 type stack struct {
 	h        *app.Handlers
+	db       *ent.Client
+	res      *app.Resources
 	accounts *account.Service
 	keys     testkit.Keys
 	conn     *grpc.ClientConn
@@ -52,10 +56,28 @@ func limits() application.Limits {
 		PasswordPerIP:       ratelimit.Rule{Name: "password_per_ip", Limit: 40, Window: 15 * time.Minute},
 		ProfileWritePerUser: ratelimit.Rule{Name: "profile_write_per_user", Limit: 30, Window: time.Minute},
 		DeletionPerUser:     ratelimit.Rule{Name: "deletion_per_user", Limit: 10, Window: 15 * time.Minute},
+		TokenSubmitPerIP:    ratelimit.Rule{Name: "token_submit_per_ip", Limit: 30, Window: 15 * time.Minute},
+		TokenSubmitPerToken: ratelimit.Rule{Name: "token_submit_per_token", Limit: 5, Window: 15 * time.Minute},
+		Mail: ratelimit.MailRules{
+			RegistrationPerIP:         ratelimit.Rule{Name: "registration_mail_per_ip", Limit: 20, Window: time.Hour},
+			ResetPerIP:                ratelimit.Rule{Name: "reset_mail_per_ip", Limit: 20, Window: time.Hour},
+			RegistrationEmailCooldown: ratelimit.Rule{Name: "registration_mail_cooldown", Limit: 1, Window: time.Minute},
+			RegistrationPerEmail:      ratelimit.Rule{Name: "registration_mail_per_email", Limit: 5, Window: time.Hour},
+			ResetEmailCooldown:        ratelimit.Rule{Name: "reset_mail_cooldown", Limit: 1, Window: time.Minute},
+			ResetPerEmail:             ratelimit.Rule{Name: "reset_mail_per_email", Limit: 5, Window: time.Hour},
+			MailPerEmail:              ratelimit.Rule{Name: "mail_per_email", Limit: 8, Window: time.Hour},
+			MailGlobal:                ratelimit.Rule{Name: "mail_global", Limit: 200, Window: time.Hour},
+		},
 	}
 }
 
 func start(t *testing.T) *stack {
+	t.Helper()
+	return startWith(t, limits(), nil)
+}
+
+// startWith is start with explicit limits and an optional mail outbox.
+func startWith(t *testing.T, lim application.Limits, mail func(*ent.Client) *outbox.Service) *stack {
 	t.Helper()
 	db := testutil.DB(t)
 	rdb, prefix := testutil.Redis(t)
@@ -66,7 +88,12 @@ func start(t *testing.T) *stack {
 			TrustedKeys: []servicetoken.TrustedKey{{KID: "k1", PublicKeyFile: keys.PublicFile}}},
 	}
 	h := app.New(cfg)
-	res, err := app.NewResources(db, testutil.Hasher(t), rdb, prefix, []byte(strings.Repeat("h", 32)), limits(), func(ctx context.Context) error { _, err := db.User.Query().Exist(ctx); return err })
+	var opts []app.ResourceOption
+	if mail != nil {
+		opts = append(opts, app.WithMail(mail(db)))
+	}
+	res, err := app.NewResources(db, testutil.Hasher(t), rdb, prefix, []byte(strings.Repeat("h", 32)), lim,
+		func(ctx context.Context) error { _, err := db.User.Query().Exist(ctx); return err }, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +117,7 @@ func start(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
-	return &stack{h: h, accounts: res.Accounts, keys: keys, conn: conn, signer: signer, rdb: rdb, prefix: prefix,
+	return &stack{h: h, db: db, res: res, accounts: res.Accounts, keys: keys, conn: conn, signer: signer, rdb: rdb, prefix: prefix,
 		account: usersrvv1.NewAccountServiceClient(conn), system: usersrvv1.NewSystemServiceClient(conn)}
 }
 
@@ -187,34 +214,6 @@ func TestAnonymousCredentialsOpenOnlyAnonymousMethods(t *testing.T) {
 	} {
 		if err := call(); status.Code(err) != codes.Unauthenticated || reason(t, err) != "" {
 			t.Errorf("%s with an anonymous credential: %v", name, err)
-		}
-	}
-	// The anonymous account methods exist in the contract and pass the interceptor,
-	// but their business logic belongs to stage P3: they must not do anything yet.
-	for name, call := range map[string]func() error{
-		"RequestRegistration": func() error {
-			_, err := s.account.RequestRegistration(anon, &usersrvv1.RequestRegistrationRequest{Email: "a@example.com", AppId: "trip-map"})
-			return err
-		},
-		"CompleteRegistration": func() error {
-			_, err := s.account.CompleteRegistration(anon, &usersrvv1.CompleteRegistrationRequest{Token: "t", Password: password})
-			return err
-		},
-		"AuthenticateWithEmail": func() error {
-			_, err := s.account.AuthenticateWithEmail(anon, &usersrvv1.AuthenticateWithEmailRequest{Email: "a@example.com", Password: password})
-			return err
-		},
-		"RequestPasswordReset": func() error {
-			_, err := s.account.RequestPasswordReset(anon, &usersrvv1.RequestPasswordResetRequest{Email: "a@example.com", AppId: "metro"})
-			return err
-		},
-		"ResetPassword": func() error {
-			_, err := s.account.ResetPassword(anon, &usersrvv1.ResetPasswordRequest{Token: "t", NewPassword: password})
-			return err
-		},
-	} {
-		if err := call(); status.Code(err) != codes.Unimplemented {
-			t.Errorf("%s: %v", name, err)
 		}
 	}
 	for _, m := range []string{"RequestRegistration", "CompleteRegistration", "AuthenticateWithEmail", "RequestPasswordReset", "ResetPassword"} {

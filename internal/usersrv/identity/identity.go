@@ -4,9 +4,11 @@
 package identity
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -251,4 +253,20 @@ func NormalizeMutationID(id string) (string, error) {
 		}
 	}
 	return id, nil
+}
+
+// tokenPattern is the URL-safe base64 of 32 random bytes without padding: the
+// only shape of token usersrv issues.
+var tokenPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
+
+// TokenDigest returns the SHA-256 digest under which a registration or reset
+// token is stored, or false when the string cannot be a token we issued (wrong
+// length or alphabet), so such input never reaches the database. Issuing (the
+// outbox) and consuming (the account flows) share this one function.
+func TokenDigest(token string) ([]byte, bool) {
+	if !tokenPattern.MatchString(token) {
+		return nil, false
+	}
+	d := sha256.Sum256([]byte(token))
+	return d[:], true
 }

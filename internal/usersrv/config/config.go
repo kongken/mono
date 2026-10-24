@@ -55,9 +55,10 @@ type MailConfig struct {
 // AuthConfig groups the account rules.
 type AuthConfig struct {
 	// RegistrationEnabled defaults to true; set it to false to refuse new sign-ups
-	// (stage P3 enforces it). It never affects login or password reset.
+	// (registration requests and completions are then refused). It never affects
+	// login or password reset.
 	RegistrationEnabled *bool `yaml:"registration_enabled"`
-	// Apps maps an app ID to its link origin. Mail links (stage P2/P3) are built
+	// Apps maps an app ID to its link origin. Mail links are built
 	// only from these origins and fixed paths. Both trip-map and metro are required
 	// and must match the BFF's allowed origins.
 	Apps map[string]AppOrigin `yaml:"apps"`
@@ -99,7 +100,7 @@ type LimitConfig struct {
 }
 
 // RateLimitConfig lists the limits usersrv enforces. Counters live in Redis and
-// fail closed. The token-submission limits arrive with stage P3.
+// fail closed.
 type RateLimitConfig struct {
 	// PasswordPerAccount and PasswordPerIP bound password verification (re-auth,
 	// change password): success counts too. Defaults 10 and 40 per 15 minutes.
@@ -109,6 +110,12 @@ type RateLimitConfig struct {
 	ProfileWritePerUser LimitConfig `yaml:"profile_write_per_user"`
 	// DeletionPerUser bounds BeginDeletion/FinishDeletion; default 10 per 15 minutes.
 	DeletionPerUser LimitConfig `yaml:"deletion_per_user"`
+
+	// TokenSubmitPerIP and TokenSubmitPerToken bound registration completion and
+	// password reset submissions; errors and successes both count. Defaults 30 per
+	// IP and 5 per token digest, each per 15 minutes.
+	TokenSubmitPerIP    LimitConfig `yaml:"token_submit_per_ip"`
+	TokenSubmitPerToken LimitConfig `yaml:"token_submit_per_token"`
 
 	// Account mail requests (spec section 10). Per client address 20/hour for
 	// each of registration and reset; per mailbox a cooldown (1 per 60s) and 5 per
@@ -299,6 +306,8 @@ func (r *RateLimitConfig) validate() error {
 		{"password_per_ip", &r.PasswordPerIP, 40, "15m"},
 		{"profile_write_per_user", &r.ProfileWritePerUser, 30, "1m"},
 		{"deletion_per_user", &r.DeletionPerUser, 10, "15m"},
+		{"token_submit_per_ip", &r.TokenSubmitPerIP, 30, "15m"},
+		{"token_submit_per_token", &r.TokenSubmitPerToken, 5, "15m"},
 		{"registration_mail_per_ip", &r.RegistrationMailPerIP, 20, "1h"},
 		{"reset_mail_per_ip", &r.ResetMailPerIP, 20, "1h"},
 		{"registration_mail_cooldown", &r.RegistrationMailCooldown, 1, "60s"},
@@ -346,6 +355,8 @@ func (r RateLimitConfig) Limits() (Limits, error) {
 		{&out.PasswordPerIP, "password_per_ip", r.PasswordPerIP},
 		{&out.ProfileWritePerUser, "profile_write_per_user", r.ProfileWritePerUser},
 		{&out.DeletionPerUser, "deletion_per_user", r.DeletionPerUser},
+		{&out.TokenSubmitPerIP, "token_submit_per_ip", r.TokenSubmitPerIP},
+		{&out.TokenSubmitPerToken, "token_submit_per_token", r.TokenSubmitPerToken},
 		{&out.Mail.RegistrationPerIP, "registration_mail_per_ip", r.RegistrationMailPerIP},
 		{&out.Mail.ResetPerIP, "reset_mail_per_ip", r.ResetMailPerIP},
 		{&out.Mail.RegistrationEmailCooldown, "registration_mail_cooldown", r.RegistrationMailCooldown},
@@ -365,6 +376,8 @@ func (r RateLimitConfig) Limits() (Limits, error) {
 // Limits are the resolved rules.
 type Limits struct {
 	PasswordPerAccount, PasswordPerIP, ProfileWritePerUser, DeletionPerUser ratelimit.Rule
+	// TokenSubmitPerIP and TokenSubmitPerToken bound token submissions.
+	TokenSubmitPerIP, TokenSubmitPerToken ratelimit.Rule
 	// Mail are the limits of account mail requests.
 	Mail ratelimit.MailRules
 }
