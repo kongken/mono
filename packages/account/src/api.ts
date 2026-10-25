@@ -1,4 +1,4 @@
-import { createClient, type Transport } from "@connectrpc/connect";
+import { Code, ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import {
   AccountDeletionState,
@@ -79,6 +79,12 @@ export function toAccountUser(u: User | undefined): AccountUser {
 
 /** The BFF compares this header with the Cookie's account in the same request; it never selects an account. */
 const expectedHeaders = (userId?: string) => (userId ? { headers: { "X-Kongken-User": userId } } : undefined);
+
+/** The BFF's answer that a deletion has not begun because the recovery Cookie was not yet sent back. */
+const isRecoveryCookiePending = (error: unknown) => {
+  const e = ConnectError.from(error);
+  return e.code === Code.FailedPrecondition && e.rawMessage.startsWith("account deletion recovery cookie");
+};
 
 function toDeletion(d: AccountDeletion | undefined): DeletionStatus {
   return {
@@ -172,8 +178,17 @@ export function createAccountApi({ transport, appId, ensureCsrf }: AccountApiOpt
     },
 
     /** Starts (or, with the same mutation ID, continues) closing the shared account. Needs a password check within 15 minutes. */
-    deleteAccount: async (mutationId: string, expectedUserId?: string) =>
-      toDeletion((await write(() => auth.deleteAccount({ confirmation: "DELETE", mutationId }, expectedHeaders(expectedUserId)))).deletion),
+    deleteAccount: async (mutationId: string, expectedUserId?: string) => {
+      const call = () => write(() => auth.deleteAccount({ confirmation: "DELETE", mutationId }, expectedHeaders(expectedUserId)));
+      try {
+        return toDeletion((await call()).deletion);
+      } catch (error) {
+        // Before it begins the BFF has the browser store the recovery Cookie. Its first answer to a new
+        // deletion only sets it; repeating the same call (once) is how the BFF learns the browser has it.
+        if (!isRecoveryCookiePending(error)) throw error;
+        return toDeletion((await call()).deletion);
+      }
+    },
     getDeletion: async () => toDeletion((await auth.getAccountDeletion({})).deletion),
     retryDeletion: async () => toDeletion((await write(() => auth.retryAccountDeletion({}))).deletion),
   };

@@ -33,6 +33,20 @@ export async function signIn(page: Page, subject: string) {
 }
 
 export const sid = async (context: BrowserContext) => (await context.cookies()).find((c) => c.name === "kongken_sid");
+/** The dedicated, HttpOnly Cookie that only shows and continues an unfinished account deletion. */
+export const recovery = async (context: BrowserContext) => (await context.cookies()).find((c) => c.name === "kongken_del");
+
+/** The recovery Cookie is host-only on the API host, HttpOnly, Secure and SameSite=Lax, and no page can read it. */
+export async function expectRecoveryAttributes(context: BrowserContext, page: Page) {
+  const cookie = await recovery(context);
+  expect(cookie, "recovery cookie present").toBeTruthy();
+  expect(cookie).toMatchObject({ httpOnly: true, secure: true, sameSite: "Lax", path: "/" });
+  expect(cookie!.domain, "host-only: no root-domain Domain attribute").toBe(new URL(stack.api).hostname);
+  // Not in anything a page can reach: its own storage and document.cookie.
+  const reachable = await page.evaluate(() => JSON.stringify([document.cookie, { ...localStorage }, { ...sessionStorage }]));
+  expect(reachable).not.toContain(cookie!.value);
+  return cookie!;
+}
 export const form = (page: Page) => page.getByTestId("close-form");
 export const kind = (testInfo: { project: { name: string } }) => testInfo.project.name;
 

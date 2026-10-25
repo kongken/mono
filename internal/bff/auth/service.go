@@ -343,8 +343,9 @@ var ErrReauthRequired = connect.NewError(connect.CodeFailedPrecondition, errors.
 
 var errUnauth = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
 
-// errDeletionPendingHere refuses a sign-in from a browser whose Cookie holds an unfinished
-// account deletion; the web clients match this text to explain what to do.
+// errDeletionPendingHere refuses to begin another deletion in a browser whose recovery Cookie
+// opens an unfinished one (replacing the Cookie would lose that deletion's only credential); the
+// web clients match this text to explain what to do.
 var errDeletionPendingHere = connect.NewError(connect.CodeFailedPrecondition, errors.New("an account deletion started in this browser has not finished"))
 
 func internal(err error) error {

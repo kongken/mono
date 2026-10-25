@@ -137,7 +137,7 @@ test.describe("beginning", () => {
 });
 
 test.describe("the Cookie of an unfinished deletion", () => {
-  test("another account cannot sign in over it: the refusal says what to do, and the deletion is still there", async ({ page }) => {
+  test("another account can sign in and out meanwhile; the page shows the unfinished deletion first and finishes it without touching the other account", async ({ page }) => {
     const { accounts } = await setup(page);
     accounts.addAccount({ email: "other-user@example.com", password: PASSWORD, displayName: "另一个人" });
     accounts.state.deletionFailures = 1;
@@ -150,19 +150,42 @@ test.describe("the Cookie of an unfinished deletion", () => {
     await panel.getByLabel("邮箱").fill("other-user@example.com");
     await panel.getByLabel("密码", { exact: true }).fill(PASSWORD);
     await panel.getByRole("button", { name: "登录", exact: true }).click();
-    await expect(panel.getByRole("alert")).toContainText("尚未完成的账号注销");
-    await expect(panel.getByRole("alert")).toContainText("换一个浏览器");
-    await expect(page).toHaveURL(/\/login$/);
-    expect(accounts.state.current).toBeNull();
+    await expect(page).not.toHaveURL(/\/login$/);
+    expect(accounts.state.current?.email).toBe("other-user@example.com");
 
-    // The progress page still shows, refreshes and finishes it.
+    // The close page says whose deletion this is, and the other account stays signed in.
     await page.goto("/close-account");
     await expect(page.getByTestId("close-progress")).toBeVisible();
+    await expect(page.getByTestId("close-other-account")).toContainText("另一个账号");
+    await expect(page.getByTestId("close-other-account")).toContainText("另一个人");
+    await expect(page.getByTestId("close-form")).toHaveCount(0);
     await page.getByRole("button", { name: "刷新进度" }).click();
     await expect(page.getByTestId("close-product-metro")).toHaveAttribute("data-state", "pending");
     await page.getByRole("button", { name: "重试注销" }).click();
-    await expect(page.getByTestId("close-done")).toBeVisible();
+    // Finished: back to the form of the signed-in account, which was not closed.
+    await expect(page.getByTestId("close-form")).toBeVisible();
+    await expect(page.getByTestId("close-done")).toHaveCount(0);
     expect(accounts.state.accounts.map((a) => a.email)).toEqual(["other-user@example.com"]);
+    expect(accounts.state.current?.email).toBe("other-user@example.com");
+  });
+
+  test("a start answered \"recovery Cookie not stored yet\" is repeated once and then goes through", async ({ page }) => {
+    const { accounts } = await setup(page);
+    accounts.state.recoveryCookieRepeats = 1;
+    await page.goto("/close-account");
+    await confirm(page);
+    await expect(page.getByTestId("close-done")).toBeVisible();
+    expect(accounts.state.calls.filter((c) => c === "DeleteAccount")).toHaveLength(2);
+  });
+
+  test("a browser that keeps refusing the recovery Cookie is told nothing began and the account is untouched", async ({ page }) => {
+    const { accounts } = await setup(page);
+    accounts.state.recoveryCookieRepeats = 2;
+    await page.goto("/close-account");
+    await confirm(page);
+    await expect(page.getByTestId("close-form").getByRole("alert")).toContainText("没有开始注销");
+    expect(accounts.state.deletion).toBeNull();
+    expect(accounts.state.accounts).toHaveLength(1);
   });
 
   test("the form names the account it will close, and a Cookie that became another account's is refused, not closed", async ({ page }) => {
@@ -255,8 +278,9 @@ test.describe("recovery", () => {
     const { accounts } = await setup(page);
     accounts.state.deletionFailures = 1;
     accounts.loseNextResponse("DeleteAccount");
-    accounts.failNext("GetAccountDeletion", FAILURES.unavailable);
     await page.goto("/close-account");
+    await expect(form(page)).toBeVisible(); // the look for another deletion on opening has been answered
+    accounts.failNext("GetAccountDeletion", FAILURES.unavailable);
     await confirm(page);
     // Nothing is known: the page says the account may be closed and lists no products.
     await expect(page.getByTestId("close-progress")).toContainText("账号可能已经关闭");
@@ -283,8 +307,9 @@ test.describe("recovery", () => {
   test("a lost success response and an unreadable progress: replaying the same key returns the receipt", async ({ page }) => {
     const { accounts } = await setup(page);
     accounts.loseNextResponse("DeleteAccount");
-    accounts.failNext("GetAccountDeletion", FAILURES.unavailable);
     await page.goto("/close-account");
+    await expect(form(page)).toBeVisible(); // the look for another deletion on opening has been answered
+    accounts.failNext("GetAccountDeletion", FAILURES.unavailable);
     await confirm(page);
     await expect(page.getByTestId("close-progress")).toBeVisible();
     await page.getByRole("button", { name: "重试注销" }).click();

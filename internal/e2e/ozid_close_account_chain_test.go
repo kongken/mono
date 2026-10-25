@@ -130,7 +130,7 @@ func TestChainCloseAccountRestartAndConfigChangeNeverSkipAProduct(t *testing.T) 
 	if wf := s.workflowOf(ctx, aID); wf.Stage != schema.DeletionStageCleanup || !slices.Equal(wf.Products, []string{"tripmap", "metro"}) || !slices.Equal(wf.Completed, []string{"tripmap"}) {
 		t.Fatalf("workflow after the failing product: %+v", wf)
 	}
-	aToken := a.SessionCookie()
+	aToken := a.RecoveryCookie()
 
 	// The process restarts with metro gone from the configuration (not deployed any more).
 	s.dueNow(ctx)
@@ -156,8 +156,8 @@ func TestChainCloseAccountRestartAndConfigChangeNeverSkipAProduct(t *testing.T) 
 	if d, err := a.GetAccountDeletion(ctx); err != nil || d.GetState() != bffv1.AccountDeletionState_ACCOUNT_DELETION_STATE_PENDING || len(d.GetProducts()) != 2 || len(d.GetCompletedProducts()) != 1 {
 		t.Fatalf("pending deletion read: %v %v", d, err)
 	}
-	if a.SessionCookie() != aToken {
-		t.Fatal("the Cookie changed while the deletion was held")
+	if a.RecoveryCookie() != aToken || aToken == "" {
+		t.Fatal("the recovery Cookie changed while the deletion was held")
 	}
 
 	// A restart with the full configuration and a healthy product finishes it, from the persisted state alone.
@@ -185,9 +185,10 @@ func TestChainCloseAccountRestartAndConfigChangeNeverSkipAProduct(t *testing.T) 
 	}
 }
 
-// While a deletion is unfinished the Cookie is its only credential: nothing the browser or a page
-// can call clears it except the finished deletion; the workflow ID opens nothing.
-func TestChainCloseAccountKeepsTheCookieWhilePending(t *testing.T) {
+// While a deletion is unfinished the recovery Cookie is its only credential: nothing the browser or a
+// page can call clears it except the finished deletion; the workflow ID opens nothing. The session
+// Cookie is a different credential and signing out clears it as usual.
+func TestChainCloseAccountKeepsTheRecoveryCookieWhilePending(t *testing.T) {
 	s := newCloseAccountStack(t)
 	ctx := context.Background()
 	a, aID, aKey := s.account("keep_a")
@@ -197,19 +198,21 @@ func TestChainCloseAccountKeepsTheCookieWhilePending(t *testing.T) {
 	if err := a.DeleteAccount(ctx, req, aID); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("deletion: %v", err)
 	}
-	token := a.SessionCookie()
+	token := a.RecoveryCookie()
 	if token == "" {
-		t.Fatal("no Cookie after the deletion began")
+		t.Fatal("no recovery Cookie after the deletion began")
 	}
-	// Every way a page could "sign out" leaves it alone.
+	if a.SessionCookie() != "" {
+		t.Fatal("the revoked session Cookie of the closed account must be removed once the deletion is past its begin step")
+	}
 	if err := a.Logout(ctx); err != nil {
 		t.Fatalf("logout of a closed account must be harmless: %v", err)
 	}
 	if _, err := a.Me(ctx); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("me: %v", err)
 	}
-	if a.SessionCookie() != token {
-		t.Fatal("signing out or reading the account cleared the Cookie of an unfinished deletion")
+	if a.RecoveryCookie() != token {
+		t.Fatal("signing out or reading the account cleared the recovery Cookie of an unfinished deletion")
 	}
 	// It still shows and continues the deletion.
 	if d, err := a.GetAccountDeletion(ctx); err != nil || d.GetState() != bffv1.AccountDeletionState_ACCOUNT_DELETION_STATE_PENDING {
@@ -218,16 +221,23 @@ func TestChainCloseAccountKeepsTheCookieWhilePending(t *testing.T) {
 	if _, err := a.RetryAccountDeletion(ctx); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatalf("retry while metro is down: %v", err)
 	}
-	if a.SessionCookie() != token {
-		t.Fatal("a failed retry cleared the Cookie")
+	if a.RecoveryCookie() != token {
+		t.Fatal("a failed retry cleared the recovery Cookie")
+	}
+	// The workflow ID is not a credential, as session or recovery Cookie alike.
+	wfID := s.BFFDB.AccountDeletion.Query().Where(accountdeletion.UserID(aID)).OnlyX(ctx).ID
+	stranger := s.FreshBrowser()
+	stranger.SetRecoveryCookie(wfID)
+	if _, err := stranger.GetAccountDeletion(ctx); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("the workflow ID opened a deletion: %v", err)
 	}
 	s.failMetro.Store(false)
 	d, err := a.RetryAccountDeletion(ctx)
 	if err != nil || d.GetState() != bffv1.AccountDeletionState_ACCOUNT_DELETION_STATE_COMPLETED {
 		t.Fatalf("final retry: %v %v", d, err)
 	}
-	if a.SessionCookie() != "" {
-		t.Fatal("the finished deletion did not clear the Cookie")
+	if a.RecoveryCookie() != "" {
+		t.Fatal("the finished deletion did not clear the recovery Cookie")
 	}
 	if s.hasObject(aKey) {
 		t.Fatal("media survived the deletion")
@@ -271,11 +281,16 @@ func (s *closeAccountStack) control(seeds map[string]closeAccountSeed) http.Hand
 		s.failMetro.Store(r.URL.Query().Get("on") == "1")
 		w.WriteHeader(http.StatusNoContent)
 	})
-	// The background runner's pass, for a scenario that must show a deletion finishing while no
-	// browser holds its Cookie any more.
+	// The background runner's pass, for a scenario that must show a deletion finishing while the
+	// browser is not looking. With restart=1 the pass is a freshly started BFF's: no memory of the
+	// one that began the deletion, only the persisted state.
 	mux.HandleFunc("/run-deletions", func(w http.ResponseWriter, r *http.Request) {
 		s.dueNow(r.Context())
-		n, err := s.BFF.RunDeletionsOnce(r.Context())
+		runner := s.BFF
+		if r.URL.Query().Get("restart") == "1" {
+			runner = s.RestartBFF(nil)
+		}
+		n, err := runner.RunDeletionsOnce(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

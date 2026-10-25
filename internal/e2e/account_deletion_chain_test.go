@@ -2,6 +2,10 @@ package e2e_test
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +13,7 @@ import (
 	"github.com/kongken/mono/internal/bff/ent/accountdeletion"
 	"github.com/kongken/mono/internal/bff/ent/schema"
 	bffsession "github.com/kongken/mono/internal/bff/ent/session"
+	"github.com/kongken/mono/internal/bff/session"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -331,7 +336,18 @@ func TestChainDeletionReceiptExpires(t *testing.T) {
 	}
 }
 
+// DeleteAccount calls DeleteAccount as the shared client library does: when the BFF answers that
+// it has just handed out the recovery Cookie, the same call is repeated once, with the Cookie.
 func (b *Browser) DeleteAccount(ctx context.Context, msg *bffv1.DeleteAccountRequest, expected ...string) error {
+	err := b.DeleteAccountOnce(ctx, msg, expected...)
+	if isRecoveryNotStored(err) {
+		err = b.DeleteAccountOnce(ctx, msg, expected...)
+	}
+	return err
+}
+
+// DeleteAccountOnce is a single DeleteAccount call, with no repeat.
+func (b *Browser) DeleteAccountOnce(ctx context.Context, msg *bffv1.DeleteAccountRequest, expected ...string) error {
 	csrf := b.refreshCSRF(ctx)
 	req := connect.NewRequest(msg)
 	b.writeHeaders(req, csrf, b.Origin)
@@ -340,4 +356,36 @@ func (b *Browser) DeleteAccount(ctx context.Context, msg *bffv1.DeleteAccountReq
 	}
 	_, err := b.Auth.DeleteAccount(ctx, req)
 	return err
+}
+
+func isRecoveryNotStored(err error) bool {
+	var ce *connect.Error
+	return errors.As(err, &ce) && ce.Code() == connect.CodeFailedPrecondition && strings.Contains(ce.Message(), "recovery cookie")
+}
+
+// RecoveryCookie is the deletion recovery credential in the jar, or "".
+func (b *Browser) RecoveryCookie() string {
+	u, err := url.Parse(b.Origin)
+	if err != nil {
+		return ""
+	}
+	for _, c := range b.HTTP.Jar.Cookies(u) {
+		if c.Name == session.RecoveryCookieName {
+			return c.Value
+		}
+	}
+	return ""
+}
+
+// SetRecoveryCookie puts a recovery credential into the jar.
+func (b *Browser) SetRecoveryCookie(token string) {
+	u, _ := url.Parse(b.Origin)
+	b.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: session.RecoveryCookieName, Value: token, Path: "/"}})
+}
+
+// DropRecoveryCookie removes the recovery Cookie from the jar, as a browser that refuses it
+// (or lost the response that carried it) would never have stored it.
+func (b *Browser) DropRecoveryCookie() {
+	u, _ := url.Parse(b.Origin)
+	b.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: session.RecoveryCookieName, Value: "", Path: "/", MaxAge: -1}})
 }

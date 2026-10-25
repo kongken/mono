@@ -59,11 +59,14 @@ test("management refusals keep their meaning: lost session, old password check, 
   assert.equal(classifyAccountError(err(Code.ResourceExhausted, "too many requests, try again later")).kind, "rate_limited");
 });
 
-test("a sign-in refused because of an unfinished deletion in this browser says what to do", () => {
-  const f = classifyAccountError(err(Code.FailedPrecondition, "an account deletion started in this browser has not finished"), "login");
+test("another deletion refused because of an unfinished one says it is a different deletion; a missing recovery Cookie says nothing began", () => {
+  const f = classifyAccountError(err(Code.FailedPrecondition, "an account deletion started in this browser has not finished"), "delete");
   assert.equal(f.kind, "deletion_pending_here");
-  assert.match(f.message, /注销账号/);
-  assert.match(f.message, /换一个浏览器/);
+  assert.match(f.message, /尚未完成的账号注销/);
+  assert.match(f.message, /另一次/);
+  const c = classifyAccountError(err(Code.FailedPrecondition, "account deletion recovery cookie is not stored yet; repeat the request"), "delete");
+  assert.equal(c.kind, "recovery_cookie_blocked");
+  assert.match(c.message, /没有开始注销/);
 });
 
 test("a platform administrator is told why the web cannot close the account, and it is not a lost answer", () => {

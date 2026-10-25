@@ -2,8 +2,10 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"net/http"
+	"slices"
 	"time"
 
 	"connectrpc.com/connect"
@@ -103,23 +105,11 @@ func (h *Handler) CompleteRegistration(ctx context.Context, req *connect.Request
 }
 
 func (h *Handler) LoginWithEmail(ctx context.Context, req *connect.Request[bffv1.LoginWithEmailRequest]) (*connect.Response[bffv1.LoginWithEmailResponse], error) {
-	// The Cookie of an unfinished deletion is the only way to see and continue it, and a sign-in
-	// sets the Cookie. So a browser that holds one cannot sign in until that deletion is done;
-	// the answer does not depend on the address or the password.
-	cookie := session.TokenFromRequest(req.Header())
-	if h.svc.DeletionPending(ctx, cookie) {
-		return nil, errDeletionPendingHere
-	}
+	// A sign-in neither reads nor writes the deletion recovery Cookie: an unfinished deletion of
+	// another account in this browser is untouched by it.
 	msg, token, err := h.svc.Login(ctx, req.Msg.GetEmail(), req.Msg.GetPassword())
 	if err != nil {
 		return nil, err
-	}
-	// Checked again once the session exists, as late as the handler can: a deletion that began
-	// while the password was being verified still keeps its Cookie. What this cannot reach is a
-	// deletion that begins after this point, while the response is on its way to the browser.
-	if h.svc.DeletionPending(ctx, cookie) {
-		_ = h.svc.Logout(ctx, token)
-		return nil, errDeletionPendingHere
 	}
 	res := connect.NewResponse(msg)
 	session.SetSessionCookie(res.Header(), h.svc.cookies, token, msg.GetExpiresAt().AsTime())
@@ -147,26 +137,14 @@ func (h *Handler) ResetPassword(ctx context.Context, req *connect.Request[bffv1.
 }
 
 func (h *Handler) Logout(ctx context.Context, req *connect.Request[bffv1.LogoutRequest]) (*connect.Response[bffv1.LogoutResponse], error) {
-	token := session.TokenFromRequest(req.Header())
-	// Revoke first, look at the deletion second: StartDeletion persists first and looks at the
-	// session second, so of a sign-out and a deletion that run together at least one sees the
-	// other. Either the deletion is refused (its session is gone) or the Cookie stays.
-	if err := h.svc.Logout(ctx, token); err != nil {
+	// Signing out ends the session and clears the session Cookie, nothing else: the deletion
+	// recovery Cookie of an unfinished deletion is a different credential and stays.
+	if err := h.svc.Logout(ctx, session.TokenFromRequest(req.Header())); err != nil {
 		return nil, err
 	}
 	res := connect.NewResponse(&bffv1.LogoutResponse{})
-	h.clearCookieUnlessDeleting(ctx, res.Header(), token)
+	session.ClearSessionCookie(res.Header(), h.svc.cookies)
 	return res, nil
-}
-
-// clearCookieUnlessDeleting clears the session Cookie of a request that has just revoked its
-// session, except when a deletion that this Cookie started is unfinished: that Cookie is then the
-// only credential to see and continue it. It must run after the session was revoked (see Logout).
-func (h *Handler) clearCookieUnlessDeleting(ctx context.Context, header http.Header, token string) {
-	if h.svc.DeletionPending(ctx, token) {
-		return
-	}
-	session.ClearSessionCookie(header, h.svc.cookies)
 }
 
 func (h *Handler) Me(ctx context.Context, _ *connect.Request[bffv1.MeRequest]) (*connect.Response[bffv1.MeResponse], error) {
@@ -203,9 +181,8 @@ func (h *Handler) RevokeSession(ctx context.Context, req *connect.Request[bffv1.
 	}
 	res := connect.NewResponse(&bffv1.RevokeSessionResponse{})
 	if req.Msg.GetId() == bs.SessionID {
-		// The caller ended its own session: same as signing out, so the Cookie goes too, unless a
-		// deletion began on it meanwhile.
-		h.clearCookieUnlessDeleting(ctx, res.Header(), session.TokenFromRequest(req.Header()))
+		// The caller ended its own session: same as signing out, so the Cookie goes too.
+		session.ClearSessionCookie(res.Header(), h.svc.cookies)
 	}
 	return res, nil
 }
@@ -243,9 +220,8 @@ func (h *Handler) ChangePassword(ctx context.Context, req *connect.Request[bffv1
 		return nil, err
 	}
 	res := connect.NewResponse(&bffv1.ChangePasswordResponse{})
-	// This device must sign in again with the new password too, unless a deletion began on its
-	// Cookie meanwhile.
-	h.clearCookieUnlessDeleting(ctx, res.Header(), session.TokenFromRequest(req.Header()))
+	// This device must sign in again with the new password too.
+	session.ClearSessionCookie(res.Header(), h.svc.cookies)
 	return res, nil
 }
 
@@ -261,17 +237,104 @@ func (h *Handler) UpdateMyProfile(ctx context.Context, req *connect.Request[bffv
 	return connect.NewResponse(&bffv1.UpdateMyProfileResponse{User: u}), nil
 }
 
-// DeleteAccount starts, or continues with the same mutation_id, the deletion of the
-// account. The ingress admits it for a live session or for a Cookie that already
-// started a deletion (its session no longer passes the account check once the
-// account is deleting).
+// recoveryCookieTTL is how long the deletion recovery Cookie lives; every read or retry of an
+// unfinished deletion renews it, and the finished deletion (or an expired receipt) removes it.
+const recoveryCookieTTL = 30 * 24 * time.Hour
+
+// errRecoveryNotStored refuses to begin a deletion until the browser has handed back the
+// recovery Cookie the response carries; the client repeats the same call (see createAccountApi).
+const errRecoveryNotStored = "account deletion recovery cookie is not stored yet; repeat the request"
+
+// deletionOf finds the deletion this browser can see: the one its recovery Cookie opens, and, for
+// a deletion that began before the recovery Cookie existed, the one the session Cookie opened.
+// token is the credential that opened it. Only digests are compared; no ID opens a workflow.
+func (h *Handler) deletionOf(ctx context.Context, header http.Header) (*ent.AccountDeletion, string, error) {
+	var tokens []string
+	for _, t := range []string{session.RecoveryTokenFromRequest(header), session.TokenFromRequest(header)} {
+		if t != "" && !slices.Contains(tokens, t) {
+			tokens = append(tokens, t)
+		}
+	}
+	for _, t := range tokens {
+		wf, err := h.svc.DeletionByCookie(ctx, t)
+		if err == nil {
+			return wf, t, nil
+		}
+		if connect.CodeOf(err) != connect.CodeUnauthenticated {
+			return nil, "", err
+		}
+	}
+	return nil, "", h.noDeletion(header)
+}
+
+// noDeletion is the answer when the browser holds nothing that opens a deletion; a recovery
+// Cookie that opens nothing (a finished deletion whose receipt expired, or one that was never
+// begun) is removed with it.
+func (h *Handler) noDeletion(header http.Header) error {
+	err := connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
+	if session.RecoveryTokenFromRequest(header) != "" {
+		err.Meta().Add("Set-Cookie", session.ClearRecoveryCookieValue(h.svc.cookies))
+	}
+	return err
+}
+
+// isDeletedSession reports whether the request's session Cookie is the very token the deletion
+// began with and its session is revoked for good (the deletion is past its begin step), as opposed
+// to an account signed in since.
+func isDeletedSession(req http.Header, wf *ent.AccountDeletion) bool {
+	sid := session.TokenFromRequest(req)
+	return wf.Stage != schema.DeletionStageBegin && sid != "" && subtle.ConstantTimeCompare([]byte(session.HashToken(sid)), []byte(wf.TokenHash)) == 1
+}
+
+// deletionCookies applies to a response about wf the opening credential's cookie state: an
+// unfinished deletion keeps its recovery Cookie (renewed, and set for a deletion that began
+// before it existed); a finished one removes it. The session Cookie is removed only when it is the
+// very (revoked) token of the deleted account, never the Cookie of an account signed in since.
+func (h *Handler) deletionCookies(header http.Header, req http.Header, wf *ent.AccountDeletion, token string) {
+	if wf.Stage != schema.DeletionStageDone {
+		session.SetRecoveryCookie(header, h.svc.cookies, token, h.svc.now().Add(recoveryCookieTTL))
+	} else {
+		session.ClearRecoveryCookie(header, h.svc.cookies)
+	}
+	if isDeletedSession(req, wf) {
+		session.ClearSessionCookie(header, h.svc.cookies)
+	}
+}
+
+// keepRecovery adds the cookie state to the failure of a deletion step that has a workflow, so a
+// failing product does not stop the browser from adopting or renewing its credential.
+func (h *Handler) keepRecovery(err error, req http.Header, wf *ent.AccountDeletion, token string) error {
+	var ce *connect.Error
+	if wf == nil || wf.Stage == schema.DeletionStageDone || !errors.As(err, &ce) {
+		return err
+	}
+	ce.Meta().Add("Set-Cookie", session.RecoveryCookie(h.svc.cookies, token, h.svc.now().Add(recoveryCookieTTL)))
+	if isDeletedSession(req, wf) {
+		ce.Meta().Add("Set-Cookie", session.ClearSessionCookieValue(h.svc.cookies))
+	}
+	return err
+}
+
+// DeleteAccount starts, or continues with the same mutation_id, the deletion of the account.
+// The ingress admits it for a live session or for a browser that already started a deletion (its
+// session no longer passes the account check once the account is deleting).
+//
+// Nothing irreversible starts before the browser has handed back the recovery Cookie: the first
+// call of a browser that has not stored it only sets it and answers FAILED_PRECONDITION; the
+// repeat carries it and begins. So a lost answer to the beginning can always be recovered.
 func (h *Handler) DeleteAccount(ctx context.Context, req *connect.Request[bffv1.DeleteAccountRequest]) (*connect.Response[bffv1.DeleteAccountResponse], error) {
-	token := session.TokenFromRequest(req.Header())
-	wf := h.existing(ctx, token)
-	var err error
+	wf, token, err := h.deletionOf(ctx, req.Header())
+	if err != nil && connect.CodeOf(err) != connect.CodeUnauthenticated {
+		return nil, err
+	}
+	if wf != nil && wf.Stage == schema.DeletionStageDone && wf.MutationID != req.Msg.GetMutationId() {
+		wf = nil // a finished deletion's receipt does not stop another account from beginning
+	}
 	if wf != nil {
 		if wf.MutationID != req.Msg.GetMutationId() {
-			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("another account deletion is already in progress"))
+			// The browser's recovery Cookie opens another, unfinished deletion; replacing it would
+			// lose that deletion's only credential.
+			return nil, errDeletionPendingHere
 		}
 		wf, err = h.svc.ContinueDeletion(ctx, token)
 	} else {
@@ -279,42 +342,42 @@ func (h *Handler) DeleteAccount(ctx context.Context, req *connect.Request[bffv1.
 		if !ok {
 			return nil, errUnauth
 		}
+		token = session.TokenFromRequest(req.Header())
+		if subtle.ConstantTimeCompare([]byte(session.RecoveryTokenFromRequest(req.Header())), []byte(token)) != 1 {
+			e := connect.NewError(connect.CodeFailedPrecondition, errors.New(errRecoveryNotStored))
+			e.Meta().Add("Set-Cookie", session.RecoveryCookie(h.svc.cookies, token, h.svc.now().Add(recoveryCookieTTL)))
+			return nil, e
+		}
 		wf, err = h.svc.StartDeletion(ctx, bs, token, req.Msg)
 	}
 	if err != nil {
-		return nil, err
+		return nil, h.keepRecovery(err, req.Header(), wf, token)
 	}
 	res := connect.NewResponse(&bffv1.DeleteAccountResponse{Deletion: DeletionMessage(wf)})
-	h.clearCookieIfDone(res.Header(), wf)
+	h.deletionCookies(res.Header(), req.Header(), wf, token)
 	return res, nil
 }
 
-// existing returns the workflow the Cookie started, or nil.
-func (h *Handler) existing(ctx context.Context, token string) *ent.AccountDeletion {
-	wf, err := h.svc.DeletionByCookie(ctx, token)
-	if err != nil {
-		return nil
-	}
-	return wf
-}
-
 func (h *Handler) GetAccountDeletion(ctx context.Context, req *connect.Request[bffv1.GetAccountDeletionRequest]) (*connect.Response[bffv1.GetAccountDeletionResponse], error) {
-	wf, err := h.svc.DeletionByCookie(ctx, session.TokenFromRequest(req.Header()))
+	wf, token, err := h.deletionOf(ctx, req.Header())
 	if err != nil {
 		return nil, err
 	}
 	res := connect.NewResponse(&bffv1.GetAccountDeletionResponse{Deletion: DeletionMessage(wf)})
-	h.clearCookieIfDone(res.Header(), wf)
+	h.deletionCookies(res.Header(), req.Header(), wf, token)
 	return res, nil
 }
 
 func (h *Handler) RetryAccountDeletion(ctx context.Context, req *connect.Request[bffv1.RetryAccountDeletionRequest]) (*connect.Response[bffv1.RetryAccountDeletionResponse], error) {
-	wf, err := h.svc.ContinueDeletion(ctx, session.TokenFromRequest(req.Header()))
+	wf, token, err := h.deletionOf(ctx, req.Header())
 	if err != nil {
 		return nil, err
 	}
+	if wf, err = h.svc.ContinueDeletion(ctx, token); err != nil {
+		return nil, h.keepRecovery(err, req.Header(), wf, token)
+	}
 	res := connect.NewResponse(&bffv1.RetryAccountDeletionResponse{Deletion: DeletionMessage(wf)})
-	h.clearCookieIfDone(res.Header(), wf)
+	h.deletionCookies(res.Header(), req.Header(), wf, token)
 	return res, nil
 }
 
@@ -349,14 +412,9 @@ func (h *Handler) Authenticate(ctx context.Context, header http.Header) (session
 	return h.svc.ResolveSession(ctx, session.TokenFromRequest(header))
 }
 
-// DeletionKnown implements the ingress hook that lets DeleteAccount through for a
-// Cookie whose deletion is already persisted.
-func (h *Handler) DeletionKnown(ctx context.Context, token string) bool {
-	return h.svc.HasDeletion(ctx, token)
-}
-
-func (h *Handler) clearCookieIfDone(header http.Header, wf *ent.AccountDeletion) {
-	if wf.Stage == schema.DeletionStageDone {
-		session.ClearSessionCookie(header, h.svc.cookies)
-	}
+// DeletionKnown implements the ingress hook that lets DeleteAccount through for a browser
+// whose deletion is already persisted.
+func (h *Handler) DeletionKnown(ctx context.Context, header http.Header) bool {
+	wf, _, err := h.deletionOf(ctx, header)
+	return err == nil && wf != nil
 }

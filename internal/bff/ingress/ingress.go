@@ -74,10 +74,11 @@ type Policy struct {
 	// INTERNAL when the check itself could not be made; the latter are passed on to
 	// the caller and nothing is forwarded.
 	Authenticate func(ctx context.Context, header http.Header) (session.BrowserSession, error)
-	// DeletionKnown reports whether the session cookie started an account deletion.
-	// DeleteAccount is admitted for such a cookie even though its session no longer
-	// passes the account check (a deleting account has a new auth_version).
-	DeletionKnown func(ctx context.Context, sessionToken string) bool
+	// DeletionKnown reports whether the browser's cookies (the deletion recovery cookie, or the
+	// session cookie of a deletion that began before that existed) opened an account deletion.
+	// DeleteAccount is admitted for such a browser even though its session no longer passes the
+	// account check (a deleting account has a new auth_version).
+	DeletionKnown func(ctx context.Context, header http.Header) bool
 	// Projection runs after the session is verified and before the call is
 	// forwarded, so a product that keeps a display projection of the account can
 	// ensure it exists. It decides by procedure whether it applies; a failure is
@@ -149,7 +150,7 @@ func Interceptor(p Policy) connect.Interceptor {
 						return nil, withID(err)
 					}
 					if procedure != bffv1connect.AuthServiceDeleteAccountProcedure ||
-						p.DeletionKnown == nil || !p.DeletionKnown(ctx, session.TokenFromRequest(req.Header())) {
+						p.DeletionKnown == nil || !p.DeletionKnown(ctx, req.Header()) {
 						return nil, withID(errUnauthenticated)
 					}
 				}

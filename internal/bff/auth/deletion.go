@@ -74,14 +74,6 @@ func (s *Service) HasDeletion(ctx context.Context, token string) bool {
 	return err == nil
 }
 
-// DeletionPending reports whether the Cookie token started a deletion that has not
-// finished. That Cookie is the only credential to see or continue it, so nothing but
-// the finished workflow may clear it (Logout leaves it alone).
-func (s *Service) DeletionPending(ctx context.Context, token string) bool {
-	wf, err := s.DeletionByCookie(ctx, token)
-	return err == nil && wf.Stage != schema.DeletionStageDone
-}
-
 // StartDeletion persists the workflow of deleting the caller's account and runs it
 // as far as it gets. The workflow row is written before usersrv or any product is
 // touched, so a response lost anywhere afterwards can be resumed with the same
@@ -102,23 +94,6 @@ func (s *Service) StartDeletion(ctx context.Context, bs session.BrowserSession, 
 	wf, err := s.createWorkflow(ctx, bs.UserID, req.GetMutationId(), token)
 	if err != nil {
 		return nil, err
-	}
-	// Persist first, look at the session second (a sign-out revokes first and looks at the
-	// deletion second): a session that was ended after this request was admitted must not leave
-	// a workflow whose Cookie the sign-out is clearing. Nothing has run yet, so dropping the row
-	// is a clean refusal.
-	if wf.Stage == schema.DeletionStageBegin && wf.TokenHash == session.HashToken(token) {
-		live, lerr := s.db.Session.Query().
-			Where(entsession.TokenHash(wf.TokenHash), entsession.Revoked(false), entsession.ExpiresAtGT(s.now())).Exist(ctx)
-		if lerr != nil {
-			return nil, internal(lerr)
-		}
-		if !live {
-			if _, derr := s.db.AccountDeletion.Delete().Where(accountdeletion.ID(wf.ID), accountdeletion.Stage(schema.DeletionStageBegin)).Exec(ctx); derr != nil {
-				return nil, internal(derr)
-			}
-			return nil, errUnauth
-		}
 	}
 	return s.advance(ctx, wf)
 }

@@ -9,9 +9,11 @@ import { FORM_CLASS, Notice, PasswordField, TextField, useFocusFirstInvalid, use
 export type CloseAccountFlowProps = {
   api: AccountApi;
   /**
-   * `start`: a session exists, so the form that begins the deletion is offered.
+   * `start`: a session exists, so the form that begins the deletion is offered; first the page asks
+   * whether this browser still holds the recovery Cookie of another, unfinished deletion and, if so,
+   * shows that one (it has to finish before another can begin).
    * `resume`: there is no session (it ended when the deletion began, or the page was
-   * reloaded): look for the deletion this browser's Cookie started and show where it is.
+   * reloaded): look for the deletion this browser's recovery Cookie belongs to and show where it is.
    */
   mode: "start" | "resume";
   /**
@@ -67,15 +69,17 @@ export function CloseAccountScope() {
  * The self-service "close account" flow of OzID.
  *
  * Beginning needs the current password checked again and a typed confirmation. From the
- * moment the BFF accepts it the account is closed and the session is gone; the browser's
- * Cookie stays, because it is the only credential that can show or continue this deletion
- * (the workflow's own ID is never one). So after a lost response, a reload, a restart or a
- * failing product the page asks the Cookie where the deletion is and offers to continue it.
- * Nothing here signs the browser out or clears anything: only the finished deletion does,
- * on the server's answer.
+ * moment the BFF accepts it the account is closed and the session is gone. Before it accepts it,
+ * the BFF has had the browser store a dedicated HttpOnly recovery Cookie (the API call repeats once
+ * for that), which is the only credential that can show or continue this deletion: it is not a
+ * session and signs nothing in. So after a lost response, a reload, a restart, a failing product or
+ * another account signing in, the page asks that Cookie where the deletion is and offers to continue
+ * it. Nothing here clears it: only the finished deletion does, on the server's answer.
  */
 export function CloseAccountFlow({ api, mode, account, onNoSession }: CloseAccountFlowProps) {
-  const [phase, setPhase] = useState<Phase>({ kind: mode === "resume" ? "loading" : "form" });
+  const [phase, setPhase] = useState<Phase>({ kind: "loading" });
+  // The progress on screen is another account's: the one signed in here has not begun anything.
+  const [other, setOther] = useState(false);
   const [password, setPassword] = useState("");
   const [word, setWord] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -92,7 +96,16 @@ export function CloseAccountFlow({ api, mode, account, onNoSession }: CloseAccou
   const { pending, run } = useRunner();
   useFocusFirstInvalid(form, tick);
 
-  const settle = (d: DeletionStatus) => setPhase(d.completed ? { kind: "done" } : { kind: "progress", deletion: d });
+  const backToForm = (text: string) => {
+    setOther(false);
+    mutationId.current = null;
+    setPhase({ kind: "form" });
+    setNotice(text, false);
+  };
+  const settle = (d: DeletionStatus) => {
+    if (d.completed && other) return backToForm("之前那个账号的注销已经完成，当前登录的账号没有受到影响。现在可以按需注销当前账号。");
+    setPhase(d.completed ? { kind: "done" } : { kind: "progress", deletion: d });
+  };
 
   const look = async () => {
     setNotice("");
@@ -101,14 +114,30 @@ export function CloseAccountFlow({ api, mode, account, onNoSession }: CloseAccou
       settle(await api.getDeletion());
     } catch (error) {
       const failure = classifyAccountError(error, "other");
-      if (failure.kind === "not_signed_in") return onNoSession();
+      if (failure.kind === "not_signed_in") return other ? backToForm("之前那个账号的注销记录已经不在了。") : onNoSession();
       setPhase({ kind: "lookup-failed", message: failure.message });
     }
   };
+
+  // `start`: is another deletion unfinished in this browser? The BFF refuses a second one, so say so first.
+  const lookForOther = async () => {
+    try {
+      const d = await api.getDeletion();
+      if (d.completed) return setPhase({ kind: "form" });
+      setOther(true);
+      setPhase({ kind: "progress", deletion: d });
+    } catch {
+      // Nothing to show (or no answer): the form is right, and the BFF still decides.
+      setPhase({ kind: "form" });
+    }
+  };
+  const lookForOtherRef = useRef(lookForOther);
+  lookForOtherRef.current = lookForOther;
   const lookRef = useRef(look);
   lookRef.current = look;
   useEffect(() => {
     if (mode === "resume") void lookRef.current();
+    else void lookForOtherRef.current();
   }, [mode]);
 
   const begin = async (e: FormEvent) => {
@@ -136,6 +165,12 @@ export function CloseAccountFlow({ api, mode, account, onNoSession }: CloseAccou
         settle(status);
       } catch (error) {
         const failure = classifyAccountError(error, "delete");
+        if (failure.kind === "deletion_pending_here") {
+          // Another deletion of this browser is unfinished: show it, it has to finish first.
+          mutationId.current = null;
+          setPassword("");
+          return void lookForOther();
+        }
         if (failure.kind === "unavailable" || failure.kind === "network") {
           // No answer: it may well have begun. Only the same key may continue it.
           setPassword("");
@@ -164,6 +199,7 @@ export function CloseAccountFlow({ api, mode, account, onNoSession }: CloseAccou
       } catch (error) {
         const failure = classifyAccountError(error, "delete");
         if (failure.kind === "not_signed_in") {
+          if (other) return backToForm("之前那个账号的注销记录已经不在了。");
           if (known) return onNoSession();
           // The start request never arrived: nothing was closed, and a fresh attempt is possible.
           mutationId.current = null;
@@ -204,6 +240,13 @@ export function CloseAccountFlow({ api, mode, account, onNoSession }: CloseAccou
     const d = phase.deletion;
     return (
       <div className="grid gap-4" data-testid="close-progress">
+        {other ? (
+          <Notice kind="info">
+            <span data-testid="close-other-account">
+              这是此前在这个浏览器里开始、尚未完成的另一个账号的注销进度。当前登录的是{account ? `“${account.label}”` : "另一个账号"}，它没有被注销；上一次注销完成之前，不能开始注销当前账号。
+            </span>
+          </Notice>
+        ) : null}
         <Notice kind={notice && noticeIsFailure ? "error" : "info"}>
           {notice ||
             (d
@@ -224,7 +267,7 @@ export function CloseAccountFlow({ api, mode, account, onNoSession }: CloseAccou
             <li className="rounded-md border bg-card px-3 py-2 text-muted-foreground">共用账号会在各产品清理完成后最后删除。</li>
           </ul>
         ) : null}
-        <p className="text-sm text-muted-foreground">请保留这个浏览器：它是查看和继续这次注销的唯一凭据。刷新页面也不会丢失进度。</p>
+        <p className="text-sm text-muted-foreground">请保留这个浏览器：它保存着查看和继续这次注销的专用凭据（只用于这次注销，不能用来登录）。刷新页面也不会丢失进度。</p>
         <div className="flex flex-wrap gap-2">
           <Button variant="destructive" disabled={pending} onClick={() => void goOn()}>
             {pending ? "重试中…" : "重试注销"}

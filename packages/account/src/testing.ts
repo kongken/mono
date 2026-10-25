@@ -87,6 +87,8 @@ export function createFakeAccounts(
     registrationOpen: true,
     /** How many DeleteAccount / RetryAccountDeletion calls still fail with `unavailable` after the account closed. */
     deletionFailures: 0,
+    /** How many starts of a deletion are first answered "recovery Cookie not stored yet; repeat" (the BFF's confirm-before-start step). */
+    recoveryCookieRepeats: 0,
     deletion: null as null | { mutationId: string; account: FakeAccount },
     /** The products whose data a failed (unfinished) deletion has already removed; a retry resumes after them. */
     deletionDone: [] as string[],
@@ -205,10 +207,8 @@ export function createFakeAccounts(
       return { body: bound(t) };
     },
     LoginWithEmail: (b) => {
-      // The Cookie of an unfinished deletion is its only credential and a sign-in would replace it.
-      if (state.deletion) return failure(400, "failed_precondition", "an account deletion started in this browser has not finished");
       const a = findAccount(b.email ?? "");
-      if (!a || a.password !== b.password) return failure(401, "unauthenticated", "邮箱或密码错误，或账号不可用");
+      if (!a || a.password !== b.password || state.deletion?.account === a) return failure(401, "unauthenticated", "邮箱或密码错误，或账号不可用");
       set(a);
       state.authenticatedAt = Date.now();
       return { body: { user: userJson(a), expiresAt: iso(Date.now() + 7 * 864e5) } };
@@ -306,6 +306,12 @@ export function createFakeAccounts(
         if (!/^[A-Za-z0-9._-]{1,64}$/.test(b.mutationId ?? "")) return failure(400, "invalid_argument", "mutation_id must be 1-64 characters of A-Z a-z 0-9 . _ -");
         if (Date.now() - state.authenticatedAt > 15 * 60_000) return failure(400, "failed_precondition", "enter your password again to continue");
         if (state.current!.roles.includes("ozid-admin")) return failure(400, "failed_precondition", "platform administrator accounts cannot be closed here; an operator must revoke the role first");
+        // The recovery Cookie must be in the browser before anything irreversible begins.
+        if (state.deletion) return failure(400, "failed_precondition", "an account deletion started in this browser has not finished");
+        if (state.recoveryCookieRepeats > 0) {
+          state.recoveryCookieRepeats -= 1;
+          return failure(400, "failed_precondition", "account deletion recovery cookie is not stored yet; repeat the request");
+        }
         state.deletionDone = [];
         state.deletion = { mutationId: b.mutationId, account: state.current! };
         set(null);

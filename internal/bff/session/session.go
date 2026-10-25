@@ -13,10 +13,14 @@ import (
 )
 
 const (
-	CookieName     = "kongken_sid"
-	CSRFCookieName = "kongken_csrf"
-	CSRFHeader     = "X-CSRF-Token"
-	tokenPrefix    = "bf_"
+	CookieName = "kongken_sid"
+	// RecoveryCookieName holds the credential to see and continue an account deletion, and nothing
+	// else: it never authenticates a request. Its value is the random token of the session that
+	// began the deletion, which is what the deletion workflow is bound to (by digest).
+	RecoveryCookieName = "kongken_del"
+	CSRFCookieName     = "kongken_csrf"
+	CSRFHeader         = "X-CSRF-Token"
+	tokenPrefix        = "bf_"
 )
 
 type browserKey struct{}
@@ -97,6 +101,12 @@ func (c CookieConfig) session(expires time.Time) *http.Cookie {
 	return &http.Cookie{Name: CookieName, Path: c.Path, HttpOnly: true, Secure: c.Secure, SameSite: c.SameSite, Expires: expires, MaxAge: int(time.Until(expires).Seconds())}
 }
 
+// recovery is host-only (no Domain), HttpOnly, Secure as configured, with the session Cookie's
+// SameSite and Path: a browser sends it to the API host and to nothing else.
+func (c CookieConfig) recovery(expires time.Time) *http.Cookie {
+	return &http.Cookie{Name: RecoveryCookieName, Path: c.Path, HttpOnly: true, Secure: c.Secure, SameSite: c.SameSite, Expires: expires, MaxAge: int(time.Until(expires).Seconds())}
+}
+
 func (c CookieConfig) csrf(token string, expires time.Time) *http.Cookie {
 	return &http.Cookie{Name: CSRFCookieName, Value: token, Path: c.Path, HttpOnly: false, Secure: c.Secure, SameSite: c.SameSite, Expires: expires, MaxAge: int(time.Until(expires).Seconds())}
 }
@@ -107,11 +117,42 @@ func SetSessionCookie(h http.Header, cfg CookieConfig, token string, expires tim
 	h.Add("Set-Cookie", c.String())
 }
 
-func ClearSessionCookie(h http.Header, cfg CookieConfig) {
+// ClearSessionCookieValue is the Set-Cookie value that removes the session Cookie.
+func ClearSessionCookieValue(cfg CookieConfig) string {
 	c := cfg.session(time.Unix(0, 0))
 	c.MaxAge = -1
 	c.Value = ""
-	h.Add("Set-Cookie", c.String())
+	return c.String()
+}
+
+func ClearSessionCookie(h http.Header, cfg CookieConfig) {
+	h.Add("Set-Cookie", ClearSessionCookieValue(cfg))
+}
+
+// RecoveryCookie returns the Set-Cookie value that stores token as the deletion recovery
+// credential until expires.
+func RecoveryCookie(cfg CookieConfig, token string, expires time.Time) string {
+	c := cfg.recovery(expires)
+	c.Value = token
+	return c.String()
+}
+
+// SetRecoveryCookie stores token as the deletion recovery credential until expires.
+func SetRecoveryCookie(h http.Header, cfg CookieConfig, token string, expires time.Time) {
+	h.Add("Set-Cookie", RecoveryCookie(cfg, token, expires))
+}
+
+// ClearRecoveryCookieValue is the Set-Cookie value that removes the recovery credential.
+func ClearRecoveryCookieValue(cfg CookieConfig) string {
+	c := cfg.recovery(time.Unix(0, 0))
+	c.MaxAge = -1
+	c.Value = ""
+	return c.String()
+}
+
+// ClearRecoveryCookie removes the deletion recovery credential.
+func ClearRecoveryCookie(h http.Header, cfg CookieConfig) {
+	h.Add("Set-Cookie", ClearRecoveryCookieValue(cfg))
 }
 
 func SetCSRFCookie(h http.Header, cfg CookieConfig, token string, expires time.Time) {
@@ -131,6 +172,12 @@ func cookieValue(h http.Header, name string) string {
 
 func TokenFromRequest(h http.Header) string {
 	return cookieValue(h, CookieName)
+}
+
+// RecoveryTokenFromRequest is the deletion recovery credential the browser sent, or "".
+// Nothing authenticates with it.
+func RecoveryTokenFromRequest(h http.Header) string {
+	return cookieValue(h, RecoveryCookieName)
 }
 
 func CSRFValid(h http.Header) bool {

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { failMetro, form, kind, sid, signIn, stack, state } from "./helpers";
+import { expectRecoveryAttributes, failMetro, form, kind, recovery, sid, signIn, stack, state } from "./helpers";
 
 /**
  * Closing an account in a real browser against the real BFF, usersrv, tripmap (with media in an
@@ -27,7 +27,7 @@ test.afterEach(async ({ page }) => {
 });
 
 test.describe("closing the account", () => {
-  test("a product outage keeps it open and recoverable: Cookie kept, progress survives a reload, retry removes everything including media", async ({ page, context }, testInfo) => {
+  test("a product outage keeps it open and recoverable: recovery Cookie kept, progress survives a reload, retry removes everything including media", async ({ page, context }, testInfo) => {
     const subject = `close-main-${kind(testInfo)}`;
     const bystander = "close-bystander";
     // Local footprints that are not the account's: an anonymous product footprint and an OzID item.
@@ -68,16 +68,16 @@ test.describe("closing the account", () => {
     const mid = await state(subject);
     expect(mid).toMatchObject({ mediaRows: 0, object: false, visits: 0, metroRows: 1, workflow: "cleanup" });
 
-    // The Cookie is still there and unchanged: it is the only way to see and continue this.
-    const cookie = await sid(context);
-    expect(cookie, "session cookie kept while the deletion is unfinished").toBeTruthy();
-    expect(cookie).toMatchObject({ httpOnly: true, secure: true, sameSite: "Lax" });
+    // The session ended with the deletion, but the dedicated recovery Cookie is there: it is the only
+    // way to see and continue this, host-only on the API host, and no page can read it.
+    expect(await sid(context), "the session Cookie is gone with the session").toBeUndefined();
+    const cookie = await expectRecoveryAttributes(context, page);
 
     // The account is closed everywhere: the products see an anonymous browser and do not touch the Cookie.
     await page.goto(`${stack.trip}/`);
     await expect(page.locator("#me")).toHaveText(/^anonymous/);
-    expect((await sid(context))?.value).toBe(cookie!.value);
-    // A sign-out request from a page of OzID (another tab) is harmless too: it does not clear the Cookie.
+    expect((await recovery(context))?.value).toBe(cookie.value);
+    // A sign-out request from a page of OzID (another tab) is harmless too: it does not touch the recovery Cookie.
     await page.goto(`${stack.id}/close-account`);
     await expect(page.getByTestId("close-progress")).toBeVisible();
     const logoutStatus = await page.evaluate(async (api) => {
@@ -87,7 +87,7 @@ test.describe("closing the account", () => {
       return (await call("Logout", { "X-CSRF-Token": token })).status;
     }, stack.api);
     expect(logoutStatus).toBeLessThan(500);
-    expect((await sid(context))?.value).toBe(cookie!.value);
+    expect((await recovery(context))?.value).toBe(cookie.value);
 
     // A reload: no session, but the Cookie finds the deletion and its progress.
     await page.reload();
@@ -99,15 +99,15 @@ test.describe("closing the account", () => {
     await page.getByRole("button", { name: "重试注销" }).click();
     await expect(page.getByTestId("close-progress")).toContainText("注销尚未确认完成");
     expect((await state(subject)).workflow).toBe("cleanup");
-    expect((await sid(context))?.value).toBe(cookie!.value);
+    expect((await recovery(context))?.value).toBe(cookie.value);
 
-    // Metro is back: the retry finishes it, the Cookie goes only now.
+    // Metro is back: the retry finishes it, the recovery Cookie goes only now.
     await failMetro(false);
     await page.getByRole("button", { name: "重试注销" }).click();
     await expect(page.getByTestId("close-done")).toBeVisible();
     const after = await state(subject);
     expect(after).toMatchObject({ mediaRows: 0, object: false, visits: 0, metroRows: 0, workflow: "done" });
-    expect(await sid(context), "the finished deletion clears the Cookie").toBeUndefined();
+    expect(await recovery(context), "the finished deletion clears the recovery Cookie").toBeUndefined();
 
     // Nobody else's data moved, and the local content that was not the account's is untouched.
     expect(await state(bystander)).toEqual(bystanderBefore);

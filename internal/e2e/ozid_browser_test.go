@@ -218,11 +218,12 @@ func TestOzidBrowserChain(t *testing.T) {
 	seeds := map[string]closeAccountSeed{}
 	seedNames := []string{"close-main-desktop", "close-main-mobile", "close-bystander"}
 	for _, project := range []string{"desktop", "mobile"} {
-		// guard: a sign-in over an unfinished deletion; late: a sign-in response that arrives
-		// after the deletion began; lreq: a sign-out request that arrives after it began; open and
-		// swap are never closed (a sign-out response that arrives late; another account's
-		// sign-in in another tab).
-		for _, kind := range []string{"guard", "late", "lreq", "open", "swap"} {
+		// guard: another account signs in over an unfinished deletion; late: a sign-in response that
+		// arrives after the deletion began; lreq: a sign-out request that arrives after it began;
+		// lost1 / lost2: the first (recovery Cookie) / the second (the start) response is lost;
+		// rst: a restarted BFF finishes it; open and swap are never closed (a sign-out response
+		// that arrives late; another account's sign-in in another tab).
+		for _, kind := range []string{"guard", "late", "lreq", "lost1", "lost2", "rst", "open", "swap"} {
 			seedNames = append(seedNames, "close-"+kind+"-"+project)
 		}
 	}

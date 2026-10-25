@@ -30,8 +30,10 @@ export type AccountErrorKind =
   | "reauth_required"
   | "not_signed_in"
   | "deletion_in_progress"
-  /** Sign-in refused: this browser holds the Cookie of an account deletion that has not finished. */
+  /** Another deletion cannot begin: this browser holds the recovery Cookie of one that has not finished. */
   | "deletion_pending_here"
+  /** The browser did not keep the recovery Cookie the deletion needs; nothing was begun. */
+  | "recovery_cookie_blocked"
   /** The account holds the platform role, which keeps it from the web self-service deletion. */
   | "platform_admin"
   /** An administrator change was refused because the account changed after it was read; nothing was done. */
@@ -119,7 +121,9 @@ function classify(error: unknown, action: AccountAction): AccountFailure {
       if (raw.startsWith("navigation is not configured")) return { kind: "other", message: "账号入口尚未配置完整，暂时无法申请，请联系管理员" };
       if (raw.startsWith("enter your password again")) return { kind: "reauth_required", message: "为了安全，请先输入当前密码再继续" };
       if (raw.startsWith("an account deletion started in this browser"))
-        return { kind: "deletion_pending_here", message: "这个浏览器里有一次尚未完成的账号注销，完成之前不能登录其他账号。请先打开“注销账号”页（/close-account）查看进度并重试，或换一个浏览器登录" };
+        return { kind: "deletion_pending_here", message: "这个浏览器里有一次尚未完成的账号注销，完成之前不能开始另一次。请先在“注销账号”页查看进度并重试，直到它完成；登录和退出不受影响" };
+      if (raw.startsWith("account deletion recovery cookie"))
+        return { kind: "recovery_cookie_blocked", message: "浏览器没有保存注销所需的凭据（Cookie），没有开始注销，账号仍然有效。请确认没有禁用或拦截本站 Cookie，然后重试" };
       if (raw.startsWith("another account deletion")) return { kind: "deletion_in_progress", message: "这个账号已有一次注销正在进行，请等待它完成" };
       if (raw.startsWith("platform administrator accounts cannot be closed"))
         return { kind: "platform_admin", message: "这个账号是平台管理员，不能在网页上注销。请联系运维先回收管理员角色，再重新注销" };
