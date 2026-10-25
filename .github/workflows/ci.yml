@@ -134,10 +134,17 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run check:maps
-      # trip-map and metro are served behind a same-origin /api proxy.
-      - run: npm run build
+      # metro is served behind a same-origin /api proxy.
+      - run: npm run build:metro
         env:
           VITE_API_BASE_URL: /api
+      # trip-map calls the BFF at its canonical public origin (a same-origin /api proxy cannot share the
+      # session Cookie, which belongs to the API host) and sends every account page to OzID, so the build
+      # needs both addresses (reserved example names: nothing is deployed from CI).
+      - run: npm run build:trip-map
+        env:
+          VITE_API_BASE_URL: https://api.example.com/api
+          VITE_OZID_ORIGIN: https://id.example.com
       # OzID calls the BFF at its own public origin (absolute https only, no default). The
       # address is a reserved example name: nothing is deployed from CI.
       - run: npm run build:ozid
@@ -265,6 +272,78 @@ jobs:
         with:
           name: admin-browser-${{ github.run_id }}-${{ github.run_attempt }}
           path: admin-browser-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # The trip-map product and OzID in a real browser against the real BFF, usersrv and tripmap: HTTPS, sibling
+  # sub-domains of a reserved test site, the host-only Cookie, exact CORS/CSRF/X-Kongken-User checks. The
+  # product has no account forms: it sends the browser to OzID and gets it back across origins, restores the
+  # account under the UUID Me names, keeps unsent edits (original mutation ID, replayed once) across the trip,
+  # and never writes into the other account of an A/B switch. It builds both bundles for the addresses of the
+  # scenario itself (see internal/e2e/tripmap_browser_test.go) and uses seeded accounts of its own.
+  tripmap-browser:
+    name: trip-map account entry real-browser acceptance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tripmap
+          POSTGRES_PASSWORD: tripmap-ci
+          POSTGRES_DB: tripmap
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tripmap" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TRIPMAP_BROWSER_E2E: "1"
+      TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
+      USERSRV_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      USERSRV_TEST_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # The evidence is the run itself: -v, the test must report PASS and none may be skipped (a skipped
+      # browser scenario is not a passed one). The full log, the browser's traces and its failure
+      # screenshots are kept as one artifact, also when the job is cancelled or times out.
+      - name: Sign-in through OzID, cache survival, A/B switching and session loss in Chromium
+        shell: bash
+        env:
+          TRIPMAP_BROWSER_ARTIFACTS: ${{ github.workspace }}/tripmap-browser-artifacts
+        run: |
+          set -o pipefail
+          mkdir -p "$TRIPMAP_BROWSER_ARTIFACTS"
+          go test ./internal/e2e -run '^TestTripMapBrowserChain$' -count=1 -v 2>&1 | tee "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"
+          grep -q -- "--- PASS: TestTripMapBrowserChain " "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"
+          if grep -q -- "--- SKIP" "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"; then echo "a skipped scenario is not evidence"; exit 1; fi
+          # Every scenario ran in both viewports (6 scenarios x desktop and mobile).
+          grep -Eq "12 passed" "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"
+      - name: Keep the traces and logs of the real-browser run
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tripmap-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            tripmap-browser-artifacts/
+            apps/trip-map/test-results/
           if-no-files-found: warn
           retention-days: 14
 

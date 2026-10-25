@@ -45,7 +45,7 @@
 - 浏览器 RPC 仅 `/api/bff.*`（共用的 `bff.v1`、各产品的 `bff.<产品>.v1`）；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/unsubscribe 由 BFF `publichttp` 提供）。
 - 前端的业务 RPC（含分享 API）使用 `bff.tripmap.v1`；账号与会话管理使用 `bff.v1`。BFF 会话和注销工作流在 BFF 独立库；tripmap `users` 只保存用户 UUID 对应的展示投影与产品数据，好友只能凭 `fc_` 邀请码添加（没有按用户名查找）。
 - 浏览器登录、注册、找回密码、账号设置与邮件落地页已在 trip-map 与 metro 实现（P5，见 [usersrv 规格](usersrv/spec.md#p5-已实现内容)）；发布与退役（P6）：usersrv 镜像与部署示例、Logto 运行时入口删除、手动退役文档已完成（[退役说明](usersrv/retirement.md)）；正式环境开放前仍需对真实邮件厂商做手动冒烟（[说明](usersrv/mail-smoke-test.md)，未对任何真实厂商实测）。
-- **T2 之后的区别：** 产品入口（trip-map 的账号弹窗、metro 的登录页）尚未切换到 OzID，仍可发起注册与找回；但新邮件已集中到 OzID（链接都指向 `auth.apps.ozid`），邮件落地页与完成后的“去登录”在 OzID，产品自己的落地页只服务升级前发出的旧邮件。
+- **T2 之后的区别：** trip-map 的产品入口已在 T10 切换到 OzID（账号弹窗只有 OzID 入口，无表单）；metro 的登录页尚未切换，仍可发起注册与找回；但新邮件已集中到 OzID（链接都指向 `auth.apps.ozid`），邮件落地页与完成后的“去登录”在 OzID，产品自己的落地页只服务升级前发出的旧邮件。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）
@@ -243,6 +243,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 - `internal/bff/accesstoken`：令牌创建/校验/吊销/过期/数量上限/只存摘要（用 `SetClock` 覆盖过期）；`internal/bff/metro/mcp`：工具表与 JSON Schema（读 7、写 13）。MCP 链路测试在 `internal/e2e/metro_mcp_chain_test.go`：令牌与作用域（只读令牌调写工具被拒；写令牌 `metro_import_catalog` 不传 `dryRun` 只预览）、吊销/过期/只带 Cookie 的请求失败、令牌数量上限、MCP 写入与 Web 写入共用 `expectedRevision` 与审计（`channel=mcp`、令牌 ID）、限流、协议（批量、通知、未知方法）。
 - `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与内部 gRPC（TLS 与 h2c）信任。设备会话与改密的链路测试在 `internal/e2e/device_sessions_chain_test.go`（OzID T3：退出其他设备的保留当前会话、幂等、并发与限流，撤销指定设备的跨账号隔离，改密只结束本账号的会话与管理令牌，资料修改不碰 metro 骑行者资料）。
 - **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：真实 BFF + 真实 usersrv + PostgreSQL/Redis + tripmap/metro，只把邮件远端换成本地收件箱。覆盖：邮件注册（统一应答）、登录失败统一、Cookie 会话与跨设备撤销、改密码/重置密码使全部会话失效、敏感操作要求最近的密码验证、usersrv 不可用时受保护调用 `unavailable` 且业务无调用、角色只能由运维授予并实时生效（撤销后重新授予也不恢复旧令牌）、tripmap 展示投影与好友码、metro 管理接口与 MCP（每次调用重新校验）、注销工作流（每个阶段失败/响应丢失后可恢复、产品清理失败时保持“删除中”、回执 24 小时内可重放、跨用户隔离）、错误 Origin/CSRF、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。浏览器注销 UI 使用 Playwright 模拟 RPC（`apps/trip-map/tests/account-deletion.spec.ts`），真实 Cookie 链路以 e2e 为准。
+- **山海足迹浏览器真实栈（T10）**：`internal/e2e` 的 `TestTripMapBrowserChain`（`TRIPMAP_BROWSER_E2E=1`，需 Postgres/Redis、node 与 Chromium）以 HTTPS 同站点的保留测试域名（`id`/`api`/`trip` 三个 `*.ozid-e2e.test` 名称，浏览器用 `--host-resolver-rules` 映射到本机，临时自签证书，反向代理转到真实 BFF），用 `apps/trip-map/playwright.real.config.ts` 驱动产品与 OzID 的真实跨 origin 登录与返回、缓存与原 mutation ID 重放、A/B 切换的 `X-Kongken-User` 守卫和 CSRF 轮换；CI 的 `tripmap-browser` 任务运行它，不允许跳过。
 - **Playwright 真实栈**（默认跳过）：`apps/trip-map/tests/bff-cookie-real.spec.ts`；先 `make dev`（BFF、usersrv、tripmap 等价组合），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @kongken/trip-map -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
 - 其余 UI：Playwright 模拟后端覆盖登录骨架与业务场景。
 

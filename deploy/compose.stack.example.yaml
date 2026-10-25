@@ -121,6 +121,13 @@ services:
       postgres: { condition: service_healthy }
     networks: [internal]
 
+  # The published image is the standalone, local-only build. To connect it to the account center, rebuild it for
+  # your own addresses (reserved examples here); the build fails without either one:
+  #   docker build -f deploy/trip-map-web/Dockerfile \
+  #     --build-arg VITE_API_BASE_URL=https://api.example.com/api \
+  #     --build-arg VITE_OZID_ORIGIN=https://id.example.com .
+  # Sign-in, registration, password and devices are OzID pages; the product calls the BFF at the canonical API origin
+  # (an entry of the BFF's cors_allowed_origins and navigation.apps.trip-map), not a same-origin /api.
   trip-map-web:
     image: ghcr.io/kongken/mono-trip-map-web:main
     ports: ["443:443", "80:80"]

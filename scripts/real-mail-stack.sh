@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Starts the real account chain for the optional real-mail Playwright specs
-# (apps/trip-map/tests/real-mail.spec.ts, apps/metro/tests/real-mail.spec.ts):
+# (apps/metro/tests/real-mail.spec.ts; trip-map's account forms moved to OzID in T10, its real chain is internal/e2e TestTripMapBrowserChain):
 # usersrv, tripmap, metro and the BFF, wired to the PostgreSQL, Redis and S3 you already
 # run (`make deps-up` provides all three on the default ports) and to a mail catcher that
 # the specs start themselves on $SMTP_PORT.
@@ -9,8 +9,6 @@
 #   scripts/real-mail-stack.sh stop    stop what `start` started
 #
 # Then, with the stack up:
-#   E2E_REAL_MAIL=1 E2E_SMTP_PORT=1025 E2E_PORT=4174 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 \
-#     npm run test:e2e:trip-map -- tests/real-mail.spec.ts
 #   E2E_REAL_MAIL=1 E2E_SMTP_PORT=1025 E2E_PORT=4175 METRO_DEV_BACKEND=http://127.0.0.1:18081 \
 #     npm run test:e2e:metro -- tests/real-mail.spec.ts
 #

@@ -1,7 +1,8 @@
 import type { Interceptor } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import { resolveApiConfig } from "@/lib/backend";
-import { csrfHeader } from "./csrf";
+import { csrfRetry } from "@/lib/csrf-retry";
+import { csrfHeader, refreshCSRF } from "./csrf";
 import { REGION_HEADER, REGION_VERSION } from "@/lib/region-catalog";
 
 export const apiConfig = resolveApiConfig({
@@ -32,7 +33,8 @@ const schemaHeaders: Interceptor = (next) => (req) => {
 export const transport = apiConfig.enabled
   ? createConnectTransport({
       baseUrl: apiConfig.baseUrl,
-      interceptors: [schemaHeaders],
+      // The retry wraps the header interceptor: a repeat after a stale token picks up the fresh one.
+      interceptors: [csrfRetry(refreshCSRF), schemaHeaders],
       fetch: withCredentials,
     })
   : null;

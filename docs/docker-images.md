@@ -9,7 +9,7 @@
 | `ghcr.io/kongken/mono-tripmap` | `deploy/tripmap/Dockerfile` | tripmap 业务服务，18081（HTTP）与 18083（内部 gRPC，默认 TLS，可显式配置 h2c）端口，运行时挂载配置、证书与 BFF 公钥，只在内网暴露 |
 | `ghcr.io/kongken/mono-bff` | `deploy/bff/Dockerfile` | BFF 公网入口，18081 端口，运行时挂载配置、CA 与签名私钥（见 [BFF](bff.md)） |
 | `ghcr.io/kongken/mono-usersrv` | `deploy/usersrv/Dockerfile` | usersrv 账号服务，18086（HTTP，仅 `/ping`、`/readyz`）与 18087（内部 gRPC，默认 TLS）；镜像里还有运维命令 `/usersrv-admin`（用 `--entrypoint` 运行，见 [部署](deployment.md#usersrv-的部署)），运行时挂载配置、BFF 公钥和（TLS 时）证书，只在内网暴露 |
-| `ghcr.io/kongken/mono-trip-map-web` | `deploy/trip-map-web/Dockerfile` | Nginx 提供 Vite 静态文件，80 端口，同源转发后端请求 |
+| `ghcr.io/kongken/mono-trip-map-web` | `deploy/trip-map-web/Dockerfile` | Nginx 提供 Vite 静态文件，80 端口，同源转发后端请求；配置后端时需构建参数 `VITE_API_BASE_URL`（绝对地址）与 `VITE_OZID_ORIGIN`（T10），不传则为纯本地模式 |
 | `ghcr.io/kongken/mono-metro` | `deploy/metro/Dockerfile` | metro 业务服务（地铁足迹），18084（HTTP，仅 `/ping`、`/readyz`）与 18085（内部 gRPC），运行时挂载配置与 BFF 公钥，只在内网暴露 |
 | `ghcr.io/kongken/mono-ozid-web` | `deploy/ozid-web/Dockerfile` | Nginx 提供 `apps/ozid` 静态文件（OzID 用户中心），80 端口，**不转发任何请求**；构建参数 `VITE_API_BASE_URL`（BFF 的绝对 https API base，无默认值）必填，运行时 `API_ORIGIN` 必填（用于 CSP）。发布工作流只用示例地址构建，作为构建检查，不是可直接部署的镜像，见 [OzID 功能描述](ozid/features.md#构建镜像与运行) |
 | `ghcr.io/kongken/mono-admin-web` | `deploy/admin-web/Dockerfile` | Nginx 提供 `apps/admin` 静态文件（统一管理控制台），80 端口，**不转发任何请求**，页面/资源/SPA fallback 全部在来源白名单之后；构建参数 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN` 必填（无默认值），运行时 `API_ORIGIN`、`ADMIN_HOST`、`ADMIN_ALLOWED_CIDRS` 必填（空值或全开的白名单使容器拒绝启动），`ADMIN_TRUSTED_PROXIES`、`ADMIN_REAL_IP_HEADER` 可选；发布的镜像按保留示例地址构建，只是构建检查，不是可部署产物，详见 [控制台功能描述](admin/features.md) |

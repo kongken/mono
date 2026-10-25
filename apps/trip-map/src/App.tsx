@@ -94,8 +94,9 @@ import {
 } from "./lib/draft";
 import { cloudItinerariesKey, isMigrated, markMigrated } from "./lib/session";
 import AccountDialog from "./components/AccountDialog";
-import { AuthPanel } from "@kongken/account/forms";
-import { requireAccount } from "@/api/auth";
+import { OzidSignIn } from "./components/OzidEntry";
+import { ozid } from "@/api/ozid";
+import { legacyAccountEntry } from "@/lib/ozid";
 import MigrationDialog from "./components/MigrationDialog";
 import LegacyDialog from "./components/LegacyDialog";
 import SnapshotDialog from "./components/SnapshotDialog";
@@ -268,6 +269,8 @@ function App() {
     activeItineraryId?: string;
   } | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
+  // Leaving for OzID was refused because the last local save failed; the person chooses export or staying.
+  const [leaveBlocked, setLeaveBlocked] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const [regionsOpen, setRegionsOpen] = useState(false);
@@ -388,13 +391,13 @@ function App() {
     },
   });
 
-  // "Log in" on the mail landing pages leads here: open the account window on the sign-in form.
+  // The pre-OzID entry points (`/?signin=1` from old mail pages, `/login`, `/account`) are not pages any
+  // more: they only open the account window, whose button leads to OzID. The URL is cleaned up and nothing in
+  // it (no `next`, no address) is read, so an old link cannot name where anything returns to.
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    if (params.get("signin") !== "1") return;
-    params.delete("signin");
-    const rest = params.toString();
-    history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
+    const entry = legacyAccountEntry(location.pathname, location.search, import.meta.env.BASE_URL);
+    if (!entry) return;
+    history.replaceState(null, "", entry.path + entry.search + location.hash);
     if (cloud.enabled) setAccountOpen(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // All user edits go through here so cloud mode can sync them, and refuse
@@ -431,6 +434,26 @@ function App() {
     savedRef.current = next;
     setSaved(next);
     return true;
+  };
+  // Go to OzID to sign in (again). Before the browser leaves, make sure the edits this page holds are on
+  // this device; the account cache is written on every change, so this only matters after a failed write.
+  // When saving is not possible, do not leave: offer the export or staying (`leaveBlocked`).
+  const leaveForOzid = () => {
+    if (!ozid.enabled) return;
+    let safe = true;
+    if (cloud.mode === "cloud") {
+      safe = cloud.prepareLeave() === "ok";
+    } else if (storageError) {
+      const result = writer.current.write(savedRef.current);
+      setStorageError(result.status === "error");
+      safe = result.status === "ok";
+    }
+    if (!safe) {
+      setAccountOpen(false);
+      setLeaveBlocked(true);
+      return;
+    }
+    window.location.assign(ozid.login);
   };
   // Offer to move this device's footprints once the account's cloud data is
   // confirmed. Nothing is prompted when there is nothing to move.
@@ -1292,11 +1315,7 @@ function App() {
             <p role="alert">{cloud.loadError}</p>
             {cloud.sessionExpired && (
               <section className="cloud-gate-signin" data-testid="gate-sign-in" aria-label="重新登录">
-                <AuthPanel
-                  api={requireAccount()}
-                  appName="山海足迹"
-                  onSignedIn={({ user, expiresAt }) => cloud.signIn(user, expiresAt)}
-                />
+                <OzidSignIn onSignIn={leaveForOzid} label="前往 OzID 重新登录" testId="gate-ozid-relogin" />
               </section>
             )}
             <div className="dialog-actions">
@@ -3043,6 +3062,7 @@ function App() {
         <AccountDialog
           open={accountOpen}
           onOpenChange={setAccountOpen}
+          onSignIn={leaveForOzid}
           cloud={cloud}
           local={
             accountOpen && cloud.mode === "cloud"
@@ -3302,6 +3322,31 @@ function App() {
           </button>
         </div>
       )}
+      <Dialog open={leaveBlocked} onOpenChange={setLeaveBlocked}>
+        <DialogContent data-testid="leave-blocked">
+          <DialogHeader>
+            <DialogTitle>暂时不能离开本页</DialogTitle>
+            <DialogDescription>
+              本页的修改还没能保存到这台设备（浏览器存储不可用或已满）。现在前往 OzID 可能丢失它们。请先导出足迹备份，再决定是否离开。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="dialog-actions">
+            <Button variant="outline" onClick={() => setLeaveBlocked(false)}>
+              留在本页
+            </Button>
+            <Button onClick={exportData}>导出足迹备份</Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setLeaveBlocked(false);
+                leaveForOzid();
+              }}
+            >
+              重试保存并前往
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       {storageError && (
         <div className="storage-warning" role="alert">
           <FloppyDisk size={18} />

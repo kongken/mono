@@ -7,7 +7,7 @@
  * CSRF header check on state-changing calls.
  *
  * It is a UI fixture only. The real chain (usersrv, BFF, mail) is covered by
- * `internal/e2e` and, from the browser, by the real-mail specs of the apps.
+ * `internal/e2e` and, from the browser, by the real-mail spec of metro and the TestTripMapBrowserChain suite.
  */
 import type { Page, Route } from "@playwright/test";
 

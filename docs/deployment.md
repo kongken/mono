@@ -23,7 +23,7 @@
 ```
 
 - **公网**只暴露边缘 HTTPS 与 BFF 的 HTTP 端口（经边缘反代）；**不得**把 tripmap 的 `18082`（HTTP `/ping`/`/readyz`）或 `18083`（gRPC）直接映射到公网。
-- 前端构建需 `--build-arg VITE_API_BASE_URL=/api`，使浏览器与 BFF 同源；纯静态托管不设置该变量时仍为本地模式。
+- 地铁足迹前端构建需 `--build-arg VITE_API_BASE_URL=/api`，使浏览器与 BFF 同源；**山海足迹自 T10 起必须用绝对的 `VITE_API_BASE_URL`（BFF 的规范公开地址，例如 `https://api.example.com/api`）加 `VITE_OZID_ORIGIN`（例如 `https://id.example.com`）构建**：会话 Cookie 是 API 主机的 host-only Cookie，产品页面直接跨站点调用它，BFF 需把产品 origin 列入 `cors_allowed_origins` 并在 `navigation.apps` 登记 `trip-map`，缺少任一变量构建失败；两者都不设置时仍为纯本地模式。真实域名与地址由私有部署配置提供。
 - 示例文件：`deploy/trip-map-web/default.conf.template`、`deploy/metro-web/default.conf.template`（前端 Nginx）、`deploy/reverse-proxy/Caddyfile.example`（单站点 Caddy）、`deploy/compose.stack.example.yaml`（内网隔离的 Compose 栈，含 usersrv）、`deploy/postgres/init-databases.sql`（创建 `bff`、`usersrv`、`metro` 三个库的初始化脚本）、`deploy/k8s/secrets.layout.example.yaml`（Secret 键名示意）。
 - 边缘对 `/auth/` 前缀一律返回 404（Nginx 模板与 Caddy 示例都有），不让旧的 `/auth/login`、OAuth 回调落入 SPA 回退。
 

@@ -16,7 +16,7 @@ packages/
   geo-data/             区域索引、城市坐标、区域目录、搜索索引、省份邻接表：@kongken/geo-data/<名称>.json（文件在 data/）
   fixtures/             前端与 Go 后端共同验证的 JSON 夹具
   metro-core/           metro 公开站与统一控制台共用的纯函数（线路状态文案、里程格式，无 React、无网络）：@kongken/metro-core；两个应用不互相 import，共用部分放这里（T8）
-  account/              trip-map、metro 与 OzID 共用的邮箱账号流程（T2 起新邮件的落地页在 OzID，产品的落地页只服务旧邮件）：`createAccountApi`（经 `bff.v1` 的 Connect 客户端）、错误文案、登录/注册/资料/改密码/设备/注销表单、邮件落地页、落地页响应头的 Vite 插件，以及测试用的假账号服务与 SMTP 接收器（`@kongken/account/<模块>`）
+  account/              trip-map、metro 与 OzID 共用的邮箱账号流程（T2 起新邮件的落地页在 OzID，产品的落地页只服务旧邮件）：`createAccountApi`（经 `bff.v1` 的 Connect 客户端）、错误文案、登录/注册/资料/改密码/设备/注销表单（trip-map 自 T10 起不再使用，只用邮件落地页；表单现用于 metro 与 OzID）、邮件落地页、落地页响应头的 Vite 插件，以及测试用的假账号服务与 SMTP 接收器（`@kongken/account/<模块>`）
 cmd/ internal/ pkg/ proto/ migrations/   Go 后端，规则见 AGENTS.md 与 backend.md、bff.md
 deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deployment.md）
 ```

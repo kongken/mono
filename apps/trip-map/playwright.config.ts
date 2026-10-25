@@ -36,12 +36,18 @@ function resolvePort(): number {
 const port = resolvePort();
 const host = "127.0.0.1";
 const baseURL = `http://${host}:${port}`;
+const ozidOrigin = "https://id.example.com";
 const preview = `npm run preview -w @kongken/trip-map -- --host ${host} --port ${port}`;
-const build = "VITE_API_BASE_URL=/api npm run build -w @kongken/trip-map";
+// The product calls the canonical BFF by an absolute address (there is no same-origin /api to share the
+// session with), and OzID is a reserved example origin the specs never reach: they stub the navigation.
+// The fake BFF answers /api on the preview origin itself, so that origin doubles as the API origin here.
+const build = `VITE_API_BASE_URL=${baseURL}/api VITE_OZID_ORIGIN=${ozidOrigin} npm run build -w @kongken/trip-map`;
 const freePort = `fuser -k ${port}/tcp 2>/dev/null || true`;
 
 export default defineConfig({
   testDir: "tests",
+  // The real-stack specs have their own config and are started by internal/e2e TestTripMapBrowserChain.
+  testIgnore: "real-stack/**",
   timeout: 30000,
   fullyParallel: false,
   workers: 1,

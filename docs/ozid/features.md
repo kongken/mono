@@ -98,7 +98,7 @@ https://id.example.com/login?app_id=metro&return_path=%2Fcity%2Fshanghai
 
 **迟到响应。** 登录状态的读取和设备列表的读取都有“只认最新”的边界（`@kongken/account/latest`）：被更新的读取取代、发生在退出之前、或跨越账号变化和页面卸载的旧响应一律丢弃，不再写入状态。旧的“已登录”不能盖掉更新的“未登录”，旧的“未登录”或失败也不能盖掉更新的有效身份；退出成功时，退出之前发出的读取全部作废。`SessionsList` 必须传入当前账号 id（`identity`）：账号一变，旧设备列表立即移除并丢弃还在路上的旧应答；撤销之后的新列表不会被更早发出的读取覆盖。OzID、metro 的登录状态提供者和三处设备列表（OzID、metro、trip-map）共用这套规则。
 
-**产品入口不变。** trip-map 的账号弹窗和 metro 的账号页仍保留自己的资料、改密码和设备表单（共用 `packages/account` 的组件；设备列表现在多显示登录时间和有效期，没有“退出其他 N 台设备”按钮，那只在 OzID 开启）；收敛到 OzID 是后续阶段。
+**产品入口。** 山海足迹（trip-map）自 T10 起没有任何账号表单：登录、注册、找回、资料、改密码、设备和注销都在 OzID，产品只保留“使用 OzID 登录 / 前往 OzID 重新登录”和“管理 OzID 账号”（见[山海足迹功能描述](../trip-map/features.md#账号与云端同步)）。产品直接调用 BFF 的规范公开地址（`VITE_API_BASE_URL` 是绝对地址，`VITE_OZID_ORIGIN` 是 OzID 的 origin；构建缺其一则失败），登录后由 BFF 的导航注册表校验返回产品起始页，用 `Me` 返回的用户 UUID 恢复自己的缓存。metro 的账号页仍保留自己的资料、改密码和设备表单（共用 `packages/account` 的组件），收敛是后续阶段。
 
 **部署顺序。** T3 没有迁移，也不改 usersrv：只有 BFF（新增 `RevokeOtherSessions`，并让 `RevokeSession` 撤销自己时清 Cookie）和 `ozid-web`。先升级 BFF，再升级 `ozid-web`；顺序反了时，新页面的“退出其他设备”会因 BFF 不认识这个方法而失败（页面显示服务暂时不可用，其余功能不受影响）。回滚 BFF 同理，不涉及数据。`navigation.apps.ozid.paths` 仍只需包含 `/security`（重新认证的返回目标）；资料和设备页不是返回目标，不必登记。
 

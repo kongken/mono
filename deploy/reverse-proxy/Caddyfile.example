@@ -81,7 +81,11 @@ example.com {
 		}
 	}
 
-	# SPA static files (build with --build-arg VITE_API_BASE_URL=/api). This must be its own
+	# SPA static files of trip-map. With a backend, build them with the canonical BFF address and
+	# OzID's origin (--build-arg VITE_API_BASE_URL=https://api.example.com/api
+	# --build-arg VITE_OZID_ORIGIN=https://id.example.com): the session Cookie belongs to the API
+	# host, so the product no longer uses this same-origin /api for its session, and every account
+	# page is OzID's. This must be its own
 	# last `handle`: a site-level try_files runs before every handle and would rewrite /api,
 	# /ping and the paths above to /index.html before they are matched.
 	handle {

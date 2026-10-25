@@ -14,7 +14,7 @@
 | P2 邮件模块 | **已实现** | 见下文“P2 已实现内容”；四 adapter 通过本地假 HTTP/SMTP 服务的契约测试，真实厂商只有[手动冒烟文档](mail-smoke-test.md)，尚未对真实服务验证；邮件由 P3 的注册/找回流程签发 |
 | P3 账号流程 | **已实现** | 见下文“P3 已实现内容”；`RequestRegistration`、`CompleteRegistration`、`AuthenticateWithEmail`、`RequestPasswordReset`、`ResetPassword` 在 usersrv 内部 gRPC 上可用，真实 usersrv＋本地假邮件接收器的集成闭环通过；当时 BFF 与前端尚未接入，已由 P4、P5 接入 |
 | P4 BFF 与产品鉴权 | **已实现** | 见 [BFF](../bff.md#账号会话与注销p4)；`bff.v1` 为新契约（旧 Register/Login/OAuth RPC 已删除并 `reserved`）；会话保存 `auth_version` 与真实认证时间，每个受保护请求和 MCP 工具调用都调用 `GetAuthState`；usersrv 不可用返回 `unavailable` 且不转发；注销工作流持久化并可重试；tripmap 展示投影按需确保，好友只凭 `fc_` 邀请码；metro 管理与 MCP 角色取自 usersrv，`required_role` 两端校验；真实 BFF + usersrv + PostgreSQL/Redis + 两个产品服务的 e2e 通过（§14 场景 5–12、19–21 的后端部分） |
-| P5 前端 | **已实现** | 见下文“P5 已实现内容”；`apps/trip-map` 与 `apps/metro` 有邮箱登录、申请注册、邮件落地页（设置密码、重置密码）、找回密码、基础资料、修改密码、设备列表与撤销、注销账号入口，共用代码在 `packages/account`；两个前端不再有 `/auth/` 代理与 `VITE_OAUTH_APP_ID`；（T2 修订：新邮件链接统一指向 OzID，产品页面的邮件落地页只服务升级前发出的旧邮件，产品入口尚未切换。）桌面与手机 Playwright（模拟 BFF）通过，真实 BFF + usersrv + 真实 SMTP 链路的可选用例（`E2E_REAL_MAIL=1`）在本地用 PostgreSQL/Redis 通过 |
+| P5 前端 | **已实现** | 见下文“P5 已实现内容”；`apps/metro` 有邮箱登录、申请注册、邮件落地页（设置密码、重置密码）、找回密码、基础资料、修改密码、设备列表与撤销、注销账号入口，共用代码在 `packages/account`；两个前端不再有 `/auth/` 代理与 `VITE_OAUTH_APP_ID`；（T2 修订：新邮件链接统一指向 OzID，产品页面的邮件落地页只服务升级前发出的旧邮件；T10 修订：`apps/trip-map` 的账号表单已全部移除，只保留 OzID 入口和旧邮件落地页，上述表单现在只在 `apps/metro` 与 OzID。）桌面与手机 Playwright（模拟 BFF）通过，真实 BFF + usersrv + 真实 SMTP 链路的可选用例（`E2E_REAL_MAIL=1`）在本地用 PostgreSQL/Redis 通过 |
 | P6 发布与彻底退役 | **已实现** | 见下文“P6 已实现内容”：usersrv 镜像（`deploy/usersrv/Dockerfile`）与 CI 发布矩阵、Compose / k8s Secret / 边缘（Nginx、Caddy）示例、运行时 Logto 入口与配置全部删除（旧 `/auth/login` 与回调返回 404）、手动退役文档与脚本、文档同步、完整验证；真实邮件厂商没有实测，外部 Logto 资源与旧数据的清理由运维手动执行 |
 
 ### P6 已实现内容
@@ -63,7 +63,7 @@
 - **山海足迹** 保持本地模式（没有 `VITE_API_BASE_URL` 就没有任何登录入口）；账号失效或改密码时未同步的账号缓存保留并可导出，重新登录后继续同步；`X-Kongken-User` 守卫保持不变。**地铁足迹** 有 `/login` 与 `/account` 页面，匿名点击“标记坐过”会跳转到登录页并记住返回位置。
 - **清理**：删除了 `deploy/trip-map-web`、`deploy/metro-web` 的 nginx 模板和 `deploy/reverse-proxy/Caddyfile.example` 中的 `/auth/` 代理、Dockerfile 的 `VITE_OAUTH_APP_ID`。
 
-**验证。** 默认的 Playwright 套件用模拟 BFF（桌面与手机，`apps/*/tests/account.spec.ts`，假账号服务见 `@kongken/account/testing`），不依赖真实邮件。可选的真实链路用例 `apps/trip-map/tests/real-mail.spec.ts` 与 `apps/metro/tests/real-mail.spec.ts` 只在 `E2E_REAL_MAIL=1` 时运行：用例自己监听一个本地 SMTP 接收器，真实的 BFF、usersrv（`smtp` provider 指向该接收器）、tripmap、metro 由 `scripts/real-mail-stack.sh start` 启动（需要已有的 PostgreSQL、Redis、S3，`make deps-up` 提供），用例按真人流程完成：申请注册 → 打开邮件链接设置密码 → 登录 → 资料与改密码 → 找回密码并重置 → 注销。命令见脚本顶部注释。这个用例使用本地 SMTP 接收器，**不会**连真实邮件厂商；真实厂商仍只按[手动冒烟文档](mail-smoke-test.md)验证。
+**验证。** 默认的 Playwright 套件用模拟 BFF（桌面与手机，`apps/*/tests/account.spec.ts`，假账号服务见 `@kongken/account/testing`），不依赖真实邮件。可选的真实链路用例 `apps/metro/tests/real-mail.spec.ts`（trip-map 的同名用例在 T10 随账号表单一起删除，其真实链路由 `TestTripMapBrowserChain` 覆盖）只在 `E2E_REAL_MAIL=1` 时运行：用例自己监听一个本地 SMTP 接收器，真实的 BFF、usersrv（`smtp` provider 指向该接收器）、tripmap、metro 由 `scripts/real-mail-stack.sh start` 启动（需要已有的 PostgreSQL、Redis、S3，`make deps-up` 提供），用例按真人流程完成：申请注册 → 打开邮件链接设置密码 → 登录 → 资料与改密码 → 找回密码并重置 → 注销。命令见脚本顶部注释。这个用例使用本地 SMTP 接收器，**不会**连真实邮件厂商；真实厂商仍只按[手动冒烟文档](mail-smoke-test.md)验证。
 
 **已知限制。** 注销账号的真实链路用例在没有真实对象存储的环境里用空的 S3 假端点运行，只覆盖没有照片的账号；前端不提供“修改登录邮箱”与账号恢复入口（规格也未要求）；落地页的 CSP 只限制脚本来源，没有对样式和连接做限制。
 

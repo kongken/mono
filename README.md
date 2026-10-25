@@ -64,7 +64,7 @@ npm install
 npm run dev:trip-map
 ```
 
-默认无需启动后端，未登录的足迹保存在当前浏览器，可通过 JSON 导入导出备份。根目录 npm 脚本按应用命名（`dev:trip-map`、`build:trip-map` 等）；`test` 对所有应用运行，`build` 只构建使用同源 `/api` 的 trip-map 与 metro（OzID 须带绝对 API 地址单独构建：`build:ozid`）；地图数据脚本（`check:maps`、`prepare:*`、`download:maps`）目前转发到 `@kongken/trip-map`。
+默认无需启动后端，未登录的足迹保存在当前浏览器，可通过 JSON 导入导出备份。根目录 npm 脚本按应用命名（`dev:trip-map`、`build:trip-map` 等）；`test` 对所有应用运行，`build` 只构建 trip-map 与 metro：不带后端变量时 trip-map 是纯本地站点，metro 用同源 `/api`；trip-map 带后端时须同时给绝对 API 地址与 `VITE_OZID_ORIGIN`（OzID 同样须带绝对 API 地址单独构建：`build:ozid`）；地图数据脚本（`check:maps`、`prepare:*`、`download:maps`）目前转发到 `@kongken/trip-map`。
 
 ### 前后端联调
 
@@ -92,10 +92,10 @@ make dev
 
 ```bash
 npm install
-VITE_API_BASE_URL=/api npm run dev:trip-map
+VITE_API_BASE_URL=/api VITE_OZID_ORIGIN=http://localhost:5175 npm run dev:trip-map
 ```
 
-Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:18081`。BFF 使用其他地址时，通过 `TRIPMAP_DEV_BACKEND` 指定代理目标。生产构建同样需要在构建时设置 `VITE_API_BASE_URL`；配置、依赖端口与启动限制见 [后端初始化](docs/backend.md) 和 [BFF](docs/bff.md)。
+Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:18081`。BFF 使用其他地址时，通过 `TRIPMAP_DEV_BACKEND` 指定代理目标。山海足迹没有自己的登录、注册和账号设置：所有账号入口都跳转到 OzID，所以配置了后端时还要给出 `VITE_OZID_ORIGIN`（开发用上面的 OzID 地址）。生产构建必须同时给出绝对的 `VITE_API_BASE_URL`（会话 Cookie 属于 API 主机，同源 `/api` 代理无法共享）与 `VITE_OZID_ORIGIN`，缺失或不合法时构建失败；不设置 `VITE_API_BASE_URL` 则是纯本地的独立站点，没有账号入口；配置、依赖端口与启动限制见 [后端初始化](docs/backend.md) 和 [BFF](docs/bff.md)。
 
 停止开发依赖使用 `make deps-down`，数据卷会保留。
 

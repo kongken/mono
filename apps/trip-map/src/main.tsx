@@ -5,6 +5,7 @@ import { AccountLanding } from '@kongken/account/landing'
 import './index.css'
 import App from './App.tsx'
 import { account } from './api/auth.ts'
+import { ozid } from './api/ozid.ts'
 import { parseSharePath } from './lib/share.ts'
 import { isStatusPath } from './lib/status.ts'
 
@@ -30,7 +31,7 @@ if (landing && account) {
         kind={landing.kind}
         api={account}
         appName="山海足迹"
-        loginHref={`${import.meta.env.BASE_URL}?signin=1`}
+        loginHref={(back) => (ozid.enabled ? ozid.loginFor(back) : import.meta.env.BASE_URL)}
       />
     </StrictMode>,
   )

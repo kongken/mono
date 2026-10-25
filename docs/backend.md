@@ -95,9 +95,9 @@ CI 增加真实 S3 签名 PUT→校验/缩略图→私有读取→删除链路�
 后端是可选的。前端通过构建时环境变量 `VITE_API_BASE_URL` 决定是否连接后端：
 
 - 未设置、为空或格式无效：纯本地模式，不创建 API 客户端，不向 `/api`、`/ping`、`/readyz` 发请求；全部功能使用浏览器本地存储。当前所有用户可见功能都属于这种情况，`npm run dev:trip-map`、`npm run build` 以及任意静态托管（含前端镜像默认构建）都无需后端。
-- `/api` 这类同源路径，或 `https://api.example.com` 这类绝对 http(s) 地址：启用后端能力。`/api` 配合 Vite 开发代理或前端镜像的 Nginx 转发使用。
+- `/api` 这类同源路径，或 `https://api.example.com` 这类绝对 http(s) 地址：启用后端能力。**山海足迹自 T10 起要求绝对地址**（会话 Cookie 属于 API 主机，同源代理无法共享），并同时要求 `VITE_OZID_ORIGIN`（例如 `https://id.example.com`，只含 origin）；二者缺失或不合法时构建失败，不会产出一个没有登录入口的“半配置”页面（`apps/trip-map/vite.config.ts` 的构建门禁，规则见 `apps/trip-map/src/lib/ozid.ts`）。开发时 `/api` 可配合 Vite 开发代理，仅用于未配置账号入口的本地调试。
 
-变量在构建时写入，修改后需重新构建；前端镜像通过 `--build-arg VITE_API_BASE_URL=/api` 传入，镜像发布工作流未传递，因此发布的前端镜像默认纯本地模式；CI 界面测试构建单独传入 /api。解析逻辑见 `apps/trip-map/src/lib/backend.ts`，传输层见 `apps/trip-map/src/api/transport.ts`（未启用时不创建，登录入口也不渲染），业务客户端见 `apps/trip-map/src/api/`。登录与云同步必须通过该开关判断；后端不可用时，未登录用户不受影响，有有效账号缓存的已登录用户可保留离线修改并重试同步；云端数据删除待完成或缓存异常时暂停编辑，也可退出登录回到本地模式，不会阻塞本地足迹的读写。前端同步与会话逻辑在 `apps/trip-map/src/lib/sync.ts`、`session.ts` 和 `apps/trip-map/src/hooks/useCloud.ts`。
+变量在构建时写入，修改后需重新构建；前端镜像通过 `--build-arg VITE_API_BASE_URL=https://api.example.com/api --build-arg VITE_OZID_ORIGIN=https://id.example.com` 传入（真实地址由私有部署配置提供），镜像发布工作流未传递，因此发布的前端镜像默认纯本地模式；CI 界面测试构建单独传入保留示例地址的绝对值。解析逻辑见 `apps/trip-map/src/lib/backend.ts`，传输层见 `apps/trip-map/src/api/transport.ts`（未启用时不创建，登录入口也不渲染），业务客户端见 `apps/trip-map/src/api/`。登录与云同步必须通过该开关判断；后端不可用时，未登录用户不受影响，有有效账号缓存的已登录用户可保留离线修改并重试同步；云端数据删除待完成或缓存异常时暂停编辑，也可退出登录回到本地模式，不会阻塞本地足迹的读写。前端同步与会话逻辑在 `apps/trip-map/src/lib/sync.ts`、`session.ts` 和 `apps/trip-map/src/hooks/useCloud.ts`。
 
 前端是 npm workspaces（`apps/trip-map` 加 `packages/*`，见 [前后端 monorepo 布局](monorepo.md)），后端 Go module 位于仓库根目录；前后端分别构建，共用 `proto/` 契约、区域索引和测试夹具。
 

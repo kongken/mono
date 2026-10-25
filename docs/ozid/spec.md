@@ -34,7 +34,7 @@
 
 - `usersrv` 是唯一账号来源：邮箱规范化、Argon2id、注册验证、登录、改密/重置、资料、认证版本、角色 CLI、四种邮件 adapter 与加密 outbox。
 - BFF 持有 HttpOnly Cookie 会话和注销工作流；每个受保护请求以及 MCP 工具调用复核 usersrv 的状态、`auth_version`、角色；产品服务只认内部凭证。
-- `packages/account` 已包含账号客户端、表单、校验、错误处理和邮件落地页。trip-map 使用 `AccountDialog`，metro 有 `/login`、`/account`；各自也接收邮件链接。
+- `packages/account` 已包含账号客户端、表单、校验、错误处理和邮件落地页。trip-map 的 `AccountDialog` 自 T10 起只有 OzID 入口（无表单），只保留旧邮件落地页；metro 仍有 `/login`、`/account`；各自也接收升级前的邮件链接。
 - （基线描述；T8 起这些页面已迁入统一控制台，`apps/metro/src/pages/admin/` 已删除，旧 `/admin` 路由退役，见 [控制台功能描述](../admin/features.md#metro-目录管理t8)）metro 当时已有城市、线路、车型、专题、导入/导出、目录审计和管理令牌页面（`apps/metro/src/pages/admin/`）；其业务接口和 MCP 已实现。
 - （基线描述；T4 起角色白名单为 `metro-admin` 与 `ozid-admin`，并有控制台、用户查询和管理周界，见 [控制台功能描述](../admin/features.md)）usersrv 当时的角色白名单只有 `metro-admin`，角色/账号状态只可通过 CLI 管理。当前没有 OzID 独立前端、统一控制台、网页用户管理接口或管理 IP 白名单。
 
