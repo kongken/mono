@@ -209,11 +209,13 @@ test.describe("sign in through OzID and come back", () => {
     await expect(page).toHaveURL(loginAt("/"));
     // The BFF cannot be asked about the page: the sign-in is not held back and goes to the start page.
     await page.goto(`${stack.metro}/topics/six-cars`);
-    const refuse = (route: { abort: (code: string) => Promise<void> }) => route.abort("connectionrefused");
-    await page.route("**/bff.v1.AuthService/ResolveNavigation", refuse);
+    // Only the product's own question fails (it is the one sent from the product's origin); OzID, which this very
+    // page becomes on the next line, asks the same BFF method and must be answered normally.
+    await page.route("**/bff.v1.AuthService/ResolveNavigation", (route) =>
+      route.request().headers()["origin"] === stack.metro ? route.abort("connectionrefused") : route.fallback(),
+    );
     await signIn(page).click();
     await expect(page).toHaveURL(loginAt("/"));
-    await page.unroute("**/bff.v1.AuthService/ResolveNavigation", refuse); // OzID's own question is not part of the outage
     // And that really ends on the start page, signed in, not in an OzID refusal.
     await submitLogin(page, who);
     await page.waitForURL(`${stack.metro}/`);
