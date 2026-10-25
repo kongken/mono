@@ -169,6 +169,9 @@ func (SecurityAudit) Annotations() []schema.Annotation {
 			"security_audit_result": "char_length(result) BETWEEN 1 AND 64",
 			"security_audit_reason": "char_length(reason) <= 200",
 			"security_audit_actor":  "char_length(actor) <= 64",
+			"security_audit_change": "char_length(channel) <= 16 AND char_length(mutation_id) <= 64 AND " +
+				"char_length(before_status) <= 16 AND char_length(after_status) <= 16 AND " +
+				"char_length(before_roles) <= 200 AND char_length(after_roles) <= 200",
 		}),
 	}
 }
@@ -185,6 +188,20 @@ func (SecurityAudit) Fields() []ent.Field {
 		// A free-text operator reason (CLI only). Operators must not put an email in it.
 		field.String("reason").Default("").Immutable(),
 		field.Time("created_at").Default(now).Immutable(),
+		// "web" for the administration console, "cli" for the role CLI, "" for rows
+		// that predate the field or are not account changes.
+		field.String("channel").Default("").Immutable(),
+		// The operator account of a web change (actor is "user:<uuid>" as well; this
+		// column lets the audit be queried by UUID without parsing text).
+		field.UUID("actor_user_id", uuid.UUID{}).Optional().Nillable().Immutable(),
+		// The idempotency key of the web change this row records.
+		field.String("mutation_id").Default("").Immutable(),
+		// Status and roles of the target before and after a change; roles are a sorted,
+		// comma-separated list of whitelisted names. Empty when not an account change.
+		field.String("before_status").Default("").Immutable(),
+		field.String("after_status").Default("").Immutable(),
+		field.String("before_roles").Default("").Immutable(),
+		field.String("after_roles").Default("").Immutable(),
 	}
 }
 
@@ -283,4 +300,52 @@ func (MailJob) Indexes() []ent.Index {
 		index.Fields("challenge_id"),
 		index.Fields("finished_at"),
 	}
+}
+
+// AdminMutation is the receipt of one administrator change made through the web
+// console: who asked (operator), under which key (mutation_id), for what (a hash of
+// the canonical request) and what the answer was. A retry with the same key and the
+// same content gets this answer back without a second change; the same key with other
+// content is refused. Receipts are keyed by operator, so one administrator's key can
+// neither replay nor block another's, and they expire after AdminMutationTTL. A
+// receipt holds UUIDs and the outcome only: no email, reason text or secret.
+type AdminMutation struct{ ent.Schema }
+
+func (AdminMutation) Annotations() []schema.Annotation {
+	return []schema.Annotation{
+		entsql.Annotation{Table: "admin_mutations"},
+		entsql.Checks(map[string]string{
+			"admin_mutations_mutation": "char_length(mutation_id) BETWEEN 1 AND 64",
+			"admin_mutations_action":   "char_length(action) BETWEEN 1 AND 64",
+			"admin_mutations_hash":     "octet_length(request_hash) = 32",
+			"admin_mutations_expiry":   "expires_at > created_at",
+			"admin_mutations_status":   "status IN ('active', 'disabled', 'deleting')",
+			"admin_mutations_version":  "auth_version >= 1",
+			"admin_mutations_roles":    "char_length(roles) <= 200",
+		}),
+	}
+}
+
+func (AdminMutation) Fields() []ent.Field {
+	return []ent.Field{
+		field.UUID("id", uuid.UUID{}).Default(uuid.New).Immutable(),
+		field.UUID("operator_id", uuid.UUID{}).Immutable(),
+		field.String("mutation_id").NotEmpty().Immutable(),
+		field.String("action").NotEmpty().Immutable(),
+		field.UUID("target_id", uuid.UUID{}).Immutable(),
+		// SHA-256 of the canonical request (action, target, expected version, reason).
+		field.Bytes("request_hash").Immutable(),
+		// What the first answer said: whether anything changed, and the target as it
+		// stood right after.
+		field.Bool("changed").Immutable(),
+		field.String("status").Immutable(),
+		field.String("roles").Default("").Immutable(),
+		field.Int64("auth_version").Immutable(),
+		field.Time("created_at").Default(now).Immutable(),
+		field.Time("expires_at").Immutable(),
+	}
+}
+
+func (AdminMutation) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("operator_id", "mutation_id").Unique(), index.Fields("expires_at")}
 }

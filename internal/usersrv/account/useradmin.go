@@ -32,6 +32,8 @@ type AdminUser struct {
 	Status      Status
 	Roles       []string
 	CreatedAt   time.Time
+	// AuthVersion is the version a console change must name (optimistic concurrency).
+	AuthVersion int64
 }
 
 // UserFilter selects accounts. At most one of Email, UserID and Nickname may be set;
@@ -286,5 +288,5 @@ func adminUserOf(u *ent.User) AdminUser {
 		roles = append(roles, r.Role)
 	}
 	sort.Strings(roles)
-	return AdminUser{ID: u.ID, Email: u.EmailCanonical, DisplayName: u.DisplayName, Status: Status(u.Status), Roles: roles, CreatedAt: u.CreatedAt}
+	return AdminUser{ID: u.ID, Email: u.EmailCanonical, DisplayName: u.DisplayName, Status: Status(u.Status), Roles: roles, CreatedAt: u.CreatedAt, AuthVersion: u.AuthVersion}
 }

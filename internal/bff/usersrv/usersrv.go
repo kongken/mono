@@ -344,6 +344,27 @@ type AdminUser struct {
 	Status      Status
 	Roles       []string
 	CreatedAt   time.Time
+	// AuthVersion is the version a change of this account must name.
+	AuthVersion int64
+}
+
+// UserChange is what a console change carries to usersrv. The operator is not here:
+// it is the call's credential, taken from the trusted session.
+type UserChange struct {
+	UserID              string
+	ExpectedAuthVersion int64
+	MutationID          string
+	Reason              string
+}
+
+// ChangeResult is the account after a console change.
+type ChangeResult struct {
+	UserID      string
+	Status      Status
+	Roles       []string
+	AuthVersion int64
+	Changed     bool
+	Replayed    bool
 }
 
 // UserQuery narrows a user list. At most one of Email, UserID and Nickname is set.
@@ -394,7 +415,38 @@ func (c *Client) GetUser(ctx context.Context, operatorID, userID string) (AdminU
 
 func adminUser(u *usersrvv1.AdminUser) AdminUser {
 	return AdminUser{UserID: u.GetUserId(), Email: u.GetEmail(), DisplayName: u.GetDisplayName(), Status: statusOf(u.GetStatus()),
-		Roles: u.GetRoles(), CreatedAt: u.GetCreatedAt().AsTime()}
+		Roles: u.GetRoles(), CreatedAt: u.GetCreatedAt().AsTime(), AuthVersion: u.GetAuthVersion()}
+}
+
+type changeCall func(context.Context, *usersrvv1.ChangeUserRequest, ...grpc.CallOption) (*usersrvv1.ChangeUserResponse, error)
+
+func (c *Client) change(ctx context.Context, operatorID string, in UserChange, call func(usersrvv1.UserAdminServiceClient) changeCall) (ChangeResult, error) {
+	res, err := call(c.admin)(asAdmin(ctx, operatorID), &usersrvv1.ChangeUserRequest{
+		UserId: in.UserID, ExpectedAuthVersion: in.ExpectedAuthVersion, MutationId: in.MutationID, Reason: in.Reason})
+	if err != nil {
+		return ChangeResult{}, MapError(err)
+	}
+	return ChangeResult{UserID: res.GetUserId(), Status: statusOf(res.GetStatus()), Roles: res.GetRoles(), AuthVersion: res.GetAuthVersion(),
+		Changed: res.GetChanged(), Replayed: res.GetReplayed()}, nil
+}
+
+// DisableUser, EnableUser, GrantMetroAdmin and RevokeMetroAdmin are the console's four
+// account changes, made as the administrator operatorID. usersrv enforces the target
+// constraints; a refusal arrives as a browser-safe error.
+func (c *Client) DisableUser(ctx context.Context, operatorID string, in UserChange) (ChangeResult, error) {
+	return c.change(ctx, operatorID, in, func(a usersrvv1.UserAdminServiceClient) changeCall { return a.DisableUser })
+}
+
+func (c *Client) EnableUser(ctx context.Context, operatorID string, in UserChange) (ChangeResult, error) {
+	return c.change(ctx, operatorID, in, func(a usersrvv1.UserAdminServiceClient) changeCall { return a.EnableUser })
+}
+
+func (c *Client) GrantMetroAdmin(ctx context.Context, operatorID string, in UserChange) (ChangeResult, error) {
+	return c.change(ctx, operatorID, in, func(a usersrvv1.UserAdminServiceClient) changeCall { return a.GrantMetroAdmin })
+}
+
+func (c *Client) RevokeMetroAdmin(ctx context.Context, operatorID string, in UserChange) (ChangeResult, error) {
+	return c.change(ctx, operatorID, in, func(a usersrvv1.UserAdminServiceClient) changeCall { return a.RevokeMetroAdmin })
 }
 
 func protoStatus(s Status) usersrvv1.AccountStatus {

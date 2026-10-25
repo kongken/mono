@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file bff/v1/user_admin.proto.
  */
 export const file_bff_v1_user_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChdiZmYvdjEvdXNlcl9hZG1pbi5wcm90bxIGYmZmLnYxIqQBCglBZG1pblVzZXISDwoHdXNlcl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSIgoGc3RhdHVzGAQgASgOMhIuYmZmLnYxLlVzZXJTdGF0dXMSDQoFcm9sZXMYBSADKAkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAinQEKEExpc3RVc2Vyc1JlcXVlc3QSDQoFZW1haWwYASABKAkSDwoHdXNlcl9pZBgCIAEoCRIQCghuaWNrbmFtZRgDIAEoCRIiCgZzdGF0dXMYBCABKA4yEi5iZmYudjEuVXNlclN0YXR1cxIMCgRyb2xlGAUgASgJEhEKCXBhZ2Vfc2l6ZRgGIAEoBRISCgpwYWdlX3Rva2VuGAcgASgJIk4KEUxpc3RVc2Vyc1Jlc3BvbnNlEiAKBXVzZXJzGAEgAygLMhEuYmZmLnYxLkFkbWluVXNlchIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiIQoOR2V0VXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCSIyCg9HZXRVc2VyUmVzcG9uc2USHwoEdXNlchgBIAEoCzIRLmJmZi52MS5BZG1pblVzZXIqdQoKVXNlclN0YXR1cxIbChdVU0VSX1NUQVRVU19VTlNQRUNJRklFRBAAEhYKElVTRVJfU1RBVFVTX0FDVElWRRABEhgKFFVTRVJfU1RBVFVTX0RJU0FCTEVEEAISGAoUVVNFUl9TVEFUVVNfREVMRVRJTkcQAzKwAQoQVXNlckFkbWluU2VydmljZRJQCglMaXN0VXNlcnMSGC5iZmYudjEuTGlzdFVzZXJzUmVxdWVzdBoZLmJmZi52MS5MaXN0VXNlcnNSZXNwb25zZSIOqrsYCm96aWQtYWRtaW4SSgoHR2V0VXNlchIWLmJmZi52MS5HZXRVc2VyUmVxdWVzdBoXLmJmZi52MS5HZXRVc2VyUmVzcG9uc2UiDqq7GApvemlkLWFkbWluQjBaLmdpdGh1Yi5jb20va29uZ2tlbi9tb25vL3BrZy9wcm90by9iZmYvdjE7YmZmdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_platform_v1_options]);
+  fileDesc("ChdiZmYvdjEvdXNlcl9hZG1pbi5wcm90bxIGYmZmLnYxIroBCglBZG1pblVzZXISDwoHdXNlcl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSIgoGc3RhdHVzGAQgASgOMhIuYmZmLnYxLlVzZXJTdGF0dXMSDQoFcm9sZXMYBSADKAkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMYXV0aF92ZXJzaW9uGAcgASgDIp0BChBMaXN0VXNlcnNSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSEAoIbmlja25hbWUYAyABKAkSIgoGc3RhdHVzGAQgASgOMhIuYmZmLnYxLlVzZXJTdGF0dXMSDAoEcm9sZRgFIAEoCRIRCglwYWdlX3NpemUYBiABKAUSEgoKcGFnZV90b2tlbhgHIAEoCSJOChFMaXN0VXNlcnNSZXNwb25zZRIgCgV1c2VycxgBIAMoCzIRLmJmZi52MS5BZG1pblVzZXISFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIiEKDkdldFVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkiMgoPR2V0VXNlclJlc3BvbnNlEh8KBHVzZXIYASABKAsyES5iZmYudjEuQWRtaW5Vc2VyImgKEUNoYW5nZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSHQoVZXhwZWN0ZWRfYXV0aF92ZXJzaW9uGAIgASgDEhMKC211dGF0aW9uX2lkGAMgASgJEg4KBnJlYXNvbhgEIAEoCSKRAQoSQ2hhbmdlVXNlclJlc3BvbnNlEg8KB3VzZXJfaWQYASABKAkSIgoGc3RhdHVzGAIgASgOMhIuYmZmLnYxLlVzZXJTdGF0dXMSDQoFcm9sZXMYAyADKAkSFAoMYXV0aF92ZXJzaW9uGAQgASgDEg8KB2NoYW5nZWQYBSABKAgSEAoIcmVwbGF5ZWQYBiABKAgqdQoKVXNlclN0YXR1cxIbChdVU0VSX1NUQVRVU19VTlNQRUNJRklFRBAAEhYKElVTRVJfU1RBVFVTX0FDVElWRRABEhgKFFVTRVJfU1RBVFVTX0RJU0FCTEVEEAISGAoUVVNFUl9TVEFUVVNfREVMRVRJTkcQAzKQBAoQVXNlckFkbWluU2VydmljZRJQCglMaXN0VXNlcnMSGC5iZmYudjEuTGlzdFVzZXJzUmVxdWVzdBoZLmJmZi52MS5MaXN0VXNlcnNSZXNwb25zZSIOqrsYCm96aWQtYWRtaW4SSgoHR2V0VXNlchIWLmJmZi52MS5HZXRVc2VyUmVxdWVzdBoXLmJmZi52MS5HZXRVc2VyUmVzcG9uc2UiDqq7GApvemlkLWFkbWluElQKC0Rpc2FibGVVc2VyEhkuYmZmLnYxLkNoYW5nZVVzZXJSZXF1ZXN0GhouYmZmLnYxLkNoYW5nZVVzZXJSZXNwb25zZSIOqrsYCm96aWQtYWRtaW4SUwoKRW5hYmxlVXNlchIZLmJmZi52MS5DaGFuZ2VVc2VyUmVxdWVzdBoaLmJmZi52MS5DaGFuZ2VVc2VyUmVzcG9uc2UiDqq7GApvemlkLWFkbWluElgKD0dyYW50TWV0cm9BZG1pbhIZLmJmZi52MS5DaGFuZ2VVc2VyUmVxdWVzdBoaLmJmZi52MS5DaGFuZ2VVc2VyUmVzcG9uc2UiDqq7GApvemlkLWFkbWluElkKEFJldm9rZU1ldHJvQWRtaW4SGS5iZmYudjEuQ2hhbmdlVXNlclJlcXVlc3QaGi5iZmYudjEuQ2hhbmdlVXNlclJlc3BvbnNlIg6quxgKb3ppZC1hZG1pbkIwWi5naXRodWIuY29tL2tvbmdrZW4vbW9uby9wa2cvcHJvdG8vYmZmL3YxO2JmZnYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_platform_v1_options]);
 
 /**
  * AdminUser is one account as an administrator may see it. There is no password
@@ -55,6 +55,14 @@ export type AdminUser = Message<"bff.v1.AdminUser"> & {
    * @generated from field: google.protobuf.Timestamp created_at = 6;
    */
   createdAt?: Timestamp;
+
+  /**
+   * The version of the account this view is of. A write names it as
+   * expected_auth_version; if the account changed in between, the write is refused.
+   *
+   * @generated from field: int64 auth_version = 7;
+   */
+  authVersion: bigint;
 };
 
 /**
@@ -184,6 +192,101 @@ export const GetUserResponseSchema: GenMessage<GetUserResponse> = /*@__PURE__*/
   messageDesc(file_bff_v1_user_admin, 4);
 
 /**
+ * ChangeUserRequest asks for one change to one account; the method names the change.
+ * It carries no operator and no role or status: the operator is the signed-in session.
+ *
+ * @generated from message bff.v1.ChangeUserRequest
+ */
+export type ChangeUserRequest = Message<"bff.v1.ChangeUserRequest"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * The auth_version of the AdminUser the administrator is looking at.
+   *
+   * @generated from field: int64 expected_auth_version = 2;
+   */
+  expectedAuthVersion: bigint;
+
+  /**
+   * Idempotency key: 1-64 characters of A-Z a-z 0-9 . _ -. Generate a new one for every
+   * intended change and keep it across retries of that same change (a lost response
+   * is retried with the same key and gets the first answer back). Receipts last 24
+   * hours and belong to the operator.
+   *
+   * @generated from field: string mutation_id = 3;
+   */
+  mutationId: string;
+
+  /**
+   * Why, 1-200 characters, no control characters and no email address, password or
+   * token. Required; kept in the audit record.
+   *
+   * @generated from field: string reason = 4;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message bff.v1.ChangeUserRequest.
+ * Use `create(ChangeUserRequestSchema)` to create a new message.
+ */
+export const ChangeUserRequestSchema: GenMessage<ChangeUserRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_user_admin, 5);
+
+/**
+ * @generated from message bff.v1.ChangeUserResponse
+ */
+export type ChangeUserResponse = Message<"bff.v1.ChangeUserResponse"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: bff.v1.UserStatus status = 2;
+   */
+  status: UserStatus;
+
+  /**
+   * Roles after the change, sorted.
+   *
+   * @generated from field: repeated string roles = 3;
+   */
+  roles: string[];
+
+  /**
+   * The new version: the one the next write must name.
+   *
+   * @generated from field: int64 auth_version = 4;
+   */
+  authVersion: bigint;
+
+  /**
+   * False when the account was already in the requested state (nothing was changed).
+   *
+   * @generated from field: bool changed = 5;
+   */
+  changed: boolean;
+
+  /**
+   * True when this is the stored answer to an earlier identical request.
+   *
+   * @generated from field: bool replayed = 6;
+   */
+  replayed: boolean;
+};
+
+/**
+ * Describes the message bff.v1.ChangeUserResponse.
+ * Use `create(ChangeUserResponseSchema)` to create a new message.
+ */
+export const ChangeUserResponseSchema: GenMessage<ChangeUserResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_user_admin, 6);
+
+/**
  * @generated from enum bff.v1.UserStatus
  */
 export enum UserStatus {
@@ -218,8 +321,11 @@ export const UserStatusSchema: GenEnum<UserStatus> = /*@__PURE__*/
 
 /**
  * UserAdminService is the browser interface of the unified admin console's user
- * section: finding accounts and reading what an administrator may know about them.
- * It is read-only in this release; there is no method that changes an account.
+ * section: finding accounts, reading what an administrator may know about them, and
+ * four narrow changes to ordinary accounts (disable, enable, grant and revoke the
+ * metro-admin role). Nothing else can be changed from the web: no free role name or
+ * field list, no platform role, no change to an account that holds the platform role,
+ * no password, no impersonation, no deletion, and a deleting account cannot be enabled.
  *
  * Every method is a management procedure and is refused unless ALL of these hold,
  * each checked independently of the others (a failure of any is the same refusal,
@@ -239,8 +345,33 @@ export const UserStatusSchema: GenEnum<UserStatus> = /*@__PURE__*/
  *
  * The BFF then calls usersrv.v1.UserAdminService, which checks the role again. The
  * reads are exempt from CSRF (they change nothing) but not from any check above.
- * Each operator may make 120 calls a minute (RESOURCE_EXHAUSTED beyond that; a
+ * Each operator may make 120 reads a minute (RESOURCE_EXHAUSTED beyond that; a
  * failing limiter store refuses the call). Errors never carry internal detail.
+ *
+ * A write (DisableUser, EnableUser, GrantMetroAdmin, RevokeMetroAdmin) additionally
+ * needs, in the same independent way:
+ *
+ *   - the CSRF token (X-CSRF-Token against the session's), which no read needs;
+ *   - a real password check on this session within the last 15 minutes (the session's
+ *     authentication time, set only by a password check; a client cannot supply or
+ *     extend it); otherwise FAILED_PRECONDITION "enter your password again to continue".
+ *     The console sends the administrator to OzID and back; the refused write is never
+ *     replayed automatically;
+ *   - at most 30 writes a minute per operator (RESOURCE_EXHAUSTED; a failing limiter
+ *     store refuses the call).
+ *
+ * The operator and the authentication time come from the trusted session only; no
+ * request field names either. usersrv decides the target constraints again and
+ * independently. Write errors:
+ *
+ * 	INVALID_ARGUMENT     reason or key malformed (metadata names the field)
+ * 	NOT_FOUND            no such account
+ * 	FAILED_PRECONDITION  "platform administrators cannot be changed here" (target holds
+ * 	                     ozid-admin); "account is not active" (a deleting account, or
+ * 	                     granting to an account that is not active and verified);
+ * 	                     "enter your password again to continue" (recent password)
+ * 	ABORTED              "account changed since it was read": nothing changed, read again
+ * 	ALREADY_EXISTS       "mutation id used for a different request"
  *
  * @generated from service bff.v1.UserAdminService
  */
@@ -264,6 +395,47 @@ export const UserAdminService: GenService<{
     methodKind: "unary";
     input: typeof GetUserRequestSchema;
     output: typeof GetUserResponseSchema;
+  },
+  /**
+   * DisableUser disables an active account: its sessions and access tokens stop
+   * working at their next check. Already disabled is a normal "unchanged" answer.
+   *
+   * @generated from rpc bff.v1.UserAdminService.DisableUser
+   */
+  disableUser: {
+    methodKind: "unary";
+    input: typeof ChangeUserRequestSchema;
+    output: typeof ChangeUserResponseSchema;
+  },
+  /**
+   * EnableUser enables a disabled account. Older sessions and tokens stay dead.
+   *
+   * @generated from rpc bff.v1.UserAdminService.EnableUser
+   */
+  enableUser: {
+    methodKind: "unary";
+    input: typeof ChangeUserRequestSchema;
+    output: typeof ChangeUserResponseSchema;
+  },
+  /**
+   * GrantMetroAdmin gives metro-admin to an active, verified account.
+   *
+   * @generated from rpc bff.v1.UserAdminService.GrantMetroAdmin
+   */
+  grantMetroAdmin: {
+    methodKind: "unary";
+    input: typeof ChangeUserRequestSchema;
+    output: typeof ChangeUserResponseSchema;
+  },
+  /**
+   * RevokeMetroAdmin removes metro-admin.
+   *
+   * @generated from rpc bff.v1.UserAdminService.RevokeMetroAdmin
+   */
+  revokeMetroAdmin: {
+    methodKind: "unary";
+    input: typeof ChangeUserRequestSchema;
+    output: typeof ChangeUserResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_v1_user_admin, 0);

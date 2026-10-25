@@ -44,6 +44,16 @@ type Config struct {
 	ForwardedHeader string `yaml:"forwarded_header"`
 	// RateLimitPerMinute bounds the calls of one operator. Default 120.
 	RateLimitPerMinute int `yaml:"rate_limit_per_minute"`
+	// WriteRateLimitPerMinute bounds the account changes of one operator. Default 30.
+	WriteRateLimitPerMinute int `yaml:"write_rate_limit_per_minute"`
+}
+
+// WriteLimit returns the effective per-operator limit of account changes.
+func (c Config) WriteLimit() int {
+	if c.WriteRateLimitPerMinute <= 0 {
+		return 30
+	}
+	return c.WriteRateLimitPerMinute
 }
 
 // Limit returns the effective per-operator rate limit.
@@ -78,6 +88,9 @@ func (c Config) Validate() error {
 	}
 	if c.RateLimitPerMinute < 0 {
 		return errors.New("admin.rate_limit_per_minute must not be negative")
+	}
+	if c.WriteRateLimitPerMinute < 0 {
+		return errors.New("admin.write_rate_limit_per_minute must not be negative")
 	}
 	if h := c.ForwardedHeader; h != "" && http.CanonicalHeaderKey(h) != h {
 		return fmt.Errorf("admin.forwarded_header %q must be a canonical header name such as %s", h, DefaultForwardedHeader)

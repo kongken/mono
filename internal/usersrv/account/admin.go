@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 
@@ -19,7 +21,8 @@ const RoleMetroAdmin = "metro-admin"
 
 // RolePlatformAdmin is the platform administrator: it opens the user section of the
 // unified admin console. It is independent of RoleMetroAdmin (neither implies the
-// other) and is granted and revoked only through the operator CLI. Registration never
+// other) and is granted and revoked only through the operator CLI (the console never
+// touches it, nor the accounts that hold it). Registration never
 // grants it, whoever registers first, and an account that holds it cannot close itself
 // from the web (see BeginDeletion).
 const RolePlatformAdmin = "ozid-admin"
@@ -27,10 +30,10 @@ const RolePlatformAdmin = "ozid-admin"
 // Roles is the whitelist of grantable roles.
 var Roles = []string{RoleMetroAdmin, RolePlatformAdmin}
 
-// Operator identifies who runs an administrative change and why. Both are
-// recorded in the audit row of the change, whatever its result. There is no
-// browser or RPC path to any of these operations, and no user becomes an
-// administrator because of who registered first.
+// Operator identifies who runs an operator-CLI change and why. Both are recorded
+// in the audit row of the change, whatever its result. The CLI is the only path to
+// the platform role; the console's narrower path is ApplyAdminChange. No user
+// becomes an administrator because of who registered first.
 type Operator struct {
 	// Name is a short identifier of the person or ticket, such as "alice" or "ops-1234".
 	Name string
@@ -38,6 +41,30 @@ type Operator struct {
 	Reason string
 	// RequestID correlates the audit row with the CLI invocation.
 	RequestID string
+}
+
+var (
+	emailLike = regexp.MustCompile(`[^\s@]+@[^\s@]+\.[^\s@]+`)
+	tokenLike = regexp.MustCompile(`[A-Za-z0-9_+/=-]{32,}`)
+)
+
+// checkReason bounds the free-text reason of an administrative change: 1-200
+// characters, no control characters, and nothing that looks like a secret or a
+// person's address. The audit row keeps the text for as long as the audit
+// retention, so an email, a password or a token must never get in.
+func checkReason(reason string) error {
+	if !utf8.ValidString(reason) || utf8.RuneCountInString(strings.TrimSpace(reason)) == 0 || utf8.RuneCountInString(reason) > 200 {
+		return &identity.ValidationError{Field: "reason", Reason: "must be 1-200 characters"}
+	}
+	for _, r := range reason {
+		if unicode.IsControl(r) {
+			return &identity.ValidationError{Field: "reason", Reason: "invalid characters"}
+		}
+	}
+	if emailLike.MatchString(reason) || tokenLike.MatchString(reason) || strings.Contains(reason, "mcp_") {
+		return &identity.ValidationError{Field: "reason", Reason: "must not contain an email address, password or token"}
+	}
+	return nil
 }
 
 func (o Operator) validate() error {
@@ -50,13 +77,8 @@ func (o Operator) validate() error {
 			return &identity.ValidationError{Field: "operator", Reason: "invalid characters"}
 		}
 	}
-	if !utf8.ValidString(o.Reason) || utf8.RuneCountInString(o.Reason) == 0 || utf8.RuneCountInString(o.Reason) > 200 {
-		return &identity.ValidationError{Field: "reason", Reason: "must be 1-200 characters"}
-	}
-	for _, r := range o.Reason {
-		if unicode.IsControl(r) {
-			return &identity.ValidationError{Field: "reason", Reason: "invalid characters"}
-		}
+	if err := checkReason(o.Reason); err != nil {
+		return err
 	}
 	if len(o.RequestID) > 64 {
 		return &identity.ValidationError{Field: "request_id", Reason: "too long"}
@@ -160,7 +182,7 @@ func (s *Service) adminChange(ctx context.Context, op Operator, id uuid.UUID, ac
 	var res ChangeResult
 	var refusal error
 	err := s.inTx(ctx, func(tx *ent.Tx) error {
-		entry := auditEntry{actor: op.Name, action: action, requestID: op.RequestID, reason: op.Reason}
+		entry := auditEntry{actor: op.Name, action: action, requestID: op.RequestID, reason: op.Reason, channel: "cli"}
 		u, err := tx.User.Query().Where(user.ID(id)).ForUpdate().Only(ctx)
 		if ent.IsNotFound(err) {
 			refusal, entry.result = ErrNotFound, "not_found"
@@ -170,12 +192,17 @@ func (s *Service) adminChange(ctx context.Context, op Operator, id uuid.UUID, ac
 			return err
 		}
 		entry.userID = &u.ID
+		entry.beforeStatus = Status(u.Status)
+		if entry.beforeRoles, err = roleNames(ctx, tx, id); err != nil {
+			return err
+		}
 		changed, ref, err := apply(tx, u)
 		if err != nil {
 			return err
 		}
 		if ref != nil {
 			refusal, entry.result = ref, "refused_not_active"
+			entry.afterStatus, entry.afterRoles = entry.beforeStatus, entry.beforeRoles
 			return s.audit(ctx, tx, entry)
 		}
 		if changed {
@@ -191,6 +218,7 @@ func (s *Service) adminChange(ctx context.Context, op Operator, id uuid.UUID, ac
 			return err
 		}
 		res = ChangeResult{Changed: changed, Status: Status(u.Status), AuthVersion: u.AuthVersion, Roles: roles}
+		entry.afterStatus, entry.afterRoles = res.Status, roles
 		return s.audit(ctx, tx, entry)
 	})
 	if err != nil {

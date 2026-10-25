@@ -8,8 +8,11 @@ import "platform/v1/options.proto";
 option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
 
 // UserAdminService is the browser interface of the unified admin console's user
-// section: finding accounts and reading what an administrator may know about them.
-// It is read-only in this release; there is no method that changes an account.
+// section: finding accounts, reading what an administrator may know about them, and
+// four narrow changes to ordinary accounts (disable, enable, grant and revoke the
+// metro-admin role). Nothing else can be changed from the web: no free role name or
+// field list, no platform role, no change to an account that holds the platform role,
+// no password, no impersonation, no deletion, and a deleting account cannot be enabled.
 //
 // Every method is a management procedure and is refused unless ALL of these hold,
 // each checked independently of the others (a failure of any is the same refusal,
@@ -29,8 +32,33 @@ option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
 //
 // The BFF then calls usersrv.v1.UserAdminService, which checks the role again. The
 // reads are exempt from CSRF (they change nothing) but not from any check above.
-// Each operator may make 120 calls a minute (RESOURCE_EXHAUSTED beyond that; a
+// Each operator may make 120 reads a minute (RESOURCE_EXHAUSTED beyond that; a
 // failing limiter store refuses the call). Errors never carry internal detail.
+//
+// A write (DisableUser, EnableUser, GrantMetroAdmin, RevokeMetroAdmin) additionally
+// needs, in the same independent way:
+//
+//   - the CSRF token (X-CSRF-Token against the session's), which no read needs;
+//   - a real password check on this session within the last 15 minutes (the session's
+//     authentication time, set only by a password check; a client cannot supply or
+//     extend it); otherwise FAILED_PRECONDITION "enter your password again to continue".
+//     The console sends the administrator to OzID and back; the refused write is never
+//     replayed automatically;
+//   - at most 30 writes a minute per operator (RESOURCE_EXHAUSTED; a failing limiter
+//     store refuses the call).
+//
+// The operator and the authentication time come from the trusted session only; no
+// request field names either. usersrv decides the target constraints again and
+// independently. Write errors:
+//
+//	INVALID_ARGUMENT     reason or key malformed (metadata names the field)
+//	NOT_FOUND            no such account
+//	FAILED_PRECONDITION  "platform administrators cannot be changed here" (target holds
+//	                     ozid-admin); "account is not active" (a deleting account, or
+//	                     granting to an account that is not active and verified);
+//	                     "enter your password again to continue" (recent password)
+//	ABORTED              "account changed since it was read": nothing changed, read again
+//	ALREADY_EXISTS       "mutation id used for a different request"
 service UserAdminService {
   // ListUsers pages through accounts newest first, 50 per page by default and 100 at most.
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
@@ -38,6 +66,23 @@ service UserAdminService {
   }
   // GetUser reads one account by UUID; NOT_FOUND when there is none.
   rpc GetUser(GetUserRequest) returns (GetUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // DisableUser disables an active account: its sessions and access tokens stop
+  // working at their next check. Already disabled is a normal "unchanged" answer.
+  rpc DisableUser(ChangeUserRequest) returns (ChangeUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // EnableUser enables a disabled account. Older sessions and tokens stay dead.
+  rpc EnableUser(ChangeUserRequest) returns (ChangeUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // GrantMetroAdmin gives metro-admin to an active, verified account.
+  rpc GrantMetroAdmin(ChangeUserRequest) returns (ChangeUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // RevokeMetroAdmin removes metro-admin.
+  rpc RevokeMetroAdmin(ChangeUserRequest) returns (ChangeUserResponse) {
     option (platform.v1.required_role) = "ozid-admin";
   }
 }
@@ -61,6 +106,9 @@ message AdminUser {
   // Current role names, sorted.
   repeated string roles = 5;
   google.protobuf.Timestamp created_at = 6;
+  // The version of the account this view is of. A write names it as
+  // expected_auth_version; if the account changed in between, the write is refused.
+  int64 auth_version = 7;
 }
 
 message ListUsersRequest {
@@ -93,4 +141,33 @@ message GetUserRequest {
 
 message GetUserResponse {
   AdminUser user = 1;
+}
+
+// ChangeUserRequest asks for one change to one account; the method names the change.
+// It carries no operator and no role or status: the operator is the signed-in session.
+message ChangeUserRequest {
+  string user_id = 1;
+  // The auth_version of the AdminUser the administrator is looking at.
+  int64 expected_auth_version = 2;
+  // Idempotency key: 1-64 characters of A-Z a-z 0-9 . _ -. Generate a new one for every
+  // intended change and keep it across retries of that same change (a lost response
+  // is retried with the same key and gets the first answer back). Receipts last 24
+  // hours and belong to the operator.
+  string mutation_id = 3;
+  // Why, 1-200 characters, no control characters and no email address, password or
+  // token. Required; kept in the audit record.
+  string reason = 4;
+}
+
+message ChangeUserResponse {
+  string user_id = 1;
+  UserStatus status = 2;
+  // Roles after the change, sorted.
+  repeated string roles = 3;
+  // The new version: the one the next write must name.
+  int64 auth_version = 4;
+  // False when the account was already in the requested state (nothing was changed).
+  bool changed = 5;
+  // True when this is the stored answer to an earlier identical request.
+  bool replayed = 6;
 }

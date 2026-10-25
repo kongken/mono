@@ -15,7 +15,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file usersrv/v1/admin.proto.
  */
 export const file_usersrv_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChZ1c2Vyc3J2L3YxL2FkbWluLnByb3RvEgp1c2Vyc3J2LnYxIqsBCglBZG1pblVzZXISDwoHdXNlcl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSKQoGc3RhdHVzGAQgASgOMhkudXNlcnNydi52MS5BY2NvdW50U3RhdHVzEg0KBXJvbGVzGAUgAygJEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIqQBChBMaXN0VXNlcnNSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSEAoIbmlja25hbWUYAyABKAkSKQoGc3RhdHVzGAQgASgOMhkudXNlcnNydi52MS5BY2NvdW50U3RhdHVzEgwKBHJvbGUYBSABKAkSEQoJcGFnZV9zaXplGAYgASgFEhIKCnBhZ2VfdG9rZW4YByABKAkiUgoRTGlzdFVzZXJzUmVzcG9uc2USJAoFdXNlcnMYASADKAsyFS51c2Vyc3J2LnYxLkFkbWluVXNlchIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiIQoOR2V0VXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoCSI2Cg9HZXRVc2VyUmVzcG9uc2USIwoEdXNlchgBIAEoCzIVLnVzZXJzcnYudjEuQWRtaW5Vc2VyMsABChBVc2VyQWRtaW5TZXJ2aWNlElgKCUxpc3RVc2VycxIcLnVzZXJzcnYudjEuTGlzdFVzZXJzUmVxdWVzdBodLnVzZXJzcnYudjEuTGlzdFVzZXJzUmVzcG9uc2UiDqq7GApvemlkLWFkbWluElIKB0dldFVzZXISGi51c2Vyc3J2LnYxLkdldFVzZXJSZXF1ZXN0GhsudXNlcnNydi52MS5HZXRVc2VyUmVzcG9uc2UiDqq7GApvemlkLWFkbWluQjhaNmdpdGh1Yi5jb20va29uZ2tlbi9tb25vL3BrZy9wcm90by91c2Vyc3J2L3YxO3VzZXJzcnZ2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_platform_v1_options, file_usersrv_v1_account]);
+  fileDesc("ChZ1c2Vyc3J2L3YxL2FkbWluLnByb3RvEgp1c2Vyc3J2LnYxIsEBCglBZG1pblVzZXISDwoHdXNlcl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSKQoGc3RhdHVzGAQgASgOMhkudXNlcnNydi52MS5BY2NvdW50U3RhdHVzEg0KBXJvbGVzGAUgAygJEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhQKDGF1dGhfdmVyc2lvbhgHIAEoAyKkAQoQTGlzdFVzZXJzUmVxdWVzdBINCgVlbWFpbBgBIAEoCRIPCgd1c2VyX2lkGAIgASgJEhAKCG5pY2tuYW1lGAMgASgJEikKBnN0YXR1cxgEIAEoDjIZLnVzZXJzcnYudjEuQWNjb3VudFN0YXR1cxIMCgRyb2xlGAUgASgJEhEKCXBhZ2Vfc2l6ZRgGIAEoBRISCgpwYWdlX3Rva2VuGAcgASgJIlIKEUxpc3RVc2Vyc1Jlc3BvbnNlEiQKBXVzZXJzGAEgAygLMhUudXNlcnNydi52MS5BZG1pblVzZXISFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIiEKDkdldFVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkiNgoPR2V0VXNlclJlc3BvbnNlEiMKBHVzZXIYASABKAsyFS51c2Vyc3J2LnYxLkFkbWluVXNlciJoChFDaGFuZ2VVc2VyUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgJEh0KFWV4cGVjdGVkX2F1dGhfdmVyc2lvbhgCIAEoAxITCgttdXRhdGlvbl9pZBgDIAEoCRIOCgZyZWFzb24YBCABKAkimAEKEkNoYW5nZVVzZXJSZXNwb25zZRIPCgd1c2VyX2lkGAEgASgJEikKBnN0YXR1cxgCIAEoDjIZLnVzZXJzcnYudjEuQWNjb3VudFN0YXR1cxINCgVyb2xlcxgDIAMoCRIUCgxhdXRoX3ZlcnNpb24YBCABKAMSDwoHY2hhbmdlZBgFIAEoCBIQCghyZXBsYXllZBgGIAEoCDLABAoQVXNlckFkbWluU2VydmljZRJYCglMaXN0VXNlcnMSHC51c2Vyc3J2LnYxLkxpc3RVc2Vyc1JlcXVlc3QaHS51c2Vyc3J2LnYxLkxpc3RVc2Vyc1Jlc3BvbnNlIg6quxgKb3ppZC1hZG1pbhJSCgdHZXRVc2VyEhoudXNlcnNydi52MS5HZXRVc2VyUmVxdWVzdBobLnVzZXJzcnYudjEuR2V0VXNlclJlc3BvbnNlIg6quxgKb3ppZC1hZG1pbhJcCgtEaXNhYmxlVXNlchIdLnVzZXJzcnYudjEuQ2hhbmdlVXNlclJlcXVlc3QaHi51c2Vyc3J2LnYxLkNoYW5nZVVzZXJSZXNwb25zZSIOqrsYCm96aWQtYWRtaW4SWwoKRW5hYmxlVXNlchIdLnVzZXJzcnYudjEuQ2hhbmdlVXNlclJlcXVlc3QaHi51c2Vyc3J2LnYxLkNoYW5nZVVzZXJSZXNwb25zZSIOqrsYCm96aWQtYWRtaW4SYAoPR3JhbnRNZXRyb0FkbWluEh0udXNlcnNydi52MS5DaGFuZ2VVc2VyUmVxdWVzdBoeLnVzZXJzcnYudjEuQ2hhbmdlVXNlclJlc3BvbnNlIg6quxgKb3ppZC1hZG1pbhJhChBSZXZva2VNZXRyb0FkbWluEh0udXNlcnNydi52MS5DaGFuZ2VVc2VyUmVxdWVzdBoeLnVzZXJzcnYudjEuQ2hhbmdlVXNlclJlc3BvbnNlIg6quxgKb3ppZC1hZG1pbkI4WjZnaXRodWIuY29tL2tvbmdrZW4vbW9uby9wa2cvcHJvdG8vdXNlcnNydi92MTt1c2Vyc3J2djFiBnByb3RvMw", [file_google_protobuf_timestamp, file_platform_v1_options, file_usersrv_v1_account]);
 
 /**
  * AdminUser is the account as an administrator may see it: what is needed to
@@ -60,6 +60,13 @@ export type AdminUser = Message<"usersrv.v1.AdminUser"> & {
    * @generated from field: google.protobuf.Timestamp created_at = 6;
    */
   createdAt?: Timestamp;
+
+  /**
+   * The account's current auth_version: the version a write must name.
+   *
+   * @generated from field: int64 auth_version = 7;
+   */
+  authVersion: bigint;
 };
 
 /**
@@ -192,9 +199,101 @@ export const GetUserResponseSchema: GenMessage<GetUserResponse> = /*@__PURE__*/
   messageDesc(file_usersrv_v1_admin, 4);
 
 /**
- * UserAdminService is the internal user management interface (BFF -> usersrv gRPC),
- * read-only in this release. It is the only usersrv interface whose methods may name
- * an account other than the caller: the caller (the credential's sub) is the
+ * ChangeUserRequest names one change to one account. The operator is the credential's
+ * sub, never a field. There is no role or status field: the method is the action.
+ *
+ * @generated from message usersrv.v1.ChangeUserRequest
+ */
+export type ChangeUserRequest = Message<"usersrv.v1.ChangeUserRequest"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * The target's auth_version as the administrator last read it.
+   *
+   * @generated from field: int64 expected_auth_version = 2;
+   */
+  expectedAuthVersion: bigint;
+
+  /**
+   * Idempotency key, 1-64 characters of A-Z a-z 0-9 . _ -, new for every intended change.
+   *
+   * @generated from field: string mutation_id = 3;
+   */
+  mutationId: string;
+
+  /**
+   * Why, 1-200 characters; kept in the audit record.
+   *
+   * @generated from field: string reason = 4;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message usersrv.v1.ChangeUserRequest.
+ * Use `create(ChangeUserRequestSchema)` to create a new message.
+ */
+export const ChangeUserRequestSchema: GenMessage<ChangeUserRequest> = /*@__PURE__*/
+  messageDesc(file_usersrv_v1_admin, 5);
+
+/**
+ * ChangeUserResponse is the target after the change (or after the first answer, when
+ * replayed).
+ *
+ * @generated from message usersrv.v1.ChangeUserResponse
+ */
+export type ChangeUserResponse = Message<"usersrv.v1.ChangeUserResponse"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: usersrv.v1.AccountStatus status = 2;
+   */
+  status: AccountStatus;
+
+  /**
+   * @generated from field: repeated string roles = 3;
+   */
+  roles: string[];
+
+  /**
+   * The auth_version after the change; unchanged when changed is false.
+   *
+   * @generated from field: int64 auth_version = 4;
+   */
+  authVersion: bigint;
+
+  /**
+   * False when the account was already in the requested state.
+   *
+   * @generated from field: bool changed = 5;
+   */
+  changed: boolean;
+
+  /**
+   * True when this is the stored answer of an earlier identical request.
+   *
+   * @generated from field: bool replayed = 6;
+   */
+  replayed: boolean;
+};
+
+/**
+ * Describes the message usersrv.v1.ChangeUserResponse.
+ * Use `create(ChangeUserResponseSchema)` to create a new message.
+ */
+export const ChangeUserResponseSchema: GenMessage<ChangeUserResponse> = /*@__PURE__*/
+  messageDesc(file_usersrv_v1_admin, 6);
+
+/**
+ * UserAdminService is the internal user management interface (BFF -> usersrv gRPC):
+ * two reads and four narrow writes. It is the only usersrv interface whose methods may
+ * name an account other than the caller: the caller (the credential's sub) is the
  * administrator, and a target is a request field.
  *
  * Every method declares required_role "ozid-admin". usersrv enforces it twice and
@@ -206,15 +305,43 @@ export const GetUserResponseSchema: GenMessage<GetUserResponse> = /*@__PURE__*/
  * Each call is recorded in security_audit in the transaction that reads: the
  * administrator, the action, the request ID, the result and a redacted description
  * of the query (which filters were used, never their values). Nothing is returned
- * when that record cannot be written (UNAVAILABLE). Neither method returns a password
+ * when that record cannot be written (UNAVAILABLE). No method returns a password
  * hash, a token, a session secret or any product data, and there is no export.
+ *
+ * The four writes (DisableUser, EnableUser, GrantMetroAdmin, RevokeMetroAdmin) are the
+ * only account changes the console may make; there is no method that sets a free role
+ * name, a field list, a password or deletes, and none that touches the platform role.
+ * Each runs in ONE transaction: operator re-check, target row lock (the lock the role
+ * CLI and the deletion take), idempotency receipt, protection and version checks, the
+ * change, auth_version advance (only when something changed), audit row and receipt.
+ * usersrv enforces the target constraints itself, whatever the BFF checked:
+ *
+ *   - an account that holds ozid-admin is never changed here (FAILED_PRECONDITION,
+ *     reason TARGET_PROTECTED), however the platform role was granted, even by a CLI
+ *     call a moment ago;
+ *   - a deleting account is never changed or "enabled" (FAILED_PRECONDITION,
+ *     ACCOUNT_NOT_ACTIVE); metro-admin is granted only to an active, verified account;
+ *   - expected_auth_version must equal the target's current auth_version, or nothing
+ *     is changed (ABORTED, reason TARGET_CHANGED): read the account again;
+ *   - (operator, mutation_id) names one request for 24 hours: the same request again
+ *     returns the first answer (replayed = true, no second change, no second version
+ *     advance), another request under the same key is ALREADY_EXISTS (MUTATION_REUSED).
+ *     Receipts are per operator, so one administrator's key never answers another's;
+ *   - reason is required: 1-200 characters, no control characters, and nothing that
+ *     looks like an email address, password or token.
+ *
+ * Enabling an account or granting a role again does not bring back an older session or
+ * access token: auth_version only moves forward.
  *
  * Errors:
  *
- * 	INVALID_ARGUMENT   a malformed filter, cursor or target (metadata "field" names it)
- * 	NOT_FOUND          GetUser: no such account
- * 	PERMISSION_DENIED  the caller does not hold ozid-admin
- * 	UNAVAILABLE        the store could not serve the read or its audit record
+ * 	INVALID_ARGUMENT     a malformed filter, cursor, target, reason or key (metadata "field")
+ * 	NOT_FOUND            no such account
+ * 	PERMISSION_DENIED    the caller does not hold ozid-admin (checked again in the transaction)
+ * 	FAILED_PRECONDITION  TARGET_PROTECTED, ACCOUNT_NOT_ACTIVE
+ * 	ABORTED              TARGET_CHANGED
+ * 	ALREADY_EXISTS       MUTATION_REUSED
+ * 	UNAVAILABLE          the store could not serve the call or its audit record
  *
  * @generated from service usersrv.v1.UserAdminService
  */
@@ -241,6 +368,47 @@ export const UserAdminService: GenService<{
     methodKind: "unary";
     input: typeof GetUserRequestSchema;
     output: typeof GetUserResponseSchema;
+  },
+  /**
+   * DisableUser disables an active account. An already disabled account is a normal
+   * "unchanged" answer.
+   *
+   * @generated from rpc usersrv.v1.UserAdminService.DisableUser
+   */
+  disableUser: {
+    methodKind: "unary";
+    input: typeof ChangeUserRequestSchema;
+    output: typeof ChangeUserResponseSchema;
+  },
+  /**
+   * EnableUser enables a disabled account. It never cancels a deletion.
+   *
+   * @generated from rpc usersrv.v1.UserAdminService.EnableUser
+   */
+  enableUser: {
+    methodKind: "unary";
+    input: typeof ChangeUserRequestSchema;
+    output: typeof ChangeUserResponseSchema;
+  },
+  /**
+   * GrantMetroAdmin gives the metro-admin role to an active, verified account.
+   *
+   * @generated from rpc usersrv.v1.UserAdminService.GrantMetroAdmin
+   */
+  grantMetroAdmin: {
+    methodKind: "unary";
+    input: typeof ChangeUserRequestSchema;
+    output: typeof ChangeUserResponseSchema;
+  },
+  /**
+   * RevokeMetroAdmin removes the metro-admin role.
+   *
+   * @generated from rpc usersrv.v1.UserAdminService.RevokeMetroAdmin
+   */
+  revokeMetroAdmin: {
+    methodKind: "unary";
+    input: typeof ChangeUserRequestSchema;
+    output: typeof ChangeUserResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_usersrv_v1_admin, 0);

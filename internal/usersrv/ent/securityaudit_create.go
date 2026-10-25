@@ -106,6 +106,104 @@ func (_c *SecurityAuditCreate) SetNillableCreatedAt(v *time.Time) *SecurityAudit
 	return _c
 }
 
+// SetChannel sets the "channel" field.
+func (_c *SecurityAuditCreate) SetChannel(v string) *SecurityAuditCreate {
+	_c.mutation.SetChannel(v)
+	return _c
+}
+
+// SetNillableChannel sets the "channel" field if the given value is not nil.
+func (_c *SecurityAuditCreate) SetNillableChannel(v *string) *SecurityAuditCreate {
+	if v != nil {
+		_c.SetChannel(*v)
+	}
+	return _c
+}
+
+// SetActorUserID sets the "actor_user_id" field.
+func (_c *SecurityAuditCreate) SetActorUserID(v uuid.UUID) *SecurityAuditCreate {
+	_c.mutation.SetActorUserID(v)
+	return _c
+}
+
+// SetNillableActorUserID sets the "actor_user_id" field if the given value is not nil.
+func (_c *SecurityAuditCreate) SetNillableActorUserID(v *uuid.UUID) *SecurityAuditCreate {
+	if v != nil {
+		_c.SetActorUserID(*v)
+	}
+	return _c
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (_c *SecurityAuditCreate) SetMutationID(v string) *SecurityAuditCreate {
+	_c.mutation.SetMutationID(v)
+	return _c
+}
+
+// SetNillableMutationID sets the "mutation_id" field if the given value is not nil.
+func (_c *SecurityAuditCreate) SetNillableMutationID(v *string) *SecurityAuditCreate {
+	if v != nil {
+		_c.SetMutationID(*v)
+	}
+	return _c
+}
+
+// SetBeforeStatus sets the "before_status" field.
+func (_c *SecurityAuditCreate) SetBeforeStatus(v string) *SecurityAuditCreate {
+	_c.mutation.SetBeforeStatus(v)
+	return _c
+}
+
+// SetNillableBeforeStatus sets the "before_status" field if the given value is not nil.
+func (_c *SecurityAuditCreate) SetNillableBeforeStatus(v *string) *SecurityAuditCreate {
+	if v != nil {
+		_c.SetBeforeStatus(*v)
+	}
+	return _c
+}
+
+// SetAfterStatus sets the "after_status" field.
+func (_c *SecurityAuditCreate) SetAfterStatus(v string) *SecurityAuditCreate {
+	_c.mutation.SetAfterStatus(v)
+	return _c
+}
+
+// SetNillableAfterStatus sets the "after_status" field if the given value is not nil.
+func (_c *SecurityAuditCreate) SetNillableAfterStatus(v *string) *SecurityAuditCreate {
+	if v != nil {
+		_c.SetAfterStatus(*v)
+	}
+	return _c
+}
+
+// SetBeforeRoles sets the "before_roles" field.
+func (_c *SecurityAuditCreate) SetBeforeRoles(v string) *SecurityAuditCreate {
+	_c.mutation.SetBeforeRoles(v)
+	return _c
+}
+
+// SetNillableBeforeRoles sets the "before_roles" field if the given value is not nil.
+func (_c *SecurityAuditCreate) SetNillableBeforeRoles(v *string) *SecurityAuditCreate {
+	if v != nil {
+		_c.SetBeforeRoles(*v)
+	}
+	return _c
+}
+
+// SetAfterRoles sets the "after_roles" field.
+func (_c *SecurityAuditCreate) SetAfterRoles(v string) *SecurityAuditCreate {
+	_c.mutation.SetAfterRoles(v)
+	return _c
+}
+
+// SetNillableAfterRoles sets the "after_roles" field if the given value is not nil.
+func (_c *SecurityAuditCreate) SetNillableAfterRoles(v *string) *SecurityAuditCreate {
+	if v != nil {
+		_c.SetAfterRoles(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *SecurityAuditCreate) SetID(v uuid.UUID) *SecurityAuditCreate {
 	_c.mutation.SetID(v)
@@ -171,6 +269,30 @@ func (_c *SecurityAuditCreate) defaults() {
 		v := securityaudit.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
 	}
+	if _, ok := _c.mutation.Channel(); !ok {
+		v := securityaudit.DefaultChannel
+		_c.mutation.SetChannel(v)
+	}
+	if _, ok := _c.mutation.MutationID(); !ok {
+		v := securityaudit.DefaultMutationID
+		_c.mutation.SetMutationID(v)
+	}
+	if _, ok := _c.mutation.BeforeStatus(); !ok {
+		v := securityaudit.DefaultBeforeStatus
+		_c.mutation.SetBeforeStatus(v)
+	}
+	if _, ok := _c.mutation.AfterStatus(); !ok {
+		v := securityaudit.DefaultAfterStatus
+		_c.mutation.SetAfterStatus(v)
+	}
+	if _, ok := _c.mutation.BeforeRoles(); !ok {
+		v := securityaudit.DefaultBeforeRoles
+		_c.mutation.SetBeforeRoles(v)
+	}
+	if _, ok := _c.mutation.AfterRoles(); !ok {
+		v := securityaudit.DefaultAfterRoles
+		_c.mutation.SetAfterRoles(v)
+	}
 	if _, ok := _c.mutation.ID(); !ok {
 		v := securityaudit.DefaultID()
 		_c.mutation.SetID(v)
@@ -206,6 +328,24 @@ func (_c *SecurityAuditCreate) check() error {
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "SecurityAudit.created_at"`)}
+	}
+	if _, ok := _c.mutation.Channel(); !ok {
+		return &ValidationError{Name: "channel", err: errors.New(`ent: missing required field "SecurityAudit.channel"`)}
+	}
+	if _, ok := _c.mutation.MutationID(); !ok {
+		return &ValidationError{Name: "mutation_id", err: errors.New(`ent: missing required field "SecurityAudit.mutation_id"`)}
+	}
+	if _, ok := _c.mutation.BeforeStatus(); !ok {
+		return &ValidationError{Name: "before_status", err: errors.New(`ent: missing required field "SecurityAudit.before_status"`)}
+	}
+	if _, ok := _c.mutation.AfterStatus(); !ok {
+		return &ValidationError{Name: "after_status", err: errors.New(`ent: missing required field "SecurityAudit.after_status"`)}
+	}
+	if _, ok := _c.mutation.BeforeRoles(); !ok {
+		return &ValidationError{Name: "before_roles", err: errors.New(`ent: missing required field "SecurityAudit.before_roles"`)}
+	}
+	if _, ok := _c.mutation.AfterRoles(); !ok {
+		return &ValidationError{Name: "after_roles", err: errors.New(`ent: missing required field "SecurityAudit.after_roles"`)}
 	}
 	return nil
 }
@@ -270,6 +410,34 @@ func (_c *SecurityAuditCreate) createSpec() (*SecurityAudit, *sqlgraph.CreateSpe
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(securityaudit.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
+	}
+	if value, ok := _c.mutation.Channel(); ok {
+		_spec.SetField(securityaudit.FieldChannel, field.TypeString, value)
+		_node.Channel = value
+	}
+	if value, ok := _c.mutation.ActorUserID(); ok {
+		_spec.SetField(securityaudit.FieldActorUserID, field.TypeUUID, value)
+		_node.ActorUserID = &value
+	}
+	if value, ok := _c.mutation.MutationID(); ok {
+		_spec.SetField(securityaudit.FieldMutationID, field.TypeString, value)
+		_node.MutationID = value
+	}
+	if value, ok := _c.mutation.BeforeStatus(); ok {
+		_spec.SetField(securityaudit.FieldBeforeStatus, field.TypeString, value)
+		_node.BeforeStatus = value
+	}
+	if value, ok := _c.mutation.AfterStatus(); ok {
+		_spec.SetField(securityaudit.FieldAfterStatus, field.TypeString, value)
+		_node.AfterStatus = value
+	}
+	if value, ok := _c.mutation.BeforeRoles(); ok {
+		_spec.SetField(securityaudit.FieldBeforeRoles, field.TypeString, value)
+		_node.BeforeRoles = value
+	}
+	if value, ok := _c.mutation.AfterRoles(); ok {
+		_spec.SetField(securityaudit.FieldAfterRoles, field.TypeString, value)
+		_node.AfterRoles = value
 	}
 	return _node, _spec
 }
@@ -360,6 +528,27 @@ func (u *SecurityAuditUpsertOne) UpdateNewValues() *SecurityAuditUpsertOne {
 		}
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(securityaudit.FieldCreatedAt)
+		}
+		if _, exists := u.create.mutation.Channel(); exists {
+			s.SetIgnore(securityaudit.FieldChannel)
+		}
+		if _, exists := u.create.mutation.ActorUserID(); exists {
+			s.SetIgnore(securityaudit.FieldActorUserID)
+		}
+		if _, exists := u.create.mutation.MutationID(); exists {
+			s.SetIgnore(securityaudit.FieldMutationID)
+		}
+		if _, exists := u.create.mutation.BeforeStatus(); exists {
+			s.SetIgnore(securityaudit.FieldBeforeStatus)
+		}
+		if _, exists := u.create.mutation.AfterStatus(); exists {
+			s.SetIgnore(securityaudit.FieldAfterStatus)
+		}
+		if _, exists := u.create.mutation.BeforeRoles(); exists {
+			s.SetIgnore(securityaudit.FieldBeforeRoles)
+		}
+		if _, exists := u.create.mutation.AfterRoles(); exists {
+			s.SetIgnore(securityaudit.FieldAfterRoles)
 		}
 	}))
 	return u
@@ -595,6 +784,27 @@ func (u *SecurityAuditUpsertBulk) UpdateNewValues() *SecurityAuditUpsertBulk {
 			}
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(securityaudit.FieldCreatedAt)
+			}
+			if _, exists := b.mutation.Channel(); exists {
+				s.SetIgnore(securityaudit.FieldChannel)
+			}
+			if _, exists := b.mutation.ActorUserID(); exists {
+				s.SetIgnore(securityaudit.FieldActorUserID)
+			}
+			if _, exists := b.mutation.MutationID(); exists {
+				s.SetIgnore(securityaudit.FieldMutationID)
+			}
+			if _, exists := b.mutation.BeforeStatus(); exists {
+				s.SetIgnore(securityaudit.FieldBeforeStatus)
+			}
+			if _, exists := b.mutation.AfterStatus(); exists {
+				s.SetIgnore(securityaudit.FieldAfterStatus)
+			}
+			if _, exists := b.mutation.BeforeRoles(); exists {
+				s.SetIgnore(securityaudit.FieldBeforeRoles)
+			}
+			if _, exists := b.mutation.AfterRoles(); exists {
+				s.SetIgnore(securityaudit.FieldAfterRoles)
 			}
 		}
 	}))

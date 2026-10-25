@@ -47,6 +47,39 @@ var (
 			},
 		},
 	}
+	// AdminMutationsColumns holds the columns for the "admin_mutations" table.
+	AdminMutationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "operator_id", Type: field.TypeUUID},
+		{Name: "mutation_id", Type: field.TypeString},
+		{Name: "action", Type: field.TypeString},
+		{Name: "target_id", Type: field.TypeUUID},
+		{Name: "request_hash", Type: field.TypeBytes},
+		{Name: "changed", Type: field.TypeBool},
+		{Name: "status", Type: field.TypeString},
+		{Name: "roles", Type: field.TypeString, Default: ""},
+		{Name: "auth_version", Type: field.TypeInt64},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime},
+	}
+	// AdminMutationsTable holds the schema information for the "admin_mutations" table.
+	AdminMutationsTable = &schema.Table{
+		Name:       "admin_mutations",
+		Columns:    AdminMutationsColumns,
+		PrimaryKey: []*schema.Column{AdminMutationsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "adminmutation_operator_id_mutation_id",
+				Unique:  true,
+				Columns: []*schema.Column{AdminMutationsColumns[1], AdminMutationsColumns[2]},
+			},
+			{
+				Name:    "adminmutation_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{AdminMutationsColumns[11]},
+			},
+		},
+	}
 	// DeletionTombstonesColumns holds the columns for the "deletion_tombstones" table.
 	DeletionTombstonesColumns = []*schema.Column{
 		{Name: "user_id", Type: field.TypeUUID},
@@ -125,6 +158,13 @@ var (
 		{Name: "result", Type: field.TypeString},
 		{Name: "reason", Type: field.TypeString, Default: ""},
 		{Name: "created_at", Type: field.TypeTime},
+		{Name: "channel", Type: field.TypeString, Default: ""},
+		{Name: "actor_user_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "mutation_id", Type: field.TypeString, Default: ""},
+		{Name: "before_status", Type: field.TypeString, Default: ""},
+		{Name: "after_status", Type: field.TypeString, Default: ""},
+		{Name: "before_roles", Type: field.TypeString, Default: ""},
+		{Name: "after_roles", Type: field.TypeString, Default: ""},
 	}
 	// SecurityAuditTable holds the schema information for the "security_audit" table.
 	SecurityAuditTable = &schema.Table{
@@ -198,6 +238,7 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		AccountTokensTable,
+		AdminMutationsTable,
 		DeletionTombstonesTable,
 		MailJobsTable,
 		SecurityAuditTable,
@@ -219,6 +260,18 @@ func init() {
 		"account_tokens_hash_size":  "octet_length(token_hash) = 32",
 		"account_tokens_purpose":    "purpose IN ('registration', 'password_reset')",
 		"account_tokens_return":     "(return_app_id IS NULL AND return_path IS NULL) OR (return_app_id IS NOT NULL AND char_length(return_app_id) BETWEEN 1 AND 64 AND (return_path IS NULL OR char_length(return_path) BETWEEN 1 AND 256))",
+	}
+	AdminMutationsTable.Annotation = &entsql.Annotation{
+		Table: "admin_mutations",
+	}
+	AdminMutationsTable.Annotation.Checks = map[string]string{
+		"admin_mutations_action":   "char_length(action) BETWEEN 1 AND 64",
+		"admin_mutations_expiry":   "expires_at > created_at",
+		"admin_mutations_hash":     "octet_length(request_hash) = 32",
+		"admin_mutations_mutation": "char_length(mutation_id) BETWEEN 1 AND 64",
+		"admin_mutations_roles":    "char_length(roles) <= 200",
+		"admin_mutations_status":   "status IN ('active', 'disabled', 'deleting')",
+		"admin_mutations_version":  "auth_version >= 1",
 	}
 	DeletionTombstonesTable.Annotation = &entsql.Annotation{
 		Table: "deletion_tombstones",
@@ -249,6 +302,7 @@ func init() {
 	SecurityAuditTable.Annotation.Checks = map[string]string{
 		"security_audit_action": "char_length(action) BETWEEN 1 AND 64",
 		"security_audit_actor":  "char_length(actor) <= 64",
+		"security_audit_change": "char_length(channel) <= 16 AND char_length(mutation_id) <= 64 AND char_length(before_status) <= 16 AND char_length(after_status) <= 16 AND char_length(before_roles) <= 200 AND char_length(after_roles) <= 200",
 		"security_audit_reason": "char_length(reason) <= 200",
 		"security_audit_result": "char_length(result) BETWEEN 1 AND 64",
 	}

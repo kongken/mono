@@ -14,10 +14,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// UserAdminService implements usersrv.v1.UserAdminService: the read-only user
-// management queries. The rpcauth interceptors have already refused any credential
-// without the declared role; the account core checks the role again against the
-// database, inside the transaction that reads and writes the audit row.
+// UserAdminService implements usersrv.v1.UserAdminService: the user management
+// queries and the four narrow account changes. The rpcauth interceptors have already
+// refused any credential without the declared role; the account core checks the role
+// again against the database, inside the transaction that reads or writes and writes
+// the audit row. The operator of a change is the credential's sub and nothing in the
+// request body.
 type UserAdminService struct {
 	usersrvv1.UnimplementedUserAdminServiceServer
 	accounts *account.Service
@@ -75,6 +77,45 @@ func (s *UserAdminService) GetUser(ctx context.Context, req *usersrvv1.GetUserRe
 	return &usersrvv1.GetUserResponse{User: protoAdminUser(u)}, nil
 }
 
+func (s *UserAdminService) DisableUser(ctx context.Context, req *usersrvv1.ChangeUserRequest) (*usersrvv1.ChangeUserResponse, error) {
+	return s.change(ctx, account.ActionDisable, req)
+}
+
+func (s *UserAdminService) EnableUser(ctx context.Context, req *usersrvv1.ChangeUserRequest) (*usersrvv1.ChangeUserResponse, error) {
+	return s.change(ctx, account.ActionEnable, req)
+}
+
+func (s *UserAdminService) GrantMetroAdmin(ctx context.Context, req *usersrvv1.ChangeUserRequest) (*usersrvv1.ChangeUserResponse, error) {
+	return s.change(ctx, account.ActionGrantMetroAdmin, req)
+}
+
+func (s *UserAdminService) RevokeMetroAdmin(ctx context.Context, req *usersrvv1.ChangeUserRequest) (*usersrvv1.ChangeUserResponse, error) {
+	return s.change(ctx, account.ActionRevokeMetroAdmin, req)
+}
+
+func (s *UserAdminService) change(ctx context.Context, action account.AdminAction, req *usersrvv1.ChangeUserRequest) (*usersrvv1.ChangeUserResponse, error) {
+	op := "admin_" + string(action)
+	operator, requestID, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	target, err := uuid.Parse(req.GetUserId())
+	if err != nil {
+		return nil, toStatus(op, &identity.ValidationError{Field: "user_id", Reason: "not a UUID"})
+	}
+	res, err := s.accounts.ApplyAdminChange(ctx, account.AdminChange{
+		Operator: operator, Action: action, Target: target, ExpectedVersion: req.GetExpectedAuthVersion(),
+		MutationID: req.GetMutationId(), Reason: req.GetReason(), RequestID: requestID,
+	})
+	if err != nil {
+		return nil, toStatus(op, err)
+	}
+	return &usersrvv1.ChangeUserResponse{
+		UserId: target.String(), Status: protoStatus(res.Status), Roles: res.Roles,
+		AuthVersion: res.AuthVersion, Changed: res.Changed, Replayed: res.Replayed,
+	}, nil
+}
+
 func accountStatus(s usersrvv1.AccountStatus) account.Status {
 	switch s {
 	case usersrvv1.AccountStatus_ACCOUNT_STATUS_ACTIVE:
@@ -90,7 +131,7 @@ func accountStatus(s usersrvv1.AccountStatus) account.Status {
 func protoAdminUser(u account.AdminUser) *usersrvv1.AdminUser {
 	return &usersrvv1.AdminUser{
 		UserId: u.ID.String(), Email: u.Email, DisplayName: u.DisplayName,
-		Status: protoStatus(u.Status), Roles: u.Roles, CreatedAt: timestamppb.New(u.CreatedAt),
+		Status: protoStatus(u.Status), Roles: u.Roles, CreatedAt: timestamppb.New(u.CreatedAt), AuthVersion: u.AuthVersion,
 	}
 }
 

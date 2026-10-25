@@ -19,8 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	UserAdminService_ListUsers_FullMethodName = "/bff.v1.UserAdminService/ListUsers"
-	UserAdminService_GetUser_FullMethodName   = "/bff.v1.UserAdminService/GetUser"
+	UserAdminService_ListUsers_FullMethodName        = "/bff.v1.UserAdminService/ListUsers"
+	UserAdminService_GetUser_FullMethodName          = "/bff.v1.UserAdminService/GetUser"
+	UserAdminService_DisableUser_FullMethodName      = "/bff.v1.UserAdminService/DisableUser"
+	UserAdminService_EnableUser_FullMethodName       = "/bff.v1.UserAdminService/EnableUser"
+	UserAdminService_GrantMetroAdmin_FullMethodName  = "/bff.v1.UserAdminService/GrantMetroAdmin"
+	UserAdminService_RevokeMetroAdmin_FullMethodName = "/bff.v1.UserAdminService/RevokeMetroAdmin"
 )
 
 // UserAdminServiceClient is the client API for UserAdminService service.
@@ -28,8 +32,11 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // UserAdminService is the browser interface of the unified admin console's user
-// section: finding accounts and reading what an administrator may know about them.
-// It is read-only in this release; there is no method that changes an account.
+// section: finding accounts, reading what an administrator may know about them, and
+// four narrow changes to ordinary accounts (disable, enable, grant and revoke the
+// metro-admin role). Nothing else can be changed from the web: no free role name or
+// field list, no platform role, no change to an account that holds the platform role,
+// no password, no impersonation, no deletion, and a deleting account cannot be enabled.
 //
 // Every method is a management procedure and is refused unless ALL of these hold,
 // each checked independently of the others (a failure of any is the same refusal,
@@ -49,13 +56,47 @@ const (
 //
 // The BFF then calls usersrv.v1.UserAdminService, which checks the role again. The
 // reads are exempt from CSRF (they change nothing) but not from any check above.
-// Each operator may make 120 calls a minute (RESOURCE_EXHAUSTED beyond that; a
+// Each operator may make 120 reads a minute (RESOURCE_EXHAUSTED beyond that; a
 // failing limiter store refuses the call). Errors never carry internal detail.
+//
+// A write (DisableUser, EnableUser, GrantMetroAdmin, RevokeMetroAdmin) additionally
+// needs, in the same independent way:
+//
+//   - the CSRF token (X-CSRF-Token against the session's), which no read needs;
+//   - a real password check on this session within the last 15 minutes (the session's
+//     authentication time, set only by a password check; a client cannot supply or
+//     extend it); otherwise FAILED_PRECONDITION "enter your password again to continue".
+//     The console sends the administrator to OzID and back; the refused write is never
+//     replayed automatically;
+//   - at most 30 writes a minute per operator (RESOURCE_EXHAUSTED; a failing limiter
+//     store refuses the call).
+//
+// The operator and the authentication time come from the trusted session only; no
+// request field names either. usersrv decides the target constraints again and
+// independently. Write errors:
+//
+//	INVALID_ARGUMENT     reason or key malformed (metadata names the field)
+//	NOT_FOUND            no such account
+//	FAILED_PRECONDITION  "platform administrators cannot be changed here" (target holds
+//	                     ozid-admin); "account is not active" (a deleting account, or
+//	                     granting to an account that is not active and verified);
+//	                     "enter your password again to continue" (recent password)
+//	ABORTED              "account changed since it was read": nothing changed, read again
+//	ALREADY_EXISTS       "mutation id used for a different request"
 type UserAdminServiceClient interface {
 	// ListUsers pages through accounts newest first, 50 per page by default and 100 at most.
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error)
 	// GetUser reads one account by UUID; NOT_FOUND when there is none.
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
+	// DisableUser disables an active account: its sessions and access tokens stop
+	// working at their next check. Already disabled is a normal "unchanged" answer.
+	DisableUser(ctx context.Context, in *ChangeUserRequest, opts ...grpc.CallOption) (*ChangeUserResponse, error)
+	// EnableUser enables a disabled account. Older sessions and tokens stay dead.
+	EnableUser(ctx context.Context, in *ChangeUserRequest, opts ...grpc.CallOption) (*ChangeUserResponse, error)
+	// GrantMetroAdmin gives metro-admin to an active, verified account.
+	GrantMetroAdmin(ctx context.Context, in *ChangeUserRequest, opts ...grpc.CallOption) (*ChangeUserResponse, error)
+	// RevokeMetroAdmin removes metro-admin.
+	RevokeMetroAdmin(ctx context.Context, in *ChangeUserRequest, opts ...grpc.CallOption) (*ChangeUserResponse, error)
 }
 
 type userAdminServiceClient struct {
@@ -86,13 +127,56 @@ func (c *userAdminServiceClient) GetUser(ctx context.Context, in *GetUserRequest
 	return out, nil
 }
 
+func (c *userAdminServiceClient) DisableUser(ctx context.Context, in *ChangeUserRequest, opts ...grpc.CallOption) (*ChangeUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChangeUserResponse)
+	err := c.cc.Invoke(ctx, UserAdminService_DisableUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userAdminServiceClient) EnableUser(ctx context.Context, in *ChangeUserRequest, opts ...grpc.CallOption) (*ChangeUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChangeUserResponse)
+	err := c.cc.Invoke(ctx, UserAdminService_EnableUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userAdminServiceClient) GrantMetroAdmin(ctx context.Context, in *ChangeUserRequest, opts ...grpc.CallOption) (*ChangeUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChangeUserResponse)
+	err := c.cc.Invoke(ctx, UserAdminService_GrantMetroAdmin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userAdminServiceClient) RevokeMetroAdmin(ctx context.Context, in *ChangeUserRequest, opts ...grpc.CallOption) (*ChangeUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChangeUserResponse)
+	err := c.cc.Invoke(ctx, UserAdminService_RevokeMetroAdmin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserAdminServiceServer is the server API for UserAdminService service.
 // All implementations must embed UnimplementedUserAdminServiceServer
 // for forward compatibility.
 //
 // UserAdminService is the browser interface of the unified admin console's user
-// section: finding accounts and reading what an administrator may know about them.
-// It is read-only in this release; there is no method that changes an account.
+// section: finding accounts, reading what an administrator may know about them, and
+// four narrow changes to ordinary accounts (disable, enable, grant and revoke the
+// metro-admin role). Nothing else can be changed from the web: no free role name or
+// field list, no platform role, no change to an account that holds the platform role,
+// no password, no impersonation, no deletion, and a deleting account cannot be enabled.
 //
 // Every method is a management procedure and is refused unless ALL of these hold,
 // each checked independently of the others (a failure of any is the same refusal,
@@ -112,13 +196,47 @@ func (c *userAdminServiceClient) GetUser(ctx context.Context, in *GetUserRequest
 //
 // The BFF then calls usersrv.v1.UserAdminService, which checks the role again. The
 // reads are exempt from CSRF (they change nothing) but not from any check above.
-// Each operator may make 120 calls a minute (RESOURCE_EXHAUSTED beyond that; a
+// Each operator may make 120 reads a minute (RESOURCE_EXHAUSTED beyond that; a
 // failing limiter store refuses the call). Errors never carry internal detail.
+//
+// A write (DisableUser, EnableUser, GrantMetroAdmin, RevokeMetroAdmin) additionally
+// needs, in the same independent way:
+//
+//   - the CSRF token (X-CSRF-Token against the session's), which no read needs;
+//   - a real password check on this session within the last 15 minutes (the session's
+//     authentication time, set only by a password check; a client cannot supply or
+//     extend it); otherwise FAILED_PRECONDITION "enter your password again to continue".
+//     The console sends the administrator to OzID and back; the refused write is never
+//     replayed automatically;
+//   - at most 30 writes a minute per operator (RESOURCE_EXHAUSTED; a failing limiter
+//     store refuses the call).
+//
+// The operator and the authentication time come from the trusted session only; no
+// request field names either. usersrv decides the target constraints again and
+// independently. Write errors:
+//
+//	INVALID_ARGUMENT     reason or key malformed (metadata names the field)
+//	NOT_FOUND            no such account
+//	FAILED_PRECONDITION  "platform administrators cannot be changed here" (target holds
+//	                     ozid-admin); "account is not active" (a deleting account, or
+//	                     granting to an account that is not active and verified);
+//	                     "enter your password again to continue" (recent password)
+//	ABORTED              "account changed since it was read": nothing changed, read again
+//	ALREADY_EXISTS       "mutation id used for a different request"
 type UserAdminServiceServer interface {
 	// ListUsers pages through accounts newest first, 50 per page by default and 100 at most.
 	ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error)
 	// GetUser reads one account by UUID; NOT_FOUND when there is none.
 	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
+	// DisableUser disables an active account: its sessions and access tokens stop
+	// working at their next check. Already disabled is a normal "unchanged" answer.
+	DisableUser(context.Context, *ChangeUserRequest) (*ChangeUserResponse, error)
+	// EnableUser enables a disabled account. Older sessions and tokens stay dead.
+	EnableUser(context.Context, *ChangeUserRequest) (*ChangeUserResponse, error)
+	// GrantMetroAdmin gives metro-admin to an active, verified account.
+	GrantMetroAdmin(context.Context, *ChangeUserRequest) (*ChangeUserResponse, error)
+	// RevokeMetroAdmin removes metro-admin.
+	RevokeMetroAdmin(context.Context, *ChangeUserRequest) (*ChangeUserResponse, error)
 	mustEmbedUnimplementedUserAdminServiceServer()
 }
 
@@ -134,6 +252,18 @@ func (UnimplementedUserAdminServiceServer) ListUsers(context.Context, *ListUsers
 }
 func (UnimplementedUserAdminServiceServer) GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
+}
+func (UnimplementedUserAdminServiceServer) DisableUser(context.Context, *ChangeUserRequest) (*ChangeUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DisableUser not implemented")
+}
+func (UnimplementedUserAdminServiceServer) EnableUser(context.Context, *ChangeUserRequest) (*ChangeUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EnableUser not implemented")
+}
+func (UnimplementedUserAdminServiceServer) GrantMetroAdmin(context.Context, *ChangeUserRequest) (*ChangeUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GrantMetroAdmin not implemented")
+}
+func (UnimplementedUserAdminServiceServer) RevokeMetroAdmin(context.Context, *ChangeUserRequest) (*ChangeUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeMetroAdmin not implemented")
 }
 func (UnimplementedUserAdminServiceServer) mustEmbedUnimplementedUserAdminServiceServer() {}
 func (UnimplementedUserAdminServiceServer) testEmbeddedByValue()                          {}
@@ -192,6 +322,78 @@ func _UserAdminService_GetUser_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserAdminService_DisableUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserAdminServiceServer).DisableUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserAdminService_DisableUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserAdminServiceServer).DisableUser(ctx, req.(*ChangeUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserAdminService_EnableUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserAdminServiceServer).EnableUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserAdminService_EnableUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserAdminServiceServer).EnableUser(ctx, req.(*ChangeUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserAdminService_GrantMetroAdmin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserAdminServiceServer).GrantMetroAdmin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserAdminService_GrantMetroAdmin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserAdminServiceServer).GrantMetroAdmin(ctx, req.(*ChangeUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserAdminService_RevokeMetroAdmin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserAdminServiceServer).RevokeMetroAdmin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserAdminService_RevokeMetroAdmin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserAdminServiceServer).RevokeMetroAdmin(ctx, req.(*ChangeUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserAdminService_ServiceDesc is the grpc.ServiceDesc for UserAdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -206,6 +408,22 @@ var UserAdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUser",
 			Handler:    _UserAdminService_GetUser_Handler,
+		},
+		{
+			MethodName: "DisableUser",
+			Handler:    _UserAdminService_DisableUser_Handler,
+		},
+		{
+			MethodName: "EnableUser",
+			Handler:    _UserAdminService_EnableUser_Handler,
+		},
+		{
+			MethodName: "GrantMetroAdmin",
+			Handler:    _UserAdminService_GrantMetroAdmin_Handler,
+		},
+		{
+			MethodName: "RevokeMetroAdmin",
+			Handler:    _UserAdminService_RevokeMetroAdmin_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

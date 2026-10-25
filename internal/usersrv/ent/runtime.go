@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
+	"github.com/kongken/mono/internal/usersrv/ent/adminmutation"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
 	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/schema"
@@ -37,6 +38,28 @@ func init() {
 	accounttokenDescID := accounttokenFields[0].Descriptor()
 	// accounttoken.DefaultID holds the default value on creation for the id field.
 	accounttoken.DefaultID = accounttokenDescID.Default.(func() uuid.UUID)
+	adminmutationFields := schema.AdminMutation{}.Fields()
+	_ = adminmutationFields
+	// adminmutationDescMutationID is the schema descriptor for mutation_id field.
+	adminmutationDescMutationID := adminmutationFields[2].Descriptor()
+	// adminmutation.MutationIDValidator is a validator for the "mutation_id" field. It is called by the builders before save.
+	adminmutation.MutationIDValidator = adminmutationDescMutationID.Validators[0].(func(string) error)
+	// adminmutationDescAction is the schema descriptor for action field.
+	adminmutationDescAction := adminmutationFields[3].Descriptor()
+	// adminmutation.ActionValidator is a validator for the "action" field. It is called by the builders before save.
+	adminmutation.ActionValidator = adminmutationDescAction.Validators[0].(func(string) error)
+	// adminmutationDescRoles is the schema descriptor for roles field.
+	adminmutationDescRoles := adminmutationFields[8].Descriptor()
+	// adminmutation.DefaultRoles holds the default value on creation for the roles field.
+	adminmutation.DefaultRoles = adminmutationDescRoles.Default.(string)
+	// adminmutationDescCreatedAt is the schema descriptor for created_at field.
+	adminmutationDescCreatedAt := adminmutationFields[10].Descriptor()
+	// adminmutation.DefaultCreatedAt holds the default value on creation for the created_at field.
+	adminmutation.DefaultCreatedAt = adminmutationDescCreatedAt.Default.(func() time.Time)
+	// adminmutationDescID is the schema descriptor for id field.
+	adminmutationDescID := adminmutationFields[0].Descriptor()
+	// adminmutation.DefaultID holds the default value on creation for the id field.
+	adminmutation.DefaultID = adminmutationDescID.Default.(func() uuid.UUID)
 	deletiontombstoneFields := schema.DeletionTombstone{}.Fields()
 	_ = deletiontombstoneFields
 	// deletiontombstoneDescMutationID is the schema descriptor for mutation_id field.
@@ -105,6 +128,30 @@ func init() {
 	securityauditDescCreatedAt := securityauditFields[7].Descriptor()
 	// securityaudit.DefaultCreatedAt holds the default value on creation for the created_at field.
 	securityaudit.DefaultCreatedAt = securityauditDescCreatedAt.Default.(func() time.Time)
+	// securityauditDescChannel is the schema descriptor for channel field.
+	securityauditDescChannel := securityauditFields[8].Descriptor()
+	// securityaudit.DefaultChannel holds the default value on creation for the channel field.
+	securityaudit.DefaultChannel = securityauditDescChannel.Default.(string)
+	// securityauditDescMutationID is the schema descriptor for mutation_id field.
+	securityauditDescMutationID := securityauditFields[10].Descriptor()
+	// securityaudit.DefaultMutationID holds the default value on creation for the mutation_id field.
+	securityaudit.DefaultMutationID = securityauditDescMutationID.Default.(string)
+	// securityauditDescBeforeStatus is the schema descriptor for before_status field.
+	securityauditDescBeforeStatus := securityauditFields[11].Descriptor()
+	// securityaudit.DefaultBeforeStatus holds the default value on creation for the before_status field.
+	securityaudit.DefaultBeforeStatus = securityauditDescBeforeStatus.Default.(string)
+	// securityauditDescAfterStatus is the schema descriptor for after_status field.
+	securityauditDescAfterStatus := securityauditFields[12].Descriptor()
+	// securityaudit.DefaultAfterStatus holds the default value on creation for the after_status field.
+	securityaudit.DefaultAfterStatus = securityauditDescAfterStatus.Default.(string)
+	// securityauditDescBeforeRoles is the schema descriptor for before_roles field.
+	securityauditDescBeforeRoles := securityauditFields[13].Descriptor()
+	// securityaudit.DefaultBeforeRoles holds the default value on creation for the before_roles field.
+	securityaudit.DefaultBeforeRoles = securityauditDescBeforeRoles.Default.(string)
+	// securityauditDescAfterRoles is the schema descriptor for after_roles field.
+	securityauditDescAfterRoles := securityauditFields[14].Descriptor()
+	// securityaudit.DefaultAfterRoles holds the default value on creation for the after_roles field.
+	securityaudit.DefaultAfterRoles = securityauditDescAfterRoles.Default.(string)
 	// securityauditDescID is the schema descriptor for id field.
 	securityauditDescID := securityauditFields[0].Descriptor()
 	// securityaudit.DefaultID holds the default value on creation for the id field.

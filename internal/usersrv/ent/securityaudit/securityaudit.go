@@ -28,6 +28,20 @@ const (
 	FieldReason = "reason"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
+	// FieldChannel holds the string denoting the channel field in the database.
+	FieldChannel = "channel"
+	// FieldActorUserID holds the string denoting the actor_user_id field in the database.
+	FieldActorUserID = "actor_user_id"
+	// FieldMutationID holds the string denoting the mutation_id field in the database.
+	FieldMutationID = "mutation_id"
+	// FieldBeforeStatus holds the string denoting the before_status field in the database.
+	FieldBeforeStatus = "before_status"
+	// FieldAfterStatus holds the string denoting the after_status field in the database.
+	FieldAfterStatus = "after_status"
+	// FieldBeforeRoles holds the string denoting the before_roles field in the database.
+	FieldBeforeRoles = "before_roles"
+	// FieldAfterRoles holds the string denoting the after_roles field in the database.
+	FieldAfterRoles = "after_roles"
 	// Table holds the table name of the securityaudit in the database.
 	Table = "security_audit"
 )
@@ -42,6 +56,13 @@ var Columns = []string{
 	FieldResult,
 	FieldReason,
 	FieldCreatedAt,
+	FieldChannel,
+	FieldActorUserID,
+	FieldMutationID,
+	FieldBeforeStatus,
+	FieldAfterStatus,
+	FieldBeforeRoles,
+	FieldAfterRoles,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -67,6 +88,18 @@ var (
 	DefaultReason string
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
+	// DefaultChannel holds the default value on creation for the "channel" field.
+	DefaultChannel string
+	// DefaultMutationID holds the default value on creation for the "mutation_id" field.
+	DefaultMutationID string
+	// DefaultBeforeStatus holds the default value on creation for the "before_status" field.
+	DefaultBeforeStatus string
+	// DefaultAfterStatus holds the default value on creation for the "after_status" field.
+	DefaultAfterStatus string
+	// DefaultBeforeRoles holds the default value on creation for the "before_roles" field.
+	DefaultBeforeRoles string
+	// DefaultAfterRoles holds the default value on creation for the "after_roles" field.
+	DefaultAfterRoles string
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() uuid.UUID
 )
@@ -112,4 +145,39 @@ func ByReason(opts ...sql.OrderTermOption) OrderOption {
 // ByCreatedAt orders the results by the created_at field.
 func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
+}
+
+// ByChannel orders the results by the channel field.
+func ByChannel(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldChannel, opts...).ToFunc()
+}
+
+// ByActorUserID orders the results by the actor_user_id field.
+func ByActorUserID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldActorUserID, opts...).ToFunc()
+}
+
+// ByMutationID orders the results by the mutation_id field.
+func ByMutationID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMutationID, opts...).ToFunc()
+}
+
+// ByBeforeStatus orders the results by the before_status field.
+func ByBeforeStatus(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBeforeStatus, opts...).ToFunc()
+}
+
+// ByAfterStatus orders the results by the after_status field.
+func ByAfterStatus(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAfterStatus, opts...).ToFunc()
+}
+
+// ByBeforeRoles orders the results by the before_roles field.
+func ByBeforeRoles(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBeforeRoles, opts...).ToFunc()
+}
+
+// ByAfterRoles orders the results by the after_roles field.
+func ByAfterRoles(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAfterRoles, opts...).ToFunc()
 }

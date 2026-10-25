@@ -8,9 +8,9 @@ import "usersrv/v1/account.proto";
 
 option go_package = "github.com/kongken/mono/pkg/proto/usersrv/v1;usersrvv1";
 
-// UserAdminService is the internal user management interface (BFF -> usersrv gRPC),
-// read-only in this release. It is the only usersrv interface whose methods may name
-// an account other than the caller: the caller (the credential's sub) is the
+// UserAdminService is the internal user management interface (BFF -> usersrv gRPC):
+// two reads and four narrow writes. It is the only usersrv interface whose methods may
+// name an account other than the caller: the caller (the credential's sub) is the
 // administrator, and a target is a request field.
 //
 // Every method declares required_role "ozid-admin". usersrv enforces it twice and
@@ -22,15 +22,43 @@ option go_package = "github.com/kongken/mono/pkg/proto/usersrv/v1;usersrvv1";
 // Each call is recorded in security_audit in the transaction that reads: the
 // administrator, the action, the request ID, the result and a redacted description
 // of the query (which filters were used, never their values). Nothing is returned
-// when that record cannot be written (UNAVAILABLE). Neither method returns a password
+// when that record cannot be written (UNAVAILABLE). No method returns a password
 // hash, a token, a session secret or any product data, and there is no export.
+//
+// The four writes (DisableUser, EnableUser, GrantMetroAdmin, RevokeMetroAdmin) are the
+// only account changes the console may make; there is no method that sets a free role
+// name, a field list, a password or deletes, and none that touches the platform role.
+// Each runs in ONE transaction: operator re-check, target row lock (the lock the role
+// CLI and the deletion take), idempotency receipt, protection and version checks, the
+// change, auth_version advance (only when something changed), audit row and receipt.
+// usersrv enforces the target constraints itself, whatever the BFF checked:
+//
+//   - an account that holds ozid-admin is never changed here (FAILED_PRECONDITION,
+//     reason TARGET_PROTECTED), however the platform role was granted, even by a CLI
+//     call a moment ago;
+//   - a deleting account is never changed or "enabled" (FAILED_PRECONDITION,
+//     ACCOUNT_NOT_ACTIVE); metro-admin is granted only to an active, verified account;
+//   - expected_auth_version must equal the target's current auth_version, or nothing
+//     is changed (ABORTED, reason TARGET_CHANGED): read the account again;
+//   - (operator, mutation_id) names one request for 24 hours: the same request again
+//     returns the first answer (replayed = true, no second change, no second version
+//     advance), another request under the same key is ALREADY_EXISTS (MUTATION_REUSED).
+//     Receipts are per operator, so one administrator's key never answers another's;
+//   - reason is required: 1-200 characters, no control characters, and nothing that
+//     looks like an email address, password or token.
+//
+// Enabling an account or granting a role again does not bring back an older session or
+// access token: auth_version only moves forward.
 //
 // Errors:
 //
-//	INVALID_ARGUMENT   a malformed filter, cursor or target (metadata "field" names it)
-//	NOT_FOUND          GetUser: no such account
-//	PERMISSION_DENIED  the caller does not hold ozid-admin
-//	UNAVAILABLE        the store could not serve the read or its audit record
+//	INVALID_ARGUMENT     a malformed filter, cursor, target, reason or key (metadata "field")
+//	NOT_FOUND            no such account
+//	PERMISSION_DENIED    the caller does not hold ozid-admin (checked again in the transaction)
+//	FAILED_PRECONDITION  TARGET_PROTECTED, ACCOUNT_NOT_ACTIVE
+//	ABORTED              TARGET_CHANGED
+//	ALREADY_EXISTS       MUTATION_REUSED
+//	UNAVAILABLE          the store could not serve the call or its audit record
 service UserAdminService {
   // ListUsers pages through accounts, newest first (created_at, then id, both
   // descending: a stable total order, so no row repeats or is skipped while the
@@ -41,6 +69,23 @@ service UserAdminService {
   }
   // GetUser reads one account by UUID.
   rpc GetUser(GetUserRequest) returns (GetUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // DisableUser disables an active account. An already disabled account is a normal
+  // "unchanged" answer.
+  rpc DisableUser(ChangeUserRequest) returns (ChangeUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // EnableUser enables a disabled account. It never cancels a deletion.
+  rpc EnableUser(ChangeUserRequest) returns (ChangeUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // GrantMetroAdmin gives the metro-admin role to an active, verified account.
+  rpc GrantMetroAdmin(ChangeUserRequest) returns (ChangeUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // RevokeMetroAdmin removes the metro-admin role.
+  rpc RevokeMetroAdmin(ChangeUserRequest) returns (ChangeUserResponse) {
     option (platform.v1.required_role) = "ozid-admin";
   }
 }
@@ -58,6 +103,8 @@ message AdminUser {
   // Current role names, sorted; empty for none.
   repeated string roles = 5;
   google.protobuf.Timestamp created_at = 6;
+  // The account's current auth_version: the version a write must name.
+  int64 auth_version = 7;
 }
 
 message ListUsersRequest {
@@ -92,4 +139,30 @@ message GetUserRequest {
 
 message GetUserResponse {
   AdminUser user = 1;
+}
+
+// ChangeUserRequest names one change to one account. The operator is the credential's
+// sub, never a field. There is no role or status field: the method is the action.
+message ChangeUserRequest {
+  string user_id = 1;
+  // The target's auth_version as the administrator last read it.
+  int64 expected_auth_version = 2;
+  // Idempotency key, 1-64 characters of A-Z a-z 0-9 . _ -, new for every intended change.
+  string mutation_id = 3;
+  // Why, 1-200 characters; kept in the audit record.
+  string reason = 4;
+}
+
+// ChangeUserResponse is the target after the change (or after the first answer, when
+// replayed).
+message ChangeUserResponse {
+  string user_id = 1;
+  AccountStatus status = 2;
+  repeated string roles = 3;
+  // The auth_version after the change; unchanged when changed is false.
+  int64 auth_version = 4;
+  // False when the account was already in the requested state.
+  bool changed = 5;
+  // True when this is the stored answer of an earlier identical request.
+  bool replayed = 6;
 }

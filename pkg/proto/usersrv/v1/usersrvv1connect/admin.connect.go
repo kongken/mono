@@ -39,6 +39,18 @@ const (
 	// UserAdminServiceGetUserProcedure is the fully-qualified name of the UserAdminService's GetUser
 	// RPC.
 	UserAdminServiceGetUserProcedure = "/usersrv.v1.UserAdminService/GetUser"
+	// UserAdminServiceDisableUserProcedure is the fully-qualified name of the UserAdminService's
+	// DisableUser RPC.
+	UserAdminServiceDisableUserProcedure = "/usersrv.v1.UserAdminService/DisableUser"
+	// UserAdminServiceEnableUserProcedure is the fully-qualified name of the UserAdminService's
+	// EnableUser RPC.
+	UserAdminServiceEnableUserProcedure = "/usersrv.v1.UserAdminService/EnableUser"
+	// UserAdminServiceGrantMetroAdminProcedure is the fully-qualified name of the UserAdminService's
+	// GrantMetroAdmin RPC.
+	UserAdminServiceGrantMetroAdminProcedure = "/usersrv.v1.UserAdminService/GrantMetroAdmin"
+	// UserAdminServiceRevokeMetroAdminProcedure is the fully-qualified name of the UserAdminService's
+	// RevokeMetroAdmin RPC.
+	UserAdminServiceRevokeMetroAdminProcedure = "/usersrv.v1.UserAdminService/RevokeMetroAdmin"
 )
 
 // UserAdminServiceClient is a client for the usersrv.v1.UserAdminService service.
@@ -50,6 +62,15 @@ type UserAdminServiceClient interface {
 	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
 	// GetUser reads one account by UUID.
 	GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error)
+	// DisableUser disables an active account. An already disabled account is a normal
+	// "unchanged" answer.
+	DisableUser(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error)
+	// EnableUser enables a disabled account. It never cancels a deletion.
+	EnableUser(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error)
+	// GrantMetroAdmin gives the metro-admin role to an active, verified account.
+	GrantMetroAdmin(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error)
+	// RevokeMetroAdmin removes the metro-admin role.
+	RevokeMetroAdmin(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error)
 }
 
 // NewUserAdminServiceClient constructs a client for the usersrv.v1.UserAdminService service. By
@@ -75,13 +96,41 @@ func NewUserAdminServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(userAdminServiceMethods.ByName("GetUser")),
 			connect.WithClientOptions(opts...),
 		),
+		disableUser: connect.NewClient[v1.ChangeUserRequest, v1.ChangeUserResponse](
+			httpClient,
+			baseURL+UserAdminServiceDisableUserProcedure,
+			connect.WithSchema(userAdminServiceMethods.ByName("DisableUser")),
+			connect.WithClientOptions(opts...),
+		),
+		enableUser: connect.NewClient[v1.ChangeUserRequest, v1.ChangeUserResponse](
+			httpClient,
+			baseURL+UserAdminServiceEnableUserProcedure,
+			connect.WithSchema(userAdminServiceMethods.ByName("EnableUser")),
+			connect.WithClientOptions(opts...),
+		),
+		grantMetroAdmin: connect.NewClient[v1.ChangeUserRequest, v1.ChangeUserResponse](
+			httpClient,
+			baseURL+UserAdminServiceGrantMetroAdminProcedure,
+			connect.WithSchema(userAdminServiceMethods.ByName("GrantMetroAdmin")),
+			connect.WithClientOptions(opts...),
+		),
+		revokeMetroAdmin: connect.NewClient[v1.ChangeUserRequest, v1.ChangeUserResponse](
+			httpClient,
+			baseURL+UserAdminServiceRevokeMetroAdminProcedure,
+			connect.WithSchema(userAdminServiceMethods.ByName("RevokeMetroAdmin")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // userAdminServiceClient implements UserAdminServiceClient.
 type userAdminServiceClient struct {
-	listUsers *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
-	getUser   *connect.Client[v1.GetUserRequest, v1.GetUserResponse]
+	listUsers        *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
+	getUser          *connect.Client[v1.GetUserRequest, v1.GetUserResponse]
+	disableUser      *connect.Client[v1.ChangeUserRequest, v1.ChangeUserResponse]
+	enableUser       *connect.Client[v1.ChangeUserRequest, v1.ChangeUserResponse]
+	grantMetroAdmin  *connect.Client[v1.ChangeUserRequest, v1.ChangeUserResponse]
+	revokeMetroAdmin *connect.Client[v1.ChangeUserRequest, v1.ChangeUserResponse]
 }
 
 // ListUsers calls usersrv.v1.UserAdminService.ListUsers.
@@ -94,6 +143,26 @@ func (c *userAdminServiceClient) GetUser(ctx context.Context, req *connect.Reque
 	return c.getUser.CallUnary(ctx, req)
 }
 
+// DisableUser calls usersrv.v1.UserAdminService.DisableUser.
+func (c *userAdminServiceClient) DisableUser(ctx context.Context, req *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error) {
+	return c.disableUser.CallUnary(ctx, req)
+}
+
+// EnableUser calls usersrv.v1.UserAdminService.EnableUser.
+func (c *userAdminServiceClient) EnableUser(ctx context.Context, req *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error) {
+	return c.enableUser.CallUnary(ctx, req)
+}
+
+// GrantMetroAdmin calls usersrv.v1.UserAdminService.GrantMetroAdmin.
+func (c *userAdminServiceClient) GrantMetroAdmin(ctx context.Context, req *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error) {
+	return c.grantMetroAdmin.CallUnary(ctx, req)
+}
+
+// RevokeMetroAdmin calls usersrv.v1.UserAdminService.RevokeMetroAdmin.
+func (c *userAdminServiceClient) RevokeMetroAdmin(ctx context.Context, req *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error) {
+	return c.revokeMetroAdmin.CallUnary(ctx, req)
+}
+
 // UserAdminServiceHandler is an implementation of the usersrv.v1.UserAdminService service.
 type UserAdminServiceHandler interface {
 	// ListUsers pages through accounts, newest first (created_at, then id, both
@@ -103,6 +172,15 @@ type UserAdminServiceHandler interface {
 	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
 	// GetUser reads one account by UUID.
 	GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error)
+	// DisableUser disables an active account. An already disabled account is a normal
+	// "unchanged" answer.
+	DisableUser(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error)
+	// EnableUser enables a disabled account. It never cancels a deletion.
+	EnableUser(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error)
+	// GrantMetroAdmin gives the metro-admin role to an active, verified account.
+	GrantMetroAdmin(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error)
+	// RevokeMetroAdmin removes the metro-admin role.
+	RevokeMetroAdmin(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error)
 }
 
 // NewUserAdminServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -124,12 +202,44 @@ func NewUserAdminServiceHandler(svc UserAdminServiceHandler, opts ...connect.Han
 		connect.WithSchema(userAdminServiceMethods.ByName("GetUser")),
 		connect.WithHandlerOptions(opts...),
 	)
+	userAdminServiceDisableUserHandler := connect.NewUnaryHandler(
+		UserAdminServiceDisableUserProcedure,
+		svc.DisableUser,
+		connect.WithSchema(userAdminServiceMethods.ByName("DisableUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userAdminServiceEnableUserHandler := connect.NewUnaryHandler(
+		UserAdminServiceEnableUserProcedure,
+		svc.EnableUser,
+		connect.WithSchema(userAdminServiceMethods.ByName("EnableUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userAdminServiceGrantMetroAdminHandler := connect.NewUnaryHandler(
+		UserAdminServiceGrantMetroAdminProcedure,
+		svc.GrantMetroAdmin,
+		connect.WithSchema(userAdminServiceMethods.ByName("GrantMetroAdmin")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userAdminServiceRevokeMetroAdminHandler := connect.NewUnaryHandler(
+		UserAdminServiceRevokeMetroAdminProcedure,
+		svc.RevokeMetroAdmin,
+		connect.WithSchema(userAdminServiceMethods.ByName("RevokeMetroAdmin")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/usersrv.v1.UserAdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case UserAdminServiceListUsersProcedure:
 			userAdminServiceListUsersHandler.ServeHTTP(w, r)
 		case UserAdminServiceGetUserProcedure:
 			userAdminServiceGetUserHandler.ServeHTTP(w, r)
+		case UserAdminServiceDisableUserProcedure:
+			userAdminServiceDisableUserHandler.ServeHTTP(w, r)
+		case UserAdminServiceEnableUserProcedure:
+			userAdminServiceEnableUserHandler.ServeHTTP(w, r)
+		case UserAdminServiceGrantMetroAdminProcedure:
+			userAdminServiceGrantMetroAdminHandler.ServeHTTP(w, r)
+		case UserAdminServiceRevokeMetroAdminProcedure:
+			userAdminServiceRevokeMetroAdminHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -145,4 +255,20 @@ func (UnimplementedUserAdminServiceHandler) ListUsers(context.Context, *connect.
 
 func (UnimplementedUserAdminServiceHandler) GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("usersrv.v1.UserAdminService.GetUser is not implemented"))
+}
+
+func (UnimplementedUserAdminServiceHandler) DisableUser(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("usersrv.v1.UserAdminService.DisableUser is not implemented"))
+}
+
+func (UnimplementedUserAdminServiceHandler) EnableUser(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("usersrv.v1.UserAdminService.EnableUser is not implemented"))
+}
+
+func (UnimplementedUserAdminServiceHandler) GrantMetroAdmin(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("usersrv.v1.UserAdminService.GrantMetroAdmin is not implemented"))
+}
+
+func (UnimplementedUserAdminServiceHandler) RevokeMetroAdmin(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("usersrv.v1.UserAdminService.RevokeMetroAdmin is not implemented"))
 }

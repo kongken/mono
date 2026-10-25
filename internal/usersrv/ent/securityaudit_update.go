@@ -71,6 +71,9 @@ func (_u *SecurityAuditUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	if _u.mutation.UserIDCleared() {
 		_spec.ClearField(securityaudit.FieldUserID, field.TypeUUID)
 	}
+	if _u.mutation.ActorUserIDCleared() {
+		_spec.ClearField(securityaudit.FieldActorUserID, field.TypeUUID)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{securityaudit.Label}
@@ -164,6 +167,9 @@ func (_u *SecurityAuditUpdateOne) sqlSave(ctx context.Context) (_node *SecurityA
 	}
 	if _u.mutation.UserIDCleared() {
 		_spec.ClearField(securityaudit.FieldUserID, field.TypeUUID)
+	}
+	if _u.mutation.ActorUserIDCleared() {
+		_spec.ClearField(securityaudit.FieldActorUserID, field.TypeUUID)
 	}
 	_node = &SecurityAudit{config: _u.config}
 	_spec.Assign = _node.assignValues

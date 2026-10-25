@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/kongken/mono/internal/usersrv/ent"
+	"github.com/kongken/mono/internal/usersrv/ent/adminmutation"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
 	"github.com/kongken/mono/internal/usersrv/ent/user"
 	"github.com/kongken/mono/internal/usersrv/ent/userrole"
@@ -75,6 +76,15 @@ var (
 	ErrPlatformAdmin = errors.New("platform administrators cannot close their account through the web")
 	// ErrForbidden: the caller of an administrator interface does not hold the role now.
 	ErrForbidden = errors.New("administrator role required")
+	// ErrTargetProtected: the account of an administrator change holds the platform
+	// role. The web console never changes such accounts; only the operator CLI does.
+	ErrTargetProtected = errors.New("platform administrators cannot be changed here")
+	// ErrTargetChanged: the account's auth_version is not the one the administrator
+	// looked at. Nothing was changed; the caller must read the account again.
+	ErrTargetChanged = errors.New("account changed since it was read")
+	// ErrMutationReused: the mutation ID was already used by this operator for a
+	// different request.
+	ErrMutationReused = errors.New("mutation id used for a different request")
 )
 
 // Service is the account core over one usersrv database.
@@ -492,7 +502,7 @@ func (s *Service) FinishDeletion(ctx context.Context, id uuid.UUID, mutationID, 
 }
 
 // PurgeResult counts what PurgeExpired removed.
-type PurgeResult struct{ Tokens, Tombstones, Audit int }
+type PurgeResult struct{ Tokens, Tombstones, Audit, Mutations int }
 
 // PurgeExpired removes challenges that expired (or were consumed) longer ago
 // than TokenRetention, finished deletion tombstones past their 24 hours, and
@@ -505,6 +515,9 @@ func (s *Service) PurgeExpired(ctx context.Context) (PurgeResult, error) {
 		return res, err
 	}
 	if res.Tombstones, err = s.db.DeletionTombstone.Delete().Where(deletiontombstone.ExpiresAtLT(now)).Exec(ctx); err != nil {
+		return res, err
+	}
+	if res.Mutations, err = s.db.AdminMutation.Delete().Where(adminmutation.ExpiresAtLT(now)).Exec(ctx); err != nil {
 		return res, err
 	}
 	res.Audit, err = s.purgeAudit(ctx, now.Add(-s.AuditRetention))

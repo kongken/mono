@@ -313,3 +313,112 @@ func TestPlatformRoleMigrationUpgradesAnExistingDatabaseInPlace(t *testing.T) {
 		t.Fatalf("rollback after revoking every platform role: %v", err)
 	}
 }
+
+const adminMutationsMigration = "20261025130000_admin_mutations.sql"
+
+// A database that already holds audit rows takes the console-change migration on its own: the old rows
+// keep their text and get the empty defaults of the new columns, the new constraints refuse what they
+// are for, and one (operator, key) names one receipt.
+func TestAdminMutationsMigrationUpgradesAnExistingDatabaseInPlace(t *testing.T) {
+	scoped, _ := testutil.Schema(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	files, err := filepath.Glob(filepath.Join(migrationsDir, "*.sql"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("migrations missing: %v %v", files, err)
+	}
+	sort.Strings(files)
+	apply := func(f string) {
+		t.Helper()
+		body, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = scoped.ExecContext(ctx, string(body)); err != nil {
+			t.Fatalf("%s: %v", filepath.Base(f), err)
+		}
+	}
+	var target string
+	for _, f := range files {
+		if filepath.Base(f) == adminMutationsMigration {
+			target = f
+			break
+		}
+		apply(f)
+	}
+	if target == "" {
+		t.Fatalf("%s is missing", adminMutationsMigration)
+	}
+	exec := func(q string, args ...any) error {
+		_, err := scoped.ExecContext(ctx, q, args...)
+		return err
+	}
+	const alice = "00000000-0000-0000-0000-0000000000a1"
+	if err := exec(`INSERT INTO users (id, email_canonical, email_verified_at, password_hash, created_at, updated_at) VALUES ($1,'alice@example.com',now(),'$argon2id$x',now(),now())`, alice); err != nil {
+		t.Fatal(err)
+	}
+	if err := exec(`INSERT INTO security_audit (id, user_id, actor, action, request_id, result, reason, created_at)
+		VALUES ('00000000-0000-0000-0000-00000000d001', $1, 'ops-1', 'role.grant:metro-admin', 'cli-1', 'ok', 'ticket 42', '2026-10-01T00:00:00Z')`, alice); err != nil {
+		t.Fatal(err)
+	}
+
+	apply(target)
+
+	var actor, action, reason, channel, mutation, beforeStatus, afterRoles string
+	var actorUser *string
+	if err := scoped.QueryRowContext(ctx, `SELECT actor, action, reason, channel, mutation_id, before_status, after_roles, actor_user_id::text FROM security_audit`).
+		Scan(&actor, &action, &reason, &channel, &mutation, &beforeStatus, &afterRoles, &actorUser); err != nil {
+		t.Fatalf("the existing audit row did not survive: %v", err)
+	}
+	if actor != "ops-1" || action != "role.grant:metro-admin" || reason != "ticket 42" || channel != "" || mutation != "" || beforeStatus != "" || afterRoles != "" || actorUser != nil {
+		t.Fatalf("the existing audit row changed: %s %s %s %q %q %q %q %v", actor, action, reason, channel, mutation, beforeStatus, afterRoles, actorUser)
+	}
+	// The audit constraint bounds the new columns.
+	if err := exec(`INSERT INTO security_audit (id, actor, action, result, channel, created_at) VALUES (gen_random_uuid(), 'x', 'a', 'ok', $1, now())`, strings.Repeat("c", 17)); err == nil {
+		t.Error("a 17-character channel was accepted")
+	}
+	if err := exec(`INSERT INTO security_audit (id, actor, action, result, channel, before_roles, created_at) VALUES (gen_random_uuid(), 'x', 'a', 'ok', 'web', $1, now())`, strings.Repeat("r", 201)); err == nil {
+		t.Error("a 201-character role list was accepted")
+	}
+
+	hash := strings.Repeat("h", 32)
+	insert := func(operator, key, hashValue, status string, version int, expires string) error {
+		return exec(`INSERT INTO admin_mutations (id, operator_id, mutation_id, action, target_id, request_hash, changed, status, roles, auth_version, created_at, expires_at)
+			VALUES (gen_random_uuid(), $1, $2, 'disable', $1, $3::bytea, true, $4, '', $5, now(), now() + $6::interval)`, operator, key, hashValue, status, version, expires)
+	}
+	if err := insert(alice, "k-1", hash, "disabled", 2, "24 hours"); err != nil {
+		t.Fatal(err)
+	}
+	for name, err := range map[string]error{
+		"the same operator and key twice": insert(alice, "k-1", hash, "disabled", 2, "24 hours"),
+		"a 16-byte request hash":          insert(alice, "k-2", strings.Repeat("h", 16), "disabled", 2, "24 hours"),
+		"an unknown status":               insert(alice, "k-3", hash, "banned", 2, "24 hours"),
+		"a zero version":                  insert(alice, "k-4", hash, "disabled", 0, "24 hours"),
+		"a receipt that is already over":  insert(alice, "k-5", hash, "disabled", 2, "-1 hour"),
+		"an empty key":                    insert(alice, "", hash, "disabled", 2, "24 hours"),
+		"a 65-character key":              insert(alice, strings.Repeat("k", 65), hash, "disabled", 2, "24 hours"),
+	} {
+		if err == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+	// Another operator's receipt under the same key is a different receipt.
+	if err := insert("00000000-0000-0000-0000-0000000000b2", "k-1", hash, "disabled", 2, "24 hours"); err != nil {
+		t.Fatalf("a second operator's receipt under the same key: %v", err)
+	}
+	// The receipt table keeps no email, reason or secret column.
+	rows, err := scoped.QueryContext(ctx, `SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'admin_mutations'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var column string
+		if err := rows.Scan(&column); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(column, "email") || strings.Contains(column, "reason") || strings.Contains(column, "password") || strings.Contains(column, "token") {
+			t.Errorf("admin_mutations.%s must not exist", column)
+		}
+	}
+}

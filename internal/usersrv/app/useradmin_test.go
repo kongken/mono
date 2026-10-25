@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/usersrv/account"
 	"github.com/kongken/mono/internal/usersrv/application"
@@ -120,5 +121,110 @@ func TestPlatformAdministratorDeletionIsRefusedOverRPC(t *testing.T) {
 	}
 	if _, err = s.account.FinishDeletion(as(admin, ""), &usersrvv1.FinishDeletionRequest{MutationId: "wf-1"}); status.Code(err) == codes.OK {
 		t.Fatal("FinishDeletion removed a platform administrator that never began a deletion")
+	}
+}
+
+// Every account change is authorised like the reads: by the role in the credential and again by the
+// database, and the operator is the credential's account, not anything in the request.
+func TestUserAdminWritesCheckTheRoleTwiceAndUseTheCredentialAsOperator(t *testing.T) {
+	s := start(t)
+	admin := s.newUser(t, "root@example.com")
+	plain := s.newUser(t, "plain@example.com")
+	target := s.newUser(t, "target@example.com")
+	if _, err := s.accounts.GrantRole(context.Background(), gate, admin, account.RolePlatformAdmin); err != nil {
+		t.Fatal(err)
+	}
+	admins := usersrvv1.NewUserAdminServiceClient(s.conn)
+	calls := map[string]func(context.Context, *usersrvv1.ChangeUserRequest) error{
+		"DisableUser": func(c context.Context, r *usersrvv1.ChangeUserRequest) error {
+			_, err := admins.DisableUser(c, r)
+			return err
+		},
+		"EnableUser": func(c context.Context, r *usersrvv1.ChangeUserRequest) error {
+			_, err := admins.EnableUser(c, r)
+			return err
+		},
+		"GrantMetroAdmin": func(c context.Context, r *usersrvv1.ChangeUserRequest) error {
+			_, err := admins.GrantMetroAdmin(c, r)
+			return err
+		},
+		"RevokeMetroAdmin": func(c context.Context, r *usersrvv1.ChangeUserRequest) error {
+			_, err := admins.RevokeMetroAdmin(c, r)
+			return err
+		},
+	}
+	for name, call := range calls {
+		req := func(v int64) *usersrvv1.ChangeUserRequest {
+			return &usersrvv1.ChangeUserRequest{UserId: target.String(), ExpectedAuthVersion: v, MutationId: name, Reason: "ticket 7"}
+		}
+		if err := call(as(admin, ""), req(1)); status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("%s: a credential without the role: %v", name, err)
+		}
+		if err := call(withRoles(admin.String(), "metro-admin"), req(1)); status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("%s: a metro-admin claim: %v", name, err)
+		}
+		if err := call(withRoles(plain.String(), "ozid-admin"), req(1)); status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("%s: a claim the database does not back: %v", name, err)
+		}
+		if err := call(rpcauth.WithCall(context.Background(), rpcauth.Call{}), req(1)); status.Code(err) == codes.OK {
+			t.Fatalf("%s: an anonymous credential changed an account", name)
+		}
+	}
+	if st, _ := s.account.GetAuthState(as(target, ""), &usersrvv1.GetAuthStateRequest{}); st.AuthVersion != 1 || len(st.Roles) != 0 {
+		t.Fatalf("a refused call changed the account: %+v", st)
+	}
+
+	ctx := withRoles(admin.String(), "ozid-admin")
+	res, err := admins.DisableUser(ctx, &usersrvv1.ChangeUserRequest{UserId: target.String(), ExpectedAuthVersion: 1, MutationId: "ok-1", Reason: "ticket 7"})
+	if err != nil || !res.Changed || res.Replayed || res.AuthVersion != 2 || res.Status != usersrvv1.AccountStatus_ACCOUNT_STATUS_DISABLED || res.UserId != target.String() {
+		t.Fatalf("disable: %+v %v", res, err)
+	}
+	// The same request again is the stored answer.
+	again, err := admins.DisableUser(ctx, &usersrvv1.ChangeUserRequest{UserId: target.String(), ExpectedAuthVersion: 1, MutationId: "ok-1", Reason: "ticket 7"})
+	if err != nil || !again.Replayed || again.AuthVersion != 2 || !again.Changed {
+		t.Fatalf("replay: %+v %v", again, err)
+	}
+	// The read model carries the version a write must name.
+	got, err := admins.GetUser(ctx, &usersrvv1.GetUserRequest{UserId: target.String()})
+	if err != nil || got.User.AuthVersion != 2 {
+		t.Fatalf("get: %+v %v", got, err)
+	}
+}
+
+func TestUserAdminWriteErrorsAreTyped(t *testing.T) {
+	s := start(t)
+	admin := s.newUser(t, "root@example.com")
+	other := s.newUser(t, "root2@example.com")
+	target := s.newUser(t, "target@example.com")
+	for _, id := range []uuid.UUID{admin, other} {
+		if _, err := s.accounts.GrantRole(context.Background(), gate, id, account.RolePlatformAdmin); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx := withRoles(admin.String(), "ozid-admin")
+	admins := usersrvv1.NewUserAdminServiceClient(s.conn)
+	disable := func(id string, version int64, key, why string) error {
+		_, err := admins.DisableUser(ctx, &usersrvv1.ChangeUserRequest{UserId: id, ExpectedAuthVersion: version, MutationId: key, Reason: why})
+		return err
+	}
+	check := func(name string, err error, code codes.Code, why string) {
+		t.Helper()
+		if status.Code(err) != code || (why != "" && reason(t, err) != why) {
+			t.Errorf("%s: %v (reason %q)", name, err, why)
+		}
+	}
+	check("a platform administrator", disable(other.String(), 2, "e-1", "ticket"), codes.FailedPrecondition, application.ReasonTargetProtected)
+	check("a stale version", disable(target.String(), 7, "e-2", "ticket"), codes.Aborted, application.ReasonTargetChanged)
+	check("a missing account", disable("00000000-0000-0000-0000-0000000000aa", 1, "e-3", "ticket"), codes.NotFound, "")
+	check("a malformed id", disable("nope", 1, "e-4", "ticket"), codes.InvalidArgument, application.ReasonInvalidArgument)
+	check("no reason", disable(target.String(), 1, "e-5", ""), codes.InvalidArgument, application.ReasonInvalidArgument)
+	check("an email in the reason", disable(target.String(), 1, "e-6", "ask bob@example.com"), codes.InvalidArgument, application.ReasonInvalidArgument)
+	check("no key", disable(target.String(), 1, "", "ticket"), codes.InvalidArgument, application.ReasonInvalidArgument)
+	check("no version", disable(target.String(), 0, "e-7", "ticket"), codes.InvalidArgument, application.ReasonInvalidArgument)
+	check("the first one", disable(target.String(), 1, "e-8", "ticket"), codes.OK, "")
+	check("the key for something else", disable(target.String(), 2, "e-8", "ticket"), codes.AlreadyExists, application.ReasonMutationReused)
+	st, _ := s.account.GetAuthState(as(target, ""), &usersrvv1.GetAuthStateRequest{})
+	if st.AuthVersion != 2 || st.Status != usersrvv1.AccountStatus_ACCOUNT_STATUS_DISABLED {
+		t.Fatalf("state: %+v", st)
 	}
 }

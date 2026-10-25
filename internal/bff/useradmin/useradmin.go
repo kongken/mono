@@ -7,6 +7,14 @@
 // platform role. This package checks the role again, limits each operator's call
 // rate, and writes a redacted log line per call. usersrv checks the role a third
 // time and keeps the audit record that matters.
+//
+// The four writes add what the browser cannot be trusted with: the operator and the
+// time of the password check come from the session record (never from a request field),
+// the password must have been checked within SensitiveAuthMaxAge or the write is refused
+// without being forwarded (and never replayed), and each operator has a separate, lower
+// limit. CSRF and the console Origin were enforced by the ingress before this code ran.
+// usersrv decides the target constraints (protected accounts, deleting accounts, the
+// version, the idempotency receipt) on its own.
 package useradmin
 
 import (
@@ -17,6 +25,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	bffauth "github.com/kongken/mono/internal/bff/auth"
 	"github.com/kongken/mono/internal/bff/session"
 	"github.com/kongken/mono/internal/bff/usersrv"
 	"github.com/kongken/mono/internal/platform/rpcauth"
@@ -32,6 +41,10 @@ const Role = "ozid-admin"
 type Directory interface {
 	ListUsers(ctx context.Context, operatorID string, q usersrv.UserQuery) ([]usersrv.AdminUser, string, error)
 	GetUser(ctx context.Context, operatorID, userID string) (usersrv.AdminUser, error)
+	DisableUser(ctx context.Context, operatorID string, in usersrv.UserChange) (usersrv.ChangeResult, error)
+	EnableUser(ctx context.Context, operatorID string, in usersrv.UserChange) (usersrv.ChangeResult, error)
+	GrantMetroAdmin(ctx context.Context, operatorID string, in usersrv.UserChange) (usersrv.ChangeResult, error)
+	RevokeMetroAdmin(ctx context.Context, operatorID string, in usersrv.UserChange) (usersrv.ChangeResult, error)
 }
 
 // Limiter counts calls in a window; *ratelimit.Limiter implements it.
@@ -44,13 +57,16 @@ type Handler struct {
 	dir     Directory
 	limiter Limiter
 	perMin  int64
+	writes  int64
+	now     func() time.Time
 }
 
 var _ bffv1connect.UserAdminServiceHandler = (*Handler)(nil)
 
-// New returns the handler; perMinute is the call limit of one operator.
-func New(dir Directory, limiter Limiter, perMinute int) *Handler {
-	return &Handler{dir: dir, limiter: limiter, perMin: int64(perMinute)}
+// New returns the handler; perMinute is the read limit and writesPerMinute the
+// account-change limit of one operator.
+func New(dir Directory, limiter Limiter, perMinute, writesPerMinute int) *Handler {
+	return &Handler{dir: dir, limiter: limiter, perMin: int64(perMinute), writes: int64(writesPerMinute), now: time.Now}
 }
 
 var (
@@ -63,20 +79,53 @@ var (
 // operator returns the verified administrator of the call and counts the call against
 // the operator's limit. A failing limiter refuses the call instead of waving it through.
 func (h *Handler) operator(ctx context.Context) (string, error) {
+	bs, err := h.administrator(ctx)
+	if err != nil {
+		return "", err
+	}
+	if err := h.count(ctx, "admin:users:"+bs.UserID, h.perMin); err != nil {
+		return "", err
+	}
+	return bs.UserID, nil
+}
+
+// administrator is the verified session of the call, which must hold the platform role.
+func (h *Handler) administrator(ctx context.Context) (session.BrowserSession, error) {
 	bs, ok := session.FromBrowser(ctx)
 	if !ok || bs.UserID == "" {
-		return "", errUnauth
+		return session.BrowserSession{}, errUnauth
 	}
 	if !bs.HasRole(Role) {
-		return "", errForbidden
+		return session.BrowserSession{}, errForbidden
 	}
-	allowed, err := h.limiter.Allow(ctx, "admin:users:"+bs.UserID, h.perMin, time.Minute)
+	return bs, nil
+}
+
+func (h *Handler) count(ctx context.Context, key string, limit int64) error {
+	allowed, err := h.limiter.Allow(ctx, key, limit, time.Minute)
 	if err != nil {
-		slog.Warn("admin user query limiter failed", "error", err)
-		return "", errLimiter
+		slog.Warn("admin user limiter failed", "error", err)
+		return errLimiter
 	}
 	if !allowed {
-		return "", errBusy
+		return errBusy
+	}
+	return nil
+}
+
+// writer returns the operator of an account change. The password must have been checked
+// on this session within SensitiveAuthMaxAge, by the session's own record of it: an
+// older check is refused before anything is counted or forwarded.
+func (h *Handler) writer(ctx context.Context) (string, error) {
+	bs, err := h.administrator(ctx)
+	if err != nil {
+		return "", err
+	}
+	if h.now().Sub(bs.AuthenticatedAt) > session.SensitiveAuthMaxAge {
+		return "", bffauth.ErrReauthRequired
+	}
+	if err := h.count(ctx, "admin:users:write:"+bs.UserID, h.writes); err != nil {
+		return "", err
 	}
 	return bs.UserID, nil
 }
@@ -131,6 +180,50 @@ func (h *Handler) GetUser(ctx context.Context, req *connect.Request[bffv1.GetUse
 	return connect.NewResponse(&bffv1.GetUserResponse{User: userOut(u)}), nil
 }
 
+func (h *Handler) DisableUser(ctx context.Context, req *connect.Request[bffv1.ChangeUserRequest]) (*connect.Response[bffv1.ChangeUserResponse], error) {
+	return h.change(ctx, "disable", req.Msg, h.dir.DisableUser)
+}
+
+func (h *Handler) EnableUser(ctx context.Context, req *connect.Request[bffv1.ChangeUserRequest]) (*connect.Response[bffv1.ChangeUserResponse], error) {
+	return h.change(ctx, "enable", req.Msg, h.dir.EnableUser)
+}
+
+func (h *Handler) GrantMetroAdmin(ctx context.Context, req *connect.Request[bffv1.ChangeUserRequest]) (*connect.Response[bffv1.ChangeUserResponse], error) {
+	return h.change(ctx, "grant_metro_admin", req.Msg, h.dir.GrantMetroAdmin)
+}
+
+func (h *Handler) RevokeMetroAdmin(ctx context.Context, req *connect.Request[bffv1.ChangeUserRequest]) (*connect.Response[bffv1.ChangeUserResponse], error) {
+	return h.change(ctx, "revoke_metro_admin", req.Msg, h.dir.RevokeMetroAdmin)
+}
+
+func (h *Handler) change(ctx context.Context, action string, m *bffv1.ChangeUserRequest,
+	call func(context.Context, string, usersrv.UserChange) (usersrv.ChangeResult, error)) (*connect.Response[bffv1.ChangeUserResponse], error) {
+	operator, err := h.writer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	res, err := call(ctx, operator, usersrv.UserChange{
+		UserID: m.GetUserId(), ExpectedAuthVersion: m.GetExpectedAuthVersion(), MutationID: m.GetMutationId(), Reason: m.GetReason()})
+	recordChange(ctx, operator, action, m, res, err)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&bffv1.ChangeUserResponse{UserId: res.UserID, Status: statusOut(res.Status), Roles: res.Roles,
+		AuthVersion: res.AuthVersion, Changed: res.Changed, Replayed: res.Replayed}), nil
+}
+
+// recordChange is the BFF's log line of a change: operator, request, action, target and key,
+// the result and whether anything changed. The reason text is not logged here; usersrv keeps
+// it in the audit record.
+func recordChange(ctx context.Context, operator, action string, m *bffv1.ChangeUserRequest, res usersrv.ChangeResult, err error) {
+	result := "ok"
+	if err != nil {
+		result = connect.CodeOf(err).String()
+	}
+	slog.Info("admin user change", "request_id", rpcauth.CallFrom(ctx).RequestID, "operator", operator, "action", action,
+		"target", m.GetUserId(), "mutation_id", m.GetMutationId(), "result", result, "changed", res.Changed, "replayed", res.Replayed)
+}
+
 func lookupKind(q usersrv.UserQuery) string {
 	var kinds []string
 	switch {
@@ -179,5 +272,5 @@ func statusOut(s usersrv.Status) bffv1.UserStatus {
 
 func userOut(u usersrv.AdminUser) *bffv1.AdminUser {
 	return &bffv1.AdminUser{UserId: u.UserID, Email: u.Email, DisplayName: u.DisplayName, Status: statusOut(u.Status),
-		Roles: u.Roles, CreatedAt: timestamppb.New(u.CreatedAt)}
+		Roles: u.Roles, CreatedAt: timestamppb.New(u.CreatedAt), AuthVersion: u.AuthVersion}
 }

@@ -29,6 +29,10 @@ const (
 	// ReasonPlatformAdminProtected: BeginDeletion of an account that holds the
 	// platform role ozid-admin; the role must be revoked through the operator CLI first.
 	ReasonPlatformAdminProtected = "PLATFORM_ADMIN_PROTECTED"
+	// The reasons of the console's account changes (UserAdminService writes).
+	ReasonTargetProtected = "TARGET_PROTECTED"
+	ReasonTargetChanged   = "TARGET_CHANGED"
+	ReasonMutationReused  = "MUTATION_REUSED"
 )
 
 func detailed(code codes.Code, message, reason string, metadata map[string]string) error {
@@ -78,6 +82,12 @@ func toStatus(op string, err error) error {
 		return detailed(codes.FailedPrecondition, "registration is closed", ReasonRegistrationClosed, nil)
 	case errors.Is(err, account.ErrPlatformAdmin):
 		return detailed(codes.FailedPrecondition, "platform administrator accounts cannot be closed here", ReasonPlatformAdminProtected, nil)
+	case errors.Is(err, account.ErrTargetProtected):
+		return detailed(codes.FailedPrecondition, "platform administrators cannot be changed here", ReasonTargetProtected, nil)
+	case errors.Is(err, account.ErrTargetChanged):
+		return detailed(codes.Aborted, "account changed since it was read", ReasonTargetChanged, nil)
+	case errors.Is(err, account.ErrMutationReused):
+		return detailed(codes.AlreadyExists, "mutation id used for a different request", ReasonMutationReused, nil)
 	case errors.Is(err, account.ErrForbidden):
 		return status.Error(codes.PermissionDenied, "permission denied")
 	case errors.Is(err, account.ErrRateLimited):

@@ -252,7 +252,7 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 			route, handler = bffv1connect.NewAccessTokenServiceHandler(accesstoken.NewHandler(accesstoken.New(r.DB)), authOpts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
 			if users := h.usersClient.Load(); users != nil {
-				adminHandler := useradmin.New(users, ratelimit.New(r.Redis, r.KeyPrefix), h.cfg.Admin.Limit())
+				adminHandler := useradmin.New(users, ratelimit.New(r.Redis, r.KeyPrefix), h.cfg.Admin.Limit(), h.cfg.Admin.WriteLimit())
 				route, handler = bffv1connect.NewUserAdminServiceHandler(adminHandler, authOpts...)
 				mux.Handle(route, ingress.ConnectOnly(handler))
 			}

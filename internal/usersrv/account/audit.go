@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,16 +23,31 @@ type auditEntry struct {
 	requestID string
 	result    string
 	reason    string
+	// The fields of an administrator change; empty for other events.
+	channel                   string
+	actorUser                 *uuid.UUID
+	mutationID                string
+	beforeStatus, afterStatus Status
+	beforeRoles, afterRoles   []string
+}
+
+func (e auditEntry) create(c *ent.SecurityAuditCreate, at time.Time) *ent.SecurityAuditCreate {
+	c.SetActor(e.actor).SetAction(e.action).SetRequestID(e.requestID).SetResult(e.result).SetReason(e.reason).SetCreatedAt(at).
+		SetChannel(e.channel).SetMutationID(e.mutationID).
+		SetBeforeStatus(string(e.beforeStatus)).SetAfterStatus(string(e.afterStatus)).
+		SetBeforeRoles(strings.Join(e.beforeRoles, ",")).SetAfterRoles(strings.Join(e.afterRoles, ","))
+	if e.userID != nil {
+		c.SetUserID(*e.userID)
+	}
+	if e.actorUser != nil {
+		c.SetActorUserID(*e.actorUser)
+	}
+	return c
 }
 
 // audit writes the row inside the transaction of the change it describes.
 func (s *Service) audit(ctx context.Context, tx *ent.Tx, e auditEntry) error {
-	c := tx.SecurityAudit.Create().SetActor(e.actor).SetAction(e.action).SetRequestID(e.requestID).SetResult(e.result).SetReason(e.reason).
-		SetCreatedAt(s.now())
-	if e.userID != nil {
-		c.SetUserID(*e.userID)
-	}
-	return c.Exec(ctx)
+	return e.create(tx.SecurityAudit.Create(), s.now()).Exec(ctx)
 }
 
 // auditAlone records an event that changes nothing else (a failed password
@@ -39,12 +55,7 @@ func (s *Service) audit(ctx context.Context, tx *ent.Tx, e auditEntry) error {
 func (s *Service) auditAlone(ctx context.Context, e auditEntry) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 	defer cancel()
-	c := s.db.SecurityAudit.Create().SetActor(e.actor).SetAction(e.action).SetRequestID(e.requestID).SetResult(e.result).SetReason(e.reason).
-		SetCreatedAt(s.now())
-	if e.userID != nil {
-		c.SetUserID(*e.userID)
-	}
-	if err := c.Exec(ctx); err != nil {
+	if err := e.create(s.db.SecurityAudit.Create(), s.now()).Exec(ctx); err != nil {
 		slog.Error("usersrv audit write failed", "action", e.action, "error", err)
 	}
 }
