@@ -1,4 +1,5 @@
-import { expect, request, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { failMetro, form, kind, sid, signIn, stack, state } from "./helpers";
 
 /**
  * Closing an account in a real browser against the real BFF, usersrv, tripmap (with media in an
@@ -10,27 +11,7 @@ import { expect, request, test, type BrowserContext, type Page } from "@playwrig
  * in-memory one: this proves the workflow and its recovery, not a vendor's S3 (the S3 deletion
  * itself is covered by the CI-only real-S3 test in internal/e2e).
  */
-type Stack = { id: string; api: string; metro: string; trip: string; control: string; password: string };
-const stack: Stack = JSON.parse(process.env.OZID_REAL_STACK ?? "{}");
-
 test.skip(!process.env.OZID_REAL_STACK, "started by internal/e2e TestOzidBrowserChain");
-
-type State = { mediaRows: number; object: boolean; visits: number; metroRows: number; workflow: string };
-
-/** The control origin of the scenario: the front is local, so dial it with the control Host. */
-async function control<T = unknown>(path: string): Promise<T> {
-  const c = new URL(stack.control);
-  const client = await request.newContext({ ignoreHTTPSErrors: true });
-  try {
-    const res = await client.fetch(`https://127.0.0.1:${c.port}${path}`, { headers: { Host: c.host } });
-    expect(res.status(), await res.text()).toBeLessThan(300);
-    return res.status() === 204 ? (undefined as T) : ((await res.json()) as T);
-  } finally {
-    await client.dispose();
-  }
-}
-const state = (subject: string) => control<State>(`/state?subject=${subject}`);
-const failMetro = (on: boolean) => control(`/fail-metro?on=${on ? 1 : 0}`);
 
 const violations = new WeakMap<Page, string[]>();
 test.beforeEach(({ page }) => {
@@ -44,19 +25,6 @@ test.afterEach(async ({ page }) => {
   await failMetro(false);
   expect(violations.get(page)).toEqual([]);
 });
-
-async function signIn(page: Page, subject: string) {
-  await page.goto(`${stack.id}/login`);
-  const panel = page.getByTestId("auth-panel");
-  await panel.getByLabel("邮箱").fill(`${subject}@example.com`);
-  await panel.getByLabel("密码", { exact: true }).fill(stack.password);
-  await panel.getByRole("button", { name: "登录", exact: true }).click();
-  await expect(page.getByTestId("overview")).toBeVisible();
-}
-
-const sid = async (context: BrowserContext) => (await context.cookies()).find((c) => c.name === "kongken_sid");
-const form = (page: Page) => page.getByTestId("close-form");
-const kind = (testInfo: { project: { name: string } }) => testInfo.project.name;
 
 test.describe("closing the account", () => {
   test("a product outage keeps it open and recoverable: Cookie kept, progress survives a reload, retry removes everything including media", async ({ page, context }, testInfo) => {

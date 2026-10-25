@@ -21,15 +21,21 @@ import { Spinner } from "@/components/Layout";
 export default function CloseAccountPage() {
   const { session, refresh } = useSession();
   const mode = useRef<"start" | "resume" | null>(null);
+  // The account the page was opened for; a later session refresh must not change it.
+  const shown = useRef<{ id: string; label: string } | null>(null);
   useEffect(() => {
     document.title = "注销账号 · OzID";
   }, []);
-  if (mode.current === null && session.status === "signed-in") mode.current = "start";
+  if (mode.current === null && session.status === "signed-in") {
+    mode.current = "start";
+    const { user, email } = session.profile;
+    shown.current = { id: user.id, label: `${user.displayName}（${email}）` };
+  }
   if (mode.current === null && session.status === "anonymous") mode.current = "resume";
 
   let body;
   if (mode.current) {
-    body = <CloseAccountFlow api={account} mode={mode.current} onNoSession={() => navigate("/login", true)} />;
+    body = <CloseAccountFlow api={account} mode={mode.current} account={shown.current ?? undefined} onNoSession={() => navigate("/login", true)} />;
   } else if (session.status === "unavailable") {
     body = (
       <div className="grid max-w-md gap-4" data-testid="session-unavailable">

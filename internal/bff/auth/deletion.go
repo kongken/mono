@@ -103,6 +103,23 @@ func (s *Service) StartDeletion(ctx context.Context, bs session.BrowserSession, 
 	if err != nil {
 		return nil, err
 	}
+	// Persist first, look at the session second (a sign-out revokes first and looks at the
+	// deletion second): a session that was ended after this request was admitted must not leave
+	// a workflow whose Cookie the sign-out is clearing. Nothing has run yet, so dropping the row
+	// is a clean refusal.
+	if wf.Stage == schema.DeletionStageBegin && wf.TokenHash == session.HashToken(token) {
+		live, lerr := s.db.Session.Query().
+			Where(entsession.TokenHash(wf.TokenHash), entsession.Revoked(false), entsession.ExpiresAtGT(s.now())).Exist(ctx)
+		if lerr != nil {
+			return nil, internal(lerr)
+		}
+		if !live {
+			if _, derr := s.db.AccountDeletion.Delete().Where(accountdeletion.ID(wf.ID), accountdeletion.Stage(schema.DeletionStageBegin)).Exec(ctx); derr != nil {
+				return nil, internal(derr)
+			}
+			return nil, errUnauth
+		}
+	}
 	return s.advance(ctx, wf)
 }
 

@@ -77,6 +77,9 @@ export function toAccountUser(u: User | undefined): AccountUser {
   return { id: u.id, displayName: u.displayName, avatarUrl: u.avatarUrl };
 }
 
+/** The BFF compares this header with the Cookie's account in the same request; it never selects an account. */
+const expectedHeaders = (userId?: string) => (userId ? { headers: { "X-Kongken-User": userId } } : undefined);
+
 function toDeletion(d: AccountDeletion | undefined): DeletionStatus {
   return {
     completed: d?.state === AccountDeletionState.COMPLETED,
@@ -158,7 +161,9 @@ export function createAccountApi({ transport, appId, ensureCsrf }: AccountApiOpt
      */
     revokeOtherSessions: async (): Promise<number> => (await write(() => auth.revokeOtherSessions({}))).revoked,
     logout: () => write(() => auth.logout({})).then(() => undefined),
-    reauthenticate: (password: string) => write(() => auth.reauthenticate({ password })).then(() => undefined),
+    /** `expectedUserId`: the account the page shows; a Cookie that now belongs to another one is refused (UNAUTHENTICATED). */
+    reauthenticate: (password: string, expectedUserId?: string) =>
+      write(() => auth.reauthenticate({ password }, expectedHeaders(expectedUserId))).then(() => undefined),
     changePassword: (currentPassword: string, newPassword: string) =>
       write(() => auth.changePassword({ currentPassword, newPassword })).then(() => undefined),
     updateProfile: async (displayName: string, avatarUrl: string) => {
@@ -167,8 +172,8 @@ export function createAccountApi({ transport, appId, ensureCsrf }: AccountApiOpt
     },
 
     /** Starts (or, with the same mutation ID, continues) closing the shared account. Needs a password check within 15 minutes. */
-    deleteAccount: async (mutationId: string) =>
-      toDeletion((await write(() => auth.deleteAccount({ confirmation: "DELETE", mutationId }))).deletion),
+    deleteAccount: async (mutationId: string, expectedUserId?: string) =>
+      toDeletion((await write(() => auth.deleteAccount({ confirmation: "DELETE", mutationId }, expectedHeaders(expectedUserId)))).deletion),
     getDeletion: async () => toDeletion((await auth.getAccountDeletion({})).deletion),
     retryDeletion: async () => toDeletion((await write(() => auth.retryAccountDeletion({}))).deletion),
   };

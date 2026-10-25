@@ -59,7 +59,8 @@ auth:
   # itself is read from usersrv on every request. Default 12h.
   admin_session_max_age: 12h
   # Products whose data account deletion removes; each needs its upstream.
-  # Default: tripmap only.
+  # Default when unset: tripmap, plus metro when upstreams.metro is configured. A configured
+  # tripmap or metro upstream missing from this list makes the BFF refuse to start.
   account_cleanup: [tripmap, metro]
   csrf_token_ttl: 24h    # optional; default 24h when unset
   cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP

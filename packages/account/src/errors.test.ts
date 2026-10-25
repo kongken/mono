@@ -59,6 +59,13 @@ test("management refusals keep their meaning: lost session, old password check, 
   assert.equal(classifyAccountError(err(Code.ResourceExhausted, "too many requests, try again later")).kind, "rate_limited");
 });
 
+test("a sign-in refused because of an unfinished deletion in this browser says what to do", () => {
+  const f = classifyAccountError(err(Code.FailedPrecondition, "an account deletion started in this browser has not finished"), "login");
+  assert.equal(f.kind, "deletion_pending_here");
+  assert.match(f.message, /注销账号/);
+  assert.match(f.message, /换一个浏览器/);
+});
+
 test("a platform administrator is told why the web cannot close the account, and it is not a lost answer", () => {
   const f = classifyAccountError(err(Code.FailedPrecondition, "platform administrator accounts cannot be closed here; an operator must revoke the role first"), "delete");
   assert.equal(f.kind, "platform_admin");

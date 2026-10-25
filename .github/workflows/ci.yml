@@ -44,6 +44,9 @@ jobs:
       TRIPMAP_TEST_S3_ACCESS_KEY: tripmap-ci
       TRIPMAP_TEST_S3_SECRET_KEY: tripmap-ci-secret
       TRIPMAP_TEST_S3_BUCKET: tripmap
+      # The S3 scenarios of internal/e2e fail, rather than skip or fall back to the in-memory store,
+      # when the S3 service above is not configured.
+      E2E_REQUIRE_REAL_S3: "1"
       TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
       TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
       # usersrv tests use throwaway schemas and unique Redis key prefixes on the same servers.
@@ -72,16 +75,21 @@ jobs:
       # skipped when the TRIPMAP_TEST_* variables are absent.
       - name: Test
         run: go test -race ./...
-      # The account-deletion media scenarios against the real S3 service above. They skip when
-      # TRIPMAP_TEST_S3_* is unset, and a skip would look like a pass in the run above, so this
-      # step runs them verbosely and fails unless each really ran and passed.
-      - name: Account deletion against real S3 (must not skip)
+      # The account-deletion media scenarios against the real S3 service above, on their own. With
+      # E2E_REQUIRE_REAL_S3=1 (job env) they fail by themselves when S3 is not configured, so this
+      # step's result does not rest on another test's PASS line. The log checks below are a second
+      # line: each test must have reported PASS, and the outage test must have said it ran on S3.
+      # (An explicit bash shell, so a failing `go test` is not hidden by the pipe into tee.)
+      - name: Account deletion against real S3 (required, never skipped)
+        shell: bash
         run: |
           go test ./internal/e2e -count=1 -v \
             -run 'TestChainAccountDeletionRemovesPhotosFromRealS3|TestChainCloseAccountRecoversFromAnObjectStoreOutage' | tee /tmp/s3-deletion.log
           for t in TestChainAccountDeletionRemovesPhotosFromRealS3 TestChainCloseAccountRecoversFromAnObjectStoreOutage; do
             grep -q -- "--- PASS: $t " /tmp/s3-deletion.log || { echo "$t did not run and pass against S3"; exit 1; }
           done
+          [ "$(grep -c 'object store: real S3' /tmp/s3-deletion.log)" -ge 2 ] || { echo "a scenario did not run on the real S3"; exit 1; }
+          ! grep -q -- '--- SKIP' /tmp/s3-deletion.log || { echo "an S3 scenario was skipped"; exit 1; }
 
   frontend:
     name: Frontend tests

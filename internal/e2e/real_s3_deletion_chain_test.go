@@ -18,24 +18,64 @@ import (
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 )
 
+// requireRealS3Env switches the S3 scenarios from "use the real object store when one is
+// configured" to "must use it": with E2E_REQUIRE_REAL_S3=1 a missing or incomplete TRIPMAP_TEST_S3_*
+// configuration fails the test instead of skipping it or falling back to the in-memory store. CI's
+// Backend job sets it, so its S3 evidence never rests on another test's PASS line; a local run
+// leaves it unset and keeps the in-memory default.
+const requireRealS3Env = "E2E_REQUIRE_REAL_S3"
+
+func realS3Required() bool { return os.Getenv(requireRealS3Env) == "1" }
+
+var s3TestVariables = []string{"TRIPMAP_TEST_S3_ENDPOINT", "TRIPMAP_TEST_S3_ACCESS_KEY", "TRIPMAP_TEST_S3_SECRET_KEY", "TRIPMAP_TEST_S3_BUCKET"}
+
+// realS3Configured reports whether the real object store is configured. In the required mode it
+// fails the test when any of the variables is missing.
+func realS3Configured(t *testing.T) bool {
+	t.Helper()
+	if realS3Required() {
+		for _, name := range s3TestVariables {
+			if os.Getenv(name) == "" {
+				t.Fatalf("%s=1 requires a real S3 object store, but %s is not set", requireRealS3Env, name)
+			}
+		}
+	}
+	return os.Getenv("TRIPMAP_TEST_S3_ENDPOINT") != ""
+}
+
 // realS3 returns an object store on the S3 server of TRIPMAP_TEST_S3_* (the Compose or CI
-// service), skipping when none is configured: the other chain tests use an in-memory store.
+// service). Without one it skips, or fails in the required mode. Its keys live under a prefix of
+// its own, so no other test or run shares an object with it.
 func realS3(t *testing.T) *blobstore.S3 {
 	t.Helper()
-	endpoint := os.Getenv("TRIPMAP_TEST_S3_ENDPOINT")
-	if endpoint == "" {
+	if !realS3Configured(t) {
 		t.Skip("set TRIPMAP_TEST_S3_ENDPOINT (and the other TRIPMAP_TEST_S3_* variables) for a real object store")
 	}
 	client := s3.NewFromConfig(aws.Config{
 		Region:      "us-east-1",
 		Credentials: credentials.NewStaticCredentialsProvider(os.Getenv("TRIPMAP_TEST_S3_ACCESS_KEY"), os.Getenv("TRIPMAP_TEST_S3_SECRET_KEY"), ""),
-	}, func(o *s3.Options) { o.BaseEndpoint = aws.String(endpoint); o.UsePathStyle = true })
-	// A prefix of its own keeps repeated runs apart from the other tests' objects.
-	store := blobstore.NewS3(client, os.Getenv("TRIPMAP_TEST_S3_BUCKET"), "e2e-"+uuid.NewString()[:8])
+	}, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(os.Getenv("TRIPMAP_TEST_S3_ENDPOINT"))
+		o.UsePathStyle = true
+	})
+	prefix := "e2e-" + uuid.NewString()
+	store := blobstore.NewS3(client, os.Getenv("TRIPMAP_TEST_S3_BUCKET"), prefix)
 	if err := store.Check(context.Background()); err != nil {
 		t.Fatalf("configured S3 endpoint is not ready: %v", err)
 	}
+	t.Logf("object store: real S3 (bucket %s, key prefix %s)", os.Getenv("TRIPMAP_TEST_S3_BUCKET"), prefix)
 	return store
+}
+
+// objectStoreForChain is the real S3 when it is configured (or required) and an in-memory store
+// otherwise, and says which in the log, so a run's evidence shows what it ran on.
+func objectStoreForChain(t *testing.T) blobstore.Store {
+	t.Helper()
+	if realS3Configured(t) {
+		return realS3(t)
+	}
+	t.Log("object store: in-memory (no TRIPMAP_TEST_S3_ENDPOINT)")
+	return newChainMediaBlobs()
 }
 
 // Spec §14 scenarios 19-21 against a real object store: an account with an uploaded photo (and
@@ -80,6 +120,12 @@ func TestChainAccountDeletionRemovesPhotosFromRealS3(t *testing.T) {
 				keys = append(keys, k)
 			}
 		}
+		// Every object this test made goes away with it, whatever the outcome.
+		t.Cleanup(func() {
+			for _, k := range append([]string{m.UploadKey}, keys...) {
+				_ = store.Delete(context.Background(), k)
+			}
+		})
 		return id, keys
 	}
 	exists := func(key string) bool {
@@ -116,11 +162,6 @@ func TestChainAccountDeletionRemovesPhotosFromRealS3(t *testing.T) {
 	if len(mine) == 0 || len(pending) == 0 || len(theirs) == 0 {
 		t.Fatalf("test objects were not created: %v %v %v", mine, pending, theirs)
 	}
-	t.Cleanup(func() {
-		for _, k := range theirs {
-			_ = store.Delete(context.Background(), k)
-		}
-	})
 	for _, k := range append(append(append([]string{}, mine...), pending...), theirs...) {
 		if !exists(k) {
 			t.Fatalf("object %s is missing before the deletion", k)

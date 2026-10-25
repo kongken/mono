@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os"
 	"slices"
 	"sync/atomic"
 	"testing"
@@ -272,6 +271,17 @@ func (s *closeAccountStack) control(seeds map[string]closeAccountSeed) http.Hand
 		s.failMetro.Store(r.URL.Query().Get("on") == "1")
 		w.WriteHeader(http.StatusNoContent)
 	})
+	// The background runner's pass, for a scenario that must show a deletion finishing while no
+	// browser holds its Cookie any more.
+	mux.HandleFunc("/run-deletions", func(w http.ResponseWriter, r *http.Request) {
+		s.dueNow(r.Context())
+		n, err := s.BFF.RunDeletionsOnce(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]int{"ran": n})
+	})
 	mux.HandleFunc("/state", func(w http.ResponseWriter, r *http.Request) {
 		seed, ok := seeds[r.URL.Query().Get("subject")]
 		if !ok {
@@ -296,24 +306,27 @@ func (s *closeAccountStack) control(seeds map[string]closeAccountSeed) http.Hand
 }
 
 // The same recovery with the object store failing, through the real S3 of TRIPMAP_TEST_S3_* when
-// it is configured (CI's Backend job) and an in-memory store otherwise: an S3 outage keeps the
+// it is configured (CI's Backend job, where E2E_REQUIRE_REAL_S3=1 makes a missing configuration a
+// failure) and an in-memory store otherwise: an S3 outage keeps the
 // deletion open with the media still there, a restart of the BFF keeps holding it, and once the
 // store is back the background runner finishes it with every object of the account gone and
 // another user's objects untouched. The object keys are unique to the two accounts.
 func TestChainCloseAccountRecoversFromAnObjectStoreOutage(t *testing.T) {
-	var store blobstore.Store = newChainMediaBlobs()
-	if os.Getenv("TRIPMAP_TEST_S3_ENDPOINT") != "" {
-		store = realS3(t)
-	}
+	store := objectStoreForChain(t)
+	// Registered before anything is written, so a failure half-way still removes every object this
+	// test may have made (the keys are fixed by the account names; deleting a missing one is fine).
+	t.Cleanup(func() {
+		for _, subject := range []string{"s3out_a", "s3out_b"} {
+			key := "owned/" + subject + "/photo.jpg"
+			for _, k := range []string{key, thumbOf(key)} {
+				_ = store.Delete(context.Background(), k)
+			}
+		}
+	})
 	s := newCloseAccountStackOn(t, store)
 	ctx := context.Background()
 	a, aID, aKey := s.account("s3out_a")
 	_, _, bKey := s.account("s3out_b")
-	t.Cleanup(func() {
-		for _, k := range []string{aKey, thumbOf(aKey), bKey, thumbOf(bKey)} {
-			_ = store.Delete(context.Background(), k)
-		}
-	})
 	for _, k := range []string{aKey, thumbOf(aKey), bKey, thumbOf(bKey)} {
 		if !s.hasObject(k) {
 			t.Fatalf("object %s is missing before the deletion", k)

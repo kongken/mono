@@ -55,7 +55,7 @@
 - 只通过运维 CLI 授予/撤销：`usersrv-admin grant-role -email E|-user-id U -role ozid-admin -operator NAME -reason TEXT`，`revoke-role` 同理（没有单独的 `init` 命令：第一个平台管理员也是这样授予；**不会**因为谁最先注册而自动授予）。每次变更提升账号 `auth_version`（旧会话和管理令牌在下次检查失效）并写 `security_audit`（含被拒绝和未改变的尝试）。
 - `ozid-admin` 与 `metro-admin` 相互独立：持有一个不意味着持有另一个，撤销一个不影响另一个。
 - usersrv 迁移 `migrations/usersrv/20261025120000_platform_admin_role.sql` 把 `user_roles` 的角色检查约束扩展为 `('metro-admin','ozid-admin')`；回滚前必须先撤销所有 `ozid-admin`，否则旧约束会拒绝这些行。
-- 平台管理员保护：**强制点在 usersrv，对所有调用方有效**——`BeginDeletion` 在账号行锁内发现 `ozid-admin` 即拒绝（原因 `PLATFORM_ADMIN_PROTECTED`，审计 `deletion.begin=refused_platform_admin`，账号状态与 `auth_version` 不变），BFF 的 `DeleteAccount`、后台 runner 和任何持有内部凭证的客户端都一样。BFF 只做两件事：把拒绝映射成明确错误；在开始阶段遇到这个永久拒绝时丢弃该工作流行，所以之后即使撤销角色，账号也不会被之前的请求自动关闭。产品（山海足迹、地铁足迹）里现有的注销入口走同一个 `DeleteAccount`，同样受保护。OzID 自己的网页注销页（`/close-account`）已由 T7 提供，对平台管理员给出同样的明确拒绝与“联系运维”说明（见 [OzID 功能描述](../ozid/features.md#账号注销t7)）。共享前端包 `@kongken/account` 的错误分类已把这个拒绝识别为独立的 `platform_admin` 类（给出“请联系运维先回收管理员角色”的明确提示）；
+- 平台管理员保护：**强制点在 usersrv，对所有调用方有效**——`BeginDeletion` 在账号行锁内发现 `ozid-admin` 即拒绝（原因 `PLATFORM_ADMIN_PROTECTED`，审计 `deletion.begin=refused_platform_admin`，账号状态与 `auth_version` 不变），BFF 的 `DeleteAccount`、后台 runner 和任何持有内部凭证的客户端都一样。BFF 只做两件事：把拒绝映射成明确错误；在开始阶段遇到这个永久拒绝时丢弃该工作流行，所以之后即使撤销角色，账号也不会被之前的请求自动关闭。产品（山海足迹、地铁足迹）里现有的注销入口走同一个 `DeleteAccount`，同样受保护。OzID 自己的网页注销页（`/close-account`）已由 T7 提供，对平台管理员给出同样的明确拒绝与“联系运维”说明（见 [OzID 功能描述](../ozid/features.md#账号注销t7)）。共享前端包 `@kongken/account` 的错误分类已把这个拒绝识别为独立的 `platform_admin` 类（给出“请联系运维先回收管理员角色”的明确提示）。
 
 ## 账号状态与角色修改（T5）
 

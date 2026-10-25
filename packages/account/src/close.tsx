@@ -14,6 +14,12 @@ export type CloseAccountFlowProps = {
    * reloaded): look for the deletion this browser's Cookie started and show where it is.
    */
   mode: "start" | "resume";
+  /**
+   * `start` mode: the account the page shows. The calls that begin the deletion carry it, so a
+   * Cookie that meanwhile became another account's (a sign-in in another tab) is refused rather
+   * than closed.
+   */
+  account?: { id: string; label: string };
   /** There is no session and the Cookie has no deletion to show: the way on is signing in. */
   onNoSession: () => void;
 };
@@ -68,12 +74,18 @@ export function CloseAccountScope() {
  * Nothing here signs the browser out or clears anything: only the finished deletion does,
  * on the server's answer.
  */
-export function CloseAccountFlow({ api, mode, onNoSession }: CloseAccountFlowProps) {
+export function CloseAccountFlow({ api, mode, account, onNoSession }: CloseAccountFlowProps) {
   const [phase, setPhase] = useState<Phase>({ kind: mode === "resume" ? "loading" : "form" });
   const [password, setPassword] = useState("");
   const [word, setWord] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNoticeText] = useState("");
+  // A failure is announced as an alert; where the deletion simply is, is a calm status.
+  const [noticeIsFailure, setNoticeIsFailure] = useState(true);
+  const setNotice = (text: string, failure = true) => {
+    setNoticeText(text);
+    setNoticeIsFailure(failure);
+  };
   const [tick, setTick] = useState(0);
   const mutationId = useRef<string | null>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -108,7 +120,7 @@ export function CloseAccountFlow({ api, mode, onNoSession }: CloseAccountFlowPro
     if (word.trim() !== DELETE_CONFIRM_WORD) return;
     await run(async () => {
       try {
-        await api.reauthenticate(password);
+        await api.reauthenticate(password, account?.id);
       } catch (error) {
         const failure = classifyAccountError(error, "reauthenticate");
         if (failure.kind === "wrong_password") setPasswordError(failure.message);
@@ -119,7 +131,7 @@ export function CloseAccountFlow({ api, mode, onNoSession }: CloseAccountFlowPro
       // One key per attempt: repeating the call after a lost response continues the same deletion.
       mutationId.current ??= newMutationId();
       try {
-        const status = await api.deleteAccount(mutationId.current);
+        const status = await api.deleteAccount(mutationId.current, account?.id);
         setPassword("");
         settle(status);
       } catch (error) {
@@ -146,9 +158,9 @@ export function CloseAccountFlow({ api, mode, onNoSession }: CloseAccountFlowPro
       setNotice("");
       const known = phase.kind === "progress" ? phase.deletion : null;
       try {
-        const status = known || !mutationId.current ? await api.retryDeletion() : await api.deleteAccount(mutationId.current);
+        const status = known || !mutationId.current ? await api.retryDeletion() : await api.deleteAccount(mutationId.current, account?.id);
         settle(status);
-        if (!status.completed) setNotice("注销仍在进行，还有数据没有清理完。请稍后再次重试，进度不会丢失。");
+        if (!status.completed) setNotice("注销仍在进行，还有数据没有清理完。请稍后再次重试，进度不会丢失。", false);
       } catch (error) {
         const failure = classifyAccountError(error, "delete");
         if (failure.kind === "not_signed_in") {
@@ -192,7 +204,7 @@ export function CloseAccountFlow({ api, mode, onNoSession }: CloseAccountFlowPro
     const d = phase.deletion;
     return (
       <div className="grid gap-4" data-testid="close-progress">
-        <Notice kind="error">
+        <Notice kind={notice && noticeIsFailure ? "error" : "info"}>
           {notice ||
             (d
               ? "注销尚未完成：账号已经关闭，还有数据在清理。进度不会丢失，可以反复重试。"
@@ -232,10 +244,15 @@ export function CloseAccountFlow({ api, mode, onNoSession }: CloseAccountFlowPro
     <div className="grid gap-6" data-testid="close-form-page">
       <CloseAccountScope />
       <form ref={form} noValidate onSubmit={(e) => void begin(e)} className={FORM_CLASS} aria-label="确认注销账号" data-testid="close-form">
+        {account ? (
+          <p className="text-sm" data-testid="close-account-who">
+            将注销的账号：<strong>{account.label}</strong>
+          </p>
+        ) : null}
         <p className="text-sm font-medium">确认注销：需要再次输入当前密码，并输入“{DELETE_CONFIRM_WORD}”。</p>
         <PasswordField label="当前密码" name="close_password" autoComplete="current-password" value={password} error={passwordError || undefined} onChange={(e) => setPassword(e.target.value)} />
         <TextField label={`输入“${DELETE_CONFIRM_WORD}”确认`} name="close_confirmation" autoComplete="off" autoCapitalize="none" spellCheck={false} value={word} onChange={(e) => setWord(e.target.value)} />
-        {notice ? <Notice kind="error">{notice}</Notice> : null}
+        {notice ? <Notice kind={noticeIsFailure ? "error" : "info"}>{notice}</Notice> : null}
         <div>
           <Button type="submit" variant="destructive" disabled={pending || word.trim() !== DELETE_CONFIRM_WORD}>
             {pending ? "注销中…" : "确认永久注销"}

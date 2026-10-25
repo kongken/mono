@@ -103,9 +103,23 @@ func (h *Handler) CompleteRegistration(ctx context.Context, req *connect.Request
 }
 
 func (h *Handler) LoginWithEmail(ctx context.Context, req *connect.Request[bffv1.LoginWithEmailRequest]) (*connect.Response[bffv1.LoginWithEmailResponse], error) {
+	// The Cookie of an unfinished deletion is the only way to see and continue it, and a sign-in
+	// sets the Cookie. So a browser that holds one cannot sign in until that deletion is done;
+	// the answer does not depend on the address or the password.
+	cookie := session.TokenFromRequest(req.Header())
+	if h.svc.DeletionPending(ctx, cookie) {
+		return nil, errDeletionPendingHere
+	}
 	msg, token, err := h.svc.Login(ctx, req.Msg.GetEmail(), req.Msg.GetPassword())
 	if err != nil {
 		return nil, err
+	}
+	// Checked again once the session exists, as late as the handler can: a deletion that began
+	// while the password was being verified still keeps its Cookie. What this cannot reach is a
+	// deletion that begins after this point, while the response is on its way to the browser.
+	if h.svc.DeletionPending(ctx, cookie) {
+		_ = h.svc.Logout(ctx, token)
+		return nil, errDeletionPendingHere
 	}
 	res := connect.NewResponse(msg)
 	session.SetSessionCookie(res.Header(), h.svc.cookies, token, msg.GetExpiresAt().AsTime())
@@ -133,18 +147,26 @@ func (h *Handler) ResetPassword(ctx context.Context, req *connect.Request[bffv1.
 }
 
 func (h *Handler) Logout(ctx context.Context, req *connect.Request[bffv1.LogoutRequest]) (*connect.Response[bffv1.LogoutResponse], error) {
-	if h.svc.DeletionPending(ctx, session.TokenFromRequest(req.Header())) {
-		// The account is already closed and its sessions are gone; the Cookie is now the only way
-		// to see or continue the deletion, so signing out must not clear it. Only the finished
-		// deletion clears it.
-		return connect.NewResponse(&bffv1.LogoutResponse{}), nil
-	}
-	if err := h.svc.Logout(ctx, session.TokenFromRequest(req.Header())); err != nil {
+	token := session.TokenFromRequest(req.Header())
+	// Revoke first, look at the deletion second: StartDeletion persists first and looks at the
+	// session second, so of a sign-out and a deletion that run together at least one sees the
+	// other. Either the deletion is refused (its session is gone) or the Cookie stays.
+	if err := h.svc.Logout(ctx, token); err != nil {
 		return nil, err
 	}
 	res := connect.NewResponse(&bffv1.LogoutResponse{})
-	session.ClearSessionCookie(res.Header(), h.svc.cookies)
+	h.clearCookieUnlessDeleting(ctx, res.Header(), token)
 	return res, nil
+}
+
+// clearCookieUnlessDeleting clears the session Cookie of a request that has just revoked its
+// session, except when a deletion that this Cookie started is unfinished: that Cookie is then the
+// only credential to see and continue it. It must run after the session was revoked (see Logout).
+func (h *Handler) clearCookieUnlessDeleting(ctx context.Context, header http.Header, token string) {
+	if h.svc.DeletionPending(ctx, token) {
+		return
+	}
+	session.ClearSessionCookie(header, h.svc.cookies)
 }
 
 func (h *Handler) Me(ctx context.Context, _ *connect.Request[bffv1.MeRequest]) (*connect.Response[bffv1.MeResponse], error) {
@@ -181,8 +203,9 @@ func (h *Handler) RevokeSession(ctx context.Context, req *connect.Request[bffv1.
 	}
 	res := connect.NewResponse(&bffv1.RevokeSessionResponse{})
 	if req.Msg.GetId() == bs.SessionID {
-		// The caller ended its own session: same as signing out, so the Cookie goes too.
-		session.ClearSessionCookie(res.Header(), h.svc.cookies)
+		// The caller ended its own session: same as signing out, so the Cookie goes too, unless a
+		// deletion began on it meanwhile.
+		h.clearCookieUnlessDeleting(ctx, res.Header(), session.TokenFromRequest(req.Header()))
 	}
 	return res, nil
 }
@@ -220,8 +243,9 @@ func (h *Handler) ChangePassword(ctx context.Context, req *connect.Request[bffv1
 		return nil, err
 	}
 	res := connect.NewResponse(&bffv1.ChangePasswordResponse{})
-	// This device must sign in again with the new password too.
-	session.ClearSessionCookie(res.Header(), h.svc.cookies)
+	// This device must sign in again with the new password too, unless a deletion began on its
+	// Cookie meanwhile.
+	h.clearCookieUnlessDeleting(ctx, res.Header(), session.TokenFromRequest(req.Header()))
 	return res, nil
 }
 

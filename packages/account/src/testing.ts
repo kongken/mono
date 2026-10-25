@@ -205,8 +205,10 @@ export function createFakeAccounts(
       return { body: bound(t) };
     },
     LoginWithEmail: (b) => {
+      // The Cookie of an unfinished deletion is its only credential and a sign-in would replace it.
+      if (state.deletion) return failure(400, "failed_precondition", "an account deletion started in this browser has not finished");
       const a = findAccount(b.email ?? "");
-      if (!a || a.password !== b.password || state.deletion?.account === a) return failure(401, "unauthenticated", "邮箱或密码错误，或账号不可用");
+      if (!a || a.password !== b.password) return failure(401, "unauthenticated", "邮箱或密码错误，或账号不可用");
       set(a);
       state.authenticatedAt = Date.now();
       return { body: { user: userJson(a), expiresAt: iso(Date.now() + 7 * 864e5) } };
@@ -329,6 +331,9 @@ export function createFakeAccounts(
     state.calls.push(method);
     state.bodies.set(method, [...(state.bodies.get(method) ?? []), body]);
     if (!READ_ONLY.has(method) && state.csrfRequired && !headers["x-csrf-token"]) state.writesWithoutCsrf.push(method);
+    // The expected-account header only narrows the Cookie's identity, as the BFF's ingress does.
+    const expected = headers["x-kongken-user"];
+    if (expected && state.current && state.current.id !== expected && (method === "Reauthenticate" || method === "DeleteAccount")) return failure(401, "unauthenticated", "sign in required");
     const queued = state.failures.get(method)?.shift();
     if (queued) return { status: queued.status, body: { code: queued.code, message: queued.message } };
     return run(body);

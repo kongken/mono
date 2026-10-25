@@ -1,6 +1,6 @@
 # BFF（公网入口）
 
-> **后续方案：** [OzID 与统一管理控制台规格](ozid/spec.md) 规划统一用户中心、独立管理前端、配置化域名/导航、网页用户管理、集中账号写来源及浏览器/MCP 两类 IP 白名单。其中 T1（统一登录、重新认证与安全返回）、T2（统一注册验证与密码重置邮件）、T3（账号资料、密码与设备会话页面）和 T4（独立管理控制台、`ozid-admin` 与只读用户查询、管理 IP 周界）已实现，见[导航注册表与 `ResolveNavigation`](#导航注册表与-resolvenavigation-ozid-t1)、[管理周界与用户查询](#管理周界与用户查询ozid-t4)、[OzID 功能描述](ozid/features.md) 和[控制台功能描述](admin/features.md)；其余（网页用户管理写操作、OzID 网页注销页、集中账号写来源、metro 管理接口与 MCP 的 IP 白名单、产品入口收敛）仍待实现，不代表这些新防护或入口已生效。
+> **后续方案：** [OzID 与统一管理控制台规格](ozid/spec.md) 规划统一用户中心、独立管理前端、配置化域名/导航、网页用户管理、集中账号写来源及浏览器/MCP 两类 IP 白名单。其中 T1（统一登录、重新认证与安全返回）、T2（统一注册验证与密码重置邮件）、T3（账号资料、密码与设备会话页面）、T4（独立管理控制台、`ozid-admin` 与只读用户查询、管理 IP 周界）、T5/T6（账号状态与角色修改、安全与审计查询）和 T7（OzID 网页注销页与失败恢复）已实现，见[导航注册表与 `ResolveNavigation`](#导航注册表与-resolvenavigation-ozid-t1)、[管理周界与用户查询](#管理周界与用户查询ozid-t4)、[OzID 功能描述](ozid/features.md) 和[控制台功能描述](admin/features.md)；其余（集中账号写来源、metro 管理接口与 MCP 的 IP 白名单、产品入口收敛）仍待实现，不代表这些新防护或入口已生效。
 
 一个仓库承载多个业务时，BFF（`cmd/bff`）是唯一的公网入口，统一处理跨域、客户端地址、请求生命周期和追踪脱敏。业务服务只在内网监听。当前有 tripmap（山海足迹）和 metro（地铁足迹，可选）两个业务。
 
@@ -259,7 +259,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 **错误**。usersrv 的认证失败返回给浏览器的是 `unauthenticated` 与固定提示；BFF 自己的服务凭证被拒（签名或配置错误）是 `internal`，不会被当成“请重新登录”。其余业务错误保留 usersrv 写好的固定文案。
 
-**注销工作流**（`bff_account_deletions`，按会话 Cookie 的摘要而不是会话 ID 记录，因为 `BeginDeletion` 会递增 `auth_version`，使自己的会话立即失效）：`DeleteAccount`（确认词 `DELETE` + 幂等键）先落库，再依次执行 `begin`（usersrv `BeginDeletion`：账号变为 deleting，所有会话和 MCP 令牌失效）→ `cleanup`（工作流创建时固定的产品清单，逐个调用幂等的 `CleanupUserData`，含 S3）→ `finish`（usersrv `FinishDeletion`，留 24 小时 tombstone）→ `local`（一个事务内删除本地会话与管理令牌、记录完成与回执过期时间）。每个阶段都可重放：失败只记录次数、错误与退避时间，账号保持“删除中”，调用返回 `unavailable`；`RetryAccountDeletion`（只有发起注销的那个 Cookie 可用，仅凭工作流 ID 不行）与后台每 30 秒一次的恢复任务都能继续，数据库租约保证同一时刻只有一个执行者。回执保留 24 小时，之后被清理。清单中缺少某个产品的清理器是错误，不会跳过。注销未完成期间，那个 Cookie 是查看和继续它的唯一凭据：`Logout` 对这样的 Cookie 什么也不清除（账号已关闭、会话已不存在），`Me` 返回未登录也不清 Cookie，只有完成的那次响应清除它；OzID 的 `/close-account` 页面依赖这一点（见 [OzID 功能描述](ozid/features.md#账号注销t7)）。
+**注销工作流**（`bff_account_deletions`，按会话 Cookie 的摘要而不是会话 ID 记录，因为 `BeginDeletion` 会递增 `auth_version`，使自己的会话立即失效）：`DeleteAccount`（确认词 `DELETE` + 幂等键）先落库，再依次执行 `begin`（usersrv `BeginDeletion`：账号变为 deleting，所有会话和 MCP 令牌失效）→ `cleanup`（工作流创建时固定的产品清单，逐个调用幂等的 `CleanupUserData`，含 S3）→ `finish`（usersrv `FinishDeletion`，留 24 小时 tombstone）→ `local`（一个事务内删除本地会话与管理令牌、记录完成与回执过期时间）。每个阶段都可重放：失败只记录次数、错误与退避时间，账号保持“删除中”，调用返回 `unavailable`；`RetryAccountDeletion`（只有发起注销的那个 Cookie 可用，仅凭工作流 ID 不行）与后台每 30 秒一次的恢复任务都能继续，数据库租约保证同一时刻只有一个执行者。回执保留 24 小时，之后被清理。清单中缺少某个产品的清理器是错误，不会跳过。注销未完成期间，那个 Cookie 是查看和继续它的唯一凭据：`Logout`、`RevokeSession`（撤销当前会话）与 `ChangePassword` 在撤销会话之后发现有未完成的注销就不清除 Cookie，`Me` 返回未登录也不清 Cookie，只有完成的那次响应清除它；`LoginWithEmail` 收到这样的 Cookie 直接以 `FAILED_PRECONDITION`（“an account deletion started in this browser has not finished”）拒绝，不验证凭据，也不再覆盖它（验证后会再看一次）；`DeleteAccount` 先落库、再确认会话仍有效，与并发的退出至少有一方看到另一方。一个登录请求在注销落库之前被接受、响应在落库之后才到达浏览器的情形，服务端无法收回已发出的 `Set-Cookie`，是保留的网络响应边界（注销仍会完成，只是该浏览器看不到进度；细节与可选的专用凭据方案见功能描述）；OzID 的 `/close-account` 页面依赖这一点（见 [OzID 功能描述](ozid/features.md#账号注销t7)）。
 
 **重试工具**：运维没有单独的命令行；排查时可对工作流行读取 `stage`、`attempts`、`last_error`，后台任务会自动重试（间隔 30 秒起指数退避，最长 15 分钟）。
 

@@ -343,6 +343,10 @@ var ErrReauthRequired = connect.NewError(connect.CodeFailedPrecondition, errors.
 
 var errUnauth = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
 
+// errDeletionPendingHere refuses a sign-in from a browser whose Cookie holds an unfinished
+// account deletion; the web clients match this text to explain what to do.
+var errDeletionPendingHere = connect.NewError(connect.CodeFailedPrecondition, errors.New("an account deletion started in this browser has not finished"))
+
 func internal(err error) error {
 	slog.Error("internal", "error", err)
 	return connect.NewError(connect.CodeInternal, errors.New("internal error"))

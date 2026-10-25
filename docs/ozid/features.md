@@ -1,10 +1,10 @@
 # OzID 用户中心：功能描述（T1 统一登录与安全返回；T2 统一注册验证与密码重置邮件；T3 账号资料、密码与设备会话；T7 账号注销与失败恢复）
 
-本文描述 [OzID 规格](spec.md) 中 [Issue #79（T1）](https://github.com/kongken/mono/issues/79)、[Issue #80（T2）](https://github.com/kongken/mono/issues/80) 与 [Issue #81（T3）](https://github.com/kongken/mono/issues/81) 已实现的行为。独立管理控制台、`ozid-admin`、只读用户查询与管理 IP 周界已由 T4 实现，普通账号的禁用/启用与 `metro-admin` 授予/撤销已由 T5 实现，账号安全与管理审计查询已由 T6 实现，见[控制台功能描述](../admin/features.md)；OzID 网页注销页与失败恢复由 T7 实现（见[账号注销（T7）](#账号注销t7)）；其余阶段（产品入口收敛、metro 管理接口与 MCP 的 IP 白名单）**尚未实现**，规格仍是它们的依据。文中域名全部是保留示例（`id.example.com` 等），不代表任何真实部署。
+本文描述 [OzID 规格](spec.md) 中 [Issue #79（T1）](https://github.com/kongken/mono/issues/79)、[Issue #80（T2）](https://github.com/kongken/mono/issues/80)、[Issue #81（T3）](https://github.com/kongken/mono/issues/81) 与 [Issue #85（T7）](https://github.com/kongken/mono/issues/85) 已实现的行为。独立管理控制台、`ozid-admin`、只读用户查询与管理 IP 周界已由 T4 实现，普通账号的禁用/启用与 `metro-admin` 授予/撤销已由 T5 实现，账号安全与管理审计查询已由 T6 实现，见[控制台功能描述](../admin/features.md)；OzID 网页注销页与失败恢复由 T7 实现（见[账号注销（T7）](#账号注销t7)）；其余阶段（产品入口收敛、metro 管理接口与 MCP 的 IP 白名单）**尚未实现**，规格仍是它们的依据。文中域名全部是保留示例（`id.example.com` 等），不代表任何真实部署。
 
 ## 现状与范围
 
-| 已实现（T1） | 尚未实现 |
+| 已实现（T1、T2、T3、T7） | 尚未实现 |
 | --- | --- |
 | `apps/ozid`（`@kongken/ozid`）：登录页、账号概览、密码重新认证页，独立构建与部署 | 产品里的注销入口照旧（T10、T11 才收敛）；产品里的资料、改密码、设备页面也不变 |
 | （T7）`/close-account`：账号注销页与进度、失败重试 | |
@@ -110,7 +110,15 @@ https://id.example.com/login?app_id=metro&return_path=%2Fcity%2Fshanghai
 
 **开始之后。** 账号立刻关闭（`Me` 返回未登录、不能登录、不收邮件、产品不能访问），会话消失，但**浏览器的原 Cookie 保留**：它是 `GetAccountDeletion`/`RetryAccountDeletion` 的唯一凭据（工作流 ID 或用户 ID 都不能接管）。页面因此不放在 `RequireSession` 后面：没有会话时用 Cookie 读取进度，没有进度才转到登录；页面里没有退出登录按钮，BFF 的 `Logout` 对未完成的注销也不清除 Cookie，只有完成的那次响应才清除。每个产品显示“已清理/待清理”，共用账号最后删除；`刷新进度`与`重试注销`都不丢失进度，重试沿用同一次注销。
 
-**恢复。** 开始请求没有回应：页面不说“什么也没发生”，先尝试用 Cookie 读取这次注销的进度；读不到时，重试用**同一个幂等键**重发（已开始就继续，已完成就重放回执，没开始才开始）；会话已失效且服务端也没有这次注销，才回到表单并说明“没有开始，账号仍然有效”。刷新页面、关闭重开、BFF 进程重启、S3 或任一产品失败后都能从持久化状态继续（BFF 后台每 30 秒也会推进，不需要浏览器在线）。完成后 24 小时内同一个 Cookie 重开页面仍显示完成结果（回执），之后自动消失。读进度本身失败是“暂时读不到”，不当作登录失效，也不跳转。
+**未完成注销的 Cookie 受保护。** 注销没完成时这个 Cookie 是看进度和重试的唯一凭据，所以凡是会替换或清除它的请求都先看它：
+
+- `LoginWithEmail`：请求携带的 Cookie 有未完成的注销时直接拒绝（`FAILED_PRECONDITION`，“这个浏览器里有一次尚未完成的账号注销”），不验证邮箱和密码，所以回答与凭据对错无关，也不构成账号探测；同一个浏览器里登录另一个账号要等这次注销完成（完成的响应清除 Cookie 后即可），或换一个浏览器。登录页的错误文案写明了这一点和 `/close-account` 入口。验证密码、创建会话之后还会再看一次，期间才开始的注销同样保住 Cookie（新建的会话被撤销）。
+- `Logout`、`RevokeSession`（撤销当前会话）、`ChangePassword`：先撤销会话，再看有没有未完成的注销，有则不清除 Cookie。`StartDeletion` 则是先落库工作流，再确认会话仍然有效，会话已被撤销就删除刚写的行并答 `UNAUTHENTICATED`。两边都是“先写、后读对方”，所以同时发生的退出和注销，至少有一方看到另一方：要么注销没有开始（Cookie 随退出清除，没有孤儿），要么 Cookie 保留。`TestChainCloseAccountConcurrentSessionEndNeverOrphansADeletion` 对三种调用各并发 10 轮；修复前它在第 0–5 轮就复现了“工作流已落库、Cookie 已丢”。
+- 页面以“开始注销时所显示的账号”为预期账号：`Reauthenticate` 与 `DeleteAccount` 带 `X-Kongken-User`，别的标签页在此期间换成另一个账号的 Cookie 时，这两个请求被拒绝（`UNAUTHENTICATED`），不会注销被换进来的账号；开始表单也显示“将注销的账号：昵称（邮箱）”。该头只收窄身份，不能选账号。
+
+**竞态：实际消除的，和仍然存在的。** 消除的（请求到达时就能判定的）：注销已落库后才到达的登录、退出、撤销当前会话、改密码请求；同时发生的退出/撤销/改密码与注销开始；退出的响应晚于注销开始但服务端先处理了退出（会话已撤销，注销开始会被拒绝，不会产生孤儿）；换账号后用旧页面开始注销。**仍然存在的（网络响应边界）：** 一个登录请求在 Cookie 还没有注销时被 BFF 接受并已作答，而响应在注销落库之后才到达浏览器。浏览器会照常应用这个响应的 `Set-Cookie`，页面丢弃响应也拦不住，服务端也无法收回已发出的响应，所以此时恢复用的 Cookie 被替换。后果是有限的：注销仍由服务端（后台 runner 每 30 秒一次）完成，数据与媒体照常清理，只是这个浏览器看不到进度和回执；重新打开页面显示的是新登录账号自己的注销表单（带账号名，且需要密码和确认词），不会把它当成原来的注销。`close-account-cookie.spec.ts` 的“residual boundary”用真实浏览器和可控的迟到响应复现了这一点。在现有协议内（Cookie 是唯一凭据、不引入前端持久化凭据或新的登录票据）无法消除；最小的完整方案是让注销使用另一个专用的 HttpOnly 凭据（单独的 Cookie 名，只由 `DeleteAccount` 与进度读取设置和使用，登录与退出都不碰它），需要 Leader 决定是否引入。
+
+**恢复。** 开始请求没有回应：页面不说“什么也没发生”，先尝试用 Cookie 读取这次注销的进度；读不到时，重试用**同一个幂等键**重发（已开始就继续，已完成就重放回执，没开始才开始）；会话已失效且服务端也没有这次注销，才回到表单并说明“没有开始，账号仍然有效”。刷新页面、关闭重开、BFF 进程重启、S3 或任一产品失败后都能从持久化状态继续（BFF 后台每 30 秒也会推进，不需要浏览器在线）。完成后 24 小时内同一个 Cookie 重开页面仍显示完成结果（回执），之后自动消失。读进度本身失败是“暂时读不到”，不当作登录失效，也不跳转。页面的“进行中”状态（账号已关闭、还有数据在清理）是中性提示（`role=status`），只有真正的失败（重试仍不成功、读不到进度、被拒绝）才以错误播报（`role=alert`）。
 
 **产品清单不会因配置被悄悄跳过。** 产品清单在开始时固定；之后配置缺少某个产品的清理器，工作流停在清理阶段、账号保持关闭并记录 `cleanup:<产品>:not_configured`，不会完成。BFF 启动校验还要求已配置上游的 tripmap/metro 必须在 `auth.account_cleanup` 里（未设置时默认包含它们），否则拒绝启动。
 
@@ -120,9 +128,9 @@ https://id.example.com/login?app_id=metro&return_path=%2Fcity%2Fshanghai
 
 **验证（分层）。**
 
-1. 代码与自动化：`apps/ozid/tests/ozid-close-account.spec.ts`（假 BFF，桌面与手机：范围文案、两步确认、错误密码不发请求、成功、平台管理员拒绝、产品失败的每产品进度与刷新后恢复、开始请求的回应丢失（含读进度也失败）、成功回应丢失后重放回执、读进度故障不等于退出、会话中途消失不重启页面）——假 BFF 只证明界面行为；Go：`internal/e2e/ozid_close_account_chain_test.go`（真实 BFF、usersrv、tripmap、metro 与对象存储：重启并改配置不跳过产品、清理失败保持关闭并可由重启后的后台恢复、Cookie 在未完成期间不被 `Logout`/`Me` 清除、平台管理员被拒且不留工作流、对象存储故障与恢复并检查他人对象不动）、`internal/bff/auth/deletion_contract_test.go`、`internal/bff/config`（清单校验）；既有的 `account_deletion_chain_test.go`、`metro_rider_chain_test.go`、`real_s3_deletion_chain_test.go` 继续覆盖各阶段回应丢失、回执重放与跨账号不可接管。
-2. 真实浏览器与代理链：`OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain` 的 `close-account.spec.ts`（桌面与手机）：隔离测试账号（含照片、足迹、乘坐记录）经真实 HTTPS/Cookie/CSRF，在注入的 metro 故障下注销，进度、Cookie 保持、刷新恢复、故障中重试仍失败、恢复后完成、数据库行与对象全部清理、旁观账号不变、匿名本地内容不变、已注销账号无法登录；平台管理员被拒。其中对象存储是内存实现，不是厂商 S3。
-3. 真实对象存储：`TestChainCloseAccountRecoversFromAnObjectStoreOutage` 配置了 `TRIPMAP_TEST_S3_*` 时用真实 S3（CI 的 Backend 任务提供 rustfs 服务），否则用内存存储——本地没有 S3 的运行只证明逻辑，S3 上的实际结果以 CI 为准。
+1. 代码与自动化：`apps/ozid/tests/ozid-close-account.spec.ts`（假 BFF，桌面与手机：范围文案、两步确认、错误密码不发请求、成功、平台管理员拒绝、产品失败的每产品进度与刷新后恢复、开始请求的回应丢失（含读进度也失败）、成功回应丢失后重放回执、读进度故障不等于退出、会话中途消失不重启页面、未完成注销时登录被拒绝并说明去向、预期账号被换走时被拒绝、进行中是状态而失败才是告警）——假 BFF 只证明界面行为；Go：`internal/e2e/ozid_close_account_chain_test.go`（真实 BFF、usersrv、tripmap、metro 与对象存储：重启并改配置不跳过产品、清理失败保持关闭并可由重启后的后台恢复、Cookie 在未完成期间不被 `Logout`/`Me`/登录/撤销当前会话/改密码替换或清除、`ozid_close_account_cookie_chain_test.go`（另一个账号登录被拒、退出与注销并发的轮次、迟到的退出请求）、平台管理员被拒且不留工作流、对象存储故障与恢复并检查他人对象不动）、`internal/bff/auth/deletion_contract_test.go`、`internal/bff/config`（清单校验）；既有的 `account_deletion_chain_test.go`、`metro_rider_chain_test.go`、`real_s3_deletion_chain_test.go` 继续覆盖各阶段回应丢失、回执重放与跨账号不可接管。
+2. 真实浏览器与代理链：`OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain` 的 `close-account.spec.ts`（桌面与手机）：隔离测试账号（含照片、足迹、乘坐记录）经真实 HTTPS/Cookie/CSRF，在注入的 metro 故障下注销，进度、Cookie 保持、刷新恢复、故障中重试仍失败、恢复后完成、数据库行与对象全部清理、旁观账号不变、匿名本地内容不变、已注销账号无法登录；平台管理员被拒；`close-account-cookie.spec.ts`（桌面与手机，同一浏览器两个标签页，前置代理可按需扣住请求或响应）：未完成注销时另一个账号登录被拒、Cookie 不变、仍能查看/刷新/重试并完成后才能登录；迟到的退出请求不清 Cookie；迟到的退出响应不会留下半关闭的注销；预期账号被换走时不会注销新账号；以及迟到登录响应这一仍然存在的边界。其中对象存储是内存实现，不是厂商 S3。
+3. 真实对象存储：`TestChainCloseAccountRecoversFromAnObjectStoreOutage` 与 `TestChainAccountDeletionRemovesPhotosFromRealS3` 配置了 `TRIPMAP_TEST_S3_*` 时用真实 S3，并在日志里写明 `object store: real S3`；本地默认（没有配置）前者用内存存储、后者跳过，这样的运行只证明逻辑。设置 `E2E_REQUIRE_REAL_S3=1` 进入“必须使用真实 S3”模式：缺少任何一个 `TRIPMAP_TEST_S3_*` 变量时两个用例直接失败，不跳过也不回退到内存。CI 的 Backend 任务整体设置了它，并有一个单独步骤（显式 bash、带 pipefail）只跑这两个用例，再检查它们各自 PASS、日志里至少两处 `object store: real S3`、没有 SKIP——S3 的证据不依赖另一个用例的结果。每次运行的对象都在独有前缀 `e2e-<uuid>` 下，测试结束（含中途失败）按固定键清理。
 4. 仍须运维确认：生产规模数据的注销耗时与迁移锁等待；真实 S3 厂商上的删除权限与最终一致性；真实域名/TLS/代理下 Cookie 在注销期间保持；用 `usersrv-admin` 回收平台角色的实际流程演练。
 
 ## 服务端配置：`navigation`

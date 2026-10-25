@@ -136,6 +136,62 @@ test.describe("beginning", () => {
   });
 });
 
+test.describe("the Cookie of an unfinished deletion", () => {
+  test("another account cannot sign in over it: the refusal says what to do, and the deletion is still there", async ({ page }) => {
+    const { accounts } = await setup(page);
+    accounts.addAccount({ email: "other-user@example.com", password: PASSWORD, displayName: "另一个人" });
+    accounts.state.deletionFailures = 1;
+    await page.goto("/close-account");
+    await confirm(page);
+    await expect(page.getByTestId("close-progress")).toBeVisible();
+
+    await page.goto("/login");
+    const panel = page.getByTestId("auth-panel");
+    await panel.getByLabel("邮箱").fill("other-user@example.com");
+    await panel.getByLabel("密码", { exact: true }).fill(PASSWORD);
+    await panel.getByRole("button", { name: "登录", exact: true }).click();
+    await expect(panel.getByRole("alert")).toContainText("尚未完成的账号注销");
+    await expect(panel.getByRole("alert")).toContainText("换一个浏览器");
+    await expect(page).toHaveURL(/\/login$/);
+    expect(accounts.state.current).toBeNull();
+
+    // The progress page still shows, refreshes and finishes it.
+    await page.goto("/close-account");
+    await expect(page.getByTestId("close-progress")).toBeVisible();
+    await page.getByRole("button", { name: "刷新进度" }).click();
+    await expect(page.getByTestId("close-product-metro")).toHaveAttribute("data-state", "pending");
+    await page.getByRole("button", { name: "重试注销" }).click();
+    await expect(page.getByTestId("close-done")).toBeVisible();
+    expect(accounts.state.accounts.map((a) => a.email)).toEqual(["other-user@example.com"]);
+  });
+
+  test("the form names the account it will close, and a Cookie that became another account's is refused, not closed", async ({ page }) => {
+    const { accounts } = await setup(page);
+    const other = accounts.addAccount({ email: "other-user@example.com", password: PASSWORD, displayName: "另一个人" });
+    await page.goto("/close-account");
+    await expect(page.getByTestId("close-account-who")).toContainText(`Oz 用户（${EMAIL}）`);
+    // Another tab signs in as someone else while this page still shows the first account.
+    accounts.signIn(other);
+    await confirm(page);
+    await expect(page).toHaveURL(/\/login$/);
+    expect(accounts.state.calls).not.toContain("DeleteAccount");
+    expect(accounts.state.accounts).toHaveLength(2);
+  });
+
+  test("where the deletion simply is, is a calm status; only a failure is an alert", async ({ page }) => {
+    const { accounts } = await setup(page);
+    accounts.state.deletionFailures = 2;
+    await page.goto("/close-account");
+    await confirm(page);
+    const progress = page.getByTestId("close-progress");
+    await expect(progress).toContainText("账号已经关闭");
+    await expect(progress.getByRole("status")).toContainText("注销尚未完成");
+    await expect(progress.getByRole("alert")).toHaveCount(0);
+    await page.getByRole("button", { name: "重试注销" }).click();
+    await expect(progress.getByRole("alert")).toContainText("注销尚未确认完成");
+  });
+});
+
 test.describe("recovery", () => {
   test("a product that fails keeps the deletion open: progress per product, survives a reload, retry finishes it", async ({ page }) => {
     const { accounts } = await setup(page);

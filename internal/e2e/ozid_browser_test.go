@@ -216,7 +216,17 @@ func TestOzidBrowserChain(t *testing.T) {
 	// account can be closed once), each with a photo, a visit and a ride; the bystander is only
 	// ever checked, never closed.
 	seeds := map[string]closeAccountSeed{}
-	for _, name := range []string{"close-main-desktop", "close-main-mobile", "close-bystander"} {
+	seedNames := []string{"close-main-desktop", "close-main-mobile", "close-bystander"}
+	for _, project := range []string{"desktop", "mobile"} {
+		// guard: a sign-in over an unfinished deletion; late: a sign-in response that arrives
+		// after the deletion began; lreq: a sign-out request that arrives after it began; open and
+		// swap are never closed (a sign-out response that arrives late; another account's
+		// sign-in in another tab).
+		for _, kind := range []string{"guard", "late", "lreq", "open", "swap"} {
+			seedNames = append(seedNames, "close-"+kind+"-"+project)
+		}
+	}
+	for _, name := range seedNames {
 		_, id, key := stack0.account(name)
 		seeds[name] = closeAccountSeed{ID: id, Key: key}
 	}
@@ -225,7 +235,11 @@ func TestOzidBrowserChain(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	control := stack0.control(seeds)
+	holds := newResponseHold()
+	controlMux := http.NewServeMux()
+	holds.mount(controlMux)
+	controlMux.Handle("/", stack0.control(seeds))
+	var control http.Handler = controlMux
 
 	// The OzID bundle for exactly these addresses.
 	run(t, root, []string{"VITE_API_BASE_URL=" + apiO + "/api"}, "npm", "run", "build", "-w", "@kongken/ozid")
@@ -243,7 +257,7 @@ func TestOzidBrowserChain(t *testing.T) {
 		label, _, _ := strings.Cut(r.Host, ".")
 		switch label {
 		case "api":
-			proxy.ServeHTTP(w, r)
+			holds.serve(proxy, w, r)
 		case "id":
 			isLanding := landingPath.MatchString(r.URL.Path) // before the single-page fallback rewrites it
 			if _, err := os.Stat(filepath.Join(dist, filepath.Clean("/"+r.URL.Path))); err != nil {
