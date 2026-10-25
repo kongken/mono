@@ -7,6 +7,7 @@ import (
 
 	"github.com/kongken/mono/internal/bff/adminguard"
 	"github.com/kongken/mono/internal/bff/navigation"
+	"gopkg.in/yaml.v3"
 )
 
 func TestValidate(t *testing.T) {
@@ -298,5 +299,82 @@ func TestValidateMCPSourceIgnoresWhetherMetroIsConfigured(t *testing.T) {
 	err := c.Validate(services)
 	if err == nil || !strings.Contains(err.Error(), "mcp.allowed_cidrs") {
 		t.Fatalf("an open mcp allowlist without metro must still fail, naming the section: %v", err)
+	}
+}
+
+func TestValidateLegacyMailTransition(t *testing.T) {
+	services := []string{"tripmap"}
+	soon := time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339)
+	ok := func() Config {
+		return Config{
+			Upstreams:          map[string]string{"tripmap": "http://tripmap:18081"},
+			CORSAllowedOrigins: []string{"https://id.example.com", "https://trip.example.com", "https://metro.example.com", "https://admin.example.com"},
+			Auth:               AuthConfig{CookieSecure: true},
+			Navigation: navigation.Config{
+				APIOrigin: "https://api.example.com",
+				Apps: map[string]navigation.App{
+					"ozid":     {Origin: "https://id.example.com"},
+					"admin":    {Origin: "https://admin.example.com"},
+					"trip-map": {Origin: "https://trip.example.com"},
+					"metro":    {Origin: "https://metro.example.com"},
+				},
+			},
+		}
+	}
+	good := func(c *Config) {
+		c.Auth.LegacyMailTransition = LegacyMailTransition{Origins: []string{"https://trip.example.com", "https://metro.example.com"}, Until: soon}
+	}
+	if c := ok(); c.Validate(services) != nil {
+		t.Fatal(c.Validate(services))
+	}
+	c := ok()
+	good(&c)
+	if err := c.Validate(services); err != nil {
+		t.Fatalf("a valid transition: %v", err)
+	}
+	// A transition that already ended is not a start error: a restart after the end must not take the
+	// service down (the BFF logs it and refuses the origins).
+	c = ok()
+	c.Auth.LegacyMailTransition = LegacyMailTransition{Origins: []string{"https://trip.example.com"}, Until: time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)}
+	if err := c.Validate(services); err != nil {
+		t.Fatalf("an ended transition must still load: %v", err)
+	}
+	for name, mutate := range map[string]func(*Config){
+		"no until":           func(c *Config) { c.Auth.LegacyMailTransition.Until = "" },
+		"until not RFC 3339": func(c *Config) { c.Auth.LegacyMailTransition.Until = "next week" },
+		"until too far": func(c *Config) {
+			c.Auth.LegacyMailTransition.Until = time.Now().Add(MaxLegacyMailTransition + time.Hour).UTC().Format(time.RFC3339)
+		},
+		"until without origins":  func(c *Config) { c.Auth.LegacyMailTransition.Origins = nil },
+		"ozid is not a product":  func(c *Config) { c.Auth.LegacyMailTransition.Origins = []string{"https://id.example.com"} },
+		"the console is not one": func(c *Config) { c.Auth.LegacyMailTransition.Origins = []string{"https://admin.example.com"} },
+		"unregistered origin":    func(c *Config) { c.Auth.LegacyMailTransition.Origins = []string{"https://sibling.example.com"} },
+		"origin with a path":     func(c *Config) { c.Auth.LegacyMailTransition.Origins = []string{"https://trip.example.com/"} },
+		"duplicate origin": func(c *Config) {
+			c.Auth.LegacyMailTransition.Origins = []string{"https://trip.example.com", "https://trip.example.com"}
+		},
+		"no registry for the exception": func(c *Config) {
+			c.Navigation = navigation.Config{}
+		},
+	} {
+		c := ok()
+		good(&c)
+		mutate(&c)
+		if c.Validate(services) == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+// The YAML a deployment writes: an unquoted timestamp is still the RFC 3339 text.
+func TestLegacyMailTransitionYAML(t *testing.T) {
+	var c Config
+	raw := "auth:\n  legacy_mail_transition:\n    origins: [https://trip.example.com]\n    until: 2026-12-01T00:00:00Z\n"
+	if err := yaml.Unmarshal([]byte(raw), &c); err != nil {
+		t.Fatal(err)
+	}
+	at, err := c.Auth.LegacyMailTransition.UntilTime()
+	if err != nil || !at.Equal(time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("until = %v, %v (%q)", at, err, c.Auth.LegacyMailTransition.Until)
 	}
 }

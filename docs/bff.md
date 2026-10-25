@@ -303,3 +303,11 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 - **测试**：`internal/bff/adminguard`（来源/CIDR/受信代理/转发头单测）、`internal/bff/ingress/perimeter_test.go`、`internal/bff/config`（`TestValidateAdminPerimeter`）、`internal/e2e/user_admin_chain_test.go`、`internal/e2e/metro_admin_perimeter_chain_test.go`（T8：metro 管理与令牌接口的来源、Origin、预检、路径写法、角色，以及上游计数证明被拒请求没有到达业务）、`internal/e2e/metro_mcp_perimeter_chain_test.go`（T9：真实 BFF→usersrv→metro 链上，名单内/外地址、空名单、伪造转发头、13 种协议请求、无效令牌与只读 scope 调写工具，计数证明被拒请求没有执行任何东西，且与浏览器白名单互不放行）、`internal/bff/metro/mcp/perimeter_test.go`（16 种请求在名单外被拒且零副作用）、`internal/e2e/metro_mcp_chain_test.go` 的 `TestChainMCPTokenIsRevalidatedOnEveryCall`（显式 `mcp.allowed_cidrs`：先过周界，名单外同一令牌得到周界的 403 且不到 metro；名单内改密、禁用、角色撤销/重授、注销后旧令牌不复活）；CI 的“MCP source perimeter”步骤以 `-v` 单独执行这些用例，要求每个用例实际 `PASS` 且没有 `SKIP`（`.github/workflows/ci.yml`）、`internal/e2e/user_admin_write_chain_test.go`（四种角色、控制台 Origin、来源策略与预检、查询/分页/审计、限流、角色生命周期与注销保护）、`internal/e2e/admin_browser_test.go`（真实浏览器，`ADMIN_BROWSER_E2E=1`）。
 
 规则、配置、镜像与验证分层见 [控制台功能描述](admin/features.md)。
+
+## 集中账号的来源策略与旧邮件过渡（OzID T12）
+
+`internal/bff/app/account_origin.go` 在 Connect 拦截器里按过程名判断来源：配置了 `navigation.apps.ozid` 时，`AuthService` 与 `UserService` 除 `Me`、`IssueCSRFToken`、`ResolveNavigation`、`Logout` 外的全部过程，要求恰好一个 `Origin` 头且等于 OzID 的 origin，否则 `permission_denied`（`request rejected`）。判断按服务名进行，新增的账号过程自动被覆盖，`TestEveryBrowserServiceHasASourceRule` 要求每个浏览器服务属于账号、管理或产品三份列表之一。没有 `navigation.apps.ozid` 时策略关闭，启动写警告。
+
+`auth.legacy_mail_transition`（`origins`、`until`）：切换前发出的邮件仍指向产品落地页，`until` 之前这些产品 origin 可以调用 `CompleteRegistration` 与 `ResetPassword`，其他账号过程仍被拒。`until` 为 RFC 3339，加载时不得晚于现在 7 天；已过期时 BFF 仍启动，拒绝这些 origin 并写警告。清单见 [整体验收](ozid/acceptance.md#旧邮件-ttl-过渡清单)。
+
+产品镜像与示例网关不再代理同源 `/api/*`（只留分享、通知、底图与探针路径）。真实网关与浏览器的整体验收见 [整体验收](ozid/acceptance.md)。

@@ -419,6 +419,100 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  # The overall domain acceptance (T12): the whole stack behind the REAL gateways on two completely different
+  # sets of reserved same-site names, driven by a real browser. Caddy runs deploy/reverse-proxy/Caddyfile.example
+  # (adapted by text substitution only, each substitution failing the test if its target is gone) and Nginx runs
+  # the ozid-web and admin-web templates with the images' own entrypoint scripts and envsubst filter; the BFF,
+  # usersrv, metro, tripmap, PostgreSQL and Redis are the real ones. It covers what the Docker-based image jobs
+  # below cannot (they build and smoke the images; this runs the gateway configuration and the browser): sign-in
+  # and return, mail, the old-mail transition, the console inside and outside its allowlist at the gateway, the
+  # container and the BFF, the machine MCP perimeter, forged forwarding headers, other hosts, bare ports and
+  # preflights, and the session of the previous domain set. Nothing here is skipped on purpose: the gate below
+  # rejects any skip, a missing prerequisite is a failure (GATEWAY_E2E=1), and the report must say exactly the
+  # number of scenarios that ran, twice (once per set).
+  gateway-browser:
+    name: Two-domain-set real-gateway and real-browser acceptance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tripmap
+          POSTGRES_PASSWORD: tripmap-ci
+          POSTGRES_DB: tripmap
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tripmap" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      GATEWAY_E2E: "1"
+      TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
+      USERSRV_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      USERSRV_TEST_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      # The gateways: Nginx (the packaged one; the test runs it as its own unprivileged process with a private
+      # configuration, never the system service) and envsubst from the packages, and the Caddy release the
+      # example was written against (pinned; fetched through the Go checksum database).
+      - name: Install the gateways
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends nginx gettext-base
+          sudo systemctl stop nginx || true
+          GOBIN="$RUNNER_TEMP/gateway-bin" go install github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.7
+          echo "GATEWAY_CADDY=$RUNNER_TEMP/gateway-bin/caddy" >> "$GITHUB_ENV"
+          echo "GATEWAY_NGINX=$(command -v nginx || echo /usr/sbin/nginx)" >> "$GITHUB_ENV"
+          nginx -V 2>&1 | grep -q http_realip_module # the console container's source rule needs it
+          "$RUNNER_TEMP/gateway-bin/caddy" version
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Both domain sets through the real gateways, probes and Chromium
+        shell: bash
+        env:
+          GATEWAY_BROWSER_ARTIFACTS: ${{ github.workspace }}/gateway-browser-artifacts
+        run: |
+          set -o pipefail
+          mkdir -p "$GATEWAY_BROWSER_ARTIFACTS"
+          log="$GATEWAY_BROWSER_ARTIFACTS/go-test.log"
+          go test ./internal/e2e -run '^TestGatewayDomainSets$' -count=1 -v -timeout 40m 2>&1 | tee "$log"
+          grep -q -- "--- PASS: TestGatewayDomainSets " "$log"
+          for set in set-a set-b; do
+            for part in "" /perimeter /mcp /products; do
+              grep -q -- "--- PASS: TestGatewayDomainSets/$set$part " "$log" || { echo "missing PASS: $set$part"; exit 1; }
+            done
+          done
+          if grep -q -- "--- SKIP" "$log"; then echo "a skipped scenario is not evidence"; exit 1; fi
+          # 25 browser scenarios per set (11 per inside viewport x2, 3 outside), for each of the two sets, and no
+          # failed, skipped, flaky or interrupted line (a retried pass is not a pass either).
+          test "$(grep -Ec '^ +25 passed' "$log")" -eq 2
+          if grep -Eq "[0-9]+ (failed|skipped|flaky|interrupted|did not run)" "$log"; then echo "the browser report is not all green"; exit 1; fi
+      - name: Keep the logs, traces, screenshots and reports of the run
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gateway-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: gateway-browser-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
   # The metro-web image: it has no local-only mode, so the build needs both public example addresses and
   # must fail without them or with a same-origin /api; the bundle carries exactly those addresses, the
   # return pages are served, and the retired /api and /auth routes stay 404 (scripts/metro-web-smoke.sh).

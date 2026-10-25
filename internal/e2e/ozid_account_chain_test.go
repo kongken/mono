@@ -85,9 +85,10 @@ func TestChainOzidRegistrationMailLoop(t *testing.T) {
 	ctx := context.Background()
 	const email = "newcomer@example.com"
 
-	// The request comes from the metro product's own origin, with a return path inside it.
+	// The request comes from OzID (the only origin that may ask for an account step), on behalf of the
+	// metro product: the application is only the validated return context, with a path inside it.
 	asker := h.FreshBrowser()
-	asker.Origin = metroOrigin
+	asker.Origin = ozidOrigin
 	if err := asker.requestRegistrationFrom(ctx, email, "metro", "/city/shanghai"); err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +151,7 @@ func TestChainOzidPasswordResetMailLoop(t *testing.T) {
 	oldSession := reg
 
 	asker := h.FreshBrowser()
-	asker.Origin = tripOrigin
+	asker.Origin = ozidOrigin
 	if err := asker.requestResetFrom(ctx, email, "trip-map", ""); err != nil {
 		t.Fatal(err)
 	}

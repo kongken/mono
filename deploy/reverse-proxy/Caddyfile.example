@@ -59,17 +59,20 @@ example.com {
 		respond 404
 	}
 
-	# BFF Connect, health and probes (do not strip Connect or CSRF headers).
-	handle /api/* {
-		request_body {
-			max_size 20MB
-		}
+	# Map tiles: a public, anonymous GET (no session), so the product's own origin may serve them.
+	handle /api/tiles/* {
 		reverse_proxy bff:18081 {
 			header_up Host {host}
 			header_up X-Real-IP {remote_host}
 			header_up X-Forwarded-For {remote_host}
 			header_up X-Forwarded-Proto {scheme}
 		}
+	}
+	# Nothing else of the BFF's browser API is reachable through this host: the session Cookie belongs
+	# to the API host and OzID, the console and the products call that origin directly, so a same-origin
+	# proxy here would be a second, unguarded door to the account and management procedures.
+	handle /api/* {
+		respond 404
 	}
 	@probes path /ping /readyz
 	handle @probes {

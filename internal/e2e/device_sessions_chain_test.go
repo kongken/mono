@@ -21,7 +21,11 @@ import (
 
 // ListSessions lists the caller's live sessions.
 func (b *Browser) ListSessions(ctx context.Context) ([]*bffv1.Session, error) {
-	res, err := b.Auth.ListSessions(ctx, connect.NewRequest(&bffv1.ListSessionsRequest{}))
+	req := connect.NewRequest(&bffv1.ListSessionsRequest{})
+	if b.Origin != "" {
+		req.Header().Set("Origin", b.Origin) // a browser's cross-origin POST always carries it
+	}
+	res, err := b.Auth.ListSessions(ctx, req)
 	if err != nil {
 		return nil, err
 	}

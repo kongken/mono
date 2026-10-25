@@ -81,10 +81,9 @@ server {
         try_files /index.html =404;
     }
 
-    location ~ ^/(api/|ping$|readyz$) {
-        # nginx's default is 1 MB. A full sync batch is up to 2000 operations; with
-        # 1000-character notes that is 6-12 MB, so match the backend's 16 MiB read limit.
-        client_max_body_size 20m;
+    # Map tiles are a public, anonymous GET: the BFF fetches them from tripmap (rate-limited by
+    # client address) and no session is involved, so the product's own origin may serve them.
+    location ^~ /api/tiles/ {
         proxy_pass http://$backend_upstream$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -94,6 +93,19 @@ server {
         proxy_connect_timeout 5s;
         proxy_read_timeout 30s;
     }
+    location ~ ^/(ping|readyz)$ {
+        proxy_pass http://$backend_upstream$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+    }
+    # Nothing else of the BFF is reachable through this site. The session Cookie belongs to the API's
+    # own host and OzID, the console and the products call that origin directly, so a same-origin
+    # proxy of the BFF here would only be a second, unguarded door to the account and management
+    # procedures (T12 removed it). The public paths above (share links, unsubscribe links, tiles) are
+    # the product's own and need no session.
+    location ^~ /api/ { return 404; }
 
     location /assets/ {
         try_files $uri =404;

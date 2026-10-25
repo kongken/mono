@@ -479,6 +479,27 @@ var consoleOrigin = connect.WithInterceptors(connect.UnaryInterceptorFunc(func(n
 	}
 }))
 
+// accountOrigin makes the account clients (AuthService and UserService) speak as the user center does.
+// The BFF takes the account procedures from the registered OzID origin only (the final source rule),
+// except Me, the CSRF token, navigation and sign-out, which every registered application keeps. A test
+// that leaves the browser's Origin at the harness default is a test about the account, not about who
+// may call it, so its calls go out with the OzID origin of the harness's registry (when it has one);
+// a test that sets b.Origin itself (a product, an unregistered sibling) speaks as that and meets the rule.
+func (h *ChainHarness) accountOrigin(b *Browser) connect.Option {
+	open := map[string]bool{
+		bffv1connect.AuthServiceMeProcedure: true, bffv1connect.AuthServiceIssueCSRFTokenProcedure: true,
+		bffv1connect.AuthServiceResolveNavigationProcedure: true, bffv1connect.AuthServiceLogoutProcedure: true,
+	}
+	return connect.WithInterceptors(connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			if o := h.bffCfg.Navigation.Apps["ozid"].Origin; o != "" && b.Origin == h.BFFURL && !open[req.Spec().Procedure] {
+				req.Header().Set("Origin", o)
+			}
+			return next(ctx, req)
+		}
+	}))
+}
+
 // FreshBrowser returns a new isolated cookie jar for another user/session.
 func (h *ChainHarness) FreshBrowser() *Browser {
 	h.T.Helper()
@@ -488,10 +509,11 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 	}
 	hc := &http.Client{Jar: jar}
 	api := h.BFFURL + "/api"
-	return &Browser{
+	b := new(Browser) // the account clients look at its Origin when a call goes out
+	*b = Browser{
 		t: h.T, h: h, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
-		Auth:       bffv1connect.NewAuthServiceClient(hc, api),
-		Users:      bffv1connect.NewUserServiceClient(hc, api),
+		Auth:       bffv1connect.NewAuthServiceClient(hc, api, h.accountOrigin(b)),
+		Users:      bffv1connect.NewUserServiceClient(hc, api, h.accountOrigin(b)),
 		Tokens:     bffv1connect.NewAccessTokenServiceClient(hc, api, consoleOrigin),
 		Catalog:    bffmetrov1connect.NewCatalogServiceClient(hc, api),
 		MetroAdmin: bffmetrov1connect.NewAdminServiceClient(hc, api, consoleOrigin),
@@ -506,6 +528,7 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 		Search:     bfftripmapv1connect.NewSearchServiceClient(hc, api),
 		RegionSvc:  bfftripmapv1connect.NewRegionServiceClient(hc, api),
 	}
+	return b
 }
 
 func (b *Browser) Media() bfftripmapv1connect.MediaServiceClient { return b.media }
@@ -800,6 +823,9 @@ func (b *Browser) MeFull(ctx context.Context) (*bffv1.MeResponse, error) {
 // GetAccountDeletion reads the deletion the session cookie started.
 func (b *Browser) GetAccountDeletion(ctx context.Context) (*bffv1.AccountDeletion, error) {
 	req := connect.NewRequest(&bffv1.GetAccountDeletionRequest{})
+	if b.Origin != "" {
+		req.Header().Set("Origin", b.Origin) // a browser's cross-origin POST always carries it
+	}
 	res, err := b.Auth.GetAccountDeletion(ctx, req)
 	if err != nil {
 		return nil, err

@@ -2,6 +2,8 @@
 
 > **状态：访谈范围已确认；T1（[#79](https://github.com/kongken/mono/issues/79)：统一登录、重新认证与安全返回）与 T2（[#80](https://github.com/kongken/mono/issues/80)：统一注册验证与密码重置邮件流程）与 T3（[#81](https://github.com/kongken/mono/issues/81)：账号资料、密码与设备会话管理）已实现并记录在 [OzID 功能描述](features.md)；T4（[#82](https://github.com/kongken/mono/issues/82)：受控统一管理控制台与用户查询）、T5、T6、T8（[#86](https://github.com/kongken/mono/issues/86)：metro 管理功能迁入控制台）与 T9（[#87](https://github.com/kongken/mono/issues/87)：MCP 独立来源 IP 防护，见 [BFF 文档](../bff.md)）已实现并记录在 [控制台功能描述](../admin/features.md)，T7（账号注销与失败恢复）已记录在 [OzID 功能描述](features.md)，其余阶段待实现。** 基线为 `104a712`（PR #76）：usersrv 第一版已完成。本规格不是再次替换账号后端，而是在现有账号体系上交付 OzID 用户中心、独立管理控制台和入口收敛。已实现阶段之外的内容仍只是规格，不改变当前接口、配置或部署。
 >
+> **T12（[#90](https://github.com/kongken/mono/issues/90)：旧入口收口与可配置部署验收）已实现：** 集中账号写只接受 OzID 来源、旧邮件有限期过渡、产品网关不再代理同源 `/api/`，并在真实网关与浏览器中对两组保留域名做整体验收；映射与结果见 [整体验收](acceptance.md)。
+>
 > 规格与评审：[GitHub Issue #77](https://github.com/kongken/mono/issues/77)。本文为仓库副本，评审变更同步到该 Issue；不因文档 PR 合并就关闭实施规格。
 >
 > 文中区分“已确认决策”与补齐可实施性的“工程约束/默认值”。后者可在实现前评审调整，但不能悄悄改变已确认的产品范围；如变更，需同步本规格和验收。所有拟新增配置名、RPC 名和命令都不是当前可用能力。

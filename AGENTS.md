@@ -44,6 +44,7 @@
 ## 按变更验证
 
 - 应用代码或构建配置改变后运行 `npm run build`（只构建 trip-map；metro、OzID 与控制台没有本地模式，改动后用示例地址单独运行 `npm run build:metro` 等，并运行对应的 `npm run test:e2e:<应用>`）；标记或自动配色逻辑改变后另运行 `npm test`。
+- 改动网关示例（`deploy/reverse-proxy/Caddyfile.example`）、Nginx 模板、来源策略或管理/MCP 周界后，运行 `GATEWAY_E2E=1 GATEWAY_NGINX=… GATEWAY_CADDY=… go test ./internal/e2e -run TestGatewayDomainSets -v`（需要 Postgres/Redis、nginx、caddy 与 Chromium；CI 的 `gateway-browser` 任务不允许跳过），见 [整体验收](docs/ozid/acceptance.md)。
 - 后端改变后运行 `make test` 和 `make build`；存储连接、模型或对象操作改变后，另在独立开发环境运行 `make test-integration`；契约变化后检查 `buf lint` 和前端构建。
 - 地图数据、区域索引、投影或归一化逻辑改变后，另运行 `npm run check:maps`；数据更新涉及的文件一起提交。
 - 用户交互改变后，在浏览器验证对应功能场景；布局改变后检查桌面及手机尺寸，清理自行创建的测试足迹。

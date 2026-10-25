@@ -7,7 +7,7 @@
 ```
 浏览器 ──HTTPS──► 边缘（Nginx 前端镜像 / Caddy 等）
                       ├─ 静态 SPA（/、/assets、/maps）
-                      └─ /api（含 /api/tiles/）、/ping、/readyz、/s/、/api/share/、/api/notifications/ ──► BFF :18081
+                      └─ API 主机的 /api/*、/ping、/readyz；trip-map 站点只转发 /s/、/api/share/、/api/notifications/、/api/tiles/、/ping、/readyz（其余同源 /api/ 返回 404） ──► BFF :18081
                                                                                               │
                                                                                               ├─ PostgreSQL（BFF 会话库）
                                                                                               ├─ Redis（限流、CSRF）
@@ -42,7 +42,7 @@ BFF、tripmap、usersrv 镜像及 Compose 示例默认使用文件模式。使�
 
 ## 请求体大小
 
-合法业务载荷上限为 **16 MiB**（`grpcx.LegitimatePayloadBytes`）；BFF Connect 读上限与此一致，内部 gRPC 与边缘默认 **20 MiB**（含序列化与 framing 余量）。前端 Nginx 模板 `client_max_body_size 20m`；Caddy 示例 `max_size 20MB`。调小任一层都会导致批量同步或媒体上传失败。
+合法业务载荷上限为 **16 MiB**（`grpcx.LegitimatePayloadBytes`）；BFF Connect 读上限与此一致，内部 gRPC 与边缘默认 **20 MiB**（含序列化与 framing 余量）。同步与上传只经 API 主机：Caddy 示例的 API 站点 `max_size 20MB`（`TestLegitimatePayloadLimitsAreConsistent` 检查它不小于 16 MiB）；产品镜像不再代理 `/api/`，不再承载这类请求体。调小任一层都会导致批量同步或媒体上传失败。
 
 ## 安全响应头
 
@@ -86,7 +86,7 @@ Ed25519 私钥 / 公钥在 `tls` 与 `h2c` 两种内部传输下**都必需**：
 1. **token**：在 Mapbox 账号创建只含 `styles:tiles` 范围的 `pk.` 公共令牌，设置用量告警；tripmap 拒绝 `sk.` secret token。不要给令牌配 URL 限制后再伪造来源头（tripmap 的请求没有 `Referer`），需要限制时在账号侧评估可行方式。
 2. **tripmap**：在 `config.tripmap.yaml`（或挂载的 Secret 文件）加入 `mapbox_tiles`（`enabled: true`、`token`、`username`、`style_id`，可调 `style_version`、`max_zoom`、`rate_per_minute`、`upstream_timeout`、`max_response_bytes`），重启。配置不合法会启动失败，错误不含 token。**轮换 token**：只改配置里的 `token` 并重启 tripmap，前端无需重建。
 3. **网络**：tripmap 容器需要能出站访问 `https://api.mapbox.com`（443，遵循 `HTTPS_PROXY` 等标准环境变量）；BFF 到 tripmap 的 HTTP 端口（`upstreams.tripmap`）需要可达。tripmap 的 `18082` 仍不得暴露到公网。
-4. **边缘与 BFF**：现有 Nginx/Caddy 对 `/api/` 的转发已覆盖 `/api/tiles/`，无需新增规则；边缘必须设置 `X-Real-IP`，限流按它计数。tripmap 的 `auth.client_ip_header` 需为 `X-Real-IP`，否则所有请求会被算作 BFF 的地址并共享同一个限流额度。
+4. **边缘与 BFF**：trip-map 的 Nginx 模板与 Caddy 站点保留 `/api/tiles/`（同源；其余同源 `/api/` 为 404），API 主机的 `/api/*` 同样覆盖它，无需新增规则；边缘必须设置 `X-Real-IP`，限流按它计数。tripmap 的 `auth.client_ip_header` 需为 `X-Real-IP`，否则所有请求会被算作 BFF 的地址并共享同一个限流额度。
 5. **前端**：重新构建并传入 `VITE_OSM_TILE_URL=/api/tiles/{z}/{x}/{y}.png`（同源）和 `VITE_OSM_TILE_PROVIDER=mapbox`，Docker 镜像用 `--build-arg`；前后端跨源时 URL 用 BFF 绝对地址，并在 BFF 配置 `cors_allowed_origins`。构建产物与浏览器请求中不应出现 token。可选再传 `VITE_OSM_TILE_VERSION`（与 `style_version` 相同）。当前 CI 工作流未传递这些变量。
 6. **验证**：打开全国与省内地图的底图开关，网络面板中只有 `/api/tiles/…` 请求，响应正常；临时把 `enabled` 设为 `false` 并重启，确认请求得到 404、页面提示底图失败且 SVG 地图可用。
 
@@ -175,6 +175,7 @@ docker run --rm --network <内部网络> -e USERSRV_DATABASE_URL='postgres://…
 - `npm test`（含两个前端的 Playwright 验收，模拟 BFF，不发真实邮件）。
 - 上线前手动：[真实邮件冒烟](usersrv/mail-smoke-test.md)，以及用真实的 Nginx / Caddy 加载示例并检查响应头（见 [usersrv 规格的验证状态](usersrv/spec.md#验证状态)）。
 - 文档链接：`make check-docs`。
+- 整体验收（T12）：`GATEWAY_E2E=1 GATEWAY_NGINX=… GATEWAY_CADDY=… go test ./internal/e2e -run TestGatewayDomainSets -v`，用真实 Caddy（`Caddyfile.example`）与真实 Nginx（各镜像模板与入口脚本）在两组不同保留域名下验证，见 [整体验收](ozid/acceptance.md)。CI 的 `gateway-browser` 任务不允许跳过。
 
 ## 多前端共用 BFF 的部署
 
@@ -205,3 +206,24 @@ OzID（`apps/ozid`，镜像 `ozid-web`）是纯静态站点，没有同源 `/api
 6. **metro 管理迁入控制台（T8）的影响**：`bff.metro.v1.AdminService` 与 `bff.v1.AccessTokenService` 现在同样要求来源在 `admin.allowed_cidrs` 内且 `Origin` 是控制台 origin——metro 公开站（`metro-web`）不再有管理页面，`/admin` 已退役，旧站点不能再管理目录或令牌；metro 管理员须从控制台操作，并保证其来源在白名单内。先上线 BFF 与控制台、再上线新的 `metro-web`，或同时上线，避免出现“旧站管理页已被周界拒绝而控制台尚未可用”的窗口。MCP（`/mcp/metro`）不受影响，它的来源策略是独立的 `mcp.allowed_cidrs`（T9，见下一节）。没有配置 metro 上游的环境，控制台不显示 metro 分区。
 
 镜像发布与 CI 不会自动部署、不会自动开放白名单，也不清理数据；运维仍须自行确认真实 DNS、证书与 TLS、真实来源地址与白名单取值、代理/CDN 链路和邮件厂商。详见 [控制台功能描述](admin/features.md)。
+
+## 域名切换与整体验收（T12）
+
+### 集中账号的来源
+
+产品页面不再有账号表单，也不能调用集中账号写。`navigation.apps.ozid` 配置后，`AuthService` 与 `UserService` 除 `Me`、`IssueCSRFToken`、`ResolveNavigation`、`Logout` 之外的全部过程（含 `ListSessions` 等读方法）只接受 OzID 的 `Origin`；`UserAdminService`、`AccessTokenService`、metro `AdminService` 只接受控制台 `Origin` 加管理周界；MCP 有自己的周界。完整表格与旧邮件过渡清单见 [整体验收](ozid/acceptance.md#最终来源策略)。没有 `navigation.apps.ozid` 时来源策略关闭，BFF 启动时写警告；生产必须配置。
+
+### 把整套系统换到另一组域名
+
+以下都是配置与重新构建，不改源码，也不承诺跨根域单点登录：OzID、API、控制台与各产品必须仍在同一个站点（同一可注册域）下。
+
+1. **前端重建**：四个前端分别带 `VITE_API_BASE_URL=https://<api 主机>/api`，OzID 之外的三个再带 `VITE_OZID_ORIGIN=https://<OzID 主机>`；OzID 与控制台运行时的 `API_ORIGIN`、控制台的 `ADMIN_HOST`、`ADMIN_ALLOWED_CIDRS`、`ADMIN_TRUSTED_PROXIES` 同步更新。构建参数缺失、同源 `/api` 或不是纯 origin 时构建失败；不要复用旧镜像。
+2. **BFF**：`navigation.api_origin`、`navigation.apps.{ozid,admin,trip-map,metro}` 的 origin、`cors_allowed_origins`（精确，不能通配）一致更新；`admin.allowed_cidrs`、`admin.trusted_proxies`、`mcp.allowed_cidrs`、`mcp.trusted_proxies` 用真实网段（私有配置）；没有配置白名单时控制台与 MCP 都是关闭的。
+3. **usersrv**：`auth.apps.ozid.origin` 改为新的 OzID origin（新邮件立即指向它）；产品的 `auth.apps.*` 条目只服务旧邮件，见过渡清单。
+4. **网关**：参照 `deploy/reverse-proxy/Caddyfile.example` 为每个主机配置证书与站点；API 主机只服务 `/api/*`、`/ping`、`/readyz`；产品站点不代理 `/api/*`；控制台站点保留来源规则并覆盖 `X-Forwarded-For`；网关的上游地址必须是 BFF 与 `admin-web` 受信代理名单里的网段，且不得出现在允许名单里。Caddy 对没有站点块的 Host 会返回空 200（没有内容也到不了 BFF）；需要显式拒绝时自行加兜底站点。
+5. **DNS 与 TLS**：新主机的 DNS 与证书由运维配置；旧主机下线或保留为空站点均可，旧主机收到的请求不会到达 BFF。
+6. **会话**：更换 API 主机后旧 Cookie 不会转移，所有用户需要重新登录。更换 OzID 或产品主机（API 主机不变）不影响会话，但邮件链接与返回地址要用新注册表。
+7. **旧邮件**：已发出的邮件指向旧产品主机时，按[过渡清单](ozid/acceptance.md#旧邮件-ttl-过渡清单)保留旧主机的落地页到 `until`。
+8. **配置错配检查**：启动时 BFF 校验注册表与 `api_origin` 同站点、应用 origin 都在 CORS 列表里、管理周界两份名单不重叠；`admin-web` 与 `ozid-web` 入口在缺少 `API_ORIGIN` 或名单重叠时拒绝启动。上线前再跑一遍 [整体验收](ozid/acceptance.md) 里的网关测试（用保留域名），并用真实域名做一次人工的登录、邮件、返回、控制台与 MCP 冒烟。
+
+运维仍须自行确认真实 DNS、证书、来源地址与 CDN 链路、邮件厂商；本阶段不自动部署，也不清理任何数据。

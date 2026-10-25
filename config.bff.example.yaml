@@ -86,6 +86,19 @@ auth:
   account_cleanup: [tripmap, metro]
   csrf_token_ttl: 24h    # optional; default 24h when unset
   cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP
+  # With the `navigation` registry below, the account procedures (sign-in, registration, password
+  # reset, security settings, profile, device list, closing the account) are taken from the user
+  # center's origin (navigation.apps.ozid.origin) only. Me, the CSRF token, navigation and sign-out
+  # stay open to every registered application. The one exception is time-limited: mails sent before
+  # the central OzID landing point to a product's own /account/verify-email or /account/reset-password
+  # page, which completes the token from the product's origin. List those product origins here for
+  # the length of the mail tokens (usersrv registration_ttl / reset_ttl, minutes) plus the queue, and
+  # remove the section afterwards. `until` is an RFC 3339 instant at most seven days ahead; once it
+  # has passed the origins are refused again (the BFF still starts and logs it). Only
+  # CompleteRegistration and ResetPassword are taken from them. Reserved example names:
+  # legacy_mail_transition:
+  #   origins: [https://trip.example.com, https://metro.example.com]
+  #   until: 2026-12-01T00:00:00Z
 
 # Exact origins for direct BFF access. Same-origin /api proxy needs none.
 cors_allowed_origins:

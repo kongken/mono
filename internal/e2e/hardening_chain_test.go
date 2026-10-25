@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -107,12 +109,32 @@ func TestLegitimatePayloadLimitsAreConsistent(t *testing.T) {
 	if grpcx.DefaultMaxMessageBytes < grpcx.LegitimatePayloadBytes {
 		t.Fatal("internal gRPC max below public cap")
 	}
+	// The sync batch (up to 16 MiB) travels to the API host, the one origin that carries the session: its gateway
+	// must accept the whole batch. The trip-map image no longer proxies the browser API (only share, unsubscribe,
+	// tile and probe paths, all small GETs), so its template needs no body limit of that size.
+	caddy, err := os.ReadFile("../../deploy/reverse-proxy/Caddyfile.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := string(caddy)
+	start := strings.Index(api, "\napi.example.com {")
+	if start < 0 {
+		t.Fatal("the Caddyfile example has no API site")
+	}
+	m := regexp.MustCompile(`max_size (\d+)MB`).FindStringSubmatch(api[start:])
+	if m == nil {
+		t.Fatal("the API site of the Caddyfile example sets no request_body max_size")
+	}
+	mb, _ := strconv.Atoi(m[1])
+	if int64(mb)*1024*1024 < grpcx.LegitimatePayloadBytes {
+		t.Fatalf("the API site accepts %d MB bodies, below the public cap of %d bytes", mb, grpcx.LegitimatePayloadBytes)
+	}
 	raw, err := os.ReadFile("../../deploy/trip-map-web/default.conf.template")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), "client_max_body_size") {
-		t.Fatal("nginx template missing client_max_body_size")
+	if !regexp.MustCompile(`location \^~ /api/ \{ return 404; \}`).Match(raw) {
+		t.Fatal("the trip-map image must answer the retired same-origin /api/ with 404")
 	}
 }
 

@@ -108,6 +108,11 @@ for mode in local backend; do
   check "$mode mode: the start page is served" test "$(code "$START_URL/")" = 200
   check "$mode mode: /status is the single-page fallback" test "$(code "$START_URL/status")" = 200
   check "$mode mode: the retired in-product sign-in route is 404" test "$(code "$START_URL/auth/login")" = 404
+  # T12: no same-origin proxy of the BFF's browser API (the account and management procedures); only the
+  # anonymous public paths (share, unsubscribe, tiles) and the probes are the product's own.
+  check "$mode mode: the account API is not proxied" test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H 'Connect-Protocol-Version: 1' -d '{}' "$START_URL/api/bff.v1.AuthService/LoginWithEmail")" = 404
+  check "$mode mode: the management API is not proxied" test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H 'Connect-Protocol-Version: 1' -d '{}' "$START_URL/api/bff.v1.UserAdminService/ListUsers")" = 404
+  check "$mode mode: an unknown /api path is 404 (no single-page fallback)" test "$(code "$START_URL/api/anything")" = 404
 done
 
 if [ "$failures" -gt 0 ]; then
