@@ -281,7 +281,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 详细规则、页面与验证分层见 [OzID 功能描述](ozid/features.md)。
 
-## 管理周界与用户查询（OzID T4）
+## 管理周界与用户查询（OzID T4）、账号状态与角色修改（T5）
 
 `bff.v1.UserAdminService/ListUsers`、`GetUser`（只读；`required_role = "ozid-admin"`）是浏览器可见的第一批新增管理接口，前面有一道“周界”（`internal/bff/adminguard`，配置段 `admin`）：
 
@@ -289,9 +289,10 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 - **白名单与客户端地址**：空白名单（或没有注册控制台）拒绝所有请求；CIDR 必须带前缀、无主机位，IPv4 不比 `/8` 宽、IPv6 不比 `/16` 宽，不接受 IPv4 映射网段，配置校验失败启动即失败。客户端地址默认是 TCP 对端；只有对端属于 `admin.trusted_proxies` 才读取 `admin.forwarded_header`（默认 `X-Forwarded-For`，多行合并，从右向左跳过受信代理），无法解析的跳点拒绝。它独立于 `client_ip_header`（后者只服务分享/退订限流）。
 - **角色**：BFF 入口按会话角色判断 `required_role`（并要求管理会话的认证时效 `auth.admin_session_max_age`），usersrv 在内部凭证与读取事务里再次独立判断。角色只在声明了 `required_role` 的方法的内部凭证里传递。
 - **限流与审计**：按操作者限流（Redis，默认每分钟 120 次，`admin.rate_limit_per_minute`，限流器故障 `UNAVAILABLE`）；每次查询写脱敏日志 `admin user query`；usersrv 在读取事务里写 `security_audit`（`admin.users.list/get`，原因只记查找类型）。BFF 只适配内部契约，不读 usersrv 数据库。
-- **范围**：这一周界只覆盖新增的用户管理读接口和控制台页面；现有 metro 管理接口（`AdminService`、`AccessTokenService`）与 MCP 的来源策略**没有**改变，随各自迁移任务切换。
+- **T5 写接口**：`DisableUser`、`EnableUser`、`GrantMetroAdmin`、`RevokeMetroAdmin`（请求只有目标 ID、目标 `auth_version`、变更 ID、原因）不在只读清单里，所以除上述四项外还要过 CSRF，并要求**最近 15 分钟内的真实密码认证**（`session.SensitiveAuthMaxAge`；过旧返回 `FAILED_PRECONDITION`，由页面引导去 OzID 验证后回来，旧请求不重放）。操作者 UUID 取自已验证会话的内部凭证，浏览器无法指定；BFF 写入限流键 `admin:users:write:<用户ID>`，默认每分钟 30 次（`admin.write_rate_limit_per_minute`）。事务、幂等回执、冲突与审计都在 usersrv（`account.ApplyAdminChange`），BFF 只做适配与错误映射；日志 `admin user change` 只记 request_id、操作者、动作、目标 ID 与结果。规则见 [控制台功能描述](admin/features.md)。
+- **范围**：这一周界覆盖新增的用户管理读写接口和控制台页面；现有 metro 管理接口（`AdminService`、`AccessTokenService`）与 MCP 的来源策略**没有**改变，随各自迁移任务切换。
 - **平台管理员的注销保护**：强制点在 usersrv，不在 BFF：`account.BeginDeletion` 在账号行锁内发现 `ozid-admin` 就拒绝，对**所有调用方**有效（BFF 的 `DeleteAccount` 和后台 runner，以及任何持有内部凭证的客户端）；BFF 只负责把拒绝映射成明确错误，并丢弃开始阶段的注销工作流行。产品（山海足迹、地铁足迹）里现有的注销入口走同一接口，同样受保护；目前缺少的只是 OzID 自己的网页注销页，不是“所有前端都没有注销入口”。
 - **周界的取舍**：`admin.trusted_proxies` 与 `admin.allowed_cidrs` 不得重叠（启动校验，`admin-web` 容器入口同样校验）。两层对“转发链不可用”的处理不同：BFF 对**无法解析的跳点直接拒绝**，只有没有转发头、或链里全是受信代理时才使用对端（代理自己）的地址，而这个地址不在白名单内（启动校验保证）所以仍被拒绝；Nginx（`real_ip`）遇到无法解析的跳点则**回落到代理自己的地址**再判断白名单。代理地址若在白名单内，任何能经该代理发送畸形头的人都能通过 Nginx 这一层，所以这种组合直接拒绝启动，不靠头格式正确。行为已用真实 Nginx 实测并在容器 CI 里保留反例。
-- **测试**：`internal/bff/adminguard`（来源/CIDR/受信代理/转发头单测）、`internal/bff/ingress/perimeter_test.go`、`internal/bff/config`（`TestValidateAdminPerimeter`）、`internal/e2e/user_admin_chain_test.go`（四种角色、控制台 Origin、来源策略与预检、查询/分页/审计、限流、角色生命周期与注销保护）、`internal/e2e/admin_browser_test.go`（真实浏览器，`ADMIN_BROWSER_E2E=1`）。
+- **测试**：`internal/bff/adminguard`（来源/CIDR/受信代理/转发头单测）、`internal/bff/ingress/perimeter_test.go`、`internal/bff/config`（`TestValidateAdminPerimeter`）、`internal/e2e/user_admin_chain_test.go`、`internal/e2e/user_admin_write_chain_test.go`（四种角色、控制台 Origin、来源策略与预检、查询/分页/审计、限流、角色生命周期与注销保护）、`internal/e2e/admin_browser_test.go`（真实浏览器，`ADMIN_BROWSER_E2E=1`）。
 
 规则、配置、镜像与验证分层见 [控制台功能描述](admin/features.md)。

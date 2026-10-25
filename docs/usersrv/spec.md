@@ -1,6 +1,6 @@
 # usersrv 自建用户系统规格
 
-> **后续扩展（部分已实现）：** [OzID 与统一管理控制台规格](../ozid/spec.md) 在本版 usersrv 基础上增加独立用户中心、独立统一管理前端、`ozid-admin` 与受限网页用户管理、集中邮件/导航及管理 IP 防护。其中 T1–T4 已实现（`ozid-admin`、只读 `UserAdminService`、平台管理员的注销保护、管理周界，见[控制台功能描述](../admin/features.md)）；网页用户管理写操作、OzID 网页注销页和产品入口收敛仍待实现。本文“首版不做”的独立前端与网页管理是历史范围，不限制后续扩展；P1–P6 已实现状态保持不变。OIDC、MFA 和修改邮箱仍不在新规格首版范围内。
+> **后续扩展（部分已实现）：** [OzID 与统一管理控制台规格](../ozid/spec.md) 在本版 usersrv 基础上增加独立用户中心、独立统一管理前端、`ozid-admin` 与受限网页用户管理、集中邮件/导航及管理 IP 防护。其中 T1–T5 已实现（`ozid-admin`、`UserAdminService`、平台管理员的注销保护、管理周界、普通账号状态与 `metro-admin` 的受限修改，见[控制台功能描述](../admin/features.md)）；OzID 网页注销页和产品入口收敛仍待实现。本文“首版不做”的独立前端与网页管理是历史范围，不限制后续扩展；P1–P6 已实现状态保持不变。OIDC、MFA 和修改邮箱仍不在新规格首版范围内。
 
 > **状态：P1–P6 已全部实现并在本地验证（见[验证状态](#验证状态)）；正式环境开放前仍须由运维完成真实邮件厂商的手动冒烟与按需的手动退役步骤。** BFF 已接入 `usersrv`（经内部 gRPC 完成注册、登录、改密码、注销、每请求认证状态与角色），运行时已没有 Logto/OAuth 代码；两个前端有邮箱登录、注册、找回密码与账号设置；usersrv 有镜像、CI 发布矩阵与部署示例，退役对象与手动清理步骤见 [Logto 退役与手动清理](retirement.md)。没有任何真实邮件厂商被实测，不得把 fake adapter 测试说成生产已验证。
 >
@@ -363,7 +363,7 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 - 本人方法从签名的 `sub` 取得目标用户；认证版本/密码重新校验结果与 BFF 会话版本比较。`GetAuthState` 仅在已有用户凭证上下文读取对应用户，不接受任意请求体 user ID。
 - `BeginDeletion` / `FinishDeletion` 绑定原用户 sub 和工作流 mutation ID；幂等重复完成依赖注销 tombstone/完成回执（24 小时），不能通过“用户已不存在”就允许任意状态推进。
 - usersrv 的 gRPC 拦截器不能为 `GetAuthState` 再反向依赖自身资格 RPC，避免循环；它验证 BFF 签名，资格状态由目标方法查询。产品 RPC 的鉴权继续使用平台拦截器。
-- `UserAdminService`（OzID T4，只读）：`ListUsers`、`GetUser`，`required_role = "ozid-admin"`；usersrv 在读取事务里再次确认调用者是仍然正常且当前持有 `ozid-admin` 的账号，审计（`admin.users.list/get`，脱敏原因）与读取同事务；邮箱精确、昵称字面包含、状态/角色过滤、稳定分页（默认 50、上限 100），不返回密码哈希、令牌或私有业务数据。`BeginDeletion` 拒绝持有 `ozid-admin` 的账号（`PLATFORM_ADMIN_PROTECTED`）。详见 [控制台功能描述](../admin/features.md)。
+- `UserAdminService`（OzID T4 只读、T5 写）：`ListUsers`、`GetUser`、`DisableUser`、`EnableUser`、`GrantMetroAdmin`、`RevokeMetroAdmin`，`required_role = "ozid-admin"`；写方法在一个事务内完成操作者校验、目标行锁（与 CLI、`BeginDeletion` 同一把锁）、平台管理员保护、版本检查、状态/角色更新、仅在变化时提升 `auth_version`、24 小时按操作者隔离的幂等回执与审计，详见 [控制台功能描述](../admin/features.md)；读取：usersrv 在读取事务里再次确认调用者是仍然正常且当前持有 `ozid-admin` 的账号，审计（`admin.users.list/get`，脱敏原因）与读取同事务；邮箱精确、昵称字面包含、状态/角色过滤、稳定分页（默认 50、上限 100），不返回密码哈希、令牌或私有业务数据。`BeginDeletion` 拒绝持有 `ozid-admin` 的账号（`PLATFORM_ADMIN_PROTECTED`）。详见 [控制台功能描述](../admin/features.md)。
 - `SystemService.GetStatus`：内部匿名状态，仅有依赖与 worker 就绪信息。CLI 的角色/禁用操作不公开为匿名 RPC，也不给普通用户配置一个任意 user ID 的管理方法。
 
 ## 10. 滥用防护与链接安全

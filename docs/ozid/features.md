@@ -1,6 +1,6 @@
 # OzID 用户中心：功能描述（T1 统一登录与安全返回；T2 统一注册验证与密码重置邮件；T3 账号资料、密码与设备会话）
 
-本文描述 [OzID 规格](spec.md) 中 [Issue #79（T1）](https://github.com/kongken/mono/issues/79)、[Issue #80（T2）](https://github.com/kongken/mono/issues/80) 与 [Issue #81（T3）](https://github.com/kongken/mono/issues/81) 已实现的行为。独立管理控制台、`ozid-admin`、只读用户查询与管理 IP 周界已由 T4 实现，见[控制台功能描述](../admin/features.md)；其余阶段（网页用户管理写操作、OzID 网页注销页、产品入口收敛、metro 管理接口与 MCP 的 IP 白名单）**尚未实现**，规格仍是它们的依据。文中域名全部是保留示例（`id.example.com` 等），不代表任何真实部署。
+本文描述 [OzID 规格](spec.md) 中 [Issue #79（T1）](https://github.com/kongken/mono/issues/79)、[Issue #80（T2）](https://github.com/kongken/mono/issues/80) 与 [Issue #81（T3）](https://github.com/kongken/mono/issues/81) 已实现的行为。独立管理控制台、`ozid-admin`、只读用户查询与管理 IP 周界已由 T4 实现，普通账号的禁用/启用与 `metro-admin` 授予/撤销已由 T5 实现，见[控制台功能描述](../admin/features.md)；其余阶段（OzID 网页注销页、产品入口收敛、metro 管理接口与 MCP 的 IP 白名单）**尚未实现**，规格仍是它们的依据。文中域名全部是保留示例（`id.example.com` 等），不代表任何真实部署。
 
 ## 现状与范围
 

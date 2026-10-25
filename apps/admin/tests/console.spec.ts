@@ -232,3 +232,249 @@ test("the console works on a narrow screen", async ({ page }) => {
   await expect(rows(page).first()).toBeVisible();
   expect(await noOverflow(page)).toBe(true);
 });
+
+// ---- account changes -------------------------------------------------------------------------------
+// UI behaviour against the fake BFF, in the desktop and the mobile project alike. The same rules against the
+// real stack are in internal/e2e (TestChainUserAdminChanges*, ...Writes*, ...Forbidden*) and the real-stack spec.
+
+const uid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const ACTIVE = uid(5); // an ordinary active account
+const DISABLED = uid(40); // disabled
+const CLOSING = uid(3); // being closed
+const PLATFORM = uid(1); // holds ozid-admin
+const METRO = uid(9); // holds metro-admin
+const changes = (s: Awaited<ReturnType<typeof setup>>) => s.admin.state.calls.filter((c) => /User$|MetroAdmin$/.test(c.method) && c.method !== "GetUser");
+
+const open = async (page: Page, id: string) => {
+  await page.goto(`/users/${id}`);
+  await expect(page.getByTestId("detail-id")).toHaveText(id);
+};
+const confirm = async (page: Page, reason = "工单 77：用户申请") => {
+  await page.getByTestId("change-reason").fill(reason);
+  await page.getByTestId("change-confirm").scrollIntoViewIfNeeded();
+  await page.getByTestId("change-confirm").click();
+};
+
+test.describe("account changes", () => {
+  test("disabling shows the target and the impact, needs a reason, and sends only what was asked", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await open(page, ACTIVE);
+    await expect(page.getByTestId("act-status")).toHaveText("禁用账号");
+    await page.getByTestId("act-status").click();
+
+    const dialog = page.getByTestId("change-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(page.getByTestId("change-target")).toContainText("user5@example.com");
+    await expect(page.getByTestId("change-target")).toContainText(ACTIVE);
+    await expect(page.getByTestId("change-now")).toContainText("状态：正常");
+    await expect(page.getByTestId("change-after")).toContainText("状态：已禁用");
+    await expect(page.getByTestId("change-impact")).toContainText("退出");
+    await expect(page.getByTestId("change-impact")).toContainText("不会恢复");
+    expect(await noOverflow(page)).toBe(true);
+
+    // No reason: nothing is sent.
+    await page.getByTestId("change-confirm").scrollIntoViewIfNeeded();
+    await page.getByTestId("change-confirm").click();
+    await expect(dialog.getByText("请填写原因")).toBeVisible();
+    await page.getByTestId("change-reason").fill("联系 bob@example.com");
+    await page.getByTestId("change-confirm").click();
+    await expect(dialog.getByText("不要写邮箱、密码或令牌")).toBeVisible();
+    expect(changes(s)).toHaveLength(0);
+
+    await confirm(page);
+    await expect(page.getByTestId("change-notice")).toContainText("账号已禁用");
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByTestId("detail-status")).toHaveText("已禁用");
+    await expect(page.getByTestId("act-status")).toHaveText("启用账号");
+    await expect(page.getByTestId("act-role")).toBeDisabled();
+    await expect(page.getByTestId("act-role-hint")).toContainText("先启用");
+
+    const [call] = changes(s);
+    expect(call!.method).toBe("DisableUser");
+    expect(Object.keys(call!.body).sort()).toEqual(["expectedAuthVersion", "mutationId", "reason", "userId"]);
+    expect(call!.body).toMatchObject({ userId: ACTIVE, expectedAuthVersion: "1", reason: "工单 77：用户申请" });
+    expect(call!.body.mutationId).toMatch(/^[A-Za-z0-9._-]{1,64}$/);
+    expect(call!.origin).toBe("http://127.0.0.1:4177");
+    expect(s.admin.state.writesWithoutCsrf).toEqual([]);
+    expect(s.admin.state.users.find((u) => u.id === ACTIVE)!.status).toBe("DISABLED");
+    expect(await noOverflow(page)).toBe(true);
+  });
+
+  test("enabling a disabled account, then granting and revoking the metro role", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await open(page, DISABLED);
+    await page.getByTestId("act-status").click();
+    await expect(page.getByTestId("change-impact")).toContainText("不会恢复");
+    await confirm(page);
+    await expect(page.getByTestId("detail-status")).toHaveText("正常");
+    await expect(page.getByTestId("act-role")).toHaveText("授予地铁目录管理员");
+
+    await page.getByTestId("act-role").click();
+    await expect(page.getByTestId("change-after")).toContainText("地铁目录管理员");
+    await confirm(page, "工单 78");
+    await expect(page.getByTestId("detail-roles")).toHaveText("地铁目录管理员");
+    await expect(page.getByTestId("act-role")).toHaveText("收回地铁目录管理员");
+
+    // The page now names the version the server answered with: the next change is not stale.
+    await page.getByTestId("act-role").click();
+    await confirm(page, "工单 79");
+    await expect(page.getByTestId("detail-roles")).toHaveText("无");
+    const sent = changes(s).map((c) => [c.method, c.body.expectedAuthVersion]);
+    expect(sent).toEqual([["EnableUser", "1"], ["GrantMetroAdmin", "2"], ["RevokeMetroAdmin", "3"]]);
+  });
+
+  test("a request that changes nothing says so", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await open(page, METRO);
+    s.admin.state.beforeNextChange = (users) => {
+      // Somebody already revoked the role, without moving the version this page knows (not possible for real; the
+      // server's unchanged answer is what is shown).
+      users.find((u) => u.id === METRO)!.roles = [];
+    };
+    await page.getByTestId("act-role").click();
+    await confirm(page);
+    await expect(page.getByTestId("change-notice")).toContainText("没有做任何修改");
+  });
+
+  test("platform administrators and closing accounts offer no change at all", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await open(page, PLATFORM);
+    await expect(page.getByTestId("actions-protected")).toBeVisible();
+    await expect(page.getByTestId("actions")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /禁用|启用|授予|收回/ })).toHaveCount(0);
+    await open(page, CLOSING);
+    await expect(page.getByTestId("actions-closing")).toContainText("不会取消注销");
+    await expect(page.getByRole("button", { name: /禁用|启用|授予|收回/ })).toHaveCount(0);
+    expect(changes(s)).toHaveLength(0);
+  });
+
+  test("a version conflict changes nothing, asks for a refresh, and the next attempt names the new version", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await open(page, ACTIVE);
+    s.admin.state.beforeNextChange = (users) => {
+      const u = users.find((x) => x.id === ACTIVE)!;
+      u.roles = ["metro-admin"];
+      u.authVersion += 1;
+    };
+    await page.getByTestId("act-status").click();
+    await confirm(page);
+    await expect(page.getByTestId("change-problem-conflict")).toContainText("发生了变化");
+    await expect(page.getByTestId("change-confirm")).toHaveCount(0);
+    await expect(page.getByTestId("detail-status")).toHaveText("正常");
+    expect(changes(s)).toHaveLength(1);
+
+    await page.getByTestId("change-refresh").click();
+    await expect(page.getByTestId("change-dialog")).toHaveCount(0);
+    await expect(page.getByTestId("detail-roles")).toHaveText("地铁目录管理员");
+    // Nothing was sent again by itself.
+    await page.waitForTimeout(300);
+    expect(changes(s)).toHaveLength(1);
+
+    await page.getByTestId("act-status").click();
+    await confirm(page);
+    await expect(page.getByTestId("detail-status")).toHaveText("已禁用");
+    expect(changes(s)[1]!.body.expectedAuthVersion).toBe("2");
+  });
+
+  test("an old password check goes to OzID and back, and the refused change is never replayed", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await open(page, ACTIVE);
+    s.accounts.ageAuthentication();
+    await page.getByTestId("act-status").click();
+    await confirm(page);
+    await expect(page.getByTestId("change-problem-reauth")).toContainText("验证后会回到这个页面");
+    await expect(page.getByTestId("change-confirm")).toHaveCount(0);
+    await page.waitForTimeout(400);
+    expect(s.visited).toHaveLength(0); // no redirect by itself
+    expect(changes(s)).toHaveLength(1);
+
+    await page.getByTestId("change-reauth").click();
+    await page.waitForURL(`${OZID}/security?**`);
+    const url = new URL(page.url());
+    expect(url.searchParams.get("app_id")).toBe("admin");
+    expect(url.searchParams.get("return_path")).toBe(`/users/${ACTIVE}`);
+
+    // The password is confirmed at OzID; the browser returns to the page it came from.
+    s.accounts.state.authenticatedAt = Date.now();
+    await page.goto(`/users/${ACTIVE}`);
+    await expect(page.getByTestId("detail-id")).toHaveText(ACTIVE);
+    await expect(page.getByTestId("change-dialog")).toHaveCount(0);
+    await page.waitForTimeout(500);
+    expect(changes(s)).toHaveLength(1); // the old write was not sent again
+    expect(s.admin.state.users.find((u) => u.id === ACTIVE)!.status).toBe("ACTIVE");
+
+    // The administrator decides again, on purpose.
+    await page.getByTestId("act-status").click();
+    await confirm(page);
+    await expect(page.getByTestId("detail-status")).toHaveText("已禁用");
+    expect(changes(s)).toHaveLength(2);
+  });
+
+  test("a lost response is retried with the same operation ID and does not change the account twice", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await open(page, ACTIVE);
+    s.admin.state.loseNextResponse = true;
+    await page.getByTestId("act-status").click();
+    await confirm(page);
+    await expect(page.getByTestId("change-problem-network")).toContainText("不一定已经生效");
+    await expect(page.getByTestId("change-confirm")).toHaveText("用同一操作编号重试");
+    expect(s.admin.state.users.find((u) => u.id === ACTIVE)!.status).toBe("DISABLED"); // it did happen
+
+    await page.getByTestId("change-confirm").click();
+    await expect(page.getByTestId("change-notice")).toContainText("没有重复执行");
+    await expect(page.getByTestId("detail-status")).toHaveText("已禁用");
+    const [first, second] = changes(s);
+    expect(second!.body).toEqual(first!.body);
+    expect(s.admin.state.users.find((u) => u.id === ACTIVE)!.authVersion).toBe(2); // moved once
+  });
+
+  test("changing the reason after a failure is a new intent with a new operation ID", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await open(page, ACTIVE);
+    s.admin.state.unavailable = 1;
+    await page.getByTestId("act-status").click();
+    await confirm(page, "第一版原因");
+    await expect(page.getByTestId("change-problem-unavailable")).toBeVisible();
+    await page.getByTestId("change-reason").fill("第二版原因");
+    await page.getByTestId("change-confirm").click();
+    await expect(page.getByTestId("detail-status")).toHaveText("已禁用");
+    const [first, second] = changes(s);
+    expect(second!.body.mutationId).not.toBe(first!.body.mutationId);
+    expect(second!.body.reason).toBe("第二版原因");
+  });
+
+  test("refusals inside the dialog keep their meaning", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await open(page, ACTIVE);
+    s.admin.state.rateLimited = 1;
+    await page.getByTestId("act-status").click();
+    await confirm(page);
+    await expect(page.getByTestId("change-problem-rate_limited")).toBeVisible();
+    await page.getByTestId("change-cancel").click();
+    await expect(page.getByTestId("change-dialog")).toHaveCount(0);
+    // A closed perimeter is not a permission problem, and a lost session goes back to sign-in.
+    s.admin.state.perimeterClosed = true;
+    await page.getByTestId("act-status").click();
+    await confirm(page);
+    await expect(page.getByTestId("change-problem-not_allowed")).toBeVisible();
+    s.admin.state.perimeterClosed = false;
+    s.accounts.signOut();
+    await page.getByTestId("change-confirm").click();
+    await page.waitForURL(`${OZID}/login?**`);
+  });
+
+  test("the dialog works on a narrow screen: nothing overflows and the buttons can be reached", async ({ page }) => {
+    await setup(page, { roles: ["ozid-admin"] });
+    await open(page, ACTIVE);
+    await page.getByTestId("act-status").click();
+    await page.getByTestId("change-reason").fill("工单 77");
+    for (const id of ["change-confirm", "change-cancel"]) {
+      await page.getByTestId(id).scrollIntoViewIfNeeded();
+      await expect(page.getByTestId(id)).toBeInViewport();
+    }
+    expect(await noOverflow(page)).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("change-dialog")).toHaveCount(0);
+    await expect(page.getByTestId("act-status")).toBeFocused();
+  });
+});

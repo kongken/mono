@@ -112,10 +112,12 @@ navigation:
 #     trusted_proxies: ["198.51.100.0/24"]
 #     forwarded_header: X-Forwarded-For
 #     rate_limit_per_minute: 120
+#     write_rate_limit_per_minute: 30   # account changes (state, metro-admin), per operator
 # This development file only admits the machine itself.
 admin:
   allowed_cidrs: ["127.0.0.0/8", "::1/128"]
   rate_limit_per_minute: 120
+  write_rate_limit_per_minute: 30
 
 client_ip_header: X-Real-IP
 

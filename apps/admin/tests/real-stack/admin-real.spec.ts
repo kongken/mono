@@ -204,3 +204,147 @@ test.describe("the perimeter, from a real browser", () => {
     expect(result.body).not.toContain("users");
   });
 });
+
+test.describe("real account changes", () => {
+  const CHANGE_CALLS = /UserAdminService\/(Disable|Enable)User|UserAdminService\/(Grant|Revoke)MetroAdmin/;
+
+  /** Finds an account by its exact email in the user list and opens its detail page. */
+  async function openDetail(page: Page, email: string) {
+    await page.goto(`${stack.admin}/users`);
+    await page.getByLabel("查找方式").selectOption({ label: "邮箱（精确）" });
+    await page.getByLabel("查找内容").fill(email);
+    await page.getByRole("button", { name: "查询" }).click();
+    await expect(rows(page)).toHaveCount(1);
+    await rows(page).first().getByRole("link").click();
+    await expect(page.getByTestId("detail-email")).toHaveText(email);
+  }
+
+  async function change(page: Page, button: "act-status" | "act-role", reason: string) {
+    await page.getByTestId(button).click();
+    await page.getByTestId("change-reason").fill(reason);
+    await page.getByTestId("change-confirm").scrollIntoViewIfNeeded();
+    await page.getByTestId("change-confirm").click();
+  }
+
+  test("an operator disables, enables, grants and revokes; the account's own session ends each time and nothing old comes back", async ({ page, browser }) => {
+    const target = account("target");
+    const ownerContext = await browser.newContext({ ignoreHTTPSErrors: true, viewport: page.viewportSize() });
+    const owner = await ownerContext.newPage();
+    try {
+      // The account being changed is signed in elsewhere.
+      await openConsole(owner, "target", "/");
+      await expect(owner.getByTestId("no-permission")).toBeVisible();
+
+      await openConsole(page, "operator", "/users");
+      // A platform administrator's own page offers no change.
+      await openDetail(page, account("operator").email);
+      await expect(page.getByTestId("actions-protected")).toBeVisible();
+      await expect(page.getByTestId("actions")).toHaveCount(0);
+
+      const writes: string[] = [];
+      page.on("request", (r) => CHANGE_CALLS.test(r.url()) && writes.push(r.url()));
+      await openDetail(page, target.email);
+      await expect(page.getByTestId("detail-status")).toHaveText("正常");
+
+      // Disable: the dialog names the target and the impact; the owner's session is gone at the next call.
+      await page.getByTestId("act-status").click();
+      await expect(page.getByTestId("change-target")).toContainText(target.email);
+      await expect(page.getByTestId("change-impact")).toContainText("退出");
+      await page.getByTestId("change-reason").fill("工单 77：用户申请");
+      await page.getByTestId("change-confirm").click();
+      await expect(page.getByTestId("change-notice")).toContainText("账号已禁用");
+      await expect(page.getByTestId("detail-status")).toHaveText("已禁用");
+      await owner.reload();
+      await owner.waitForURL(new RegExp(`^${stack.id}/login\\?app_id=admin`));
+      await signInAs(owner, "target");
+      await expect(owner.getByText("邮箱或密码错误，或账号不可用")).toBeVisible(); // a disabled account cannot sign in
+
+      // Enable: it can sign in again, but only anew.
+      await change(page, "act-status", "工单 77：已处理");
+      await expect(page.getByTestId("detail-status")).toHaveText("正常");
+      await signInAs(owner, "target");
+      await owner.waitForURL(/^https:\/\/admin\./);
+      await expect(owner.getByTestId("no-permission")).toBeVisible();
+
+      // Grant the metro role: the owner's session ends and the new one carries the role.
+      await change(page, "act-role", "工单 78");
+      await expect(page.getByTestId("detail-roles")).toHaveText("地铁目录管理员");
+      await owner.reload();
+      await owner.waitForURL(new RegExp(`^${stack.id}/login\\?app_id=admin`));
+      await signInAs(owner, "target");
+      await owner.waitForURL(/^https:\/\/admin\./);
+      await expect(owner.getByTestId("my-roles")).toHaveText("地铁目录管理员");
+
+      // Revoke it again: the page names the version it got back, so this is not stale.
+      await change(page, "act-role", "工单 79");
+      await expect(page.getByTestId("detail-roles")).toHaveText("无");
+      await owner.reload();
+      await owner.waitForURL(new RegExp(`^${stack.id}/login\\?app_id=admin`));
+
+      expect(writes).toHaveLength(4);
+      // The console never calls anything that sets a role by name, a password or a deletion.
+      const ozidCalls: string[] = [];
+      page.on("request", (r) => /AuthService\/(DeleteAccount|ChangePassword)|UserService\//.test(r.url()) && ozidCalls.push(r.url()));
+      await page.reload();
+      expect(ozidCalls).toEqual([]);
+    } finally {
+      await ownerContext.close();
+    }
+  });
+
+  test("a password check older than 15 minutes goes to OzID and back; the refused change is not replayed", async ({ page, context }) => {
+    const target = account("target");
+    await openConsole(page, "operator", "/users");
+    await openDetail(page, target.email);
+    const detailPath = new URL(page.url()).pathname;
+    const writes: string[] = [];
+    page.on("request", (r) => CHANGE_CALLS.test(r.url()) && writes.push(r.url()));
+
+    // The gateway's control host makes the operator's password check 16 minutes old (a browser cannot wait 15).
+    const control = await context.newPage();
+    await control.goto(`${stack.control}/age?age=${encodeURIComponent(account("operator").email)}`);
+    await control.close();
+    await change(page, "act-status", "工单 80");
+    await expect(page.getByTestId("change-problem-reauth")).toBeVisible();
+    await expect(page.getByTestId("detail-status")).toHaveText("正常");
+    expect(writes).toHaveLength(1);
+    await page.waitForTimeout(500);
+    expect(page.url().startsWith(stack.id)).toBe(false); // no redirect by itself
+
+    await page.getByTestId("change-reauth").click();
+    await page.waitForURL(new RegExp(`^${stack.id}/security\\?app_id=admin&return_path=${encodeURIComponent(detailPath)}$`));
+    await page.getByLabel("当前密码").fill("not the password at all");
+    await page.getByRole("button", { name: "确认密码" }).click();
+    await expect(page.getByTestId("reauthenticate")).toContainText("当前密码不正确");
+    await page.getByLabel("当前密码").fill(stack.password);
+    await page.getByRole("button", { name: "确认密码" }).click();
+    await page.waitForURL(`${stack.admin}${detailPath}`);
+
+    // Back on the page: nothing was sent again, and the account is untouched.
+    await expect(page.getByTestId("detail-status")).toHaveText("正常");
+    await expect(page.getByTestId("change-dialog")).toHaveCount(0);
+    await page.waitForTimeout(500);
+    expect(writes).toHaveLength(1);
+
+    // The administrator decides again, on purpose, and puts it back afterwards.
+    await change(page, "act-status", "工单 80");
+    await expect(page.getByTestId("detail-status")).toHaveText("已禁用");
+    await change(page, "act-status", "工单 80：恢复");
+    await expect(page.getByTestId("detail-status")).toHaveText("正常");
+    expect(writes).toHaveLength(3);
+  });
+
+  test("outside the allowlist the console cannot change anything, and a console that is open is refused at the BFF", async ({ page }) => {
+    const target = account("target");
+    await openConsole(page, "operator", "/users");
+    await openDetail(page, target.email);
+    const other = await page.context().newPage();
+    await setSource(other, stack.outside);
+    await other.close();
+    await change(page, "act-status", "工单 81");
+    // The perimeter's bare 403 carries no CORS grant: the browser withholds it, the page says it could not be reached.
+    await expect(page.getByTestId("change-problem-network")).toBeVisible();
+    await expect(page.getByTestId("detail-status")).toHaveText("正常");
+    await setSource(page, stack.inside);
+  });
+});

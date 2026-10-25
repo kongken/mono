@@ -25,7 +25,7 @@ let csrf: string | undefined;
 // The Cookie belongs to the API host and is HttpOnly: the page never reads it and never sees a
 // session token. CSRF is the BFF's double submit: the token comes in a response body and goes
 // back in a header; the Cookie half is sent by the browser on its own. The user queries are
-// reads and need none; sign-out does.
+// reads and need none; sign-out and every account change do.
 const transport = createConnectTransport({
   baseUrl: apiBase,
   fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
@@ -43,8 +43,11 @@ async function ensureCsrf() {
   csrf = (await auth.issueCSRFToken({})).token;
 }
 
+/** A fresh CSRF token for a write. Fetched at the moment of the write, so a token that expired never fails it. */
+export const freshCsrf = ensureCsrf;
+
 /** The shared account client. The console only uses Me, sign-out and navigation resolution. */
 export const account = createAccountApi({ transport, appId: APP_ID, ensureCsrf });
 
-/** The user management API: reads only in this release. */
+/** The user management API: two reads and four narrow changes (disable, enable, grant and revoke metro-admin). */
 export const userAdmin = createClient(UserAdminService, transport);

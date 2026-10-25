@@ -1,6 +1,6 @@
 # 后端初始化
 
-> **后续扩展，待实现：** [OzID 与统一管理控制台规格](ozid/spec.md) 在现有 usersrv 上规划平台管理员角色、受限用户管理与审计，并复用现有 BFF 会话承载两个独立前端。平台管理员角色 `ozid-admin`、只读用户查询（`usersrv.v1.UserAdminService`）与注销保护已由 T4 实现，见 [控制台功能描述](admin/features.md)；用户管理写操作、审计页等其余部分仍只有规格，本文的接口、模型、配置和命令以代码为准。
+> **后续扩展，待实现：** [OzID 与统一管理控制台规格](ozid/spec.md) 在现有 usersrv 上规划平台管理员角色、受限用户管理与审计，并复用现有 BFF 会话承载两个独立前端。平台管理员角色 `ozid-admin`、用户查询（`usersrv.v1.UserAdminService`）与注销保护已由 T4 实现，普通账号状态与 `metro-admin` 的受限修改由 T5 实现，见 [控制台功能描述](admin/features.md)；审计页等其余部分仍只有规格，本文的接口、模型、配置和命令以代码为准。
 
 ## 当前状态与技术栈
 

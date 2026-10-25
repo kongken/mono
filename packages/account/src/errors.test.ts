@@ -64,3 +64,26 @@ test("a platform administrator is told why the web cannot close the account, and
   assert.equal(f.kind, "platform_admin");
   assert.match(f.message, /平台管理员/);
 });
+
+test("an administrator's change keeps every refusal apart and never hides an unconfirmed write", () => {
+  const kind = (c: Code, m: string) => classifyAccountError(err(c, m), "admin-change").kind;
+  assert.equal(kind(Code.Aborted, "account changed since it was read"), "conflict");
+  assert.equal(kind(Code.FailedPrecondition, "platform administrators cannot be changed here"), "target_protected");
+  assert.equal(kind(Code.FailedPrecondition, "account is not active"), "target_state");
+  assert.equal(kind(Code.AlreadyExists, "mutation id used for a different request"), "mutation_reused");
+  assert.equal(kind(Code.FailedPrecondition, "enter your password again to continue"), "reauth_required");
+  assert.equal(kind(Code.Unauthenticated, "sign in again to use this feature"), "reauth_required");
+  assert.equal(kind(Code.PermissionDenied, "required role missing"), "forbidden");
+  assert.equal(kind(Code.PermissionDenied, "request rejected"), "not_allowed");
+  assert.equal(kind(Code.ResourceExhausted, "too many requests, try again later"), "rate_limited");
+  assert.equal(kind(Code.InvalidArgument, "reason: must be 1-200 characters"), "validation");
+  // Without an answer the change may have happened: the text says so and offers the same-ID retry.
+  for (const code of [Code.DeadlineExceeded, Code.Unavailable, Code.Unknown]) {
+    const f = classifyAccountError(err(code, "x"), "admin-change");
+    assert.match(f.message, /不一定已经生效/);
+    assert.match(f.message, /同一个操作编号/);
+  }
+  // The same texts mean nothing outside this action.
+  assert.notEqual(classifyAccountError(err(Code.Aborted, "account changed since it was read")).kind, "conflict");
+  assert.notEqual(classifyAccountError(err(Code.FailedPrecondition, "platform administrators cannot be changed here")).kind, "target_protected");
+});

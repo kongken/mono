@@ -10,7 +10,7 @@
 | --- | --- | --- | --- |
 | trip-map（山海足迹） | `apps/trip-map/` | React、Vite、TypeScript、Tailwind CSS、shadcn/ui 前端 | Vite 输出地址，通常为 `http://localhost:5173` |
 | ozid（OzID 用户中心，T1、T2 已实现） | `apps/ozid/` | 独立的统一登录、注册与找回密码、邮件落地页（注册验证、密码重置）、账号概览与密码重新认证；登录后只返回服务端校验过的应用与路径（见 [OzID 功能描述](docs/ozid/features.md)） | Vite `http://localhost:5175`（需 BFF 配置 `navigation`） |
-| admin（统一管理控制台，T4 已实现） | `apps/admin/` | 独立的管理控制台：只在来源白名单内提供页面，匿名跳 OzID 登录，无权限不循环，按真实角色显示分区，只读用户查询；详见 [控制台功能描述](docs/admin/features.md) | Vite 5176（本机开发） |
+| admin（统一管理控制台，T4、T5 已实现） | `apps/admin/` | 独立的管理控制台：只在来源白名单内提供页面，匿名跳 OzID 登录，无权限不循环，按真实角色显示分区，用户查询与普通账号状态/`metro-admin` 的受限修改（T5）；详见 [控制台功能描述](docs/admin/features.md) | Vite 5176（本机开发） |
 | bff | `cmd/bff/`、`internal/bff/` | 唯一公网 API 入口；账号接口（经 usersrv）、Cookie 会话、CSRF、账号注销工作流和业务接口适配 | HTTP `127.0.0.1:18081` |
 | tripmap | `cmd/tripmap/`、`internal/tripmap/` | 足迹、行程、媒体、分享等旅行领域业务 | 内网 HTTP `127.0.0.1:18082`；内部 gRPC `127.0.0.1:18083`（默认 TLS，可显式选 h2c） |
 | usersrv（自建用户系统，P1–P6 已实现） | `cmd/usersrv/`、`internal/usersrv/`、`cmd/usersrv-admin/` | 邮箱＋密码账号、注册验证与找回密码流程、角色与账号安全状态、邮件发送模块（四种 adapter）；只有内部 gRPC，由 BFF 调用；trip-map 与 metro 的登录、注册、找回密码与账号设置已实现（P5，共用代码在 `packages/account`；OzID 复用其中的表单与落地页，T2 起新邮件统一落到 OzID），有镜像 `mono-usersrv` 与部署示例（[部署](docs/deployment.md#usersrv-的部署)）；真实邮件厂商没有实测，开放前须手动冒烟（见 [规格](docs/usersrv/spec.md#验证状态)） | 仅内网：HTTP `127.0.0.1:18086`、gRPC `127.0.0.1:18087`（需自己的数据库与 Redis） |

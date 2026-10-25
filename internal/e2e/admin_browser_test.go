@@ -14,9 +14,11 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/kongken/mono/internal/bff/adminguard"
 	bffconfig "github.com/kongken/mono/internal/bff/config"
+	bffsession "github.com/kongken/mono/internal/bff/ent/session"
 	"github.com/kongken/mono/internal/bff/navigation"
 )
 
@@ -103,6 +105,7 @@ func TestAdminBrowserChain(t *testing.T) {
 		{"metro", "console_metro", []string{"metro-admin"}},
 		{"other", "console_member_a", nil},
 		{"other", "console_member_b", nil},
+		{"target", "console_target", nil},
 	} {
 		if err := h.FreshBrowser().LoginWithRoles(ctx, u.subject, u.roles...); err != nil {
 			t.Fatal(err)
@@ -172,6 +175,19 @@ func TestAdminBrowserChain(t *testing.T) {
 			// GET /source?ip=...: where the gateway pretends the client is. (Test scaffolding only.)
 			if ip := r.URL.Query().Get("ip"); net.ParseIP(ip) != nil {
 				source.Store(ip)
+			}
+			// GET /age?email=...: the password check of that account's sessions is 16 minutes old, as if the
+			// administrator had signed in a while ago (a real browser cannot wait 15 minutes).
+			if email := r.URL.Query().Get("age"); email != "" {
+				id, err := h.Accounts.ResolveEmail(r.Context(), email)
+				if err == nil {
+					_, err = h.BFFDB.Session.Update().Where(bffsession.UserID(id.String())).
+						SetAuthenticatedAt(time.Now().UTC().Add(-16 * time.Minute)).Save(r.Context())
+				}
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 			}
 			w.Header().Set("Content-Type", "text/plain")
 			_, _ = fmt.Fprintln(w, source.Load().(string))
