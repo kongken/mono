@@ -291,7 +291,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 - **限流与审计**：按操作者限流（Redis，默认每分钟 120 次，`admin.rate_limit_per_minute`，限流器故障 `UNAVAILABLE`）；每次查询写脱敏日志 `admin user query`；usersrv 在读取事务里写 `security_audit`（`admin.users.list/get`，原因只记查找类型）。BFF 只适配内部契约，不读 usersrv 数据库。
 - **范围**：这一周界只覆盖新增的用户管理读接口和控制台页面；现有 metro 管理接口（`AdminService`、`AccessTokenService`）与 MCP 的来源策略**没有**改变，随各自迁移任务切换。
 - **平台管理员的注销保护**：强制点在 usersrv，不在 BFF：`account.BeginDeletion` 在账号行锁内发现 `ozid-admin` 就拒绝，对**所有调用方**有效（BFF 的 `DeleteAccount` 和后台 runner，以及任何持有内部凭证的客户端）；BFF 只负责把拒绝映射成明确错误，并丢弃开始阶段的注销工作流行。产品（山海足迹、地铁足迹）里现有的注销入口走同一接口，同样受保护；目前缺少的只是 OzID 自己的网页注销页，不是“所有前端都没有注销入口”。
-- **周界的取舍**：`admin.trusted_proxies` 与 `admin.allowed_cidrs` 不得重叠（启动校验，`admin-web` 容器入口同样校验）。转发链不可用（没有头、只有受信代理，或有无法解析的跳点）时，BFF 与 Nginx 都回落到“代理自己的地址”来判断；代理地址在白名单内会让任何能经该代理发送畸形头的人通过，所以这种组合直接拒绝启动。两边对畸形链的细节不同（BFF 拒绝；Nginx 回落到代理地址，因此依赖这条校验），行为已用真实 Nginx 实测并在容器 CI 里保留反例。
+- **周界的取舍**：`admin.trusted_proxies` 与 `admin.allowed_cidrs` 不得重叠（启动校验，`admin-web` 容器入口同样校验）。两层对“转发链不可用”的处理不同：BFF 对**无法解析的跳点直接拒绝**，只有没有转发头、或链里全是受信代理时才使用对端（代理自己）的地址，而这个地址不在白名单内（启动校验保证）所以仍被拒绝；Nginx（`real_ip`）遇到无法解析的跳点则**回落到代理自己的地址**再判断白名单。代理地址若在白名单内，任何能经该代理发送畸形头的人都能通过 Nginx 这一层，所以这种组合直接拒绝启动，不靠头格式正确。行为已用真实 Nginx 实测并在容器 CI 里保留反例。
 - **测试**：`internal/bff/adminguard`（来源/CIDR/受信代理/转发头单测）、`internal/bff/ingress/perimeter_test.go`、`internal/bff/config`（`TestValidateAdminPerimeter`）、`internal/e2e/user_admin_chain_test.go`（四种角色、控制台 Origin、来源策略与预检、查询/分页/审计、限流、角色生命周期与注销保护）、`internal/e2e/admin_browser_test.go`（真实浏览器，`ADMIN_BROWSER_E2E=1`）。
 
 规则、配置、镜像与验证分层见 [控制台功能描述](admin/features.md)。

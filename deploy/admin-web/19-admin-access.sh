@@ -97,6 +97,29 @@ v6_groups() {
   groups="${groups#,}"
 }
 
+# v6_host_bits <setting> <value> <groups> <prefix length>: refuses an IPv6 network with address
+# bits set beyond the prefix (2001:db8:1:1::/48), as the BFF does; groups are the decimal numbers
+# v6_groups produced. Works on whole groups and on the partial one a prefix such as /35 ends in.
+v6_host_bits() {
+  _s="$1"
+  _v="$2"
+  _len="$4"
+  _old="$IFS"
+  IFS=,
+  # shellcheck disable=SC2086
+  set -- $3
+  IFS="$_old"
+  _k=0
+  for _g in "$@"; do
+    _bits=$(( _len - 16 * _k ))
+    [ "$_bits" -ge 0 ] || _bits=0
+    [ "$_bits" -le 16 ] || _bits=16
+    _mask=$(( (0xffff << (16 - _bits)) & 0xffff ))
+    [ $(( _g & (0xffff ^ _mask) )) -eq 0 ] || fail "$_s: '$_v' has host bits set; write the network address, for example 2001:db8::/32"
+    _k=$((_k + 1))
+  done
+}
+
 # overlaps <record> <record>: true when two networks (as recorded by check_cidr) share an address.
 overlaps() {
   _old="$IFS"
@@ -153,6 +176,7 @@ check_cidr() {
       [ "$len" -le 128 ] || fail "$setting: '$value' has an invalid prefix length"
       [ "$len" -ge 16 ] || fail "$setting: '$value' is wider than /16, which is almost everyone"
       v6_groups "$setting" "$value" "$lower"
+      v6_host_bits "$setting" "$value" "$groups" "$len"
       rec="$rec v6|$groups|$len|$value"
       ;;
     *)

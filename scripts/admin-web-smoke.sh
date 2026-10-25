@@ -6,7 +6,9 @@
 #     source, and every other source gets 403 for ALL of them (a missing asset included);
 #   - a forged forwarded header cannot lift a source into the list (only a trusted proxy's header is
 #     believed, read from the right), an unusable chain (not an address, only gateways) never opens
-#     the console, and gateways that overlap the allowlist keep the container from starting;
+#     the console, gateways that overlap the allowlist or IPv6 networks with address bits beyond
+#     their prefix keep the container from starting (canonical IPv6 networks, with prefixes that end
+#     inside a 16-bit group, start and are masked correctly);
 #     another Host (or a Host with a port) gets no response at all;
 #   - /healthz answers for probes only on the default server;
 #   - the CSP and clickjacking headers, and that a missing or illegal setting keeps the container
@@ -229,6 +231,36 @@ BASE="$START_URL"
 console "$BASE" notrust_forged / "$INSIDE"
 check "no trusted proxy: a header naming an allowed address does not lift the peer (403)" status_is "$tmp/notrust_forged.head" 403
 
+# ===== container 3: canonical, non-overlapping IPv6 networks start, and the masks are right ======
+# The prefixes end inside a 16-bit group (/33, /34, /35), where a wrong mask would let the wrong
+# addresses through or refuse the right ones. The allowed /33 starts exactly where the trusted /34
+# ends (2001:db8:8000::), and the trusted /35 and /34 do not touch the allowed /33.
+V6_ALLOWED="2001:db8:8000::/33"
+V6_PROXIES="2001:db8:2000::/35,2001:db8:4000::/34"
+start "$OFFICE,$V6_ALLOWED" "$GATEWAYS,$V6_PROXIES"
+BASE="$START_URL"
+echo "admin-web is up at $BASE (allowlist $OFFICE,$V6_ALLOWED; trusted $GATEWAYS,$V6_PROXIES)"
+console "$BASE" v6_office / "$INSIDE"
+check "IPv6 config: the IPv4 office is still allowed (200)" status_is "$tmp/v6_office.head" 200
+console "$BASE" v6_outside / "$OUTSIDE"
+check "IPv6 config: an IPv4 source outside the list is refused (403)" status_is "$tmp/v6_outside.head" 403
+console "$BASE" v6_low / "2001:db8:8000::1"
+check "IPv6 config: the first addresses of the allowed /33 get the page (200)" status_is "$tmp/v6_low.head" 200
+console "$BASE" v6_high / "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff"
+check "IPv6 config: the last address of the allowed /33 gets the page (200)" status_is "$tmp/v6_high.head" 200
+console "$BASE" v6_beyond / "2001:db9::1"
+check "IPv6 config: the address just beyond the allowed /33 is refused (403)" status_is "$tmp/v6_beyond.head" 403
+console "$BASE" v6_below / "2001:db8:1fff::1"
+check "IPv6 config: an address below the trusted networks is refused (403)" status_is "$tmp/v6_below.head" 403
+console "$BASE" v6_trusted_only / "2001:db8:7fff::1"
+check "IPv6 config: a chain of only trusted proxies opens nothing (403)" status_is "$tmp/v6_trusted_only.head" 403
+console "$BASE" v6_hops / "2001:db8:8000::1, 2001:db8:4000::5"
+check "IPv6 config: a trusted IPv6 hop is skipped and the client before it counts (200)" status_is "$tmp/v6_hops.head" 200
+console "$BASE" v6_forged / "2001:db8:8000::1, 2001:db8:1fff::7"
+check "IPv6 config: an allowed address written before the real source does not help (403)" status_is "$tmp/v6_forged.head" 403
+console "$BASE" v6_junk / "garbage"
+check "IPv6 config: an unusable chain is still refused (403)" status_is "$tmp/v6_junk.head" 403
+
 # ===== a missing or illegal setting keeps the container from starting ==========================
 expect_refused() { # expect_refused <description> <expected message part> [VAR=value ...]
   local what="$1" want="$2" cid state="true" code logs
@@ -267,6 +299,12 @@ expect_refused "a trusted proxy network is the allowlist itself" "ADMIN_TRUSTED_
 expect_refused "a trusted proxy network lies inside the allowlist" "ADMIN_TRUSTED_PROXIES" "ADMIN_ALLOWED_CIDRS=$GATEWAYS" ADMIN_TRUSTED_PROXIES=172.17.0.0/16
 expect_refused "the allowlist lies inside a trusted proxy network" "ADMIN_TRUSTED_PROXIES" ADMIN_ALLOWED_CIDRS=172.20.0.0/16 "ADMIN_TRUSTED_PROXIES=$GATEWAYS"
 expect_refused "an IPv6 trusted proxy network lies inside the IPv6 allowlist" "ADMIN_TRUSTED_PROXIES" ADMIN_ALLOWED_CIDRS=2001:db8::/32 ADMIN_TRUSTED_PROXIES=2001:db8:1::/48
+# IPv6 networks must be written canonically (no address bits beyond the prefix), as the BFF requires
+expect_refused "an IPv6 allowlist entry has host bits" "ADMIN_ALLOWED_CIDRS" ADMIN_ALLOWED_CIDRS=2001:db8:1:1::/48
+expect_refused "an IPv6 allowlist entry has host bits inside its last partial group (/33)" "ADMIN_ALLOWED_CIDRS" ADMIN_ALLOWED_CIDRS=2001:db8:ffff::/33
+expect_refused "an IPv6 allowlist entry is not on its /35 boundary" "ADMIN_ALLOWED_CIDRS" ADMIN_ALLOWED_CIDRS=2001:db8:1::/35
+expect_refused "an IPv6 allowlist host entry has its last bit set beyond /127" "ADMIN_ALLOWED_CIDRS" ADMIN_ALLOWED_CIDRS=2001:db8::3/127
+expect_refused "an IPv6 trusted proxy entry has host bits" "ADMIN_TRUSTED_PROXIES" ADMIN_TRUSTED_PROXIES=2001:db8:2000::1/35
 expect_refused "ADMIN_HOST is a wildcard" "ADMIN_HOST" 'ADMIN_HOST=*.example.com'
 expect_refused "ADMIN_HOST carries a port" "ADMIN_HOST" ADMIN_HOST=admin.example.com:8443
 expect_refused "ADMIN_HOST is empty" "ADMIN_HOST" ADMIN_HOST=
