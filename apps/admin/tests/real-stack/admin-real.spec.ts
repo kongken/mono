@@ -818,6 +818,8 @@ test.describe("real metro administration", () => {
     await page.getByLabel("搜索城市").fill(slug);
     await page.getByRole("button", { name: `删除 ${slug}` }).click();
     await page.getByRole("button", { name: "确认删除" }).click();
+    // The dialog closes when the service has answered; an empty table alone could also be a list still loading.
+    await expect(page.getByRole("button", { name: "确认删除" })).toHaveCount(0);
     await expect(page.getByRole("cell", { name: slug })).toHaveCount(0);
     const gone = await read(after.version);
     expect(gone.notModified).toBe(false);
