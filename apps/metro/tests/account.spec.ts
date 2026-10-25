@@ -411,15 +411,34 @@ test.describe("what the product believes about the shared session", () => {
     const { accounts, ozid } = await setup(page, { signedIn: true });
     await page.goto("/me");
     await expect(page.getByRole("heading", { name: "乘坐记录" })).toBeVisible();
+    // Everything the page does on its own is counted: asks to the BFF about the session, and moves of the page.
+    const asks: string[] = [];
+    const moves: string[] = [];
+    page.on("request", (r) => void (r.url().endsWith("/bff.v1.AuthService/Me") && asks.push(r.url())));
+    page.on("framenavigated", (f) => void (f === page.mainFrame() && moves.push(f.url())));
     accounts.signOut(); // another tab or OzID ended the shared session
     await refocus(page);
     await expect(signIn(page)).toBeVisible();
     await expect(page.getByTestId("session-notice")).toContainText("你已在其他页面退出登录");
     await expect(page.getByText("登录后可以记录坐过的线路")).toBeVisible();
-    // The product did not send anybody anywhere by itself.
+    // The product did not send anybody anywhere by itself: exactly one ask (the one the shown page made), no move.
+    expect(asks).toHaveLength(1);
+    expect(moves).toEqual([]);
     await expect(page).toHaveURL(/\/me$/);
     expect(ozid).toEqual([]);
-    await page.waitForTimeout(300);
+    // Nothing schedules another ask or a move: minutes of fake time pass without any event, and nothing happens.
+    await page.clock.fastForward(5 * 60_000);
+    await page.evaluate(() => undefined); // a round trip: anything the timers started has been sent by now
+    expect(asks).toHaveLength(1);
+    expect(moves).toEqual([]);
+    expect(ozid).toEqual([]);
+    // The next time the page is shown it asks once more, learns the same, says nothing again and does not move.
+    await page.getByTestId("session-notice").getByRole("button", { name: "知道了" }).click();
+    await refocus(page);
+    await expect.poll(() => asks.length).toBe(2);
+    await expect(signIn(page)).toBeVisible();
+    await expect(page.getByTestId("session-notice")).toHaveCount(0);
+    expect(moves).toEqual([]);
     expect(ozid).toEqual([]);
   });
 
@@ -473,11 +492,32 @@ test.describe("what the product believes about the shared session", () => {
     accounts.signOut();
     await refocus(page);
     await expect(signIn(page)).toBeVisible();
-    // The stale "signed in" answer arrives now and is discarded.
+    // From here on a page-side observer notes whether the signed-out page ever shows the account again, and the
+    // page's own asks and moves are counted.
+    await page.evaluate(() => {
+      const w = window as unknown as { __accountShown: boolean };
+      w.__accountShown = false;
+      new MutationObserver(() => {
+        if (document.body.innerText.includes("骑行者小山")) w.__accountShown = true;
+      }).observe(document.body, { subtree: true, childList: true, characterData: true });
+    });
+    const asks: string[] = [];
+    const moves: string[] = [];
+    page.on("request", (r) => void (r.url().endsWith("/bff.v1.AuthService/Me") && asks.push(r.url())));
+    page.on("framenavigated", (f) => void (f === page.mainFrame() && moves.push(f.url())));
+    // The stale "signed in" answer arrives now: the wait is for that very response, read to its end, then the
+    // page's fake clock runs on so anything it scheduled has run. It is discarded: no account shown at any moment,
+    // no further ask caused by it, no move.
+    const late = page.waitForResponse((r) => r.url().endsWith("/bff.v1.AuthService/Me"));
     held.release();
-    await page.waitForTimeout(300);
+    await (await late).finished();
+    await page.clock.runFor(1_000);
+    await page.evaluate(() => undefined);
+    expect(await page.evaluate(() => (window as unknown as { __accountShown: boolean }).__accountShown)).toBe(false);
     await expect(signIn(page)).toBeVisible();
     await expect(header(page).getByText("骑行者小山")).toHaveCount(0);
+    expect(asks).toEqual([]);
+    expect(moves).toEqual([]);
   });
 
   test("a stale token is repaired once: the same mark is sent again, with a fresh token, and lands exactly once", async ({ page }) => {

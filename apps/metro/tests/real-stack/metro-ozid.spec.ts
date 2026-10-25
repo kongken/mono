@@ -243,14 +243,32 @@ test.describe("a session that ends or changes elsewhere, and a network that fail
     await page.clock.install();
     await enterViaOzid(page, who);
     await expect(marked(page, "sh-1")).toHaveAttribute("aria-pressed", "true");
+    // What the page does on its own is counted from here: asks to the BFF about the session, requests to OzID's
+    // origin (the product only ever goes there by a click), and moves of the page.
+    const asks: string[] = [];
+    const toOzid: string[] = [];
+    const moves: string[] = [];
+    page.on("request", (r) => {
+      if (r.url().endsWith("/bff.v1.AuthService/Me")) asks.push(r.url());
+      if (r.url().startsWith(stack.id)) toOzid.push(r.url());
+    });
+    page.on("framenavigated", (f) => void (f === page.mainFrame() && moves.push(f.url())));
     await ozidSignOut(context);
     await refocus(page);
     await expect(signIn(page)).toBeVisible();
     await expect(page.getByTestId("session-notice")).toContainText("你已在其他页面退出登录");
     await expect(mark(page, "sh-1")).toBeVisible();
     await expect(page).toHaveURL(`${stack.metro}/cities/shanghai`);
-    await page.waitForTimeout(300);
-    await expect(page).toHaveURL(`${stack.metro}/cities/shanghai`);
+    // Exactly one ask answered it; the page did not go anywhere and asked OzID for nothing; and minutes of fake
+    // time with no event cause neither another ask nor a move.
+    expect(asks).toHaveLength(1);
+    expect(toOzid).toEqual([]);
+    expect(moves).toEqual([]);
+    await page.clock.fastForward(5 * 60_000);
+    await page.evaluate(() => undefined);
+    expect(asks).toHaveLength(1);
+    expect(toOzid).toEqual([]);
+    expect(moves).toEqual([]);
     // Signing in again at OzID, then showing the page again, resumes the same account.
     await ozidSignIn(context, who);
     await refocus(page);

@@ -6,25 +6,39 @@
 # in T11: the forms are OzID's now); the automated real-browser chains are internal/e2e
 # TestOzidBrowserChain, TestTripMapBrowserChain and TestMetroBrowserChain.
 #
-#   scripts/real-mail-stack.sh start   build, generate configs under .real-stack/, start
-#   scripts/real-mail-stack.sh stop    stop what `start` started
+#   scripts/real-mail-stack.sh start      build, generate configs under .real-stack/, start
+#   scripts/real-mail-stack.sh stop       stop what `start` started
+#   scripts/real-mail-stack.sh generate   only write the configs (REAL_STACK_DIR overrides the directory);
+#                                         internal/e2e TestRealMailStackConfigsAgree checks them
 #
 # Ports and databases are overridable (all are loopback only):
 #   PG_PORT=15432 PG_USER=tripmap PG_PASSWORD=tripmap-local REDIS_PORT=16379 REDIS_PASSWORD=tripmap-local
-#   S3_PORT=19000 SMTP_PORT=1025 BASE=18080 TRIPMAP_WEB=http://127.0.0.1:4174 METRO_WEB=http://127.0.0.1:4175
+#   S3_PORT=19000 SMTP_PORT=1025 BASE=18080 OZID_WEB=http://localhost:5175
+#   TRIPMAP_WEB=http://localhost:4174 METRO_WEB=http://localhost:4175
 # The four databases bff, usersrv, tripmap and metro must exist (createdb), and the S3 bucket
-# `tripmap` must exist (`make storage-init`). Mail links point at TRIPMAP_WEB / METRO_WEB.
+# `tripmap` must exist (`make storage-init`).
+#
+# Mail links: since T2 every registration and password-reset mail links to the central OzID
+# (usersrv `auth.apps.ozid.origin`, which is also `navigation.apps.ozid.origin` and a
+# `cors_allowed_origins` entry of the BFF), whichever product asked; OZID_WEB sets that one origin
+# in all three places. TRIPMAP_WEB / METRO_WEB are only the products' origins in the BFF's
+# `cors_allowed_origins` and `navigation.apps` (where a sign-in returns to); no new mail links
+# to a product. All three must stay on `localhost` (the BFF's `navigation.api_origin` is
+# http://localhost:<BASE+1>): the BFF refuses a product or OzID origin that is not on the same site as
+# its API, since the host-only session Cookie would not be sent. This script does not start any
+# web server: serve OzID at OZID_WEB yourself to open the mailed links.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-dir="$root/.real-stack"
+dir="${REAL_STACK_DIR:-$root/.real-stack}"
 PG_PORT="${PG_PORT:-15432}"
 REDIS_PORT="${REDIS_PORT:-16379}"
 S3_PORT="${S3_PORT:-19000}"
 SMTP_PORT="${SMTP_PORT:-1025}"
 BASE="${BASE:-18080}"
-TRIPMAP_WEB="${TRIPMAP_WEB:-http://127.0.0.1:4174}"
-METRO_WEB="${METRO_WEB:-http://127.0.0.1:4175}"
+TRIPMAP_WEB="${TRIPMAP_WEB:-http://localhost:4174}"
+METRO_WEB="${METRO_WEB:-http://localhost:4175}"
+OZID_WEB="${OZID_WEB:-http://localhost:5175}"
 
 svc_port() { # name -> HTTP port
   case "$1" in bff) echo $((BASE + 1)) ;; tripmap) echo $((BASE + 2)) ;; metro) echo $((BASE + 4)) ;; usersrv) echo $((BASE + 6)) ;; esac
@@ -35,7 +49,7 @@ generate() {
   for n in bff tripmap metro usersrv; do
     sed -e "s/15432/$PG_PORT/g; s/16379/$REDIS_PORT/g; s/19000/$S3_PORT/g" \
       -e "s#:1808\([1-7]\)#:$((BASE / 10))\1#g" \
-      -e "s#http://localhost:5173#$TRIPMAP_WEB#g; s#http://localhost:5174#$METRO_WEB#g" \
+      -e "s#http://localhost:5173#$TRIPMAP_WEB#g; s#http://localhost:5174#$METRO_WEB#g; s#http://localhost:5175#$OZID_WEB#g" \
       -e "s#dev-secrets/#$root/dev-secrets/#g" \
       -e "s/^\(    port: \)1025\$/\1$SMTP_PORT/" \
       "$root/config.$n.example.yaml" >"$dir/config.$n.yaml"
@@ -79,5 +93,6 @@ stop() {
 case "${1:-}" in
   start) start ;;
   stop) stop ;;
-  *) echo "usage: $0 start|stop" >&2; exit 2 ;;
+  generate) generate ;;
+  *) echo "usage: $0 start|stop|generate" >&2; exit 2 ;;
 esac

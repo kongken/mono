@@ -34,7 +34,7 @@
 
 ## 文档同步
 
-- 新增、调整或删除用户可见行为时，在同一次变更中更新 `docs/trip-map/features.md` 的对应功能规则和验收场景。
+- 新增、调整或删除用户可见行为时，在同一次变更中更新所属产品的功能描述的对应规则和验收场景：山海足迹是 `docs/trip-map/features.md`，地铁足迹是 `docs/metro/features.md`（目录与业务规则见 `docs/metro/spec.md`），OzID 与统一管理控制台分别是 `docs/ozid/features.md`、`docs/admin/features.md`；账号入口、返回页或会话行为改变时，同时检查产品之间共用的 `docs/ozid/features.md` 与 `docs/usersrv/spec.md`。
 - 更改数据字段、版本、备份校验、地图来源或区域映射时，同步更新 `docs/trip-map/data-and-maps.md`。
 - 后端配置、模型或接口改变时同步更新 `docs/backend.md`，BFF 路由、配置或部署拓扑改变时同步更新 `docs/bff.md`；业务功能实际实现后更新功能描述及调研状态。
 - 新建专题文档后，在 `docs/README.md` 增加入口；启动或常用命令改变时，更新根目录 `README.md`。
@@ -43,7 +43,7 @@
 
 ## 按变更验证
 
-- 应用代码或构建配置改变后运行 `npm run build`；标记或自动配色逻辑改变后另运行 `npm test`。
+- 应用代码或构建配置改变后运行 `npm run build`（只构建 trip-map；metro、OzID 与控制台没有本地模式，改动后用示例地址单独运行 `npm run build:metro` 等，并运行对应的 `npm run test:e2e:<应用>`）；标记或自动配色逻辑改变后另运行 `npm test`。
 - 后端改变后运行 `make test` 和 `make build`；存储连接、模型或对象操作改变后，另在独立开发环境运行 `make test-integration`；契约变化后检查 `buf lint` 和前端构建。
 - 地图数据、区域索引、投影或归一化逻辑改变后，另运行 `npm run check:maps`；数据更新涉及的文件一起提交。
 - 用户交互改变后，在浏览器验证对应功能场景；布局改变后检查桌面及手机尺寸，清理自行创建的测试足迹。
