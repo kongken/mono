@@ -103,7 +103,7 @@ Go 探测证明的是**哪一层**拒绝：网关拒绝的请求不得出现在 
 - 容器网络隔离：裸端口（BFF、`admin-web`、`ozid-web`）只能被网关访问是网络策略，不是应用能自证的；自动化只证明直接拨它们时容器和 BFF 自己如何拒绝；
 - 真实邮件厂商的投递与链接跟踪（链接是否被厂商改写）；
 - 真实 S3 的注销清理（`TestChainAccountDeletionRemovesPhotosFromRealS3` 需要真实对象存储，未配置时跳过）；
-- 在 CI 里第一次运行 `gateway-browser`（含发行版 nginx 的版本差异）与 Docker 镜像构建任务的结果，以 CI 为准。
+- CI 的 `gateway-browser` 使用发行版的 nginx 包与 `go install` 的 Caddy，版本可能与本机不同；以 CI 实际结果为准，不用本机结果替代。
 
 ### 已知行为（不是缺陷）
 
