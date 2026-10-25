@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -152,7 +153,7 @@ func TestAuthAdminSessionAndAccountCleanup(t *testing.T) {
 	if a.AdminSessionLimit() != time.Hour {
 		t.Fatalf("configured admin session limit: %v", a.AdminSessionLimit())
 	}
-	if got := a.CleanupProducts(); len(got) != 1 || got[0] != "tripmap" {
+	if got := (&Config{}).CleanupProducts(); len(got) != 1 || got[0] != "tripmap" {
 		t.Fatalf("default cleanup products: %v", got)
 	}
 
@@ -164,6 +165,19 @@ func TestAuthAdminSessionAndAccountCleanup(t *testing.T) {
 	ok.Auth.AccountCleanup = []string{"tripmap", "metro"}
 	if err := ok.Validate(services); err != nil {
 		t.Fatal(err)
+	}
+	// By default every deployed user-data product is cleaned; the list may not leave one out.
+	deployed := base()
+	if got := deployed.CleanupProducts(); len(got) != 2 || got[0] != "tripmap" || got[1] != "metro" {
+		t.Fatalf("default cleanup products with metro deployed: %v", got)
+	}
+	if err := deployed.Validate(services); err != nil {
+		t.Fatal(err)
+	}
+	leftOut := base()
+	leftOut.Auth.AccountCleanup = []string{"tripmap"}
+	if err := leftOut.Validate(services); err == nil || !strings.Contains(err.Error(), "metro") {
+		t.Fatalf("a deployed metro left out of auth.account_cleanup was accepted: %v", err)
 	}
 	for name, mutate := range map[string]func(*Config){
 		"unknown product":    func(c *Config) { c.Auth.AccountCleanup = []string{"tripmap", "railmap"} },

@@ -25,12 +25,14 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -101,6 +103,10 @@ type ChainHarness struct {
 	// Metro and MetroDB are set when the harness was built with ChainMetro.
 	Metro   *metroapp.Handlers
 	MetroDB *metroent.Client
+
+	// bffCfg and bffRes are what BFF was built from; RestartBFF builds another one from them.
+	bffCfg *bffconfig.Config
+	bffRes *bffapp.Resources
 
 	regionVersion string
 	// transport is the internal gRPC transport in use: "tls" or "h2c".
@@ -367,7 +373,9 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 		httpOptions.Configure(bffCfg, baseURL)
 	}
 	h.BFF = bffapp.New(bffCfg)
-	h.BFF.SetResources(&bffapp.Resources{DB: bffDB, Redis: bffRedis, KeyPrefix: bffPrefix})
+	h.bffCfg = bffCfg
+	h.bffRes = &bffapp.Resources{DB: bffDB, Redis: bffRedis, KeyPrefix: bffPrefix}
+	h.BFF.SetResources(h.bffRes)
 	if err := h.BFF.Bootstrap(); err != nil {
 		t.Fatal(err)
 	}
@@ -385,6 +393,31 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	t.Cleanup(bffSrv.Close)
 	h.BFFURL = baseURL
 	return h
+}
+
+// RestartBFF builds another BFF over the same persisted state (database, Redis), as a
+// restarted process would: new upstream connections, no in-memory state, and the
+// configuration of the moment, which `mutate` may change on a copy (the products enabled,
+// the upstreams). Its HTTP routes are not served; it is for the background deletion runner
+// and for checking what a restart with a changed configuration does. The database client
+// is shared, so closing either BFF at the end of the test is the only close that matters.
+func (h *ChainHarness) RestartBFF(mutate func(*bffconfig.Config)) *bffapp.Handlers {
+	h.T.Helper()
+	cfg := *h.bffCfg
+	cfg.Upstreams = maps.Clone(h.bffCfg.Upstreams)
+	cfg.GRPC.Services = maps.Clone(h.bffCfg.GRPC.Services)
+	cfg.Auth.AccountCleanup = slices.Clone(h.bffCfg.Auth.AccountCleanup)
+	if mutate != nil {
+		mutate(&cfg)
+	}
+	next := bffapp.New(&cfg)
+	res := *h.bffRes
+	next.SetResources(&res)
+	if err := next.Bootstrap(); err != nil {
+		h.T.Fatal(err)
+	}
+	h.T.Cleanup(func() { _ = next.Shutdown() })
+	return next
 }
 
 func (h *ChainHarness) DirectTripmapGRPC() *grpc.ClientConn {

@@ -271,7 +271,7 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 // auth.account_cleanup.
 func (h *Handlers) cleaners(clients *upstream.Clients) []bffauth.UserDataCleaner {
 	var out []bffauth.UserDataCleaner
-	for _, name := range h.cfg.Auth.CleanupProducts() {
+	for _, name := range h.cfg.CleanupProducts() {
 		conn := clients.Conn(name)
 		if conn == nil {
 			continue

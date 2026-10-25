@@ -75,8 +75,9 @@ type AuthConfig struct {
 	// declares required_role. Default 12h; reauthenticating starts a new period.
 	AdminSessionMaxAge time.Duration `yaml:"admin_session_max_age"`
 	// AccountCleanup lists the products whose data is removed when a user deletes
-	// their account, each named like its entry in the route table. Default: tripmap
-	// only. A product not deployed in this environment must not be listed.
+	// their account, each named like its entry in the route table. Default: tripmap plus
+	// every deployed user-data product (Config.CleanupProducts). A product not deployed in
+	// this environment must not be listed, and a deployed one must be (Validate).
 	AccountCleanup []string      `yaml:"account_cleanup"`
 	CookieSecure   bool          `yaml:"cookie_secure"`
 	CSRFTokenTTL   time.Duration `yaml:"csrf_token_ttl"`
@@ -93,12 +94,24 @@ func (a *AuthConfig) AdminSessionLimit() time.Duration {
 	return a.AdminSessionMaxAge
 }
 
-// CleanupProducts returns the products enabled for account data cleanup.
-func (a *AuthConfig) CleanupProducts() []string {
-	if len(a.AccountCleanup) == 0 {
-		return []string{"tripmap"}
+// UserDataProducts are the services that keep data of an account. Closing an account must
+// remove all of it, so a deployed one can never be left out of the cleanup list.
+var UserDataProducts = []string{"tripmap", "metro"}
+
+// CleanupProducts returns the products whose data an account deletion removes: the
+// configured auth.account_cleanup, or by default tripmap plus every other user-data
+// product that has an upstream here (a deployed product is never skipped by default).
+func (c *Config) CleanupProducts() []string {
+	if len(c.Auth.AccountCleanup) > 0 {
+		return c.Auth.AccountCleanup
 	}
-	return a.AccountCleanup
+	out := []string{"tripmap"}
+	for _, p := range UserDataProducts[1:] {
+		if c.Upstreams[p] != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 type InternalAuth struct {
@@ -217,6 +230,13 @@ func (c *Config) Validate(services []string) error {
 		}
 		if slices.Contains(c.Auth.AccountCleanup[:i], name) {
 			return fmt.Errorf("auth.account_cleanup lists %q twice", name)
+		}
+	}
+	// A deployed product's data must not survive an account deletion because the list left it out.
+	cleanup := c.CleanupProducts()
+	for _, p := range UserDataProducts {
+		if c.Upstreams[p] != "" && !slices.Contains(cleanup, p) {
+			return fmt.Errorf("auth.account_cleanup must list %q: its upstream is configured, so its data of a deleted account would be left behind", p)
 		}
 	}
 	if c.Auth.SessionTTL < 0 {

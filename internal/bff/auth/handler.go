@@ -133,6 +133,12 @@ func (h *Handler) ResetPassword(ctx context.Context, req *connect.Request[bffv1.
 }
 
 func (h *Handler) Logout(ctx context.Context, req *connect.Request[bffv1.LogoutRequest]) (*connect.Response[bffv1.LogoutResponse], error) {
+	if h.svc.DeletionPending(ctx, session.TokenFromRequest(req.Header())) {
+		// The account is already closed and its sessions are gone; the Cookie is now the only way
+		// to see or continue the deletion, so signing out must not clear it. Only the finished
+		// deletion clears it.
+		return connect.NewResponse(&bffv1.LogoutResponse{}), nil
+	}
 	if err := h.svc.Logout(ctx, session.TokenFromRequest(req.Header())); err != nil {
 		return nil, err
 	}

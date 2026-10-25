@@ -74,6 +74,14 @@ func (s *Service) HasDeletion(ctx context.Context, token string) bool {
 	return err == nil
 }
 
+// DeletionPending reports whether the Cookie token started a deletion that has not
+// finished. That Cookie is the only credential to see or continue it, so nothing but
+// the finished workflow may clear it (Logout leaves it alone).
+func (s *Service) DeletionPending(ctx context.Context, token string) bool {
+	wf, err := s.DeletionByCookie(ctx, token)
+	return err == nil && wf.Stage != schema.DeletionStageDone
+}
+
 // StartDeletion persists the workflow of deleting the caller's account and runs it
 // as far as it gets. The workflow row is written before usersrv or any product is
 // touched, so a response lost anywhere afterwards can be resumed with the same
