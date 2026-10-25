@@ -72,6 +72,16 @@ jobs:
       # skipped when the TRIPMAP_TEST_* variables are absent.
       - name: Test
         run: go test -race ./...
+      # The account-deletion media scenarios against the real S3 service above. They skip when
+      # TRIPMAP_TEST_S3_* is unset, and a skip would look like a pass in the run above, so this
+      # step runs them verbosely and fails unless each really ran and passed.
+      - name: Account deletion against real S3 (must not skip)
+        run: |
+          go test ./internal/e2e -count=1 -v \
+            -run 'TestChainAccountDeletionRemovesPhotosFromRealS3|TestChainCloseAccountRecoversFromAnObjectStoreOutage' | tee /tmp/s3-deletion.log
+          for t in TestChainAccountDeletionRemovesPhotosFromRealS3 TestChainCloseAccountRecoversFromAnObjectStoreOutage; do
+            grep -q -- "--- PASS: $t " /tmp/s3-deletion.log || { echo "$t did not run and pass against S3"; exit 1; }
+          done
 
   frontend:
     name: Frontend tests
