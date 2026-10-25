@@ -130,6 +130,11 @@ func OriginID(v uuid.UUID) predicate.SecurityAudit {
 	return predicate.SecurityAudit(sql.FieldEQ(FieldOriginID, v))
 }
 
+// ReasonChecked applies equality check predicate on the "reason_checked" field. It's identical to ReasonCheckedEQ.
+func ReasonChecked(v bool) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldReasonChecked, v))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v uuid.UUID) predicate.SecurityAudit {
 	return predicate.SecurityAudit(sql.FieldEQ(FieldUserID, v))
@@ -1033,6 +1038,16 @@ func OriginIDIsNil() predicate.SecurityAudit {
 // OriginIDNotNil applies the NotNil predicate on the "origin_id" field.
 func OriginIDNotNil() predicate.SecurityAudit {
 	return predicate.SecurityAudit(sql.FieldNotNull(FieldOriginID))
+}
+
+// ReasonCheckedEQ applies the EQ predicate on the "reason_checked" field.
+func ReasonCheckedEQ(v bool) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldReasonChecked, v))
+}
+
+// ReasonCheckedNEQ applies the NEQ predicate on the "reason_checked" field.
+func ReasonCheckedNEQ(v bool) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNEQ(FieldReasonChecked, v))
 }
 
 // And groups predicates with the AND operator between them.

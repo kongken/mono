@@ -44,21 +44,24 @@ const (
 	ChannelSystem = "system" // a background or anonymous flow
 )
 
-// channelOf is the channel of a row that did not name one: the actor says it.
+// channelOf is the channel of a row that did not name one. Only code that is not the CLI or the console
+// leaves it out: the system flows, and the account holder's own flows, which name the very account they
+// are about. The CLI and the console always name theirs, because their actor text is free-form or an identity.
 func (e auditEntry) channelOf() string {
 	switch {
 	case e.channel != "":
 		return e.channel
 	case e.actor == "system":
 		return ChannelSystem
-	case strings.HasPrefix(e.actor, "user:"):
+	case e.userID != nil && e.actor == userActor(*e.userID):
+		// Only the account's own flows name the account they are about as their actor.
 		return ChannelSelf
 	}
 	return ChannelCLI
 }
 
 func (e auditEntry) create(c *ent.SecurityAuditCreate, at time.Time) *ent.SecurityAuditCreate {
-	c.SetActor(e.actor).SetAction(e.action).SetRequestID(e.requestID).SetResult(e.result).SetReason(e.reason).SetCreatedAt(at).
+	c.SetActor(e.actor).SetAction(e.action).SetRequestID(e.requestID).SetResult(e.result).SetReason(e.reason).SetReasonChecked(true).SetCreatedAt(at).
 		SetChannel(e.channelOf()).SetMutationID(e.mutationID).
 		SetBeforeStatus(string(e.beforeStatus)).SetAfterStatus(string(e.afterStatus)).
 		SetBeforeRoles(strings.Join(e.beforeRoles, ",")).SetAfterRoles(strings.Join(e.afterRoles, ","))

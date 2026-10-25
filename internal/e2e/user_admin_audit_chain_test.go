@@ -386,3 +386,48 @@ func TestChainUserAuditLogsCarryNoFilterValuesOrRows(t *testing.T) {
 		}
 	}
 }
+
+// History written before reasons were checked may hold an address or a secret. Through the real chain
+// (console session, BFF, usersrv) it reaches the browser, and every log line, only as the marker, while the
+// stored row keeps its text.
+func TestChainUserAuditHidesLegacyReasonsEndToEnd(t *testing.T) {
+	sink := captureLogs(t)
+	h := adminHarness(t, loopback)
+	ctx := context.Background()
+	admin := h.FreshBrowser()
+	if err := admin.LoginWithRoles(ctx, "alegacy_admin", "ozid-admin"); err != nil {
+		t.Fatal(err)
+	}
+	tb := h.FreshBrowser()
+	target, err := tb.Register(ctx, "alegacy_target", "", "Target")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const leaked = "old.ticket.owner@corp.example pw=legacy-secret-3f"
+	if _, err = h.UsersrvSQL.ExecContext(ctx, `INSERT INTO security_audit (id, user_id, actor, action, request_id, result, reason, created_at, channel)
+		VALUES (gen_random_uuid(), $1, 'ops-legacy', 'account.disable', 'req-legacy', 'ok', $2, now() - interval '1 hour', 'cli')`, target, leaked); err != nil {
+		t.Fatal(err)
+	}
+	rows := auditAll(ctx, t, admin, &bffv1.ListSecurityAuditRequest{UserId: target}, 2)
+	var shown bool
+	for _, e := range rows {
+		if strings.Contains(e.String(), "corp.example") || strings.Contains(e.String(), "legacy-secret") {
+			t.Fatalf("the legacy text reached the browser: %s", e.String())
+		}
+		if e.Action == "account.disable" && e.OperatorLabel == "ops-legacy" {
+			shown = e.Reason == "[hidden]"
+		}
+	}
+	if !shown {
+		t.Fatalf("the legacy row is missing or does not carry the marker: %v", rows)
+	}
+	var stored string
+	if err = h.UsersrvSQL.QueryRowContext(ctx, `SELECT reason FROM security_audit WHERE request_id = 'req-legacy'`).Scan(&stored); err != nil || stored != leaked {
+		t.Fatalf("the stored row changed: %q %v", stored, err)
+	}
+	for _, secret := range []string{"corp.example", "legacy-secret", "old.ticket.owner"} {
+		if strings.Contains(sink.String(), secret) {
+			t.Fatalf("a log line carries %q", secret)
+		}
+	}
+}

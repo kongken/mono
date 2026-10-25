@@ -3783,28 +3783,29 @@ func (m *MailJobMutation) ResetEdge(name string) error {
 // SecurityAuditMutation represents an operation that mutates the SecurityAudit nodes in the graph.
 type SecurityAuditMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *uuid.UUID
-	user_id       *uuid.UUID
-	actor         *string
-	action        *string
-	request_id    *string
-	result        *string
-	reason        *string
-	created_at    *time.Time
-	channel       *string
-	actor_user_id *uuid.UUID
-	mutation_id   *string
-	before_status *string
-	after_status  *string
-	before_roles  *string
-	after_roles   *string
-	origin_id     *uuid.UUID
-	clearedFields map[string]struct{}
-	done          bool
-	oldValue      func(context.Context) (*SecurityAudit, error)
-	predicates    []predicate.SecurityAudit
+	op             Op
+	typ            string
+	id             *uuid.UUID
+	user_id        *uuid.UUID
+	actor          *string
+	action         *string
+	request_id     *string
+	result         *string
+	reason         *string
+	created_at     *time.Time
+	channel        *string
+	actor_user_id  *uuid.UUID
+	mutation_id    *string
+	before_status  *string
+	after_status   *string
+	before_roles   *string
+	after_roles    *string
+	origin_id      *uuid.UUID
+	reason_checked *bool
+	clearedFields  map[string]struct{}
+	done           bool
+	oldValue       func(context.Context) (*SecurityAudit, error)
+	predicates     []predicate.SecurityAudit
 }
 
 var _ ent.Mutation = (*SecurityAuditMutation)(nil)
@@ -4490,6 +4491,42 @@ func (m *SecurityAuditMutation) ResetOriginID() {
 	delete(m.clearedFields, securityaudit.FieldOriginID)
 }
 
+// SetReasonChecked sets the "reason_checked" field.
+func (m *SecurityAuditMutation) SetReasonChecked(b bool) {
+	m.reason_checked = &b
+}
+
+// ReasonChecked returns the value of the "reason_checked" field in the mutation.
+func (m *SecurityAuditMutation) ReasonChecked() (r bool, exists bool) {
+	v := m.reason_checked
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReasonChecked returns the old "reason_checked" field's value of the SecurityAudit entity.
+// If the SecurityAudit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SecurityAuditMutation) OldReasonChecked(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReasonChecked is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReasonChecked requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReasonChecked: %w", err)
+	}
+	return oldValue.ReasonChecked, nil
+}
+
+// ResetReasonChecked resets all changes to the "reason_checked" field.
+func (m *SecurityAuditMutation) ResetReasonChecked() {
+	m.reason_checked = nil
+}
+
 // Where appends a list predicates to the SecurityAuditMutation builder.
 func (m *SecurityAuditMutation) Where(ps ...predicate.SecurityAudit) {
 	m.predicates = append(m.predicates, ps...)
@@ -4524,7 +4561,7 @@ func (m *SecurityAuditMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *SecurityAuditMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 16)
 	if m.user_id != nil {
 		fields = append(fields, securityaudit.FieldUserID)
 	}
@@ -4570,6 +4607,9 @@ func (m *SecurityAuditMutation) Fields() []string {
 	if m.origin_id != nil {
 		fields = append(fields, securityaudit.FieldOriginID)
 	}
+	if m.reason_checked != nil {
+		fields = append(fields, securityaudit.FieldReasonChecked)
+	}
 	return fields
 }
 
@@ -4608,6 +4648,8 @@ func (m *SecurityAuditMutation) Field(name string) (ent.Value, bool) {
 		return m.AfterRoles()
 	case securityaudit.FieldOriginID:
 		return m.OriginID()
+	case securityaudit.FieldReasonChecked:
+		return m.ReasonChecked()
 	}
 	return nil, false
 }
@@ -4647,6 +4689,8 @@ func (m *SecurityAuditMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldAfterRoles(ctx)
 	case securityaudit.FieldOriginID:
 		return m.OldOriginID(ctx)
+	case securityaudit.FieldReasonChecked:
+		return m.OldReasonChecked(ctx)
 	}
 	return nil, fmt.Errorf("unknown SecurityAudit field %s", name)
 }
@@ -4760,6 +4804,13 @@ func (m *SecurityAuditMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetOriginID(v)
+		return nil
+	case securityaudit.FieldReasonChecked:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReasonChecked(v)
 		return nil
 	}
 	return fmt.Errorf("unknown SecurityAudit field %s", name)
@@ -4875,6 +4926,9 @@ func (m *SecurityAuditMutation) ResetField(name string) error {
 		return nil
 	case securityaudit.FieldOriginID:
 		m.ResetOriginID()
+		return nil
+	case securityaudit.FieldReasonChecked:
+		m.ResetReasonChecked()
 		return nil
 	}
 	return fmt.Errorf("unknown SecurityAudit field %s", name)

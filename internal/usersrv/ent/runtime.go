@@ -152,6 +152,10 @@ func init() {
 	securityauditDescAfterRoles := securityauditFields[14].Descriptor()
 	// securityaudit.DefaultAfterRoles holds the default value on creation for the after_roles field.
 	securityaudit.DefaultAfterRoles = securityauditDescAfterRoles.Default.(string)
+	// securityauditDescReasonChecked is the schema descriptor for reason_checked field.
+	securityauditDescReasonChecked := securityauditFields[16].Descriptor()
+	// securityaudit.DefaultReasonChecked holds the default value on creation for the reason_checked field.
+	securityaudit.DefaultReasonChecked = securityauditDescReasonChecked.Default.(bool)
 	// securityauditDescID is the schema descriptor for id field.
 	securityauditDescID := securityauditFields[0].Descriptor()
 	// securityaudit.DefaultID holds the default value on creation for the id field.

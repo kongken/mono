@@ -218,6 +218,20 @@ func (_c *SecurityAuditCreate) SetNillableOriginID(v *uuid.UUID) *SecurityAuditC
 	return _c
 }
 
+// SetReasonChecked sets the "reason_checked" field.
+func (_c *SecurityAuditCreate) SetReasonChecked(v bool) *SecurityAuditCreate {
+	_c.mutation.SetReasonChecked(v)
+	return _c
+}
+
+// SetNillableReasonChecked sets the "reason_checked" field if the given value is not nil.
+func (_c *SecurityAuditCreate) SetNillableReasonChecked(v *bool) *SecurityAuditCreate {
+	if v != nil {
+		_c.SetReasonChecked(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *SecurityAuditCreate) SetID(v uuid.UUID) *SecurityAuditCreate {
 	_c.mutation.SetID(v)
@@ -307,6 +321,10 @@ func (_c *SecurityAuditCreate) defaults() {
 		v := securityaudit.DefaultAfterRoles
 		_c.mutation.SetAfterRoles(v)
 	}
+	if _, ok := _c.mutation.ReasonChecked(); !ok {
+		v := securityaudit.DefaultReasonChecked
+		_c.mutation.SetReasonChecked(v)
+	}
 	if _, ok := _c.mutation.ID(); !ok {
 		v := securityaudit.DefaultID()
 		_c.mutation.SetID(v)
@@ -360,6 +378,9 @@ func (_c *SecurityAuditCreate) check() error {
 	}
 	if _, ok := _c.mutation.AfterRoles(); !ok {
 		return &ValidationError{Name: "after_roles", err: errors.New(`ent: missing required field "SecurityAudit.after_roles"`)}
+	}
+	if _, ok := _c.mutation.ReasonChecked(); !ok {
+		return &ValidationError{Name: "reason_checked", err: errors.New(`ent: missing required field "SecurityAudit.reason_checked"`)}
 	}
 	return nil
 }
@@ -456,6 +477,10 @@ func (_c *SecurityAuditCreate) createSpec() (*SecurityAudit, *sqlgraph.CreateSpe
 	if value, ok := _c.mutation.OriginID(); ok {
 		_spec.SetField(securityaudit.FieldOriginID, field.TypeUUID, value)
 		_node.OriginID = &value
+	}
+	if value, ok := _c.mutation.ReasonChecked(); ok {
+		_spec.SetField(securityaudit.FieldReasonChecked, field.TypeBool, value)
+		_node.ReasonChecked = value
 	}
 	return _node, _spec
 }
@@ -570,6 +595,9 @@ func (u *SecurityAuditUpsertOne) UpdateNewValues() *SecurityAuditUpsertOne {
 		}
 		if _, exists := u.create.mutation.OriginID(); exists {
 			s.SetIgnore(securityaudit.FieldOriginID)
+		}
+		if _, exists := u.create.mutation.ReasonChecked(); exists {
+			s.SetIgnore(securityaudit.FieldReasonChecked)
 		}
 	}))
 	return u
@@ -829,6 +857,9 @@ func (u *SecurityAuditUpsertBulk) UpdateNewValues() *SecurityAuditUpsertBulk {
 			}
 			if _, exists := b.mutation.OriginID(); exists {
 				s.SetIgnore(securityaudit.FieldOriginID)
+			}
+			if _, exists := b.mutation.ReasonChecked(); exists {
+				s.SetIgnore(securityaudit.FieldReasonChecked)
 			}
 		}
 	}))

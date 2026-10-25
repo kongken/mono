@@ -47,8 +47,10 @@ type SecurityAudit struct {
 	// AfterRoles holds the value of the "after_roles" field.
 	AfterRoles string `json:"after_roles,omitempty"`
 	// OriginID holds the value of the "origin_id" field.
-	OriginID     *uuid.UUID `json:"origin_id,omitempty"`
-	selectValues sql.SelectValues
+	OriginID *uuid.UUID `json:"origin_id,omitempty"`
+	// ReasonChecked holds the value of the "reason_checked" field.
+	ReasonChecked bool `json:"reason_checked,omitempty"`
+	selectValues  sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -58,6 +60,8 @@ func (*SecurityAudit) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case securityaudit.FieldUserID, securityaudit.FieldActorUserID, securityaudit.FieldOriginID:
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
+		case securityaudit.FieldReasonChecked:
+			values[i] = new(sql.NullBool)
 		case securityaudit.FieldActor, securityaudit.FieldAction, securityaudit.FieldRequestID, securityaudit.FieldResult, securityaudit.FieldReason, securityaudit.FieldChannel, securityaudit.FieldMutationID, securityaudit.FieldBeforeStatus, securityaudit.FieldAfterStatus, securityaudit.FieldBeforeRoles, securityaudit.FieldAfterRoles:
 			values[i] = new(sql.NullString)
 		case securityaudit.FieldCreatedAt:
@@ -178,6 +182,12 @@ func (_m *SecurityAudit) assignValues(columns []string, values []any) error {
 				_m.OriginID = new(uuid.UUID)
 				*_m.OriginID = *value.S.(*uuid.UUID)
 			}
+		case securityaudit.FieldReasonChecked:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field reason_checked", values[i])
+			} else if value.Valid {
+				_m.ReasonChecked = value.Bool
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -264,6 +274,9 @@ func (_m *SecurityAudit) String() string {
 		builder.WriteString("origin_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("reason_checked=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ReasonChecked))
 	builder.WriteByte(')')
 	return builder.String()
 }

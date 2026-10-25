@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -445,6 +446,104 @@ func TestAuditListHoldsNoSensitiveContent(t *testing.T) {
 	}
 }
 
+// The reasons of history were written when nothing checked their content (the CLI checked only the
+// length), so the read layer judges every reason itself: unchecked text and text that looks like an
+// address or a secret come back as the marker only, whatever the row says, while the row keeps it.
+func TestAuditLegacyReasonsNeverLeaveTheReadLayer(t *testing.T) {
+	db, raw := testutil.DBWithSQL(t)
+	s := account.NewService(db, testutil.Hasher(t))
+	admin := platformAdmin(t, s, "root@example.com")
+	holder := create(t, s, "holder@example.com")
+	const (
+		address = "alice.secret@corp.example"
+		leaked  = "pw=hunter2-and-more"
+		token   = "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCd"
+	)
+	insert := func(channel, actor, action, reason string, checked bool, mutation string, origin *uuid.UUID, result string, at time.Time) uuid.UUID {
+		id := uuid.New()
+		var actorUser any
+		if channel == "web" {
+			actorUser = admin
+		}
+		if _, err := raw.ExecContext(ctx, `INSERT INTO security_audit (id, user_id, actor, action, request_id, result, reason, created_at, channel, actor_user_id, mutation_id, origin_id, reason_checked)
+			VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, $10, $11, $12)`,
+			id, holder, actor, action, result, reason, at, channel, actorUser, mutation, origin, checked); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	legacy := map[string]uuid.UUID{
+		"unchecked address":      insert("cli", "ops-old", "role.grant:metro-admin", "granted for "+address, false, "", nil, "ok", now.Add(-9*time.Minute)),
+		"unchecked secret":       insert("cli", "ops-old", "account.disable", leaked, false, "", nil, "ok", now.Add(-8*time.Minute)),
+		"unchecked and benign":   insert("cli", "ops-old", "account.enable", "ticket 4711", false, "", nil, "ok", now.Add(-7*time.Minute)),
+		"checked but a token":    insert("web", "user:"+admin.String(), "admin.account.disable", "key "+token, true, "m-1", nil, "ok", now.Add(-6*time.Minute)),
+		"checked with a newline": insert("web", "user:"+admin.String(), "admin.account.enable", "first\nsecond", true, "m-2", nil, "ok", now.Add(-5*time.Minute)),
+		"checked with a mcp id":  insert("web", "user:"+admin.String(), "admin.role.grant:metro-admin", "see mcp_abc", true, "m-3", nil, "ok", now.Add(-4*time.Minute)),
+	}
+	good := insert("web", "user:"+admin.String(), "admin.account.disable", "customer asked to close", true, "m-4", nil, "ok", now.Add(-3*time.Minute))
+	none := insert("cli", "ops-old", "account.disable", "", false, "", nil, "ok", now.Add(-2*time.Minute))
+	// A replay whose original (kept unchecked, with an address) is nested as its origin.
+	origin := insert("web", "user:"+admin.String(), "admin.account.disable", "contact "+address, false, "m-5", nil, "ok", now.Add(-90*time.Second))
+	replay := insert("web", "user:"+admin.String(), "admin.account.disable", "retry after a timeout", true, "m-5", &origin, "replayed", now.Add(-60*time.Second))
+
+	rows := listAll(t, s, admin, account.AuditFilter{}, 4)
+	byID := map[uuid.UUID]account.AuditRecord{}
+	for _, r := range rows {
+		byID[r.ID] = r
+		text := fmt.Sprintf("%+v", r)
+		for _, secret := range []string{address, "hunter2", token, "mcp_abc", "ticket 4711", "second"} {
+			if strings.Contains(text, secret) {
+				t.Fatalf("a record holds %q: %s", secret, text)
+			}
+		}
+	}
+	for name, id := range legacy {
+		if r, ok := byID[id]; !ok || r.Reason != account.ReasonHidden {
+			t.Errorf("%s: reason %q, want the marker (%v)", name, r.Reason, ok)
+		}
+	}
+	if r := byID[good]; r.Reason != "customer asked to close" {
+		t.Errorf("a vouched-for reason: %q", r.Reason)
+	}
+	if r := byID[none]; r.Reason != "" {
+		t.Errorf("no reason must stay empty, not become the marker: %q", r.Reason)
+	}
+	if r := byID[replay]; r.Reason != "retry after a timeout" || r.Origin == nil || r.Origin.ID != origin {
+		t.Errorf("replay: %+v", r)
+	}
+
+	// The audit rows themselves are untouched: the original text is still in the database.
+	for _, c := range []struct {
+		id   uuid.UUID
+		text string
+	}{{legacy["unchecked address"], address}, {legacy["unchecked secret"], leaked}, {legacy["checked but a token"], token}, {origin, address}} {
+		r := db.SecurityAudit.Query().Where(securityaudit.ID(c.id)).OnlyX(ctx)
+		if !strings.Contains(r.Reason, c.text) {
+			t.Errorf("the stored row %s changed: %q", c.id, r.Reason)
+		}
+	}
+
+	// What the read layer writes about itself is a description, never a stored reason.
+	for _, r := range byAction(rows, "admin.audit.list") {
+		if strings.Contains(r.Reason, "hunter2") || strings.Contains(r.Reason, address) {
+			t.Fatalf("read audit reason: %q", r.Reason)
+		}
+	}
+}
+
+// The nested origin of a replay has no free text field at all, so what it summarises cannot carry a
+// secret whatever the original row holds. Adding a text field to it must be a decision, not an accident.
+func TestAuditOriginHoldsNoFreeText(t *testing.T) {
+	typ := reflect.TypeOf(account.AuditOrigin{})
+	allowed := map[string]bool{"ID": true, "CreatedAt": true, "Action": true, "Result": true, "BeforeStatus": true, "AfterStatus": true, "BeforeRoles": true, "AfterRoles": true}
+	for i := 0; i < typ.NumField(); i++ {
+		if f := typ.Field(i); !allowed[f.Name] {
+			t.Errorf("AuditOrigin.%s is not on the list of fixed classifications; run it through the read layer's reason rule first", f.Name)
+		}
+	}
+}
+
 // A mutation ID is reusable once its receipt has expired and a refused attempt may use any key, so
 // (operator, mutation ID) is not one event. A replay points at its original by that row's ID: it
 // never links across use cycles, and a receipt that predates the link has no origin to show.
@@ -579,10 +678,22 @@ func TestAuditRowsOfEveryChannelAreClassifiedByTheMigration(t *testing.T) {
 		}
 		return id
 	}
-	system := insert("system", "reset.request", nil)
+	other := create(t, s, "other@example.com")
+	system := insert("system", "password_reset.request", nil)
+	systemIssued := insert("system", "password_reset.request", &holder)
 	readOld := insert("user:"+admin.String(), "admin.users.list", nil)
 	self := insert("user:"+holder.String(), "login", &holder)
+	selfDelete := insert("user:"+holder.String(), "deletion.begin", &holder)
 	cli := insert("ops-legacy", "role.grant:metro-admin", &holder)
+	// Legal CLI operator names that look like another source: "system", and "user:<uuid>" - of another
+	// account and of the very account the row is about, which is the shape a self-service row has.
+	cliSystem := insert("system", "account.disable", &holder)
+	cliOther := insert("user:"+other.String(), "role.revoke:metro-admin", &holder)
+	cliSelfShaped := insert("user:"+holder.String(), "role.grant:metro-admin", &holder)
+	cliEnableAsAdmin := insert("user:"+admin.String(), "account.enable", &holder)
+	// A row no known source wrote, with an identity-shaped actor that does not match its account: it is
+	// never taken for a web or self identity.
+	unknown := insert("user:"+other.String(), "something.else", &holder)
 	for _, st := range migrationBackfill(t) {
 		if _, err := raw.ExecContext(ctx, st); err != nil {
 			t.Fatalf("%s: %v", st, err)
@@ -592,17 +703,49 @@ func TestAuditRowsOfEveryChannelAreClassifiedByTheMigration(t *testing.T) {
 	for _, r := range db.SecurityAudit.Query().AllX(ctx) {
 		rows[r.ID] = r
 	}
-	if r := rows[system]; r.Channel != "system" {
-		t.Fatalf("system: %+v", r)
+	for name, id := range map[string]uuid.UUID{"system": system, "system with an account": systemIssued} {
+		if r := rows[id]; r.Channel != "system" {
+			t.Fatalf("%s: %+v", name, r)
+		}
 	}
 	if r := rows[readOld]; r.Channel != "web" || r.ActorUserID == nil || *r.ActorUserID != admin {
 		t.Fatalf("old console read: %+v", r)
 	}
-	if r := rows[self]; r.Channel != "self" || r.ActorUserID != nil {
-		t.Fatalf("self-service: %+v", r)
+	for name, id := range map[string]uuid.UUID{"login": self, "deletion": selfDelete} {
+		if r := rows[id]; r.Channel != "self" || r.ActorUserID != nil {
+			t.Fatalf("self-service %s: %+v", name, r)
+		}
 	}
 	if r := rows[cli]; r.Channel != "cli" || r.Actor != "ops-legacy" {
 		t.Fatalf("cli: %+v", r)
+	}
+	for name, c := range map[string]struct {
+		id    uuid.UUID
+		actor string
+	}{
+		"operator named system":           {cliSystem, "system"},
+		"operator named like another":     {cliOther, "user:" + other.String()},
+		"operator named like the account": {cliSelfShaped, "user:" + holder.String()},
+		"operator named like an admin":    {cliEnableAsAdmin, "user:" + admin.String()},
+		"unknown action":                  {unknown, "user:" + other.String()},
+	} {
+		if r := rows[c.id]; r.Channel != "cli" || r.Actor != c.actor || r.ActorUserID != nil {
+			t.Fatalf("%s: %+v", name, r)
+		}
+	}
+	// The same rows through the read layer: a CLI name is a label, never an account.
+	listed := listAll(t, s, admin, account.AuditFilter{Channel: account.ChannelCLI}, 50)
+	seen := 0
+	for _, r := range listed {
+		if r.ID == cliSelfShaped || r.ID == cliOther || r.ID == cliSystem || r.ID == unknown || r.ID == cliEnableAsAdmin {
+			seen++
+			if r.OperatorUserID != nil || r.OperatorLabel == "" {
+				t.Fatalf("a CLI row shown as an identity: %+v", r)
+			}
+		}
+	}
+	if seen != 5 {
+		t.Fatalf("%d of the colliding rows listed as CLI rows", seen)
 	}
 	// Whatever the code wrote since then is already classified, so the backfill touches nothing else.
 	for _, r := range rows {
@@ -634,7 +777,7 @@ func migrationBackfill(t *testing.T) []string {
 			out = append(out, st)
 		}
 	}
-	if len(out) != 4 {
+	if len(out) != 6 {
 		t.Fatalf("%d backfill statements", len(out))
 	}
 	return out

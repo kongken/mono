@@ -482,11 +482,17 @@ func TestAuditQueryMigrationUpgradesAnExistingDatabaseInPlace(t *testing.T) {
 			VALUES ($1, $2, $3, $4, '', 'ok', '', '2026-10-01T00:00:00Z', $5, $6)`, id, u, actor, action, channel, au)
 	}
 	row("00000000-0000-0000-0000-00000000d001", holder, "ops-old", "role.grant:metro-admin", "", "")
-	row("00000000-0000-0000-0000-00000000d002", "", "system", "reset.request", "", "")
+	row("00000000-0000-0000-0000-00000000d002", "", "system", "password_reset.request", "", "")
 	row("00000000-0000-0000-0000-00000000d003", "", "user:"+admin, "admin.users.list", "", "")
 	row("00000000-0000-0000-0000-00000000d004", holder, "user:"+holder, "login", "", "")
 	row("00000000-0000-0000-0000-00000000d005", holder, "user:"+admin, "admin.account.disable", "web", admin)
 	row("00000000-0000-0000-0000-00000000d006", holder, "ops-new", "account.enable", "cli", "")
+	// Legal CLI operator names that look like another source, and a row no known source wrote.
+	row("00000000-0000-0000-0000-00000000d007", holder, "system", "account.disable", "", "")
+	row("00000000-0000-0000-0000-00000000d008", holder, "user:"+holder, "role.grant:metro-admin", "", "")
+	row("00000000-0000-0000-0000-00000000d009", holder, "user:"+admin, "role.revoke:metro-admin", "", "")
+	row("00000000-0000-0000-0000-00000000d00a", holder, "user:"+admin, "something.else", "", "")
+	row("00000000-0000-0000-0000-00000000d00b", holder, "user:"+holder, "deletion.begin", "", "")
 	exec(`INSERT INTO admin_mutations (id, operator_id, mutation_id, action, target_id, request_hash, changed, status, roles, auth_version, created_at, expires_at)
 		VALUES (gen_random_uuid(), $1, 'old-key', 'disable', $2, $3::bytea, true, 'disabled', '', 2, now(), now() + interval '24 hours')`, admin, holder, strings.Repeat("h", 32))
 
@@ -494,6 +500,7 @@ func TestAuditQueryMigrationUpgradesAnExistingDatabaseInPlace(t *testing.T) {
 
 	want := map[string][2]string{ // id suffix -> channel, actor_user_id
 		"d001": {"cli", ""}, "d002": {"system", ""}, "d003": {"web", admin}, "d004": {"self", ""}, "d005": {"web", admin}, "d006": {"cli", ""},
+		"d007": {"cli", ""}, "d008": {"cli", ""}, "d009": {"cli", ""}, "d00a": {"cli", ""}, "d00b": {"self", ""},
 	}
 	rows, err := scoped.QueryContext(ctx, `SELECT right(id::text, 4), channel, COALESCE(actor_user_id::text, ''), actor, action, origin_id IS NULL FROM security_audit ORDER BY id`)
 	if err != nil {
@@ -519,6 +526,24 @@ func TestAuditQueryMigrationUpgradesAnExistingDatabaseInPlace(t *testing.T) {
 	var label string
 	if err := scoped.QueryRowContext(ctx, `SELECT actor FROM security_audit WHERE id = '00000000-0000-0000-0000-00000000d001'`).Scan(&label); err != nil || label != "ops-old" {
 		t.Fatalf("the CLI row changed: %q %v", label, err)
+	}
+	// Only the reasons known to be safe are marked: console changes and the code's own descriptions.
+	for suffix, want := range map[string]bool{"d001": false, "d003": true, "d004": false, "d005": true, "d007": false} {
+		var checked bool
+		if err := scoped.QueryRowContext(ctx, `SELECT reason_checked FROM security_audit WHERE right(id::text, 4) = $1`, suffix).Scan(&checked); err != nil || checked != want {
+			t.Errorf("row %s: reason_checked %v, want %v (%v)", suffix, checked, want, err)
+		}
+	}
+	// The colliding operator names and the history around them are kept as written.
+	for suffix, w := range map[string][3]string{
+		"d007": {"system", "account.disable", holder},
+		"d008": {"user:" + holder, "role.grant:metro-admin", holder},
+		"d009": {"user:" + admin, "role.revoke:metro-admin", holder},
+	} {
+		var actor, action, subject string
+		if err := scoped.QueryRowContext(ctx, `SELECT actor, action, user_id::text FROM security_audit WHERE right(id::text, 4) = $1`, suffix).Scan(&actor, &action, &subject); err != nil || [3]string{actor, action, subject} != w {
+			t.Fatalf("row %s changed: %q %q %q %v", suffix, actor, action, subject, err)
+		}
 	}
 	// The receipt survives and answers as before; it has no audit link, which a replay reports as unknown.
 	var key string

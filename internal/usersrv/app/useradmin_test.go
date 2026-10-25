@@ -333,3 +333,45 @@ func containsAny(s string, parts ...string) bool {
 	}
 	return false
 }
+
+// A row written before reasons were checked, with an address in its reason, is returned over the
+// RPC as the marker only: every page, every filter, and the whole serialized answer.
+func TestListSecurityAuditHidesLegacyReasonsOverRPC(t *testing.T) {
+	s := start(t)
+	admin := s.newUser(t, "root@example.com")
+	target := s.newUser(t, "target@example.com")
+	if _, err := s.accounts.GrantRole(context.Background(), gate, admin, account.RolePlatformAdmin); err != nil {
+		t.Fatal(err)
+	}
+	const leaked = "alice.private@corp.example pw=hunter2"
+	if _, err := s.raw.ExecContext(context.Background(), `INSERT INTO security_audit (id, user_id, actor, action, request_id, result, reason, created_at, channel)
+		VALUES (gen_random_uuid(), $1, 'ops-old', 'account.disable', 'req-old', 'ok', $2, now() - interval '1 hour', 'cli')`, target, leaked); err != nil {
+		t.Fatal(err)
+	}
+	admins := usersrvv1.NewUserAdminServiceClient(s.conn)
+	ctx := withRoles(admin.String(), "ozid-admin")
+	got, err := admins.ListSecurityAudit(ctx, &usersrvv1.ListSecurityAuditRequest{UserId: target.String(), Channel: usersrvv1.AuditChannel_AUDIT_CHANNEL_CLI, PageSize: 1})
+	if err != nil || len(got.Entries) != 1 {
+		t.Fatalf("list: %+v %v", got, err)
+	}
+	if e := got.Entries[0]; e.Reason != account.ReasonHidden || e.OperatorLabel != "ops-old" || e.Action != "account.disable" {
+		t.Fatalf("entry: %+v", e)
+	}
+	// Every other way to read the same row, paged through, never carries the text either.
+	var text strings.Builder
+	text.WriteString(got.String())
+	token := ""
+	for pages := 0; pages < 20; pages++ {
+		page, err := admins.ListSecurityAudit(ctx, &usersrvv1.ListSecurityAuditRequest{PageSize: 1, PageToken: token})
+		if err != nil {
+			t.Fatal(err)
+		}
+		text.WriteString(page.String())
+		if token = page.NextPageToken; token == "" {
+			break
+		}
+	}
+	if containsAny(text.String(), "alice.private", "corp.example", "hunter2", "pw=") {
+		t.Fatalf("the legacy text reached the RPC: %s", text.String())
+	}
+}

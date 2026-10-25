@@ -167,6 +167,7 @@ var (
 		{Name: "before_roles", Type: field.TypeString, Default: ""},
 		{Name: "after_roles", Type: field.TypeString, Default: ""},
 		{Name: "origin_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "reason_checked", Type: field.TypeBool, Default: false},
 	}
 	// SecurityAuditTable holds the schema information for the "security_audit" table.
 	SecurityAuditTable = &schema.Table{

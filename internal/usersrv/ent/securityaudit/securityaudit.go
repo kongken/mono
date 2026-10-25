@@ -44,6 +44,8 @@ const (
 	FieldAfterRoles = "after_roles"
 	// FieldOriginID holds the string denoting the origin_id field in the database.
 	FieldOriginID = "origin_id"
+	// FieldReasonChecked holds the string denoting the reason_checked field in the database.
+	FieldReasonChecked = "reason_checked"
 	// Table holds the table name of the securityaudit in the database.
 	Table = "security_audit"
 )
@@ -66,6 +68,7 @@ var Columns = []string{
 	FieldBeforeRoles,
 	FieldAfterRoles,
 	FieldOriginID,
+	FieldReasonChecked,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -103,6 +106,8 @@ var (
 	DefaultBeforeRoles string
 	// DefaultAfterRoles holds the default value on creation for the "after_roles" field.
 	DefaultAfterRoles string
+	// DefaultReasonChecked holds the default value on creation for the "reason_checked" field.
+	DefaultReasonChecked bool
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() uuid.UUID
 )
@@ -188,4 +193,9 @@ func ByAfterRoles(opts ...sql.OrderTermOption) OrderOption {
 // ByOriginID orders the results by the origin_id field.
 func ByOriginID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldOriginID, opts...).ToFunc()
+}
+
+// ByReasonChecked orders the results by the reason_checked field.
+func ByReasonChecked(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReasonChecked, opts...).ToFunc()
 }
