@@ -1,5 +1,7 @@
 # 地铁足迹（metro）产品规格
 
+> **后续管理入口迁移，待实现：** [OzID 与统一管理控制台规格](../ozid/spec.md) 定义把已有 metro 管理页面迁到独立控制台，账号入口迁到 OzID，并为浏览器管理面与 MCP 分别增加来源 IP 白名单。本文已实现的地铁领域规则保持不变；当前页面与部署尚未切换。
+
 > **状态：P0–P7 已实现。** 本文是规格，描述要做什么以及为什么这样做；落地后的当前行为以 [功能描述](features.md)、[后端初始化](../backend.md#metro-服务地铁足迹) 和 [BFF](../bff.md) 为准，与下表的偏差和补充决定记在下面。
 >
 > **账号与角色部分已被 [usersrv 规格](../usersrv/spec.md) 取代。** 下文凡提到 Logto、OAuth、`oauth_apps`、Logto 角色、`roles` scope 与 userinfo 的地方，都是**当时的设计与决策记录，不再是当前行为**：账号是 usersrv 的邮箱＋密码账号，`metro-admin` 是 usersrv 的角色（只能由运维命令 `usersrv-admin` 授予或撤销），BFF 每个请求与每个 MCP 工具调用都向 usersrv 复核账号状态、认证版本与角色，没有 `roles` 快照随会话保存，也没有 `oauth_apps`。目录、业务规则、接口、管理后台与 MCP 令牌的设计仍然有效。当前行为见 [BFF](../bff.md) 与 [功能描述](features.md)。
