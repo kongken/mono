@@ -102,7 +102,10 @@ func (h *Handlers) Bootstrap() error {
 		h.upstreams.Store(clients)
 	}
 	if clients != nil {
-		public := h.publicAPI(clients)
+		public, err := h.publicAPI(clients)
+		if err != nil {
+			return err
+		}
 		h.public.Store(&public)
 		h.startDeletionRunner()
 	}
@@ -174,7 +177,10 @@ func heavyProcedures() map[string]bool {
 	return heavy
 }
 
-func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
+// publicAPI builds the public Connect handler. It fails when the account wiring cannot be built
+// (an unusable navigation registry): the caller must then not serve, instead of serving an
+// API whose sign-in return flow silently refuses everything.
+func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 	conn := clients.Conn(bfftripmap.Service)
 	usersConn := clients.Conn(usersrv.Service)
 	policy := ingress.Policy{
@@ -189,11 +195,11 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 		h.usersClient.Store(users)
 		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix), users, h.cleaners(clients))
 		h.authSvc.Store(svc)
-		// Validated at startup by config.Validate; a registry that cannot be built here
-		// leaves ResolveNavigation refusing every request rather than guessing.
+		// config.Validate has already checked this; failing here too keeps the wiring from
+		// ever serving without the registry it was configured with.
 		registry, err := navigation.New(h.cfg.Navigation, h.cfg.CORSAllowedOrigins, h.cfg.Auth.CookieSecure)
 		if err != nil {
-			slog.Error("navigation registry", "error", err)
+			return nil, fmt.Errorf("navigation: %w", err)
 		}
 		authHandler := bffauth.NewHandler(svc, h.cfg.Auth.CSRFTokenTTL).WithNavigation(registry)
 		h.auth.Store(authHandler)
@@ -233,7 +239,7 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 			bffmetro.MountRPC(mux, metroConn, opts)
 		}
 	}
-	return http.StripPrefix("/api", mux)
+	return http.StripPrefix("/api", mux), nil
 }
 
 // cleaners builds the account-deletion cleaners of the products enabled by

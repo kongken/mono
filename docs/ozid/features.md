@@ -38,7 +38,7 @@ https://id.example.com/login?app_id=metro&return_path=%2Fcity%2Fshanghai
 - 服务端回答 `INVALID_ARGUMENT` 或 `FAILED_PRECONDITION`（BFF 未配置 `navigation`）都按“被拒绝”处理；注册表请求本身失败（网络错误、服务端故障）与“被拒绝”分开显示（可稍后重试），同样不跳转。
 - 没有来源上下文时，登录后进入概览；登录和重新认证都不会自动重放此前的管理写入，业务页面回来后需要重新发起操作。
 - 返回不依赖客户端给出的用户 ID、认证时间或昵称：业务页面回来后用 BFF Cookie 调用 `Me` 确定身份。
-- `ResolveNavigation` 匿名、只读（不要求 CSRF）、不建立会话、不签发任何票据；能构造出合法参数并不能获得身份。
+- `ResolveNavigation` 匿名、只读（不要求 CSRF）、不建立会话、不签发任何票据；能构造出合法参数并不能获得身份。它在浏览器之外也能直接调用，所以**有意只公开已登记的导航信息**：已登记应用的 origin 加允许的路径（返回的 `return_url`、`ozid_origin`），不含任何用户数据、会话、账号是否存在等信息，也不提供身份能力；未登记的输入一律得到同一个拒绝回答，不说明是应用、路径还是格式的问题。
 
 ## 服务端配置：`navigation`
 
@@ -92,9 +92,9 @@ docker run --rm -p 8089:80 -e API_ORIGIN=https://api.example.com ozid-web
 
 分四层给出结果（完成报告里同样分开）：
 
-1. **代码与自动化**：Go 单测与真实 Postgres/Redis 的 `internal/e2e` 链路测试（`TestChainOzid*`：登录与安全返回、未登记同站点兄弟被拒、失效身份重新认证不升级）；`npm test`（路由、导航参数、API base 校验）；`npm run test:e2e:ozid`（模拟 BFF，桌面与手机，各种恶意返回参数、键盘、故障分类）。
+1. **代码与自动化**：Go 单测与真实 Postgres/Redis 的 `internal/e2e` 链路测试（`TestChainOzid*`：登录与安全返回、未登记同站点兄弟被拒、失效身份重新认证不升级；这是真实 BFF 与 usersrv，不是 mock）；`npm test`（路由、导航参数、API base 校验）；`npm run test:e2e:ozid`（**模拟 BFF**，桌面与手机，各种恶意返回参数、键盘、故障分类）。**证据边界**：模拟 BFF 的 Playwright 只证明 OzID 页面自身的行为（表单、键盘、版面、它发出的请求内容、它对服务端回答的处理、被拒绝时不跳转），**不**证明 Cookie 属性、CORS、CSRF、Origin 校验、同站点兄弟被拒或会话不入存储这类跨 origin 会话不变量——这些只由 `internal/e2e` 链路测试和第 3 项的真实栈测试证明。
 2. **容器运行验收**：`scripts/ozid-web-smoke.sh`（CI 的 `ozid-web-image` 任务）构建 `ozid-web` 镜像并启动容器，检查 `/healthz`、页面与静态资源（类型、缓存、nosniff、产物里写入的 API base）、真实 Nginx 在页面及各回退路由上返回的 CSP（`connect-src 'self' <API_ORIGIN>`、无通配符、禁止被嵌入）与 `X-Frame-Options: DENY`、换一个有效 `API_ORIGIN` 无需重建，以及缺少或非法 `API_ORIGIN`（空值、http、无 scheme、含路径或结尾斜线、通配符、夹带第二条 CSP 指令、含空格）时容器拒绝启动；缺少或相对的 `VITE_API_BASE_URL` 构建失败。只用保留示例地址。
 3. **真实浏览器与代理链**：`OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain`。在受控 HTTPS 下用真实 BFF 与 usersrv，OzID、API、两个产品和一个未登记兄弟分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，由浏览器解析到本机前置代理，使用一次性证书）；Chromium 实测登录、返回、跨应用同一身份、退出、重新认证、Cookie 属性、存储与 URL 无令牌、CSP 无违规、兄弟域名无 CORS、外来 Origin 的写被拒。需要 Node 依赖与 Playwright Chromium，CI 的 `ozid-browser` 任务运行它。
 4. **仍须运维确认**（自动化无法覆盖）：真实 DNS、证书与 TLS 终止；反代是否按文档保留 `Host`、覆盖 `X-Real-IP`；真实域名下的 CORS/Cookie 表现；邮件厂商（邮件链接仍由产品入口按原样发送，集中到 OzID 是后续阶段）；镜像在私有构建参数下的构建。
 
-当前限制：产品自己的登录/账号页面尚未改指向 OzID；`admin` 应用 ID 已被注册表接受，但控制台应用尚不存在；OzID 里没有注册和找回密码入口；管理 IP 白名单和“集中账号写只接受 OzID Origin”的收紧在后续阶段，本票没有改变现有账号写方法的来源策略。
+当前限制：产品自己的登录/账号页面尚未改指向 OzID；OzID（T1）没有 `/account/*` 邮件落地页，因此尚未接入 `accountLandingHeaders()` 与 `captureLandingToken()`，[#80 / T2](https://github.com/kongken/mono/issues/80) 提供落地页时必须同步接入并保留邮件安全要求（见 [monorepo 布局](../monorepo.md#规则)）；`admin` 应用 ID 已被注册表接受，但控制台应用尚不存在；OzID 里没有注册和找回密码入口；管理 IP 白名单和“集中账号写只接受 OzID Origin”的收紧在后续阶段，本票没有改变现有账号写方法的来源策略。
