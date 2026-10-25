@@ -201,8 +201,9 @@ id.example.com {
 
 # The management console (deploy/admin-web): the same site as the API, behind a source allowlist.
 # Three independent layers say the same thing: this proxy (optional but cheap), the admin-web
-# container (every page, asset and fallback) and the BFF (`admin.allowed_cidrs`, every user-management
-# call). Edit them together. This proxy is the FIRST hop that sees the real client address, so it sets
+# container (every page, asset and fallback) and the BFF (`admin.allowed_cidrs`, every console management
+# call: user management and, since T8, the metro catalogue administration and the management tokens; the
+# MCP endpoint /mcp/metro is not one of them). Edit them together. This proxy is the FIRST hop that sees the real client address, so it sets
 # X-Forwarded-For from the TCP peer (a value the client sent is replaced, never passed on), and the
 # other two list this proxy's network as a trusted proxy (ADMIN_TRUSTED_PROXIES / admin.trusted_proxies),
 # a network that must NOT overlap the allowlist (both layers refuse to start otherwise).

@@ -19,7 +19,7 @@
 - 地图使用随项目分发的 GeoJSON；默认保持运行时无需第三方地图请求或 API Key。联网底图是显式启用的可选能力（OSM 或服务端代理的 Mapbox，见 [数据与地图说明](docs/trip-map/data-and-maps.md)），Mapbox token 只留在 tripmap 配置，不进入前端。
 - 更改存储结构或区域索引时，处理已有足迹的兼容或迁移，避免将旧数据直接当作空数据覆盖。
 
-- 前端是 npm workspaces monorepo，细节见 [前后端 monorepo 布局](docs/monorepo.md)：`apps/<应用>` 是可独立构建部署的前端应用（当前有 `apps/trip-map`、`apps/metro`、`apps/ozid` 与 `apps/admin`，包名 `@kongken/trip-map`、`@kongken/metro`、`@kongken/ozid`、`@kongken/admin`），`packages/` 放跨应用或前后端共用的代码和数据（`ui`、`api-client`、`geo-data`、`fixtures`、`account`）。应用之间不互相 import，共用部分抽到 `packages/`；只被一个应用使用的代码留在该应用内，出现第二个使用方时再抽出。
+- 前端是 npm workspaces monorepo，细节见 [前后端 monorepo 布局](docs/monorepo.md)：`apps/<应用>` 是可独立构建部署的前端应用（当前有 `apps/trip-map`、`apps/metro`、`apps/ozid` 与 `apps/admin`，包名 `@kongken/trip-map`、`@kongken/metro`、`@kongken/ozid`、`@kongken/admin`），`packages/` 放跨应用或前后端共用的代码和数据（`ui`、`api-client`、`geo-data`、`fixtures`、`account`、`metro-core`）。应用之间不互相 import，共用部分抽到 `packages/`；只被一个应用使用的代码留在该应用内，出现第二个使用方时再抽出。
 - `packages/api-client/src/` 是 `make buf` 的生成目录，`packages/geo-data/data/` 的区域索引与 `internal/tripmap/regions/`、`internal/tripmap/itinerary/` 里的后端副本必须一致，`packages/fixtures/` 是前后端共同验证的夹具；它们的更新方式见 [数据与地图说明](docs/trip-map/data-and-maps.md)。
 
 ## 后端约定

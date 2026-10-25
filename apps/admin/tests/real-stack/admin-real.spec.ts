@@ -750,6 +750,80 @@ test.describe("real metro administration", () => {
     await expect(page.getByRole("row", { name: new RegExp(`${label} `) }).getByText("已吊销")).toBeVisible();
   });
 
+  test("a draft left by one administrator is not offered to another who signs in on the same tab, and is gone afterwards", async ({ page, context }) => {
+    const label = `e2e-iso-${tag()}`;
+    await openConsole(page, "metro", "/metro/tokens");
+    await expect(page.getByLabel("名称")).toBeVisible();
+    const control = await context.newPage();
+    await control.goto(`${stack.control}/age?age=${encodeURIComponent(account("metro").email)}`);
+    await control.close();
+    await page.getByLabel("名称").fill(label);
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    await expect(page.getByTestId("problem-reauth")).toBeVisible();
+    await page.getByRole("button", { name: "前往 OzID 验证密码" }).click();
+    await page.waitForURL(new RegExp(`^${stack.id}/security\\?app_id=admin&return_path=${encodeURIComponent("/metro/tokens")}$`));
+
+    // The first session is gone (ended elsewhere) and a different metro administrator signs in on this tab. What the
+    // first one typed is still in this tab's storage; it must not come to the second one.
+    await context.clearCookies();
+    const writes: string[] = [];
+    page.on("request", (r) => METRO_WRITES.test(r.url()) && writes.push(r.url()));
+    await openConsole(page, "metro2", "/metro/tokens");
+    await expect(page.getByLabel("名称")).toHaveValue("");
+    await expect(page.getByText("已恢复")).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: label })).toHaveCount(0);
+    expect(await page.evaluate(() => sessionStorage.getItem("admin.draft.v1"))).toBeNull();
+    expect(writes).toEqual([]);
+  });
+
+  test("a change made in the console shows at once in the public catalogue: the version the reader holds goes stale and the read brings the new data", async ({ page }) => {
+    const slug = `e2e-ver-${tag()}`;
+    // What a public product's page does: an anonymous read of the cities, remembering the version it got.
+    const read = async (known: string) => {
+      await page.goto(`${stack.trip}/`);
+      return page.evaluate(
+        async ([api, knownVersion]) => {
+          const r = await fetch(`${api}/api/bff.metro.v1.CatalogService/ListCities`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Connect-Protocol-Version": "1" },
+            body: JSON.stringify({ knownVersion }),
+          });
+          const body = await r.json();
+          return { status: r.status, version: String(body.version ?? "0"), notModified: body.notModified === true, slugs: (body.cities ?? []).map((c: { slug: string }) => c.slug) as string[] };
+        },
+        [stack.api, known],
+      );
+    };
+    const first = await read("0");
+    expect(first.status).toBe(200);
+    expect(first.slugs).not.toContain(slug);
+    const unchanged = await read(first.version);
+    expect(unchanged).toMatchObject({ status: 200, notModified: true, slugs: [] });
+
+    await openConsole(page, "metro", "/metro/cities");
+    await page.getByRole("button", { name: "新建城市" }).click();
+    await page.getByLabel("标识 slug").fill(slug);
+    await nameField(page).fill("版本城");
+    await save(page).click();
+    await expect(page.getByRole("cell", { name: slug, exact: true })).toBeVisible();
+
+    const after = await read(first.version);
+    expect(after.notModified).toBe(false);
+    expect(after.slugs).toContain(slug);
+    expect(BigInt(after.version)).toBeGreaterThan(BigInt(first.version));
+    expect(await read(after.version)).toMatchObject({ notModified: true });
+
+    // Deleting it moves the version again and the reader loses it.
+    await page.goto(`${stack.admin}/metro/cities`);
+    await page.getByLabel("搜索城市").fill(slug);
+    await page.getByRole("button", { name: `删除 ${slug}` }).click();
+    await page.getByRole("button", { name: "确认删除" }).click();
+    await expect(page.getByRole("cell", { name: slug })).toHaveCount(0);
+    const gone = await read(after.version);
+    expect(gone.notModified).toBe(false);
+    expect(gone.slugs).not.toContain(slug);
+  });
+
   test("a platform administrator without the metro role gets no metro section and no metro call", async ({ page }) => {
     const calls: string[] = [];
     page.on("request", (r) => METRO.test(r.url()) && calls.push(r.url()));

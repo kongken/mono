@@ -13,7 +13,11 @@ export default defineConfig({
   use: {
     ignoreHTTPSErrors: true,
     launchOptions: { args: ["--host-resolver-rules=MAP *.ozid-e2e.test 127.0.0.1"] },
+    // What a failure needs to be understood afterwards (internal/e2e TestAdminBrowserChain keeps them for CI when
+    // ADMIN_BROWSER_ARTIFACTS is set).
     trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
   },
   projects: [
     { name: "desktop", use: { viewport: { width: 1280, height: 900 } } },

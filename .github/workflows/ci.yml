@@ -222,8 +222,24 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      # A failure must be diagnosable from the run alone, not by running it again: the Go test's full log, the
+      # browser run's own log and JSON report, and the traces, screenshots and videos of every failed test are
+      # kept as one artifact (also when the job is cancelled or times out). Rerunning is not evidence either way.
       - name: Console sign-in, role gate, perimeter and user queries in Chromium
-        run: go test ./internal/e2e -run TestAdminBrowserChain -count=1 -v
+        shell: bash
+        env:
+          ADMIN_BROWSER_ARTIFACTS: ${{ github.workspace }}/admin-browser-artifacts
+        run: |
+          mkdir -p "$ADMIN_BROWSER_ARTIFACTS"
+          go test ./internal/e2e -run TestAdminBrowserChain -count=1 -v 2>&1 | tee "$ADMIN_BROWSER_ARTIFACTS/go-test.log"
+      - name: Keep the traces and logs of the real-browser run
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: admin-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: admin-browser-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
 
   # The ozid-web image as a running container: /healthz, the page and its assets, the CSP and
   # X-Frame-Options the real Nginx sends, and that a missing or illegal API_ORIGIN keeps it from

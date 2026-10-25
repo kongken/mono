@@ -393,6 +393,33 @@ test.describe("management tokens", () => {
     await expect(page.getByRole("button", { name: "吊销 我的 AI 助手" })).toHaveCount(0);
   });
 
+  test("an expired token is shown as expired, cannot be revoked, and does not count against the limit", async ({ page }) => {
+    const s = await setup(page, { roles: ["metro-admin"] });
+    const future = new Date(Date.now() + 5 * 864e5).toISOString();
+    const past = new Date(Date.now() - 2 * 864e5).toISOString();
+    for (let i = 0; i < 9; i++) s.metro.state.tokens.push({ id: `a${i}`, userId: "x", name: `有效 ${i}`, audience: "metro", scopes: ["metro:read"], createdAt: future, expiresAt: future });
+    for (let i = 0; i < 3; i++) s.metro.state.tokens.push({ id: `e${i}`, userId: "x", name: `过期 ${i}`, audience: "metro", scopes: ["metro:read"], createdAt: past, expiresAt: past });
+    s.metro.state.tokens.push({ id: "r0", userId: "x", name: "已收回", audience: "metro", scopes: ["metro:read"], createdAt: past, expiresAt: future, revokedAt: past });
+    await page.goto("/metro/tokens");
+    const row = (n: string) => page.getByRole("row", { name: new RegExp(`${n} `) });
+    await expect(row("过期 0").getByText("已过期", { exact: true })).toBeVisible();
+    await expect(row("过期 2").getByText("已过期", { exact: true })).toBeVisible();
+    await expect(row("过期 0").getByRole("button")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "吊销 过期 0" })).toHaveCount(0);
+    await expect(row("有效 0").getByText("有效", { exact: true })).toBeVisible();
+    await expect(row("有效 0").getByRole("button", { name: "吊销 有效 0" })).toBeVisible();
+    await expect(row("已收回").getByText("已吊销", { exact: true })).toBeVisible();
+    // Nine active tokens and many that are not: the tenth is allowed, the eleventh is not.
+    await page.getByLabel("名称").fill("第十个");
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    await expect(page.getByTestId("token-secret")).toContainText("mcp_");
+    await page.getByRole("button", { name: "我已保存" }).click();
+    await page.getByLabel("名称").fill("第十一个");
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page.getByTestId("token-secret")).toHaveCount(0);
+  });
+
   test("the limit of active tokens is reported, not swallowed", async ({ page }) => {
     const s = await setup(page, { roles: ["metro-admin"] });
     const future = new Date(Date.now() + 5 * 864e5).toISOString();
@@ -521,6 +548,251 @@ test.describe("a password confirmation in the middle of an edit", () => {
     await page.goto("/metro/cities");
     await expect(page.getByLabel("标识 slug")).toHaveValue("osaka");
     expect(await page.evaluate(() => sessionStorage.getItem("admin.draft.v1"))).toBeNull();
+  });
+});
+
+/** Fills this tab's sessionStorage to the brim, as a full quota does: from then on nothing more can be kept. */
+const fillStorage = (page: Page) =>
+  page.evaluate(() => {
+    let i = 0;
+    for (const size of [1 << 20, 1 << 16, 1 << 10, 16, 1]) {
+      for (;;) {
+        try {
+          sessionStorage.setItem(`filler${i++}`, "x".repeat(size));
+        } catch {
+          break;
+        }
+      }
+    }
+  });
+const freeStorage = (page: Page) => page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith("filler")).forEach((k) => sessionStorage.removeItem(k)));
+const draftSlot = (page: Page) => page.evaluate(() => sessionStorage.getItem("admin.draft.v1"));
+const toOzidButton = (page: Page) => page.getByRole("button", { name: "前往 OzID 验证密码" });
+const retryButton = (page: Page) => page.getByRole("button", { name: "重试保存并前往 OzID" });
+
+/** What the person sees when the browser would not keep the input: they stay, nothing was sent, nothing was lost. */
+async function expectStayed(page: Page, s: Awaited<ReturnType<typeof setup>>, before: { calls: number; path: string }) {
+  await expect(page.getByTestId("keep-refused")).toBeVisible();
+  await expect(page.getByTestId("keep-refused")).toContainText("没有离开这个页面");
+  await expect(page.getByTestId("keep-refused")).toContainText("仍在页面上");
+  // The refusal is decided inside the click, so what is seen here is the branch that did not navigate.
+  expect(s.visited).toHaveLength(0);
+  expect(new URL(page.url()).pathname).toBe(before.path);
+  expect(s.metro.state.calls).toHaveLength(before.calls); // not one request more: no write, no read
+  expect(await draftSlot(page)).toBeNull();
+}
+
+test.describe("when the browser will not keep the typed content for the trip to OzID", () => {
+  test.beforeEach(async ({ context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  });
+
+  test("a full storage keeps a record form on the page, says so, and offers retry, copy and a file; retrying after freeing space goes", async ({ page }) => {
+    const s = await setup(page, { roles: ["metro-admin"] });
+    await page.goto("/metro/cities");
+    await expect(page.getByRole("cell", { name: "tokyo", exact: true })).toBeVisible();
+    s.metro.state.reauthNeeded = true;
+    await page.getByRole("button", { name: "新建城市" }).click();
+    await page.getByLabel("标识 slug").fill("osaka");
+    await name(page).fill("大阪");
+    await save(page).click();
+    await expect(page.getByTestId("problem-reauth")).toBeVisible();
+    // Before the click nothing is promised as already kept.
+    await expect(page.getByTestId("problem-reauth")).not.toContainText("会保留在这个标签页");
+    await fillStorage(page);
+    const before = { calls: s.metro.state.calls.length, path: new URL(page.url()).pathname };
+
+    await toOzidButton(page).click();
+    await expectStayed(page, s, before);
+    await expect(page.getByLabel("标识 slug")).toHaveValue("osaka");
+    await expect(name(page)).toHaveValue("大阪");
+    expect(metroWrites(s).filter((c) => c.method === "CreateCity")).toHaveLength(1);
+
+    // Copy: the form as it is now, even after one more edit.
+    await name(page).fill("大阪市");
+    await page.getByRole("button", { name: "复制内容" }).click();
+    await expect(page.getByText("已复制。")).toBeVisible();
+    expect(JSON.parse(await page.evaluate(() => navigator.clipboard.readText()))).toMatchObject({ slug: "osaka", name: "大阪市" });
+    // A file with the same text.
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "导出为文件" }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe("metro-cities-form.json");
+    expect(JSON.parse(await readFile((await file.path())!, "utf8"))).toMatchObject({ slug: "osaka", name: "大阪市" });
+    expect(s.metro.state.calls).toHaveLength(before.calls);
+
+    // Trying again while still full stays put; after space is freed the same button goes, with the content kept.
+    await retryButton(page).click();
+    await expect(page.getByTestId("keep-refused")).toBeVisible();
+    expect(s.visited).toHaveLength(0);
+    await freeStorage(page);
+    await retryButton(page).click();
+    await page.waitForURL(`${OZID}/security?**`);
+    s.metro.state.reauthNeeded = false;
+    await page.goto("/metro/cities");
+    await expect(page.getByLabel("标识 slug")).toHaveValue("osaka");
+    await expect(name(page)).toHaveValue("大阪市");
+    expect(metroWrites(s).filter((c) => c.method === "CreateCity")).toHaveLength(1);
+  });
+
+  test("a full storage keeps a pasted import document in its box, and nothing is imported", async ({ page }) => {
+    const s = await setup(page, { roles: ["metro-admin"] });
+    s.metro.state.reauthNeeded = true;
+    await page.goto("/metro/import");
+    const text = JSON.stringify({ format: "metro-catalog/1", cities: [{ slug: "beijing", name: "北京" }] });
+    await page.getByLabel("目录 JSON").fill(text);
+    await expect(page.getByTestId("problem-reauth")).toBeVisible();
+    await fillStorage(page);
+    const before = { calls: s.metro.state.calls.length, path: "/metro/import" };
+
+    await toOzidButton(page).click();
+    await expectStayed(page, s, before);
+    await expect(page.getByLabel("目录 JSON")).toHaveValue(text);
+    expect(metroWrites(s)).toHaveLength(0);
+    expect(s.metro.state.cities.map((c) => c.slug)).not.toContain("beijing");
+
+    await page.getByRole("button", { name: "复制内容" }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(text);
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "导出为文件" }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe("metro-catalog-draft.json");
+    expect(await readFile((await file.path())!, "utf8")).toBe(text);
+  });
+
+  test("a storage the browser forbids keeps the token form on the page; going on without keeping it is a separate, explicit choice", async ({ page }) => {
+    await page.addInitScript(() => {
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key === "admin.draft.v1") throw new DOMException("The operation is insecure.", "SecurityError");
+        return set.call(this, key, value);
+      };
+    });
+    const s = await setup(page, { roles: ["metro-admin"] });
+    await page.goto("/metro/tokens");
+    await expect(page.getByRole("cell", { name: "还没有令牌。" })).toBeVisible();
+    await page.getByLabel("名称").fill("夜间任务");
+    await page.getByLabel("权限").selectOption("metro:write");
+    s.metro.state.reauthNeeded = true;
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    await expect(page.getByTestId("problem-reauth")).toBeVisible();
+    const before = { calls: s.metro.state.calls.length, path: "/metro/tokens" };
+
+    await toOzidButton(page).click();
+    await expectStayed(page, s, before);
+    await expect(page.getByLabel("名称")).toHaveValue("夜间任务");
+    await expect(page.getByLabel("权限")).toHaveValue("metro:write");
+    expect(s.metro.state.tokens).toHaveLength(0);
+    await expect(page.getByTestId("token-secret")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "复制内容" }).click();
+    expect(JSON.parse(await page.evaluate(() => navigator.clipboard.readText()))).toEqual({ name: "夜间任务", scope: "metro:write", days: "30" });
+
+    // The person decides to go without: only then does the page leave, and nothing is kept or replayed.
+    await page.getByRole("button", { name: "不保留，直接前往 OzID" }).click();
+    await page.waitForURL(`${OZID}/security?**`);
+    s.metro.state.reauthNeeded = false;
+    await page.goto("/metro/tokens");
+    await expect(page.getByLabel("名称")).toHaveValue("");
+    expect(s.metro.state.tokens).toHaveLength(0);
+  });
+});
+
+test.describe("the button to OzID is not a submit", () => {
+  /** Every submit event of the page, reported to the test, which outlives the navigation away from the page. */
+  async function watchSubmits(page: Page) {
+    const submits: string[] = [];
+    await page.exposeFunction("reportSubmit", (who: string) => submits.push(who));
+    await page.addInitScript(() => {
+      document.addEventListener("submit", (e) => void (window as any).reportSubmit((e.target as HTMLFormElement).getAttribute("aria-label") ?? "form"), true);
+    });
+    return submits;
+  }
+
+  test("inside a record form: the attribute says button, no submit event is raised, and no second write is sent", async ({ page }) => {
+    const submits = await watchSubmits(page);
+    const s = await setup(page, { roles: ["metro-admin"] });
+    await page.goto("/metro/cities");
+    await expect(page.getByRole("cell", { name: "tokyo", exact: true })).toBeVisible();
+    s.metro.state.reauthNeeded = true;
+    await page.getByRole("button", { name: "新建城市" }).click();
+    await page.getByLabel("标识 slug").fill("osaka");
+    await name(page).fill("大阪");
+    await save(page).click();
+    await expect(page.getByTestId("problem-reauth")).toBeVisible();
+    expect(submits).toHaveLength(1); // the person's own Save
+    await expect(toOzidButton(page)).toHaveAttribute("type", "button");
+    await expect(page.getByRole("dialog").locator("form").getByRole("button", { name: "前往 OzID 验证密码" })).toHaveCount(1); // it does sit inside the form
+    await toOzidButton(page).click();
+    await page.waitForURL(`${OZID}/security?**`);
+    expect(submits).toHaveLength(1);
+    expect(metroWrites(s).filter((c) => c.method === "CreateCity")).toHaveLength(1);
+  });
+
+  test("on the token form the same", async ({ page }) => {
+    const submits = await watchSubmits(page);
+    const s = await setup(page, { roles: ["metro-admin"] });
+    await page.goto("/metro/tokens");
+    await expect(page.getByRole("cell", { name: "还没有令牌。" })).toBeVisible();
+    await page.getByLabel("名称").fill("夜间任务");
+    s.metro.state.reauthNeeded = true;
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    await expect(page.getByTestId("problem-reauth")).toBeVisible();
+    expect(submits).toHaveLength(1);
+    await expect(toOzidButton(page)).toHaveAttribute("type", "button");
+    await toOzidButton(page).click();
+    await page.waitForURL(`${OZID}/security?**`);
+    expect(submits).toHaveLength(1);
+    expect(s.metro.state.calls.filter((c) => c.method === "CreateAccessToken")).toHaveLength(1);
+  });
+});
+
+test.describe("an account that did not leave the draft cannot take it", () => {
+  test("another account on this tab gets nothing back from the first one's draft, and the draft is gone for both", async ({ page }) => {
+    const s = await setup(page, { roles: ["metro-admin"] });
+    await page.goto("/metro/cities");
+    await expect(page.getByRole("cell", { name: "tokyo", exact: true })).toBeVisible();
+    s.metro.state.reauthNeeded = true;
+    await page.getByRole("button", { name: "新建城市" }).click();
+    await page.getByLabel("标识 slug").fill("osaka");
+    await name(page).fill("大阪");
+    await save(page).click();
+    await toOzidButton(page).click();
+    await page.waitForURL(`${OZID}/security?**`);
+    s.metro.state.reauthNeeded = false;
+
+    // Someone else signs in on the same tab (the first session ended); both hold the metro role.
+    const other = s.accounts.addAccount({ email: "second@example.com", password: "correct horse battery", displayName: "小王", roles: ["metro-admin"] });
+    s.accounts.signIn(other);
+    await page.goto("/metro/cities");
+    await expect(page.getByRole("cell", { name: "tokyo", exact: true })).toBeVisible();
+    await expect(page.getByLabel("标识 slug")).toHaveCount(0);
+    await expect(page.getByText("已恢复")).toHaveCount(0);
+    expect(await draftSlot(page)).toBeNull(); // a foreign slot is dropped, not kept for later
+    expect(metroWrites(s).filter((c) => c.method === "CreateCity")).toHaveLength(1);
+
+    // And the first one, coming back, does not find it either.
+    s.accounts.signIn(s.account);
+    await page.goto("/metro/cities");
+    await expect(page.getByRole("cell", { name: "tokyo", exact: true })).toBeVisible();
+    await expect(page.getByLabel("标识 slug")).toHaveCount(0);
+  });
+
+  test("a draft is offered only on the page it came from", async ({ page }) => {
+    const s = await setup(page, { roles: ["metro-admin"] });
+    await page.goto("/metro/tokens");
+    await expect(page.getByRole("cell", { name: "还没有令牌。" })).toBeVisible();
+    await page.getByLabel("名称").fill("夜间任务");
+    s.metro.state.reauthNeeded = true;
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    await toOzidButton(page).click();
+    await page.waitForURL(`${OZID}/security?**`);
+    s.metro.state.reauthNeeded = false;
+    await page.goto("/metro/import");
+    await expect(page.getByLabel("目录 JSON")).toHaveValue("");
+    await expect(page.getByText("已恢复")).toHaveCount(0);
+    await page.goto("/metro/tokens");
+    await expect(page.getByLabel("名称")).toHaveValue("夜间任务");
   });
 });
 

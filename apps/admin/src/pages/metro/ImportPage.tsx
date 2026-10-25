@@ -86,7 +86,11 @@ export default function ImportPage() {
     }
   };
 
-  const keepText = () => saveDraft(window.sessionStorage, { userId, scope: "metro:import", data: { text } });
+  const keep = {
+    save: () => saveDraft(window.sessionStorage, { userId, scope: "metro:import", data: { text } }),
+    text: () => text,
+    filename: "metro-catalog-draft.json",
+  };
   const errors = preview.kind === "ok" ? preview.res.errors : [];
   const canApply = preview.kind === "ok" && errors.length === 0 && !applying;
   const failure = preview.kind === "failed" ? preview.error : error;
@@ -107,7 +111,7 @@ export default function ImportPage() {
         {preview.kind === "checking" ? <Spinner label="正在校验" /> : null}
         {failure !== undefined ? (
           isSessionLevel(failure) ? (
-            <Problem error={failure} keepBeforeReauth={keepText} />
+            <Problem error={failure} keep={keep} />
           ) : (
             <Notice kind="error">
               <span className="whitespace-pre-wrap">{failureText(failure)}</span>

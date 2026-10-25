@@ -5,11 +5,13 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -103,6 +105,7 @@ func TestAdminBrowserChain(t *testing.T) {
 		{"operator", "console_operator", []string{"ozid-admin"}},
 		{"plain", "console_plain", nil},
 		{"metro", "console_metro", []string{"metro-admin"}},
+		{"metro2", "console_metro_b", []string{"metro-admin"}},
 		{"other", "console_member_a", nil},
 		{"other", "console_member_b", nil},
 		{"target", "console_target", nil},
@@ -208,6 +211,43 @@ func TestAdminBrowserChain(t *testing.T) {
 		"password": E2EPassword, "accounts": accounts,
 		"csp": adminCSP(apiO),
 	})
-	run(t, root, []string{"ADMIN_REAL_STACK=" + string(stack)},
-		"npx", "playwright", "test", "-c", "apps/admin/playwright.real.config.ts")
+	runPlaywright(t, root, []string{"ADMIN_REAL_STACK=" + string(stack)})
+}
+
+// runPlaywright runs the real-stack spec. With ADMIN_BROWSER_ARTIFACTS=<dir> it keeps what a failure needs to be
+// understood afterwards, and streams the browser run's own output to <dir>/playwright.log while it runs (so a hang
+// or a kill still leaves the part that happened): traces, screenshots and videos of failed tests under
+// <dir>/test-results, the JSON report as <dir>/playwright-report.json. CI uploads the directory; without the
+// variable nothing is written and the output goes to the test log as before.
+func runPlaywright(t *testing.T, root string, env []string) {
+	t.Helper()
+	args := []string{"playwright", "test", "-c", "apps/admin/playwright.real.config.ts"}
+	cmd := exec.Command("npx", args...)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), env...)
+	var buf strings.Builder
+	var out io.Writer = &buf
+	if dir := os.Getenv("ADMIN_BROWSER_ARTIFACTS"); dir != "" {
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = os.MkdirAll(abs, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		logFile, err := os.Create(filepath.Join(abs, "playwright.log"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = logFile.Close() }()
+		out = io.MultiWriter(&buf, logFile)
+		cmd.Args = append(cmd.Args, "--reporter=list,json", "--output="+filepath.Join(abs, "test-results"))
+		cmd.Env = append(cmd.Env, "PLAYWRIGHT_JSON_OUTPUT_NAME="+filepath.Join(abs, "playwright-report.json"))
+	}
+	cmd.Stdout, cmd.Stderr = out, out
+	err := cmd.Run()
+	t.Logf("npx %s\n%s", strings.Join(args, " "), buf.String())
+	if err != nil {
+		t.Fatalf("npx %v: %v", args, err)
+	}
 }

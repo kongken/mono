@@ -291,13 +291,16 @@ function EditDialog({ entity, editing, userId, row, restored, onClose, onSaved, 
           {error !== undefined && isSessionLevel(error) ? (
             <Problem
               error={error}
-              keepBeforeReauth={() =>
-                saveDraft(window.sessionStorage, {
-                  userId,
-                  scope: scopeOf(entity, editing),
-                  data: { form, id: editing.mode === "edit" ? editing.id : "", key: editing.mode === "edit" ? editing.key : "", baseRevision: revision.toString() },
-                })
-              }
+              keep={{
+                save: () =>
+                  saveDraft(window.sessionStorage, {
+                    userId,
+                    scope: scopeOf(entity, editing),
+                    data: { form, id: editing.mode === "edit" ? editing.id : "", key: editing.mode === "edit" ? editing.key : "", baseRevision: revision.toString() },
+                  }),
+                text: () => JSON.stringify(form, null, 2),
+                filename: `metro-${entity.id}-form.json`,
+              }}
             />
           ) : error !== undefined && problems.length === 0 ? (
             <Notice kind="error">{describeMetroError(error)}</Notice>

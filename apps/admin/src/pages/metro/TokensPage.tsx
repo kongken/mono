@@ -150,7 +150,14 @@ export default function TokensPage() {
 
       {error !== undefined ? (
         isSessionLevel(error) ? (
-          <Problem error={error} keepBeforeReauth={() => saveDraft(window.sessionStorage, { userId, scope: "metro:tokens", data: { name, scope, days } })} />
+          <Problem
+            error={error}
+            keep={{
+              save: () => saveDraft(window.sessionStorage, { userId, scope: "metro:tokens", data: { name, scope, days } }),
+              text: () => JSON.stringify({ name, scope, days }, null, 2),
+              filename: "metro-token-form.json",
+            }}
+          />
         ) : (
           <Notice kind="error">{describeMetroError(error)}</Notice>
         )
