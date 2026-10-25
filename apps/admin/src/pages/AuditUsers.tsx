@@ -6,7 +6,7 @@ import { Field, Notice } from "@kongken/account/ui";
 import { Problem } from "@/components/Problem";
 import { Spinner } from "@/components/Layout";
 import { Link, navigate, useSearch } from "@/lib/router";
-import { actionLabel, CHANNEL_LABEL, listAudit, RESULT_FILTERS, resultLabel, STATUS_NAME, type AuditOriginRow, type AuditPage, type AuditRow } from "@/lib/audit";
+import { actionLabel, CHANNEL_LABEL, listAudit, REASON_HIDDEN, RESULT_FILTERS, resultLabel, STATUS_NAME, type AuditOriginRow, type AuditPage, type AuditRow } from "@/lib/audit";
 import { auditFilterProblem, EMPTY_AUDIT_FILTERS, userOfSearch, type AuditFilters } from "@/lib/routes.ts";
 import { ROLE_LABEL } from "@/lib/users";
 
@@ -136,10 +136,10 @@ export default function AuditUsersPage() {
         <Field label="操作编号" hint="同一编号过期后可能被复用，不一定是同一次操作">
           {(a) => <Input {...a} value={draft.mutationId} onChange={(e) => set("mutationId")(e.target.value)} autoComplete="off" spellCheck={false} maxLength={64} />}
         </Field>
-        <Field label="开始时间（含）">
+        <Field label="开始时间（含）" hint="按你浏览器所在时区；列表里的时间也是本地时间">
           {(a) => <Input {...a} type="datetime-local" value={draft.from} onChange={(e) => set("from")(e.target.value)} />}
         </Field>
-        <Field label="结束时间（不含）">
+        <Field label="结束时间（不含）" hint="按你浏览器所在时区">
           {(a) => <Input {...a} type="datetime-local" value={draft.to} onChange={(e) => set("to")(e.target.value)} />}
         </Field>
         {problem ? (
@@ -275,7 +275,9 @@ function AuditItem({ row }: { row: AuditRow }) {
         {row.reason ? (
           <div className="contents">
             <dt className="text-muted-foreground">原因</dt>
-            <dd className="break-words" data-testid="audit-reason">{row.reason}</dd>
+            <dd className="break-words" data-testid="audit-reason">
+              {row.reason === REASON_HIDDEN ? <span className="text-muted-foreground">（原因已隐藏：早期记录的自由文本未经检查，不在控制台显示）</span> : row.reason}
+            </dd>
           </div>
         ) : null}
         {changes.length ? (

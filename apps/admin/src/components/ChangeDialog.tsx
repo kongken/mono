@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@kongken/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@kongken/ui/dialog";
 import { classifyAccountError } from "@kongken/account/errors";
@@ -34,6 +34,15 @@ export function ChangeDialog({ user, kind, onClose, onDone, onRefresh }: Props) 
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const attempt = useRef<{ key: string; reason: string } | null>(null);
+  // The dialog belongs to the account that opened it. Once it is gone (the page was replaced because
+  // the session became another account) a late answer is dropped: it reports nothing and asks nothing.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   const failure = error ? classifyAccountError(error, "admin-change") : null;
 
   async function submit() {
@@ -46,8 +55,10 @@ export function ChangeDialog({ user, kind, onClose, onDone, onRefresh }: Props) 
     await run(async () => {
       setError(null);
       try {
-        onDone(await changeUser(kind, user, key, trimmed));
+        const outcome = await changeUser(kind, user, key, trimmed);
+        if (alive.current) onDone(outcome);
       } catch (e) {
+        if (!alive.current) return;
         const f = classifyAccountError(e, "admin-change");
         if (f.kind === "not_signed_in") sessionLost();
         // An ID that belongs to another request cannot be reused: the next confirmation starts a new one.

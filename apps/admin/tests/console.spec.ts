@@ -569,6 +569,16 @@ test.describe("account audit", () => {
     await expect(web.getByTestId("audit-operator").getByRole("link")).toHaveAttribute("href", `/users/${uid(9001)}`);
   });
 
+  test("a reason the server hides shows as a note and nothing of the original", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    s.admin.state.audit.push({ ...s.admin.state.audit[2]!, id: uid(77001), createdAt: new Date(Date.UTC(2026, 5, 2)).toISOString(), channel: "CLI", operatorUserId: "", operatorLabel: "ops-old", action: "account.disable", reason: "[hidden]", requestId: "req-hidden" });
+    await page.goto("/audit/users");
+    const row = auditRows(page).first();
+    await expect(row.getByTestId("audit-reason")).toContainText("原因已隐藏");
+    await expect(row.getByTestId("audit-reason")).not.toContainText("[hidden]");
+    await expect(row.getByTestId("audit-operator")).toContainText("ops-old");
+  });
+
   test("filters by account, operator, result, action, key and time, combines them and clears them", async ({ page }) => {
     const s = await setup(page, { roles: ["ozid-admin"] });
     await page.goto("/audit/users");
@@ -722,5 +732,157 @@ test.describe("account audit", () => {
     await page.getByRole("button", { name: "下一页" }).click();
     await expect(page.getByTestId("page-number")).toHaveText("第 2 页");
     expect(await noOverflow(page)).toBe(true);
+  });
+});
+
+// ---- the account behind the session changes ----------------------------------------------------------------
+// Another tab can sign this browser in as someone else. The console finds out on the next check (the page coming
+// back to the front), and from that moment the page must belong to the new account alone: nothing the old one
+// loaded, typed, opened or was waiting for may be shown or acted on. Two platform administrators swap here.
+
+type Stage = Awaited<ReturnType<typeof setup>>;
+const secondAdmin = (s: Stage) => s.accounts.addAccount({ email: "second@example.com", password: "correct horse battery", displayName: "运维小王", roles: ["ozid-admin"] });
+/** Another tab signs the browser in as `to`; this tab learns of it when it becomes visible again. */
+const otherTabSignsIn = async (page: Page, s: Stage, to: ReturnType<typeof secondAdmin>) => {
+  s.accounts.signIn(to);
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+};
+
+test.describe("the account behind the session changes", () => {
+  test("the audit page drops the old list and filters at once and shows only what the new account loads", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    const second = secondAdmin(s);
+    await page.goto("/audit/users");
+    await expect(auditRows(page)).toHaveCount(50);
+    await page.getByLabel("被操作账号 ID").fill(uid(9));
+    await queryAudit(page);
+    await expect(page.getByTestId("audit-scope")).toBeVisible();
+    await page.getByLabel("操作者账号 ID").fill(uid(9001));
+    const before = s.admin.auditCalls().length;
+
+    const slow = s.admin.holdNext(); // the new account's first read is still on its way
+    await otherTabSignsIn(page, s, second);
+    await slow.arrived;
+    // At once: no row, no scope line, no filter text of the old account, while the new read has not answered.
+    await expect(auditRows(page)).toHaveCount(0);
+    await expect(page.getByTestId("audit-scope")).toHaveCount(0);
+    await expect(page.getByTestId("header-name")).toHaveText("运维小王");
+    await expect(page.getByLabel("被操作账号 ID")).toHaveValue("");
+    await expect(page.getByLabel("操作者账号 ID")).toHaveValue("");
+    expect(s.admin.auditCalls().at(-1)!.body).toEqual({});
+    expect(s.admin.auditCalls().length).toBeGreaterThan(before);
+    slow.release();
+    await expect(auditRows(page)).toHaveCount(50);
+    await expect(page.getByTestId("page-number")).toHaveText("第 1 页");
+  });
+
+  test("a late answer for the old account never lands on the new account's audit page", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    const second = secondAdmin(s);
+    await page.goto("/audit/users");
+    await expect(auditRows(page)).toHaveCount(50);
+    const firstOfPageOne = await auditRows(page).first().getByTestId("audit-time").getAttribute("datetime");
+
+    const late = s.admin.holdNext();
+    await page.getByRole("button", { name: "下一页" }).click(); // the old account asks for page 2
+    await late.arrived;
+    await otherTabSignsIn(page, s, second);
+    await expect(auditRows(page)).toHaveCount(50);
+    await expect(page.getByTestId("page-number")).toHaveText("第 1 页");
+    late.release(); // the old account's page 2 arrives now
+    await page.waitForTimeout(300);
+    await expect(page.getByTestId("page-number")).toHaveText("第 1 页");
+    await expect(auditRows(page).first().getByTestId("audit-time")).toHaveAttribute("datetime", firstOfPageOne!);
+  });
+
+  test("the user list starts again for the new account and ignores an answer meant for the old one", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    const second = secondAdmin(s);
+    await page.goto("/users");
+    await expect(rows(page)).toHaveCount(50);
+    await search(page, "邮箱（精确）", "user5@example.com");
+    await expect(rows(page)).toHaveCount(1);
+
+    const late = s.admin.holdNext();
+    await search(page, "邮箱（精确）", "user6@example.com"); // an older account's query, still unanswered
+    await late.arrived;
+    const fresh = s.admin.holdNext();
+    await otherTabSignsIn(page, s, second);
+    await fresh.arrived;
+    await expect(rows(page)).toHaveCount(0); // the old list is gone before the new one arrives
+    await expect(page.getByLabel("查找内容")).toHaveValue("");
+    fresh.release();
+    await expect(rows(page)).toHaveCount(50);
+    late.release();
+    await page.waitForTimeout(300);
+    await expect(rows(page)).toHaveCount(50);
+    await expect(page.getByTestId("page-number")).toHaveText("第 1 页");
+  });
+
+  test("an account page and its open dialog are removed when the account changes, and the new account sees a fresh page", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    const second = secondAdmin(s);
+    await open(page, ACTIVE);
+    await page.getByTestId("act-status").click();
+    await page.getByTestId("change-reason").fill("工单 77：用户申请");
+    await expect(page.getByTestId("change-dialog")).toBeVisible();
+
+    const slow = s.admin.holdNext();
+    await otherTabSignsIn(page, s, second);
+    await slow.arrived;
+    await expect(page.getByTestId("change-dialog")).toHaveCount(0);
+    await expect(page.getByTestId("detail-id")).toHaveCount(0); // not the old detail while the new read is on its way
+    slow.release();
+    await expect(page.getByTestId("detail-id")).toHaveText(ACTIVE);
+    await expect(page.getByTestId("change-dialog")).toHaveCount(0);
+    await expect(page.getByTestId("change-notice")).toHaveCount(0);
+    expect(changes(s)).toHaveLength(0); // nothing was sent in anyone's name
+    // The reason typed for the old account is not offered to the new one.
+    await page.getByTestId("act-status").click();
+    await expect(page.getByTestId("change-reason")).toHaveValue("");
+  });
+
+  test("a change still waiting for its answer when the account changes reports nothing to the new account", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    const second = secondAdmin(s);
+    await open(page, ACTIVE);
+    await page.getByTestId("act-status").click();
+    const writing = s.admin.holdNext();
+    await confirm(page);
+    await writing.arrived; // the change is with the server, unanswered
+    await otherTabSignsIn(page, s, second);
+    await expect(page.getByTestId("change-dialog")).toHaveCount(0);
+    await expect(page.getByTestId("detail-id")).toHaveText(ACTIVE);
+    writing.release();
+    await page.waitForTimeout(300);
+    await expect(page.getByTestId("change-notice")).toHaveCount(0); // the old account's "done" is not the new account's
+    await expect(page.getByTestId("change-dialog")).toHaveCount(0);
+  });
+
+  test("the same account checking again keeps the page as it is", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await page.goto("/audit/users");
+    await expect(auditRows(page)).toHaveCount(50);
+    await page.getByLabel("被操作账号 ID").fill(uid(9));
+    const calls = s.admin.auditCalls().length;
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await page.waitForTimeout(300);
+    await expect(page.getByLabel("被操作账号 ID")).toHaveValue(uid(9));
+    await expect(auditRows(page)).toHaveCount(50);
+    expect(s.admin.auditCalls().length).toBe(calls);
+  });
+});
+
+test.describe("audit times follow the browser's time zone", () => {
+  test.use({ timezoneId: "Asia/Tokyo" });
+  test("a time typed in the filter is local time, sent as that instant", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await page.goto("/audit/users");
+    await expect(auditRows(page)).toHaveCount(50);
+    await expect(page.getByText("按你浏览器所在时区").first()).toBeVisible();
+    await page.getByLabel("开始时间（含）").fill("2026-06-01T09:00");
+    await queryAudit(page);
+    // 09:00 in Tokyo (UTC+9) is 00:00 UTC.
+    expect(s.admin.auditCalls().at(-1)!.body.from).toBe("2026-06-01T00:00:00Z");
   });
 });

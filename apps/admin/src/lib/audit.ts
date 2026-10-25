@@ -6,6 +6,9 @@ import { userAdmin } from "./rpc";
 
 export type Channel = "web" | "cli" | "self" | "system" | "unknown";
 
+/** What the server returns instead of a reason it may not show (history that was never checked); shown as a note, never as text. */
+export const REASON_HIDDEN = "[hidden]";
+
 /** The original change a replayed row points at. */
 export type AuditOriginRow = { id: string; createdAt: Date | null; action: string; result: string; beforeStatus: string; afterStatus: string; beforeRoles: string[]; afterRoles: string[] };
 
