@@ -14,9 +14,9 @@
 
 详见 [usersrv 规格](docs/usersrv/spec.md) 与 [后端初始化](docs/backend.md#usersrv-服务账号核心p1)。
 
-## 用户中心与统一管理（T1–T4 已实现，其余待实现）
+## 用户中心与统一管理（T1–T6 已实现，其余待实现）
 
-以下是 [OzID 与统一管理控制台规格](docs/ozid/spec.md) 确定的用语。OzID 的统一登录、重新认证与安全返回（T1）、统一注册验证与密码重置邮件（T2）、账号资料与设备会话页面（T3）已实现，见 [OzID 功能描述](docs/ozid/features.md)；统一管理控制台、平台管理员角色与用户查询（T4）、普通账号状态与 `metro-admin` 的安全修改（T5）已实现，见 [控制台功能描述](docs/admin/features.md)；OzID 网页注销页和产品入口收敛尚未实现。
+以下是 [OzID 与统一管理控制台规格](docs/ozid/spec.md) 确定的用语。OzID 的统一登录、重新认证与安全返回（T1）、统一注册验证与密码重置邮件（T2）、账号资料与设备会话页面（T3）已实现，见 [OzID 功能描述](docs/ozid/features.md)；统一管理控制台、平台管理员角色与用户查询（T4）、普通账号状态与 `metro-admin` 的安全修改（T5）、账号安全与管理审计查询（T6）已实现，见 [控制台功能描述](docs/admin/features.md)；OzID 网页注销页和产品入口收敛尚未实现。
 
 | 术语 | 含义 |
 | --- | --- |
