@@ -29,7 +29,7 @@ FROM nginx:stable-alpine
 # Content-Security-Policy lets scripts connect to besides this site.
 ENV API_ORIGIN= NGINX_ENVSUBST_FILTER=API_ORIGIN
 COPY deploy/ozid-web/default.conf.template /etc/nginx/templates/default.conf.template
-COPY deploy/ozid-web/40-require-api-origin.sh /docker-entrypoint.d/40-require-api-origin.sh
-RUN chmod +x /docker-entrypoint.d/40-require-api-origin.sh
+COPY deploy/ozid-web/19-require-api-origin.sh /docker-entrypoint.d/19-require-api-origin.sh
+RUN chmod +x /docker-entrypoint.d/19-require-api-origin.sh
 COPY --from=build /app/apps/ozid/dist /usr/share/nginx/html
 EXPOSE 80

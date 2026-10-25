@@ -90,10 +90,11 @@ docker run --rm -p 8089:80 -e API_ORIGIN=https://api.example.com ozid-web
 
 ## 验证与限制
 
-分三层给出结果（完成报告里同样分开）：
+分四层给出结果（完成报告里同样分开）：
 
 1. **代码与自动化**：Go 单测与真实 Postgres/Redis 的 `internal/e2e` 链路测试（`TestChainOzid*`：登录与安全返回、未登记同站点兄弟被拒、失效身份重新认证不升级）；`npm test`（路由、导航参数、API base 校验）；`npm run test:e2e:ozid`（模拟 BFF，桌面与手机，各种恶意返回参数、键盘、故障分类）。
-2. **真实浏览器与代理链**：`OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain`。在受控 HTTPS 下用真实 BFF 与 usersrv，OzID、API、两个产品和一个未登记兄弟分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，由浏览器解析到本机前置代理，使用一次性证书）；Chromium 实测登录、返回、跨应用同一身份、退出、重新认证、Cookie 属性、存储与 URL 无令牌、CSP 无违规、兄弟域名无 CORS、外来 Origin 的写被拒。需要 Node 依赖与 Playwright Chromium，CI 的 `ozid-browser` 任务运行它。
-3. **仍须运维确认**（自动化无法覆盖）：真实 DNS、证书与 TLS 终止；反代是否按文档保留 `Host`、覆盖 `X-Real-IP`；真实域名下的 CORS/Cookie 表现；邮件厂商（邮件链接仍由产品入口按原样发送，集中到 OzID 是后续阶段）；镜像在私有构建参数下的构建。
+2. **容器运行验收**：`scripts/ozid-web-smoke.sh`（CI 的 `ozid-web-image` 任务）构建 `ozid-web` 镜像并启动容器，检查 `/healthz`、页面与静态资源（类型、缓存、nosniff、产物里写入的 API base）、真实 Nginx 在页面及各回退路由上返回的 CSP（`connect-src 'self' <API_ORIGIN>`、无通配符、禁止被嵌入）与 `X-Frame-Options: DENY`、换一个有效 `API_ORIGIN` 无需重建，以及缺少或非法 `API_ORIGIN`（空值、http、无 scheme、含路径或结尾斜线、通配符、夹带第二条 CSP 指令、含空格）时容器拒绝启动；缺少或相对的 `VITE_API_BASE_URL` 构建失败。只用保留示例地址。
+3. **真实浏览器与代理链**：`OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain`。在受控 HTTPS 下用真实 BFF 与 usersrv，OzID、API、两个产品和一个未登记兄弟分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，由浏览器解析到本机前置代理，使用一次性证书）；Chromium 实测登录、返回、跨应用同一身份、退出、重新认证、Cookie 属性、存储与 URL 无令牌、CSP 无违规、兄弟域名无 CORS、外来 Origin 的写被拒。需要 Node 依赖与 Playwright Chromium，CI 的 `ozid-browser` 任务运行它。
+4. **仍须运维确认**（自动化无法覆盖）：真实 DNS、证书与 TLS 终止；反代是否按文档保留 `Host`、覆盖 `X-Real-IP`；真实域名下的 CORS/Cookie 表现；邮件厂商（邮件链接仍由产品入口按原样发送，集中到 OzID 是后续阶段）；镜像在私有构建参数下的构建。
 
 当前限制：产品自己的登录/账号页面尚未改指向 OzID；`admin` 应用 ID 已被注册表接受，但控制台应用尚不存在；OzID 里没有注册和找回密码入口；管理 IP 白名单和“集中账号写只接受 OzID Origin”的收紧在后续阶段，本票没有改变现有账号写方法的来源策略。

@@ -152,3 +152,18 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: OzID sign-in, return and reauthentication in Chromium
         run: go test ./internal/e2e -run TestOzidBrowserChain -count=1 -v
+
+  # The ozid-web image as a running container: /healthz, the page and its assets, the CSP and
+  # X-Frame-Options the real Nginx sends, and that a missing or illegal API_ORIGIN keeps it from
+  # starting. Reserved example addresses only (scripts/ozid-web-smoke.sh). Nothing is published.
+  ozid-web-image:
+    name: ozid-web container acceptance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build the image and run the acceptance checks
+        run: scripts/ozid-web-smoke.sh
+
