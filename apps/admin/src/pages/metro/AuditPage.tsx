@@ -107,7 +107,7 @@ export default function AuditPage() {
           </TableFrame>
           {next ? (
             <div>
-              <Button variant="outline" onClick={() => void load(filters, next, true)}>加载更多</Button>
+              <Button type="button" variant="outline" onClick={() => void load(filters, next, true)}>加载更多</Button>
             </div>
           ) : null}
         </>
@@ -126,7 +126,7 @@ function LogRow({ log, open, onToggle }: { log: AuditLog; open: boolean; onToggl
         <td className="px-3 py-2">{log.channel === "mcp" ? `MCP${log.tokenId ? ` (${log.tokenId.slice(0, 8)})` : ""}` : "网页"}</td>
         <td className="max-w-40 truncate px-3 py-2" title={log.actorUserId}>{log.actorUserId}</td>
         <td className="px-3 py-2 text-right">
-          <Button size="sm" variant="ghost" aria-expanded={open} onClick={onToggle}>{open ? "收起" : "详情"}</Button>
+          <Button type="button" size="sm" variant="ghost" aria-expanded={open} onClick={onToggle}>{open ? "收起" : "详情"}</Button>
         </td>
       </tr>
       {open ? (

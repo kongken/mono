@@ -109,7 +109,7 @@ export default function EntityAdmin({ entity }: { entity: Entity }) {
       <div className="flex flex-wrap items-center gap-2">
         <Input aria-label={`搜索${entity.title}`} placeholder={`搜索${entity.title}`} value={query} onChange={(e) => setQuery(e.target.value)} className="max-w-xs" />
         <span className="text-sm text-muted-foreground">共 {total.toString()} 条</span>
-        <Button
+        <Button type="button"
           className="ml-auto"
           onClick={() => {
             setRestored(undefined);
@@ -147,7 +147,7 @@ export default function EntityAdmin({ entity }: { entity: Entity }) {
                       <td key={i} className="px-3 py-2">{c}</td>
                     ))}
                     <td className="whitespace-nowrap px-3 py-2 text-right">
-                      <Button
+                      <Button type="button"
                         size="sm"
                         variant="ghost"
                         aria-label={`编辑 ${r.key}`}
@@ -158,7 +158,7 @@ export default function EntityAdmin({ entity }: { entity: Entity }) {
                       >
                         编辑
                       </Button>
-                      <Button size="sm" variant="ghost" className="text-destructive" aria-label={`删除 ${r.key}`} onClick={() => setDeleting(r)}>
+                      <Button type="button" size="sm" variant="ghost" className="text-destructive" aria-label={`删除 ${r.key}`} onClick={() => setDeleting(r)}>
                         删除
                       </Button>
                     </td>
@@ -169,7 +169,7 @@ export default function EntityAdmin({ entity }: { entity: Entity }) {
           </TableFrame>
           {next ? (
             <div>
-              <Button variant="outline" onClick={() => void load(query, next, true)}>加载更多</Button>
+              <Button type="button" variant="outline" onClick={() => void load(query, next, true)}>加载更多</Button>
             </div>
           ) : null}
         </>
@@ -437,15 +437,15 @@ function DeleteDialog({ entity, row, onClose, onDeleted, refresh }: {
           <Notice kind="error">
             {describeMetroError(error)}
             {stale ? (
-              <Button size="sm" variant="outline" className="ml-2" onClick={() => void reload()}>
+              <Button type="button" size="sm" variant="outline" className="ml-2" onClick={() => void reload()}>
                 载入最新版本后重新确认
               </Button>
             ) : null}
           </Notice>
         ) : null}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button variant="destructive" disabled={busy} onClick={() => void confirm()}>确认删除</Button>
+          <Button type="button" variant="outline" onClick={onClose}>取消</Button>
+          <Button type="button" variant="destructive" disabled={busy} onClick={() => void confirm()}>确认删除</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

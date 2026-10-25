@@ -34,7 +34,7 @@ export function Problem({ error, retry, keepBeforeReauth }: { error: unknown; re
             {keepBeforeReauth ? "你已填写但尚未提交的内容会保留在这个标签页，回来后需要你核对并重新提交，不会自动重放。" : "当前输入不会被保留或重放。"}
           </Notice>
           <div>
-            <Button
+            <Button type="button"
               onClick={() => {
                 keepBeforeReauth?.();
                 goToOzid("security");
@@ -53,7 +53,7 @@ export function Problem({ error, retry, keepBeforeReauth }: { error: unknown; re
           <Notice kind="error">{failure.message}</Notice>
           {retry && failure.kind !== "not_allowed" ? (
             <div>
-              <Button variant="outline" onClick={retry}>
+              <Button type="button" variant="outline" onClick={retry}>
                 重试
               </Button>
             </div>

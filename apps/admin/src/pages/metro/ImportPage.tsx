@@ -129,7 +129,7 @@ export default function ImportPage() {
         {done ? <Notice kind="success">{done}</Notice> : null}
       </div>
       <div>
-        <Button disabled={!canApply} onClick={() => void apply()}>确认导入</Button>
+        <Button type="button" disabled={!canApply} onClick={() => void apply()}>确认导入</Button>
       </div>
     </section>
   );

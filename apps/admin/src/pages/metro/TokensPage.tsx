@@ -142,8 +142,8 @@ export default function TokensPage() {
           <p className="text-sm font-medium">请现在复制令牌：它只显示这一次，刷新或离开后无法再看到。</p>
           <code className="break-all rounded bg-background px-2 py-1 text-xs" data-testid="token-secret">{secret}</code>
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => void copy()}>{copied ? "已复制" : "复制"}</Button>
-            <Button size="sm" variant="outline" onClick={() => setSecret(undefined)}>我已保存</Button>
+            <Button type="button" size="sm" onClick={() => void copy()}>{copied ? "已复制" : "复制"}</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setSecret(undefined)}>我已保存</Button>
           </div>
         </div>
       ) : null}
@@ -185,7 +185,7 @@ export default function TokensPage() {
                     <td className="px-3 py-2"><Badge tone={s.tone}>{s.label}</Badge></td>
                     <td className="px-3 py-2 text-right">
                       {s.label === "有效" ? (
-                        <Button size="sm" variant="ghost" className="text-destructive" aria-label={`吊销 ${t.name}`} onClick={() => void revoke(t.id)}>吊销</Button>
+                        <Button type="button" size="sm" variant="ghost" className="text-destructive" aria-label={`吊销 ${t.name}`} onClick={() => void revoke(t.id)}>吊销</Button>
                       ) : null}
                     </td>
                   </tr>

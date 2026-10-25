@@ -31,7 +31,7 @@ export default function ExportPage() {
       <p className="max-w-2xl text-sm text-muted-foreground">下载整个目录的 <code>metro-catalog/1</code> JSON，可作为备份，或导入到另一个环境。</p>
       {error !== undefined ? isSessionLevel(error) ? <Problem error={error} retry={() => void download()} /> : <Notice kind="error">{describeMetroError(error)}</Notice> : null}
       <div>
-        <Button disabled={busy} onClick={() => void download()}>下载目录 JSON</Button>
+        <Button type="button" disabled={busy} onClick={() => void download()}>下载目录 JSON</Button>
       </div>
     </section>
   );
