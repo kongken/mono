@@ -58,9 +58,12 @@ type AuthConfig struct {
 	// (registration requests and completions are then refused). It never affects
 	// login or password reset.
 	RegistrationEnabled *bool `yaml:"registration_enabled"`
-	// Apps maps an app ID to its link origin. Mail links are built
-	// only from these origins and fixed paths. Both trip-map and metro are required
-	// and must match the BFF's allowed origins.
+	// Apps maps an app ID to its link origin. Mail links are built only from these
+	// origins and fixed paths. "ozid" is required: every new registration and password
+	// reset mail lands there, whichever app the request came from, and the origin must
+	// match the BFF's navigation registry. "trip-map" and "metro" are optional and
+	// only serve mails issued before the central landing existed; they can be removed
+	// once those mails have expired (at most the longer of the two token lifetimes).
 	Apps map[string]AppOrigin `yaml:"apps"`
 	// AllowLoopbackHTTP permits http origins on loopback hosts for local development.
 	AllowLoopbackHTTP bool `yaml:"allow_loopback_http"`
@@ -138,8 +141,9 @@ var (
 	appIDPattern     = regexp.MustCompile(`^[a-z0-9-]{1,64}$`)
 )
 
-// RequiredApps are the app IDs that must have an origin.
-var RequiredApps = []string{"trip-map", "metro"}
+// RequiredApps are the app IDs that must have an origin: the OzID user center, which
+// every account mail links to.
+var RequiredApps = []string{"ozid"}
 
 // Validate checks the settings that must be right before the service starts and
 // fills defaults. It does not contact PostgreSQL, Redis or any mail vendor.

@@ -1,4 +1,5 @@
 import { parseApiBase } from "@kongken/account/navigation";
+import { accountLandingHeaders } from "@kongken/account/vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
@@ -17,7 +18,8 @@ export default defineConfig(({ command, mode }) => {
   // The port matches the OzID origin in the BFF's navigation registry (config.bff.example.yaml).
   return {
     server: { port: 5175, strictPort: true },
-    plugins: [react(), tailwindcss()],
+    // The mail landing pages get the production headers (no-store, no-referrer) in dev and preview too.
+    plugins: [react(), tailwindcss(), accountLandingHeaders()],
     resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   };
 });

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@kongken/ui/button";
-import type { AccountApi, AccountUser, SessionInfo } from "./api.ts";
+import type { AccountApi, AccountUser, ReturnFrom, SessionInfo } from "./api.ts";
 import { classifyAccountError, type AccountField, type AccountFailure } from "./errors.ts";
 import { ACCOUNT_PRODUCT_SCOPE, ACCOUNT_SHARED_SCOPE, DELETE_CONFIRM_WORD } from "./scope.ts";
 import {
@@ -47,6 +47,17 @@ type AuthPanelProps = {
   allowMail?: boolean;
   /** The sentence under the title; the default names the two products. */
   intro?: ReactNode;
+  /**
+   * The return context mail requests bind to their challenge (default: the app of `api`;
+   * null: none). The BFF validates it; it never decides where the mail links to.
+   */
+  from?: ReturnFrom | null;
+  /**
+   * Called instead of switching inside the panel when the user picks registration or
+   * password reset (or goes back to sign-in). A front end that routes those forms as pages
+   * of their own navigates here; without it the panel switches by itself.
+   */
+  onSwitchMode?: (mode: AuthMode) => void;
 };
 
 /**
@@ -54,17 +65,17 @@ type AuthPanelProps = {
  * sent, the password is chosen after the address is verified) and password reset. The
  * texts never say whether an address is registered.
  */
-export function AuthPanel({ api, appName, onSignedIn, initialMode = "login", allowMail = true, intro }: AuthPanelProps) {
+export function AuthPanel({ api, appName, onSignedIn, initialMode = "login", allowMail = true, intro, from, onSwitchMode }: AuthPanelProps) {
   const [mode, setMode] = useState<AuthMode>(allowMail ? initialMode : "login");
   const [email, setEmail] = useState("");
   // Switching forms drops what the previous one showed, but keeps the address typed.
-  const switchTo = (next: AuthMode) => setMode(next);
+  const switchTo = (next: AuthMode) => (onSwitchMode ? onSwitchMode(next) : setMode(next));
   return (
     <div data-testid="auth-panel" className="grid gap-4">
       {mode === "login" ? (
         <LoginForm api={api} appName={appName} email={email} setEmail={setEmail} onSignedIn={onSignedIn} onSwitch={switchTo} allowMail={allowMail} intro={intro} />
       ) : (
-        <MailRequestForm key={mode} api={api} appName={appName} mode={mode} email={email} setEmail={setEmail} onSwitch={switchTo} />
+        <MailRequestForm key={mode} api={api} appName={appName} mode={mode} email={email} setEmail={setEmail} onSwitch={switchTo} from={from} />
       )}
     </div>
   );
@@ -155,6 +166,29 @@ function LoginForm({
   );
 }
 
+type MailPanelProps = {
+  api: AccountApi;
+  appName: string;
+  mode: "register" | "forgot";
+  /** Where "back to sign in" and the switch to the other mail form lead (a page of their own, or a mode switch). */
+  onSwitch: (m: AuthMode) => void;
+  from?: ReturnFrom | null;
+};
+
+/**
+ * One mail request form as a page of its own (registration or password reset), for a front
+ * end that routes them instead of switching inside {@link AuthPanel}. Same states: sending,
+ * the resend cooldown, rate limiting, closed registration, network failure.
+ */
+export function MailRequestPanel({ api, appName, mode, onSwitch, from }: MailPanelProps) {
+  const [email, setEmail] = useState("");
+  return (
+    <div data-testid={`mail-panel-${mode}`} className="grid gap-4">
+      <MailRequestForm api={api} appName={appName} mode={mode} email={email} setEmail={setEmail} onSwitch={onSwitch} from={from} />
+    </div>
+  );
+}
+
 function MailRequestForm({
   api,
   appName,
@@ -162,7 +196,8 @@ function MailRequestForm({
   email,
   setEmail,
   onSwitch,
-}: Pick<AuthPanelProps, "api" | "appName"> & { mode: "register" | "forgot"; email: string; setEmail: (v: string) => void; onSwitch: (m: AuthMode) => void }) {
+  from,
+}: Pick<AuthPanelProps, "api" | "appName" | "from"> & { mode: "register" | "forgot"; email: string; setEmail: (v: string) => void; onSwitch: (m: AuthMode) => void }) {
   const register = mode === "register";
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
@@ -181,8 +216,8 @@ function MailRequestForm({
     const address = trimEmail(email);
     await run(async () => {
       try {
-        if (register) await api.requestRegistration(address);
-        else await api.requestPasswordReset(address);
+        if (register) await api.requestRegistration(address, from);
+        else await api.requestPasswordReset(address, from);
         setSentTo(address);
         cooldown.start(RESEND_SECONDS);
       } catch (error) {

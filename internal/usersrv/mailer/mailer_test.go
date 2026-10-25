@@ -34,7 +34,7 @@ func content(t *testing.T) mailer.Content {
 
 func testLinks(t *testing.T) *mailer.Links {
 	t.Helper()
-	l, err := mailer.NewLinks(map[string]string{"trip-map": "https://map.example.com", "metro": "https://metro.example.com"}, false)
+	l, err := mailer.NewLinks(map[string]string{"ozid": "https://id.example.com", "trip-map": "https://map.example.com", "metro": "https://metro.example.com"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

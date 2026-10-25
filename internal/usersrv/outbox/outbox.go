@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kongken/mono/internal/platform/navpath"
 	"github.com/kongken/mono/internal/usersrv/ent"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
 	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
@@ -98,6 +99,10 @@ var ErrUnknownApp = mailer.ErrUnknownApp
 // HasApp reports whether appID is in the link allow list.
 func (s *Service) HasApp(appID string) bool { return s.links.Has(appID) }
 
+// Central reports whether the central OzID landing origin is configured, which every
+// new mail needs.
+func (s *Service) Central() bool { return s.links.Has(mailer.CentralApp) }
+
 // IssueInput describes one challenge and its mail.
 type IssueInput struct {
 	// Purpose is PurposeRegistration or PurposePasswordReset.
@@ -108,8 +113,11 @@ type IssueInput struct {
 	// for a registration (the account does not exist yet).
 	UserID      *uuid.UUID
 	AuthVersion *int64
-	// AppID selects the link origin; it must be a configured app.
-	AppID string
+	// ReturnAppID and ReturnPath are the validated return context bound to the
+	// challenge ("" for none; a path needs an app). They never influence the mail
+	// link, which always points at the central OzID origin.
+	ReturnAppID string
+	ReturnPath  string
 }
 
 // Issued is the outcome of Issue. The plaintext token is not returned: it exists
@@ -150,8 +158,12 @@ func (s *Service) Issue(ctx context.Context, tx *ent.Tx, in IssueInput) (Issued,
 	if err != nil {
 		return Issued{}, err
 	}
-	if !s.links.Has(in.AppID) {
+	if !s.links.Has(mailer.CentralApp) {
 		return Issued{}, ErrUnknownApp
+	}
+	if (in.ReturnAppID == "" && in.ReturnPath != "") || len(in.ReturnAppID) > 64 || len(in.ReturnPath) > navpath.MaxLen ||
+		(in.ReturnPath != "" && navpath.Check(in.ReturnPath) != nil) {
+		return Issued{}, errors.New("outbox: malformed return context")
 	}
 	ttl := s.settings.RegistrationTTL
 	switch in.Purpose {
@@ -176,7 +188,7 @@ func (s *Service) Issue(ctx context.Context, tx *ent.Tx, in IssueInput) (Issued,
 	expires := now.Add(ttl)
 	challengeID, jobID := uuid.New(), uuid.New()
 
-	plain, err := json.Marshal(payload{Version: 1, To: email, AppID: in.AppID, Token: token})
+	plain, err := json.Marshal(payload{Version: 1, To: email, AppID: mailer.CentralApp, Token: token})
 	if err != nil {
 		return Issued{}, err
 	}
@@ -186,7 +198,13 @@ func (s *Service) Issue(ctx context.Context, tx *ent.Tx, in IssueInput) (Issued,
 	}
 
 	create := tx.AccountToken.Create().SetID(challengeID).SetTokenHash(digest).SetPurpose(accounttoken.Purpose(in.Purpose)).
-		SetEmailCanonical(email).SetAppID(in.AppID).SetExpiresAt(expires).SetCreatedAt(now)
+		SetEmailCanonical(email).SetAppID(mailer.CentralApp).SetExpiresAt(expires).SetCreatedAt(now)
+	if in.ReturnAppID != "" {
+		create.SetReturnAppID(in.ReturnAppID)
+		if in.ReturnPath != "" {
+			create.SetReturnPath(in.ReturnPath)
+		}
+	}
 	if in.UserID != nil {
 		create.SetUserID(*in.UserID).SetIssuedAuthVersion(*in.AuthVersion)
 	}

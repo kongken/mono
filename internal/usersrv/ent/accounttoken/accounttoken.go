@@ -27,6 +27,10 @@ const (
 	FieldIssuedAuthVersion = "issued_auth_version"
 	// FieldAppID holds the string denoting the app_id field in the database.
 	FieldAppID = "app_id"
+	// FieldReturnAppID holds the string denoting the return_app_id field in the database.
+	FieldReturnAppID = "return_app_id"
+	// FieldReturnPath holds the string denoting the return_path field in the database.
+	FieldReturnPath = "return_path"
 	// FieldExpiresAt holds the string denoting the expires_at field in the database.
 	FieldExpiresAt = "expires_at"
 	// FieldConsumedAt holds the string denoting the consumed_at field in the database.
@@ -46,6 +50,8 @@ var Columns = []string{
 	FieldUserID,
 	FieldIssuedAuthVersion,
 	FieldAppID,
+	FieldReturnAppID,
+	FieldReturnPath,
 	FieldExpiresAt,
 	FieldConsumedAt,
 	FieldCreatedAt,
@@ -126,6 +132,16 @@ func ByIssuedAuthVersion(opts ...sql.OrderTermOption) OrderOption {
 // ByAppID orders the results by the app_id field.
 func ByAppID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAppID, opts...).ToFunc()
+}
+
+// ByReturnAppID orders the results by the return_app_id field.
+func ByReturnAppID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReturnAppID, opts...).ToFunc()
+}
+
+// ByReturnPath orders the results by the return_path field.
+func ByReturnPath(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReturnPath, opts...).ToFunc()
 }
 
 // ByExpiresAt orders the results by the expires_at field.

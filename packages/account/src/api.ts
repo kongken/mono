@@ -45,10 +45,26 @@ export type NavigationTarget = {
   ozidOrigin: string;
 };
 
+/**
+ * Where a mail request came from, so the user can find the way back after finishing the
+ * flow in another browser. The BFF validates it against the navigation registry and binds
+ * it to the challenge; it never decides which site the mail links to (always OzID).
+ */
+export type ReturnFrom = { appId: string; returnPath?: string };
+
+/** The validated context a finished mail flow hands back. The BFF has re-checked it just now. */
+export type ReturnContext = { appId: string; returnPath: string };
+
+const returnOf = (res: { appId: string; returnPath: string }): ReturnContext | null =>
+  res.appId ? { appId: res.appId, returnPath: res.returnPath } : null;
+
 export type AccountApiOptions = {
   /** The browser transport of this app: cookies included, CSRF header added by its interceptors. */
   transport: Transport;
-  /** The configured app id of usersrv (`trip-map`, `metro`); picks the origin of the mailed links. */
+  /**
+   * The app this client belongs to (`trip-map`, `metro`, `ozid`). Mail requests name it as
+   * their return context unless the caller passes another one (or null for none).
+   */
   appId: string;
   /** Fetches a fresh CSRF token before a state-changing call; each app owns where the token is kept. */
   ensureCsrf: () => Promise<void>;
@@ -85,17 +101,25 @@ export function createAccountApi({ transport, appId, ensureCsrf }: AccountApiOpt
 
   return {
     appId,
-    requestRegistration: (email: string) => write(() => auth.requestRegistration({ email, appId })).then(() => undefined),
-    completeRegistration: (token: string, password: string, displayName: string) =>
-      write(() => auth.completeRegistration({ token, password, displayName })).then(() => undefined),
+    /** `from`: the return context to bind (default: this app itself; null: none). */
+    requestRegistration: (email: string, from?: ReturnFrom | null) => {
+      const ctx = from === undefined ? { appId } : from;
+      return write(() => auth.requestRegistration({ email, appId: ctx?.appId ?? "", returnPath: ctx?.returnPath ?? "" })).then(() => undefined);
+    },
+    /** Resolves with the return context bound to the link, or null when there is none (or it is no longer allowed). */
+    completeRegistration: async (token: string, password: string, displayName: string): Promise<ReturnContext | null> =>
+      returnOf(await write(() => auth.completeRegistration({ token, password, displayName }))),
     /** Sets the session Cookie; the response carries the profile and expiry, never a token. */
     login: async (email: string, password: string) => {
       const res = await write(() => auth.loginWithEmail({ email, password }));
       return { user: toAccountUser(res.user), expiresAt: date(res.expiresAt) };
     },
-    requestPasswordReset: (email: string) => write(() => auth.requestPasswordReset({ email, appId })).then(() => undefined),
-    resetPassword: (token: string, newPassword: string) =>
-      write(() => auth.resetPassword({ token, newPassword })).then(() => undefined),
+    requestPasswordReset: (email: string, from?: ReturnFrom | null) => {
+      const ctx = from === undefined ? { appId } : from;
+      return write(() => auth.requestPasswordReset({ email, appId: ctx?.appId ?? "", returnPath: ctx?.returnPath ?? "" })).then(() => undefined);
+    },
+    resetPassword: async (token: string, newPassword: string): Promise<ReturnContext | null> =>
+      returnOf(await write(() => auth.resetPassword({ token, newPassword }))),
 
     /**
      * Asks the BFF whether an app ID and return path are registered. Anonymous and

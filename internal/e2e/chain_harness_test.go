@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"database/sql"
 	"fmt"
 	"net"
 	"net/http"
@@ -88,8 +89,10 @@ type ChainHarness struct {
 
 	// Usersrv is the real account service; Accounts is its account core, for the
 	// operator actions that have no browser path (granting a role).
-	Usersrv      *usersrvapp.Handlers
-	UsersrvDB    *usersrvent.Client
+	Usersrv   *usersrvapp.Handlers
+	UsersrvDB *usersrvent.Client
+	// UsersrvSQL is the connection under UsersrvDB, for row states no code path produces.
+	UsersrvSQL   *sql.DB
 	UsersrvRes   *usersrvapp.Resources
 	Accounts     *usersrvaccount.Service
 	Inbox        *Inbox
@@ -138,6 +141,9 @@ type ChainHTTPOptions struct {
 	Observe   func(*http.Request, http.Header, int)
 	TLS       bool
 	Configure func(*bffconfig.Config, string)
+	// MailOzidOrigin is the central OzID origin that account mail links to (usersrv's
+	// auth.apps.ozid); the default is a reserved example name nothing resolves.
+	MailOzidOrigin string
 }
 
 // ChainMetro adds the metro service (with an isolated database of its own) to the
@@ -251,7 +257,7 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	// harness delivers it on demand (DeliverMail).
 	h.Inbox = &Inbox{}
 	h.usersrvFault = &usersrvFault{}
-	usersrvDB := usersrvtestutil.DB(t)
+	usersrvDB, usersrvSQL := usersrvtestutil.DBWithSQL(t)
 	usersrvRedis, usersrvPrefix := usersrvtestutil.Redis(t)
 	usersrvGRPC := grpcx.ServerConfig{Transport: transport, Listen: "127.0.0.1:0"}
 	if transport == "tls" {
@@ -267,7 +273,11 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	links, err := usersrvmailer.NewLinks(map[string]string{"trip-map": "https://map.example.com", "metro": "https://metro.example.com"}, false)
+	mailOzid := "https://id.example.com"
+	if httpOptions.MailOzidOrigin != "" {
+		mailOzid = httpOptions.MailOzidOrigin
+	}
+	links, err := usersrvmailer.NewLinks(map[string]string{"ozid": mailOzid, "trip-map": "https://map.example.com", "metro": "https://metro.example.com"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +291,7 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 		t.Fatal(err)
 	}
 	h.Usersrv.SetResources(usersrvRes)
-	h.UsersrvDB, h.UsersrvRes, h.Accounts = usersrvDB, usersrvRes, usersrvRes.Accounts
+	h.UsersrvDB, h.UsersrvSQL, h.UsersrvRes, h.Accounts = usersrvDB, usersrvSQL, usersrvRes, usersrvRes.Accounts
 	// The workers run as in production (readiness reports them); DeliverMail
 	// additionally runs the outbox by hand so a scenario does not wait for a tick.
 	for _, w := range usersrvRes.Workers {

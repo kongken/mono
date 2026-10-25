@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { isNavigableUrl, readNavContext } from "@kongken/account/navigation";
-import type { NavigationTarget } from "@kongken/account/api";
+import type { NavigationTarget, ReturnFrom } from "@kongken/account/api";
 import { account } from "./rpc";
 
 /**
@@ -58,4 +58,13 @@ function initial(search: string): TargetState {
 /** Sends the browser to a target the BFF accepted. A full navigation: the target is another origin. */
 export function goToTarget(target: NavigationTarget) {
   if (isNavigableUrl(target.returnUrl)) window.location.assign(target.returnUrl);
+}
+
+/**
+ * The return context a mail request binds to its challenge: only what the BFF accepted, and
+ * none otherwise (opened directly, refused, or the BFF could not answer). The mail itself
+ * always lands at OzID; this only says where the user can be sent afterwards.
+ */
+export function fromTarget(target: TargetState): ReturnFrom | null {
+  return target.status === "ok" ? { appId: target.target.appId, returnPath: target.target.returnPath } : null;
 }

@@ -18,6 +18,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -75,6 +77,63 @@ func ozidCSP(apiOrigin string) string {
 	panic("no Content-Security-Policy in the ozid-web template")
 }
 
+// ozidLandingHeaders are the response headers deploy/ozid-web's nginx template gives the mail
+// landing pages (the location block for /account/verify-email and /account/reset-password),
+// read from the template for the same reason.
+func ozidLandingHeaders(apiOrigin string) map[string]string {
+	raw, err := os.ReadFile("../../deploy/ozid-web/default.conf.template")
+	if err != nil {
+		panic(err)
+	}
+	text := string(raw)
+	start := strings.Index(text, "location ~ ^/account/")
+	if start < 0 {
+		panic("no landing location in the ozid-web template")
+	}
+	end := strings.Index(text[start:], "\n    }")
+	headers := map[string]string{}
+	for _, line := range strings.Split(text[start:start+end], "\n") {
+		line = strings.TrimSpace(line)
+		rest, ok := strings.CutPrefix(line, "add_header ")
+		if !ok {
+			continue
+		}
+		name, value, _ := strings.Cut(rest, " ")
+		value = strings.TrimSuffix(strings.TrimSuffix(value, " always;"), ";")
+		headers[name] = strings.ReplaceAll(strings.Trim(value, `"`), "${API_ORIGIN}", apiOrigin)
+	}
+	if len(headers) == 0 {
+		panic("the landing location of the ozid-web template sets no headers")
+	}
+	return headers
+}
+
+var landingPath = regexp.MustCompile(`^/account/(verify-email|reset-password)/?$`)
+
+// mailbox is the browser scenario's far end of the mail vendor: it runs the real outbox and
+// answers with the link of the latest mail to an address, waiting for the count-th one.
+func mailbox(h *ChainHarness) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		to := r.URL.Query().Get("to")
+		want, _ := strconv.Atoi(r.URL.Query().Get("count"))
+		deadline := time.Now().Add(15 * time.Second)
+		for len(h.Inbox.To(to)) < want {
+			if time.Now().After(deadline) {
+				http.Error(w, "no mail", http.StatusGatewayTimeout)
+				return
+			}
+			if _, err := h.UsersrvRes.Mail.RunOnce(r.Context()); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		msgs := h.Inbox.To(to)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"link": mailLink.FindString(msgs[len(msgs)-1].Text)})
+	})
+}
+
 func throwawayCert(t *testing.T) tls.Certificate {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -129,9 +188,10 @@ func TestOzidBrowserChain(t *testing.T) {
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 	origin := func(label string) string { return fmt.Sprintf("https://%s.%s:%d", label, ozidBrowserSite, port) }
-	idO, apiO, metroO, tripO, evilO := origin("id"), origin("api"), origin("metro"), origin("trip"), origin("sibling")
+	idO, apiO, metroO, tripO, evilO, mailO := origin("id"), origin("api"), origin("metro"), origin("trip"), origin("sibling"), origin("mailbox")
 
 	h := NewChainHarness(t, ChainHTTPOptions{
+		MailOzidOrigin: idO,
 		Configure: func(cfg *bffconfig.Config, _ string) {
 			cfg.Auth.CookieSecure = true
 			cfg.CORSAllowedOrigins = []string{idO, metroO, tripO}
@@ -160,12 +220,15 @@ func TestOzidBrowserChain(t *testing.T) {
 	}
 	proxy := httputil.NewSingleHostReverseProxy(bff) // keeps the browser's Host and Origin
 	static := http.FileServer(http.Dir(dist))
+	landing := ozidLandingHeaders(apiO)
+	mail := mailbox(h)
 	mux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		label, _, _ := strings.Cut(r.Host, ".")
 		switch label {
 		case "api":
 			proxy.ServeHTTP(w, r)
 		case "id":
+			isLanding := landingPath.MatchString(r.URL.Path) // before the single-page fallback rewrites it
 			if _, err := os.Stat(filepath.Join(dist, filepath.Clean("/"+r.URL.Path))); err != nil {
 				r.URL.Path = "/" // the single-page app's own routes
 			}
@@ -174,7 +237,15 @@ func TestOzidBrowserChain(t *testing.T) {
 			// proven to run under it.
 			w.Header().Set("Content-Security-Policy", ozidCSP(apiO))
 			w.Header().Set("X-Frame-Options", "DENY")
+			if isLanding {
+				// The mail landing pages carry what the image's landing location gives them.
+				for name, value := range landing {
+					w.Header().Set(name, value)
+				}
+			}
 			static.ServeHTTP(w, r)
+		case "mailbox":
+			mail.ServeHTTP(w, r)
 		case "metro", "trip", "sibling":
 			app := map[string]string{"metro": "metro", "trip": "trip-map", "sibling": "trip-map"}[label]
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -187,9 +258,10 @@ func TestOzidBrowserChain(t *testing.T) {
 	go func() { _ = front.ServeTLS(ln, "", "") }()
 	t.Cleanup(func() { _ = front.Close() })
 
-	stack, _ := json.Marshal(map[string]string{
-		"id": idO, "api": apiO, "metro": metroO, "trip": tripO, "evil": evilO,
-		"email": subject + "@example.com", "password": E2EPassword, "displayName": display,
+	stack, _ := json.Marshal(map[string]any{
+		"id": idO, "api": apiO, "metro": metroO, "trip": tripO, "evil": evilO, "mailbox": mailO,
+		"landingHeaders": landing,
+		"email":          subject + "@example.com", "password": E2EPassword, "displayName": display,
 	})
 	run(t, root, []string{"OZID_REAL_STACK=" + string(stack)},
 		"npx", "playwright", "test", "-c", "apps/ozid/playwright.real.config.ts")

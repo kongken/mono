@@ -68,7 +68,8 @@ type AccountServiceClient interface {
 	// has an account and whether or not the mail limits suppressed the mail; only a
 	// public limit (client address, service-wide mail cap) is RESOURCE_EXHAUSTED.
 	// Only an address without any account gets a challenge and a mail. Malformed
-	// email or an unknown app_id is INVALID_ARGUMENT. No password is accepted here.
+	// email or a malformed return context is INVALID_ARGUMENT. The mail link always
+	// points at the central OzID origin (auth.apps.ozid). No password is accepted here.
 	RequestRegistration(ctx context.Context, in *RequestRegistrationRequest, opts ...grpc.CallOption) (*RequestRegistrationResponse, error)
 	// CompleteRegistration consumes a registration token and creates the active
 	// account with the given password and nickname for the address the token was
@@ -280,7 +281,8 @@ type AccountServiceServer interface {
 	// has an account and whether or not the mail limits suppressed the mail; only a
 	// public limit (client address, service-wide mail cap) is RESOURCE_EXHAUSTED.
 	// Only an address without any account gets a challenge and a mail. Malformed
-	// email or an unknown app_id is INVALID_ARGUMENT. No password is accepted here.
+	// email or a malformed return context is INVALID_ARGUMENT. The mail link always
+	// points at the central OzID origin (auth.apps.ozid). No password is accepted here.
 	RequestRegistration(context.Context, *RequestRegistrationRequest) (*RequestRegistrationResponse, error)
 	// CompleteRegistration consumes a registration token and creates the active
 	// account with the given password and nickname for the address the token was

@@ -11,6 +11,7 @@ import (
 	"github.com/kongken/mono/internal/bff/ent/schema"
 	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/bff/session"
+	"github.com/kongken/mono/internal/bff/usersrv"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -45,19 +46,59 @@ func NewHandler(svc *Service, csrfTTL time.Duration) *Handler {
 	return &Handler{svc: svc, csrfCookieTTL: csrfTTL}
 }
 
+// bindReturn validates the return context of a mail request against the navigation
+// registry and returns the canonical form to bind to the challenge. No context is
+// fine. A context the registry refuses is INVALID_ARGUMENT, before anything is counted
+// or written. Without a configured registry nothing can be validated, so the context is
+// dropped instead of trusted: the flow works and returns to no app.
+func (h *Handler) bindReturn(appID, path string) (usersrv.Return, error) {
+	if appID == "" && path == "" {
+		return usersrv.Return{}, nil
+	}
+	if h.navigation == nil {
+		return usersrv.Return{}, nil
+	}
+	target, err := h.navigation.Resolve(appID, path)
+	if err != nil {
+		return usersrv.Return{}, connect.NewError(connect.CodeInvalidArgument, errors.New("navigation target not allowed"))
+	}
+	return usersrv.Return{AppID: target.AppID, Path: target.Path}, nil
+}
+
+// boundReturn re-validates the context a consumed challenge carries. The registry may
+// have changed since the mail was requested, and the challenge may predate the
+// context: whatever is not allowed now is dropped, never an error, because the account
+// step already succeeded and its user must land somewhere safe (OzID).
+func (h *Handler) boundReturn(ret usersrv.Return) (appID, path string) {
+	if ret.AppID == "" || h.navigation == nil {
+		return "", ""
+	}
+	target, err := h.navigation.Resolve(ret.AppID, ret.Path)
+	if err != nil {
+		return "", ""
+	}
+	return target.AppID, target.Path
+}
+
 func (h *Handler) RequestRegistration(ctx context.Context, req *connect.Request[bffv1.RequestRegistrationRequest]) (*connect.Response[bffv1.RequestRegistrationResponse], error) {
-	if err := h.svc.users.RequestRegistration(ctx, req.Msg.GetEmail(), req.Msg.GetAppId()); err != nil {
+	ret, err := h.bindReturn(req.Msg.GetAppId(), req.Msg.GetReturnPath())
+	if err != nil {
+		return nil, err
+	}
+	if err := h.svc.users.RequestRegistration(ctx, req.Msg.GetEmail(), ret); err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&bffv1.RequestRegistrationResponse{Message: registrationNotice}), nil
 }
 
 func (h *Handler) CompleteRegistration(ctx context.Context, req *connect.Request[bffv1.CompleteRegistrationRequest]) (*connect.Response[bffv1.CompleteRegistrationResponse], error) {
-	if err := h.svc.users.CompleteRegistration(ctx, req.Msg.GetToken(), req.Msg.GetPassword(), req.Msg.GetDisplayName()); err != nil {
+	ret, err := h.svc.users.CompleteRegistration(ctx, req.Msg.GetToken(), req.Msg.GetPassword(), req.Msg.GetDisplayName())
+	if err != nil {
 		return nil, err
 	}
 	// No session: verifying an address proves the mailbox, not a login.
-	return connect.NewResponse(&bffv1.CompleteRegistrationResponse{}), nil
+	appID, path := h.boundReturn(ret)
+	return connect.NewResponse(&bffv1.CompleteRegistrationResponse{AppId: appID, ReturnPath: path}), nil
 }
 
 func (h *Handler) LoginWithEmail(ctx context.Context, req *connect.Request[bffv1.LoginWithEmailRequest]) (*connect.Response[bffv1.LoginWithEmailResponse], error) {
@@ -71,17 +112,23 @@ func (h *Handler) LoginWithEmail(ctx context.Context, req *connect.Request[bffv1
 }
 
 func (h *Handler) RequestPasswordReset(ctx context.Context, req *connect.Request[bffv1.RequestPasswordResetRequest]) (*connect.Response[bffv1.RequestPasswordResetResponse], error) {
-	if err := h.svc.users.RequestPasswordReset(ctx, req.Msg.GetEmail(), req.Msg.GetAppId()); err != nil {
+	ret, err := h.bindReturn(req.Msg.GetAppId(), req.Msg.GetReturnPath())
+	if err != nil {
+		return nil, err
+	}
+	if err := h.svc.users.RequestPasswordReset(ctx, req.Msg.GetEmail(), ret); err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&bffv1.RequestPasswordResetResponse{Message: resetNotice}), nil
 }
 
 func (h *Handler) ResetPassword(ctx context.Context, req *connect.Request[bffv1.ResetPasswordRequest]) (*connect.Response[bffv1.ResetPasswordResponse], error) {
-	if err := h.svc.users.ResetPassword(ctx, req.Msg.GetToken(), req.Msg.GetNewPassword()); err != nil {
+	ret, err := h.svc.users.ResetPassword(ctx, req.Msg.GetToken(), req.Msg.GetNewPassword())
+	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&bffv1.ResetPasswordResponse{}), nil
+	appID, path := h.boundReturn(ret)
+	return connect.NewResponse(&bffv1.ResetPasswordResponse{AppId: appID, ReturnPath: path}), nil
 }
 
 func (h *Handler) Logout(ctx context.Context, req *connect.Request[bffv1.LogoutRequest]) (*connect.Response[bffv1.LogoutResponse], error) {

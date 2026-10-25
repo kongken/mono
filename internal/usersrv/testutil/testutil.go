@@ -74,6 +74,14 @@ func Schema(t testing.TB) (*sql.DB, string) {
 // DB returns an Ent client bound to a throwaway schema with the tables created.
 func DB(t testing.TB) *ent.Client {
 	t.Helper()
+	db, _ := DBWithSQL(t)
+	return db
+}
+
+// DBWithSQL is DB plus the scoped *sql.DB under it, for tests that must write a row
+// state no code path produces (a hand-edited or pre-migration row).
+func DBWithSQL(t testing.TB) (*ent.Client, *sql.DB) {
+	t.Helper()
 	scoped, _ := Schema(t)
 	db := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, scoped)))
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -81,7 +89,7 @@ func DB(t testing.TB) *ent.Client {
 	if err := db.Schema.Create(ctx); err != nil {
 		t.Fatal(err)
 	}
-	return db
+	return db, scoped
 }
 
 // Redis returns a client and a unique key prefix, and removes the keys under

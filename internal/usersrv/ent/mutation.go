@@ -51,6 +51,8 @@ type AccountTokenMutation struct {
 	issued_auth_version    *int64
 	addissued_auth_version *int64
 	app_id                 *string
+	return_app_id          *string
+	return_path            *string
 	expires_at             *time.Time
 	consumed_at            *time.Time
 	created_at             *time.Time
@@ -427,6 +429,104 @@ func (m *AccountTokenMutation) ResetAppID() {
 	m.app_id = nil
 }
 
+// SetReturnAppID sets the "return_app_id" field.
+func (m *AccountTokenMutation) SetReturnAppID(s string) {
+	m.return_app_id = &s
+}
+
+// ReturnAppID returns the value of the "return_app_id" field in the mutation.
+func (m *AccountTokenMutation) ReturnAppID() (r string, exists bool) {
+	v := m.return_app_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReturnAppID returns the old "return_app_id" field's value of the AccountToken entity.
+// If the AccountToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountTokenMutation) OldReturnAppID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReturnAppID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReturnAppID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReturnAppID: %w", err)
+	}
+	return oldValue.ReturnAppID, nil
+}
+
+// ClearReturnAppID clears the value of the "return_app_id" field.
+func (m *AccountTokenMutation) ClearReturnAppID() {
+	m.return_app_id = nil
+	m.clearedFields[accounttoken.FieldReturnAppID] = struct{}{}
+}
+
+// ReturnAppIDCleared returns if the "return_app_id" field was cleared in this mutation.
+func (m *AccountTokenMutation) ReturnAppIDCleared() bool {
+	_, ok := m.clearedFields[accounttoken.FieldReturnAppID]
+	return ok
+}
+
+// ResetReturnAppID resets all changes to the "return_app_id" field.
+func (m *AccountTokenMutation) ResetReturnAppID() {
+	m.return_app_id = nil
+	delete(m.clearedFields, accounttoken.FieldReturnAppID)
+}
+
+// SetReturnPath sets the "return_path" field.
+func (m *AccountTokenMutation) SetReturnPath(s string) {
+	m.return_path = &s
+}
+
+// ReturnPath returns the value of the "return_path" field in the mutation.
+func (m *AccountTokenMutation) ReturnPath() (r string, exists bool) {
+	v := m.return_path
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReturnPath returns the old "return_path" field's value of the AccountToken entity.
+// If the AccountToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountTokenMutation) OldReturnPath(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReturnPath is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReturnPath requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReturnPath: %w", err)
+	}
+	return oldValue.ReturnPath, nil
+}
+
+// ClearReturnPath clears the value of the "return_path" field.
+func (m *AccountTokenMutation) ClearReturnPath() {
+	m.return_path = nil
+	m.clearedFields[accounttoken.FieldReturnPath] = struct{}{}
+}
+
+// ReturnPathCleared returns if the "return_path" field was cleared in this mutation.
+func (m *AccountTokenMutation) ReturnPathCleared() bool {
+	_, ok := m.clearedFields[accounttoken.FieldReturnPath]
+	return ok
+}
+
+// ResetReturnPath resets all changes to the "return_path" field.
+func (m *AccountTokenMutation) ResetReturnPath() {
+	m.return_path = nil
+	delete(m.clearedFields, accounttoken.FieldReturnPath)
+}
+
 // SetExpiresAt sets the "expires_at" field.
 func (m *AccountTokenMutation) SetExpiresAt(t time.Time) {
 	m.expires_at = &t
@@ -582,7 +682,7 @@ func (m *AccountTokenMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AccountTokenMutation) Fields() []string {
-	fields := make([]string, 0, 9)
+	fields := make([]string, 0, 11)
 	if m.token_hash != nil {
 		fields = append(fields, accounttoken.FieldTokenHash)
 	}
@@ -600,6 +700,12 @@ func (m *AccountTokenMutation) Fields() []string {
 	}
 	if m.app_id != nil {
 		fields = append(fields, accounttoken.FieldAppID)
+	}
+	if m.return_app_id != nil {
+		fields = append(fields, accounttoken.FieldReturnAppID)
+	}
+	if m.return_path != nil {
+		fields = append(fields, accounttoken.FieldReturnPath)
 	}
 	if m.expires_at != nil {
 		fields = append(fields, accounttoken.FieldExpiresAt)
@@ -630,6 +736,10 @@ func (m *AccountTokenMutation) Field(name string) (ent.Value, bool) {
 		return m.IssuedAuthVersion()
 	case accounttoken.FieldAppID:
 		return m.AppID()
+	case accounttoken.FieldReturnAppID:
+		return m.ReturnAppID()
+	case accounttoken.FieldReturnPath:
+		return m.ReturnPath()
 	case accounttoken.FieldExpiresAt:
 		return m.ExpiresAt()
 	case accounttoken.FieldConsumedAt:
@@ -657,6 +767,10 @@ func (m *AccountTokenMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldIssuedAuthVersion(ctx)
 	case accounttoken.FieldAppID:
 		return m.OldAppID(ctx)
+	case accounttoken.FieldReturnAppID:
+		return m.OldReturnAppID(ctx)
+	case accounttoken.FieldReturnPath:
+		return m.OldReturnPath(ctx)
 	case accounttoken.FieldExpiresAt:
 		return m.OldExpiresAt(ctx)
 	case accounttoken.FieldConsumedAt:
@@ -713,6 +827,20 @@ func (m *AccountTokenMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetAppID(v)
+		return nil
+	case accounttoken.FieldReturnAppID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReturnAppID(v)
+		return nil
+	case accounttoken.FieldReturnPath:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReturnPath(v)
 		return nil
 	case accounttoken.FieldExpiresAt:
 		v, ok := value.(time.Time)
@@ -786,6 +914,12 @@ func (m *AccountTokenMutation) ClearedFields() []string {
 	if m.FieldCleared(accounttoken.FieldIssuedAuthVersion) {
 		fields = append(fields, accounttoken.FieldIssuedAuthVersion)
 	}
+	if m.FieldCleared(accounttoken.FieldReturnAppID) {
+		fields = append(fields, accounttoken.FieldReturnAppID)
+	}
+	if m.FieldCleared(accounttoken.FieldReturnPath) {
+		fields = append(fields, accounttoken.FieldReturnPath)
+	}
 	if m.FieldCleared(accounttoken.FieldConsumedAt) {
 		fields = append(fields, accounttoken.FieldConsumedAt)
 	}
@@ -808,6 +942,12 @@ func (m *AccountTokenMutation) ClearField(name string) error {
 		return nil
 	case accounttoken.FieldIssuedAuthVersion:
 		m.ClearIssuedAuthVersion()
+		return nil
+	case accounttoken.FieldReturnAppID:
+		m.ClearReturnAppID()
+		return nil
+	case accounttoken.FieldReturnPath:
+		m.ClearReturnPath()
 		return nil
 	case accounttoken.FieldConsumedAt:
 		m.ClearConsumedAt()
@@ -837,6 +977,12 @@ func (m *AccountTokenMutation) ResetField(name string) error {
 		return nil
 	case accounttoken.FieldAppID:
 		m.ResetAppID()
+		return nil
+	case accounttoken.FieldReturnAppID:
+		m.ResetReturnAppID()
+		return nil
+	case accounttoken.FieldReturnPath:
+		m.ResetReturnPath()
 		return nil
 	case accounttoken.FieldExpiresAt:
 		m.ResetExpiresAt()

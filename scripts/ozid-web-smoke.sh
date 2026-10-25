@@ -142,6 +142,22 @@ for route in /login /security /index.html; do
   check "$route answers 200 (single-page fallback)" status_is "$tmp/$name.head" 200
   expect_headers "$name" "$API_ORIGIN"
 done
+# The mail landing pages (#80): the token lives in the fragment, so these pages must never be
+# cached, must not leak a Referer, and may only run same-origin scripts. They are served by the
+# explicit location, with a trailing slash too, and they carry the same strict headers.
+for route in /account/verify-email /account/reset-password /account/verify-email/ /account/reset-password/; do
+  name="landing$(printf '%s' "$route" | tr -c 'a-z' '_')"
+  get "$BASE$route" "$name"
+  check "$route answers 200 with the shell" status_is "$tmp/$name.head" 200
+  check "$route is the OzID shell" grep -q 'id="root"' "$tmp/$name.body"
+  check "$route is never cached" header_is "$tmp/$name.head" cache-control no-store
+  expect_headers "$name" "$API_ORIGIN"
+done
+# A fragment never reaches the server, but a token that was put in the query by mistake must not
+# be cached or leak either (and is not special-cased: same page, same headers).
+get "$BASE/account/reset-password?token=not-a-real-token" landing_query
+check "a query on a landing page is not cached" header_is "$tmp/landing_query.head" cache-control no-store
+check "a query on a landing page leaks no Referer" header_is "$tmp/landing_query.head" referrer-policy no-referrer
 # OzID never proxies to the BFF: an API path is not answered by anything behind this server.
 get "$BASE/api/bff.v1.AuthService/Me" api
 check "no /api proxy: the path gets the page, not a backend answer" grep -q 'id="root"' "$tmp/api.body"
@@ -150,6 +166,9 @@ check "no /api proxy: the path gets the page, not a backend answer" grep -q 'id=
 start "$OTHER_ORIGIN"
 get "$START_URL/" other
 expect_headers other "$OTHER_ORIGIN"
+get "$START_URL/account/verify-email" other_landing
+expect_headers other_landing "$OTHER_ORIGIN"
+check "other_landing: never cached" header_is "$tmp/other_landing.head" cache-control no-store
 
 # --- a missing or illegal API_ORIGIN keeps the container from starting -----------------------
 expect_refused() { # expect_refused <description> [API_ORIGIN value; omit the variable when unset]

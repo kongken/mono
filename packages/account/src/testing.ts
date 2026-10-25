@@ -15,7 +15,10 @@ export type FakeFailure = { status: number; code: string; message: string };
 
 type FakeAccount = { id: string; email: string; password: string; displayName: string; avatarUrl: string; roles: string[] };
 
-export type FakeMail = { kind: "registration" | "reset"; email: string; token: string; link: string };
+/** The return context bound to a mailed token: what the BFF validated when the mail was requested. */
+export type FakeReturn = { appId: string; returnPath: string };
+
+export type FakeMail = { kind: "registration" | "reset"; email: string; token: string; link: string; bound: FakeReturn | null };
 
 type Body = Record<string, any>;
 type Reply = { status?: number; body: unknown };
@@ -67,7 +70,7 @@ export function createFakeAccounts(
     otherSessions: 0,
     mails: [] as FakeMail[],
     /** Mailed tokens: kind, mailbox and whether they were used. */
-    tokens: new Map<string, { kind: "registration" | "reset"; email: string; used: boolean }>(),
+    tokens: new Map<string, { kind: "registration" | "reset"; email: string; used: boolean; expired: boolean; bound: FakeReturn | null }>(),
     csrfIssued: 0,
     calls: [] as string[],
     /** Bodies of the calls, by method, to assert what was (not) sent. */
@@ -96,18 +99,38 @@ export function createFakeAccounts(
   const iso = (ms: number) => new Date(ms).toISOString();
   const completed = (mutationId: string) => ({ deletion: { state: "ACCOUNT_DELETION_STATE_COMPLETED", mutationId, products: PRODUCTS, completedProducts: PRODUCTS } });
 
-  const mail = (kind: FakeMail["kind"], email: string): FakeMail => {
+  const mail = (kind: FakeMail["kind"], email: string, bound: FakeReturn | null): FakeMail => {
     const token = b64url(32);
-    state.tokens.set(token, { kind, email, used: false });
+    state.tokens.set(token, { kind, email, used: false, expired: false, bound });
     const path = kind === "registration" ? "/account/verify-email" : "/account/reset-password";
-    const m = { kind, email, token, link: `${path}#token=${token}` };
+    // The link never carries the context: it travels with the challenge, server side.
+    const m = { kind, email, token, link: `${path}#token=${token}`, bound };
     state.mails.push(m);
     return m;
+  };
+  /** The BFF's rule for a mail request: no context, a registered one, or a refusal (undefined). */
+  const bind = (b: Body): FakeReturn | null | undefined => {
+    const appId = b.appId ?? "";
+    const returnPath = b.returnPath ?? "";
+    if (!appId && !returnPath) return null;
+    const registry = options.navigation;
+    if (!registry) return null; // nothing can validate it: dropped, not trusted
+    const app = registry[appId];
+    const path = returnPath || app?.defaultPath || "/";
+    if (!appId || !app || !pathAllowed(app, path)) return undefined;
+    return { appId, returnPath: path };
+  };
+  /** The BFF's rule on the way out: re-validated now, dropped (never an error) when no longer allowed. */
+  const bound = (t: { bound: FakeReturn | null }) => {
+    const registry = options.navigation;
+    const ctx = t.bound;
+    const app = ctx && registry?.[ctx.appId];
+    return ctx && app && pathAllowed(app, ctx.returnPath) ? { appId: ctx.appId, returnPath: ctx.returnPath } : {};
   };
   const findAccount = (email: string) => state.accounts.find((a) => a.email === email.trim().toLowerCase());
   const consumeToken = (token: string, kind: FakeMail["kind"]) => {
     const t = state.tokens.get(token);
-    if (!t || t.used || t.kind !== kind) return null;
+    if (!t || t.used || t.expired || t.kind !== kind) return null;
     return t;
   };
 
@@ -135,7 +158,9 @@ export function createFakeAccounts(
       if (state.mailRefusal) return { status: state.mailRefusal.status, body: state.mailRefusal };
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.email ?? "")) return failure(400, "invalid_argument", "email: invalid format");
       // The same answer whether or not the address can register; mail goes out only when it can.
-      if (!findAccount(b.email)) mail("registration", b.email.trim().toLowerCase());
+      const ctx = bind(b);
+      if (ctx === undefined) return failure(400, "invalid_argument", "navigation target not allowed");
+      if (!findAccount(b.email)) mail("registration", b.email.trim().toLowerCase(), ctx);
       return { body: { message: "ok" } };
     },
     CompleteRegistration: (b) => {
@@ -146,7 +171,8 @@ export function createFakeAccounts(
       if (!t || findAccount(t.email)) return failure(400, "failed_precondition", "link is not usable");
       t.used = true;
       state.accounts.push({ id: `user-${state.nextId++}`, email: t.email, password: b.password, displayName: (b.displayName ?? "").trim() || "旅行者", avatarUrl: "", roles: [] });
-      return { body: {} };
+      // Signs nobody in and leaves the browser's own session alone; only the bound context comes back.
+      return { body: bound(t) };
     },
     LoginWithEmail: (b) => {
       const a = findAccount(b.email ?? "");
@@ -158,7 +184,9 @@ export function createFakeAccounts(
     RequestPasswordReset: (b) => {
       if (state.mailRefusal) return { status: state.mailRefusal.status, body: state.mailRefusal };
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.email ?? "")) return failure(400, "invalid_argument", "email: invalid format");
-      if (findAccount(b.email)) mail("reset", b.email.trim().toLowerCase());
+      const ctx = bind(b);
+      if (ctx === undefined) return failure(400, "invalid_argument", "navigation target not allowed");
+      if (findAccount(b.email)) mail("reset", b.email.trim().toLowerCase(), ctx);
       return { body: { message: "ok" } };
     },
     ResetPassword: (b) => {
@@ -170,7 +198,7 @@ export function createFakeAccounts(
       t.used = true;
       a.password = b.newPassword;
       if (state.current === a) set(null);
-      return { body: {} };
+      return { body: bound(t) };
     },
 
     Me: () =>
@@ -292,6 +320,11 @@ export function createFakeAccounts(
     },
     /** Pretends the last password check on this session is older than 15 minutes. */
     ageAuthentication: () => void (state.authenticatedAt = Date.now() - 16 * 60_000),
+    /** The mailed link is past its lifetime. */
+    expireToken(token: string) {
+      const t = state.tokens.get(token);
+      if (t) t.expired = true;
+    },
     lastMail: (kind?: FakeMail["kind"]) => [...state.mails].reverse().find((m) => !kind || m.kind === kind),
   };
 }

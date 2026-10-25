@@ -117,15 +117,27 @@ func asUser(ctx context.Context, userID string) context.Context {
 	return rpcauth.WithCall(ctx, c)
 }
 
-func (c *Client) RequestRegistration(ctx context.Context, email, appID string) error {
-	_, err := c.account.RequestRegistration(anonymous(ctx), &usersrvv1.RequestRegistrationRequest{Email: email, AppId: appID})
+// Return is the return context usersrv binds to a mail challenge: the app the user
+// came from and a pathname in it. The zero value is no context. usersrv checks only its
+// form; the BFF validates its meaning against the navigation registry on both sides.
+type Return struct {
+	AppID string
+	Path  string
+}
+
+func (c *Client) RequestRegistration(ctx context.Context, email string, ret Return) error {
+	_, err := c.account.RequestRegistration(anonymous(ctx), &usersrvv1.RequestRegistrationRequest{
+		Email: email, AppId: ret.AppID, ReturnPath: ret.Path})
 	return MapError(err)
 }
 
-func (c *Client) CompleteRegistration(ctx context.Context, token, password, displayName string) error {
-	_, err := c.account.CompleteRegistration(anonymous(ctx), &usersrvv1.CompleteRegistrationRequest{
+func (c *Client) CompleteRegistration(ctx context.Context, token, password, displayName string) (Return, error) {
+	res, err := c.account.CompleteRegistration(anonymous(ctx), &usersrvv1.CompleteRegistrationRequest{
 		Token: token, Password: password, DisplayName: displayName})
-	return MapError(err)
+	if err != nil {
+		return Return{}, MapError(err)
+	}
+	return Return{AppID: res.GetAppId(), Path: res.GetReturnPath()}, nil
 }
 
 // Authenticate checks an email and password. A failure that says the credentials
@@ -141,14 +153,18 @@ func (c *Client) Authenticate(ctx context.Context, email, password string) (Logi
 	return Login{UserID: res.GetUserId(), Profile: profile(res.GetProfile()), Roles: res.GetRoles(), AuthVersion: res.GetAuthVersion()}, nil
 }
 
-func (c *Client) RequestPasswordReset(ctx context.Context, email, appID string) error {
-	_, err := c.account.RequestPasswordReset(anonymous(ctx), &usersrvv1.RequestPasswordResetRequest{Email: email, AppId: appID})
+func (c *Client) RequestPasswordReset(ctx context.Context, email string, ret Return) error {
+	_, err := c.account.RequestPasswordReset(anonymous(ctx), &usersrvv1.RequestPasswordResetRequest{
+		Email: email, AppId: ret.AppID, ReturnPath: ret.Path})
 	return MapError(err)
 }
 
-func (c *Client) ResetPassword(ctx context.Context, token, newPassword string) error {
-	_, err := c.account.ResetPassword(anonymous(ctx), &usersrvv1.ResetPasswordRequest{Token: token, NewPassword: newPassword})
-	return MapError(err)
+func (c *Client) ResetPassword(ctx context.Context, token, newPassword string) (Return, error) {
+	res, err := c.account.ResetPassword(anonymous(ctx), &usersrvv1.ResetPasswordRequest{Token: token, NewPassword: newPassword})
+	if err != nil {
+		return Return{}, MapError(err)
+	}
+	return Return{AppID: res.GetAppId(), Path: res.GetReturnPath()}, nil
 }
 
 // AuthState reads the status, auth_version and current roles of userID. It returns

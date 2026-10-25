@@ -589,7 +589,7 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 | --- | --- |
 | `users` | UUID 主键、`email_canonical`（唯一）、`email_verified_at`、`password_hash`（Sensitive，PHC 字符串）、`status`、`auth_version`（≥1）、`display_name`、`avatar_url`、`profile_version`、注销标记（`deletion_started_at`、`deletion_mutation_id`）、时间戳 |
 | `user_roles` | `(user_id, role)` 唯一，外键 `ON DELETE CASCADE`；目前只有 `metro-admin` |
-| `account_tokens` | 唯一的 32 字节 `token_hash`（只存哈希）、用途（注册/重置）及与用途绑定的约束、过期与使用时间；由 P2 的 outbox 签发，P3 的注册/重置流程消费 |
+| `account_tokens` | 唯一的 32 字节 `token_hash`（只存哈希）、用途（注册/重置）及与用途绑定的约束、过期与使用时间、可空的返回上下文 `return_app_id`/`return_path`（成对出现）；由 P2 的 outbox 签发，P3 的注册/重置流程消费 |
 | `security_audit` | 用户 ID（可空）、操作者、动作、结果、请求 ID，以及 CLI 的 `reason`；只增不改，不含邮箱 |
 | `deletion_tombstones` | 用户 UUID、工作流 ID、完成与过期时间；不含邮箱 |
 
@@ -623,7 +623,7 @@ bin/usersrv-admin -config config.usersrv.yaml disable -user-id <uuid> -operator 
 - 任务固定签发时的 provider 与 `mail.generation`，与当前不一致则取消（`config_changed`）。切换厂商：先排空队列、递增 `generation`、换 provider，之后用户重新申请。轮换加密 key：新增 key，设为 `active_key_id`，旧 key 保留到不再有用它加密的任务；队列里任务缺少解密 key 时 usersrv 拒绝启动（`mail_key_missing`），不会悄悄丢弃。
 - 记录保留 7 天，janitor 每小时清理过期记录；`BeginDeletion`/`FinishDeletion` 取消该用户未发的账号邮件。
 
-**固定链接**：`auth.apps.<app_id>.origin` 的精确 origin（必须 HTTPS；仅在 `auth.allow_loopback_http` 开启时回环主机可用 HTTP）加固定路径 `/account/verify-email` 或 `/account/reset-password`，令牌放在 `#token=` 片段里，不进入服务端日志。收件人不能指定任何 URL 或应用。Mailgun 与 SendGrid 请求关闭点击/打开跟踪（否则令牌会经厂商域名）；SMTP2GO 需在账户里关闭。
+**固定链接**：`auth.apps.ozid.origin`（必填，中央 OzID 来源）的精确 origin（必须 HTTPS；仅在 `auth.allow_loopback_http` 开启时回环主机可用 HTTP）加固定路径 `/account/verify-email` 或 `/account/reset-password`，令牌放在 `#token=` 片段里，不进入服务端日志。所有新邮件都链接到这里，与申请来自哪个应用无关；收件人和请求都不能指定任何 URL、origin 或链接用的应用。`auth.apps` 里其他条目（`trip-map`、`metro`）只在过渡期服务升级前签发或已排队的旧邮件（见 [OzID 功能描述](ozid/features.md#邮件流程t2)）。Mailgun 与 SendGrid 请求关闭点击/打开跟踪（否则令牌会经厂商域名）；SMTP2GO 需在账户里关闭。
 
 **限流**（`outbox.Guard`，Redis 原子，邮箱按独立 HMAC 摘要作 key，Redis 不可用时返回 `UNAVAILABLE`）：顺序为每客户端 IP、全服务、每邮箱 60 秒冷却、每邮箱每用途、每邮箱合计。邮箱维度超限为“抑制”（调用方仍应给统一的中性成功应答，不发信，避免泄露邮箱是否存在）；IP 与全服务超限返回 `RESOURCE_EXHAUSTED`。默认值见示例配置的 `rate_limit`。
 
@@ -637,16 +637,16 @@ bin/usersrv-admin -config config.usersrv.yaml disable -user-id <uuid> -operator 
 
 **注册验证**（先验证邮箱再设置密码，不自动登录）：
 
-- `RequestRegistration(email, app_id)`：邮箱语法错误或 `app_id` 不在 `auth.apps` 是 `INVALID_ARGUMENT`（字段名）；语法正确时**一律返回空成功**。只有该邮箱没有任何账号（含禁用、注销中）时，才在同一事务里写 `registration` 令牌与加密的 `mail_jobs`；已有账号的地址只写一行不带邮箱的 `ignored` 审计。邮箱维度限流（冷却、每小时上限、合计）只抑制不发信、仍返回成功；IP 与全服务限流返回 `RESOURCE_EXHAUSTED`；Redis 不可用返回 `UNAVAILABLE` 且不入队。不接受密码，不创建用户。重发不作废尚未过期的旧链接。
-- `CompleteRegistration(token, password, display_name)`：先校验密码与昵称策略（与令牌无关，失败不消费令牌），再读令牌，最后在一个事务里：按邮箱锁定该地址全部注册令牌（固定顺序，同邮箱完成串行）、确认本令牌存在且未消费未过期、地址仍无账号，创建已验证的 `active` 账号（新 UUID，`auth_version=1`），消费该地址的全部注册令牌并取消它们尚未发出的邮件，审计 `account.create` 同事务。令牌格式错误、不存在、用途不符（如重置令牌）、过期、已消费、邮箱已被注册或并发落败，**全部是同一个** `FAILED_PRECONDITION`/`TOKEN_INVALID`；邮箱唯一索引冲突同样按落败处理。验证成功不返回会话，也不返回任何数据。
+- `RequestRegistration(email, app_id, return_path)`：邮箱语法错误或返回上下文形态不合法（`app_id` 不是稳定应用 ID、`return_path` 不是规范 pathname）是 `INVALID_ARGUMENT`（字段名）；`app_id`/`return_path` 只是返回上下文，不选择链接 origin，随挑战存入 `account_tokens.return_app_id/return_path`（两个可空列；应用与路径是否被允许由 BFF 导航注册表在入口与出口各校验一次，usersrv 只查形态）；没有配置 `auth.apps.ozid` 时返回 `UNAVAILABLE`；语法正确时**一律返回空成功**。只有该邮箱没有任何账号（含禁用、注销中）时，才在同一事务里写 `registration` 令牌与加密的 `mail_jobs`；已有账号的地址只写一行不带邮箱的 `ignored` 审计。邮箱维度限流（冷却、每小时上限、合计）只抑制不发信、仍返回成功；IP 与全服务限流返回 `RESOURCE_EXHAUSTED`；Redis 不可用返回 `UNAVAILABLE` 且不入队。不接受密码，不创建用户。重发不作废尚未过期的旧链接。
+- `CompleteRegistration(token, password, display_name)`：先校验密码与昵称策略（与令牌无关，失败不消费令牌），再读令牌，最后在一个事务里：按邮箱锁定该地址全部注册令牌（固定顺序，同邮箱完成串行）、确认本令牌存在且未消费未过期、地址仍无账号，创建已验证的 `active` 账号（新 UUID，`auth_version=1`），消费该地址的全部注册令牌并取消它们尚未发出的邮件，审计 `account.create` 同事务。令牌格式错误、不存在、用途不符（如重置令牌）、过期、已消费、邮箱已被注册或并发落败，**全部是同一个** `FAILED_PRECONDITION`/`TOKEN_INVALID`；邮箱唯一索引冲突同样按落败处理。验证成功不返回会话，只回传挑战保存的返回上下文（`app_id`、`return_path`，旧挑战为空）。
 - `auth.registration_enabled: false` 时，请求与完成都返回 `FAILED_PRECONDITION`/`REGISTRATION_CLOSED`（对所有人相同），不影响登录与找回密码；重新开启后尚未过期的链接仍可用。
 
 **登录**（`AuthenticateWithEmail`）：只接受邮箱＋密码。邮箱格式错误是字段错误；未知邮箱（做等成本虚拟校验）、错误密码、禁用、注销中**都返回同一个** `UNAUTHENTICATED`/`INVALID_CREDENTIALS`（文案 `invalid credentials`）。先按规范邮箱（10 次/15 分钟）和客户端 IP（40 次/15 分钟）计数，每次尝试都计，不论邮箱是否存在，超限在做哈希之前就返回 `RESOURCE_EXHAUSTED`。成功返回用户 ID、基础资料、角色与 `auth_version`，供 BFF 建立会话；usersrv 自己不建立会话。对已存在账号的每次尝试写一行 `login` 审计（`ok`/`wrong_password`/`inactive`），不含邮箱与密码。
 
 **找回密码**：
 
-- `RequestPasswordReset(email, app_id)`：与注册申请同样“一律成功”；只有 `active` 账号才在同一事务里（先锁用户行）签发绑定该用户与当时 `auth_version` 的 `password_reset` 令牌与邮件任务。申请本身不改密码、不改版本、不撤销任何会话。
-- `ResetPassword(token, new_password)`：目标用户取自令牌，请求里没有用户 ID。事务里先锁账号再锁令牌（与注销、角色变更的加锁顺序一致，避免死锁），要求令牌未消费未过期、账号仍 `active` 且 `auth_version` 与签发时一致，然后写入新哈希、`auth_version`＋1、消费该账号全部重置令牌并取消其未发邮件，审计 `password.reset` 同事务。过期、已消费、用途错误、账号被禁用/注销、版本变化（改密、授予/撤销角色、禁用再启用等）一律是同一个 `TOKEN_INVALID`；并发提交（同一令牌或同账号的两个令牌）只有一个成功。成功后不自动登录；旧会话与管理令牌在下一次 `GetAuthState` 复核时因版本不符而失效。
+- `RequestPasswordReset(email, app_id, return_path)`：与注册申请同样“一律成功”（返回上下文规则相同）；只有 `active` 账号才在同一事务里（先锁用户行）签发绑定该用户与当时 `auth_version` 的 `password_reset` 令牌与邮件任务。申请本身不改密码、不改版本、不撤销任何会话。
+- `ResetPassword(token, new_password)`：目标用户取自令牌，请求里没有用户 ID。事务里先锁账号再锁令牌（与注销、角色变更的加锁顺序一致，避免死锁），要求令牌未消费未过期、账号仍 `active` 且 `auth_version` 与签发时一致，然后写入新哈希、`auth_version`＋1、消费该账号全部重置令牌并取消其未发邮件，审计 `password.reset` 同事务。过期、已消费、用途错误、账号被禁用/注销、版本变化（改密、授予/撤销角色、禁用再启用等）一律是同一个 `TOKEN_INVALID`；并发提交（同一令牌或同账号的两个令牌）只有一个成功。成功后不自动登录，只回传保存的返回上下文；旧会话与管理令牌在下一次 `GetAuthState` 复核时因版本不符而失效。
 
 **限流**（§10，Redis 原子，Redis 不可用时返回 `UNAVAILABLE`）：令牌提交（注册完成与重置共用计数）每 IP 30 次/15 分钟、每令牌摘要 5 次/15 分钟，成功与失败都计，令牌只以 SHA-256 摘要进入计数 key（再经 HMAC），不论格式或是否存在；`rate_limit.token_submit_per_ip`、`token_submit_per_token` 可配。登录使用既有的 `password_per_account`（按规范邮箱）与 `password_per_ip`。邮件申请限流见[邮件模块](#usersrv-邮件模块p2)。
 

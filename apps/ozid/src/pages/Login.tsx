@@ -4,6 +4,7 @@ import { AuthPanel } from "@kongken/account/forms";
 import { Notice } from "@kongken/account/ui";
 import { account } from "@/lib/rpc";
 import { navigate, useSearch } from "@/lib/router";
+import { pageOf } from "@/lib/routes";
 import { useSession } from "@/lib/session";
 import { goToTarget, useTarget, type TargetState } from "@/lib/target";
 import { Spinner } from "@/components/Layout";
@@ -101,7 +102,7 @@ export default function LoginPage() {
       <AuthPanel
         api={account}
         appName="OzID"
-        allowMail={false}
+        onSwitchMode={(mode) => navigate(pageOf(mode, search))}
         intro="使用邮箱和密码登录。同一个账号可在已接入的产品间通用。"
         onSignedIn={async () => {
           await refresh(true);

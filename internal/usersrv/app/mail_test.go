@@ -33,7 +33,7 @@ func TestMailWorkerRunsInProcessAndReportsReadiness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	links, _ := mailer.NewLinks(map[string]string{"trip-map": "https://map.example.com"}, false)
+	links, _ := mailer.NewLinks(map[string]string{"ozid": "https://id.example.com"}, false)
 	keys, err := (outbox.EncryptionConfig{ActiveKeyID: "k1", Keys: []outbox.KeyConfig{
 		{ID: "k1", Key: base64.StdEncoding.EncodeToString([]byte(strings.Repeat("e", 32)))}}}).Keyring()
 	if err != nil {
@@ -71,7 +71,7 @@ func TestMailWorkerRunsInProcessAndReportsReadiness(t *testing.T) {
 		t.Fatalf("readiness: %v", got)
 	}
 
-	out, err := res.Mail.IssueStandalone(context.Background(), outbox.IssueInput{Purpose: outbox.PurposeRegistration, Email: "alice@example.com", AppID: "trip-map"})
+	out, err := res.Mail.IssueStandalone(context.Background(), outbox.IssueInput{Purpose: outbox.PurposeRegistration, Email: "alice@example.com", ReturnAppID: "trip-map"})
 	if err != nil {
 		t.Fatal(err)
 	}

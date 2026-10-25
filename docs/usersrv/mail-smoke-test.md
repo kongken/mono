@@ -19,7 +19,7 @@ usersrv 的四个邮件 adapter（Mailgun、SendGrid、SMTP、SMTP2GO）只对**
    注意 `scripts/real-mail-stack.sh` 与 `E2E_REAL_MAIL=1` 的 Playwright 用例只连本地的 SMTP 接收器，**不是**厂商实测。
 3. 在 3 分钟内（worker 轮询间隔 3 秒）检查：
    - 测试邮箱收到中文标题和正文，纯文本与 HTML 两部分都正常，发件人、回复地址（若配置了 `reply_to`）正确；
-   - 邮件里的链接形如 `https://<auth.apps.<app_id>.origin>/account/verify-email#token=…`，令牌在 `#` 之后；
+   - 邮件里的链接形如 `https://<auth.apps.ozid.origin>/account/verify-email#token=…`（T2 起所有新邮件都链接到中央 OzID），令牌在 `#` 之后；
    - Mailgun 与 SendGrid 的控制台里**关闭了点击跟踪**（usersrv 已在请求里关闭；若账户级设置强制开启，链接会经厂商域名改写，令牌会暴露给厂商，必须关掉）；
    - SMTP2GO 的 API 没有逐封关闭跟踪的开关，需在账户设置里关闭点击/打开跟踪；
    - `mail_jobs` 中该任务为 `accepted`，`ciphertext` 与 `key_id` 已清空；

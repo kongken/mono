@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,6 +40,7 @@ const password = "correct horse battery"
 type stack struct {
 	h        *app.Handlers
 	db       *ent.Client
+	raw      *sql.DB
 	res      *app.Resources
 	accounts *account.Service
 	keys     testkit.Keys
@@ -79,7 +81,7 @@ func start(t *testing.T) *stack {
 // startWith is start with explicit limits and an optional mail outbox.
 func startWith(t *testing.T, lim application.Limits, mail func(*ent.Client) *outbox.Service) *stack {
 	t.Helper()
-	db := testutil.DB(t)
+	db, raw := testutil.DBWithSQL(t)
 	rdb, prefix := testutil.Redis(t)
 	keys := testkit.NewKeys(t)
 	cfg := &config.AppConfig{
@@ -117,7 +119,7 @@ func startWith(t *testing.T, lim application.Limits, mail func(*ent.Client) *out
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
-	return &stack{h: h, db: db, res: res, accounts: res.Accounts, keys: keys, conn: conn, signer: signer, rdb: rdb, prefix: prefix,
+	return &stack{h: h, db: db, raw: raw, res: res, accounts: res.Accounts, keys: keys, conn: conn, signer: signer, rdb: rdb, prefix: prefix,
 		account: usersrvv1.NewAccountServiceClient(conn), system: usersrvv1.NewSystemServiceClient(conn)}
 }
 

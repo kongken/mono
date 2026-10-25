@@ -31,11 +31,11 @@ const (
 
 // Users is the part of usersrv the account layer needs; *usersrv.Client implements it.
 type Users interface {
-	RequestRegistration(ctx context.Context, email, appID string) error
-	CompleteRegistration(ctx context.Context, token, password, displayName string) error
+	RequestRegistration(ctx context.Context, email string, ret usersrv.Return) error
+	CompleteRegistration(ctx context.Context, token, password, displayName string) (usersrv.Return, error)
 	Authenticate(ctx context.Context, email, password string) (usersrv.Login, error)
-	RequestPasswordReset(ctx context.Context, email, appID string) error
-	ResetPassword(ctx context.Context, token, newPassword string) error
+	RequestPasswordReset(ctx context.Context, email string, ret usersrv.Return) error
+	ResetPassword(ctx context.Context, token, newPassword string) (usersrv.Return, error)
 	AuthState(ctx context.Context, userID string) (usersrv.AuthState, error)
 	Account(ctx context.Context, userID string) (usersrv.Account, error)
 	VerifyPassword(ctx context.Context, userID, password string) (int64, error)

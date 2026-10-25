@@ -51,10 +51,11 @@ test.describe("direct visit", () => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("heading", { name: "登录OzID" })).toBeVisible();
-    // Fields are wired for password managers; OzID does not host registration or reset yet.
+    // Fields are wired for password managers; registration and reset are pages of OzID too.
     await expect(panel(page).getByLabel("邮箱")).toHaveAttribute("autocomplete", "username");
     await expect(panel(page).getByLabel("密码", { exact: true })).toHaveAttribute("autocomplete", "current-password");
-    await expect(panel(page).getByRole("button", { name: /注册|忘记密码/ })).toHaveCount(0);
+    await expect(panel(page).getByRole("button", { name: "忘记密码？" })).toBeVisible();
+    await expect(panel(page).getByRole("button", { name: "没有账号？申请注册" })).toBeVisible();
     expect(await noOverflow(page)).toBe(true);
 
     await fillLogin(page, ` ${EMAIL.toUpperCase()} `);
@@ -262,7 +263,7 @@ test.describe("password confirmation", () => {
 
 test("unknown pages say so and there is no other way in", async ({ page }) => {
   await setup(page);
-  for (const path of ["/register", "/admin", "/account/verify-email"]) {
+  for (const path of ["/admin", "/login/x", "/register/x", "/account"]) {
     await page.goto(path);
     await expect(page.getByRole("heading", { name: "页面不存在" })).toBeVisible();
   }

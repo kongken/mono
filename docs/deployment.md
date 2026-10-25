@@ -115,7 +115,7 @@ tripmap、BFF、metro、usersrv 与各前端为独立镜像（见 [Docker 镜像
 
 1. 在同一个 PostgreSQL 实例创建独立数据库 `metro`，复制 `config.metro.example.yaml` 为 `config.metro.yaml`，生产环境关闭 `auto_migrate` 并按文件名顺序执行 `migrations/metro/`；BFF 库另需执行新的 `migrations/bff/*_access_tokens.sql`。
 2. `config.bff.yaml` 加 `upstreams.metro`、`grpc.services.metro`，`auth.account_cleanup` 列入 `metro`，按需调整 `mcp.rate_limit_per_minute`。不部署 metro 时去掉这些项，BFF 不会挂载 metro 的任何路由。
-3. 管理员角色：在 usersrv 配置 `auth.apps.metro.origin`，用 `usersrv-admin` 给管理员账号授予 `metro-admin`；BFF 每次请求读取当前角色，上线前先让一个管理员登录并确认 `Me` 返回 `metro-admin`。
+3. 管理员角色：用 `usersrv-admin` 给管理员账号授予 `metro-admin`；BFF 每次请求读取当前角色，上线前先让一个管理员登录并确认 `Me` 返回 `metro-admin`。
 4. 边缘网关对 `/mcp/metro` 不记录请求头与访问日志（Bearer 令牌），并保证 `client_ip_header` 由网关覆盖（MCP 失败认证按该地址限流）。MCP 令牌由管理员在 `/admin/tokens` 创建，最长 90 天，明文只显示一次。
 
 ## usersrv 的部署
@@ -123,10 +123,10 @@ tripmap、BFF、metro、usersrv 与各前端为独立镜像（见 [Docker 镜像
 usersrv 是账号服务，BFF 没有它就无法登录或注册，因此是必需的。它只被 BFF 经内部 gRPC 调用，不得暴露到公网。镜像 `ghcr.io/kongken/mono-usersrv`（`deploy/usersrv/Dockerfile`，入口 `/usersrv`，运维命令 `/usersrv-admin`，容器内 HTTP 18086、gRPC 18087，配置挂载为 `/config/config.yaml`）；资源建议见 [后端初始化](backend.md#usersrv-服务账号核心p1)（内存限制不低于 512 MiB）。
 
 1. **独立数据库与 Redis。** 在同一 PostgreSQL 实例创建独立数据库 `usersrv`（Compose 示例用 `deploy/postgres/init-databases.sql` 在空数据目录首次启动时创建 `bff`、`usersrv`、`metro`；已有数据目录不会重跑，须手动创建）。usersrv 不使用 S3。Redis 必需，限流在 Redis 不可用时拒绝而不是放行；key 前缀默认 `usersrv:`，与 BFF 共用实例时保持前缀不同。
-2. **配置。** 复制 `config.usersrv.example.yaml` 为 `config.usersrv.yaml`（或放入 Consul / Secret），**逐项替换示例值**：`db_store`/`store`、`auth.hmac_key`（≥32 字节随机，`head -c 32 /dev/urandom | base64`）、`mail.encryption`（32 字节随机，与 hmac 不同）、`auth.apps.<app_id>.origin`（每个前端的精确 https 来源，必须和 BFF 的 `cors_allowed_origins` 一致；**生产关闭** `auth.allow_loopback_http`）、`mail.from_email` 与一个 provider（**生产关闭** `mail.allow_insecure_loopback`，SMTP 用 `implicit_tls` 或 `starttls`）。`auto_migrate: false`。示例里的 hmac 与加密 key 是公开的本地样例，直接用于生产等于没有保护。密钥和厂商凭据优先用 `key_file` / `hmac_key_file` 或整份配置放 Secret（布局见 `deploy/k8s/secrets.layout.example.yaml` 的 `usersrv-*`）。
+2. **配置。** 复制 `config.usersrv.example.yaml` 为 `config.usersrv.yaml`（或放入 Consul / Secret），**逐项替换示例值**：`db_store`/`store`、`auth.hmac_key`（≥32 字节随机，`head -c 32 /dev/urandom | base64`）、`mail.encryption`（32 字节随机，与 hmac 不同）、`auth.apps.ozid.origin`（必填：OzID 的精确 https 来源，所有新的注册验证与重置邮件都落到这里，必须与 BFF `navigation.apps.ozid.origin` 一致并在 `cors_allowed_origins` 里；**生产关闭** `auth.allow_loopback_http`；升级前发出的邮件仍指向产品页面，保留 `trip-map`、`metro` 条目到这些邮件过期后再删除）、`mail.from_email` 与一个 provider（**生产关闭** `mail.allow_insecure_loopback`，SMTP 用 `implicit_tls` 或 `starttls`）。`auto_migrate: false`。示例里的 hmac 与加密 key 是公开的本地样例，直接用于生产等于没有保护。密钥和厂商凭据优先用 `key_file` / `hmac_key_file` 或整份配置放 Secret（布局见 `deploy/k8s/secrets.layout.example.yaml` 的 `usersrv-*`）。
 3. **迁移。** 在发布前按文件名顺序对 `usersrv` 库执行 `migrations/usersrv/`；之后每个版本先应用新迁移再滚动 usersrv。BFF 库同样先应用 `migrations/bff/`（见[下一节](#自建用户系统的数据迁移)）。
 4. **传输与信任。** 生产使用 `grpc.transport: tls`：CA 签发的 `usersrv.pem`/`usersrv.key`（SAN 含 usersrv 的 DNS 名）挂到 usersrv，BFF 的 `grpc.services.usersrv` 设 `transport: tls` 并挂 `ca.pem`。`internal_auth.trusted_keys` 只放 BFF 的公钥 `bff.pub`（`audience: usersrv`）。h2c 不加密，而这条链路携带明文密码，仅限单机本地开发或经批准的加密隧道。
-5. **BFF 配置。** `upstreams.usersrv`（HTTP `/readyz`）与 `grpc.services.usersrv`；旧配置里的 `auth.oauth_apps`、`auth.oauth_providers`、`auth.oauth_development` 可删除（不再读取）；构建前端时不再需要 `VITE_OAUTH_APP_ID`。不部署 metro 时，usersrv 的 `auth.apps` 与 BFF 的 `auth.account_cleanup`、`upstreams`、`grpc.services` 同步去掉 metro 的条目。
+5. **BFF 配置。** `upstreams.usersrv`（HTTP `/readyz`）与 `grpc.services.usersrv`；旧配置里的 `auth.oauth_apps`、`auth.oauth_providers`、`auth.oauth_development` 可删除（不再读取）；构建前端时不再需要 `VITE_OAUTH_APP_ID`。不部署 metro 时，BFF 的 `auth.account_cleanup`、`upstreams`、`grpc.services` 同步去掉 metro 的条目（usersrv 的 `auth.apps.metro` 若为过渡期保留，过期后也删除）。
 6. **邮件。** Compose 中 usersrv 同时接入 `internal` 和 `mail-egress`：前者隔离内部服务，后者提供到邮件厂商的出站路由，不发布 usersrv 端口。自建网络策略需允许所选厂商的 HTTPS / SMTP 出站连接。usersrv 启动时不连接厂商，也不发探测邮件，配置错误只在启动校验或第一次发信时暴露。四家厂商都没有在本仓库实测，上线前按 [真实邮件手动冒烟](usersrv/mail-smoke-test.md)逐家验证，并为发信域名配置 SPF/DKIM/DMARC。切换厂商时递增 `mail.generation` 并先排空队列。
 7. **首个管理员。** 没有“第一个注册用户自动成为管理员”。先用普通流程注册并验证邮箱，再在能访问 usersrv 数据库的位置执行（`USERSRV_DATABASE_URL` 优先于命令行参数，避免密码出现在进程列表）：
 
@@ -152,7 +152,7 @@ docker run --rm --network <内部网络> -e USERSRV_DATABASE_URL='postgres://…
 5. 验证注册、登录、`Me`、业务读写、退出、会话撤销和注销后，**BFF 数据库**可手动执行（建议 `psql -v ON_ERROR_STOP=1 -f …`） `deploy/sql/bff/retire_logto_identities.sql`，删除旧的 `auth_identities`、`account_deletion_receipts`（以及更早的 `auth_sessions`、`auth_users`）。该脚本会先检查新的 `bff_account_deletions` 已存在、没有未完成的旧注销回执依赖。
 6. 恢复流量。清理后不能直接回滚至旧版本；需要恢复数据库备份。
 
-退出仅撤销当前 BFF 会话。会话在每个请求都和 usersrv 的账号状态、`auth_version`、角色核对：禁用账号、改密码、撤销角色在下一个请求生效。浏览器登录、注册与邮件落地页已在两个前端实现（P5）；usersrv 的发布见上一节，真实邮件厂商需要上线前手动验证。落地页 `/account/verify-email`、`/account/reset-password` 在 Nginx 与 Caddy 示例里带 `Referrer-Policy: no-referrer`、`Cache-Control: no-store` 并回退到 `index.html`，自建边缘需保持这三点。
+退出仅撤销当前 BFF 会话。会话在每个请求都和 usersrv 的账号状态、`auth_version`、角色核对：禁用账号、改密码、撤销角色在下一个请求生效。浏览器登录、注册与邮件落地页已在两个前端实现（P5）；usersrv 的发布见上一节，真实邮件厂商需要上线前手动验证。落地页 `/account/verify-email`、`/account/reset-password` 在 Nginx 与 Caddy 示例里（`ozid-web` 的模板为这两个路径单独声明，并限制 `script-src 'self'`）带 `Referrer-Policy: no-referrer`、`Cache-Control: no-store` 并回退到 `index.html`，自建边缘需保持这三点。
 
 ## 验证清单
 
@@ -165,7 +165,7 @@ docker run --rm --network <内部网络> -e USERSRV_DATABASE_URL='postgres://…
 
 ## 多前端共用 BFF 的部署
 
-公网 API 域名提供 `/api/bff.*` 与 `/mcp/metro`；不再有 `/auth/login` 或 `/auth/callback/*`。多个 HTTPS 同站点应用分别构建 `VITE_API_BASE_URL=https://api.example.com/api`；BFF 配置精确的 `cors_allowed_origins`，生产 `cookie_secure: true`。邮件里的链接来源由 usersrv 的 `auth.apps.<app_id>.origin` 决定。API 主机保存 host-only Cookie，应用用 credentials include 和 CSRF 响应体 token 调用；不要扩大 Domain。任意跨站点及第三方 Cookie 限制不属于支持承诺。
+公网 API 域名提供 `/api/bff.*` 与 `/mcp/metro`；不再有 `/auth/login` 或 `/auth/callback/*`。多个 HTTPS 同站点应用分别构建 `VITE_API_BASE_URL=https://api.example.com/api`；BFF 配置精确的 `cors_allowed_origins`，生产 `cookie_secure: true`。邮件里的链接来源由 usersrv 的 `auth.apps.ozid.origin` 决定，落地页 `/account/verify-email`、`/account/reset-password` 由 `ozid-web` 提供（响应头见 [OzID 功能描述](ozid/features.md#邮件流程t2)）。API 主机保存 host-only Cookie，应用用 credentials include 和 CSRF 响应体 token 调用；不要扩大 Domain。任意跨站点及第三方 Cookie 限制不属于支持承诺。
 
 同源 `/api` 模式把 `/api` 代理到 BFF。独立前端代理会得到各自的 Cookie，不能与直连共享 BFF 主机会话混为一谈。`client_ip_header` 只信任已覆盖客户端同名头的网关；BFF 不按 Host/Referer 推导可信来源。
 

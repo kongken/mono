@@ -9,10 +9,10 @@
 | 应用 / 服务 | 代码位置 | 职责 | 本地开发入口 |
 | --- | --- | --- | --- |
 | trip-map（山海足迹） | `apps/trip-map/` | React、Vite、TypeScript、Tailwind CSS、shadcn/ui 前端 | Vite 输出地址，通常为 `http://localhost:5173` |
-| ozid（OzID 用户中心，T1 已实现） | `apps/ozid/` | 独立的统一登录、账号概览与密码重新认证；登录后只返回服务端校验过的应用与路径（见 [OzID 功能描述](docs/ozid/features.md)） | Vite `http://localhost:5175`（需 BFF 配置 `navigation`） |
+| ozid（OzID 用户中心，T1、T2 已实现） | `apps/ozid/` | 独立的统一登录、注册与找回密码、邮件落地页（注册验证、密码重置）、账号概览与密码重新认证；登录后只返回服务端校验过的应用与路径（见 [OzID 功能描述](docs/ozid/features.md)） | Vite `http://localhost:5175`（需 BFF 配置 `navigation`） |
 | bff | `cmd/bff/`、`internal/bff/` | 唯一公网 API 入口；账号接口（经 usersrv）、Cookie 会话、CSRF、账号注销工作流和业务接口适配 | HTTP `127.0.0.1:18081` |
 | tripmap | `cmd/tripmap/`、`internal/tripmap/` | 足迹、行程、媒体、分享等旅行领域业务 | 内网 HTTP `127.0.0.1:18082`；内部 gRPC `127.0.0.1:18083`（默认 TLS，可显式选 h2c） |
-| usersrv（自建用户系统，P1–P6 已实现） | `cmd/usersrv/`、`internal/usersrv/`、`cmd/usersrv-admin/` | 邮箱＋密码账号、注册验证与找回密码流程、角色与账号安全状态、邮件发送模块（四种 adapter）；只有内部 gRPC，由 BFF 调用；trip-map 与 metro 的登录、注册、找回密码与账号设置已实现（P5，共用代码在 `packages/account`；OzID 复用其中的登录表单，T1 尚无注册、找回密码和邮件落地页），有镜像 `mono-usersrv` 与部署示例（[部署](docs/deployment.md#usersrv-的部署)）；真实邮件厂商没有实测，开放前须手动冒烟（见 [规格](docs/usersrv/spec.md#验证状态)） | 仅内网：HTTP `127.0.0.1:18086`、gRPC `127.0.0.1:18087`（需自己的数据库与 Redis） |
+| usersrv（自建用户系统，P1–P6 已实现） | `cmd/usersrv/`、`internal/usersrv/`、`cmd/usersrv-admin/` | 邮箱＋密码账号、注册验证与找回密码流程、角色与账号安全状态、邮件发送模块（四种 adapter）；只有内部 gRPC，由 BFF 调用；trip-map 与 metro 的登录、注册、找回密码与账号设置已实现（P5，共用代码在 `packages/account`；OzID 复用其中的表单与落地页，T2 起新邮件统一落到 OzID），有镜像 `mono-usersrv` 与部署示例（[部署](docs/deployment.md#usersrv-的部署)）；真实邮件厂商没有实测，开放前须手动冒烟（见 [规格](docs/usersrv/spec.md#验证状态)） | 仅内网：HTTP `127.0.0.1:18086`、gRPC `127.0.0.1:18087`（需自己的数据库与 Redis） |
 | metro（地铁足迹，第二个产品，可选） | `apps/metro/`、`cmd/metro/`、`internal/metro/` | 城市、线路、车型目录与骑行者记录；管理后台；BFF 上的 MCP 端点（见 [功能描述](docs/metro/features.md)） | 前端 `http://localhost:5174`；内网 HTTP `127.0.0.1:18084`、gRPC `127.0.0.1:18085` |
 
 浏览器经 BFF 的 Connect 接口访问后端（账号与会话是共用的 `bff.v1`，山海足迹业务是 `bff.tripmap.v1`）；BFF 使用内部凭证，通过内部 gRPC（默认 TLS；可信内网可显式配置 h2c，见 [BFF](docs/bff.md#内部-grpc-与凭证)）调用 tripmap。tripmap 的 HTTP 端口提供 `/ping`、`/readyz` 健康检查；启用 Mapbox 底图时还提供匿名的 `GET /api/tiles/…`，由 BFF 转发。账号与会话保存在 BFF 的独立数据库，旅行数据由 tripmap 管理。当前有两个后端服务，其中 tripmap 是唯一的业务服务，详见 [BFF](docs/bff.md)。
@@ -28,7 +28,7 @@ packages/
   api-client/         Buf 生成的 TypeScript RPC 契约
   geo-data/           区域索引、坐标与地图辅助数据
   fixtures/           前后端共同验证的测试夹具
-  account/            trip-map、metro 与 OzID 共用的邮箱账号流程（RPC 客户端、表单；邮件落地页目前只由 trip-map 与 metro 使用）
+  account/            trip-map、metro 与 OzID 共用的邮箱账号流程（RPC 客户端、表单；邮件落地页由 OzID 使用，trip-map 与 metro 的仍保留以服务旧邮件）
 cmd/
   bff/                BFF 服务入口
   tripmap/            旅行业务服务入口

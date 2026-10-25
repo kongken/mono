@@ -16,17 +16,17 @@ import (
 	"strings"
 
 	"github.com/kongken/mono/internal/platform/httpx"
+	"github.com/kongken/mono/internal/platform/navpath"
 	"golang.org/x/net/publicsuffix"
 )
 
 // Stable application IDs of the first version. They are not host names: moving an app
 // to another domain changes its registered origin, never its ID.
 const (
-	AppOzID   = "ozid"
-	AppAdmin  = "admin"
-	AppTrip   = "trip-map"
-	AppMetro  = "metro"
-	maxPathLn = 256
+	AppOzID  = "ozid"
+	AppAdmin = "admin"
+	AppTrip  = "trip-map"
+	AppMetro = "metro"
 )
 
 // AppIDs lists the IDs the registry accepts.
@@ -205,36 +205,9 @@ func (r *Registry) Resolve(appID, returnPath string) (Target, error) {
 	return Target{AppID: appID, Path: p, URL: app.origin + p, OzIDOrigin: r.apps[AppOzID].origin}, nil
 }
 
-// CheckPath reports whether p is a canonical return pathname: it starts with "/", is at
-// most 256 bytes and uses only ASCII letters, digits and "-", ".", "_", "~", "/". That
-// excludes by construction a scheme, host, "//", backslash, control characters,
-// percent-encoding (so "%2e%2e" and "%2f" tricks), query and fragment; "." and ".."
-// segments are refused as well.
-func CheckPath(p string) error {
-	if p == "" || p[0] != '/' {
-		return errors.New("path must start with /")
-	}
-	if len(p) > maxPathLn {
-		return fmt.Errorf("path is longer than %d bytes", maxPathLn)
-	}
-	for i := 0; i < len(p); i++ {
-		c := p[i]
-		ok := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' ||
-			c == '-' || c == '.' || c == '_' || c == '~' || c == '/'
-		if !ok {
-			return errors.New("path may only contain letters, digits and -._~/")
-		}
-	}
-	if strings.Contains(p, "//") {
-		return errors.New("path must not contain //")
-	}
-	for _, seg := range strings.Split(p, "/") {
-		if seg == "." || seg == ".." {
-			return errors.New("path must not contain . or .. segments")
-		}
-	}
-	return nil
-}
+// CheckPath reports whether p is a canonical return pathname; the rule is shared with
+// usersrv, which stores a validated context with a mail challenge (see navpath.Check).
+func CheckPath(p string) error { return navpath.Check(p) }
 
 func checkOrigin(field, origin string, secureCookies bool) error {
 	if origin == "" {

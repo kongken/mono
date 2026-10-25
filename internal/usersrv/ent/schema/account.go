@@ -117,6 +117,7 @@ func (AccountToken) Annotations() []schema.Annotation {
 			"account_tokens_email":      "email_canonical = lower(email_canonical) AND octet_length(email_canonical) <= 254",
 			"account_tokens_app_id":     "char_length(app_id) BETWEEN 1 AND 64",
 			"account_tokens_auth_floor": "issued_auth_version IS NULL OR issued_auth_version >= 1",
+			"account_tokens_return":     "(return_app_id IS NULL AND return_path IS NULL) OR (return_app_id IS NOT NULL AND char_length(return_app_id) BETWEEN 1 AND 64 AND (return_path IS NULL OR char_length(return_path) BETWEEN 1 AND 256))",
 		}),
 	}
 }
@@ -131,7 +132,16 @@ func (AccountToken) Fields() []ent.Field {
 		// registration token has no user at all.
 		field.UUID("user_id", uuid.UUID{}).Optional().Nillable().Immutable(),
 		field.Int64("issued_auth_version").Optional().Nillable().Immutable(),
+		// The app whose origin the mail link points at: always the central OzID app
+		// for a challenge issued now; trip-map or metro on a challenge issued before the
+		// central landing existed.
 		field.String("app_id").NotEmpty().Immutable(),
+		// The return context bound to the challenge (the app the user came from and a
+		// canonical pathname in it), returned when the token is consumed so that another
+		// browser can finish the flow. NULL on a challenge issued without one, and on
+		// every challenge issued before it existed: those return to no app.
+		field.String("return_app_id").Optional().Nillable().Immutable(),
+		field.String("return_path").Optional().Nillable().Immutable(),
 		field.Time("expires_at").Immutable(),
 		field.Time("consumed_at").Optional().Nillable(),
 		field.Time("created_at").Default(now).Immutable(),

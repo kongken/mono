@@ -78,8 +78,7 @@ func tokenIn(t *testing.T, msg mailer.Message, wantPath string) string {
 	if m == nil {
 		t.Fatalf("no link in mail:\n%s", msg.Text)
 	}
-	if !strings.Contains(msg.Text, "https://map.example.com"+wantPath+"#token="+m[1]) &&
-		!strings.Contains(msg.Text, "https://metro.example.com"+wantPath+"#token="+m[1]) {
+	if !strings.Contains(msg.Text, "https://id.example.com"+wantPath+"#token="+m[1]) {
 		t.Fatalf("link is not origin + %s + #token: %s", wantPath, msg.Text)
 	}
 	if strings.Contains(strings.ReplaceAll(msg.Text, "#token="+m[1], ""), m[1]) {
@@ -113,7 +112,7 @@ func startMail(t *testing.T, lim application.Limits) *mailStack {
 		if err != nil {
 			t.Fatal(err)
 		}
-		links, err := mailer.NewLinks(map[string]string{"trip-map": "https://map.example.com", "metro": "https://metro.example.com"}, false)
+		links, err := mailer.NewLinks(map[string]string{"ozid": "https://id.example.com"}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -282,8 +281,10 @@ func TestRegistrationLoginResetClosedLoop(t *testing.T) {
 	// Verification sets the password and the nickname and signs nobody in.
 	resp, err := s.account.CompleteRegistration(anonCtx(""), &usersrvv1.CompleteRegistrationRequest{Token: token, Password: password, DisplayName: " 小明 "})
 	ok(t, err)
-	if resp.String() != "" {
-		t.Fatalf("completion returned data: %q", resp.String())
+	// The response carries nothing but the return context bound to the challenge: no
+	// user, no session, no token.
+	if resp.GetAppId() != "trip-map" || resp.GetReturnPath() != "" || len(resp.ProtoReflect().GetUnknown()) != 0 {
+		t.Fatalf("completion returned %q", resp.String())
 	}
 	if s.users(t) != 1 {
 		t.Fatal("no account")
@@ -318,8 +319,8 @@ func TestRegistrationLoginResetClosedLoop(t *testing.T) {
 	const newPassword = "a much better password"
 	rresp, err := s.account.ResetPassword(anonCtx(""), &usersrvv1.ResetPasswordRequest{Token: resetTok, NewPassword: newPassword})
 	ok(t, err)
-	if rresp.String() != "" {
-		t.Fatalf("reset returned data: %q", rresp.String())
+	if rresp.GetAppId() != "metro" || rresp.GetReturnPath() != "" || len(rresp.ProtoReflect().GetUnknown()) != 0 {
+		t.Fatalf("reset returned %q", rresp.String())
 	}
 	if v := s.authVersion(t, u.ID); v != 2 {
 		t.Fatalf("auth_version after reset = %d, want 2", v)
@@ -419,7 +420,7 @@ func TestRequestsAnswerTheSameForEveryAddress(t *testing.T) {
 			t.Fatalf("a non-active account got a reset token")
 		}
 	}
-	// Malformed addresses and unknown apps are field errors and change nothing.
+	// Malformed addresses and malformed return contexts are field errors and change nothing.
 	for _, bad := range []string{"", "a@b", "x@example.com, y@example.com", "a@example.com\r\nBcc: v@example.com", "用户@example.com"} {
 		_, err := s.account.RequestRegistration(anonCtx("198.51.100.2"), &usersrvv1.RequestRegistrationRequest{Email: bad, AppId: "trip-map"})
 		if status.Code(err) != codes.InvalidArgument {
@@ -430,14 +431,19 @@ func TestRequestsAnswerTheSameForEveryAddress(t *testing.T) {
 			t.Errorf("reset %q accepted: %v", bad, err)
 		}
 	}
-	for _, app := range []string{"", "evil", "Trip-Map", "https://evil.example"} {
-		_, err := s.account.RequestRegistration(anonCtx(""), &usersrvv1.RequestRegistrationRequest{Email: "fresh@example.com", AppId: app})
-		if status.Code(err) != codes.InvalidArgument || !strings.Contains(err.Error(), "app_id") {
-			t.Errorf("app %q: %v", app, err)
-		}
-		_, err = s.account.RequestPasswordReset(anonCtx(""), &usersrvv1.RequestPasswordResetRequest{Email: "active@example.com", AppId: app})
+	// A malformed return context is a field error too: nothing is counted or queued.
+	for _, ctxIn := range []struct{ app, path string }{
+		{"Trip-Map", ""}, {"https://evil.example", ""}, {"", "/orphan-path"}, {"metro", "https://evil.example/"}, {"metro", "//evil.example"},
+		{"metro", "/a/../b"}, {"metro", "/a?x=1"}, {"metro", "/a#frag"}, {"metro", "/%2e%2e/"}, {"metro", "no-slash"}, {"metro", "/" + strings.Repeat("a", 300)},
+		{strings.Repeat("a", 65), ""},
+	} {
+		_, err := s.account.RequestRegistration(anonCtx(""), &usersrvv1.RequestRegistrationRequest{Email: "fresh@example.com", AppId: ctxIn.app, ReturnPath: ctxIn.path})
 		if status.Code(err) != codes.InvalidArgument {
-			t.Errorf("reset app %q: %v", app, err)
+			t.Errorf("context %+v: %v", ctxIn, err)
+		}
+		_, err = s.account.RequestPasswordReset(anonCtx(""), &usersrvv1.RequestPasswordResetRequest{Email: "active@example.com", AppId: ctxIn.app, ReturnPath: ctxIn.path})
+		if status.Code(err) != codes.InvalidArgument {
+			t.Errorf("reset context %+v: %v", ctxIn, err)
 		}
 	}
 	s.deliver(t)
@@ -878,7 +884,7 @@ func TestTokensAreStoredOnlyAsDigests(t *testing.T) {
 	if string(tok.TokenHash) != string(sum[:]) || strings.Contains(string(tok.TokenHash), token) {
 		t.Fatal("the stored value is not the SHA-256 digest of the token")
 	}
-	if tok.Purpose != accounttoken.PurposeRegistration || tok.UserID != nil || tok.IssuedAuthVersion != nil || tok.AppID != "trip-map" {
+	if tok.Purpose != accounttoken.PurposeRegistration || tok.UserID != nil || tok.IssuedAuthVersion != nil || tok.AppID != "ozid" {
 		t.Fatalf("token binding: %+v", tok)
 	}
 	if ttl := tok.ExpiresAt.Sub(tok.CreatedAt); ttl != 30*time.Minute {
@@ -1011,5 +1017,99 @@ func TestRequestsRefuseWithoutMail(t *testing.T) {
 	_, err = s.account.RequestPasswordReset(anonCtx(""), &usersrvv1.RequestPasswordResetRequest{Email: "a@example.com", AppId: "trip-map"})
 	if status.Code(err) != codes.Unavailable {
 		t.Fatalf("%v", err)
+	}
+}
+
+// The return context is bound to the challenge in the database, not carried by the
+// link, so another browser that only has the mail still gets it back; it is handed
+// back by the completion that consumes the token and by nothing else.
+func TestReturnContextTravelsWithTheChallenge(t *testing.T) {
+	s := startMail(t, generous())
+	reg := func(email string, in *usersrvv1.RequestRegistrationRequest) string {
+		in.Email = email
+		_, err := s.account.RequestRegistration(anonCtx("203.0.113.1"), in)
+		ok(t, err)
+		s.deliver(t)
+		msgs := s.inbox.to(email)
+		return tokenIn(t, msgs[len(msgs)-1], "/account/verify-email")
+	}
+
+	// App and path.
+	token := reg("ctx@example.com", &usersrvv1.RequestRegistrationRequest{AppId: "metro", ReturnPath: "/stations/7"})
+	resp, err := s.account.CompleteRegistration(anonCtx(""), &usersrvv1.CompleteRegistrationRequest{Token: token, Password: password})
+	ok(t, err)
+	if resp.GetAppId() != "metro" || resp.GetReturnPath() != "/stations/7" {
+		t.Fatalf("context %q", resp.String())
+	}
+	// The mail itself says nothing about where the user came from.
+	if txt := s.inbox.to("ctx@example.com")[0].Text; strings.Contains(txt, "stations") || strings.Contains(txt, "metro") {
+		t.Fatalf("the mail leaks the context:\n%s", txt)
+	}
+
+	// App only: the default path applies later, so no path is stored.
+	token = reg("app-only@example.com", &usersrvv1.RequestRegistrationRequest{AppId: "trip-map"})
+	resp, err = s.account.CompleteRegistration(anonCtx(""), &usersrvv1.CompleteRegistrationRequest{Token: token, Password: password})
+	ok(t, err)
+	if resp.GetAppId() != "trip-map" || resp.GetReturnPath() != "" {
+		t.Fatalf("context %q", resp.String())
+	}
+
+	// No context at all, and a challenge issued before the columns existed (both NULL).
+	token = reg("none@example.com", &usersrvv1.RequestRegistrationRequest{})
+	resp, err = s.account.CompleteRegistration(anonCtx(""), &usersrvv1.CompleteRegistrationRequest{Token: token, Password: password})
+	ok(t, err)
+	if resp.GetAppId() != "" || resp.GetReturnPath() != "" {
+		t.Fatalf("context %q", resp.String())
+	}
+
+	// Password reset: bound the same way, returned only by the reset that consumes it.
+	_, err = s.account.RequestPasswordReset(anonCtx("203.0.113.2"), &usersrvv1.RequestPasswordResetRequest{Email: "ctx@example.com", AppId: "metro", ReturnPath: "/stations/7"})
+	ok(t, err)
+	s.deliver(t)
+	msgs := s.inbox.to("ctx@example.com")
+	rtoken := tokenIn(t, msgs[len(msgs)-1], "/account/reset-password")
+	if tok := s.db.AccountToken.Query().Where(accounttoken.PurposeEQ(accounttoken.PurposePasswordReset)).OnlyX(context.Background()); tok.AppID != "ozid" ||
+		tok.ReturnAppID == nil || *tok.ReturnAppID != "metro" || tok.ReturnPath == nil || *tok.ReturnPath != "/stations/7" {
+		t.Fatalf("reset challenge %+v", tok)
+	}
+	rr, err := s.account.ResetPassword(anonCtx(""), &usersrvv1.ResetPasswordRequest{Token: rtoken, NewPassword: "another correct horse"})
+	ok(t, err)
+	if rr.GetAppId() != "metro" || rr.GetReturnPath() != "/stations/7" {
+		t.Fatalf("context %q", rr.String())
+	}
+	// A replay learns nothing: the same uniform failure, no context.
+	_, err = s.account.ResetPassword(anonCtx(""), &usersrvv1.ResetPasswordRequest{Token: rtoken, NewPassword: "yet another horse"})
+	wantReason(t, err, codes.FailedPrecondition, application.ReasonTokenInvalid)
+
+	// A row that carries an unusable context (a corrupted or hand-edited row) returns none
+	// instead of passing it on.
+	token = reg("bad-row@example.com", &usersrvv1.RequestRegistrationRequest{AppId: "metro", ReturnPath: "/ok"})
+	_, err = s.raw.ExecContext(context.Background(), `UPDATE account_tokens SET return_path = $1 WHERE email_canonical = 'bad-row@example.com'`, "https://evil.example/")
+	ok(t, err)
+	resp, err = s.account.CompleteRegistration(anonCtx(""), &usersrvv1.CompleteRegistrationRequest{Token: token, Password: password})
+	ok(t, err)
+	if resp.GetAppId() != "" || resp.GetReturnPath() != "" {
+		t.Fatalf("an unusable stored context was passed on: %q", resp.String())
+	}
+}
+
+// The database refuses a path without an app and an oversized context.
+func TestReturnContextColumnsAreConstrained(t *testing.T) {
+	s := startMail(t, generous())
+	n := 0
+	for name, set := range map[string]string{
+		"path without app": `return_app_id = NULL, return_path = '/x'`,
+		"empty app":        `return_app_id = ''`,
+		"long app":         `return_app_id = '` + strings.Repeat("a", 65) + `'`,
+		"empty path":       `return_app_id = 'metro', return_path = ''`,
+		"long path":        `return_app_id = 'metro', return_path = '/` + strings.Repeat("a", 256) + `'`,
+	} {
+		n++
+		email := fmt.Sprintf("constraint%d@example.com", n)
+		ok(t, s.requestRegistration(t, email, "203.0.113.1"))
+		_, err := s.raw.ExecContext(context.Background(), `UPDATE account_tokens SET `+set+` WHERE email_canonical = $1`, email)
+		if err == nil {
+			t.Errorf("%s accepted", name)
+		}
 	}
 }

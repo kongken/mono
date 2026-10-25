@@ -2,7 +2,7 @@
 # usersrv is the account service and is required: the BFF has no other way to sign anyone in.
 # metro (the second product) and metro-web are optional: delete both services, the
 # `metro` upstream and grpc service in config.bff.yaml, the metro entries of
-# auth.account_cleanup and of auth.apps in config.usersrv.yaml to run without it.
+# auth.account_cleanup (and, during the transition, auth.apps.metro in config.usersrv.yaml) to run without it.
 # Copy configs from config.usersrv.example.yaml / config.tripmap.example.yaml /
 # config.bff.example.yaml; run `make dev-secrets` for signing keys, or configure inline PEM keys.
 # Local configs use h2c (no TLS files). usersrv receives passwords from the BFF: in production
@@ -129,7 +129,7 @@ services:
     depends_on: [bff]
     networks: [internal, edge]
 
-  # Serve it on its own host name (usersrv's auth.apps.metro.origin and an entry of the BFF's
+  # Serve it on its own host name (an entry of the BFF's
   # cors_allowed_origins when the API is on another host) from the edge proxy, or publish a
   # port here. It proxies /api and /mcp/metro to the BFF.
   metro-web:

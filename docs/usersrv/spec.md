@@ -89,7 +89,7 @@
 - `internal/usersrv/mailer`：统一的 `Send(ctx, message)`；固定的中文验证/重置模板（纯文本与 HTML，参数转义，收件人和标题拒绝 CR/LF）；四个 adapter（Mailgun 与 SendGrid、SMTP2GO 用原生 HTTP API，SMTP 支持 `implicit_tls`/`starttls` 且始终校验证书）。HTTP adapter 禁止重定向、响应体限 16 KiB 并脱敏、默认 10 秒超时；错误分为 temporary/permanent/uncertain。配置校验让未知 provider、缺参数、混入其他厂商参数、非法 region/TLS 模式都在启动时失败。
 - 邮件跟踪：Mailgun 与 SendGrid 请求里显式关闭点击/打开跟踪（否则令牌会经厂商域名改写）；SMTP2GO API 没有逐封开关，需在其账户里关闭。SMTP 目前只实现 AUTH PLAIN/LOGIN，且只在 TLS 或回环地址上发送凭证。
 - 加密 outbox 表 `mail_jobs`（迁移 `migrations/usersrv/20261024153533_mail_outbox.sql`）：收件人、模板参数与明文令牌整体 AES-256-GCM 加密（带 key ID，关联数据绑定任务 ID 与用途）；状态机 `pending/sending/accepted/failed/uncertain/expired/cancelled`；密文只在 `pending/sending` 存在，数据库 `CHECK` 保证终态必须清空。同进程 worker 用数据库 lease（发送超时＋30 秒）抢占，多副本只会发一次；发送前复核挑战（存在、未消费、未过期）与账号（active、`auth_version` 一致、邮箱未被注册）。最多 3 次尝试，退避 1、5 分钟，重试用同一令牌；`uncertain` 永不自动重发；任务记录保留 7 天，每小时清理。任务固定签发时的 provider 与配置代次，不一致则取消（`config_changed`）；队列里有任务但缺少其解密 key 时启动失败。`BeginDeletion`/`FinishDeletion` 取消该用户未发的账号邮件。
-- 链接固定为 `auth.apps.<app_id>.origin` 的精确 origin 加 `/account/verify-email` 或 `/account/reset-password`，令牌放在 `#token=` 片段里；调用方不能指定 URL。
+- 链接固定为 `auth.apps.<app_id>.origin` 的精确 origin 加 `/account/verify-email` 或 `/account/reset-password`，令牌放在 `#token=` 片段里；调用方不能指定 URL。（T2 起新邮件一律用 `auth.apps.ozid`，见 [OzID 功能描述](../ozid/features.md#邮件流程t2)。）
 - 限流（Redis 原子，邮箱用独立 HMAC 摘要；Redis 不可用返回 `UNAVAILABLE`）：每客户端 IP、全服务、每邮箱 60 秒冷却、每邮箱每用途、每邮箱合计，默认值见 `config.usersrv.example.yaml`。超出邮箱维度只“抑制”（调用方仍给统一成功应答，不发信）；超出 IP/全服务维度返回 `RESOURCE_EXHAUSTED`。
 - 日志与指标：没有指标导出器，只有 `Service.Snapshot()` 计数和结构化日志（任务 ID、provider、模板、状态、错误类、次数、耗时、`alert`），不含邮箱、令牌、链接或密钥；告警事件为 `mail_vendor_auth_failed`、`mail_uncertain`、`mail_decrypt_failed`、`mail_key_missing`、`mail_backlog` 等。`/readyz` 增加 `mail_outbox`（worker 本地状态）。
 - 测试：四个 adapter 对本地 HTTP/SMTP 假服务做契约测试（Mailgun US/EU 各一例），outbox 与限流用真实 PostgreSQL/Redis。**没有、也不会在 CI 里连接真实厂商**；手动步骤见 [邮件厂商手动冒烟测试](mail-smoke-test.md)。
@@ -286,7 +286,7 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 ### 7.2 令牌、链接与待发任务
 
 - 验证/重置令牌至少 32 字节密码学随机数，URL-safe 编码。验证表只保存 SHA-256 摘要、用途、邮箱/用户绑定、签发版本、过期及消费状态，不保存明文；密码令牌不能互换用途。
-- 邮件链接只能由服务端 `auth.apps.<app_id>` 中的精确 HTTPS origin 和固定路径生成，首版为 `/account/verify-email`、`/account/reset-password`；本地开发仅允许显式 loopback HTTP。请求不能提供 origin、任意 callback 或返回地址；未知 app_id 拒绝，账号状态不改变。
+- 邮件链接只能由服务端 `auth.apps.<app_id>` 中的精确 HTTPS origin 和固定路径生成，首版为 `/account/verify-email`、`/account/reset-password`；本地开发仅允许显式 loopback HTTP。请求不能提供 origin 或任意 callback。（T2 修订：`app_id` 与 `return_path` 现在是经 BFF 导航注册表校验、随挑战保存的返回上下文，不再选择链接 origin；新邮件一律链接到必填的 `auth.apps.ozid`；形态不合法的上下文拒绝，账号状态不改变。）
 - 令牌放链接 fragment（`#token=...`），不放 query/path。验证页在加载其他资源前读取进内存并用 `history.replaceState` 清除 fragment；不保存到 localStorage/sessionStorage，不发给埋点，不加载第三方脚本；页面设置 no-referrer、no-store。清除后刷新需重新打开邮件，不能因此持久化秘密。GET 不消费令牌，提交时才随敏感 RPC body 发送。
 - usersrv 在同一数据库事务创建令牌及 `mail_jobs` outbox，接口仅等待可靠入队，不等待外部发信。worker 在同一进程后台运行，用数据库 lease 防多副本并发发送；网络调用不持有数据库事务。
 - **持久化重试与“只存摘要”的区别必须明确**：outbox 发送前需要能恢复原令牌，所以收件人、模板参数及原令牌整体用 AES-256-GCM 加密后暂存；令牌验证表仍只存摘要。加密 key 独立放 Secret（带 key ID、支持轮换），关联数据绑定任务 ID/用途；不得把 key 与密文放同一数据库。已接受、永久失败、过期或取消后立即清除密文。没有发送任务明文落库的替代路径，也不在重试时换发新的令牌。

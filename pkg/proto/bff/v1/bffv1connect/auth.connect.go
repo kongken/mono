@@ -102,7 +102,8 @@ type AuthServiceClient interface {
 	// is returned and no password is accepted here.
 	RequestRegistration(context.Context, *connect.Request[v1.RequestRegistrationRequest]) (*connect.Response[v1.RequestRegistrationResponse], error)
 	// CompleteRegistration consumes the mailed token and creates the account with the
-	// chosen password and nickname. It signs nobody in.
+	// chosen password and nickname. It signs nobody in. The response carries the
+	// return context bound to the challenge when the registry still allows it.
 	CompleteRegistration(context.Context, *connect.Request[v1.CompleteRegistrationRequest]) (*connect.Response[v1.CompleteRegistrationResponse], error)
 	// LoginWithEmail checks email and password and, on success only, sets a new
 	// random session Cookie. The response carries the profile and expiry, never the token.
@@ -110,7 +111,8 @@ type AuthServiceClient interface {
 	// RequestPasswordReset always answers the same way for a well-formed address.
 	RequestPasswordReset(context.Context, *connect.Request[v1.RequestPasswordResetRequest]) (*connect.Response[v1.RequestPasswordResetResponse], error)
 	// ResetPassword consumes the mailed token and sets a new password. Every existing
-	// session and management token stops working; the caller is not signed in.
+	// session and management token stops working; the caller is not signed in. The
+	// response carries the bound return context like CompleteRegistration.
 	ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error)
 	// Me returns the caller's account, including the login email. The roles are the
 	// account's current roles, not a snapshot.
@@ -369,7 +371,8 @@ type AuthServiceHandler interface {
 	// is returned and no password is accepted here.
 	RequestRegistration(context.Context, *connect.Request[v1.RequestRegistrationRequest]) (*connect.Response[v1.RequestRegistrationResponse], error)
 	// CompleteRegistration consumes the mailed token and creates the account with the
-	// chosen password and nickname. It signs nobody in.
+	// chosen password and nickname. It signs nobody in. The response carries the
+	// return context bound to the challenge when the registry still allows it.
 	CompleteRegistration(context.Context, *connect.Request[v1.CompleteRegistrationRequest]) (*connect.Response[v1.CompleteRegistrationResponse], error)
 	// LoginWithEmail checks email and password and, on success only, sets a new
 	// random session Cookie. The response carries the profile and expiry, never the token.
@@ -377,7 +380,8 @@ type AuthServiceHandler interface {
 	// RequestPasswordReset always answers the same way for a well-formed address.
 	RequestPasswordReset(context.Context, *connect.Request[v1.RequestPasswordResetRequest]) (*connect.Response[v1.RequestPasswordResetResponse], error)
 	// ResetPassword consumes the mailed token and sets a new password. Every existing
-	// session and management token stops working; the caller is not signed in.
+	// session and management token stops working; the caller is not signed in. The
+	// response carries the bound return context like CompleteRegistration.
 	ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error)
 	// Me returns the caller's account, including the login email. The roles are the
 	// account's current roles, not a snapshot.

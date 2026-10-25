@@ -30,7 +30,7 @@ func init() {
 	// accounttoken.AppIDValidator is a validator for the "app_id" field. It is called by the builders before save.
 	accounttoken.AppIDValidator = accounttokenDescAppID.Validators[0].(func(string) error)
 	// accounttokenDescCreatedAt is the schema descriptor for created_at field.
-	accounttokenDescCreatedAt := accounttokenFields[9].Descriptor()
+	accounttokenDescCreatedAt := accounttokenFields[11].Descriptor()
 	// accounttoken.DefaultCreatedAt holds the default value on creation for the created_at field.
 	accounttoken.DefaultCreatedAt = accounttokenDescCreatedAt.Default.(func() time.Time)
 	// accounttokenDescID is the schema descriptor for id field.

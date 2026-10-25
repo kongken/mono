@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@kongken/ui/button";
-import type { AccountApi } from "./api.ts";
+import type { AccountApi, ReturnContext } from "./api.ts";
 import { classifyAccountError, LINK_INVALID, type AccountField } from "./errors.ts";
 import { heldToken, releaseToken, watchLandingFragment, type LandingKind } from "./fragment.ts";
 import {
@@ -12,12 +12,23 @@ import { FORM_CLASS, Notice, PasswordField, TextField, useFocusFirstInvalid, use
 
 type Errors = Partial<Record<AccountField | "again", string>>;
 
+/**
+ * Where "log in" and "request a new link" lead: a sign-in entrance. Either a fixed address
+ * (a product's own page), or a function of the return context the finished flow handed back
+ * (null before the flow finished, when there is none, or when it is no longer allowed), so
+ * the central user center can lead on to the app the user came from.
+ */
+export type LoginHref = string | ((back: ReturnContext | null) => string);
+
+const hrefOf = (loginHref: LoginHref, back: ReturnContext | null) => (typeof loginHref === "function" ? loginHref(back) : loginHref);
+
 type LandingProps = {
   kind: LandingKind;
   api: AccountApi;
   appName: string;
-  /** Where "log in" and "request a new link" lead: the app's own sign-in entrance. */
-  loginHref: string;
+  loginHref: LoginHref;
+  /** A short note under the app name, for what only this front end knows (for example, that a session of this browser is left alone). */
+  aside?: ReactNode;
 };
 
 /**
@@ -26,13 +37,14 @@ type LandingProps = {
  * The token was moved out of the address bar into memory before the app started
  * (`captureLandingToken`); a reload therefore needs the mail's link again.
  */
-export function AccountLanding({ kind, api, appName, loginHref }: LandingProps) {
+export function AccountLanding({ kind, api, appName, loginHref, aside }: LandingProps) {
   // Another mailed link opened in this tab changes only the fragment: start over with the new token.
   const [generation, setGeneration] = useState(0);
   useEffect(() => watchLandingFragment(() => setGeneration((g) => g + 1)), []);
   return (
     <main className="mx-auto grid min-h-screen w-full max-w-md content-start gap-5 px-4 py-10" data-testid={`landing-${kind}`}>
       <p className="text-sm text-muted-foreground">{appName}</p>
+      {aside}
       {kind === "verify-email" ? (
         <CompleteRegistration key={generation} api={api} appName={appName} loginHref={loginHref} />
       ) : (
@@ -42,7 +54,7 @@ export function AccountLanding({ kind, api, appName, loginHref }: LandingProps) 
   );
 }
 
-function Unusable({ loginHref, children }: { loginHref: string; children?: ReactNode }) {
+function Unusable({ loginHref, children }: { loginHref: LoginHref; children?: ReactNode }) {
   return (
     <div className="grid gap-4" data-testid="link-invalid">
       <h1 className="text-xl font-semibold">链接不可用</h1>
@@ -50,28 +62,28 @@ function Unusable({ loginHref, children }: { loginHref: string; children?: React
       <p className="text-sm text-muted-foreground">邮件里的链接只能使用一次，并且很快过期；刷新或重新打开页面后也需要用邮件里的链接重新进入。</p>
       <div>
         <Button asChild>
-          <a href={loginHref}>返回登录，重新申请</a>
+          <a href={hrefOf(loginHref, null)}>返回登录，重新申请</a>
         </Button>
       </div>
     </div>
   );
 }
 
-function Done({ title, children, loginHref }: { title: string; children: ReactNode; loginHref: string }) {
+function Done({ title, children, loginHref, back }: { title: string; children: ReactNode; loginHref: LoginHref; back: ReturnContext | null }) {
   return (
     <div className="grid gap-4" data-testid="landing-done">
       <h1 className="text-xl font-semibold">{title}</h1>
       <Notice kind="success">{children}</Notice>
       <div>
         <Button asChild>
-          <a href={loginHref}>去登录</a>
+          <a href={hrefOf(loginHref, back)}>去登录</a>
         </Button>
       </div>
     </div>
   );
 }
 
-function CompleteRegistration({ api, appName, loginHref }: { api: AccountApi; appName: string; loginHref: string }) {
+function CompleteRegistration({ api, appName, loginHref }: { api: AccountApi; appName: string; loginHref: LoginHref }) {
   // The token is held in memory by captureLandingToken; this component never touches the URL.
   const [token] = useState(heldToken);
   const [displayName, setDisplayName] = useState("");
@@ -80,6 +92,7 @@ function CompleteRegistration({ api, appName, loginHref }: { api: AccountApi; ap
   const [errors, setErrors] = useState<Errors>({});
   const [notice, setNotice] = useState("");
   const [state, setState] = useState<"form" | "done" | "invalid">(token ? "form" : "invalid");
+  const [back, setBack] = useState<ReturnContext | null>(null);
   const [tick, setTick] = useState(0);
   const form = useRef<HTMLFormElement>(null);
   const { pending, run } = useRunner();
@@ -88,7 +101,7 @@ function CompleteRegistration({ api, appName, loginHref }: { api: AccountApi; ap
   if (state === "invalid") return <Unusable loginHref={loginHref} />;
   if (state === "done")
     return (
-      <Done title="邮箱已验证，注册完成" loginHref={loginHref}>
+      <Done title="邮箱已验证，注册完成" loginHref={loginHref} back={back}>
         账号已经创建。验证邮箱不会自动登录，请用邮箱和刚设置的密码登录。
       </Done>
     );
@@ -106,8 +119,9 @@ function CompleteRegistration({ api, appName, loginHref }: { api: AccountApi; ap
     setNotice("");
     if (nameError || passwordError || againError) return setTick((t) => t + 1);
     await run(async () => {
+      let done: ReturnContext | null;
       try {
-        await api.completeRegistration(token!, password, displayName.trim());
+        done = await api.completeRegistration(token!, password, displayName.trim());
       } catch (error) {
         const failure = classifyAccountError(error, "register-complete");
         if (failure.kind === "link_invalid") {
@@ -125,6 +139,7 @@ function CompleteRegistration({ api, appName, loginHref }: { api: AccountApi; ap
       releaseToken();
       setPassword("");
       setAgain("");
+      setBack(done);
       setState("done");
     });
   };
@@ -162,13 +177,14 @@ function CompleteRegistration({ api, appName, loginHref }: { api: AccountApi; ap
   );
 }
 
-function ResetPassword({ api, loginHref }: { api: AccountApi; loginHref: string }) {
+function ResetPassword({ api, loginHref }: { api: AccountApi; loginHref: LoginHref }) {
   const [token] = useState(heldToken);
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [notice, setNotice] = useState("");
   const [state, setState] = useState<"form" | "done" | "invalid">(token ? "form" : "invalid");
+  const [back, setBack] = useState<ReturnContext | null>(null);
   const [tick, setTick] = useState(0);
   const form = useRef<HTMLFormElement>(null);
   const { pending, run } = useRunner();
@@ -177,7 +193,7 @@ function ResetPassword({ api, loginHref }: { api: AccountApi; loginHref: string 
   if (state === "invalid") return <Unusable loginHref={loginHref} />;
   if (state === "done")
     return (
-      <Done title="密码已重置" loginHref={loginHref}>
+      <Done title="密码已重置" loginHref={loginHref} back={back}>
         新密码已生效，所有设备都已退出登录。重置不会自动登录，请用新密码登录。
       </Done>
     );
@@ -193,8 +209,9 @@ function ResetPassword({ api, loginHref }: { api: AccountApi; loginHref: string 
     setNotice("");
     if (passwordError || againError) return setTick((t) => t + 1);
     await run(async () => {
+      let done: ReturnContext | null;
       try {
-        await api.resetPassword(token!, password);
+        done = await api.resetPassword(token!, password);
       } catch (error) {
         const failure = classifyAccountError(error, "reset-complete");
         if (failure.kind === "link_invalid") {
@@ -211,6 +228,7 @@ function ResetPassword({ api, loginHref }: { api: AccountApi; loginHref: string 
       releaseToken();
       setPassword("");
       setAgain("");
+      setBack(done);
       setState("done");
     });
   };

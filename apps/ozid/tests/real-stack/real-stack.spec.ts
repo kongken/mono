@@ -1,4 +1,4 @@
-import { expect, request, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, request, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 
 /**
  * OzID in a real browser against the real BFF and usersrv (started by internal/e2e
@@ -6,7 +6,7 @@ import { expect, request, test, type BrowserContext, type Page } from "@playwrig
  * products, the BFF's host-only Cookie, exact CORS and CSRF. Nothing of the account chain is
  * mocked. The "products" are minimal stand-in pages that only ask the BFF who is signed in.
  */
-type Stack = { id: string; api: string; metro: string; trip: string; evil: string; email: string; password: string; displayName: string };
+type Stack = { id: string; api: string; metro: string; trip: string; evil: string; mailbox: string; landingHeaders: Record<string, string>; email: string; password: string; displayName: string };
 const stack: Stack = JSON.parse(process.env.OZID_REAL_STACK ?? "{}");
 const host = (origin: string) => new URL(origin).hostname;
 
@@ -230,4 +230,173 @@ test("the public pages are usable on a phone-sized screen", async ({ page }) => 
   await signIn(page);
   await expect(page.getByTestId("overview")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+
+/**
+ * The mail loops, with the real outbox: mail is requested in one browser and finished in another
+ * that only has the mailed link. The mail vendor is the only stand-in (the harness inbox, read
+ * through the mailbox host). Every address here is a reserved example name.
+ */
+let counter = 0;
+const uniqueEmail = (label: string) => `${label}-${Date.now().toString(36)}-${++counter}@example.com`;
+
+async function freshBrowser(browser: Browser, track: (page: Page) => void): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: test.info().project.use.viewport });
+  const page = await context.newPage();
+  track(page);
+  return { context, page };
+}
+
+/** The link of the nth mail to an address, as the mailbox host reports it. */
+async function mailedLink(page: Page, to: string, count = 1) {
+  await page.goto(`${stack.mailbox}/?to=${encodeURIComponent(to)}&count=${count}`);
+  const { link } = JSON.parse(await page.locator("body").innerText()) as { link: string };
+  return link;
+}
+
+/** Everything a page sent anywhere, to prove a mailed token never travels. */
+function recordTraffic(page: Page, into: string[]) {
+  page.on("request", (r) => into.push(r.url() + " " + (r.headers()["referer"] ?? "")));
+}
+
+test.describe("account mail, end to end", () => {
+  test("register from a product, finish in another browser, then sign in back to the product page", async ({ page, browser }) => {
+    const email = uniqueEmail("newcomer");
+    const traffic: string[] = [];
+    const other = await freshBrowser(browser, (p) => {
+      recordTraffic(p, traffic);
+      p.on("console", (m) => /Content Security Policy|Refused to (load|connect|execute|apply)/i.test(m.text()) && violations.get(page)!.push(m.text()));
+    });
+
+    // The first browser asks, from a product (the context travels in the address).
+    await page.goto(`${stack.id}/login?app_id=metro&return_path=%2Fcity%2Fshanghai`);
+    await page.getByRole("button", { name: "没有账号？申请注册" }).click();
+    await expect(page).toHaveURL(`${stack.id}/register?app_id=metro&return_path=%2Fcity%2Fshanghai`);
+    await page.getByLabel("邮箱").fill(email);
+    await page.getByRole("button", { name: "发送验证邮件" }).click();
+    await expect(page.getByTestId("register-sent")).toBeVisible();
+
+    // The mail is at the central OzID origin, whichever product asked, with the token in the fragment.
+    const link = await mailedLink(other.page, email);
+    const url = new URL(link);
+    expect(url.origin).toBe(stack.id);
+    expect(url.pathname).toBe("/account/verify-email");
+    expect(url.search).toBe("");
+    const token = new URLSearchParams(url.hash.slice(1)).get("token")!;
+    expect(token).toHaveLength(43);
+
+    // Another browser (no session, no storage of the first) opens it: the page that serves the
+    // link carries the headers of the image's landing location.
+    const res = await other.page.goto(link);
+    const headers = res!.headers();
+    expect(headers["cache-control"]).toBe("no-store");
+    expect(headers["referrer-policy"]).toBe("no-referrer");
+    expect(headers["content-security-policy"]).toContain("script-src 'self'");
+    for (const [name, value] of Object.entries(stack.landingHeaders)) expect(headers[name.toLowerCase()], name).toBe(value);
+    await expect(other.page.getByTestId("landing-verify-email")).toBeVisible();
+    // The token left the address bar and sits nowhere in the browser's storage.
+    expect(other.page.url()).toBe(`${stack.id}/account/verify-email`);
+    const stored = await other.page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + document.cookie);
+    expect(stored).not.toContain(token);
+    await expect(other.page.locator('meta[name="referrer"]')).toHaveAttribute("content", "no-referrer");
+
+    await other.page.getByLabel("昵称（可选）").fill("新人");
+    await other.page.getByLabel("密码", { exact: true }).fill(stack.password);
+    await other.page.getByLabel("再次输入密码").fill(stack.password);
+    await other.page.getByRole("button", { name: "完成注册" }).click();
+    await expect(other.page.getByTestId("landing-done")).toContainText("账号已经创建");
+    // Completing signs nobody in.
+    expect((await other.context.cookies()).filter((c) => c.name === "kongken_sid")).toEqual([]);
+
+    // On to sign-in with the bound context, and back to the product page it came from.
+    await other.page.getByRole("link", { name: "去登录" }).click();
+    await expect(other.page).toHaveURL(`${stack.id}/login?app_id=metro&return_path=%2Fcity%2Fshanghai`);
+    await other.page.getByLabel("邮箱").fill(email);
+    await other.page.getByLabel("密码", { exact: true }).fill(stack.password);
+    await other.page.getByRole("button", { name: "登录", exact: true }).click();
+    await other.page.waitForURL(`${stack.metro}/city/shanghai`);
+    await expect(other.page.locator("#me")).toHaveText("user:新人");
+
+    // The token appeared in no request URL and no Referer, whoever sent it.
+    expect(traffic.filter((line) => line.includes(token))).toEqual([]);
+    // The link is single-use.
+    await other.page.goto(link);
+    await other.page.getByLabel("密码", { exact: true }).fill(stack.password);
+    await other.page.getByLabel("再次输入密码").fill(stack.password);
+    await other.page.getByRole("button", { name: "完成注册" }).click();
+    await expect(other.page.getByTestId("link-invalid")).toBeVisible();
+    await other.context.close();
+  });
+
+  test("reset a password in another browser: every session ends, nothing signs in, the new password works", async ({ page, browser }) => {
+    const email = uniqueEmail("forgetful");
+    const next = "a much better password";
+    const traffic: string[] = [];
+    const other = await freshBrowser(browser, (p) => recordTraffic(p, traffic));
+    const setup = await freshBrowser(browser, () => {});
+
+    // An account to reset (registered through the real mail path).
+    await setup.page.goto(`${stack.id}/register`);
+    await setup.page.getByLabel("邮箱").fill(email);
+    await setup.page.getByRole("button", { name: "发送验证邮件" }).click();
+    await expect(setup.page.getByTestId("register-sent")).toBeVisible();
+    await setup.page.goto(await mailedLink(other.page, email));
+    await setup.page.getByLabel("密码", { exact: true }).fill(stack.password);
+    await setup.page.getByLabel("再次输入密码").fill(stack.password);
+    await setup.page.getByRole("button", { name: "完成注册" }).click();
+    await expect(setup.page.getByTestId("landing-done")).toBeVisible();
+
+    // Signed in here, then a reset is asked for from a product.
+    await page.goto(`${stack.id}/login`);
+    await page.getByLabel("邮箱").fill(email);
+    await page.getByLabel("密码", { exact: true }).fill(stack.password);
+    await page.getByRole("button", { name: "登录", exact: true }).click();
+    await expect(page.getByTestId("overview")).toBeVisible();
+    await setup.page.goto(`${stack.id}/forgot-password?app_id=trip-map`);
+    await setup.page.getByLabel("邮箱").fill(email);
+    await setup.page.getByRole("button", { name: "发送重置邮件" }).click();
+    await expect(setup.page.getByTestId("forgot-sent")).toBeVisible();
+
+    const link = await mailedLink(other.page, email, 2);
+    expect(new URL(link).pathname).toBe("/account/reset-password");
+    const res = await other.page.goto(link);
+    expect(res!.headers()["cache-control"]).toBe("no-store");
+    expect(res!.headers()["referrer-policy"]).toBe("no-referrer");
+    await other.page.getByLabel("新密码", { exact: true }).fill(next);
+    await other.page.getByLabel("再次输入新密码").fill(next);
+    await other.page.getByRole("button", { name: "重置密码" }).click();
+    await expect(other.page.getByTestId("landing-done")).toContainText("密码已重置");
+    expect((await other.context.cookies()).filter((c) => c.name === "kongken_sid")).toEqual([]);
+
+    // The session of the browser that was signed in is gone.
+    await page.goto(`${stack.id}/`);
+    await expect(page).toHaveURL(new RegExp("/login"));
+    // The old password no longer works; the new one does, and goes back to the asking product.
+    await other.page.getByRole("link", { name: "去登录" }).click();
+    await expect(other.page).toHaveURL(`${stack.id}/login?app_id=trip-map&return_path=%2F`);
+    await other.page.getByLabel("邮箱").fill(email);
+    await other.page.getByLabel("密码", { exact: true }).fill(stack.password);
+    await other.page.getByRole("button", { name: "登录", exact: true }).click();
+    await expect(other.page.getByRole("alert")).toBeVisible();
+    await other.page.getByLabel("密码", { exact: true }).fill(next);
+    await other.page.getByRole("button", { name: "登录", exact: true }).click();
+    await other.page.waitForURL(`${stack.trip}/`);
+    const token = new URL(link).hash.slice(1).split("=")[1];
+    expect(traffic.filter((line) => line.includes(token))).toEqual([]);
+    await other.context.close();
+    await setup.context.close();
+  });
+
+  test("both landing pages are served without cache or Referer and with same-origin scripts only", async ({ page }) => {
+    for (const path of ["/account/verify-email", "/account/reset-password"]) {
+      const res = await page.goto(`${stack.id}${path}#token=${"a".repeat(43)}`);
+      const headers = res!.headers();
+      for (const [name, value] of Object.entries(stack.landingHeaders)) expect(headers[name.toLowerCase()], `${path} ${name}`).toBe(value);
+      expect(headers["cache-control"]).toBe("no-store");
+      expect(headers["referrer-policy"]).toBe("no-referrer");
+      expect(headers["content-security-policy"]).toMatch(/script-src 'self'(;|$)/);
+      expect(page.url()).toBe(`${stack.id}${path}`);
+    }
+  });
 });

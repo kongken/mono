@@ -18,6 +18,8 @@ var (
 		{Name: "user_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "issued_auth_version", Type: field.TypeInt64, Nullable: true},
 		{Name: "app_id", Type: field.TypeString},
+		{Name: "return_app_id", Type: field.TypeString, Nullable: true},
+		{Name: "return_path", Type: field.TypeString, Nullable: true},
 		{Name: "expires_at", Type: field.TypeTime},
 		{Name: "consumed_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
@@ -41,7 +43,7 @@ var (
 			{
 				Name:    "accounttoken_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{AccountTokensColumns[7]},
+				Columns: []*schema.Column{AccountTokensColumns[9]},
 			},
 		},
 	}
@@ -216,6 +218,7 @@ func init() {
 		"account_tokens_expiry":     "expires_at > created_at",
 		"account_tokens_hash_size":  "octet_length(token_hash) = 32",
 		"account_tokens_purpose":    "purpose IN ('registration', 'password_reset')",
+		"account_tokens_return":     "(return_app_id IS NULL AND return_path IS NULL) OR (return_app_id IS NOT NULL AND char_length(return_app_id) BETWEEN 1 AND 64 AND (return_path IS NULL OR char_length(return_path) BETWEEN 1 AND 256))",
 	}
 	DeletionTombstonesTable.Annotation = &entsql.Annotation{
 		Table: "deletion_tombstones",
