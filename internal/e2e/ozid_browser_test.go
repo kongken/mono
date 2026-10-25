@@ -190,7 +190,9 @@ func TestOzidBrowserChain(t *testing.T) {
 	origin := func(label string) string { return fmt.Sprintf("https://%s.%s:%d", label, ozidBrowserSite, port) }
 	idO, apiO, metroO, tripO, evilO, mailO := origin("id"), origin("api"), origin("metro"), origin("trip"), origin("sibling"), origin("mailbox")
 
-	h := NewChainHarness(t, ChainHTTPOptions{
+	// The stack is the real BFF and usersrv with both products, tripmap's media in an in-memory object
+	// store and a switchable metro outage: closing an account in the browser runs through all of it.
+	stack0 := newCloseAccountStack(t, ChainHTTPOptions{
 		MailOzidOrigin: idO,
 		Configure: func(cfg *bffconfig.Config, _ string) {
 			cfg.Auth.CookieSecure = true
@@ -205,10 +207,25 @@ func TestOzidBrowserChain(t *testing.T) {
 			}
 		},
 	})
+	h := stack0.ChainHarness
 	const subject, display = "browser-user", "Oz Browser"
 	if _, err := h.FreshBrowser().Register(context.Background(), subject, "", display); err != nil {
 		t.Fatal(err)
 	}
+	// Isolated accounts for the close-account scenarios, one set per Playwright project (each
+	// account can be closed once), each with a photo, a visit and a ride; the bystander is only
+	// ever checked, never closed.
+	seeds := map[string]closeAccountSeed{}
+	for _, name := range []string{"close-main-desktop", "close-main-mobile", "close-bystander"} {
+		_, id, key := stack0.account(name)
+		seeds[name] = closeAccountSeed{ID: id, Key: key}
+	}
+	for _, name := range []string{"close-admin-desktop", "close-admin-mobile"} {
+		if err := h.FreshBrowser().LoginWithRoles(context.Background(), name, "ozid-admin"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	control := stack0.control(seeds)
 
 	// The OzID bundle for exactly these addresses.
 	run(t, root, []string{"VITE_API_BASE_URL=" + apiO + "/api"}, "npm", "run", "build", "-w", "@kongken/ozid")
@@ -246,6 +263,8 @@ func TestOzidBrowserChain(t *testing.T) {
 			static.ServeHTTP(w, r)
 		case "mailbox":
 			mail.ServeHTTP(w, r)
+		case "control":
+			control.ServeHTTP(w, r)
 		case "metro", "trip", "sibling":
 			app := map[string]string{"metro": "metro", "trip": "trip-map", "sibling": "trip-map"}[label]
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -259,7 +278,7 @@ func TestOzidBrowserChain(t *testing.T) {
 	t.Cleanup(func() { _ = front.Close() })
 
 	stack, _ := json.Marshal(map[string]any{
-		"id": idO, "api": apiO, "metro": metroO, "trip": tripO, "evil": evilO, "mailbox": mailO,
+		"id": idO, "api": apiO, "metro": metroO, "trip": tripO, "evil": evilO, "mailbox": mailO, "control": origin("control"),
 		"landingHeaders": landing,
 		"email":          subject + "@example.com", "password": E2EPassword, "displayName": display,
 	})

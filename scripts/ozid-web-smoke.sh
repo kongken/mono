@@ -136,7 +136,7 @@ expect_headers() { # expect_headers <name> <origin>
   check "$1: nosniff" header_is "$f" x-content-type-options nosniff
 }
 expect_headers index "$API_ORIGIN"
-for route in /login /security /profile /sessions /index.html; do
+for route in /login /security /profile /sessions /close-account /index.html; do
   name="route$(printf '%s' "$route" | tr -c 'a-z' '_')"
   get "$BASE$route?app_id=metro&return_path=%2Fcity%2Fshanghai" "$name"
   check "$route answers 200 (single-page fallback)" status_is "$tmp/$name.head" 200

@@ -1,12 +1,13 @@
-# OzID 用户中心：功能描述（T1 统一登录与安全返回；T2 统一注册验证与密码重置邮件；T3 账号资料、密码与设备会话）
+# OzID 用户中心：功能描述（T1 统一登录与安全返回；T2 统一注册验证与密码重置邮件；T3 账号资料、密码与设备会话；T7 账号注销与失败恢复）
 
-本文描述 [OzID 规格](spec.md) 中 [Issue #79（T1）](https://github.com/kongken/mono/issues/79)、[Issue #80（T2）](https://github.com/kongken/mono/issues/80) 与 [Issue #81（T3）](https://github.com/kongken/mono/issues/81) 已实现的行为。独立管理控制台、`ozid-admin`、只读用户查询与管理 IP 周界已由 T4 实现，普通账号的禁用/启用与 `metro-admin` 授予/撤销已由 T5 实现，账号安全与管理审计查询已由 T6 实现，见[控制台功能描述](../admin/features.md)；其余阶段（OzID 网页注销页、产品入口收敛、metro 管理接口与 MCP 的 IP 白名单）**尚未实现**，规格仍是它们的依据。文中域名全部是保留示例（`id.example.com` 等），不代表任何真实部署。
+本文描述 [OzID 规格](spec.md) 中 [Issue #79（T1）](https://github.com/kongken/mono/issues/79)、[Issue #80（T2）](https://github.com/kongken/mono/issues/80) 与 [Issue #81（T3）](https://github.com/kongken/mono/issues/81) 已实现的行为。独立管理控制台、`ozid-admin`、只读用户查询与管理 IP 周界已由 T4 实现，普通账号的禁用/启用与 `metro-admin` 授予/撤销已由 T5 实现，账号安全与管理审计查询已由 T6 实现，见[控制台功能描述](../admin/features.md)；OzID 网页注销页与失败恢复由 T7 实现（见[账号注销（T7）](#账号注销t7)）；其余阶段（产品入口收敛、metro 管理接口与 MCP 的 IP 白名单）**尚未实现**，规格仍是它们的依据。文中域名全部是保留示例（`id.example.com` 等），不代表任何真实部署。
 
 ## 现状与范围
 
 | 已实现（T1） | 尚未实现 |
 | --- | --- |
-| `apps/ozid`（`@kongken/ozid`）：登录页、账号概览、密码重新认证页，独立构建与部署 | 注销页（`/close-account`，产品里的注销照旧）；产品里的资料、改密码、设备页面也不变 |
+| `apps/ozid`（`@kongken/ozid`）：登录页、账号概览、密码重新认证页，独立构建与部署 | 产品里的注销入口照旧（T10、T11 才收敛）；产品里的资料、改密码、设备页面也不变 |
+| （T7）`/close-account`：账号注销页与进度、失败重试 | |
 | （T3）`/profile`、`/security`（改密码）、`/sessions`（设备列表、撤销指定设备、退出其他设备、退出这个浏览器）；BFF `RevokeOtherSessions` | |
 | （T2）注册、找回密码、`/account/verify-email`、`/account/reset-password` 页面；邮件链接统一落到 OzID；返回上下文随挑战保存 | 产品里的注册、找回密码和邮件落地页仍保留（过渡期与产品入口收敛，后续阶段才移除） |
 | BFF `ResolveNavigation`（匿名只读）与 `navigation` 服务端注册表 | 产品登录入口改指向 OzID（`admin` 控制台已由 T4 实现，见 [控制台功能描述](../admin/features.md)） |
@@ -24,6 +25,7 @@
 | `/security` | 两种模式。**带来源上下文**（地址里有 `app_id` / `return_path`，产品或控制台因为敏感操作把浏览器送来）：只显示“确认密码”（调用 BFF `Reauthenticate`），成功后更新“上次确认密码”的时间，并回到来源应用，或停留在 OzID。**直接打开**：先是“修改密码”，再是同一个“确认密码”。无会话、会话已失效（改密码、禁用、角色变化等使 `auth_version` 变化）时转到登录，**不会**把失效的身份升级成有效；登录后仍回到原来源。 |
 | `/profile` | 本人登录邮箱只读（没有修改邮箱的入口），昵称和头像可编辑。 |
 | `/sessions` | 本人有效的浏览器会话列表、撤销指定设备、“退出其他 N 台设备”、“退出这个浏览器的登录”。 |
+| `/close-account` | 注销账号：说明共用账号、山海足迹、地铁足迹及媒体文件的不可恢复范围，需要再次输入当前密码并输入“注销”；开始后显示每个产品的清理进度，失败可重试，完成后显示可重放的结果（见[账号注销（T7）](#账号注销t7)）。 |
 | `/register`、`/forgot-password` | 申请注册、找回密码：只收邮箱；回答始终中性（不透露邮箱是否已注册）。有发送中、重新发送冷却、限流、注册已关闭、网络/服务故障等状态；登录页提供两个入口，三个页面之间切换会带着来源上下文。 |
 | `/account/verify-email`、`/account/reset-password` | 邮件里的链接落地页（见下一节）。 |
 | 其他路径 | “页面不存在”，不回退到别的页面。 |
@@ -100,6 +102,29 @@ https://id.example.com/login?app_id=metro&return_path=%2Fcity%2Fshanghai
 
 **部署顺序。** T3 没有迁移，也不改 usersrv：只有 BFF（新增 `RevokeOtherSessions`，并让 `RevokeSession` 撤销自己时清 Cookie）和 `ozid-web`。先升级 BFF，再升级 `ozid-web`；顺序反了时，新页面的“退出其他设备”会因 BFF 不认识这个方法而失败（页面显示服务暂时不可用，其余功能不受影响）。回滚 BFF 同理，不涉及数据。`navigation.apps.ozid.paths` 仍只需包含 `/security`（重新认证的返回目标）；资料和设备页不是返回目标，不必登记。
 
+## 账号注销（T7）
+
+`/close-account`（概览卡片和账号导航里都有入口）复用 BFF 持久化、幂等的跨产品注销工作流，没有新的后端接口。
+
+**页面说什么、要什么。** 先列出会被**永久删除且无法恢复**的范围：共用账号（登录邮箱、密码、昵称与头像、角色、全部设备与管理令牌）、山海足迹的数据（云端足迹与快照、照片与附件、好友与共同旅行、分享、提醒、同步记录）、地铁足迹的数据，以及这些数据里的媒体文件（同时从文件存储删除）；并明确“这不是退出登录，也不是只清空某个产品的数据”。同时说明不会做的事：不删除浏览器里没登录时保存的本地内容，不清除别人在这个浏览器里的缓存，OzID 不会向各产品域名发清除命令，所以要保留的未同步内容请**先到对应产品里导出**。确认需要两步：再次输入当前密码（调用 `Reauthenticate`，错误密码不开始任何事）和输入“注销”；请求里的确认词仍是 `DELETE`，每次尝试一个新的幂等键。
+
+**开始之后。** 账号立刻关闭（`Me` 返回未登录、不能登录、不收邮件、产品不能访问），会话消失，但**浏览器的原 Cookie 保留**：它是 `GetAccountDeletion`/`RetryAccountDeletion` 的唯一凭据（工作流 ID 或用户 ID 都不能接管）。页面因此不放在 `RequireSession` 后面：没有会话时用 Cookie 读取进度，没有进度才转到登录；页面里没有退出登录按钮，BFF 的 `Logout` 对未完成的注销也不清除 Cookie，只有完成的那次响应才清除。每个产品显示“已清理/待清理”，共用账号最后删除；`刷新进度`与`重试注销`都不丢失进度，重试沿用同一次注销。
+
+**恢复。** 开始请求没有回应：页面不说“什么也没发生”，先尝试用 Cookie 读取这次注销的进度；读不到时，重试用**同一个幂等键**重发（已开始就继续，已完成就重放回执，没开始才开始）；会话已失效且服务端也没有这次注销，才回到表单并说明“没有开始，账号仍然有效”。刷新页面、关闭重开、BFF 进程重启、S3 或任一产品失败后都能从持久化状态继续（BFF 后台每 30 秒也会推进，不需要浏览器在线）。完成后 24 小时内同一个 Cookie 重开页面仍显示完成结果（回执），之后自动消失。读进度本身失败是“暂时读不到”，不当作登录失效，也不跳转。
+
+**产品清单不会因配置被悄悄跳过。** 产品清单在开始时固定；之后配置缺少某个产品的清理器，工作流停在清理阶段、账号保持关闭并记录 `cleanup:<产品>:not_configured`，不会完成。BFF 启动校验还要求已配置上游的 tripmap/metro 必须在 `auth.account_cleanup` 里（未设置时默认包含它们），否则拒绝启动。
+
+**平台管理员。** 持有 `ozid-admin` 的账号在网页上注销会被 usersrv 拒绝（账号不变，BFF 不留下工作流行），页面给出“请联系运维”的说明；没有代他人注销的接口（三个注销 RPC 的请求里没有任何指向他人的字段，有测试守护）。受控处理：运维用 `usersrv-admin revoke-role -email <地址> -role ozid-admin -operator <姓名> -reason <原因>` 回收角色，之后该账号像普通账号一样自助注销；强制删除没有网页或 RPC 路径。
+
+**不碰的东西。** 匿名本地足迹和其他用户的缓存不被删除；OzID 不跨域清缓存。产品内现有的注销入口照旧，直到产品入口收敛。
+
+**验证（分层）。**
+
+1. 代码与自动化：`apps/ozid/tests/ozid-close-account.spec.ts`（假 BFF，桌面与手机：范围文案、两步确认、错误密码不发请求、成功、平台管理员拒绝、产品失败的每产品进度与刷新后恢复、开始请求的回应丢失（含读进度也失败）、成功回应丢失后重放回执、读进度故障不等于退出、会话中途消失不重启页面）——假 BFF 只证明界面行为；Go：`internal/e2e/ozid_close_account_chain_test.go`（真实 BFF、usersrv、tripmap、metro 与对象存储：重启并改配置不跳过产品、清理失败保持关闭并可由重启后的后台恢复、Cookie 在未完成期间不被 `Logout`/`Me` 清除、平台管理员被拒且不留工作流、对象存储故障与恢复并检查他人对象不动）、`internal/bff/auth/deletion_contract_test.go`、`internal/bff/config`（清单校验）；既有的 `account_deletion_chain_test.go`、`metro_rider_chain_test.go`、`real_s3_deletion_chain_test.go` 继续覆盖各阶段回应丢失、回执重放与跨账号不可接管。
+2. 真实浏览器与代理链：`OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain` 的 `close-account.spec.ts`（桌面与手机）：隔离测试账号（含照片、足迹、乘坐记录）经真实 HTTPS/Cookie/CSRF，在注入的 metro 故障下注销，进度、Cookie 保持、刷新恢复、故障中重试仍失败、恢复后完成、数据库行与对象全部清理、旁观账号不变、匿名本地内容不变、已注销账号无法登录；平台管理员被拒。其中对象存储是内存实现，不是厂商 S3。
+3. 真实对象存储：`TestChainCloseAccountRecoversFromAnObjectStoreOutage` 配置了 `TRIPMAP_TEST_S3_*` 时用真实 S3（CI 的 Backend 任务提供 rustfs 服务），否则用内存存储——本地没有 S3 的运行只证明逻辑，S3 上的实际结果以 CI 为准。
+4. 仍须运维确认：生产规模数据的注销耗时与迁移锁等待；真实 S3 厂商上的删除权限与最终一致性；真实域名/TLS/代理下 Cookie 在注销期间保持；用 `usersrv-admin` 回收平台角色的实际流程演练。
+
 ## 服务端配置：`navigation`
 
 BFF 配置（`config.bff.example.yaml`）新增段落，字段与[规格 §4](spec.md) 对应：
@@ -157,4 +182,4 @@ docker run --rm -p 8089:80 -e API_ORIGIN=https://api.example.com ozid-web
 3. **真实浏览器与代理链**：`OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain`。在受控 HTTPS 下用真实 BFF 与 usersrv，OzID、API、两个产品和一个未登记兄弟分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，由浏览器解析到本机前置代理，使用一次性证书）；Chromium 实测登录、返回、跨应用同一身份、退出、重新认证、Cookie 属性、存储与 URL 无令牌、CSP 无违规、兄弟域名无 CORS、外来 Origin 的写被拒；T2 起还包括真实邮件回路：一个浏览器申请注册/重置，另一个只拿邮件链接的浏览器完成，不自动登录、返回到绑定的产品页，落地页响应头取自 nginx 模板的落地页 `location`，令牌没有出现在任何请求 URL 或 Referer 里；T3 的两个用例（桌面与手机）：每个浏览器上下文是一台独立设备、各有自己的 Cookie 会话，实测改昵称后各设备和产品页同时看到、列表三台设备、撤销指定设备（三台中恰好一台失效）、退出其他设备后另两台与其产品页都已退出而当前设备仍在、之后新登录的设备保持有效、退出这个浏览器后本机各产品页看到匿名而另一台设备不受影响且本源的本地存储未被清除、错误当前密码不改任何东西、改密码后所有设备（含当前）退出并只能用新密码登录，以及外来 Origin / 缺 CSRF / 匿名对 `RevokeOtherSessions` 的请求都被拒且不撤销（邮件厂商是唯一的替身：收件箱经 `mailbox` 测试主机读取；这里的前置代理只**复刻**模板里的头，nginx 本身由第 2 项的容器验收检验）。需要 Node 依赖与 Playwright Chromium，CI 的 `ozid-browser` 任务运行它。
 4. **仍须运维确认**（自动化无法覆盖）：真实 DNS、证书与 TLS 终止；反代是否按文档保留 `Host`、覆盖 `X-Real-IP`；真实域名下的 CORS/Cookie 表现；真实邮件厂商的投递与链接跟踪设置（邮件已统一指向 OzID，但至今没有对真实厂商实测，见[手动冒烟](../usersrv/mail-smoke-test.md)）；`auth.apps.ozid.origin` 与 BFF 注册表里 `ozid` 的 origin 是否一致；旧产品条目在令牌过期后的清理；镜像在私有构建参数下的构建。
 
-当前限制：产品自己的登录、注册、找回密码和账号页面尚未改指向 OzID（产品入口收敛是后续阶段），产品的邮件落地页因此仍保留以服务旧邮件；控制台应用（`admin`）自 T4 起存在，见 [控制台功能描述](../admin/features.md)；OzID 还没有注销页；设备列表没有 IP、位置或设备型号（BFF 不记录这些）；OzID 无法清除其他 origin 的浏览器存储；metro 管理接口的来源策略和“集中账号写只接受 OzID Origin”的收紧在后续阶段（控制台与用户管理读接口的周界属于 T4），T1、T2、T3 都没有改变现有账号写方法的来源策略。注册与重置请求的来源应用只在 BFF 配置了导航注册表时才被接受并保存；`auth.apps.ozid` 现在是 usersrv 的必填配置，没有它 usersrv 拒绝启动。
+当前限制：产品自己的登录、注册、找回密码和账号页面尚未改指向 OzID（产品入口收敛是后续阶段），产品的邮件落地页因此仍保留以服务旧邮件；控制台应用（`admin`）自 T4 起存在，见 [控制台功能描述](../admin/features.md)；OzID 的注销页只能注销本人账号，注销前未同步的本地内容要先到各产品里导出；设备列表没有 IP、位置或设备型号（BFF 不记录这些）；OzID 无法清除其他 origin 的浏览器存储；metro 管理接口的来源策略和“集中账号写只接受 OzID Origin”的收紧在后续阶段（控制台与用户管理读接口的周界属于 T4），T1、T2、T3 都没有改变现有账号写方法的来源策略。注册与重置请求的来源应用只在 BFF 配置了导航注册表时才被接受并保存；`auth.apps.ozid` 现在是 usersrv 的必填配置，没有它 usersrv 拒绝启动。

@@ -114,7 +114,7 @@ tripmap、BFF、metro、usersrv 与各前端为独立镜像（见 [Docker 镜像
 示例见 `deploy/compose.stack.example.yaml`（`metro`、`metro-web` 服务）与 `deploy/reverse-proxy/Caddyfile.example`（`metro.example.com` 站点）。步骤：
 
 1. 在同一个 PostgreSQL 实例创建独立数据库 `metro`，复制 `config.metro.example.yaml` 为 `config.metro.yaml`，生产环境关闭 `auto_migrate` 并按文件名顺序执行 `migrations/metro/`；BFF 库另需执行新的 `migrations/bff/*_access_tokens.sql`。
-2. `config.bff.yaml` 加 `upstreams.metro`、`grpc.services.metro`，`auth.account_cleanup` 列入 `metro`，按需调整 `mcp.rate_limit_per_minute`。不部署 metro 时去掉这些项，BFF 不会挂载 metro 的任何路由。
+2. `config.bff.yaml` 加 `upstreams.metro`、`grpc.services.metro`，`auth.account_cleanup` 列入 `metro`（已配置 `upstreams.metro` 时漏列会让 BFF 拒绝启动：注销后该产品的数据不能被悄悄留下；未设置 `auth.account_cleanup` 时默认就是 tripmap 加上已配置上游的 metro），按需调整 `mcp.rate_limit_per_minute`。不部署 metro 时去掉这些项，BFF 不会挂载 metro 的任何路由。
 3. 管理员角色：用 `usersrv-admin` 给管理员账号授予 `metro-admin`；BFF 每次请求读取当前角色，上线前先让一个管理员登录并确认 `Me` 返回 `metro-admin`。
 4. 边缘网关对 `/mcp/metro` 不记录请求头与访问日志（Bearer 令牌），并保证 `client_ip_header` 由网关覆盖（MCP 失败认证按该地址限流）。MCP 令牌由管理员在 `/admin/tokens` 创建，最长 90 天，明文只显示一次。
 
