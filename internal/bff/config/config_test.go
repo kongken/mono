@@ -240,4 +240,42 @@ func TestValidateAdminPerimeter(t *testing.T) {
 			t.Errorf("%s: accepted", name)
 		}
 	}
+	// The machine perimeter (mcp.*) is validated by the same rules and is its own section.
+	if c := ok(); true {
+		c.MCP = MCPConfig{AllowedCIDRs: []string{"198.51.100.0/24"}, TrustedProxies: []string{"10.0.0.0/8"}}
+		if err := c.Validate(services); err != nil {
+			t.Fatal(err)
+		}
+		// Leaving it out is valid: the endpoint is then closed, not open.
+		c.MCP = MCPConfig{}
+		if err := c.Validate(services); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, mutate := range map[string]func(*Config){
+		"mcp open to everyone":      func(c *Config) { c.MCP.AllowedCIDRs = []string{"0.0.0.0/0"} },
+		"mcp open to everyone (v6)": func(c *Config) { c.MCP.AllowedCIDRs = []string{"::/0"} },
+		"mcp open in two halves":    func(c *Config) { c.MCP.AllowedCIDRs = []string{"0.0.0.0/1", "128.0.0.0/1"} },
+		"mcp mapped network":        func(c *Config) { c.MCP.AllowedCIDRs = []string{"::ffff:198.51.100.0/120"} },
+		"mcp host bits":             func(c *Config) { c.MCP.AllowedCIDRs = []string{"198.51.100.7/24"} },
+		"mcp every proxy trusted": func(c *Config) {
+			c.MCP.AllowedCIDRs = []string{"198.51.100.0/24"}
+			c.MCP.TrustedProxies = []string{"0.0.0.0/0"}
+		},
+		"mcp not a network": func(c *Config) { c.MCP.AllowedCIDRs = []string{"ci-runner"} },
+		"mcp proxy inside the list": func(c *Config) {
+			c.MCP.AllowedCIDRs = []string{"10.0.0.0/8"}
+			c.MCP.TrustedProxies = []string{"10.1.0.0/16"}
+		},
+		"mcp lower-case header": func(c *Config) { c.MCP.ForwardedHeader = "x-forwarded-for" },
+		"mcp negative rate":     func(c *Config) { c.MCP.RateLimitPerMinute = -1 },
+	} {
+		c := ok()
+		mutate(&c)
+		if err := c.Validate(services); err == nil {
+			t.Errorf("%s: accepted", name)
+		} else if !strings.Contains(err.Error(), "mcp.") {
+			t.Errorf("%s: the error does not name the mcp section: %v", name, err)
+		}
+	}
 }

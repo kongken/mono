@@ -49,7 +49,27 @@ internal_auth:
 
 # The metro MCP endpoint (POST /mcp/metro, Bearer management token). Served only
 # when upstreams.metro is configured.
+#
+# It has its OWN source allowlist, separate from the browser console's `admin` list below: an address in one
+# is not admitted by the other, and neither the console's Origin nor a session Cookie plays any part here.
+# Every request kind (initialize, tools/list, tool calls, batches, notifications, GET/DELETE/OPTIONS) is
+# checked first, before the token is looked at.
+#   allowed_cidrs   networks the MCP clients call from. EMPTY REFUSES EVERY MCP REQUEST (the endpoint is
+#                   closed, the rest of the product is not). Same rules as admin.allowed_cidrs: a prefix
+#                   and no host bits; IPv4 wider than /8, IPv6 wider than /16 and IPv4-mapped IPv6
+#                   networks are refused at startup. IPv4-mapped CLIENT addresses are matched as IPv4.
+#   trusted_proxies networks of the reverse proxies that connect to the BFF directly; only then is
+#                   forwarded_header read (right to left, skipping these hops). Empty = the TCP peer is the
+#                   client and no header is believed. Must not overlap allowed_cidrs.
+# Production example (reserved addresses; the real list is injected privately, never committed):
+#   mcp:
+#     allowed_cidrs: ["198.51.100.0/24", "2001:db8:200::/48"]
+#     trusted_proxies: ["192.0.2.0/24"]
+#     forwarded_header: X-Forwarded-For
+#     rate_limit_per_minute: 60
+# This development file only admits the machine itself.
 mcp:
+  allowed_cidrs: ["127.0.0.0/8", "::1/128"]
   rate_limit_per_minute: 60
 
 auth:
@@ -96,7 +116,7 @@ navigation:
 
 # The unified management console's perimeter (apps/admin, deploy/admin-web, docs/admin/features.md).
 # It guards every browser management API (user administration, the metro catalogue administration
-# and the management tokens; the MCP endpoint is a machine protocol and is not inside it) and, with the
+# and the management tokens; the MCP endpoint is a machine protocol with its own `mcp` list above and is not inside it) and, with the
 # console gateway, the console's pages and assets: source network, the console's Origin (navigation.apps.admin.origin, one value), a valid
 # session and the platform role are all checked here, on every call, independently of the gateway.
 #   allowed_cidrs   networks that may use the console. EMPTY DENIES EVERYTHING. Entries need a

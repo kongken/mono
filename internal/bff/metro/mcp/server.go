@@ -21,13 +21,13 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/netip"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/kongken/mono/internal/bff/accesstoken"
 	"github.com/kongken/mono/internal/bff/usersrv"
-	"github.com/kongken/mono/internal/platform/httpx"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	metrov1 "github.com/kongken/mono/pkg/proto/metro/v1"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -71,6 +71,13 @@ type Limiter interface {
 	Allow(ctx context.Context, key string, limit int64, window time.Duration) (bool, error)
 }
 
+// Perimeter decides, from the request alone, whether the caller's network may use the endpoint. Allowed
+// returns the resolved client address when it may. It is the machine allowlist: it has nothing to do with
+// the browser console's.
+type Perimeter interface {
+	Allowed(h http.Header, remoteAddr string) (netip.Addr, bool)
+}
+
 // Config wires a Server.
 type Config struct {
 	Admin    metrov1.AdminServiceClient
@@ -79,8 +86,8 @@ type Config struct {
 	Limiter  Limiter
 	// RatePerMinute is the per-token limit; zero means DefaultRatePerMinute.
 	RatePerMinute int
-	// ClientIPHeader is the trusted proxy header carrying the client address.
-	ClientIPHeader string
+	// Perimeter is checked first, for every request of every kind. A nil Perimeter admits nobody.
+	Perimeter Perimeter
 }
 
 // Server is the MCP endpoint handler.
@@ -104,8 +111,21 @@ func New(cfg Config) *Server {
 
 // ServeHTTP implements http.Handler. Cookies are never read, and no CORS headers
 // are ever set: the endpoint is for programs, not for pages in a browser.
+//
+// The source perimeter comes before everything else: before the method, the token, the rate limiter and the
+// body, so a caller outside the allowlist, a preflight or a malformed request included, reaches no token
+// table, no counter and no business method, and learns nothing but a bare 403.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
+	var ip netip.Addr
+	var admitted bool
+	if s.cfg.Perimeter != nil {
+		ip, admitted = s.cfg.Perimeter.Allowed(r.Header, r.RemoteAddr)
+	}
+	if !admitted {
+		http.Error(w, "request rejected", http.StatusForbidden)
+		return
+	}
 	if r.Method != http.MethodPost {
 		// A stateless server offers no SSE stream (GET) and has no session to end (DELETE).
 		w.Header().Set("Allow", http.MethodPost)
@@ -113,7 +133,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	clientIP := httpx.ClientAddr(s.cfg.ClientIPHeader, r.Header, r.RemoteAddr)
+	// The address the perimeter resolved (trusted proxies only) is the one used for the failed-attempt
+	// throttle and the audit trail, not whatever a header says.
+	clientIP := ip.String()
 
 	principal, status := s.authenticate(ctx, r, clientIP)
 	if status != 0 {

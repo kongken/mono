@@ -11,7 +11,7 @@
 | （T3）`/profile`、`/security`（改密码）、`/sessions`（设备列表、撤销指定设备、退出其他设备、退出这个浏览器）；BFF `RevokeOtherSessions` | |
 | （T2）注册、找回密码、`/account/verify-email`、`/account/reset-password` 页面；邮件链接统一落到 OzID；返回上下文随挑战保存 | 产品里的注册、找回密码和邮件落地页仍保留（过渡期与产品入口收敛，后续阶段才移除） |
 | BFF `ResolveNavigation`（匿名只读）与 `navigation` 服务端注册表 | 产品登录入口改指向 OzID（`admin` 控制台已由 T4 实现，见 [控制台功能描述](../admin/features.md)） |
-| 同一 API origin、host-only Cookie、精确 CORS、CSRF 与 Origin 校验的真实浏览器验证 | MCP 的独立机器来源白名单（T9）、集中账号写来源收紧（后续票；管理周界已覆盖控制台、用户管理与（T8 起）metro 管理和令牌接口，见 [控制台功能描述](../admin/features.md)） |
+| 同一 API origin、host-only Cookie、精确 CORS、CSRF 与 Origin 校验的真实浏览器验证 | 集中账号写来源收紧（后续票；管理周界已覆盖控制台、用户管理与（T8 起）metro 管理和令牌接口，见 [控制台功能描述](../admin/features.md)） |
 | 镜像 `ozid-web`、CI、配置与运行示例 | |
 
 现有账号和业务数据保持不变：T1 没有迁移；T2 只给 `account_tokens` 增加两个可空列（见下文），不改已有行，产品自己的登录和账号页面照旧可用。

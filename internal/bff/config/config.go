@@ -54,6 +54,21 @@ type Config struct {
 type MCPConfig struct {
 	// RateLimitPerMinute is the request limit per management token. Default 60.
 	RateLimitPerMinute int `yaml:"rate_limit_per_minute"`
+	// AllowedCIDRs are the networks MCP clients may call from. It is the machine allowlist, independent
+	// of admin.allowed_cidrs (the browser console's): neither admits the other's callers. EMPTY REFUSES
+	// EVERY MCP REQUEST. The rules for the entries are those of admin.allowed_cidrs.
+	AllowedCIDRs []string `yaml:"allowed_cidrs"`
+	// TrustedProxies are the networks of the reverse proxies that connect to the BFF directly and are
+	// trusted to write ForwardedHeader for MCP calls. Empty means the TCP peer is the client. It must not
+	// overlap AllowedCIDRs.
+	TrustedProxies []string `yaml:"trusted_proxies"`
+	// ForwardedHeader is the multi-hop header such a proxy appends to (default X-Forwarded-For).
+	ForwardedHeader string `yaml:"forwarded_header"`
+}
+
+// Source is the machine perimeter's source-network configuration.
+func (m MCPConfig) Source() adminguard.SourceConfig {
+	return adminguard.SourceConfig{AllowedCIDRs: m.AllowedCIDRs, TrustedProxies: m.TrustedProxies, ForwardedHeader: m.ForwardedHeader}
 }
 
 // RateLimit returns the effective per-token limit.
@@ -220,6 +235,12 @@ func (c *Config) Validate(services []string) error {
 		if _, ok := c.Navigation.Apps[navigation.AppAdmin]; !ok {
 			return fmt.Errorf("admin.allowed_cidrs is set but navigation.apps.%s is not: the console needs a registered origin", navigation.AppAdmin)
 		}
+	}
+	if err := c.MCP.Source().Validate("mcp"); err != nil {
+		return err
+	}
+	if c.MCP.RateLimitPerMinute < 0 {
+		return fmt.Errorf("mcp.rate_limit_per_minute must not be negative")
 	}
 	if c.Auth.AdminSessionMaxAge < 0 {
 		return fmt.Errorf("auth.admin_session_max_age must not be negative")

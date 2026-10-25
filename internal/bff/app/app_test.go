@@ -217,6 +217,9 @@ func TestExampleConfigCoversTheRouteTable(t *testing.T) {
 	if err := cfg.ValidateInternal(gateway.GRPCNames(active)); err != nil {
 		t.Fatal(err)
 	}
+	if len(cfg.MCP.AllowedCIDRs) == 0 {
+		t.Fatal("the example must admit the local machine to the MCP endpoint, which refuses everyone otherwise")
+	}
 	if _, ok := cfg.Navigation.Apps["ozid"]; !ok {
 		t.Fatal("the example must register OzID so that the sign-in return flow works locally")
 	}

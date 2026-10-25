@@ -67,24 +67,8 @@ func (c Config) Limit() int {
 // Validate checks every network and the header name. It does not depend on the
 // deployment mode: a fully open network is never a valid setting.
 func (c Config) Validate() error {
-	allowed, err := ParseCIDRs("admin.allowed_cidrs", c.AllowedCIDRs)
-	if err != nil {
+	if err := c.Source().Validate("admin"); err != nil {
 		return err
-	}
-	trusted, err := ParseCIDRs("admin.trusted_proxies", c.TrustedProxies)
-	if err != nil {
-		return err
-	}
-	// A request without a usable forwarded chain (no header, or only proxies in it) is judged
-	// by the address of the proxy itself. A proxy inside the allowlist would therefore let
-	// everyone who can reach it through that proxy in; the two lists must stay apart, which
-	// also keeps this layer and the console's Nginx (same rule at start) in agreement.
-	for _, p := range trusted {
-		for _, a := range allowed {
-			if p.Overlaps(a) {
-				return fmt.Errorf("admin.trusted_proxies %q overlaps admin.allowed_cidrs %q: a proxy inside the allowlist opens the console to everyone behind it; keep the two lists apart", p, a)
-			}
-		}
 	}
 	if c.RateLimitPerMinute < 0 {
 		return errors.New("admin.rate_limit_per_minute must not be negative")
@@ -92,10 +76,12 @@ func (c Config) Validate() error {
 	if c.WriteRateLimitPerMinute < 0 {
 		return errors.New("admin.write_rate_limit_per_minute must not be negative")
 	}
-	if h := c.ForwardedHeader; h != "" && http.CanonicalHeaderKey(h) != h {
-		return fmt.Errorf("admin.forwarded_header %q must be a canonical header name such as %s", h, DefaultForwardedHeader)
-	}
 	return nil
+}
+
+// Source is the part of the configuration that decides where a request came from.
+func (c Config) Source() SourceConfig {
+	return SourceConfig{AllowedCIDRs: c.AllowedCIDRs, TrustedProxies: c.TrustedProxies, ForwardedHeader: c.ForwardedHeader}
 }
 
 // ParseCIDRs parses networks; "field" names the setting in the error. A bare
@@ -134,10 +120,8 @@ func family(a netip.Addr) string {
 
 // Guard is the immutable perimeter.
 type Guard struct {
-	allowed []netip.Prefix
-	trusted []netip.Prefix
-	header  string
-	origin  string
+	src    *Source
+	origin string
 }
 
 // New builds the guard for the console served from origin (its registered
@@ -147,17 +131,15 @@ func New(c Config, origin string) (*Guard, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
-	allowed, _ := ParseCIDRs("admin.allowed_cidrs", c.AllowedCIDRs)
-	trusted, _ := ParseCIDRs("admin.trusted_proxies", c.TrustedProxies)
-	header := c.ForwardedHeader
-	if header == "" {
-		header = DefaultForwardedHeader
+	src, err := NewSource("admin", c.Source())
+	if err != nil {
+		return nil, err
 	}
-	return &Guard{allowed: allowed, trusted: trusted, header: header, origin: origin}, nil
+	return &Guard{src: src, origin: origin}, nil
 }
 
 // Open reports whether anything can pass at all: an allowlist and a registered console.
-func (g *Guard) Open() bool { return g != nil && len(g.allowed) > 0 && g.origin != "" }
+func (g *Guard) Open() bool { return g != nil && g.src.Open() && g.origin != "" }
 
 // Check admits the request or returns ErrDenied. Every condition is checked in
 // every case, so the caller cannot learn from the time which one failed.
@@ -175,59 +157,18 @@ func (g *Guard) Check(h http.Header, remoteAddr string) error {
 
 // AllowedIP reports whether the resolved client address is inside the allowlist.
 func (g *Guard) AllowedIP(h http.Header, remoteAddr string) bool {
-	if g == nil || len(g.allowed) == 0 {
+	if g == nil {
 		return false
 	}
-	ip, ok := g.ClientIP(h, remoteAddr)
-	if !ok {
-		return false
-	}
-	for _, p := range g.allowed {
-		if p.Contains(ip) {
-			return true
-		}
-	}
-	return false
+	_, ok := g.src.Allowed(h, remoteAddr)
+	return ok
 }
 
 // ClientIP resolves the client address. ok is false when it cannot be determined
 // (an unparsable peer, or an unparsable entry in the forwarded chain), which is a
 // refusal and never a fallback to something a client could have chosen.
 func (g *Guard) ClientIP(h http.Header, remoteAddr string) (netip.Addr, bool) {
-	peer, ok := parseHostPort(remoteAddr)
-	if !ok {
-		return netip.Addr{}, false
-	}
-	if !g.isTrusted(peer) {
-		return peer, true
-	}
-	// Every instance of the header counts, in order, as one chain.
-	var hops []string
-	for _, v := range h.Values(g.header) {
-		hops = append(hops, strings.Split(v, ",")...)
-	}
-	for i := len(hops) - 1; i >= 0; i-- {
-		hop, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
-		if err != nil {
-			return netip.Addr{}, false
-		}
-		hop = hop.Unmap()
-		if g.isTrusted(hop) {
-			continue
-		}
-		return hop, true
-	}
-	// No header, or a chain made only of trusted proxies: the nearest peer is what we know.
-	return peer, true
-}
-
-func (g *Guard) isTrusted(a netip.Addr) bool {
-	for _, p := range g.trusted {
-		if p.Contains(a) {
-			return true
-		}
-	}
-	return false
+	return g.src.ClientIP(h, remoteAddr)
 }
 
 func parseHostPort(remoteAddr string) (netip.Addr, bool) {

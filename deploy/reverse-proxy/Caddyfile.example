@@ -122,6 +122,9 @@ metro.example.com {
 		respond 404
 	}
 
+	# BFF `mcp.allowed_cidrs` decides who may call this endpoint (empty = nobody). This proxy overwrites
+	# X-Forwarded-For with the peer address, so its network must be listed in BFF `mcp.trusted_proxies`
+	# (and must not overlap `mcp.allowed_cidrs`); every further proxy or CDN in front belongs there too.
 	handle /mcp/metro {
 		log_skip
 		request_body {

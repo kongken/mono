@@ -35,11 +35,12 @@ func HeavyProcedures() map[string]bool {
 const adminReadMaxBytes = 2 << 20
 
 // NewMCP returns the MCP endpoint handler (route mcp.Path). tokens verifies the
-// Bearer management token; ratePerMinute is the per-token request limit.
-func NewMCP(conn *grpc.ClientConn, tokens mcp.Authenticator, accounts mcp.Accounts, limiter mcp.Limiter, ratePerMinute int, clientIPHeader string) http.Handler {
+// Bearer management token; ratePerMinute is the per-token request limit; perimeter is the machine source
+// allowlist, checked before anything else.
+func NewMCP(conn *grpc.ClientConn, tokens mcp.Authenticator, accounts mcp.Accounts, limiter mcp.Limiter, ratePerMinute int, perimeter mcp.Perimeter) http.Handler {
 	return mcp.New(mcp.Config{
 		Admin: metrov1.NewAdminServiceClient(conn), Tokens: tokens, Accounts: accounts, Limiter: limiter,
-		RatePerMinute: ratePerMinute, ClientIPHeader: clientIPHeader,
+		RatePerMinute: ratePerMinute, Perimeter: perimeter,
 	})
 }
 

@@ -45,6 +45,9 @@ func adminHarness(t *testing.T, perimeter adminguard.Config, extras ...any) *Cha
 			},
 		}
 		cfg.Admin = perimeter
+		// The machine perimeter is its own list. Scenarios about the MCP endpoint that do not care about it
+		// get the loopback; the ones that do set cfg.MCP themselves.
+		cfg.MCP.AllowedCIDRs = []string{"127.0.0.0/8"}
 		for _, m := range mutate {
 			m(cfg)
 		}

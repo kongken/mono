@@ -19,8 +19,8 @@ import (
 
 // The browser management perimeter covers the metro administration and the management tokens, not only
 // the user administration: reads, writes, preflight and the other path spellings, all before the session,
-// the role and the upstream. MCP keeps its own protocol and is not touched here (its machine allowlist is
-// a separate ticket).
+// the role and the upstream. MCP keeps its own protocol and its own machine allowlist (mcp.*, T9:
+// metro_mcp_perimeter_chain_test.go); the browser list neither admits nor refuses it.
 
 // countMetroAdmin counts the calls that reach metro's admin service, whoever made them.
 func countMetroAdmin(n *atomic.Int64) grpc.UnaryServerInterceptor {
@@ -440,7 +440,7 @@ func TestChainMetroAdminAbsentWithoutAnUpstream(t *testing.T) {
 	}
 }
 
-// MCP is a machine protocol with its own bearer token; this ticket's browser perimeter does not touch it.
+// MCP is a machine protocol with its own bearer token and its own source list; the browser perimeter does not touch it.
 func TestChainMetroAdminPerimeterLeavesMCPAlone(t *testing.T) {
 	ctx := context.Background()
 	h := adminHarness(t, adminguard.Config{AllowedCIDRs: []string{"192.0.2.0/24"}, TrustedProxies: []string{"127.0.0.0/8"}}, ChainMetro{})
@@ -457,7 +457,8 @@ func TestChainMetroAdminPerimeterLeavesMCPAlone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create token inside the perimeter: %v", err)
 	}
-	// The MCP caller is outside the browser list (the peer is the loopback proxy itself) and still served.
+	// The MCP caller is outside the browser list (the peer is the loopback proxy itself) and is served because it is
+	// inside the separate machine list (mcp.allowed_cidrs).
 	c := h.mcp(res.Msg.GetSecret())
 	if status, _ := c.rpc("ping", nil); status != http.StatusOK {
 		t.Fatalf("an MCP call from outside the browser allowlist: HTTP %d", status)

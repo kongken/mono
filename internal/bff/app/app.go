@@ -329,9 +329,23 @@ func (h *Handlers) mountMCP(r *gin.Engine) {
 	if users == nil {
 		return
 	}
+	// The machine perimeter is its own list (mcp.*), never the browser console's (admin.*). If it cannot be
+	// built the handler is mounted closed: a missing perimeter admits nobody.
+	var perimeter mcp.Perimeter
+	if src, err := adminguard.NewSource("mcp", h.cfg.MCP.Source()); err != nil {
+		slog.Error("mcp source perimeter is invalid; every MCP request is refused", "error", err)
+	} else {
+		if !src.Open() {
+			slog.Warn("mcp.allowed_cidrs is empty: every MCP request is refused until a machine allowlist is configured")
+		}
+		perimeter = src
+	}
 	handler := bffmetro.NewMCP(conn, accesstoken.New(res.DB), users, ratelimit.New(res.Redis, res.KeyPrefix),
-		h.cfg.MCP.RateLimit(), h.cfg.ClientIPHeader)
+		h.cfg.MCP.RateLimit(), perimeter)
+	// The trailing-slash spelling is served by the same handler, so the source perimeter answers it too: left
+	// to the router it would be an unauthenticated 307 that tells a caller outside the allowlist the route exists.
 	r.Any(mcp.Path, gin.WrapH(handler))
+	r.Any(mcp.Path+"/", gin.WrapH(handler))
 }
 
 func (h *Handlers) mountPublicHTTP(r *gin.Engine) {

@@ -31,6 +31,8 @@ server {
     # MCP endpoint for AI clients. The Bearer token is a credential, so no
     # request headers are logged by the BFF's own access log either; keep this
     # path out of the edge access log as well. Only POST is served by the BFF.
+    # The BFF admits callers by BFF `mcp.allowed_cidrs`, reading X-Forwarded-For right to left; this
+    # proxy appends the peer it sees, so its own network must be in BFF `mcp.trusted_proxies`.
     location = /mcp/metro {
         access_log off;
         error_log /dev/stderr crit;

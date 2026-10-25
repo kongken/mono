@@ -145,7 +145,7 @@ metro 的城市、线路、车型、专题（增删改）、导入/导出、目�
 - **谁能看到、谁能操作。** 只有持有 `metro-admin` 的账号看到分区；只有 `ozid-admin` 的平台管理员直接打开 `/metro/*` 只看到“没有权限”，页面不发出任何 metro 调用。BFF 对 `bff.metro.v1.AdminService` 的每个过程声明 `required_role = "metro-admin"` 并检查，metro 服务再从内部凭证独立检查一次。
 - **没有 metro 上游时。** BFF 不挂载 metro 管理服务，控制台探测到后不显示分区，`/metro/*` 只说明“这个环境没有部署地铁目录服务”，不展示可操作的假页面。metro 暂时不可用时分区仍在，页面上说明并提供重试。
 - **周界。** `internal/bff/app/admin_perimeter.go` 列出受周界保护的服务：`bff.v1.UserAdminService`、`bff.metro.v1.AdminService`、`bff.v1.AccessTokenService`。对它们的每个浏览器请求（读、写、导入导出、审计、令牌；预检；`/api/<服务>/` 下的任何路径写法）先过来源白名单与受信代理链，再过精确的控制台 Origin，然后才是会话、角色和 `AdminSessionMaxAge`；名单外或 Origin 不对一律是同一个泛化拒绝，业务服务（metro、令牌库）收不到请求。`TestEveryRoleGatedBrowserServiceIsInsideTheAdminPerimeter` 枚举所有 `bff.` 前缀且带 `required_role` 的服务，新增管理服务忘记列入周界会使测试失败。公开目录（`bff.metro.v1.CatalogService`）、骑行者功能和 `/me` 不在周界内。
-- **MCP。** `/mcp/metro` 是 Bearer 令牌的机器协议，**不在**这道浏览器周界内，行为不变；它的独立机器来源白名单是 T9。
+- **MCP。** `/mcp/metro` 是 Bearer 令牌的机器协议，**不在**这道浏览器周界内，行为不变；它有自己的机器来源白名单 `mcp.allowed_cidrs`（T9），与控制台的 `admin.allowed_cidrs` 互不放行，见 [BFF 文档](../bff.md)。
 - **规则保持不变，并随页面迁移。** 字段错误显示在对应字段（`city`、`rolling_stock` 等服务端字段名映射到表单字段）；被引用的记录删除时说明被谁引用；更新与删除带 `expected_revision`；导入默认先预览（dry run，不写入），有错误不能确认，确认后全有或全无；导出文件可直接再导入，且预览显示“无变化”；目录审计按渠道（网页/MCP）和对象筛选并显示前后快照；目录版本由服务端递增，公开站按 `known_version` 失效。普通目录编辑**不**要求密码或原因。
 - **修订冲突。** 保存遇到他人已改的记录时，页面保留你已输入的内容，显示与最新版本的差异；“保留我的修改，基于最新版本”之后还要再点一次“保存”才写入，“放弃我的修改，载入最新内容”则不写入；记录已被删除时只提示并保留输入以便复制。删除遇到冲突同样不自动重试。
 - **管理令牌。** 创建需要 15 分钟内的密码认证（与 T5 相同），明文只在创建响应里显示一次、只在内存中，刷新后消失，也不进地址或任何存储；数量上限（10）、有效期（7/30/90 天）、scope（`metro:read`/`metro:write`）、最近使用和吊销行为不变；页面显示的 MCP 端点来自 `VITE_API_BASE_URL`。
@@ -240,6 +240,6 @@ scripts/admin-web-smoke.sh   # 构建并启动容器，实测白名单、伪造�
 
 - 账号审计只覆盖 usersrv 保存的账号安全与管理记录（不是全站统一审计；metro 目录审计、管理令牌调用日志不在其中）；没有导出、没有按邮箱查询的入口（邮箱不进审计，也不能成为审计查询条件）；审计保留期限与清理由运维按数据策略决定，原始记录被清理后重放行只显示“超出保留范围”。平台角色、平台管理员的状态与角色、密码、注销仍只能用 CLI 或用户自己在 OzID 完成。
 - 网页写入的 15 分钟认证窗口是代码常量（与密码修改、注销等敏感操作共用 `SensitiveAuthMaxAge`），不可配置；写入限流可通过 `admin.write_rate_limit_per_minute` 调整。
-- MCP 的来源策略是后续任务（[#87（T9）](https://github.com/kongken/mono/issues/87)）：T8 只切换浏览器管理周界，`/mcp/metro` 仍只认 Bearer 令牌，不受管理 IP 白名单影响。metro-admin 在 BFF 侧的“把暂时故障当成未登录”的既有行为属于 [#89（T11）](https://github.com/kongken/mono/issues/89) 的故障与失效区分验收，届时修复并回归，T4 不处理。
+- MCP 的来源策略由 [#87（T9）](https://github.com/kongken/mono/issues/87) 独立实现（`mcp.allowed_cidrs`，不受管理 IP 白名单影响，也不放行浏览器管理接口）。metro-admin 在 BFF 侧的“把暂时故障当成未登录”的既有行为属于 [#89（T11）](https://github.com/kongken/mono/issues/89) 的故障与失效区分验收，届时修复并回归，T4 不处理。
 - 限流只在 BFF 一层（usersrv 不另做）。分页令牌不做签名、不绑定筛选条件（只含位置；换筛选须重置游标），审计翻页是键集翻页而不是快照，并发提交的边界见“筛选与稳定翻页”。
 - 来源不在名单时浏览器看到的是网络类错误而不是“来源被拒”：这是浏览器对不带 CORS 许可的跨域回答的行为，页面无法区分，也不应该区分。
