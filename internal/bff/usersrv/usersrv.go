@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Service is the upstream name in the gateway route table and BFF configuration.
@@ -376,6 +377,44 @@ type UserQuery struct {
 	PageToken               string
 }
 
+// AuditQuery narrows the account audit list. Every field is optional; Channel is "web",
+// "cli", "self" or "system". The zero time is unbounded.
+type AuditQuery struct {
+	UserID, OperatorUserID string
+	Channel                string
+	Action, Result         string
+	MutationID             string
+	From, To               time.Time
+	PageSize               int32
+	PageToken              string
+}
+
+// AuditEntry is one audit row as the console may show it (see usersrv.v1.SecurityAuditEntry).
+type AuditEntry struct {
+	ID                        string
+	CreatedAt                 time.Time
+	Channel                   string
+	OperatorUserID            string
+	OperatorLabel             string
+	UserID                    string
+	Action, Result            string
+	Reason, RequestID         string
+	MutationID                string
+	BeforeStatus, AfterStatus string
+	BeforeRoles, AfterRoles   []string
+	OriginID                  string
+	Origin                    *AuditOrigin
+}
+
+// AuditOrigin is the change a replayed row points at.
+type AuditOrigin struct {
+	ID                        string
+	CreatedAt                 time.Time
+	Action, Result            string
+	BeforeStatus, AfterStatus string
+	BeforeRoles, AfterRoles   []string
+}
+
 // asAdmin describes a call made by the administrator userID. Unlike asUser it keeps the
 // roles the ingress verified from the session, because usersrv.v1.UserAdminService
 // declares a required role and checks it again from the credential.
@@ -399,6 +438,68 @@ func (c *Client) ListUsers(ctx context.Context, operatorID string, q UserQuery) 
 		users = append(users, adminUser(u))
 	}
 	return users, res.GetNextPageToken(), nil
+}
+
+// ListSecurityAudit pages through the account audit for the administrator operatorID.
+func (c *Client) ListSecurityAudit(ctx context.Context, operatorID string, q AuditQuery) ([]AuditEntry, string, error) {
+	req := &usersrvv1.ListSecurityAuditRequest{
+		UserId: q.UserID, OperatorUserId: q.OperatorUserID, Channel: auditChannelProto(q.Channel),
+		Action: q.Action, Result: q.Result, MutationId: q.MutationID, PageSize: q.PageSize, PageToken: q.PageToken,
+	}
+	if !q.From.IsZero() {
+		req.From = timestamppb.New(q.From)
+	}
+	if !q.To.IsZero() {
+		req.To = timestamppb.New(q.To)
+	}
+	res, err := c.admin.ListSecurityAudit(asAdmin(ctx, operatorID), req)
+	if err != nil {
+		return nil, "", MapError(err)
+	}
+	out := make([]AuditEntry, 0, len(res.GetEntries()))
+	for _, e := range res.GetEntries() {
+		entry := AuditEntry{
+			ID: e.GetId(), CreatedAt: e.GetCreatedAt().AsTime(), Channel: auditChannelName(e.GetChannel()),
+			OperatorUserID: e.GetOperatorUserId(), OperatorLabel: e.GetOperatorLabel(), UserID: e.GetUserId(),
+			Action: e.GetAction(), Result: e.GetResult(), Reason: e.GetReason(), RequestID: e.GetRequestId(), MutationID: e.GetMutationId(),
+			BeforeStatus: e.GetBeforeStatus(), AfterStatus: e.GetAfterStatus(), BeforeRoles: e.GetBeforeRoles(), AfterRoles: e.GetAfterRoles(),
+			OriginID: e.GetOriginId(),
+		}
+		if o := e.GetOrigin(); o != nil {
+			entry.Origin = &AuditOrigin{ID: o.GetId(), CreatedAt: o.GetCreatedAt().AsTime(), Action: o.GetAction(), Result: o.GetResult(),
+				BeforeStatus: o.GetBeforeStatus(), AfterStatus: o.GetAfterStatus(), BeforeRoles: o.GetBeforeRoles(), AfterRoles: o.GetAfterRoles()}
+		}
+		out = append(out, entry)
+	}
+	return out, res.GetNextPageToken(), nil
+}
+
+func auditChannelProto(c string) usersrvv1.AuditChannel {
+	switch c {
+	case "web":
+		return usersrvv1.AuditChannel_AUDIT_CHANNEL_WEB
+	case "cli":
+		return usersrvv1.AuditChannel_AUDIT_CHANNEL_CLI
+	case "self":
+		return usersrvv1.AuditChannel_AUDIT_CHANNEL_SELF
+	case "system":
+		return usersrvv1.AuditChannel_AUDIT_CHANNEL_SYSTEM
+	}
+	return usersrvv1.AuditChannel_AUDIT_CHANNEL_UNSPECIFIED
+}
+
+func auditChannelName(c usersrvv1.AuditChannel) string {
+	switch c {
+	case usersrvv1.AuditChannel_AUDIT_CHANNEL_WEB:
+		return "web"
+	case usersrvv1.AuditChannel_AUDIT_CHANNEL_CLI:
+		return "cli"
+	case usersrvv1.AuditChannel_AUDIT_CHANNEL_SELF:
+		return "self"
+	case usersrvv1.AuditChannel_AUDIT_CHANNEL_SYSTEM:
+		return "system"
+	}
+	return ""
 }
 
 // GetUser reads one account for the administrator operatorID; a missing account is ErrNotFound.

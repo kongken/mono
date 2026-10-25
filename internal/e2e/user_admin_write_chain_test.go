@@ -305,14 +305,14 @@ func TestChainUserAdminForbiddenOperations(t *testing.T) {
 	adminID, _ := h.Accounts.ResolveEmail(ctx, emailFor("f_admin"))
 	secondID, _ := h.Accounts.ResolveEmail(ctx, emailFor("f_admin2"))
 
-	// The service has exactly these six methods: nothing to set a role by name, a field list, a password,
-	// to impersonate or to delete.
+	// The service has exactly these seven methods (three reads, the audit among them, and four narrow writes):
+	// nothing to set a role by name, a field list, a password, to impersonate, to delete or to export.
 	methods := bffv1.File_bff_v1_user_admin_proto.Services().ByName("UserAdminService").Methods()
 	var names []string
 	for i := 0; i < methods.Len(); i++ {
 		names = append(names, string(methods.Get(i).Name()))
 	}
-	if got := strings.Join(names, ","); got != "ListUsers,GetUser,DisableUser,EnableUser,GrantMetroAdmin,RevokeMetroAdmin" {
+	if got := strings.Join(names, ","); got != "ListUsers,GetUser,ListSecurityAudit,DisableUser,EnableUser,GrantMetroAdmin,RevokeMetroAdmin" {
 		t.Fatalf("the console's user service has the methods %s", got)
 	}
 	fields := bffv1.File_bff_v1_user_admin_proto.Messages().ByName("ChangeUserRequest").Fields()

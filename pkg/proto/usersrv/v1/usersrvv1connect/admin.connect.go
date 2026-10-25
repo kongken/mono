@@ -39,6 +39,9 @@ const (
 	// UserAdminServiceGetUserProcedure is the fully-qualified name of the UserAdminService's GetUser
 	// RPC.
 	UserAdminServiceGetUserProcedure = "/usersrv.v1.UserAdminService/GetUser"
+	// UserAdminServiceListSecurityAuditProcedure is the fully-qualified name of the UserAdminService's
+	// ListSecurityAudit RPC.
+	UserAdminServiceListSecurityAuditProcedure = "/usersrv.v1.UserAdminService/ListSecurityAudit"
 	// UserAdminServiceDisableUserProcedure is the fully-qualified name of the UserAdminService's
 	// DisableUser RPC.
 	UserAdminServiceDisableUserProcedure = "/usersrv.v1.UserAdminService/DisableUser"
@@ -62,6 +65,10 @@ type UserAdminServiceClient interface {
 	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
 	// GetUser reads one account by UUID.
 	GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error)
+	// ListSecurityAudit pages through the account security and administration audit, newest
+	// first (created_at, then id, both descending). The read is itself audited
+	// (admin.audit.list, filters used and never their values) in the same transaction.
+	ListSecurityAudit(context.Context, *connect.Request[v1.ListSecurityAuditRequest]) (*connect.Response[v1.ListSecurityAuditResponse], error)
 	// DisableUser disables an active account. An already disabled account is a normal
 	// "unchanged" answer.
 	DisableUser(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error)
@@ -96,6 +103,12 @@ func NewUserAdminServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(userAdminServiceMethods.ByName("GetUser")),
 			connect.WithClientOptions(opts...),
 		),
+		listSecurityAudit: connect.NewClient[v1.ListSecurityAuditRequest, v1.ListSecurityAuditResponse](
+			httpClient,
+			baseURL+UserAdminServiceListSecurityAuditProcedure,
+			connect.WithSchema(userAdminServiceMethods.ByName("ListSecurityAudit")),
+			connect.WithClientOptions(opts...),
+		),
 		disableUser: connect.NewClient[v1.ChangeUserRequest, v1.ChangeUserResponse](
 			httpClient,
 			baseURL+UserAdminServiceDisableUserProcedure,
@@ -125,12 +138,13 @@ func NewUserAdminServiceClient(httpClient connect.HTTPClient, baseURL string, op
 
 // userAdminServiceClient implements UserAdminServiceClient.
 type userAdminServiceClient struct {
-	listUsers        *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
-	getUser          *connect.Client[v1.GetUserRequest, v1.GetUserResponse]
-	disableUser      *connect.Client[v1.ChangeUserRequest, v1.ChangeUserResponse]
-	enableUser       *connect.Client[v1.ChangeUserRequest, v1.ChangeUserResponse]
-	grantMetroAdmin  *connect.Client[v1.ChangeUserRequest, v1.ChangeUserResponse]
-	revokeMetroAdmin *connect.Client[v1.ChangeUserRequest, v1.ChangeUserResponse]
+	listUsers         *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
+	getUser           *connect.Client[v1.GetUserRequest, v1.GetUserResponse]
+	listSecurityAudit *connect.Client[v1.ListSecurityAuditRequest, v1.ListSecurityAuditResponse]
+	disableUser       *connect.Client[v1.ChangeUserRequest, v1.ChangeUserResponse]
+	enableUser        *connect.Client[v1.ChangeUserRequest, v1.ChangeUserResponse]
+	grantMetroAdmin   *connect.Client[v1.ChangeUserRequest, v1.ChangeUserResponse]
+	revokeMetroAdmin  *connect.Client[v1.ChangeUserRequest, v1.ChangeUserResponse]
 }
 
 // ListUsers calls usersrv.v1.UserAdminService.ListUsers.
@@ -141,6 +155,11 @@ func (c *userAdminServiceClient) ListUsers(ctx context.Context, req *connect.Req
 // GetUser calls usersrv.v1.UserAdminService.GetUser.
 func (c *userAdminServiceClient) GetUser(ctx context.Context, req *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error) {
 	return c.getUser.CallUnary(ctx, req)
+}
+
+// ListSecurityAudit calls usersrv.v1.UserAdminService.ListSecurityAudit.
+func (c *userAdminServiceClient) ListSecurityAudit(ctx context.Context, req *connect.Request[v1.ListSecurityAuditRequest]) (*connect.Response[v1.ListSecurityAuditResponse], error) {
+	return c.listSecurityAudit.CallUnary(ctx, req)
 }
 
 // DisableUser calls usersrv.v1.UserAdminService.DisableUser.
@@ -172,6 +191,10 @@ type UserAdminServiceHandler interface {
 	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
 	// GetUser reads one account by UUID.
 	GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error)
+	// ListSecurityAudit pages through the account security and administration audit, newest
+	// first (created_at, then id, both descending). The read is itself audited
+	// (admin.audit.list, filters used and never their values) in the same transaction.
+	ListSecurityAudit(context.Context, *connect.Request[v1.ListSecurityAuditRequest]) (*connect.Response[v1.ListSecurityAuditResponse], error)
 	// DisableUser disables an active account. An already disabled account is a normal
 	// "unchanged" answer.
 	DisableUser(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error)
@@ -200,6 +223,12 @@ func NewUserAdminServiceHandler(svc UserAdminServiceHandler, opts ...connect.Han
 		UserAdminServiceGetUserProcedure,
 		svc.GetUser,
 		connect.WithSchema(userAdminServiceMethods.ByName("GetUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userAdminServiceListSecurityAuditHandler := connect.NewUnaryHandler(
+		UserAdminServiceListSecurityAuditProcedure,
+		svc.ListSecurityAudit,
+		connect.WithSchema(userAdminServiceMethods.ByName("ListSecurityAudit")),
 		connect.WithHandlerOptions(opts...),
 	)
 	userAdminServiceDisableUserHandler := connect.NewUnaryHandler(
@@ -232,6 +261,8 @@ func NewUserAdminServiceHandler(svc UserAdminServiceHandler, opts ...connect.Han
 			userAdminServiceListUsersHandler.ServeHTTP(w, r)
 		case UserAdminServiceGetUserProcedure:
 			userAdminServiceGetUserHandler.ServeHTTP(w, r)
+		case UserAdminServiceListSecurityAuditProcedure:
+			userAdminServiceListSecurityAuditHandler.ServeHTTP(w, r)
 		case UserAdminServiceDisableUserProcedure:
 			userAdminServiceDisableUserHandler.ServeHTTP(w, r)
 		case UserAdminServiceEnableUserProcedure:
@@ -255,6 +286,10 @@ func (UnimplementedUserAdminServiceHandler) ListUsers(context.Context, *connect.
 
 func (UnimplementedUserAdminServiceHandler) GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("usersrv.v1.UserAdminService.GetUser is not implemented"))
+}
+
+func (UnimplementedUserAdminServiceHandler) ListSecurityAudit(context.Context, *connect.Request[v1.ListSecurityAuditRequest]) (*connect.Response[v1.ListSecurityAuditResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("usersrv.v1.UserAdminService.ListSecurityAudit is not implemented"))
 }
 
 func (UnimplementedUserAdminServiceHandler) DisableUser(context.Context, *connect.Request[v1.ChangeUserRequest]) (*connect.Response[v1.ChangeUserResponse], error) {

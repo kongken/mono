@@ -32,6 +32,8 @@ const (
 	FieldRoles = "roles"
 	// FieldAuthVersion holds the string denoting the auth_version field in the database.
 	FieldAuthVersion = "auth_version"
+	// FieldAuditID holds the string denoting the audit_id field in the database.
+	FieldAuditID = "audit_id"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldExpiresAt holds the string denoting the expires_at field in the database.
@@ -52,6 +54,7 @@ var Columns = []string{
 	FieldStatus,
 	FieldRoles,
 	FieldAuthVersion,
+	FieldAuditID,
 	FieldCreatedAt,
 	FieldExpiresAt,
 }
@@ -125,6 +128,11 @@ func ByRoles(opts ...sql.OrderTermOption) OrderOption {
 // ByAuthVersion orders the results by the auth_version field.
 func ByAuthVersion(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAuthVersion, opts...).ToFunc()
+}
+
+// ByAuditID orders the results by the audit_id field.
+func ByAuditID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAuditID, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

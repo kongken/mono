@@ -36,6 +36,8 @@ type AdminMutation struct {
 	Roles string `json:"roles,omitempty"`
 	// AuthVersion holds the value of the "auth_version" field.
 	AuthVersion int64 `json:"auth_version,omitempty"`
+	// AuditID holds the value of the "audit_id" field.
+	AuditID *uuid.UUID `json:"audit_id,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// ExpiresAt holds the value of the "expires_at" field.
@@ -48,6 +50,8 @@ func (*AdminMutation) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case adminmutation.FieldAuditID:
+			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
 		case adminmutation.FieldRequestHash:
 			values[i] = new([]byte)
 		case adminmutation.FieldChanged:
@@ -135,6 +139,13 @@ func (_m *AdminMutation) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.AuthVersion = value.Int64
 			}
+		case adminmutation.FieldAuditID:
+			if value, ok := values[i].(*sql.NullScanner); !ok {
+				return fmt.Errorf("unexpected type %T for field audit_id", values[i])
+			} else if value.Valid {
+				_m.AuditID = new(uuid.UUID)
+				*_m.AuditID = *value.S.(*uuid.UUID)
+			}
 		case adminmutation.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -209,6 +220,11 @@ func (_m *AdminMutation) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("auth_version=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AuthVersion))
+	builder.WriteString(", ")
+	if v := _m.AuditID; v != nil {
+		builder.WriteString("audit_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

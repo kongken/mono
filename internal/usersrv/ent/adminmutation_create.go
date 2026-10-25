@@ -86,6 +86,20 @@ func (_c *AdminMutationCreate) SetAuthVersion(v int64) *AdminMutationCreate {
 	return _c
 }
 
+// SetAuditID sets the "audit_id" field.
+func (_c *AdminMutationCreate) SetAuditID(v uuid.UUID) *AdminMutationCreate {
+	_c.mutation.SetAuditID(v)
+	return _c
+}
+
+// SetNillableAuditID sets the "audit_id" field if the given value is not nil.
+func (_c *AdminMutationCreate) SetNillableAuditID(v *uuid.UUID) *AdminMutationCreate {
+	if v != nil {
+		_c.SetAuditID(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *AdminMutationCreate) SetCreatedAt(v time.Time) *AdminMutationCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -286,6 +300,10 @@ func (_c *AdminMutationCreate) createSpec() (*AdminMutation, *sqlgraph.CreateSpe
 		_spec.SetField(adminmutation.FieldAuthVersion, field.TypeInt64, value)
 		_node.AuthVersion = value
 	}
+	if value, ok := _c.mutation.AuditID(); ok {
+		_spec.SetField(adminmutation.FieldAuditID, field.TypeUUID, value)
+		_node.AuditID = &value
+	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(adminmutation.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
@@ -389,6 +407,9 @@ func (u *AdminMutationUpsertOne) UpdateNewValues() *AdminMutationUpsertOne {
 		}
 		if _, exists := u.create.mutation.AuthVersion(); exists {
 			s.SetIgnore(adminmutation.FieldAuthVersion)
+		}
+		if _, exists := u.create.mutation.AuditID(); exists {
+			s.SetIgnore(adminmutation.FieldAuditID)
 		}
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(adminmutation.FieldCreatedAt)
@@ -636,6 +657,9 @@ func (u *AdminMutationUpsertBulk) UpdateNewValues() *AdminMutationUpsertBulk {
 			}
 			if _, exists := b.mutation.AuthVersion(); exists {
 				s.SetIgnore(adminmutation.FieldAuthVersion)
+			}
+			if _, exists := b.mutation.AuditID(); exists {
+				s.SetIgnore(adminmutation.FieldAuditID)
 			}
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(adminmutation.FieldCreatedAt)

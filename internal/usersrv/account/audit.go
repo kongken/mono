@@ -17,6 +17,9 @@ import (
 // auditEntry is one security_audit row. It never carries an email, a password
 // or a token; the actor is "user:<uuid>", "system" or the CLI operator name.
 type auditEntry struct {
+	// id is the row's ID; the zero value lets the store pick one. A change fixes it up front
+	// so its receipt can point at the row.
+	id        uuid.UUID
 	userID    *uuid.UUID
 	actor     string
 	action    string
@@ -29,11 +32,34 @@ type auditEntry struct {
 	mutationID                string
 	beforeStatus, afterStatus Status
 	beforeRoles, afterRoles   []string
+	// originID is set on a replay: the audit row of the change whose answer was handed out again.
+	originID *uuid.UUID
+}
+
+// The channels of an audit row: where the actor came from.
+const (
+	ChannelWeb    = "web"    // an administrator in the console; actor_user_id is the real operator
+	ChannelCLI    = "cli"    // the operator CLI; actor is its controlled operator name
+	ChannelSelf   = "self"   // the account's own holder (sign-in, password, deletion)
+	ChannelSystem = "system" // a background or anonymous flow
+)
+
+// channelOf is the channel of a row that did not name one: the actor says it.
+func (e auditEntry) channelOf() string {
+	switch {
+	case e.channel != "":
+		return e.channel
+	case e.actor == "system":
+		return ChannelSystem
+	case strings.HasPrefix(e.actor, "user:"):
+		return ChannelSelf
+	}
+	return ChannelCLI
 }
 
 func (e auditEntry) create(c *ent.SecurityAuditCreate, at time.Time) *ent.SecurityAuditCreate {
 	c.SetActor(e.actor).SetAction(e.action).SetRequestID(e.requestID).SetResult(e.result).SetReason(e.reason).SetCreatedAt(at).
-		SetChannel(e.channel).SetMutationID(e.mutationID).
+		SetChannel(e.channelOf()).SetMutationID(e.mutationID).
 		SetBeforeStatus(string(e.beforeStatus)).SetAfterStatus(string(e.afterStatus)).
 		SetBeforeRoles(strings.Join(e.beforeRoles, ",")).SetAfterRoles(strings.Join(e.afterRoles, ","))
 	if e.userID != nil {
@@ -41,6 +67,12 @@ func (e auditEntry) create(c *ent.SecurityAuditCreate, at time.Time) *ent.Securi
 	}
 	if e.actorUser != nil {
 		c.SetActorUserID(*e.actorUser)
+	}
+	if e.id != uuid.Nil {
+		c.SetID(e.id)
+	}
+	if e.originID != nil {
+		c.SetOriginID(*e.originID)
 	}
 	return c
 }

@@ -422,3 +422,115 @@ func TestAdminMutationsMigrationUpgradesAnExistingDatabaseInPlace(t *testing.T) 
 		}
 	}
 }
+
+const auditQueryMigration = "20261025140000_audit_query.sql"
+
+// The audit-query migration is applied to a database that already holds what the previous release wrote:
+// rows of every kind (older CLI rows and console reads with no channel, system and self-service rows,
+// a T5 console change with its operator UUID) and a receipt. Nothing is lost, every row is classified
+// by where its actor came from, and the receipt stays valid with no audit link.
+func TestAuditQueryMigrationUpgradesAnExistingDatabaseInPlace(t *testing.T) {
+	scoped, _ := testutil.Schema(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	files, err := filepath.Glob(filepath.Join(migrationsDir, "*.sql"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("migrations missing: %v %v", files, err)
+	}
+	sort.Strings(files)
+	apply := func(f string) {
+		t.Helper()
+		body, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = scoped.ExecContext(ctx, string(body)); err != nil {
+			t.Fatalf("%s: %v", filepath.Base(f), err)
+		}
+	}
+	var target string
+	for _, f := range files {
+		if filepath.Base(f) == auditQueryMigration {
+			target = f
+			break
+		}
+		apply(f)
+	}
+	if target == "" {
+		t.Fatalf("%s is missing", auditQueryMigration)
+	}
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := scoped.ExecContext(ctx, q, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const (
+		admin  = "00000000-0000-0000-0000-0000000000a1"
+		holder = "00000000-0000-0000-0000-0000000000b2"
+	)
+	exec(`INSERT INTO users (id, email_canonical, email_verified_at, password_hash, created_at, updated_at) VALUES ($1,'root@example.com',now(),'$argon2id$x',now(),now()),($2,'holder@example.com',now(),'$argon2id$x',now(),now())`, admin, holder)
+	row := func(id, user, actor, action, channel, actorUser string) {
+		var u, au any
+		if user != "" {
+			u = user
+		}
+		if actorUser != "" {
+			au = actorUser
+		}
+		exec(`INSERT INTO security_audit (id, user_id, actor, action, request_id, result, reason, created_at, channel, actor_user_id)
+			VALUES ($1, $2, $3, $4, '', 'ok', '', '2026-10-01T00:00:00Z', $5, $6)`, id, u, actor, action, channel, au)
+	}
+	row("00000000-0000-0000-0000-00000000d001", holder, "ops-old", "role.grant:metro-admin", "", "")
+	row("00000000-0000-0000-0000-00000000d002", "", "system", "reset.request", "", "")
+	row("00000000-0000-0000-0000-00000000d003", "", "user:"+admin, "admin.users.list", "", "")
+	row("00000000-0000-0000-0000-00000000d004", holder, "user:"+holder, "login", "", "")
+	row("00000000-0000-0000-0000-00000000d005", holder, "user:"+admin, "admin.account.disable", "web", admin)
+	row("00000000-0000-0000-0000-00000000d006", holder, "ops-new", "account.enable", "cli", "")
+	exec(`INSERT INTO admin_mutations (id, operator_id, mutation_id, action, target_id, request_hash, changed, status, roles, auth_version, created_at, expires_at)
+		VALUES (gen_random_uuid(), $1, 'old-key', 'disable', $2, $3::bytea, true, 'disabled', '', 2, now(), now() + interval '24 hours')`, admin, holder, strings.Repeat("h", 32))
+
+	apply(target)
+
+	want := map[string][2]string{ // id suffix -> channel, actor_user_id
+		"d001": {"cli", ""}, "d002": {"system", ""}, "d003": {"web", admin}, "d004": {"self", ""}, "d005": {"web", admin}, "d006": {"cli", ""},
+	}
+	rows, err := scoped.QueryContext(ctx, `SELECT right(id::text, 4), channel, COALESCE(actor_user_id::text, ''), actor, action, origin_id IS NULL FROM security_audit ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		var suffix, channel, actorUser, actor, action string
+		var noOrigin bool
+		if err := rows.Scan(&suffix, &channel, &actorUser, &actor, &action, &noOrigin); err != nil {
+			t.Fatal(err)
+		}
+		n++
+		if w := want[suffix]; channel != w[0] || actorUser != w[1] || !noOrigin {
+			t.Errorf("row %s (%s %s): channel %q actor_user_id %q, want %v", suffix, actor, action, channel, actorUser, w)
+		}
+	}
+	if err := rows.Err(); err != nil || n != len(want) {
+		t.Fatalf("%d rows survived, want %d (%v)", n, len(want), err)
+	}
+	// The CLI's controlled operator name and the actor text of every row are untouched.
+	var label string
+	if err := scoped.QueryRowContext(ctx, `SELECT actor FROM security_audit WHERE id = '00000000-0000-0000-0000-00000000d001'`).Scan(&label); err != nil || label != "ops-old" {
+		t.Fatalf("the CLI row changed: %q %v", label, err)
+	}
+	// The receipt survives and answers as before; it has no audit link, which a replay reports as unknown.
+	var key string
+	var link *string
+	if err := scoped.QueryRowContext(ctx, `SELECT mutation_id, audit_id::text FROM admin_mutations`).Scan(&key, &link); err != nil || key != "old-key" || link != nil {
+		t.Fatalf("receipt: %q %v %v", key, link, err)
+	}
+	// The indexes the console's filters use exist.
+	for _, idx := range []string{"securityaudit_action_created_at", "securityaudit_actor_user_id_created_at"} {
+		var found bool
+		if err := scoped.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND indexname = $1)`, idx).Scan(&found); err != nil || !found {
+			t.Errorf("index %s: %v %v", idx, found, err)
+		}
+	}
+}

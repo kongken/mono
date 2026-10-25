@@ -59,6 +59,7 @@ var (
 		{Name: "status", Type: field.TypeString},
 		{Name: "roles", Type: field.TypeString, Default: ""},
 		{Name: "auth_version", Type: field.TypeInt64},
+		{Name: "audit_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "expires_at", Type: field.TypeTime},
 	}
@@ -76,7 +77,7 @@ var (
 			{
 				Name:    "adminmutation_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{AdminMutationsColumns[11]},
+				Columns: []*schema.Column{AdminMutationsColumns[12]},
 			},
 		},
 	}
@@ -165,6 +166,7 @@ var (
 		{Name: "after_status", Type: field.TypeString, Default: ""},
 		{Name: "before_roles", Type: field.TypeString, Default: ""},
 		{Name: "after_roles", Type: field.TypeString, Default: ""},
+		{Name: "origin_id", Type: field.TypeUUID, Nullable: true},
 	}
 	// SecurityAuditTable holds the schema information for the "security_audit" table.
 	SecurityAuditTable = &schema.Table{
@@ -181,6 +183,16 @@ var (
 				Name:    "securityaudit_user_id_created_at",
 				Unique:  false,
 				Columns: []*schema.Column{SecurityAuditColumns[1], SecurityAuditColumns[7]},
+			},
+			{
+				Name:    "securityaudit_actor_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{SecurityAuditColumns[9], SecurityAuditColumns[7]},
+			},
+			{
+				Name:    "securityaudit_action_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{SecurityAuditColumns[3], SecurityAuditColumns[7]},
 			},
 		},
 	}

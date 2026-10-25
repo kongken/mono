@@ -182,7 +182,7 @@ func (s *Service) adminChange(ctx context.Context, op Operator, id uuid.UUID, ac
 	var res ChangeResult
 	var refusal error
 	err := s.inTx(ctx, func(tx *ent.Tx) error {
-		entry := auditEntry{actor: op.Name, action: action, requestID: op.RequestID, reason: op.Reason, channel: "cli"}
+		entry := auditEntry{actor: op.Name, action: action, requestID: op.RequestID, reason: op.Reason, channel: ChannelCLI}
 		u, err := tx.User.Query().Where(user.ID(id)).ForUpdate().Only(ctx)
 		if ent.IsNotFound(err) {
 			refusal, entry.result = ErrNotFound, "not_found"

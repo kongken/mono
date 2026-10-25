@@ -171,7 +171,7 @@ func (s *Service) ListUsers(ctx context.Context, actor uuid.UUID, requestID stri
 	var page UserPage
 	var denied bool
 	err = s.inTx(ctx, func(tx *ent.Tx) error {
-		entry := auditEntry{actor: adminActor(actor), action: "admin.users.list", requestID: requestID, reason: listReason(lookup, f, after != nil)}
+		entry := auditEntry{actor: adminActor(actor), actorUser: &actor, channel: ChannelWeb, action: "admin.users.list", requestID: requestID, reason: listReason(lookup, f, after != nil)}
 		if err := s.requireAdmin(ctx, tx, actor); err != nil {
 			if err != ErrForbidden {
 				return err
@@ -235,7 +235,7 @@ func (s *Service) GetUser(ctx context.Context, actor uuid.UUID, requestID string
 	var out AdminUser
 	var refusal error
 	err := s.inTx(ctx, func(tx *ent.Tx) error {
-		entry := auditEntry{actor: adminActor(actor), action: "admin.users.get", requestID: requestID, userID: &id}
+		entry := auditEntry{actor: adminActor(actor), actorUser: &actor, channel: ChannelWeb, action: "admin.users.get", requestID: requestID, userID: &id}
 		if err := s.requireAdmin(ctx, tx, actor); err != nil {
 			if err != ErrForbidden {
 				return err

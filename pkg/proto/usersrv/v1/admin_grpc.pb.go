@@ -19,12 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	UserAdminService_ListUsers_FullMethodName        = "/usersrv.v1.UserAdminService/ListUsers"
-	UserAdminService_GetUser_FullMethodName          = "/usersrv.v1.UserAdminService/GetUser"
-	UserAdminService_DisableUser_FullMethodName      = "/usersrv.v1.UserAdminService/DisableUser"
-	UserAdminService_EnableUser_FullMethodName       = "/usersrv.v1.UserAdminService/EnableUser"
-	UserAdminService_GrantMetroAdmin_FullMethodName  = "/usersrv.v1.UserAdminService/GrantMetroAdmin"
-	UserAdminService_RevokeMetroAdmin_FullMethodName = "/usersrv.v1.UserAdminService/RevokeMetroAdmin"
+	UserAdminService_ListUsers_FullMethodName         = "/usersrv.v1.UserAdminService/ListUsers"
+	UserAdminService_GetUser_FullMethodName           = "/usersrv.v1.UserAdminService/GetUser"
+	UserAdminService_ListSecurityAudit_FullMethodName = "/usersrv.v1.UserAdminService/ListSecurityAudit"
+	UserAdminService_DisableUser_FullMethodName       = "/usersrv.v1.UserAdminService/DisableUser"
+	UserAdminService_EnableUser_FullMethodName        = "/usersrv.v1.UserAdminService/EnableUser"
+	UserAdminService_GrantMetroAdmin_FullMethodName   = "/usersrv.v1.UserAdminService/GrantMetroAdmin"
+	UserAdminService_RevokeMetroAdmin_FullMethodName  = "/usersrv.v1.UserAdminService/RevokeMetroAdmin"
 )
 
 // UserAdminServiceClient is the client API for UserAdminService service.
@@ -92,6 +93,10 @@ type UserAdminServiceClient interface {
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error)
 	// GetUser reads one account by UUID.
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
+	// ListSecurityAudit pages through the account security and administration audit, newest
+	// first (created_at, then id, both descending). The read is itself audited
+	// (admin.audit.list, filters used and never their values) in the same transaction.
+	ListSecurityAudit(ctx context.Context, in *ListSecurityAuditRequest, opts ...grpc.CallOption) (*ListSecurityAuditResponse, error)
 	// DisableUser disables an active account. An already disabled account is a normal
 	// "unchanged" answer.
 	DisableUser(ctx context.Context, in *ChangeUserRequest, opts ...grpc.CallOption) (*ChangeUserResponse, error)
@@ -125,6 +130,16 @@ func (c *userAdminServiceClient) GetUser(ctx context.Context, in *GetUserRequest
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetUserResponse)
 	err := c.cc.Invoke(ctx, UserAdminService_GetUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userAdminServiceClient) ListSecurityAudit(ctx context.Context, in *ListSecurityAuditRequest, opts ...grpc.CallOption) (*ListSecurityAuditResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSecurityAuditResponse)
+	err := c.cc.Invoke(ctx, UserAdminService_ListSecurityAudit_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -236,6 +251,10 @@ type UserAdminServiceServer interface {
 	ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error)
 	// GetUser reads one account by UUID.
 	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
+	// ListSecurityAudit pages through the account security and administration audit, newest
+	// first (created_at, then id, both descending). The read is itself audited
+	// (admin.audit.list, filters used and never their values) in the same transaction.
+	ListSecurityAudit(context.Context, *ListSecurityAuditRequest) (*ListSecurityAuditResponse, error)
 	// DisableUser disables an active account. An already disabled account is a normal
 	// "unchanged" answer.
 	DisableUser(context.Context, *ChangeUserRequest) (*ChangeUserResponse, error)
@@ -260,6 +279,9 @@ func (UnimplementedUserAdminServiceServer) ListUsers(context.Context, *ListUsers
 }
 func (UnimplementedUserAdminServiceServer) GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
+}
+func (UnimplementedUserAdminServiceServer) ListSecurityAudit(context.Context, *ListSecurityAuditRequest) (*ListSecurityAuditResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSecurityAudit not implemented")
 }
 func (UnimplementedUserAdminServiceServer) DisableUser(context.Context, *ChangeUserRequest) (*ChangeUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DisableUser not implemented")
@@ -326,6 +348,24 @@ func _UserAdminService_GetUser_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserAdminServiceServer).GetUser(ctx, req.(*GetUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserAdminService_ListSecurityAudit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSecurityAuditRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserAdminServiceServer).ListSecurityAudit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserAdminService_ListSecurityAudit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserAdminServiceServer).ListSecurityAudit(ctx, req.(*ListSecurityAuditRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -416,6 +456,10 @@ var UserAdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUser",
 			Handler:    _UserAdminService_GetUser_Handler,
+		},
+		{
+			MethodName: "ListSecurityAudit",
+			Handler:    _UserAdminService_ListSecurityAudit_Handler,
 		},
 		{
 			MethodName: "DisableUser",

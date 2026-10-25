@@ -53,7 +53,7 @@ func init() {
 	// adminmutation.DefaultRoles holds the default value on creation for the roles field.
 	adminmutation.DefaultRoles = adminmutationDescRoles.Default.(string)
 	// adminmutationDescCreatedAt is the schema descriptor for created_at field.
-	adminmutationDescCreatedAt := adminmutationFields[10].Descriptor()
+	adminmutationDescCreatedAt := adminmutationFields[11].Descriptor()
 	// adminmutation.DefaultCreatedAt holds the default value on creation for the created_at field.
 	adminmutation.DefaultCreatedAt = adminmutationDescCreatedAt.Default.(func() time.Time)
 	// adminmutationDescID is the schema descriptor for id field.

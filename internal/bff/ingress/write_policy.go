@@ -25,6 +25,8 @@ var readOnlyProcedures = map[string]bool{
 	// not exempt from the admin perimeter, which demands the console's exact Origin.
 	bffv1connect.UserAdminServiceListUsersProcedure: true,
 	bffv1connect.UserAdminServiceGetUserProcedure:   true,
+	// The account audit is a read too: same perimeter, session age and role, no CSRF.
+	bffv1connect.UserAdminServiceListSecurityAuditProcedure: true,
 
 	bfftripmapv1connect.FootprintServiceGetChangesProcedure:    true,
 	bfftripmapv1connect.FootprintServiceGetFootprintsProcedure: true,

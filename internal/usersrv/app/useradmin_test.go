@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -227,4 +228,108 @@ func TestUserAdminWriteErrorsAreTyped(t *testing.T) {
 	if st.AuthVersion != 2 || st.Status != usersrvv1.AccountStatus_ACCOUNT_STATUS_DISABLED {
 		t.Fatalf("state: %+v", st)
 	}
+}
+
+// ListSecurityAudit over the real RPC: the role is checked twice like every other method, the filters and
+// the page token are validated with browser-safe errors that never echo a value, and an entry carries
+// identifiers and classifications only.
+func TestListSecurityAuditOverRPC(t *testing.T) {
+	s := start(t)
+	admin := s.newUser(t, "root@example.com")
+	target := s.newUser(t, "target@example.com")
+	metro := s.newUser(t, "metro@example.com")
+	bg := context.Background()
+	if _, err := s.accounts.GrantRole(bg, gate, admin, account.RolePlatformAdmin); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.accounts.GrantRole(bg, gate, metro, account.RoleMetroAdmin); err != nil {
+		t.Fatal(err)
+	}
+	admins := usersrvv1.NewUserAdminServiceClient(s.conn)
+	ctx := withRoles(admin.String(), "ozid-admin")
+	if _, err := admins.DisableUser(ctx, &usersrvv1.ChangeUserRequest{UserId: target.String(), ExpectedAuthVersion: 1, MutationId: "rpc-1", Reason: "ticket 5"}); err != nil {
+		t.Fatal(err)
+	}
+	list := func(c context.Context, r *usersrvv1.ListSecurityAuditRequest) (*usersrvv1.ListSecurityAuditResponse, error) {
+		return admins.ListSecurityAudit(c, r)
+	}
+
+	// The role is required in the credential and in the database; metro-admin alone is not it.
+	for name, c := range map[string]context.Context{
+		"no role claim":   as(admin, ""),
+		"metro-admin":     withRoles(metro.String(), "metro-admin"),
+		"forged claim":    withRoles(target.String(), "ozid-admin"),
+		"claim for metro": withRoles(metro.String(), "ozid-admin"),
+	} {
+		if res, err := list(c, &usersrvv1.ListSecurityAuditRequest{}); status.Code(err) != codes.PermissionDenied || res != nil {
+			t.Fatalf("%s: %+v %v", name, res, err)
+		}
+	}
+
+	got, err := list(ctx, &usersrvv1.ListSecurityAuditRequest{UserId: target.String(), Action: "admin.account.disable", Channel: usersrvv1.AuditChannel_AUDIT_CHANNEL_WEB})
+	if err != nil || len(got.Entries) != 1 {
+		t.Fatalf("list: %+v %v", got, err)
+	}
+	e := got.Entries[0]
+	if e.OperatorUserId != admin.String() || e.UserId != target.String() || e.Result != "ok" || e.Reason != "ticket 5" || e.MutationId != "rpc-1" ||
+		e.BeforeStatus != "active" || e.AfterStatus != "disabled" || e.Channel != usersrvv1.AuditChannel_AUDIT_CHANNEL_WEB || e.RequestId != "req-admin" ||
+		e.CreatedAt == nil || e.OperatorLabel != "" || e.OriginId != "" || e.Origin != nil {
+		t.Fatalf("entry: %+v", e)
+	}
+	if text := got.String(); containsAny(text, "@example.com", "argon2") {
+		t.Fatalf("the answer holds an address or a hash: %s", text)
+	}
+
+	// The CLI's rows are labelled, not attributed to an account.
+	cli, err := list(ctx, &usersrvv1.ListSecurityAuditRequest{Channel: usersrvv1.AuditChannel_AUDIT_CHANNEL_CLI, Action: "role.grant:metro-admin"})
+	if err != nil || len(cli.Entries) != 1 || cli.Entries[0].OperatorLabel != "ops" || cli.Entries[0].OperatorUserId != "" {
+		t.Fatalf("cli rows: %+v %v", cli, err)
+	}
+
+	// Paging over the RPC: the token is opaque and bad ones are refused without echoing anything.
+	page, err := list(ctx, &usersrvv1.ListSecurityAuditRequest{PageSize: 2})
+	if err != nil || len(page.Entries) != 2 || page.NextPageToken == "" {
+		t.Fatalf("first page: %+v %v", page, err)
+	}
+	next, err := list(ctx, &usersrvv1.ListSecurityAuditRequest{PageSize: 2, PageToken: page.NextPageToken})
+	if err != nil || len(next.Entries) == 0 || next.Entries[0].Id == page.Entries[0].Id || next.Entries[0].Id == page.Entries[1].Id {
+		t.Fatalf("second page: %+v %v", next, err)
+	}
+	for _, token := range []string{"x", "!!!", "MTIzLmJhZA", string(make([]byte, 200))} {
+		if _, err = list(ctx, &usersrvv1.ListSecurityAuditRequest{PageToken: token}); status.Code(err) != codes.InvalidArgument || reason(t, err) != application.ReasonInvalidArgument {
+			t.Errorf("page token %q: %v", token, err)
+		}
+	}
+	secret := "secret-key-value"
+	for name, r := range map[string]*usersrvv1.ListSecurityAuditRequest{
+		"user id":   {UserId: "not-a-uuid-" + secret},
+		"channel":   {Channel: usersrvv1.AuditChannel(42)},
+		"action":    {Action: "NOT OK " + secret},
+		"mutation":  {MutationId: "bad key " + secret},
+		"page size": {PageSize: -1},
+	} {
+		_, err := list(ctx, r)
+		if status.Code(err) != codes.InvalidArgument {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if containsAny(status.Convert(err).Message(), secret) {
+			t.Fatalf("%s: the error echoes the value: %v", name, err)
+		}
+	}
+	// Revoked a moment ago: the claim made earlier no longer reads anything.
+	if _, err = s.accounts.RevokeRole(bg, gate, admin, account.RolePlatformAdmin); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := list(ctx, &usersrvv1.ListSecurityAuditRequest{}); status.Code(err) != codes.PermissionDenied || res != nil {
+		t.Fatalf("revoked administrator: %+v %v", res, err)
+	}
+}
+
+func containsAny(s string, parts ...string) bool {
+	for _, p := range parts {
+		if strings.Contains(s, p) {
+			return true
+		}
+	}
+	return false
 }

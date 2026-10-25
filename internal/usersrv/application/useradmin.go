@@ -77,6 +77,96 @@ func (s *UserAdminService) GetUser(ctx context.Context, req *usersrvv1.GetUserRe
 	return &usersrvv1.GetUserResponse{User: protoAdminUser(u)}, nil
 }
 
+// ListSecurityAudit reads the account audit for the administrator in the credential. The
+// filters are exact and validated by the account core; the read is itself audited there.
+func (s *UserAdminService) ListSecurityAudit(ctx context.Context, req *usersrvv1.ListSecurityAuditRequest) (*usersrvv1.ListSecurityAuditResponse, error) {
+	actor, requestID, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var after *account.AuditCursor
+	if tok := req.GetPageToken(); tok != "" {
+		if after, err = decodeAuditCursor(tok); err != nil {
+			return nil, toStatus("list_security_audit", err)
+		}
+	}
+	filter := account.AuditFilter{
+		UserID: req.GetUserId(), OperatorID: req.GetOperatorUserId(), Channel: auditChannelName(req.GetChannel()),
+		Action: req.GetAction(), Result: req.GetResult(), MutationID: req.GetMutationId(),
+	}
+	if req.GetChannel() != usersrvv1.AuditChannel_AUDIT_CHANNEL_UNSPECIFIED && filter.Channel == "" {
+		return nil, toStatus("list_security_audit", &identity.ValidationError{Field: "channel", Reason: "not a known channel"})
+	}
+	if req.GetFrom() != nil {
+		filter.From = req.GetFrom().AsTime()
+	}
+	if req.GetTo() != nil {
+		filter.To = req.GetTo().AsTime()
+	}
+	page, err := s.accounts.ListAudit(ctx, actor, requestID, filter, int(req.GetPageSize()), after)
+	if err != nil {
+		return nil, toStatus("list_security_audit", err)
+	}
+	out := &usersrvv1.ListSecurityAuditResponse{Entries: make([]*usersrvv1.SecurityAuditEntry, 0, len(page.Records))}
+	for _, r := range page.Records {
+		out.Entries = append(out.Entries, protoAuditEntry(r))
+	}
+	if page.Next != nil {
+		out.NextPageToken = encodeAuditCursor(*page.Next)
+	}
+	return out, nil
+}
+
+func auditChannelName(c usersrvv1.AuditChannel) string {
+	switch c {
+	case usersrvv1.AuditChannel_AUDIT_CHANNEL_WEB:
+		return account.ChannelWeb
+	case usersrvv1.AuditChannel_AUDIT_CHANNEL_CLI:
+		return account.ChannelCLI
+	case usersrvv1.AuditChannel_AUDIT_CHANNEL_SELF:
+		return account.ChannelSelf
+	case usersrvv1.AuditChannel_AUDIT_CHANNEL_SYSTEM:
+		return account.ChannelSystem
+	}
+	return ""
+}
+
+func protoAuditChannel(c string) usersrvv1.AuditChannel {
+	switch c {
+	case account.ChannelWeb:
+		return usersrvv1.AuditChannel_AUDIT_CHANNEL_WEB
+	case account.ChannelCLI:
+		return usersrvv1.AuditChannel_AUDIT_CHANNEL_CLI
+	case account.ChannelSelf:
+		return usersrvv1.AuditChannel_AUDIT_CHANNEL_SELF
+	case account.ChannelSystem:
+		return usersrvv1.AuditChannel_AUDIT_CHANNEL_SYSTEM
+	}
+	return usersrvv1.AuditChannel_AUDIT_CHANNEL_UNSPECIFIED
+}
+
+func uuidText(id *uuid.UUID) string {
+	if id == nil {
+		return ""
+	}
+	return id.String()
+}
+
+func protoAuditEntry(r account.AuditRecord) *usersrvv1.SecurityAuditEntry {
+	e := &usersrvv1.SecurityAuditEntry{
+		Id: r.ID.String(), CreatedAt: timestamppb.New(r.CreatedAt), Channel: protoAuditChannel(r.Channel),
+		OperatorUserId: uuidText(r.OperatorUserID), OperatorLabel: r.OperatorLabel, UserId: uuidText(r.UserID),
+		Action: r.Action, Result: r.Result, Reason: r.Reason, RequestId: r.RequestID, MutationId: r.MutationID,
+		BeforeStatus: r.BeforeStatus, AfterStatus: r.AfterStatus, BeforeRoles: r.BeforeRoles, AfterRoles: r.AfterRoles,
+		OriginId: uuidText(r.OriginID),
+	}
+	if o := r.Origin; o != nil {
+		e.Origin = &usersrvv1.SecurityAuditOrigin{Id: o.ID.String(), CreatedAt: timestamppb.New(o.CreatedAt), Action: o.Action, Result: o.Result,
+			BeforeStatus: o.BeforeStatus, AfterStatus: o.AfterStatus, BeforeRoles: o.BeforeRoles, AfterRoles: o.AfterRoles}
+	}
+	return e
+}
+
 func (s *UserAdminService) DisableUser(ctx context.Context, req *usersrvv1.ChangeUserRequest) (*usersrvv1.ChangeUserResponse, error) {
 	return s.change(ctx, account.ActionDisable, req)
 }
@@ -138,31 +228,51 @@ func protoAdminUser(u account.AdminUser) *usersrvv1.AdminUser {
 // The page token is an opaque position, "<unix microseconds>.<uuid>" in base64url.
 // It carries no authority: a forged one only moves the reader to another position
 // of a list it may read anyway.
-func encodeUserCursor(c account.UserCursor) string {
-	raw := strconv.FormatInt(c.CreatedAt.UnixMicro(), 10) + "." + c.ID.String()
+func encodeUserCursor(c account.UserCursor) string { return encodeCursor(c.CreatedAt, c.ID) }
+
+func decodeUserCursor(tok string) (*account.UserCursor, error) {
+	at, id, err := decodeCursor(tok)
+	if err != nil {
+		return nil, err
+	}
+	return &account.UserCursor{CreatedAt: at, ID: id}, nil
+}
+
+func encodeAuditCursor(c account.AuditCursor) string { return encodeCursor(c.CreatedAt, c.ID) }
+
+func decodeAuditCursor(tok string) (*account.AuditCursor, error) {
+	at, id, err := decodeCursor(tok)
+	if err != nil {
+		return nil, err
+	}
+	return &account.AuditCursor{CreatedAt: at, ID: id}, nil
+}
+
+func encodeCursor(at time.Time, id uuid.UUID) string {
+	raw := strconv.FormatInt(at.UnixMicro(), 10) + "." + id.String()
 	return base64.RawURLEncoding.EncodeToString([]byte(raw))
 }
 
-func decodeUserCursor(tok string) (*account.UserCursor, error) {
+func decodeCursor(tok string) (time.Time, uuid.UUID, error) {
 	bad := &identity.ValidationError{Field: "page_token", Reason: "not a valid page token"}
 	if len(tok) > 128 {
-		return nil, bad
+		return time.Time{}, uuid.Nil, bad
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(tok)
 	if err != nil {
-		return nil, bad
+		return time.Time{}, uuid.Nil, bad
 	}
 	micros, idText, ok := strings.Cut(string(raw), ".")
 	if !ok {
-		return nil, bad
+		return time.Time{}, uuid.Nil, bad
 	}
 	n, err := strconv.ParseInt(micros, 10, 64)
 	if err != nil {
-		return nil, bad
+		return time.Time{}, uuid.Nil, bad
 	}
 	id, err := uuid.Parse(idText)
 	if err != nil {
-		return nil, bad
+		return time.Time{}, uuid.Nil, bad
 	}
-	return &account.UserCursor{CreatedAt: time.UnixMicro(n).UTC(), ID: id}, nil
+	return time.UnixMicro(n).UTC(), id, nil
 }

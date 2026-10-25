@@ -202,11 +202,19 @@ func (SecurityAudit) Fields() []ent.Field {
 		field.String("after_status").Default("").Immutable(),
 		field.String("before_roles").Default("").Immutable(),
 		field.String("after_roles").Default("").Immutable(),
+		// Only on a "replayed" row: the id of the audit row of the change whose stored answer
+		// was handed out again. It is the exact link (mutation IDs are reusable once their
+		// receipt expires, so (operator, mutation_id) alone does not name one event). Empty for
+		// every other row, and for a replay of a receipt that predates the link.
+		field.UUID("origin_id", uuid.UUID{}).Optional().Nillable().Immutable(),
 	}
 }
 
 func (SecurityAudit) Indexes() []ent.Index {
-	return []ent.Index{index.Fields("created_at"), index.Fields("user_id", "created_at")}
+	return []ent.Index{
+		index.Fields("created_at"), index.Fields("user_id", "created_at"),
+		index.Fields("actor_user_id", "created_at"), index.Fields("action", "created_at"),
+	}
 }
 
 // DeletionTombstone proves that an account deletion finished, so a lost
@@ -341,6 +349,9 @@ func (AdminMutation) Fields() []ent.Field {
 		field.String("status").Immutable(),
 		field.String("roles").Default("").Immutable(),
 		field.Int64("auth_version").Immutable(),
+		// The audit row of the request that made this receipt: what a replay points to.
+		// Empty for a receipt written before the link existed.
+		field.UUID("audit_id", uuid.UUID{}).Optional().Nillable().Immutable(),
 		field.Time("created_at").Default(now).Immutable(),
 		field.Time("expires_at").Immutable(),
 	}

@@ -1063,6 +1063,7 @@ type AdminMutationMutation struct {
 	roles           *string
 	auth_version    *int64
 	addauth_version *int64
+	audit_id        *uuid.UUID
 	created_at      *time.Time
 	expires_at      *time.Time
 	clearedFields   map[string]struct{}
@@ -1519,6 +1520,55 @@ func (m *AdminMutationMutation) ResetAuthVersion() {
 	m.addauth_version = nil
 }
 
+// SetAuditID sets the "audit_id" field.
+func (m *AdminMutationMutation) SetAuditID(u uuid.UUID) {
+	m.audit_id = &u
+}
+
+// AuditID returns the value of the "audit_id" field in the mutation.
+func (m *AdminMutationMutation) AuditID() (r uuid.UUID, exists bool) {
+	v := m.audit_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAuditID returns the old "audit_id" field's value of the AdminMutation entity.
+// If the AdminMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdminMutationMutation) OldAuditID(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAuditID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAuditID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAuditID: %w", err)
+	}
+	return oldValue.AuditID, nil
+}
+
+// ClearAuditID clears the value of the "audit_id" field.
+func (m *AdminMutationMutation) ClearAuditID() {
+	m.audit_id = nil
+	m.clearedFields[adminmutation.FieldAuditID] = struct{}{}
+}
+
+// AuditIDCleared returns if the "audit_id" field was cleared in this mutation.
+func (m *AdminMutationMutation) AuditIDCleared() bool {
+	_, ok := m.clearedFields[adminmutation.FieldAuditID]
+	return ok
+}
+
+// ResetAuditID resets all changes to the "audit_id" field.
+func (m *AdminMutationMutation) ResetAuditID() {
+	m.audit_id = nil
+	delete(m.clearedFields, adminmutation.FieldAuditID)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *AdminMutationMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -1625,7 +1675,7 @@ func (m *AdminMutationMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AdminMutationMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.operator_id != nil {
 		fields = append(fields, adminmutation.FieldOperatorID)
 	}
@@ -1652,6 +1702,9 @@ func (m *AdminMutationMutation) Fields() []string {
 	}
 	if m.auth_version != nil {
 		fields = append(fields, adminmutation.FieldAuthVersion)
+	}
+	if m.audit_id != nil {
+		fields = append(fields, adminmutation.FieldAuditID)
 	}
 	if m.created_at != nil {
 		fields = append(fields, adminmutation.FieldCreatedAt)
@@ -1685,6 +1738,8 @@ func (m *AdminMutationMutation) Field(name string) (ent.Value, bool) {
 		return m.Roles()
 	case adminmutation.FieldAuthVersion:
 		return m.AuthVersion()
+	case adminmutation.FieldAuditID:
+		return m.AuditID()
 	case adminmutation.FieldCreatedAt:
 		return m.CreatedAt()
 	case adminmutation.FieldExpiresAt:
@@ -1716,6 +1771,8 @@ func (m *AdminMutationMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldRoles(ctx)
 	case adminmutation.FieldAuthVersion:
 		return m.OldAuthVersion(ctx)
+	case adminmutation.FieldAuditID:
+		return m.OldAuditID(ctx)
 	case adminmutation.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case adminmutation.FieldExpiresAt:
@@ -1792,6 +1849,13 @@ func (m *AdminMutationMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetAuthVersion(v)
 		return nil
+	case adminmutation.FieldAuditID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAuditID(v)
+		return nil
 	case adminmutation.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -1850,7 +1914,11 @@ func (m *AdminMutationMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *AdminMutationMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(adminmutation.FieldAuditID) {
+		fields = append(fields, adminmutation.FieldAuditID)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -1863,6 +1931,11 @@ func (m *AdminMutationMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *AdminMutationMutation) ClearField(name string) error {
+	switch name {
+	case adminmutation.FieldAuditID:
+		m.ClearAuditID()
+		return nil
+	}
 	return fmt.Errorf("unknown AdminMutation nullable field %s", name)
 }
 
@@ -1896,6 +1969,9 @@ func (m *AdminMutationMutation) ResetField(name string) error {
 		return nil
 	case adminmutation.FieldAuthVersion:
 		m.ResetAuthVersion()
+		return nil
+	case adminmutation.FieldAuditID:
+		m.ResetAuditID()
 		return nil
 	case adminmutation.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -3724,6 +3800,7 @@ type SecurityAuditMutation struct {
 	after_status  *string
 	before_roles  *string
 	after_roles   *string
+	origin_id     *uuid.UUID
 	clearedFields map[string]struct{}
 	done          bool
 	oldValue      func(context.Context) (*SecurityAudit, error)
@@ -4364,6 +4441,55 @@ func (m *SecurityAuditMutation) ResetAfterRoles() {
 	m.after_roles = nil
 }
 
+// SetOriginID sets the "origin_id" field.
+func (m *SecurityAuditMutation) SetOriginID(u uuid.UUID) {
+	m.origin_id = &u
+}
+
+// OriginID returns the value of the "origin_id" field in the mutation.
+func (m *SecurityAuditMutation) OriginID() (r uuid.UUID, exists bool) {
+	v := m.origin_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOriginID returns the old "origin_id" field's value of the SecurityAudit entity.
+// If the SecurityAudit object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SecurityAuditMutation) OldOriginID(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOriginID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOriginID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOriginID: %w", err)
+	}
+	return oldValue.OriginID, nil
+}
+
+// ClearOriginID clears the value of the "origin_id" field.
+func (m *SecurityAuditMutation) ClearOriginID() {
+	m.origin_id = nil
+	m.clearedFields[securityaudit.FieldOriginID] = struct{}{}
+}
+
+// OriginIDCleared returns if the "origin_id" field was cleared in this mutation.
+func (m *SecurityAuditMutation) OriginIDCleared() bool {
+	_, ok := m.clearedFields[securityaudit.FieldOriginID]
+	return ok
+}
+
+// ResetOriginID resets all changes to the "origin_id" field.
+func (m *SecurityAuditMutation) ResetOriginID() {
+	m.origin_id = nil
+	delete(m.clearedFields, securityaudit.FieldOriginID)
+}
+
 // Where appends a list predicates to the SecurityAuditMutation builder.
 func (m *SecurityAuditMutation) Where(ps ...predicate.SecurityAudit) {
 	m.predicates = append(m.predicates, ps...)
@@ -4398,7 +4524,7 @@ func (m *SecurityAuditMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *SecurityAuditMutation) Fields() []string {
-	fields := make([]string, 0, 14)
+	fields := make([]string, 0, 15)
 	if m.user_id != nil {
 		fields = append(fields, securityaudit.FieldUserID)
 	}
@@ -4441,6 +4567,9 @@ func (m *SecurityAuditMutation) Fields() []string {
 	if m.after_roles != nil {
 		fields = append(fields, securityaudit.FieldAfterRoles)
 	}
+	if m.origin_id != nil {
+		fields = append(fields, securityaudit.FieldOriginID)
+	}
 	return fields
 }
 
@@ -4477,6 +4606,8 @@ func (m *SecurityAuditMutation) Field(name string) (ent.Value, bool) {
 		return m.BeforeRoles()
 	case securityaudit.FieldAfterRoles:
 		return m.AfterRoles()
+	case securityaudit.FieldOriginID:
+		return m.OriginID()
 	}
 	return nil, false
 }
@@ -4514,6 +4645,8 @@ func (m *SecurityAuditMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldBeforeRoles(ctx)
 	case securityaudit.FieldAfterRoles:
 		return m.OldAfterRoles(ctx)
+	case securityaudit.FieldOriginID:
+		return m.OldOriginID(ctx)
 	}
 	return nil, fmt.Errorf("unknown SecurityAudit field %s", name)
 }
@@ -4621,6 +4754,13 @@ func (m *SecurityAuditMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetAfterRoles(v)
 		return nil
+	case securityaudit.FieldOriginID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOriginID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown SecurityAudit field %s", name)
 }
@@ -4657,6 +4797,9 @@ func (m *SecurityAuditMutation) ClearedFields() []string {
 	if m.FieldCleared(securityaudit.FieldActorUserID) {
 		fields = append(fields, securityaudit.FieldActorUserID)
 	}
+	if m.FieldCleared(securityaudit.FieldOriginID) {
+		fields = append(fields, securityaudit.FieldOriginID)
+	}
 	return fields
 }
 
@@ -4676,6 +4819,9 @@ func (m *SecurityAuditMutation) ClearField(name string) error {
 		return nil
 	case securityaudit.FieldActorUserID:
 		m.ClearActorUserID()
+		return nil
+	case securityaudit.FieldOriginID:
+		m.ClearOriginID()
 		return nil
 	}
 	return fmt.Errorf("unknown SecurityAudit nullable field %s", name)
@@ -4726,6 +4872,9 @@ func (m *SecurityAuditMutation) ResetField(name string) error {
 		return nil
 	case securityaudit.FieldAfterRoles:
 		m.ResetAfterRoles()
+		return nil
+	case securityaudit.FieldOriginID:
+		m.ResetOriginID()
 		return nil
 	}
 	return fmt.Errorf("unknown SecurityAudit field %s", name)

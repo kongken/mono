@@ -125,6 +125,11 @@ func AfterRoles(v string) predicate.SecurityAudit {
 	return predicate.SecurityAudit(sql.FieldEQ(FieldAfterRoles, v))
 }
 
+// OriginID applies equality check predicate on the "origin_id" field. It's identical to OriginIDEQ.
+func OriginID(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldOriginID, v))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v uuid.UUID) predicate.SecurityAudit {
 	return predicate.SecurityAudit(sql.FieldEQ(FieldUserID, v))
@@ -978,6 +983,56 @@ func AfterRolesEqualFold(v string) predicate.SecurityAudit {
 // AfterRolesContainsFold applies the ContainsFold predicate on the "after_roles" field.
 func AfterRolesContainsFold(v string) predicate.SecurityAudit {
 	return predicate.SecurityAudit(sql.FieldContainsFold(FieldAfterRoles, v))
+}
+
+// OriginIDEQ applies the EQ predicate on the "origin_id" field.
+func OriginIDEQ(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldOriginID, v))
+}
+
+// OriginIDNEQ applies the NEQ predicate on the "origin_id" field.
+func OriginIDNEQ(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNEQ(FieldOriginID, v))
+}
+
+// OriginIDIn applies the In predicate on the "origin_id" field.
+func OriginIDIn(vs ...uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldIn(FieldOriginID, vs...))
+}
+
+// OriginIDNotIn applies the NotIn predicate on the "origin_id" field.
+func OriginIDNotIn(vs ...uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNotIn(FieldOriginID, vs...))
+}
+
+// OriginIDGT applies the GT predicate on the "origin_id" field.
+func OriginIDGT(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGT(FieldOriginID, v))
+}
+
+// OriginIDGTE applies the GTE predicate on the "origin_id" field.
+func OriginIDGTE(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGTE(FieldOriginID, v))
+}
+
+// OriginIDLT applies the LT predicate on the "origin_id" field.
+func OriginIDLT(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLT(FieldOriginID, v))
+}
+
+// OriginIDLTE applies the LTE predicate on the "origin_id" field.
+func OriginIDLTE(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLTE(FieldOriginID, v))
+}
+
+// OriginIDIsNil applies the IsNil predicate on the "origin_id" field.
+func OriginIDIsNil() predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldIsNull(FieldOriginID))
+}
+
+// OriginIDNotNil applies the NotNil predicate on the "origin_id" field.
+func OriginIDNotNil() predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNotNull(FieldOriginID))
 }
 
 // And groups predicates with the AND operator between them.

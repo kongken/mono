@@ -45,7 +45,9 @@ type SecurityAudit struct {
 	// BeforeRoles holds the value of the "before_roles" field.
 	BeforeRoles string `json:"before_roles,omitempty"`
 	// AfterRoles holds the value of the "after_roles" field.
-	AfterRoles   string `json:"after_roles,omitempty"`
+	AfterRoles string `json:"after_roles,omitempty"`
+	// OriginID holds the value of the "origin_id" field.
+	OriginID     *uuid.UUID `json:"origin_id,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -54,7 +56,7 @@ func (*SecurityAudit) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case securityaudit.FieldUserID, securityaudit.FieldActorUserID:
+		case securityaudit.FieldUserID, securityaudit.FieldActorUserID, securityaudit.FieldOriginID:
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
 		case securityaudit.FieldActor, securityaudit.FieldAction, securityaudit.FieldRequestID, securityaudit.FieldResult, securityaudit.FieldReason, securityaudit.FieldChannel, securityaudit.FieldMutationID, securityaudit.FieldBeforeStatus, securityaudit.FieldAfterStatus, securityaudit.FieldBeforeRoles, securityaudit.FieldAfterRoles:
 			values[i] = new(sql.NullString)
@@ -169,6 +171,13 @@ func (_m *SecurityAudit) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.AfterRoles = value.String
 			}
+		case securityaudit.FieldOriginID:
+			if value, ok := values[i].(*sql.NullScanner); !ok {
+				return fmt.Errorf("unexpected type %T for field origin_id", values[i])
+			} else if value.Valid {
+				_m.OriginID = new(uuid.UUID)
+				*_m.OriginID = *value.S.(*uuid.UUID)
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -250,6 +259,11 @@ func (_m *SecurityAudit) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("after_roles=")
 	builder.WriteString(_m.AfterRoles)
+	builder.WriteString(", ")
+	if v := _m.OriginID; v != nil {
+		builder.WriteString("origin_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

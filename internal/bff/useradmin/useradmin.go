@@ -41,6 +41,7 @@ const Role = "ozid-admin"
 type Directory interface {
 	ListUsers(ctx context.Context, operatorID string, q usersrv.UserQuery) ([]usersrv.AdminUser, string, error)
 	GetUser(ctx context.Context, operatorID, userID string) (usersrv.AdminUser, error)
+	ListSecurityAudit(ctx context.Context, operatorID string, q usersrv.AuditQuery) ([]usersrv.AuditEntry, string, error)
 	DisableUser(ctx context.Context, operatorID string, in usersrv.UserChange) (usersrv.ChangeResult, error)
 	EnableUser(ctx context.Context, operatorID string, in usersrv.UserChange) (usersrv.ChangeResult, error)
 	GrantMetroAdmin(ctx context.Context, operatorID string, in usersrv.UserChange) (usersrv.ChangeResult, error)
@@ -180,6 +181,45 @@ func (h *Handler) GetUser(ctx context.Context, req *connect.Request[bffv1.GetUse
 	return connect.NewResponse(&bffv1.GetUserResponse{User: userOut(u)}), nil
 }
 
+// ListSecurityAudit pages through the account audit. It is a read like ListUsers (the
+// ingress demanded the perimeter, a session no older than the administrator maximum and the
+// platform role; the operator's read limit applies), and it is recorded by usersrv in the
+// transaction that reads. The log line has the kinds of filters used and the size of the
+// answer, never a filter value (a user ID, a mutation ID, a time) nor anything of the rows.
+func (h *Handler) ListSecurityAudit(ctx context.Context, req *connect.Request[bffv1.ListSecurityAuditRequest]) (*connect.Response[bffv1.ListSecurityAuditResponse], error) {
+	operator, err := h.operator(ctx)
+	if err != nil {
+		return nil, err
+	}
+	m := req.Msg
+	q := usersrv.AuditQuery{
+		UserID: m.GetUserId(), OperatorUserID: m.GetOperatorUserId(), Channel: auditChannelIn(m.GetChannel()),
+		Action: m.GetAction(), Result: m.GetResult(), MutationID: m.GetMutationId(),
+		PageSize: m.GetPageSize(), PageToken: m.GetPageToken(),
+	}
+	if m.GetChannel() != bffv1.AuditChannel_AUDIT_CHANNEL_UNSPECIFIED && q.Channel == "" {
+		err = connect.NewError(connect.CodeInvalidArgument, errors.New("channel: not a known channel"))
+		recordAudit(ctx, operator, q, 0, err)
+		return nil, err
+	}
+	if m.GetFrom() != nil {
+		q.From = m.GetFrom().AsTime()
+	}
+	if m.GetTo() != nil {
+		q.To = m.GetTo().AsTime()
+	}
+	entries, next, err := h.dir.ListSecurityAudit(ctx, operator, q)
+	recordAudit(ctx, operator, q, len(entries), err)
+	if err != nil {
+		return nil, err
+	}
+	out := &bffv1.ListSecurityAuditResponse{Entries: make([]*bffv1.SecurityAuditEntry, 0, len(entries)), NextPageToken: next}
+	for _, e := range entries {
+		out.Entries = append(out.Entries, auditOut(e))
+	}
+	return connect.NewResponse(out), nil
+}
+
 func (h *Handler) DisableUser(ctx context.Context, req *connect.Request[bffv1.ChangeUserRequest]) (*connect.Response[bffv1.ChangeUserResponse], error) {
 	return h.change(ctx, "disable", req.Msg, h.dir.DisableUser)
 }
@@ -222,6 +262,75 @@ func recordChange(ctx context.Context, operator, action string, m *bffv1.ChangeU
 	}
 	slog.Info("admin user change", "request_id", rpcauth.CallFrom(ctx).RequestID, "operator", operator, "action", action,
 		"target", m.GetUserId(), "mutation_id", m.GetMutationId(), "result", result, "changed", res.Changed, "replayed", res.Replayed)
+}
+
+// recordAudit is the BFF's log line of an audit query: operator, request, the kinds of filter
+// used and the size of the answer. No filter value and nothing from the rows is logged.
+func recordAudit(ctx context.Context, operator string, q usersrv.AuditQuery, count int, err error) {
+	result := "ok"
+	if err != nil {
+		result = connect.CodeOf(err).String()
+	}
+	var kinds []string
+	for _, f := range []struct {
+		name string
+		set  bool
+	}{
+		{"user", q.UserID != ""}, {"operator", q.OperatorUserID != ""}, {"channel", q.Channel != ""}, {"action", q.Action != ""},
+		{"result", q.Result != ""}, {"mutation", q.MutationID != ""}, {"time", !q.From.IsZero() || !q.To.IsZero()},
+	} {
+		if f.set {
+			kinds = append(kinds, f.name)
+		}
+	}
+	filters := "none"
+	if len(kinds) > 0 {
+		filters = strings.Join(kinds, "+")
+	}
+	slog.Info("admin audit query", "request_id", rpcauth.CallFrom(ctx).RequestID, "operator", operator,
+		"filters", filters, "paged", q.PageToken != "", "count", count, "result", result)
+}
+
+func auditChannelIn(c bffv1.AuditChannel) string {
+	switch c {
+	case bffv1.AuditChannel_AUDIT_CHANNEL_WEB:
+		return "web"
+	case bffv1.AuditChannel_AUDIT_CHANNEL_CLI:
+		return "cli"
+	case bffv1.AuditChannel_AUDIT_CHANNEL_SELF:
+		return "self"
+	case bffv1.AuditChannel_AUDIT_CHANNEL_SYSTEM:
+		return "system"
+	}
+	return ""
+}
+
+func auditChannelOut(c string) bffv1.AuditChannel {
+	switch c {
+	case "web":
+		return bffv1.AuditChannel_AUDIT_CHANNEL_WEB
+	case "cli":
+		return bffv1.AuditChannel_AUDIT_CHANNEL_CLI
+	case "self":
+		return bffv1.AuditChannel_AUDIT_CHANNEL_SELF
+	case "system":
+		return bffv1.AuditChannel_AUDIT_CHANNEL_SYSTEM
+	}
+	return bffv1.AuditChannel_AUDIT_CHANNEL_UNSPECIFIED
+}
+
+func auditOut(e usersrv.AuditEntry) *bffv1.SecurityAuditEntry {
+	out := &bffv1.SecurityAuditEntry{
+		Id: e.ID, CreatedAt: timestamppb.New(e.CreatedAt), Channel: auditChannelOut(e.Channel),
+		OperatorUserId: e.OperatorUserID, OperatorLabel: e.OperatorLabel, UserId: e.UserID,
+		Action: e.Action, Result: e.Result, Reason: e.Reason, RequestId: e.RequestID, MutationId: e.MutationID,
+		BeforeStatus: e.BeforeStatus, AfterStatus: e.AfterStatus, BeforeRoles: e.BeforeRoles, AfterRoles: e.AfterRoles, OriginId: e.OriginID,
+	}
+	if o := e.Origin; o != nil {
+		out.Origin = &bffv1.SecurityAuditOrigin{Id: o.ID, CreatedAt: timestamppb.New(o.CreatedAt), Action: o.Action, Result: o.Result,
+			BeforeStatus: o.BeforeStatus, AfterStatus: o.AfterStatus, BeforeRoles: o.BeforeRoles, AfterRoles: o.AfterRoles}
+	}
+	return out
 }
 
 func lookupKind(q usersrv.UserQuery) string {

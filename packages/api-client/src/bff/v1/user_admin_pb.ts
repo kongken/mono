@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file bff/v1/user_admin.proto.
  */
 export const file_bff_v1_user_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChdiZmYvdjEvdXNlcl9hZG1pbi5wcm90bxIGYmZmLnYxIroBCglBZG1pblVzZXISDwoHdXNlcl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSIgoGc3RhdHVzGAQgASgOMhIuYmZmLnYxLlVzZXJTdGF0dXMSDQoFcm9sZXMYBSADKAkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMYXV0aF92ZXJzaW9uGAcgASgDIp0BChBMaXN0VXNlcnNSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSEAoIbmlja25hbWUYAyABKAkSIgoGc3RhdHVzGAQgASgOMhIuYmZmLnYxLlVzZXJTdGF0dXMSDAoEcm9sZRgFIAEoCRIRCglwYWdlX3NpemUYBiABKAUSEgoKcGFnZV90b2tlbhgHIAEoCSJOChFMaXN0VXNlcnNSZXNwb25zZRIgCgV1c2VycxgBIAMoCzIRLmJmZi52MS5BZG1pblVzZXISFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIiEKDkdldFVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkiMgoPR2V0VXNlclJlc3BvbnNlEh8KBHVzZXIYASABKAsyES5iZmYudjEuQWRtaW5Vc2VyImgKEUNoYW5nZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSHQoVZXhwZWN0ZWRfYXV0aF92ZXJzaW9uGAIgASgDEhMKC211dGF0aW9uX2lkGAMgASgJEg4KBnJlYXNvbhgEIAEoCSKRAQoSQ2hhbmdlVXNlclJlc3BvbnNlEg8KB3VzZXJfaWQYASABKAkSIgoGc3RhdHVzGAIgASgOMhIuYmZmLnYxLlVzZXJTdGF0dXMSDQoFcm9sZXMYAyADKAkSFAoMYXV0aF92ZXJzaW9uGAQgASgDEg8KB2NoYW5nZWQYBSABKAgSEAoIcmVwbGF5ZWQYBiABKAgqdQoKVXNlclN0YXR1cxIbChdVU0VSX1NUQVRVU19VTlNQRUNJRklFRBAAEhYKElVTRVJfU1RBVFVTX0FDVElWRRABEhgKFFVTRVJfU1RBVFVTX0RJU0FCTEVEEAISGAoUVVNFUl9TVEFUVVNfREVMRVRJTkcQAzKQBAoQVXNlckFkbWluU2VydmljZRJQCglMaXN0VXNlcnMSGC5iZmYudjEuTGlzdFVzZXJzUmVxdWVzdBoZLmJmZi52MS5MaXN0VXNlcnNSZXNwb25zZSIOqrsYCm96aWQtYWRtaW4SSgoHR2V0VXNlchIWLmJmZi52MS5HZXRVc2VyUmVxdWVzdBoXLmJmZi52MS5HZXRVc2VyUmVzcG9uc2UiDqq7GApvemlkLWFkbWluElQKC0Rpc2FibGVVc2VyEhkuYmZmLnYxLkNoYW5nZVVzZXJSZXF1ZXN0GhouYmZmLnYxLkNoYW5nZVVzZXJSZXNwb25zZSIOqrsYCm96aWQtYWRtaW4SUwoKRW5hYmxlVXNlchIZLmJmZi52MS5DaGFuZ2VVc2VyUmVxdWVzdBoaLmJmZi52MS5DaGFuZ2VVc2VyUmVzcG9uc2UiDqq7GApvemlkLWFkbWluElgKD0dyYW50TWV0cm9BZG1pbhIZLmJmZi52MS5DaGFuZ2VVc2VyUmVxdWVzdBoaLmJmZi52MS5DaGFuZ2VVc2VyUmVzcG9uc2UiDqq7GApvemlkLWFkbWluElkKEFJldm9rZU1ldHJvQWRtaW4SGS5iZmYudjEuQ2hhbmdlVXNlclJlcXVlc3QaGi5iZmYudjEuQ2hhbmdlVXNlclJlc3BvbnNlIg6quxgKb3ppZC1hZG1pbkIwWi5naXRodWIuY29tL2tvbmdrZW4vbW9uby9wa2cvcHJvdG8vYmZmL3YxO2JmZnYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_platform_v1_options]);
+  fileDesc("ChdiZmYvdjEvdXNlcl9hZG1pbi5wcm90bxIGYmZmLnYxIroBCglBZG1pblVzZXISDwoHdXNlcl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSIgoGc3RhdHVzGAQgASgOMhIuYmZmLnYxLlVzZXJTdGF0dXMSDQoFcm9sZXMYBSADKAkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMYXV0aF92ZXJzaW9uGAcgASgDIp0BChBMaXN0VXNlcnNSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSEAoIbmlja25hbWUYAyABKAkSIgoGc3RhdHVzGAQgASgOMhIuYmZmLnYxLlVzZXJTdGF0dXMSDAoEcm9sZRgFIAEoCRIRCglwYWdlX3NpemUYBiABKAUSEgoKcGFnZV90b2tlbhgHIAEoCSJOChFMaXN0VXNlcnNSZXNwb25zZRIgCgV1c2VycxgBIAMoCzIRLmJmZi52MS5BZG1pblVzZXISFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIiEKDkdldFVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkiMgoPR2V0VXNlclJlc3BvbnNlEh8KBHVzZXIYASABKAsyES5iZmYudjEuQWRtaW5Vc2VyImgKEUNoYW5nZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSHQoVZXhwZWN0ZWRfYXV0aF92ZXJzaW9uGAIgASgDEhMKC211dGF0aW9uX2lkGAMgASgJEg4KBnJlYXNvbhgEIAEoCSKRAQoSQ2hhbmdlVXNlclJlc3BvbnNlEg8KB3VzZXJfaWQYASABKAkSIgoGc3RhdHVzGAIgASgOMhIuYmZmLnYxLlVzZXJTdGF0dXMSDQoFcm9sZXMYAyADKAkSFAoMYXV0aF92ZXJzaW9uGAQgASgDEg8KB2NoYW5nZWQYBSABKAgSEAoIcmVwbGF5ZWQYBiABKAgimgIKGExpc3RTZWN1cml0eUF1ZGl0UmVxdWVzdBIPCgd1c2VyX2lkGAEgASgJEhgKEG9wZXJhdG9yX3VzZXJfaWQYAiABKAkSJQoHY2hhbm5lbBgDIAEoDjIULmJmZi52MS5BdWRpdENoYW5uZWwSDgoGYWN0aW9uGAQgASgJEg4KBnJlc3VsdBgFIAEoCRITCgttdXRhdGlvbl9pZBgGIAEoCRIoCgRmcm9tGAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBImCgJ0bxgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJcGFnZV9zaXplGAkgASgFEhIKCnBhZ2VfdG9rZW4YCiABKAkiqwMKElNlY3VyaXR5QXVkaXRFbnRyeRIKCgJpZBgBIAEoCRIuCgpjcmVhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIlCgdjaGFubmVsGAMgASgOMhQuYmZmLnYxLkF1ZGl0Q2hhbm5lbBIYChBvcGVyYXRvcl91c2VyX2lkGAQgASgJEhYKDm9wZXJhdG9yX2xhYmVsGAUgASgJEg8KB3VzZXJfaWQYBiABKAkSDgoGYWN0aW9uGAcgASgJEg4KBnJlc3VsdBgIIAEoCRIOCgZyZWFzb24YCSABKAkSEgoKcmVxdWVzdF9pZBgKIAEoCRITCgttdXRhdGlvbl9pZBgLIAEoCRIVCg1iZWZvcmVfc3RhdHVzGAwgASgJEhQKDGFmdGVyX3N0YXR1cxgNIAEoCRIUCgxiZWZvcmVfcm9sZXMYDiADKAkSEwoLYWZ0ZXJfcm9sZXMYDyADKAkSEQoJb3JpZ2luX2lkGBAgASgJEisKBm9yaWdpbhgRIAEoCzIbLmJmZi52MS5TZWN1cml0eUF1ZGl0T3JpZ2luIskBChNTZWN1cml0eUF1ZGl0T3JpZ2luEgoKAmlkGAEgASgJEi4KCmNyZWF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmFjdGlvbhgDIAEoCRIOCgZyZXN1bHQYBCABKAkSFQoNYmVmb3JlX3N0YXR1cxgFIAEoCRIUCgxhZnRlcl9zdGF0dXMYBiABKAkSFAoMYmVmb3JlX3JvbGVzGAcgAygJEhMKC2FmdGVyX3JvbGVzGAggAygJImEKGUxpc3RTZWN1cml0eUF1ZGl0UmVzcG9uc2USKwoHZW50cmllcxgBIAMoCzIaLmJmZi52MS5TZWN1cml0eUF1ZGl0RW50cnkSFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJKnUKClVzZXJTdGF0dXMSGwoXVVNFUl9TVEFUVVNfVU5TUEVDSUZJRUQQABIWChJVU0VSX1NUQVRVU19BQ1RJVkUQARIYChRVU0VSX1NUQVRVU19ESVNBQkxFRBACEhgKFFVTRVJfU1RBVFVTX0RFTEVUSU5HEAMqjQEKDEF1ZGl0Q2hhbm5lbBIdChlBVURJVF9DSEFOTkVMX1VOU1BFQ0lGSUVEEAASFQoRQVVESVRfQ0hBTk5FTF9XRUIQARIVChFBVURJVF9DSEFOTkVMX0NMSRACEhYKEkFVRElUX0NIQU5ORUxfU0VMRhADEhgKFEFVRElUX0NIQU5ORUxfU1lTVEVNEAQy+gQKEFVzZXJBZG1pblNlcnZpY2USUAoJTGlzdFVzZXJzEhguYmZmLnYxLkxpc3RVc2Vyc1JlcXVlc3QaGS5iZmYudjEuTGlzdFVzZXJzUmVzcG9uc2UiDqq7GApvemlkLWFkbWluEkoKB0dldFVzZXISFi5iZmYudjEuR2V0VXNlclJlcXVlc3QaFy5iZmYudjEuR2V0VXNlclJlc3BvbnNlIg6quxgKb3ppZC1hZG1pbhJoChFMaXN0U2VjdXJpdHlBdWRpdBIgLmJmZi52MS5MaXN0U2VjdXJpdHlBdWRpdFJlcXVlc3QaIS5iZmYudjEuTGlzdFNlY3VyaXR5QXVkaXRSZXNwb25zZSIOqrsYCm96aWQtYWRtaW4SVAoLRGlzYWJsZVVzZXISGS5iZmYudjEuQ2hhbmdlVXNlclJlcXVlc3QaGi5iZmYudjEuQ2hhbmdlVXNlclJlc3BvbnNlIg6quxgKb3ppZC1hZG1pbhJTCgpFbmFibGVVc2VyEhkuYmZmLnYxLkNoYW5nZVVzZXJSZXF1ZXN0GhouYmZmLnYxLkNoYW5nZVVzZXJSZXNwb25zZSIOqrsYCm96aWQtYWRtaW4SWAoPR3JhbnRNZXRyb0FkbWluEhkuYmZmLnYxLkNoYW5nZVVzZXJSZXF1ZXN0GhouYmZmLnYxLkNoYW5nZVVzZXJSZXNwb25zZSIOqrsYCm96aWQtYWRtaW4SWQoQUmV2b2tlTWV0cm9BZG1pbhIZLmJmZi52MS5DaGFuZ2VVc2VyUmVxdWVzdBoaLmJmZi52MS5DaGFuZ2VVc2VyUmVzcG9uc2UiDqq7GApvemlkLWFkbWluQjBaLmdpdGh1Yi5jb20va29uZ2tlbi9tb25vL3BrZy9wcm90by9iZmYvdjE7YmZmdjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_platform_v1_options]);
 
 /**
  * AdminUser is one account as an administrator may see it. There is no password
@@ -287,6 +287,287 @@ export const ChangeUserResponseSchema: GenMessage<ChangeUserResponse> = /*@__PUR
   messageDesc(file_bff_v1_user_admin, 6);
 
 /**
+ * ListSecurityAuditRequest filters the account security and administration audit. Every
+ * field narrows the result; none is required. Filter values are never logged or recorded
+ * (only which filters were used).
+ *
+ * @generated from message bff.v1.ListSecurityAuditRequest
+ */
+export type ListSecurityAuditRequest = Message<"bff.v1.ListSecurityAuditRequest"> & {
+  /**
+   * The account the rows are about (UUID).
+   *
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * The administrator or account holder who acted (UUID).
+   *
+   * @generated from field: string operator_user_id = 2;
+   */
+  operatorUserId: string;
+
+  /**
+   * @generated from field: bff.v1.AuditChannel channel = 3;
+   */
+  channel: AuditChannel;
+
+  /**
+   * Exact action as stored, e.g. "admin.account.disable", "role.grant:metro-admin", "login".
+   *
+   * @generated from field: string action = 4;
+   */
+  action: string;
+
+  /**
+   * Exact result as stored, e.g. "ok", "unchanged", "refused_version_conflict".
+   *
+   * @generated from field: string result = 5;
+   */
+  result: string;
+
+  /**
+   * Exact idempotency key. Keys are reusable once a receipt expires and refused attempts
+   * may use any key, so this lists every row that used the key, over every use of it.
+   *
+   * @generated from field: string mutation_id = 6;
+   */
+  mutationId: string;
+
+  /**
+   * Inclusive lower and exclusive upper bound of the row's time.
+   *
+   * @generated from field: google.protobuf.Timestamp from = 7;
+   */
+  from?: Timestamp;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp to = 8;
+   */
+  to?: Timestamp;
+
+  /**
+   * 0 means 50; at most 100.
+   *
+   * @generated from field: int32 page_size = 9;
+   */
+  pageSize: number;
+
+  /**
+   * From the previous response, with the same filters; empty starts at the newest row.
+   *
+   * @generated from field: string page_token = 10;
+   */
+  pageToken: string;
+};
+
+/**
+ * Describes the message bff.v1.ListSecurityAuditRequest.
+ * Use `create(ListSecurityAuditRequestSchema)` to create a new message.
+ */
+export const ListSecurityAuditRequestSchema: GenMessage<ListSecurityAuditRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_user_admin, 7);
+
+/**
+ * SecurityAuditEntry is one audit row as an administrator may see it: identifiers, fixed
+ * classifications, the operator's reason and the status and roles before and after. It has
+ * no email, password, token, session, raw request or product data.
+ *
+ * @generated from message bff.v1.SecurityAuditEntry
+ */
+export type SecurityAuditEntry = Message<"bff.v1.SecurityAuditEntry"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 2;
+   */
+  createdAt?: Timestamp;
+
+  /**
+   * @generated from field: bff.v1.AuditChannel channel = 3;
+   */
+  channel: AuditChannel;
+
+  /**
+   * Web: the administrator's account. Self: the holder. Empty for the CLI and the system.
+   *
+   * @generated from field: string operator_user_id = 4;
+   */
+  operatorUserId: string;
+
+  /**
+   * CLI: the controlled operator name ("system" for the system). Empty for web and self.
+   *
+   * @generated from field: string operator_label = 5;
+   */
+  operatorLabel: string;
+
+  /**
+   * The account the row is about; empty when there is none.
+   *
+   * @generated from field: string user_id = 6;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: string action = 7;
+   */
+  action: string;
+
+  /**
+   * @generated from field: string result = 8;
+   */
+  result: string;
+
+  /**
+   * The operator's reason (changes) or a redacted description of a read (filters used,
+   * never their values).
+   *
+   * @generated from field: string reason = 9;
+   */
+  reason: string;
+
+  /**
+   * @generated from field: string request_id = 10;
+   */
+  requestId: string;
+
+  /**
+   * @generated from field: string mutation_id = 11;
+   */
+  mutationId: string;
+
+  /**
+   * Account status ("active", "disabled", "deleting") and role names around a change;
+   * empty when the row is not a state change, and always empty on a replayed row.
+   *
+   * @generated from field: string before_status = 12;
+   */
+  beforeStatus: string;
+
+  /**
+   * @generated from field: string after_status = 13;
+   */
+  afterStatus: string;
+
+  /**
+   * @generated from field: repeated string before_roles = 14;
+   */
+  beforeRoles: string[];
+
+  /**
+   * @generated from field: repeated string after_roles = 15;
+   */
+  afterRoles: string[];
+
+  /**
+   * Only on a replayed row: the id of the row of the change whose stored answer was handed
+   * out again. This link is exact. The mutation id is not: it can be used again later.
+   * Empty if the receipt predates the link.
+   *
+   * @generated from field: string origin_id = 16;
+   */
+  originId: string;
+
+  /**
+   * The summary of that row, when it is still kept. A replayed row never states a state
+   * itself: the origin has the real before/after.
+   *
+   * @generated from field: bff.v1.SecurityAuditOrigin origin = 17;
+   */
+  origin?: SecurityAuditOrigin;
+};
+
+/**
+ * Describes the message bff.v1.SecurityAuditEntry.
+ * Use `create(SecurityAuditEntrySchema)` to create a new message.
+ */
+export const SecurityAuditEntrySchema: GenMessage<SecurityAuditEntry> = /*@__PURE__*/
+  messageDesc(file_bff_v1_user_admin, 8);
+
+/**
+ * SecurityAuditOrigin summarises the change a replayed row points at.
+ *
+ * @generated from message bff.v1.SecurityAuditOrigin
+ */
+export type SecurityAuditOrigin = Message<"bff.v1.SecurityAuditOrigin"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 2;
+   */
+  createdAt?: Timestamp;
+
+  /**
+   * @generated from field: string action = 3;
+   */
+  action: string;
+
+  /**
+   * @generated from field: string result = 4;
+   */
+  result: string;
+
+  /**
+   * @generated from field: string before_status = 5;
+   */
+  beforeStatus: string;
+
+  /**
+   * @generated from field: string after_status = 6;
+   */
+  afterStatus: string;
+
+  /**
+   * @generated from field: repeated string before_roles = 7;
+   */
+  beforeRoles: string[];
+
+  /**
+   * @generated from field: repeated string after_roles = 8;
+   */
+  afterRoles: string[];
+};
+
+/**
+ * Describes the message bff.v1.SecurityAuditOrigin.
+ * Use `create(SecurityAuditOriginSchema)` to create a new message.
+ */
+export const SecurityAuditOriginSchema: GenMessage<SecurityAuditOrigin> = /*@__PURE__*/
+  messageDesc(file_bff_v1_user_admin, 9);
+
+/**
+ * @generated from message bff.v1.ListSecurityAuditResponse
+ */
+export type ListSecurityAuditResponse = Message<"bff.v1.ListSecurityAuditResponse"> & {
+  /**
+   * @generated from field: repeated bff.v1.SecurityAuditEntry entries = 1;
+   */
+  entries: SecurityAuditEntry[];
+
+  /**
+   * Empty at the last page.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken: string;
+};
+
+/**
+ * Describes the message bff.v1.ListSecurityAuditResponse.
+ * Use `create(ListSecurityAuditResponseSchema)` to create a new message.
+ */
+export const ListSecurityAuditResponseSchema: GenMessage<ListSecurityAuditResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_user_admin, 10);
+
+/**
  * @generated from enum bff.v1.UserStatus
  */
 export enum UserStatus {
@@ -318,6 +599,54 @@ export enum UserStatus {
  */
 export const UserStatusSchema: GenEnum<UserStatus> = /*@__PURE__*/
   enumDesc(file_bff_v1_user_admin, 0);
+
+/**
+ * AuditChannel says where the actor of an audit row came from. It is derived from stored
+ * data, never from the request.
+ *
+ * @generated from enum bff.v1.AuditChannel
+ */
+export enum AuditChannel {
+  /**
+   * @generated from enum value: AUDIT_CHANNEL_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * An administrator in the console. operator_user_id is the real account.
+   *
+   * @generated from enum value: AUDIT_CHANNEL_WEB = 1;
+   */
+  WEB = 1,
+
+  /**
+   * The operator CLI. operator_label is its controlled operator name, which is not an
+   * account and never an identity of a web actor.
+   *
+   * @generated from enum value: AUDIT_CHANNEL_CLI = 2;
+   */
+  CLI = 2,
+
+  /**
+   * The account's own holder (sign-in, password, deletion). operator_user_id is the holder.
+   *
+   * @generated from enum value: AUDIT_CHANNEL_SELF = 3;
+   */
+  SELF = 3,
+
+  /**
+   * A background or anonymous flow.
+   *
+   * @generated from enum value: AUDIT_CHANNEL_SYSTEM = 4;
+   */
+  SYSTEM = 4,
+}
+
+/**
+ * Describes the enum bff.v1.AuditChannel.
+ */
+export const AuditChannelSchema: GenEnum<AuditChannel> = /*@__PURE__*/
+  enumDesc(file_bff_v1_user_admin, 1);
 
 /**
  * UserAdminService is the browser interface of the unified admin console's user
@@ -395,6 +724,18 @@ export const UserAdminService: GenService<{
     methodKind: "unary";
     input: typeof GetUserRequestSchema;
     output: typeof GetUserResponseSchema;
+  },
+  /**
+   * ListSecurityAudit pages through the account security and administration audit, newest
+   * first (created_at, then id, both descending). The read is itself audited
+   * (admin.audit.list, filters used and never their values) in the same transaction.
+   *
+   * @generated from rpc bff.v1.UserAdminService.ListSecurityAudit
+   */
+  listSecurityAudit: {
+    methodKind: "unary";
+    input: typeof ListSecurityAuditRequestSchema;
+    output: typeof ListSecurityAuditResponseSchema;
   },
   /**
    * DisableUser disables an active account: its sessions and access tokens stop

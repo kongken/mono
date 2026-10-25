@@ -68,6 +68,9 @@ func (_u *AdminMutationUpdate) sqlSave(ctx context.Context) (_node int, err erro
 			}
 		}
 	}
+	if _u.mutation.AuditIDCleared() {
+		_spec.ClearField(adminmutation.FieldAuditID, field.TypeUUID)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{adminmutation.Label}
@@ -158,6 +161,9 @@ func (_u *AdminMutationUpdateOne) sqlSave(ctx context.Context) (_node *AdminMuta
 				ps[i](selector)
 			}
 		}
+	}
+	if _u.mutation.AuditIDCleared() {
+		_spec.ClearField(adminmutation.FieldAuditID, field.TypeUUID)
 	}
 	_node = &AdminMutation{config: _u.config}
 	_spec.Assign = _node.assignValues

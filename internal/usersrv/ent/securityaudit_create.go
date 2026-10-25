@@ -204,6 +204,20 @@ func (_c *SecurityAuditCreate) SetNillableAfterRoles(v *string) *SecurityAuditCr
 	return _c
 }
 
+// SetOriginID sets the "origin_id" field.
+func (_c *SecurityAuditCreate) SetOriginID(v uuid.UUID) *SecurityAuditCreate {
+	_c.mutation.SetOriginID(v)
+	return _c
+}
+
+// SetNillableOriginID sets the "origin_id" field if the given value is not nil.
+func (_c *SecurityAuditCreate) SetNillableOriginID(v *uuid.UUID) *SecurityAuditCreate {
+	if v != nil {
+		_c.SetOriginID(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *SecurityAuditCreate) SetID(v uuid.UUID) *SecurityAuditCreate {
 	_c.mutation.SetID(v)
@@ -439,6 +453,10 @@ func (_c *SecurityAuditCreate) createSpec() (*SecurityAudit, *sqlgraph.CreateSpe
 		_spec.SetField(securityaudit.FieldAfterRoles, field.TypeString, value)
 		_node.AfterRoles = value
 	}
+	if value, ok := _c.mutation.OriginID(); ok {
+		_spec.SetField(securityaudit.FieldOriginID, field.TypeUUID, value)
+		_node.OriginID = &value
+	}
 	return _node, _spec
 }
 
@@ -549,6 +567,9 @@ func (u *SecurityAuditUpsertOne) UpdateNewValues() *SecurityAuditUpsertOne {
 		}
 		if _, exists := u.create.mutation.AfterRoles(); exists {
 			s.SetIgnore(securityaudit.FieldAfterRoles)
+		}
+		if _, exists := u.create.mutation.OriginID(); exists {
+			s.SetIgnore(securityaudit.FieldOriginID)
 		}
 	}))
 	return u
@@ -805,6 +826,9 @@ func (u *SecurityAuditUpsertBulk) UpdateNewValues() *SecurityAuditUpsertBulk {
 			}
 			if _, exists := b.mutation.AfterRoles(); exists {
 				s.SetIgnore(securityaudit.FieldAfterRoles)
+			}
+			if _, exists := b.mutation.OriginID(); exists {
+				s.SetIgnore(securityaudit.FieldOriginID)
 			}
 		}
 	}))

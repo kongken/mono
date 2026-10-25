@@ -100,6 +100,11 @@ func AuthVersion(v int64) predicate.AdminMutation {
 	return predicate.AdminMutation(sql.FieldEQ(FieldAuthVersion, v))
 }
 
+// AuditID applies equality check predicate on the "audit_id" field. It's identical to AuditIDEQ.
+func AuditID(v uuid.UUID) predicate.AdminMutation {
+	return predicate.AdminMutation(sql.FieldEQ(FieldAuditID, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.AdminMutation {
 	return predicate.AdminMutation(sql.FieldEQ(FieldCreatedAt, v))
@@ -538,6 +543,56 @@ func AuthVersionLT(v int64) predicate.AdminMutation {
 // AuthVersionLTE applies the LTE predicate on the "auth_version" field.
 func AuthVersionLTE(v int64) predicate.AdminMutation {
 	return predicate.AdminMutation(sql.FieldLTE(FieldAuthVersion, v))
+}
+
+// AuditIDEQ applies the EQ predicate on the "audit_id" field.
+func AuditIDEQ(v uuid.UUID) predicate.AdminMutation {
+	return predicate.AdminMutation(sql.FieldEQ(FieldAuditID, v))
+}
+
+// AuditIDNEQ applies the NEQ predicate on the "audit_id" field.
+func AuditIDNEQ(v uuid.UUID) predicate.AdminMutation {
+	return predicate.AdminMutation(sql.FieldNEQ(FieldAuditID, v))
+}
+
+// AuditIDIn applies the In predicate on the "audit_id" field.
+func AuditIDIn(vs ...uuid.UUID) predicate.AdminMutation {
+	return predicate.AdminMutation(sql.FieldIn(FieldAuditID, vs...))
+}
+
+// AuditIDNotIn applies the NotIn predicate on the "audit_id" field.
+func AuditIDNotIn(vs ...uuid.UUID) predicate.AdminMutation {
+	return predicate.AdminMutation(sql.FieldNotIn(FieldAuditID, vs...))
+}
+
+// AuditIDGT applies the GT predicate on the "audit_id" field.
+func AuditIDGT(v uuid.UUID) predicate.AdminMutation {
+	return predicate.AdminMutation(sql.FieldGT(FieldAuditID, v))
+}
+
+// AuditIDGTE applies the GTE predicate on the "audit_id" field.
+func AuditIDGTE(v uuid.UUID) predicate.AdminMutation {
+	return predicate.AdminMutation(sql.FieldGTE(FieldAuditID, v))
+}
+
+// AuditIDLT applies the LT predicate on the "audit_id" field.
+func AuditIDLT(v uuid.UUID) predicate.AdminMutation {
+	return predicate.AdminMutation(sql.FieldLT(FieldAuditID, v))
+}
+
+// AuditIDLTE applies the LTE predicate on the "audit_id" field.
+func AuditIDLTE(v uuid.UUID) predicate.AdminMutation {
+	return predicate.AdminMutation(sql.FieldLTE(FieldAuditID, v))
+}
+
+// AuditIDIsNil applies the IsNil predicate on the "audit_id" field.
+func AuditIDIsNil() predicate.AdminMutation {
+	return predicate.AdminMutation(sql.FieldIsNull(FieldAuditID))
+}
+
+// AuditIDNotNil applies the NotNil predicate on the "audit_id" field.
+func AuditIDNotNil() predicate.AdminMutation {
+	return predicate.AdminMutation(sql.FieldNotNull(FieldAuditID))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

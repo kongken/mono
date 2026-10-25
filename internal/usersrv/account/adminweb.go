@@ -150,7 +150,7 @@ func (s *Service) applyAdminChange(ctx context.Context, in AdminChange) (AdminRe
 		operator := in.Operator
 		entry := auditEntry{
 			actor: adminActor(operator), actorUser: &operator, action: in.auditAction(), requestID: in.RequestID, reason: in.Reason,
-			channel: "web", mutationID: in.MutationID, userID: &in.Target,
+			channel: ChannelWeb, mutationID: in.MutationID, userID: &in.Target, id: uuid.New(),
 		}
 		refuse := func(err error, result string) error {
 			refusal, entry.result = err, result
@@ -184,9 +184,10 @@ func (s *Service) applyAdminChange(ctx context.Context, in AdminChange) (AdminRe
 				AuthVersion: receipt.AuthVersion, Roles: roles}, Replayed: true}
 			// A replay only hands the original answer back. Its audit row says so and nothing more: no
 			// before/after (the receipt is a snapshot of the first request, not of the account now, and
-			// nothing changed), tied to the original row by (actor_user_id, mutation_id), which
-			// carries the real before/after values.
-			entry.result = "replayed"
+			// nothing changed). It points at the original row by that row's ID, which is exact: a
+			// mutation ID can be used again once its receipt has expired, so (operator, mutation_id)
+			// alone is not one event. The original row carries the real before/after values.
+			entry.result, entry.originID = "replayed", receipt.AuditID
 			return s.audit(ctx, tx, entry)
 		case !ent.IsNotFound(err):
 			return err
@@ -232,7 +233,7 @@ func (s *Service) applyAdminChange(ctx context.Context, in AdminChange) (AdminRe
 		entry.afterStatus, entry.afterRoles = res.Status, roles
 		if err = tx.AdminMutation.Create().SetOperatorID(operator).SetMutationID(in.MutationID).SetAction(string(in.Action)).
 			SetTargetID(u.ID).SetRequestHash(in.hash()).SetChanged(changed).SetStatus(string(res.Status)).SetRoles(strings.Join(roles, ",")).
-			SetAuthVersion(res.AuthVersion).SetCreatedAt(now).SetExpiresAt(now.Add(AdminMutationTTL)).Exec(ctx); err != nil {
+			SetAuthVersion(res.AuthVersion).SetAuditID(entry.id).SetCreatedAt(now).SetExpiresAt(now.Add(AdminMutationTTL)).Exec(ctx); err != nil {
 			return err
 		}
 		return s.audit(ctx, tx, entry)

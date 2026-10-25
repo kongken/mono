@@ -42,6 +42,8 @@ const (
 	FieldBeforeRoles = "before_roles"
 	// FieldAfterRoles holds the string denoting the after_roles field in the database.
 	FieldAfterRoles = "after_roles"
+	// FieldOriginID holds the string denoting the origin_id field in the database.
+	FieldOriginID = "origin_id"
 	// Table holds the table name of the securityaudit in the database.
 	Table = "security_audit"
 )
@@ -63,6 +65,7 @@ var Columns = []string{
 	FieldAfterStatus,
 	FieldBeforeRoles,
 	FieldAfterRoles,
+	FieldOriginID,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -180,4 +183,9 @@ func ByBeforeRoles(opts ...sql.OrderTermOption) OrderOption {
 // ByAfterRoles orders the results by the after_roles field.
 func ByAfterRoles(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAfterRoles, opts...).ToFunc()
+}
+
+// ByOriginID orders the results by the origin_id field.
+func ByOriginID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOriginID, opts...).ToFunc()
 }

@@ -68,6 +68,12 @@ service UserAdminService {
   rpc GetUser(GetUserRequest) returns (GetUserResponse) {
     option (platform.v1.required_role) = "ozid-admin";
   }
+  // ListSecurityAudit pages through the account security and administration audit, newest
+  // first (created_at, then id, both descending). The read is itself audited
+  // (admin.audit.list, filters used and never their values) in the same transaction.
+  rpc ListSecurityAudit(ListSecurityAuditRequest) returns (ListSecurityAuditResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
   // DisableUser disables an active account: its sessions and access tokens stop
   // working at their next check. Already disabled is a normal "unchanged" answer.
   rpc DisableUser(ChangeUserRequest) returns (ChangeUserResponse) {
@@ -170,4 +176,97 @@ message ChangeUserResponse {
   bool changed = 5;
   // True when this is the stored answer to an earlier identical request.
   bool replayed = 6;
+}
+
+// AuditChannel says where the actor of an audit row came from. It is derived from stored
+// data, never from the request.
+enum AuditChannel {
+  AUDIT_CHANNEL_UNSPECIFIED = 0;
+  // An administrator in the console. operator_user_id is the real account.
+  AUDIT_CHANNEL_WEB = 1;
+  // The operator CLI. operator_label is its controlled operator name, which is not an
+  // account and never an identity of a web actor.
+  AUDIT_CHANNEL_CLI = 2;
+  // The account's own holder (sign-in, password, deletion). operator_user_id is the holder.
+  AUDIT_CHANNEL_SELF = 3;
+  // A background or anonymous flow.
+  AUDIT_CHANNEL_SYSTEM = 4;
+}
+
+// ListSecurityAuditRequest filters the account security and administration audit. Every
+// field narrows the result; none is required. Filter values are never logged or recorded
+// (only which filters were used).
+message ListSecurityAuditRequest {
+  // The account the rows are about (UUID).
+  string user_id = 1;
+  // The administrator or account holder who acted (UUID).
+  string operator_user_id = 2;
+  AuditChannel channel = 3;
+  // Exact action as stored, e.g. "admin.account.disable", "role.grant:metro-admin", "login".
+  string action = 4;
+  // Exact result as stored, e.g. "ok", "unchanged", "refused_version_conflict".
+  string result = 5;
+  // Exact idempotency key. Keys are reusable once a receipt expires and refused attempts
+  // may use any key, so this lists every row that used the key, over every use of it.
+  string mutation_id = 6;
+  // Inclusive lower and exclusive upper bound of the row's time.
+  google.protobuf.Timestamp from = 7;
+  google.protobuf.Timestamp to = 8;
+  // 0 means 50; at most 100.
+  int32 page_size = 9;
+  // From the previous response, with the same filters; empty starts at the newest row.
+  string page_token = 10;
+}
+
+// SecurityAuditEntry is one audit row as an administrator may see it: identifiers, fixed
+// classifications, the operator's reason and the status and roles before and after. It has
+// no email, password, token, session, raw request or product data.
+message SecurityAuditEntry {
+  string id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  AuditChannel channel = 3;
+  // Web: the administrator's account. Self: the holder. Empty for the CLI and the system.
+  string operator_user_id = 4;
+  // CLI: the controlled operator name ("system" for the system). Empty for web and self.
+  string operator_label = 5;
+  // The account the row is about; empty when there is none.
+  string user_id = 6;
+  string action = 7;
+  string result = 8;
+  // The operator's reason (changes) or a redacted description of a read (filters used,
+  // never their values).
+  string reason = 9;
+  string request_id = 10;
+  string mutation_id = 11;
+  // Account status ("active", "disabled", "deleting") and role names around a change;
+  // empty when the row is not a state change, and always empty on a replayed row.
+  string before_status = 12;
+  string after_status = 13;
+  repeated string before_roles = 14;
+  repeated string after_roles = 15;
+  // Only on a replayed row: the id of the row of the change whose stored answer was handed
+  // out again. This link is exact. The mutation id is not: it can be used again later.
+  // Empty if the receipt predates the link.
+  string origin_id = 16;
+  // The summary of that row, when it is still kept. A replayed row never states a state
+  // itself: the origin has the real before/after.
+  SecurityAuditOrigin origin = 17;
+}
+
+// SecurityAuditOrigin summarises the change a replayed row points at.
+message SecurityAuditOrigin {
+  string id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  string action = 3;
+  string result = 4;
+  string before_status = 5;
+  string after_status = 6;
+  repeated string before_roles = 7;
+  repeated string after_roles = 8;
+}
+
+message ListSecurityAuditResponse {
+  repeated SecurityAuditEntry entries = 1;
+  // Empty at the last page.
+  string next_page_token = 2;
 }
