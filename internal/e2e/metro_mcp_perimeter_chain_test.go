@@ -221,8 +221,15 @@ func TestChainMCPSourceAllowlist(t *testing.T) {
 				t.Errorf("token %q from outside: HTTP %d", token, status)
 			}
 		}
-		// The other spellings of the path do not get around it either.
-		for _, path := range []string{"/mcp/metro/", "/mcp/metro?x=1", "//mcp/metro", "/mcp/metro/."} {
+		// The other spellings of the path do not get around it either: other case, encoded or dotted segments,
+		// an encoded slash or dot, a trailing dot or slash, a doubled slash, a path parameter. Whether the router
+		// folds one of them onto the route (then the perimeter refuses it) or does not know it (404), none is a
+		// redirect and none gets as far as the business; the counters below prove the latter.
+		for _, path := range []string{
+			"/mcp/metro/", "/mcp/metro?x=1", "//mcp/metro", "/mcp/metro/.",
+			"/MCP/metro", "/mcp/Metro", "/MCP/METRO", "/mcp/metro/%2e", "/mcp/%6detro", "/%6dcp/metro", "/mcp%2fmetro", "/mcp/metro%2f",
+			"/mcp/./metro", "/mcp/%2e/metro", "/mcp/x/../metro", "/mcp/x/%2e%2e/metro", "/mcp/metro;x=1", "/mcp/metro%00",
+		} {
 			req, _ := http.NewRequest(http.MethodPost, h.BFFURL+path, strings.NewReader(protocolSteps("x")[2].body))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer "+w.write)
@@ -232,6 +239,7 @@ func TestChainMCPSourceAllowlist(t *testing.T) {
 				t.Fatal(err)
 			}
 			res.Body.Close()
+			t.Logf("path %-24s -> %d", path, res.StatusCode)
 			// Either the perimeter's refusal or no such route: never a redirect that says the route exists, never a service.
 			if res.StatusCode != http.StatusForbidden && res.StatusCode != http.StatusNotFound {
 				t.Errorf("%s from outside: HTTP %d (Location %q)", path, res.StatusCode, res.Header.Get("Location"))

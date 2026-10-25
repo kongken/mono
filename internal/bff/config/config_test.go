@@ -279,3 +279,24 @@ func TestValidateAdminPerimeter(t *testing.T) {
 		}
 	}
 }
+
+// The mcp section is validated whether or not metro is configured: without upstreams.metro the endpoint is
+// never mounted, but a malformed list is still a startup failure rather than a silently ignored setting.
+func TestValidateMCPSourceIgnoresWhetherMetroIsConfigured(t *testing.T) {
+	services := []string{"tripmap"}
+	c := Config{
+		Upstreams:          map[string]string{"tripmap": "http://tripmap:18081"},
+		CORSAllowedOrigins: []string{"https://trip.example.com"},
+	}
+	if _, ok := c.Upstreams["metro"]; ok {
+		t.Fatal("the premise of this test is a configuration without a metro upstream")
+	}
+	if err := c.Validate(services); err != nil {
+		t.Fatalf("no metro and no mcp section must be valid: %v", err)
+	}
+	c.MCP.AllowedCIDRs = []string{"0.0.0.0/0"}
+	err := c.Validate(services)
+	if err == nil || !strings.Contains(err.Error(), "mcp.allowed_cidrs") {
+		t.Fatalf("an open mcp allowlist without metro must still fail, naming the section: %v", err)
+	}
+}

@@ -1,14 +1,14 @@
 # 统一管理控制台：功能描述（T4 受控控制台与用户查询，T5 账号状态与角色修改，T6 账号安全与管理审计查询，T8 metro 目录管理）
 
-本文描述 [OzID 规格](../ozid/spec.md) 中 [Issue #82（T4）](https://github.com/kongken/mono/issues/82) 已实现的行为：独立的管理控制台 `apps/admin`、它的受控入口（来源网络、控制台 Origin、会话与平台角色），以及用户查询；[Issue #83（T5）](https://github.com/kongken/mono/issues/83) 在其上加入普通账号的禁用/启用与 `metro-admin` 的授予/撤销（见“账号状态与角色修改”）；[Issue #84（T6）](https://github.com/kongken/mono/issues/84) 加入账号安全与管理审计查询页（见“账号安全与管理审计查询（T6）”）。[Issue #86（T8）](https://github.com/kongken/mono/issues/86) 把 metro 管理功能迁入控制台并把 metro 的浏览器管理接口与管理令牌接口放进同一道周界（见“metro 目录管理（T8）”）。**尚未实现**的部分见文末“当前限制”：MCP 独立机器来源白名单（T9）等。文中域名与地址全部是保留示例（`admin.example.com`、`203.0.113.0/24` 等），不代表任何真实部署。
+本文描述 [OzID 规格](../ozid/spec.md) 中 [Issue #82（T4）](https://github.com/kongken/mono/issues/82) 已实现的行为：独立的管理控制台 `apps/admin`、它的受控入口（来源网络、控制台 Origin、会话与平台角色），以及用户查询；[Issue #83（T5）](https://github.com/kongken/mono/issues/83) 在其上加入普通账号的禁用/启用与 `metro-admin` 的授予/撤销（见“账号状态与角色修改”）；[Issue #84（T6）](https://github.com/kongken/mono/issues/84) 加入账号安全与管理审计查询页（见“账号安全与管理审计查询（T6）”）。[Issue #86（T8）](https://github.com/kongken/mono/issues/86) 把 metro 管理功能迁入控制台并把 metro 的浏览器管理接口与管理令牌接口放进同一道周界（见“metro 目录管理（T8）”）。[Issue #87（T9）](https://github.com/kongken/mono/issues/87) 给 MCP 加了独立于这道周界的机器来源白名单（`mcp.allowed_cidrs`，见 [BFF 文档](../bff.md)）。**尚未实现**的部分见文末“当前限制”。文中域名与地址全部是保留示例（`admin.example.com`、`203.0.113.0/24` 等），不代表任何真实部署。
 
 ## 现状与范围
 
-| 已实现（T4、T5、T6、T8） | 尚未实现 |
+| 已实现（T4、T5、T6、T8、T9） | 尚未实现 |
 |---|---|
 | `apps/admin`（`@kongken/admin`）：独立构建、独立镜像 `admin-web`；匿名跳 OzID 登录并返回；无角色显示“没有权限”（不跳转、不循环）；按真实角色显示分区；“管理 OzID 账号”链接到 OzID | 全站统一审计（metro 目录审计与管理令牌调用日志各自留在原处） |
 | BFF `bff.v1.UserAdminService` 与内部 `usersrv.v1.UserAdminService`：`ListUsers/GetUser`（只读）、T6 的 `ListSecurityAudit`（只读，账号审计）、T5 的 `DisableUser/EnableUser/GrantMetroAdmin/RevokeMetroAdmin`（仅这四个动作）；`required_role = "ozid-admin"`，BFF 入口与 usersrv 各自独立校验 | 网页上授予/撤销平台角色、改平台管理员的状态或角色、设置他人密码、代登录、代注销、批量或任意角色替换（没有对应接口） |
-| 管理面“周界”（`admin` 配置）：来源 IP 白名单、受信代理链、精确控制台 Origin；BFF 对每个管理读接口独立检查，网关镜像对页面、静态资源和 SPA fallback 同样限制 | MCP（`/mcp/metro`）的独立机器来源白名单（T9）；MCP 是机器协议，**不在**浏览器管理周界内 |
+| 管理面“周界”（`admin` 配置）：来源 IP 白名单、受信代理链、精确控制台 Origin；BFF 对每个管理读接口独立检查，网关镜像对页面、静态资源和 SPA fallback 同样限制 | —（MCP 是机器协议，**不在**浏览器管理周界内；它由独立的 `mcp.allowed_cidrs` 保护，T9 已实现） |
 | 平台角色 `ozid-admin`：只能由运维 CLI `usersrv-admin grant-role/revoke-role` 授予/撤销，授予不随首位注册用户，不继承也不授予 `metro-admin`；每次变更提升 `auth_version` 并写审计 | |
 | 平台管理员账号从引入起**不能被网页自助注销**（`BeginDeletion` 拒绝）；权限收回后也不会被之前被拒的注销自动关闭 | |
 

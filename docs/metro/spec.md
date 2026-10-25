@@ -1,6 +1,6 @@
 # 地铁足迹（metro）产品规格
 
-> **管理页面已迁入统一控制台（T8，[#86](https://github.com/kongken/mono/issues/86)）：** 下文第 10.2 节等对管理后台的描述保留为设计记录；现在这些页面位于 `apps/admin` 的“地铁目录”分区，本站 `/admin` 已退役，浏览器管理接口与管理令牌接口在管理周界之内（见 [控制台功能描述](../admin/features.md#metro-目录管理t8)）。MCP 的独立来源白名单仍待实现。
+> **管理页面已迁入统一控制台（T8，[#86](https://github.com/kongken/mono/issues/86)）：** 下文第 10.2 节等对管理后台的描述保留为设计记录；现在这些页面位于 `apps/admin` 的“地铁目录”分区，本站 `/admin` 已退役，浏览器管理接口与管理令牌接口在管理周界之内（见 [控制台功能描述](../admin/features.md#metro-目录管理t8)）。MCP 的独立来源白名单已由 T9（[#87](https://github.com/kongken/mono/issues/87)）实现，见下一段与 [BFF 文档](../bff.md)。
 
 > **状态：P0–P7 已实现。** 本文是规格，描述要做什么以及为什么这样做；落地后的当前行为以 [功能描述](features.md)、[后端初始化](../backend.md#metro-服务地铁足迹) 和 [BFF](../bff.md) 为准，与下表的偏差和补充决定记在下面。
 >

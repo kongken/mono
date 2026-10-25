@@ -90,6 +90,33 @@ jobs:
           done
           [ "$(grep -c 'object store: real S3' /tmp/s3-deletion.log)" -ge 2 ] || { echo "a scenario did not run on the real S3"; exit 1; }
           ! grep -q -- '--- SKIP' /tmp/s3-deletion.log || { echo "an S3 scenario was skipped"; exit 1; }
+      # The MCP source-perimeter scenarios (T9), on their own and verbosely, so that the log itself shows each of
+      # them ran and passed: the plain `go test -race ./...` above prints no test names, and the PostgreSQL/Redis
+      # backed chains skip when their variables are missing. This job already provides those variables. Required:
+      # the independent allowlist, the empty allowlist (closes MCP only), the protocol refusals before any
+      # parsing or business, the independence from the browser allowlist, the token and scope checks after an
+      # allowed source, and the account lifecycle (password change, disable, role change, deletion) behind it.
+      - name: MCP source perimeter (required, never skipped)
+        shell: bash
+        run: |
+          set -o pipefail
+          unit='TestEveryRequestFromOutsideTheAllowlistIsRefusedBeforeAnythingRuns TestAnEmptyOrMissingAllowlistRefusesEveryone TestFromInsideTheAllowlistTheTokenChecksStillApply'
+          chain='TestChainMCPSourceAllowlist TestChainMCPEmptyAllowlistRefusesEveryoneAndNobodyElse TestChainMCPAndBrowserAllowlistsAreIndependent TestChainMCPAllowedAddressStillNeedsAValidTokenAndScope TestChainMCPTokenIsRevalidatedOnEveryCall'
+          subtests='TestChainMCPSourceAllowlist/an_allowed_client_reaches_every_part_of_the_protocol TestChainMCPSourceAllowlist/a_client_outside_the_list_is_refused_on_every_request_kind_and_nothing_runs TestChainMCPSourceAllowlist/refused_requests_do_not_use_up_the_token'
+          alt() { local IFS='|'; echo "^($*)\$"; }
+          go test ./internal/bff/metro/mcp -count=1 -v -run "$(alt $unit)" | tee /tmp/mcp-unit.log
+          go test ./internal/e2e -count=1 -v -run "$(alt $chain)" | tee /tmp/mcp-chain.log
+          for t in $unit; do
+            grep -q -- "^--- PASS: $t " /tmp/mcp-unit.log || { echo "$t did not run and pass"; exit 1; }
+          done
+          for t in $chain; do
+            grep -q -- "^--- PASS: $t " /tmp/mcp-chain.log || { echo "$t did not run and pass"; exit 1; }
+          done
+          for t in $subtests; do
+            grep -qF -- "--- PASS: $t" /tmp/mcp-chain.log || { echo "$t did not run and pass"; exit 1; }
+          done
+          ! grep -q -- '--- SKIP' /tmp/mcp-unit.log /tmp/mcp-chain.log || { echo "an MCP perimeter scenario was skipped"; exit 1; }
+          ! grep -q -- '--- FAIL' /tmp/mcp-unit.log /tmp/mcp-chain.log || { echo "an MCP perimeter scenario failed"; exit 1; }
 
   frontend:
     name: Frontend tests

@@ -54,6 +54,8 @@ internal_auth:
 # is not admitted by the other, and neither the console's Origin nor a session Cookie plays any part here.
 # Every request kind (initialize, tools/list, tool calls, batches, notifications, GET/DELETE/OPTIONS) is
 # checked first, before the token is looked at.
+# The section is validated even when upstreams.metro is not configured (the endpoint is then not mounted): a
+# malformed list is a startup failure, never silently ignored.
 #   allowed_cidrs   networks the MCP clients call from. EMPTY REFUSES EVERY MCP REQUEST (the endpoint is
 #                   closed, the rest of the product is not). Same rules as admin.allowed_cidrs: a prefix
 #                   and no host bits; IPv4 wider than /8, IPv6 wider than /16 and IPv4-mapped IPv6

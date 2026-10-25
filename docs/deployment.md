@@ -121,11 +121,11 @@ tripmap、BFF、metro、usersrv 与各前端为独立镜像（见 [Docker 镜像
 ## MCP 来源白名单（T9）：配置、发布与回退
 `POST /mcp/metro` 有自己的来源白名单，与上一节控制台的 `admin.*` 是两份**互不引用**的配置：一个地址在其中一份里，并不因此被另一份放行。
  
-1. **配置**：BFF `mcp.allowed_cidrs`（MCP 客户端所在网段）、`mcp.trusted_proxies`（直连 BFF 的反代网段）、`mcp.forwarded_header`（默认 `X-Forwarded-For`），格式与限制同 `admin.*`：带前缀、无主机位，IPv4 不比 `/8` 宽、IPv6 不比 `/16` 宽，不接受全开放与 IPv4 映射网段，受信代理不得与白名单重叠，违反即启动失败。**`allowed_cidrs` 为空 = MCP 拒绝所有请求**（其余产品不受影响）。示例见 `config.bff.example.yaml`，只用保留地址（`198.51.100.0/24`、`2001:db8::/32`、`192.0.2.0/24`）。
+1. **配置**：BFF `mcp.allowed_cidrs`（MCP 客户端所在网段）、`mcp.trusted_proxies`（直连 BFF 的反代网段）、`mcp.forwarded_header`（默认 `X-Forwarded-For`），格式与限制同 `admin.*`：带前缀、无主机位，IPv4 不比 `/8` 宽、IPv6 不比 `/16` 宽，不接受全开放与 IPv4 映射网段，受信代理不得与白名单重叠，违反即启动失败，**包括没有配置 metro 上游、MCP 本来不挂载的环境**（校验不看上游，非法的 `mcp.*` 不会被悄悄忽略）。**`allowed_cidrs` 为空 = MCP 拒绝所有请求**（其余产品不受影响）。示例见 `config.bff.example.yaml`，只用保留地址（`198.51.100.0/24`、`2001:db8::/32`、`192.0.2.0/24`）。
 2. **代理链**：`/mcp/metro` 经过的每一跳反代都要列入 `mcp.trusted_proxies`，并且每一跳都要把对端地址追加或覆盖进转发头：`Caddyfile.example` 的 `metro.example.com` 用对端地址覆盖 `X-Forwarded-For`，`deploy/metro-web` 的 nginx 用 `$proxy_add_x_forwarded_for` 追加；两者串联时，BFF 从右向左跳过受信跳点，取到第一个非受信地址作为客户端。CDN/负载均衡的网段同样要列入。受信链配得不全时，客户端会被判成最后一个非受信的代理地址，通常表现为全部被拒——这是安全方向的故障。BFF 从不采信 `X-Real-IP`、`Forwarded`、`True-Client-IP`。
 3. **真实地址只由私有部署配置提供**：真实 `allowed_cidrs`、`trusted_proxies` 与域名放在私有配置/Secret（例如私有仓库或密钥管理里的 `config.bff.yaml`）中，不写入 Issue、PR、文档、示例或 CI 日志；仓库里的任何示例都是保留地址与占位符。
 4. **发布顺序与通知**：这是一次**收紧**——升级后，没有配置 `mcp.allowed_cidrs` 的环境里 MCP 立即关闭，现有 AI 客户端与自动化会得到 `403`。因此：先向使用 MCP 的人公告切换窗口与受影响的入口，不要在未通知时关闭既有维护入口；在私有配置里写好 `mcp.allowed_cidrs`（与 `trusted_proxies`）后再发布 BFF；发布后用一个名单内与一个名单外的来源各验证一次（名单外应得到不带提示头的 `403`，名单内 `initialize` 与 `tools/list` 正常）。镜像发布与 CI 不会自动部署，也不会自动开放或收紧任何名单。
-5. **回退**：回退 BFF 版本即可，没有数据迁移。注意：回退到 T9 之前的版本会**移除** MCP 的来源防护（只剩 Bearer 令牌）；如需在回退期间继续限制来源，在边缘网关对 `/mcp/metro` 加同样的网段限制，或临时吊销管理令牌。旧版本是否容忍配置里多出的 `mcp.allowed_cidrs` 等键取决于配置加载器，回退前在预发环境确认，必要时同时回退配置。
+5. **回退**：回退 BFF 版本即可，没有数据迁移。注意：回退到 T9 之前的版本会**移除** MCP 的来源防护（只剩 Bearer 令牌）；如需在回退期间继续限制来源，在边缘网关对 `/mcp/metro` 加同样的网段限制，或临时吊销管理令牌。关于旧版本是否容忍配置里多出的 `mcp.allowed_cidrs` 等键：**代码核实**——BFF 用 `yaml.Unmarshal` 读配置（`cmd/bff/main.go` → butterfly 的 `app/app.go`），未启用严格的未知字段检查，T9 之前的 `MCPConfig` 只有 `rate_limit_per_minute`，按此推断旧版会忽略多出的键；**旧二进制并未实际运行验证**，回退前仍应在预发环境确认，必要时同时回退配置。
 6. **只查来源，不替代身份**：放行后 Bearer 摘要、scope、到期与吊销、账号状态、认证版本与角色仍逐次检查；MCP 不使用浏览器的密码重新认证，不设 CORS，不接受 Cookie。
  
 ## usersrv 的部署
