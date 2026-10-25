@@ -10,7 +10,6 @@ export type SessionState = { status: "loading" } | { status: "anonymous" } | { s
 
 type Ctx = {
   session: SessionState;
-  isAdmin: boolean;
   /** Sends the browser to the sign-in page and back to the current page afterwards. */
   signIn: () => void;
   signOut: () => Promise<void>;
@@ -87,7 +86,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(
     () => ({
       session,
-      isAdmin: session.status === "signed-in" && session.account.roles.includes("metro-admin"),
       signIn: () => navigate(loginPath(window.location.pathname + window.location.search)),
       signOut: async () => {
         await account.logout();

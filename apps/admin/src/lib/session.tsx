@@ -3,6 +3,7 @@ import { createEpoch } from "@kongken/account/latest";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { classifyAccountError } from "@kongken/account/errors";
 import type { AccountProfile } from "@kongken/account/api";
+import { clearDraft } from "./draft.ts";
 import { account } from "./rpc";
 
 export type SessionState =
@@ -80,6 +81,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       sessionLost: () => void refresh(true),
       signOut: async () => {
         await account.logout();
+        // Nothing typed by this account is left for the next one.
+        clearDraft(window.sessionStorage);
         // Reads that began before the sign-out ended may still say "signed in": drop them.
         reads.invalidate();
         setSession({ status: "anonymous" });

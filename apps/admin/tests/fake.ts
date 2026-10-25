@@ -10,6 +10,7 @@
  */
 import type { Page, Route } from "@playwright/test";
 import { createFakeAccounts, installFakeAccounts, type FakeAccounts } from "@kongken/account/testing";
+import { createFakeMetro } from "./fake-metro";
 
 export const OZID = "https://id.example.com";
 export const CONSOLE_ORIGIN = "http://127.0.0.1:4177";
@@ -355,16 +356,19 @@ export function createFakeAdmin(accounts: FakeAccounts, users: FakeUser[] = seed
 export type FakeAdmin = ReturnType<typeof createFakeAdmin>;
 
 /** The console against the fakes, with the OzID origin and any other host recorded instead of reached. */
-export async function setup(page: Page, opts: { roles?: string[]; signedIn?: boolean } = {}) {
+export async function setup(page: Page, opts: { roles?: string[]; signedIn?: boolean; metro?: "present" | "absent" } = {}) {
   const accounts = createFakeAccounts({
     navigation: {
       ozid: { origin: OZID, paths: ["/security"] },
-      admin: { origin: CONSOLE_ORIGIN, paths: ["/users", "/users/*", "/audit/users"] },
+      admin: { origin: CONSOLE_ORIGIN, paths: ["/users", "/users/*", "/audit/users", "/metro/*"] },
     },
   });
   await installFakeAccounts(page, accounts);
   const admin = createFakeAdmin(accounts);
   await admin.install(page);
+  const metro = createFakeMetro(accounts);
+  metro.state.absent = opts.metro === "absent";
+  await metro.install(page);
   const account = accounts.addAccount({ email: "operator@example.com", password: "correct horse battery", displayName: "运维小李", roles: opts.roles ?? [] });
   if (opts.signedIn !== false) accounts.signIn(account);
   const visited: string[] = [];
@@ -377,5 +381,5 @@ export async function setup(page: Page, opts: { roles?: string[]; signedIn?: boo
     stray.push(route.request().url());
     return route.abort();
   });
-  return { accounts, admin, account, visited, stray };
+  return { accounts, admin, metro, account, visited, stray };
 }

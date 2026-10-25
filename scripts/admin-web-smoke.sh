@@ -144,7 +144,7 @@ if [ -n "$js" ]; then
   check "the bundle carries the API base it was built for" grep -qF "$API_BASE" "$tmp/js.body"
   check "the bundle carries the OzID origin it was built for" grep -qF "$OZID_ORIGIN" "$tmp/js.body"
 fi
-for route in /users /users/00000000-0000-4000-8000-000000000001 /anything/else; do
+for route in /users /metro/cities /users/00000000-0000-4000-8000-000000000001 /anything/else; do
   name="route$(printf '%s' "$route" | tr -c 'a-z' '_')"
   console "$BASE" "$name" "$route" "$INSIDE"
   check "$route falls back to the shell for an allowed source" status_is "$tmp/$name.head" 200
@@ -160,7 +160,7 @@ check "an outside source is refused the page (403)" status_is "$tmp/denied_index
 check "the refusal carries no console content" test "$(wc -c <"$tmp/denied_index.body")" -lt 64
 check "the refusal does not contain the shell" bash -c "! grep -q 'id=\"root\"' '$tmp/denied_index.body'"
 [ -n "$js" ] && { console "$BASE" denied_js "$js" "$OUTSIDE"; check "an outside source is refused the script (403)" status_is "$tmp/denied_js.head" 403; }
-for route in /users /users/00000000-0000-4000-8000-000000000001 /favicon.svg /index.html /assets/does-not-exist.js /x/../index.html; do
+for route in /users /metro/cities /users/00000000-0000-4000-8000-000000000001 /favicon.svg /index.html /assets/does-not-exist.js /x/../index.html; do
   name="denied$(printf '%s' "$route" | tr -c 'a-z' '_')"
   console "$BASE" "$name" "$route" "$OUTSIDE"
   check "an outside source is refused $route (403, not 200/404)" status_is "$tmp/$name.head" 403

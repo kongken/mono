@@ -39,7 +39,7 @@ func adminHarness(t *testing.T, perimeter adminguard.Config, extras ...any) *Cha
 			APIOrigin: baseURL,
 			Apps: map[string]navigation.App{
 				"ozid":     {Origin: ozidOrigin, Paths: []string{"/security"}},
-				"admin":    {Origin: adminOrigin, Paths: []string{"/users", "/users/*", "/audit/users"}},
+				"admin":    {Origin: adminOrigin, Paths: []string{"/users", "/users/*", "/audit/users", "/metro", "/metro/*"}},
 				"trip-map": {Origin: tripOrigin},
 				"metro":    {Origin: metroOrigin, Paths: []string{"/me", "/city/*"}},
 			},

@@ -469,6 +469,16 @@ func (h *ChainHarness) DirectMetroGRPC() *grpc.ClientConn {
 	return conn
 }
 
+// consoleOrigin makes the management clients (metro catalogue administration and the management
+// tokens) speak as the unified console does: they are only answered for its exact Origin, whatever
+// the test-wide browser Origin is. A test about the perimeter itself builds its own client.
+var consoleOrigin = connect.WithInterceptors(connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+		req.Header().Set("Origin", adminOrigin)
+		return next(ctx, req)
+	}
+}))
+
 // FreshBrowser returns a new isolated cookie jar for another user/session.
 func (h *ChainHarness) FreshBrowser() *Browser {
 	h.T.Helper()
@@ -482,9 +492,9 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 		t: h.T, h: h, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
 		Auth:       bffv1connect.NewAuthServiceClient(hc, api),
 		Users:      bffv1connect.NewUserServiceClient(hc, api),
-		Tokens:     bffv1connect.NewAccessTokenServiceClient(hc, api),
+		Tokens:     bffv1connect.NewAccessTokenServiceClient(hc, api, consoleOrigin),
 		Catalog:    bffmetrov1connect.NewCatalogServiceClient(hc, api),
-		MetroAdmin: bffmetrov1connect.NewAdminServiceClient(hc, api),
+		MetroAdmin: bffmetrov1connect.NewAdminServiceClient(hc, api, consoleOrigin),
 		MetroRider: bffmetrov1connect.NewRiderServiceClient(hc, api),
 		Foot:       bfftripmapv1connect.NewFootprintServiceClient(hc, api),
 		Snap:       bfftripmapv1connect.NewSnapshotServiceClient(hc, api),

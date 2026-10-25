@@ -75,7 +75,7 @@ func (h *ChainHarness) authVersionOf(ctx context.Context, id string) int64 {
 // current one, leaves other accounts, the password, auth_version and management tokens
 // alone, and does not touch a session opened afterwards.
 func TestChainRevokeOtherSessionsKeepsTheCurrentOne(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	current, id := h.adminBrowser(ctx, "dev-owner")
 	d2, d3 := h.FreshBrowser(), h.FreshBrowser()
@@ -399,7 +399,7 @@ func assertWriteRejectedNamed(t *testing.T, name string, err error) {
 // the current device included, and no other account's; the old password stops working. A
 // wrong current password changes nothing.
 func TestChainChangePasswordEndsOnlyThisAccountsAccess(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	current, id := h.adminBrowser(ctx, "dev-pw")
 	phone := h.FreshBrowser()

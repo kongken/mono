@@ -48,7 +48,7 @@ function PendingDeletion() {
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { session, isAdmin, signIn, signOut, deletionPending } = useSession();
+  const { session, signIn, signOut, deletionPending } = useSession();
   const path = usePath();
   const nav = (to: string, label: string, active: boolean) => (
     <Link
@@ -70,7 +70,6 @@ export function Layout({ children }: { children: ReactNode }) {
             {nav("/", "城市", path === "/" || path.startsWith("/cities") || path.startsWith("/topics"))}
             {session.status === "signed-in" && nav("/me", "我的足迹", path === "/me")}
             {session.status === "signed-in" && nav("/account", "账号", path === "/account")}
-            {isAdmin && nav("/admin", "管理", path.startsWith("/admin"))}
           </nav>
           <div className="flex items-center gap-2">
             {session.status === "signed-in" ? (

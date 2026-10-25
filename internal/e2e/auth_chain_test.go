@@ -535,7 +535,7 @@ func TestChainUsersrvOutageRefusesProtectedCalls(t *testing.T) {
 
 // A product that is paused does not block sign-in or another product.
 func TestChainPausedTripmapDoesNotBlockSignInOrMetro(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	b := h.FreshBrowser()
 	if _, err := b.Register(ctx, "paused", "", "P"); err != nil {
@@ -559,7 +559,7 @@ func TestChainPausedTripmapDoesNotBlockSignInOrMetro(t *testing.T) {
 // Spec §14 scenario 9: roles come only from the operator; registration yields
 // none; every change makes the older sessions fail.
 func TestChainRolesComeOnlyFromTheOperatorAndExpireSessions(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	b := h.FreshBrowser()
 	id, err := b.Register(ctx, "rolecheck", "", "R")
@@ -599,7 +599,7 @@ func TestChainRolesComeOnlyFromTheOperatorAndExpireSessions(t *testing.T) {
 // without the email, and tripmap data is not moved by it; friends are found by
 // invite code only.
 func TestChainProfileProjectionAndFriendCodes(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	a, b := h.FreshBrowser(), h.FreshBrowser()
 	aID, err := a.Register(ctx, "proj-a", "", "Alice")

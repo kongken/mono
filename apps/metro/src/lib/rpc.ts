@@ -2,8 +2,6 @@ import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import { createAccountApi } from "@kongken/account/api";
 import { AuthService } from "@kongken/api-client/bff/v1/auth_pb";
-import { AccessTokenService } from "@kongken/api-client/bff/v1/access_token_pb";
-import { AdminService } from "@kongken/api-client/bff/metro/v1/admin_pb";
 import { CatalogService } from "@kongken/api-client/bff/metro/v1/catalog_pb";
 import { RiderService } from "@kongken/api-client/bff/metro/v1/rider_pb";
 
@@ -34,8 +32,6 @@ async function ensureCsrf() {
 
 /** The shared account client: sign-in, registration, password reset, profile, devices, deletion. */
 export const account = createAccountApi({ transport, appId: APP_ID, ensureCsrf });
-export const tokens = createClient(AccessTokenService, transport);
-export const admin = createClient(AdminService, transport);
 export const catalog = createClient(CatalogService, transport);
 export const rider = createClient(RiderService, transport);
 
@@ -46,9 +42,4 @@ export const rider = createClient(RiderService, transport);
 export async function write<T>(call: () => Promise<T>): Promise<T> {
   await ensureCsrf();
   return call();
-}
-
-/** Public address of the MCP endpoint on the BFF host. */
-export function mcpEndpoint(): string {
-  return new URL("/mcp/metro", new URL(apiBase, window.location.origin)).toString();
 }

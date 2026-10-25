@@ -1,20 +1,11 @@
 import { LineStatus } from "@kongken/api-client/bff/metro/v1/catalog_pb";
 import type { LineInput } from "@kongken/api-client/bff/metro/v1/admin_pb";
-import { admin, write } from "@/lib/rpc";
-import { formatKm, lines } from "@/lib/format";
-import { statusLabel } from "@/lib/status";
+import { formatKm, lines } from "@kongken/metro-core/format";
+import { statusLabel } from "@kongken/metro-core/status";
+import { metroAdmin as admin, write } from "@/lib/rpc";
+import type { FieldDef, Form } from "@/lib/metro-form";
 
-export type FieldKind = "text" | "number" | "decimal" | "textarea" | "select" | "checkbox";
-export type FieldDef = {
-  key: string;
-  label: string;
-  kind: FieldKind;
-  hint?: string;
-  options?: { value: string; label: string }[];
-  /** Fixed after creation (a line's code). */
-  lockedOnEdit?: boolean;
-};
-export type Form = Record<string, string | boolean>;
+export type { FieldDef, Form };
 
 export type Row = { id: string; revision: bigint; key: string; cells: string[]; form: Form };
 export type Page = { rows: Row[]; next: string; total: bigint };
@@ -113,11 +104,11 @@ export const linesEntity: Entity = {
   columns: ["代码", "城市", "名称", "状态", "里程"],
   fields: [
     { key: "code", label: "代码", kind: "text", hint: "小写字母、数字、连字符，创建后不能修改", lockedOnEdit: true },
-    { key: "citySlug", label: "所属城市 slug", kind: "text" },
+    { key: "citySlug", label: "所属城市 slug", kind: "text", serverKey: "city" },
     { key: "name", label: "名称", kind: "text" },
     { key: "number", label: "序号（0 = 未编号，排在最后）", kind: "number" },
     { key: "status", label: "状态", kind: "select", options: statusOptions },
-    { key: "rollingStockCode", label: "车型代码（可空）", kind: "text" },
+    { key: "rollingStockCode", label: "车型代码（可空）", kind: "text", serverKey: "rolling_stock" },
     { key: "cars", label: "编组（节）", kind: "number" },
     { key: "carsAddition", label: "加开节数", kind: "number" },
     { key: "stations", label: "站数", kind: "number" },

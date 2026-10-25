@@ -116,7 +116,7 @@ tripmap、BFF、metro、usersrv 与各前端为独立镜像（见 [Docker 镜像
 1. 在同一个 PostgreSQL 实例创建独立数据库 `metro`，复制 `config.metro.example.yaml` 为 `config.metro.yaml`，生产环境关闭 `auto_migrate` 并按文件名顺序执行 `migrations/metro/`；BFF 库另需执行新的 `migrations/bff/*_access_tokens.sql`。
 2. `config.bff.yaml` 加 `upstreams.metro`、`grpc.services.metro`，`auth.account_cleanup` 列入 `metro`（已配置 `upstreams.metro` 时漏列会让 BFF 拒绝启动：注销后该产品的数据不能被悄悄留下；未设置 `auth.account_cleanup` 时默认就是 tripmap 加上已配置上游的 metro），按需调整 `mcp.rate_limit_per_minute`。不部署 metro 时去掉这些项，BFF 不会挂载 metro 的任何路由。
 3. 管理员角色：用 `usersrv-admin` 给管理员账号授予 `metro-admin`；BFF 每次请求读取当前角色，上线前先让一个管理员登录并确认 `Me` 返回 `metro-admin`。
-4. 边缘网关对 `/mcp/metro` 不记录请求头与访问日志（Bearer 令牌），并保证 `client_ip_header` 由网关覆盖（MCP 失败认证按该地址限流）。MCP 令牌由管理员在 `/admin/tokens` 创建，最长 90 天，明文只显示一次。
+4. 边缘网关对 `/mcp/metro` 不记录请求头与访问日志（Bearer 令牌），并保证 `client_ip_header` 由网关覆盖（MCP 失败认证按该地址限流）。MCP 令牌由管理员在统一管理控制台的“地铁目录 → 管理令牌”（`/metro/tokens`）创建，最长 90 天，明文只显示一次。
 
 ## usersrv 的部署
 
@@ -187,9 +187,10 @@ OzID（`apps/ozid`，镜像 `ozid-web`）是纯静态站点，没有同源 `/api
 控制台（`apps/admin`，镜像 `admin-web`）是纯静态站点，也没有同源 `/api`，并且**只在来源白名单之后**提供页面。它与 BFF 的 `admin` 周界是两道各自独立的防线，白名单与受信代理要一起维护：
 
 1. **前端重建**：`--build-arg VITE_API_BASE_URL=https://api.example.com/api --build-arg VITE_OZID_ORIGIN=https://id.example.com`（都无默认值，缺失或不合法构建失败）；运行时 `API_ORIGIN`、`ADMIN_HOST`、`ADMIN_ALLOWED_CIDRS` 必填，空值或全开的白名单使容器拒绝启动；`ADMIN_TRUSTED_PROXIES`（前置代理网段）可选，且不得与 `ADMIN_ALLOWED_CIDRS` 重叠（BFF 的 `admin.trusted_proxies` 与 `admin.allowed_cidrs` 同理），重叠的组合启动即被拒绝。
-2. **BFF 配置**：`admin.allowed_cidrs`（空 = 全部拒绝）、`admin.trusted_proxies`；`navigation.apps.admin`（`origin`、`paths: ["/users", "/users/*", "/audit/users"]`）；控制台 origin 加入 `cors_allowed_origins`，且与 API 同站点。
+2. **BFF 配置**：`admin.allowed_cidrs`（空 = 全部拒绝）、`admin.trusted_proxies`；`navigation.apps.admin`（`origin`、`paths: ["/users", "/users/*", "/audit/users", "/metro", "/metro/*"]`；`/metro/*` 让 OzID 重新认证后能回到 metro 管理页）；控制台 origin 加入 `cors_allowed_origins`，且与 API 同站点。
 3. **反代与 DNS/TLS**：见 `deploy/reverse-proxy/Caddyfile.example` 的 `admin.example.com` 站点：代理是第一个看到真实客户端的跳点，用对端地址**覆盖** `X-Forwarded-For`（不透传客户端的值），并列入后两层的受信代理。前面如果还有 CDN/负载均衡，它们的网段也属于受信链，必须同时配置，否则真实来源会被误判。
 4. **授予平台角色**：`usersrv-admin grant-role -role ozid-admin ...`（先于上线）。usersrv 迁移 `20261025120000_platform_admin_role.sql` 随 usersrv 上线。
 5. **上线顺序与回滚**：usersrv → BFF → 网关与 `admin-web`；回滚先下线控制台，再回滚 BFF；回滚迁移前先撤销所有 `ozid-admin`。
+6. **metro 管理迁入控制台（T8）的影响**：`bff.metro.v1.AdminService` 与 `bff.v1.AccessTokenService` 现在同样要求来源在 `admin.allowed_cidrs` 内且 `Origin` 是控制台 origin——metro 公开站（`metro-web`）不再有管理页面，`/admin` 已退役，旧站点不能再管理目录或令牌；metro 管理员须从控制台操作，并保证其来源在白名单内。先上线 BFF 与控制台、再上线新的 `metro-web`，或同时上线，避免出现“旧站管理页已被周界拒绝而控制台尚未可用”的窗口。MCP（`/mcp/metro`）不受影响，其来源策略是 T9。没有配置 metro 上游的环境，控制台不显示 metro 分区。
 
 镜像发布与 CI 不会自动部署、不会自动开放白名单，也不清理数据；运维仍须自行确认真实 DNS、证书与 TLS、真实来源地址与白名单取值、代理/CDN 链路和邮件厂商。详见 [控制台功能描述](admin/features.md)。

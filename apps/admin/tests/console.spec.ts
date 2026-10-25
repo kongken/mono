@@ -38,11 +38,11 @@ test.describe("sign-in and the role gate", () => {
     await expect(page.getByRole("link", { name: "管理 OzID 账号" }).first()).toHaveAttribute("href", OZID);
   });
 
-  test("a metro-admin alone gets no user section and no user data, even by address", async ({ page }) => {
+  test("a metro-admin alone gets the metro section, no user section and no user data, even by address", async ({ page }) => {
     const s = await setup(page, { roles: ["metro-admin"] });
     await page.goto("/");
-    await expect(page.getByTestId("sections")).toHaveCount(0);
-    await expect(page.getByText("地铁目录管理还没有迁入控制台")).toBeVisible();
+    await expect(page.getByTestId("sections").getByRole("link", { name: "地铁目录" })).toBeVisible();
+    await expect(page.getByTestId("sections").getByRole("link", { name: "用户" })).toHaveCount(0);
     await page.goto("/users");
     await expect(page.getByTestId("no-permission")).toBeVisible();
     expect(s.admin.userCalls()).toHaveLength(0);
@@ -53,6 +53,7 @@ test.describe("sign-in and the role gate", () => {
     await page.goto("/");
     await expect(page.getByTestId("my-roles")).toHaveText("平台管理员、地铁目录管理员");
     await expect(page.getByTestId("sections").getByRole("link", { name: "用户" })).toBeVisible();
+    await expect(page.getByTestId("sections").getByRole("link", { name: "地铁目录" })).toBeVisible();
     await expect(page.getByTestId("section-cards")).toBeVisible();
   });
 

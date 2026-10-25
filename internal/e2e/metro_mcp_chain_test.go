@@ -133,7 +133,7 @@ func toolNames(t *testing.T, c *mcpClient) map[string]bool {
 // Acceptance 14 and 15: scopes decide the tool list, writes need metro:write, and a
 // token stops working the moment it is revoked, expired, or missing.
 func TestChainMCPTokensAndScopes(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	admin, _ := h.adminBrowser(ctx, "root")
 
@@ -251,7 +251,7 @@ func TestChainMCPTokensAndScopes(t *testing.T) {
 }
 
 func TestChainMCPTokenCap(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	admin, _ := h.adminBrowser(ctx, "root")
 	for i := 0; i < 10; i++ {
@@ -267,7 +267,7 @@ func TestChainMCPTokenCap(t *testing.T) {
 // Acceptance 14 (import preview), 16: MCP writes use the same rules as the web,
 // audit as channel mcp with the token id, and conflict with web edits.
 func TestChainMCPWritesShareTheAdminRules(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	admin, adminID := h.adminBrowser(ctx, "root")
 	secret := h.newAdminToken(ctx, admin, "agent", 30, "metro:write")
@@ -382,9 +382,7 @@ func TestChainMCPWritesShareTheAdminRules(t *testing.T) {
 }
 
 func TestChainMCPRateLimit(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{}, ChainHTTPOptions{Configure: func(cfg *bffconfig.Config, _ string) {
-		cfg.MCP.RateLimitPerMinute = 5
-	}})
+	h := adminHarness(t, loopback, ChainMetro{}, func(cfg *bffconfig.Config) { cfg.MCP.RateLimitPerMinute = 5 })
 	ctx := context.Background()
 	admin, _ := h.adminBrowser(ctx, "root")
 	c := h.mcp(h.newAdminToken(ctx, admin, "t", 1))
@@ -405,7 +403,7 @@ func TestChainMCPRateLimit(t *testing.T) {
 }
 
 func TestChainMCPProtocol(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	admin, _ := h.adminBrowser(ctx, "root")
 	c := h.mcp(h.newAdminToken(ctx, admin, "t", 1))
@@ -482,7 +480,7 @@ func mustJSON(t *testing.T, v any) []byte {
 // is not restored by granting it again), the account is disabled or deleting, and
 // while usersrv cannot answer nothing is run.
 func TestChainMCPTokenIsRevalidatedOnEveryCall(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	callOK := func(c *mcpClient) (bool, string) {
 		t.Helper()
@@ -577,7 +575,7 @@ func TestChainMCPTokenIsRevalidatedOnEveryCall(t *testing.T) {
 
 // Creating a management token needs the password to have been checked recently.
 func TestChainMCPTokenCreationNeedsARecentPassword(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	admin, _ := h.adminBrowser(ctx, "mcp-fresh")
 	h.ageSession(admin, 16*time.Minute)

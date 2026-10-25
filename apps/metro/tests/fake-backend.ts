@@ -1,11 +1,10 @@
 import type { Page, Route } from "@playwright/test";
 import { create, toBinary } from "@bufbuild/protobuf";
-import { RevisionConflictDetailSchema, ValidationDetailSchema } from "@kongken/api-client/bff/metro/v1/admin_pb";
+import { ValidationDetailSchema } from "@kongken/api-client/bff/metro/v1/admin_pb";
 
 type Role = "user" | "admin";
 type City = { id: string; revision: number; slug: string; name: string; headerImages: string[]; mapSvgUrl: string; sortOrder: number };
 type Line = { id: string; revision: number; code: string; citySlug: string; name: string; number: number; status: string; rollingStockCode: string; cars: number; carsAddition: number; stations: number; lengthKm: number; color: string; commencedOn: string; extendedOn: string; isLoop: boolean };
-type Token = { id: string; userId: string; name: string; audience: string; scopes: string[]; createdAt: string; expiresAt: string; lastUsedAt?: string; revokedAt?: string };
 
 const OPERATING = "LINE_STATUS_OPERATING";
 
@@ -18,7 +17,7 @@ function failure(status: number, code: string, message: string, details: { type:
 
 /**
  * A small in-memory BFF for the metro application: enough of the catalogue,
- * rider, admin and token contracts (revision checks, dry runs, CSRF, roles) to
+ * catalogue and rider contracts (CSRF, roles) to
  * drive the screens. It is installed with page.route; nothing leaves the test.
  */
 export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) {
@@ -36,12 +35,10 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
     stocks: [] as { id: string; revision: number; code: string }[],
     rides: new Map<string, number>(),
     profile: { handle: "", displayName: "", subtitle: "", bio: "", location: "", headerImages: [] as string[], twitter: "", instagram: "", weibo: "", facebook: "", github: "", isPublic: false },
-    tokens: [] as Token[],
     csrfIssued: 0,
     /** Procedures that were called with a CSRF header, to check writes carry one. */
     writesWithoutCsrf: [] as string[],
     calls: [] as string[],
-    secrets: [] as string[],
   };
 
   function line(id: string, code: string, citySlug: string, name: string, number: number, color: string, stations: number, km: number): Line {
@@ -55,18 +52,11 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
     totalLengthKm: state.lines.filter((l) => l.citySlug === c.slug && operating(l)).reduce((s, l) => s + l.lengthKm, 0),
   });
   const lineJson = (l: Line) => ({ ...l, cityName: state.cities.find((c) => c.slug === l.citySlug)?.name ?? "" });
-  const lineInput = (l: Line) => { const { id: _i, revision: _r, ...rest } = l; return rest; };
-  const needAdmin = () => !state.user ? failure(401, "unauthenticated", "sign in required") : !state.user.roles.includes("metro-admin") ? failure(403, "permission_denied", "required role missing") : null;
   const needUser = () => (state.user ? null : failure(401, "unauthenticated", "sign in required"));
   const bump = () => { state.version += 1; };
-  const nextId = (p: string) => `${p}${++state.seq}`;
-  const conflict = (current: number) => failure(400, "failed_precondition", "stale revision", [
-    { type: "bff.metro.v1.RevisionConflictDetail", value: toBinary(RevisionConflictDetailSchema, create(RevisionConflictDetailSchema, { currentRevision: BigInt(current) })) },
-  ]);
   const invalid = (errors: { field: string; reason: string }[]) => failure(400, "invalid_argument", "invalid", [
     { type: "bff.metro.v1.ValidationDetail", value: toBinary(ValidationDetailSchema, create(ValidationDetailSchema, { errors })) },
   ]);
-  const colorOk = (c: string) => /^#[0-9A-Fa-f]{6}$/.test(c);
 
   type Body = Record<string, any>;
   const handlers: Record<string, (b: Body) => { status?: number; body: unknown }> = {
@@ -119,88 +109,9 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
       state.profile.isPublic && state.profile.handle === b.handle
         ? { body: { profile: { ...state.profile }, cities: ridden().cities, stats: ridden().stats } }
         : failure(404, "not_found", "profile not found"),
-
-    "bff.metro.v1.AdminService/ListAdminCities": (b) => needAdmin() ?? { body: { cities: state.cities.filter((c) => !b.query || c.slug.includes(b.query) || c.name.includes(b.query)).map((c) => ({ id: c.id, revision: String(c.revision), city: { slug: c.slug, name: c.name, headerImages: c.headerImages, mapSvgUrl: c.mapSvgUrl, sortOrder: c.sortOrder } })), nextPageToken: "", total: String(state.cities.length) } },
-    "bff.metro.v1.AdminService/CreateCity": (b) => {
-      const denied = needAdmin();
-      if (denied) return denied;
-      if (state.cities.some((c) => c.slug === b.city.slug)) return failure(409, "already_exists", "slug exists", [{ type: "bff.metro.v1.ValidationDetail", value: toBinary(ValidationDetailSchema, create(ValidationDetailSchema, { errors: [{ field: "slug", reason: "已存在" }] })) }]);
-      const c: City = { id: nextId("c"), revision: 1, slug: b.city.slug, name: b.city.name, headerImages: b.city.headerImages ?? [], mapSvgUrl: b.city.mapSvgUrl ?? "", sortOrder: b.city.sortOrder ?? 0 };
-      state.cities.push(c);
-      bump();
-      return { body: { city: { id: c.id, revision: "1", city: b.city }, catalogVersion: String(state.version) } };
-    },
-    "bff.metro.v1.AdminService/UpdateCity": (b) => {
-      const denied = needAdmin();
-      if (denied) return denied;
-      const c = state.cities.find((x) => x.id === b.id);
-      if (!c) return failure(404, "not_found", "city not found");
-      if (BigInt(b.expectedRevision ?? 0) !== BigInt(c.revision)) return conflict(c.revision);
-      Object.assign(c, { slug: b.city.slug, name: b.city.name, headerImages: b.city.headerImages ?? [], mapSvgUrl: b.city.mapSvgUrl ?? "", sortOrder: b.city.sortOrder ?? 0, revision: c.revision + 1 });
-      bump();
-      return { body: { city: { id: c.id, revision: String(c.revision), city: b.city }, catalogVersion: String(state.version) } };
-    },
-    "bff.metro.v1.AdminService/DeleteCity": (b) => {
-      const denied = needAdmin();
-      if (denied) return denied;
-      state.cities = state.cities.filter((c) => c.id !== b.id);
-      bump();
-      return { body: { catalogVersion: String(state.version) } };
-    },
-    "bff.metro.v1.AdminService/ListAdminLines": () => needAdmin() ?? { body: { lines: state.lines.map((l) => ({ id: l.id, revision: String(l.revision), line: lineInput(l) })), nextPageToken: "", total: String(state.lines.length) } },
-    "bff.metro.v1.AdminService/CreateLine": (b) => {
-      const denied = needAdmin();
-      if (denied) return denied;
-      if (!colorOk(b.line.color)) return invalid([{ field: "color", reason: "必须是 #RRGGBB" }]);
-      const l: Line = { id: nextId("l"), revision: 1, status: OPERATING, rollingStockCode: "", cars: 0, carsAddition: 0, stations: 0, lengthKm: 0, commencedOn: "", extendedOn: "", isLoop: false, number: 0, name: "", code: "", citySlug: "", color: "", ...b.line };
-      state.lines.push(l);
-      bump();
-      return { body: { line: { id: l.id, revision: "1", line: b.line }, catalogVersion: String(state.version) } };
-    },
-    "bff.metro.v1.AdminService/ListAdminRollingStocks": () => needAdmin() ?? { body: { rollingStocks: [], nextPageToken: "", total: "0" } },
-    "bff.metro.v1.AdminService/ListAdminRollingStockTopics": () => needAdmin() ?? { body: { topics: state.topics.map((t) => ({ id: t.id, revision: String(t.revision), topic: t })), nextPageToken: "", total: String(state.topics.length) } },
-    "bff.metro.v1.AdminService/ListAuditLogs": () => needAdmin() ?? { body: { logs: [], nextPageToken: "" } },
-    "bff.metro.v1.AdminService/ExportCatalog": () => needAdmin() ?? { body: { catalogJson: JSON.stringify({ format: "metro-catalog/1", cities: state.cities.map((c) => ({ slug: c.slug, name: c.name })) }), catalogVersion: String(state.version) } },
-    "bff.metro.v1.AdminService/ImportCatalog": (b) => {
-      const denied = needAdmin();
-      if (denied) return denied;
-      let doc: { cities?: { slug: string; name: string }[]; lines?: { color: string }[] };
-      try {
-        doc = JSON.parse(b.catalogJson);
-      } catch {
-        return invalid([{ field: "catalog_json", reason: "不是有效的 JSON" }]);
-      }
-      const errors = (doc.lines ?? []).flatMap((l, i) => (colorOk(l.color) ? [] : [{ field: `lines[${i}].color`, reason: "必须是 #RRGGBB" }]));
-      const fresh = (doc.cities ?? []).filter((c) => !state.cities.some((x) => x.slug === c.slug));
-      const counts = { cities: { created: fresh.length, updated: 0, unchanged: (doc.cities?.length ?? 0) - fresh.length }, rollingStocks: {}, lines: { created: doc.lines?.length ?? 0 }, topics: {} };
-      if (b.dryRun) return { body: { dryRun: true, ...counts, errors, catalogVersion: String(state.version) } };
-      if (errors.length) return invalid(errors);
-      for (const c of fresh) state.cities.push({ id: nextId("c"), revision: 1, slug: c.slug, name: c.name, headerImages: [], mapSvgUrl: "", sortOrder: 0 });
-      if (fresh.length) bump();
-      return { body: { dryRun: false, ...counts, errors: [], catalogVersion: String(state.version) } };
-    },
-
-    "bff.v1.AccessTokenService/CreateAccessToken": (b) => {
-      const denied = needAdmin();
-      if (denied) return denied;
-      const secret = `mcp_${"ab12".repeat(16)}`;
-      state.secrets.push(secret);
-      const now = new Date();
-      const t: Token = { id: nextId("tok"), userId: state.user!.id, name: b.name, audience: "metro", scopes: b.scopes?.length ? b.scopes : ["metro:read"], createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + b.expiresInDays * 864e5).toISOString() };
-      state.tokens.push(t);
-      return { body: { token: t, secret } };
-    },
-    "bff.v1.AccessTokenService/ListAccessTokens": () => needAdmin() ?? { body: { tokens: [...state.tokens].reverse() } },
-    "bff.v1.AccessTokenService/RevokeAccessToken": (b) => {
-      const denied = needAdmin();
-      if (denied) return denied;
-      const t = state.tokens.find((x) => x.id === b.id);
-      if (t) t.revokedAt = new Date().toISOString();
-      return { body: {} };
-    },
   };
 
-  const readOnly = new Set(["Me", "IssueCSRFToken", "ListCities", "GetCity", "ListRollingStockTopics", "GetRollingStockTopic", "GetPublicProfile", "GetMyProfile", "ListMyLines", "ListAdminCities", "ListAdminLines", "ListAdminRollingStocks", "ListAdminRollingStockTopics", "ListAuditLogs", "ExportCatalog", "ListAccessTokens"]);
+  const readOnly = new Set(["Me", "IssueCSRFToken", "ListCities", "GetCity", "ListRollingStockTopics", "GetRollingStockTopic", "GetPublicProfile", "GetMyProfile", "ListMyLines"]);
 
   function ridden() {
     const byCity = new Map<string, { citySlug: string; cityName: string; lines: object[] }>();
@@ -238,13 +149,6 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
   return {
     state,
     install,
-    /** Someone else edits the city behind the page's back. */
-    touchCity(slug: string) {
-      const c = state.cities.find((x) => x.slug === slug)!;
-      c.revision += 1;
-      c.name = `${c.name}（已改）`;
-      bump();
-    },
     signInAs(role: Role) {
       state.user = { id: "u1", displayName: "骑行者", roles: role === "admin" ? ["metro-admin"] : [] };
     },

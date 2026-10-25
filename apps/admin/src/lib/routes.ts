@@ -1,7 +1,20 @@
 // The pages of the admin console. Pure, so node:test can cover it.
 
-/** Matches what a registry entry for the console allows: "/", "/users", "/users/*" and "/audit/users". */
-export const RETURN_PATHS_DOC = '["/users", "/users/*", "/audit/users"]';
+/**
+ * Matches what a registry entry for the console allows: "/", "/users", "/users/*", "/audit/users" and "/metro/*"
+ * (the metro sections; "/metro" itself is allowed by the same entry).
+ */
+export const RETURN_PATHS_DOC = '["/users", "/users/*", "/audit/users", "/metro/*"]';
+
+/** The sections of the metro catalogue administration, in the order they are offered. */
+export const METRO_SECTIONS = ["cities", "lines", "rolling-stocks", "topics", "import", "export", "audit", "tokens"] as const;
+export type MetroSection = (typeof METRO_SECTIONS)[number];
+
+export const METRO_TITLES: Record<MetroSection, string> = {
+  cities: "城市", lines: "线路", "rolling-stocks": "车型", topics: "专题", import: "导入", export: "导出", audit: "审计日志", tokens: "管理令牌",
+};
+
+export const metroPathOf = (section: MetroSection) => `/metro/${section}`;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -10,6 +23,7 @@ export type Route =
   | { name: "users" }
   | { name: "user"; id: string }
   | { name: "audit-users" }
+  | { name: "metro"; section: MetroSection }
   | { name: "not-found" };
 
 export function matchRoute(pathname: string): Route {
@@ -17,13 +31,17 @@ export function matchRoute(pathname: string): Route {
   if (path === "/") return { name: "home" };
   if (path === "/users") return { name: "users" };
   if (path === "/audit/users") return { name: "audit-users" };
+  if (path === "/metro") return { name: "metro", section: "cities" };
+  const section = /^\/metro\/([^/]+)$/.exec(path)?.[1];
+  if (section && (METRO_SECTIONS as readonly string[]).includes(section)) return { name: "metro", section: section as MetroSection };
   const m = /^\/users\/([^/]+)$/.exec(path);
   if (m && UUID.test(m[1]!)) return { name: "user", id: m[1]! };
   return { name: "not-found" };
 }
 
 /** Which role opens a route; "" means any signed-in administrator may see it. */
-export function roleOf(route: Route): "ozid-admin" | "" {
+export function roleOf(route: Route): "ozid-admin" | "metro-admin" | "" {
+  if (route.name === "metro") return "metro-admin";
   return route.name === "users" || route.name === "user" || route.name === "audit-users" ? "ozid-admin" : "";
 }
 
@@ -37,6 +55,7 @@ export function returnPathOf(pathname: string): string {
   if (route.name === "users") return "/users";
   if (route.name === "user") return `/users/${route.id}`;
   if (route.name === "audit-users") return "/audit/users";
+  if (route.name === "metro") return metroPathOf(route.section);
   return "/";
 }
 

@@ -24,7 +24,7 @@ func adminWrite[T any](t *testing.T, b *Browser, msg *T) *connect.Request[T] {
 // metro-admin reaches the admin API through the real BFF and the real metro
 // service; a signed-in user without the role and an anonymous browser do not.
 func TestChainMetroAdminRequiresTheRole(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 
 	anon := h.FreshBrowser()
@@ -61,7 +61,7 @@ func TestChainMetroAdminRequiresTheRole(t *testing.T) {
 }
 
 func TestChainMetroAdminEditsAreVisibleToAnonymousReaders(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	admin := h.FreshBrowser()
 	if err := admin.LoginWithRoles(ctx, "root", "metro-admin"); err != nil {
@@ -146,7 +146,7 @@ func TestChainMetroAdminEditsAreVisibleToAnonymousReaders(t *testing.T) {
 }
 
 func TestChainMetroImportThroughTheBFF(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	admin := h.FreshBrowser()
 	if err := admin.LoginWithRoles(ctx, "root", "metro-admin"); err != nil {
@@ -182,7 +182,7 @@ func errorAs(err error, target **connect.Error) bool { return errors.As(err, tar
 // metro enforces required_role itself: a credential that names a user but carries
 // no metro-admin role is refused even when the BFF is bypassed.
 func TestChainMetroRefusesAdminCallsWithoutTheRoleInTheCredential(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	client := metrov1.NewAdminServiceClient(h.DirectMetroGRPC())
 	call := func(roles ...string) error {
 		ctx := rpcauth.WithCall(context.Background(), rpcauth.Call{UserID: "mallory", Roles: roles, RequestID: "direct"})

@@ -4,6 +4,7 @@ import { Notice } from "@kongken/account/ui";
 import { ShieldCheck } from "@phosphor-icons/react";
 import { Link, usePath } from "@/lib/router";
 import { ozidHome } from "@/lib/ozid";
+import { metroOffered, useMetro } from "@/lib/metro";
 import { useRoles, useSession } from "@/lib/session";
 import { sectionsFor } from "@/lib/sections";
 
@@ -24,7 +25,7 @@ export function Layout({ children }: { children: ReactNode }) {
       setBusy(false);
     }
   };
-  const sections = sectionsFor(roles);
+  const sections = sectionsFor(roles, metroOffered(useMetro()));
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-card">

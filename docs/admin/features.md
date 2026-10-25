@@ -1,15 +1,15 @@
 # 统一管理控制台：功能描述（T4 受控控制台与用户查询，T5 账号状态与角色修改，T6 账号安全与管理审计查询）
 
-本文描述 [OzID 规格](../ozid/spec.md) 中 [Issue #82（T4）](https://github.com/kongken/mono/issues/82) 已实现的行为：独立的管理控制台 `apps/admin`、它的受控入口（来源网络、控制台 Origin、会话与平台角色），以及用户查询；[Issue #83（T5）](https://github.com/kongken/mono/issues/83) 在其上加入普通账号的禁用/启用与 `metro-admin` 的授予/撤销（见“账号状态与角色修改”）；[Issue #84（T6）](https://github.com/kongken/mono/issues/84) 加入账号安全与管理审计查询页（见“账号安全与管理审计查询（T6）”）。**尚未实现**的部分见文末“当前限制”：metro 后台迁移、metro 管理接口的来源策略切换。文中域名与地址全部是保留示例（`admin.example.com`、`203.0.113.0/24` 等），不代表任何真实部署。
+本文描述 [OzID 规格](../ozid/spec.md) 中 [Issue #82（T4）](https://github.com/kongken/mono/issues/82) 已实现的行为：独立的管理控制台 `apps/admin`、它的受控入口（来源网络、控制台 Origin、会话与平台角色），以及用户查询；[Issue #83（T5）](https://github.com/kongken/mono/issues/83) 在其上加入普通账号的禁用/启用与 `metro-admin` 的授予/撤销（见“账号状态与角色修改”）；[Issue #84（T6）](https://github.com/kongken/mono/issues/84) 加入账号安全与管理审计查询页（见“账号安全与管理审计查询（T6）”）。[Issue #86（T8）](https://github.com/kongken/mono/issues/86) 把 metro 管理功能迁入控制台并把 metro 的浏览器管理接口与管理令牌接口放进同一道周界（见“metro 目录管理（T8）”）。**尚未实现**的部分见文末“当前限制”：MCP 独立机器来源白名单（T9）等。文中域名与地址全部是保留示例（`admin.example.com`、`203.0.113.0/24` 等），不代表任何真实部署。
 
 ## 现状与范围
 
-| 已实现（T4、T5、T6） | 尚未实现 |
+| 已实现（T4、T5、T6、T8） | 尚未实现 |
 |---|---|
-| `apps/admin`（`@kongken/admin`）：独立构建、独立镜像 `admin-web`；匿名跳 OzID 登录并返回；无角色显示“没有权限”（不跳转、不循环）；按真实角色显示分区；“管理 OzID 账号”链接到 OzID | metro 后台页面迁移（控制台里没有 metro 分区，也不展示假分区）；全站统一审计（metro 目录审计与管理令牌调用日志各自留在原处） |
+| `apps/admin`（`@kongken/admin`）：独立构建、独立镜像 `admin-web`；匿名跳 OzID 登录并返回；无角色显示“没有权限”（不跳转、不循环）；按真实角色显示分区；“管理 OzID 账号”链接到 OzID | 全站统一审计（metro 目录审计与管理令牌调用日志各自留在原处） |
 | BFF `bff.v1.UserAdminService` 与内部 `usersrv.v1.UserAdminService`：`ListUsers/GetUser`（只读）、T6 的 `ListSecurityAudit`（只读，账号审计）、T5 的 `DisableUser/EnableUser/GrantMetroAdmin/RevokeMetroAdmin`（仅这四个动作）；`required_role = "ozid-admin"`，BFF 入口与 usersrv 各自独立校验 | 网页上授予/撤销平台角色、改平台管理员的状态或角色、设置他人密码、代登录、代注销、批量或任意角色替换（没有对应接口） |
-| 管理面“周界”（`admin` 配置）：来源 IP 白名单、受信代理链、精确控制台 Origin；BFF 对每个管理读接口独立检查，网关镜像对页面、静态资源和 SPA fallback 同样限制 | 现有 metro `AdminService`/`AccessTokenService` 的来源策略：随各自迁移任务切换，**T4 没有给它们加 IP 限制** |
-| 平台角色 `ozid-admin`：只能由运维 CLI `usersrv-admin grant-role/revoke-role` 授予/撤销，授予不随首位注册用户，不继承也不授予 `metro-admin`；每次变更提升 `auth_version` 并写审计 | 控制台的 metro 目录管理分区（继续使用现有管理入口） |
+| 管理面“周界”（`admin` 配置）：来源 IP 白名单、受信代理链、精确控制台 Origin；BFF 对每个管理读接口独立检查，网关镜像对页面、静态资源和 SPA fallback 同样限制 | MCP（`/mcp/metro`）的独立机器来源白名单（T9）；MCP 是机器协议，**不在**浏览器管理周界内 |
+| 平台角色 `ozid-admin`：只能由运维 CLI `usersrv-admin grant-role/revoke-role` 授予/撤销，授予不随首位注册用户，不继承也不授予 `metro-admin`；每次变更提升 `auth_version` 并写审计 | |
 | 平台管理员账号从引入起**不能被网页自助注销**（`BeginDeletion` 拒绝）；权限收回后也不会被之前被拒的注销自动关闭 | |
 
 ## 角色与可见内容
@@ -19,11 +19,11 @@
 | 账号 | 首页 | `/users`、`/users/:id`、`/audit/users` | 调用管理 API |
 |---|---|---|---|
 | 无角色 | “没有权限”页（可退出换账号、可去 OzID），不跳转 | “没有权限”，不发起任何用户查询 | `PERMISSION_DENIED` |
-| 只有 `ozid-admin` | 用户与账号审计分区 | 可用 | 允许 |
-| 只有 `metro-admin` | 说明“地铁目录管理还没有迁入控制台”，无分区 | “没有权限” | `PERMISSION_DENIED`（**不**继承） |
-| 两个角色都有 | 用户与账号审计分区（metro 分区待迁移任务） | 可用 | 允许 |
+| 只有 `ozid-admin` | 用户与账号审计分区；`/metro/*`：“没有权限”，不发起任何 metro 调用 | 可用 | 用户管理允许，metro 管理 `PERMISSION_DENIED` |
+| 只有 `metro-admin` | “地铁目录”分区（T8；没有 metro 上游时不显示分区） | `/users`、`/audit/users`：“没有权限” | 用户管理 `PERMISSION_DENIED`（**不**继承），metro 管理允许 |
+| 两个角色都有 | 用户、账号审计与“地铁目录”分区 | 可用 | 允许 |
 
-匿名访问任何页面：控制台整页跳到 `OzID /login?app_id=admin&return_path=<当前页>`，登录后由 BFF 注册表（`navigation.apps.admin`）决定返回地址。未知地址（不是 `/`、`/users`、`/users/<UUID>`、`/audit/users`）显示控制台自己的“没有这个页面”，不要求登录、不展示数据。会话查询本身失败（网络、服务不可用）显示故障和“重试”，**不当成已退出**。
+匿名访问任何页面：控制台整页跳到 `OzID /login?app_id=admin&return_path=<当前页>`，登录后由 BFF 注册表（`navigation.apps.admin`）决定返回地址。未知地址（不是 `/`、`/users`、`/users/<UUID>`、`/audit/users`、`/metro` 及其下的 metro 页面）显示控制台自己的“没有这个页面”，不要求登录、不展示数据。会话查询本身失败（网络、服务不可用）显示故障和“重试”，**不当成已退出**。
 
 ## 页面与交互
 
@@ -138,6 +138,27 @@
 
 **页面。** `/audit/users`（平台管理员的分区“账号审计”；首页卡片说明范围）：筛选表单 + 记录列表（桌面与手机同一套卡片布局，无横向溢出）+ 上一页/下一页；记录显示动作名与原始分类、结果（已完成、无变化、重复提交、各类被拒绝）、渠道、操作者、账号、原因、变化（状态与角色前后）、变更 ID、请求 ID；重放行显示原始记录摘要。账号详情页有“查看此账号的审计记录”链接，进入 `/audit/users?user=<账号 ID>`——地址里只可能有一个合法的账号 UUID（标识符，不是邮箱或机密，其他筛选条件不进地址、历史或浏览器存储）；记录里的账号 ID 与操作者 ID 链接到对应账号详情。**时间。** 筛选里的开始/结束时间是浏览器的本地时区（`datetime-local`），按那一刻对应的时间点发送；列表里的时间也用本地时区显示，页面上有提示。**换人。** 控制台页面和“有效账号 ID”绑定：另一个标签把这个浏览器登录成别的账号后，页面在下一次检查（页面回到前台）发现会话账号变了，就立即移除旧账号的列表、详情、筛选、打开的操作对话框和仍在途的读取，新账号从一个新的页面重新加载；旧账号还在等待的读写应答被丢弃，不会显示在新账号的页面上，也不会触发新的会话检查。同一账号再次检查不会重置页面。（真实发出的写入属于服务端按当时 Cookie 决定的那个账号，页面不能替它改变；因此换人后的页面不沿用旧账号的任何输入。）错误的含义与用户查询一致（会话失效回登录、密码确认过旧给“前往 OzID 验证密码”、无权限、来源不允许、限流与服务不可用可重试）。
 
+## metro 目录管理（T8）
+
+metro 的城市、线路、车型、专题（增删改）、导入/导出、目录审计和管理令牌页面已从 metro 公开站迁入控制台的“地铁目录”分区（`/metro`、`/metro/cities`、`/metro/lines`、`/metro/rolling-stocks`、`/metro/topics`、`/metro/import`、`/metro/export`、`/metro/audit`、`/metro/tokens`）。不是 iframe，也不是链接到旧站；`apps/admin` 与 `apps/metro` 不互相 import，两边共用的纯函数（线路状态文案、里程格式）放在 `packages/metro-core`，没有复制。
+
+- **谁能看到、谁能操作。** 只有持有 `metro-admin` 的账号看到分区；只有 `ozid-admin` 的平台管理员直接打开 `/metro/*` 只看到“没有权限”，页面不发出任何 metro 调用。BFF 对 `bff.metro.v1.AdminService` 的每个过程声明 `required_role = "metro-admin"` 并检查，metro 服务再从内部凭证独立检查一次。
+- **没有 metro 上游时。** BFF 不挂载 metro 管理服务，控制台探测到后不显示分区，`/metro/*` 只说明“这个环境没有部署地铁目录服务”，不展示可操作的假页面。metro 暂时不可用时分区仍在，页面上说明并提供重试。
+- **周界。** `internal/bff/app/admin_perimeter.go` 列出受周界保护的服务：`bff.v1.UserAdminService`、`bff.metro.v1.AdminService`、`bff.v1.AccessTokenService`。对它们的每个浏览器请求（读、写、导入导出、审计、令牌；预检；`/api/<服务>/` 下的任何路径写法）先过来源白名单与受信代理链，再过精确的控制台 Origin，然后才是会话、角色和 `AdminSessionMaxAge`；名单外或 Origin 不对一律是同一个泛化拒绝，业务服务（metro、令牌库）收不到请求。`TestEveryRoleGatedBrowserServiceIsInsideTheAdminPerimeter` 枚举所有 `bff.` 前缀且带 `required_role` 的服务，新增管理服务忘记列入周界会使测试失败。公开目录（`bff.metro.v1.CatalogService`）、骑行者功能和 `/me` 不在周界内。
+- **MCP。** `/mcp/metro` 是 Bearer 令牌的机器协议，**不在**这道浏览器周界内，行为不变；它的独立机器来源白名单是 T9。
+- **规则保持不变，并随页面迁移。** 字段错误显示在对应字段（`city`、`rolling_stock` 等服务端字段名映射到表单字段）；被引用的记录删除时说明被谁引用；更新与删除带 `expected_revision`；导入默认先预览（dry run，不写入），有错误不能确认，确认后全有或全无；导出文件可直接再导入，且预览显示“无变化”；目录审计按渠道（网页/MCP）和对象筛选并显示前后快照；目录版本由服务端递增，公开站按 `known_version` 失效。普通目录编辑**不**要求密码或原因。
+- **修订冲突。** 保存遇到他人已改的记录时，页面保留你已输入的内容，显示与最新版本的差异；“保留我的修改，基于最新版本”之后还要再点一次“保存”才写入，“放弃我的修改，载入最新内容”则不写入；记录已被删除时只提示并保留输入以便复制。删除遇到冲突同样不自动重试。
+- **管理令牌。** 创建需要 15 分钟内的密码认证（与 T5 相同），明文只在创建响应里显示一次、只在内存中，刷新后消失，也不进地址或任何存储；数量上限（10）、有效期（7/30/90 天）、scope（`metro:read`/`metro:write`）、最近使用和吊销行为不变；页面显示的 MCP 端点来自 `VITE_API_BASE_URL`。
+- **需要重新认证时。** 页面不会自己跳转：显示“前往 OzID 验证密码”，跳转前把未提交的表单内容（城市/线路等编辑框、导入文本、令牌表单）存入本标签页的 `sessionStorage`（一个位置、30 分钟有效、按用户与页面区分、读取即删除、退出登录时清除），OzID 验证后经返回路径（`/metro/*` 在注册表内）回到同一页面。回来后内容只是**重新出现**：显示“已恢复……尚未提交”，不自动提交、不重放旧写入；如果记录在此期间被他人修改，回来后按冲突流程要求再次确认。
+- **旧页面。** metro 公开站的 `/admin`、`/admin/<分区>` 已退役为“页面不存在”（不保留可继续管理的旧路由，也没有旧管理 bundle、令牌页或管理 RPC 客户端）；公开站只保留地铁足迹的普通功能。
+
+**测试分层。**
+
+1. 纯函数与单测：`apps/admin` 的 `route.test.ts`、`draft.test.ts`、`metro-form.test.ts`，`packages/metro-core`，`apps/metro` 的路由测试（`/admin*` 为 notfound）。
+2. 页面行为（Playwright，模拟 BFF，桌面与手机）：`apps/admin/tests/metro.spec.ts`——角色可见性、无上游、不可用、周界关闭、CRUD、字段错误、引用删除、修订冲突三种结果、迟到响应、导入预览/确认、导出再导入、审计渠道、令牌一次性明文与上限、重新认证往返与草稿恢复；`apps/metro` 的 Playwright 测旧 `/admin` 退役与普通功能回归。
+3. Go 链路（真实 BFF、usersrv、metro 与 PostgreSQL/Redis，`internal/e2e`）：`TestChainMetroAdminPerimeter*`（来源白名单、伪造头、受信代理、Origin、预检、路径写法、周界先于会话、metro 上游调用计数与令牌/城市数量证明被拒请求没有到达业务）、`TestChainMetroAdminRolesAndReauthentication`、`TestChainMetroAdminAbsentWithoutAnUpstream`、`TestChainMetroAdminPerimeterLeavesMCPAlone`，以及既有的 `TestChainMetroAdmin*`、`TestChainMCP*`（现经控制台 Origin 调用）。
+4. 真实浏览器与网关替身（`ADMIN_BROWSER_E2E=1 go test ./internal/e2e -run TestAdminBrowserChain`，桌面与手机各一遍）：真实 metro 上的城市/线路创建、字段错误、引用删除限制、另一个标签页造成的修订冲突、导入预览与确认、导出文件再导入无变化、审计的网页渠道与前后快照、令牌明文只显示一次、密码认证过旧经 OzID 往返回到 `/metro/tokens` 且表单内容恢复但不重放、只有平台角色的账号没有 metro 分区也没有 metro 请求、来源移出白名单后已打开的页面读取被 BFF 拒绝且重新打开页面得到 403、外来产品页用 metro 管理员 Cookie 调用管理/导出/审计/令牌接口被拒。
+
 ## 查询接口与审计
 
 `UserAdminService`（BFF 与 usersrv 同名，字段见 `proto/bff/v1/user_admin.proto`、`proto/usersrv/v1/admin.proto`）：
@@ -157,7 +178,7 @@ cors_allowed_origins: [https://admin.example.com]   # 控制台 origin 必须在
 navigation:
   api_origin: https://api.example.com
   apps:
-    admin: {origin: https://admin.example.com, paths: ["/users", "/users/*"]}
+    admin: {origin: https://admin.example.com, paths: ["/users", "/users/*", "/audit/users", "/metro", "/metro/*"]}
 admin:
   allowed_cidrs: ["203.0.113.0/24"]      # 空 = 全部拒绝
   trusted_proxies: ["198.51.100.0/24"]   # 直连 BFF 的代理网段；空 = 不信任任何转发头
@@ -211,13 +232,13 @@ scripts/admin-web-smoke.sh   # 构建并启动容器，实测白名单、伪造�
    - `internal/usersrv/app/useradmin_test.go`（gRPC 层）：`TestListSecurityAuditOverRPC`（角色、过滤与分页）、`TestListSecurityAuditHidesLegacyReasonsOverRPC`（旧敏感原因在每一页、每个响应里都只是标记）。
    - `internal/e2e/user_admin_audit_chain_test.go`（完整链路）：`TestChainUserAuditRoleMatrix`（只有 `metro-admin` 读不到账号审计）、`TestChainUserAuditPerimeterAndSession`（来源白名单与伪造头、受信代理、控制台 Origin、预检、认证过旧不到达 usersrv、读取限流）、`TestChainUserAuditShowsWhatReallyHappened`（真实修改后可见，含重放的精确原始、拒绝与无变化、CLI 行、筛选与分页、非法输入不回显）、`TestChainUserAuditLogsCarryNoFilterValuesOrRows`、`TestChainUserAuditHidesLegacyReasonsEndToEnd`（旧敏感原因不到浏览器、不进任何日志行，库里原文仍在）。
    - `apps/admin`：`route.test.ts`；Playwright（模拟 BFF，桌面与手机各一遍）`console.spec.ts` 的“account audit”（列表与翻页、重放原始、渠道与操作者、筛选与清除、非法筛选不发送、真实修改后可见、地址与存储无个人信息、较慢旧响应不覆盖新结果、被隐藏的原因只显示说明、各类错误、窄屏无溢出）、“audit times follow the browser's time zone”（筛选时间按浏览器时区发送）和“the account behind the session changes”（两位平台管理员跨标签换人：审计页、用户列表、账号详情与操作对话框、仍在等待的写入与迟到响应、同一账号再次检查不重置页面）。
-2. **真实浏览器与代理链**：`ADMIN_BROWSER_E2E=1 go test ./internal/e2e -run TestAdminBrowserChain`（CI 的 `admin-browser` 任务）。真实 BFF 与 usersrv，OzID、API、控制台和一个外来产品页分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，一次性证书）；Chromium 实测：匿名 → OzID 登录 → 返回 `/users`、Cookie 仅属于 API 主机且不进存储、无角色“没有权限”且无循环无查询、只有 metro-admin 无用户分区、真实查询（邮箱精确、昵称字面包含、角色筛选、详情）、来源在名单外时页面和资源全部 403、已打开的控制台再查询被 BFF 周界拒绝而 OzID 账号功能不受影响、外来产品页（在公共 CORS 列表内）用操作员 Cookie 读用户被拒。**T6 增加（桌面与手机各一遍）：** 从 `/audit/users` 匿名登录后回到该地址（BFF 注册表允许 `/audit/users`）；无角色与只有 `metro-admin` 的账号既没有审计数据也没有发出审计请求；操作员在详情页真实禁用再启用账号后，从详情页链接进入的审计里按顺序看到两行网页修改（前后状态、原因、同一个操作者账号），CLI 渠道只显示运维标识；真实列表的筛选与翻页；页面与地址、存储不含邮箱、密码、令牌；外来产品页用操作员 Cookie 读审计被拒，已打开的审计页在来源移出白名单后再查询被 BFF 拒绝。**T5 增加（桌面与手机各一遍）：** 操作员在详情页依次禁用、启用、授予、撤销 `metro-admin`，被修改账号在另一个浏览器里的会话每次都在下一次请求失效，禁用时无法登录，重新登录后才带新角色；平台管理员自己的详情页没有任何操作；网关控制主机把操作员的密码认证时间调到 16 分钟前后，写入得到“请重新输入密码”，经 OzID `/security` 输错、输对密码后回到原详情页，页面没有重放写请求，账号未被改动，再人为重新发起才生效；来源移到白名单外后，已打开的控制台的写入被 BFF 周界拒绝。这里的网关是**替身**（用同一份 Go 周界规则和模板里的 CSP/头复刻 `admin-web` 的行为，并按受信代理的方式写 `X-Forwarded-For`）；Nginx 本身由 `scripts/admin-web-smoke.sh` 的容器验收检验。
+2. **真实浏览器与代理链**：`ADMIN_BROWSER_E2E=1 go test ./internal/e2e -run TestAdminBrowserChain`（CI 的 `admin-browser` 任务）。真实 BFF 与 usersrv，OzID、API、控制台和一个外来产品页分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，一次性证书）；Chromium 实测：匿名 → OzID 登录 → 返回 `/users`、Cookie 仅属于 API 主机且不进存储、无角色“没有权限”且无循环无查询、只有 metro-admin 有“地铁目录”分区而无用户分区、真实查询（邮箱精确、昵称字面包含、角色筛选、详情）、来源在名单外时页面和资源全部 403、已打开的控制台再查询被 BFF 周界拒绝而 OzID 账号功能不受影响、外来产品页（在公共 CORS 列表内）用操作员 Cookie 读用户被拒。**T6 增加（桌面与手机各一遍）：** 从 `/audit/users` 匿名登录后回到该地址（BFF 注册表允许 `/audit/users`）；无角色与只有 `metro-admin` 的账号既没有审计数据也没有发出审计请求；操作员在详情页真实禁用再启用账号后，从详情页链接进入的审计里按顺序看到两行网页修改（前后状态、原因、同一个操作者账号），CLI 渠道只显示运维标识；真实列表的筛选与翻页；页面与地址、存储不含邮箱、密码、令牌；外来产品页用操作员 Cookie 读审计被拒，已打开的审计页在来源移出白名单后再查询被 BFF 拒绝。**T5 增加（桌面与手机各一遍）：** 操作员在详情页依次禁用、启用、授予、撤销 `metro-admin`，被修改账号在另一个浏览器里的会话每次都在下一次请求失效，禁用时无法登录，重新登录后才带新角色；平台管理员自己的详情页没有任何操作；网关控制主机把操作员的密码认证时间调到 16 分钟前后，写入得到“请重新输入密码”，经 OzID `/security` 输错、输对密码后回到原详情页，页面没有重放写请求，账号未被改动，再人为重新发起才生效；来源移到白名单外后，已打开的控制台的写入被 BFF 周界拒绝。这里的网关是**替身**（用同一份 Go 周界规则和模板里的 CSP/头复刻 `admin-web` 的行为，并按受信代理的方式写 `X-Forwarded-For`）；Nginx 本身由 `scripts/admin-web-smoke.sh` 的容器验收检验。
 3. **运维仍须自行验证**：真实 DNS、证书与 TLS 终止、真实来源地址与白名单取值、真实前置代理/CDN 链路（谁在 `trusted_proxies` 里、是否覆盖而非透传 `X-Forwarded-For`）、邮件厂商。自动化只覆盖受控环境，不能替代这些检查。
 
 当前限制：
 
 - 账号审计只覆盖 usersrv 保存的账号安全与管理记录（不是全站统一审计；metro 目录审计、管理令牌调用日志不在其中）；没有导出、没有按邮箱查询的入口（邮箱不进审计，也不能成为审计查询条件）；审计保留期限与清理由运维按数据策略决定，原始记录被清理后重放行只显示“超出保留范围”。平台角色、平台管理员的状态与角色、密码、注销仍只能用 CLI 或用户自己在 OzID 完成。
 - 网页写入的 15 分钟认证窗口是代码常量（与密码修改、注销等敏感操作共用 `SensitiveAuthMaxAge`），不可配置；写入限流可通过 `admin.write_rate_limit_per_minute` 调整。
-- 控制台没有 metro 分区；metro `AdminService`/`AccessTokenService`/MCP 的来源策略和页面迁移是后续任务。metro-admin 在 BFF 侧的“把暂时故障当成未登录”的既有行为属于 [#89（T11）](https://github.com/kongken/mono/issues/89) 的故障与失效区分验收，届时修复并回归，T4 不处理。
+- MCP 的来源策略是后续任务（[#87（T9）](https://github.com/kongken/mono/issues/87)）：T8 只切换浏览器管理周界，`/mcp/metro` 仍只认 Bearer 令牌，不受管理 IP 白名单影响。metro-admin 在 BFF 侧的“把暂时故障当成未登录”的既有行为属于 [#89（T11）](https://github.com/kongken/mono/issues/89) 的故障与失效区分验收，届时修复并回归，T4 不处理。
 - 限流只在 BFF 一层（usersrv 不另做）。分页令牌不做签名、不绑定筛选条件（只含位置；换筛选须重置游标），审计翻页是键集翻页而不是快照，并发提交的边界见“筛选与稳定翻页”。
 - 来源不在名单时浏览器看到的是网络类错误而不是“来源被拒”：这是浏览器对不带 CORS 许可的跨域回答的行为，页面无法区分，也不应该区分。

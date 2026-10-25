@@ -1,6 +1,6 @@
 # BFF（公网入口）
 
-> **后续方案：** [OzID 与统一管理控制台规格](ozid/spec.md) 规划统一用户中心、独立管理前端、配置化域名/导航、网页用户管理、集中账号写来源及浏览器/MCP 两类 IP 白名单。其中 T1（统一登录、重新认证与安全返回）、T2（统一注册验证与密码重置邮件）、T3（账号资料、密码与设备会话页面）、T4（独立管理控制台、`ozid-admin` 与只读用户查询、管理 IP 周界）、T5/T6（账号状态与角色修改、安全与审计查询）和 T7（OzID 网页注销页与失败恢复）已实现，见[导航注册表与 `ResolveNavigation`](#导航注册表与-resolvenavigation-ozid-t1)、[管理周界与用户查询](#管理周界与用户查询ozid-t4)、[OzID 功能描述](ozid/features.md) 和[控制台功能描述](admin/features.md)；其余（集中账号写来源、metro 管理接口与 MCP 的 IP 白名单、产品入口收敛）仍待实现，不代表这些新防护或入口已生效。
+> **后续方案：** [OzID 与统一管理控制台规格](ozid/spec.md) 规划统一用户中心、独立管理前端、配置化域名/导航、网页用户管理、集中账号写来源及浏览器/MCP 两类 IP 白名单。其中 T1（统一登录、重新认证与安全返回）、T2（统一注册验证与密码重置邮件）、T3（账号资料、密码与设备会话页面）、T4（独立管理控制台、`ozid-admin` 与只读用户查询、管理 IP 周界）、T5/T6（账号状态与角色修改、安全与审计查询）、T7（OzID 网页注销页与失败恢复）和 T8（metro 管理功能迁入控制台、metro 管理接口与管理令牌接口进入管理周界）已实现，见[导航注册表与 `ResolveNavigation`](#导航注册表与-resolvenavigation-ozid-t1)、[管理周界与用户查询](#管理周界与用户查询ozid-t4)、[OzID 功能描述](ozid/features.md) 和[控制台功能描述](admin/features.md)；其余（集中账号写来源、MCP 的独立 IP 白名单、产品入口收敛）仍待实现，不代表这些新防护或入口已生效。
 
 一个仓库承载多个业务时，BFF（`cmd/bff`）是唯一的公网入口，统一处理跨域、客户端地址、请求生命周期和追踪脱敏。业务服务只在内网监听。当前有 tripmap（山海足迹）和 metro（地铁足迹，可选）两个业务。
 
@@ -289,6 +289,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 - **检查项**：来源 IP 在 `admin.allowed_cidrs` 内、`Origin` 恰好等于 `navigation.apps.admin.origin`、有效会话、平台角色。四项各自独立，且读方法虽免 CSRF，但**不免**这四项。周界先于 CORS 与 CSRF 运行，对任何方法（含 `OPTIONS` 预检）生效；被拒绝时 `servePublic` 返回不带 CORS 许可的 403，拦截器层（纵深）返回 `PERMISSION_DENIED "request rejected"`，两者都不说明是哪一项失败。
 - **白名单与客户端地址**：空白名单（或没有注册控制台）拒绝所有请求；CIDR 必须带前缀、无主机位，IPv4 不比 `/8` 宽、IPv6 不比 `/16` 宽，不接受 IPv4 映射网段，配置校验失败启动即失败。客户端地址默认是 TCP 对端；只有对端属于 `admin.trusted_proxies` 才读取 `admin.forwarded_header`（默认 `X-Forwarded-For`，多行合并，从右向左跳过受信代理），无法解析的跳点拒绝。它独立于 `client_ip_header`（后者只服务分享/退订限流）。
+- **受周界保护的服务（T8 起）**：`internal/bff/app/admin_perimeter.go` 的 `adminServices` 列出 `bff.v1.UserAdminService`、`bff.metro.v1.AdminService`、`bff.v1.AccessTokenService`。这三个服务的所有浏览器请求（读、写、预检、`/api/<服务>/` 下的路径写法）都先过上述周界；`Policy.Perimeter`（拦截器）与 `servePublic`（HTTP 边缘）共用同一份列表。`TestEveryRoleGatedBrowserServiceIsInsideTheAdminPerimeter` 枚举注册表里所有 `bff.` 前缀且带 `required_role` 的服务，漏列即失败。公开目录、骑行者接口和 MCP 不在其内：`/mcp/metro` 是 Bearer 令牌的机器协议，独立来源白名单是 T9。
 - **角色**：BFF 入口按会话角色判断 `required_role`（并要求管理会话的认证时效 `auth.admin_session_max_age`），usersrv 在内部凭证与读取事务里再次独立判断。角色只在声明了 `required_role` 的方法的内部凭证里传递。
 - **限流与审计**：按操作者限流（Redis，默认每分钟 120 次，`admin.rate_limit_per_minute`，限流器故障 `UNAVAILABLE`）；每次查询写脱敏日志 `admin user query`；usersrv 在读取事务里写 `security_audit`（`admin.users.list/get`，原因只记查找类型）。BFF 只适配内部契约，不读 usersrv 数据库。
 - **T6 审计读取**：`ListSecurityAudit` 登记在只读清单里（无 CSRF），其余检查与用户查询相同（来源、控制台 Origin、会话、`ozid-admin`、`AdminSessionMaxAge` 内的密码认证），共用读取限流；筛选与翻页令牌原样转给 usersrv，BFF 不解析、不读 usersrv 数据库；日志 `admin audit query` 只记 request_id、操作者、筛选的种类（如 `user+action`）、是否翻页、条数与结果，不记任何筛选值。只提供 usersrv 账号审计，不聚合 metro 审计或管理令牌日志。规则见 [控制台功能描述](admin/features.md)。
@@ -296,6 +297,6 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 - **范围**：这一周界覆盖新增的用户管理读写接口和控制台页面；现有 metro 管理接口（`AdminService`、`AccessTokenService`）与 MCP 的来源策略**没有**改变，随各自迁移任务切换。
 - **平台管理员的注销保护**：强制点在 usersrv，不在 BFF：`account.BeginDeletion` 在账号行锁内发现 `ozid-admin` 就拒绝，对**所有调用方**有效（BFF 的 `DeleteAccount` 和后台 runner，以及任何持有内部凭证的客户端）；BFF 只负责把拒绝映射成明确错误，并丢弃开始阶段的注销工作流行。产品（山海足迹、地铁足迹）里现有的注销入口走同一接口，同样受保护；OzID 自己的网页注销页（`/close-account`）已由 T7 提供；`DeleteAccount`/`GetAccountDeletion`/`RetryAccountDeletion` 的请求里没有任何指向他人的字段（`internal/bff/auth/deletion_contract_test.go` 守护），所以没有代他人注销的接口。运维处理平台管理员：`usersrv-admin revoke-role -email <地址> -role ozid-admin -operator <姓名> -reason <原因>` 回收角色后，该账号才能像普通账号一样自助注销；强制删除没有网页或 RPC 路径。
 - **周界的取舍**：`admin.trusted_proxies` 与 `admin.allowed_cidrs` 不得重叠（启动校验，`admin-web` 容器入口同样校验）。两层对“转发链不可用”的处理不同：BFF 对**无法解析的跳点直接拒绝**，只有没有转发头、或链里全是受信代理时才使用对端（代理自己）的地址，而这个地址不在白名单内（启动校验保证）所以仍被拒绝；Nginx（`real_ip`）遇到无法解析的跳点则**回落到代理自己的地址**再判断白名单。代理地址若在白名单内，任何能经该代理发送畸形头的人都能通过 Nginx 这一层，所以这种组合直接拒绝启动，不靠头格式正确。行为已用真实 Nginx 实测并在容器 CI 里保留反例。
-- **测试**：`internal/bff/adminguard`（来源/CIDR/受信代理/转发头单测）、`internal/bff/ingress/perimeter_test.go`、`internal/bff/config`（`TestValidateAdminPerimeter`）、`internal/e2e/user_admin_chain_test.go`、`internal/e2e/user_admin_write_chain_test.go`（四种角色、控制台 Origin、来源策略与预检、查询/分页/审计、限流、角色生命周期与注销保护）、`internal/e2e/admin_browser_test.go`（真实浏览器，`ADMIN_BROWSER_E2E=1`）。
+- **测试**：`internal/bff/adminguard`（来源/CIDR/受信代理/转发头单测）、`internal/bff/ingress/perimeter_test.go`、`internal/bff/config`（`TestValidateAdminPerimeter`）、`internal/e2e/user_admin_chain_test.go`、`internal/e2e/metro_admin_perimeter_chain_test.go`（T8：metro 管理与令牌接口的来源、Origin、预检、路径写法、角色，以及上游计数证明被拒请求没有到达业务）、`internal/e2e/user_admin_write_chain_test.go`（四种角色、控制台 Origin、来源策略与预检、查询/分页/审计、限流、角色生命周期与注销保护）、`internal/e2e/admin_browser_test.go`（真实浏览器，`ADMIN_BROWSER_E2E=1`）。
 
 规则、配置、镜像与验证分层见 [控制台功能描述](admin/features.md)。

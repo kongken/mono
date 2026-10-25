@@ -44,10 +44,6 @@ import (
 
 const publicPrefix = "/api/bff."
 
-// adminPrefix is the public path of the admin console's procedures: the admin perimeter
-// applies to every request under it, whatever its method.
-const adminPrefix = "/api/" + bffv1connect.UserAdminServiceName + "/"
-
 // authReadMaxBytes bounds a request to the account, profile and access-token
 // services.
 const authReadMaxBytes = 16 << 10
@@ -199,7 +195,7 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 	h.adminGuard.Store(guard)
 	policy := ingress.Policy{
 		Perimeter: func(procedure string, header http.Header, remoteAddr string) error {
-			if strings.HasPrefix(procedure, "/"+bffv1connect.UserAdminServiceName+"/") {
+			if isAdminProcedure(procedure) {
 				return guard.Check(header, remoteAddr)
 			}
 			return nil
@@ -418,7 +414,7 @@ func (h *Handlers) servePublic(gw *gateway.Gateway, c *gin.Context) {
 	}
 	// The admin perimeter comes before CORS: a request from outside the allowlist, a
 	// preflight included, gets no CORS grant and no hint that the procedure exists.
-	if strings.HasPrefix(p, adminPrefix) {
+	if isAdminPath(p) {
 		if h.adminGuard.Load().Check(c.Request.Header, c.Request.RemoteAddr) != nil {
 			c.AbortWithStatus(http.StatusForbidden)
 			return

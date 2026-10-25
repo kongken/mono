@@ -1,5 +1,3 @@
-import { lazy, Suspense } from "react";
-import { Spinner } from "@/components/extras";
 import { Layout } from "@/components/Layout";
 import { useRoute } from "@/lib/router";
 import { SessionProvider } from "@/lib/session";
@@ -11,9 +9,6 @@ import MePage from "@/pages/Me";
 import NotFound from "@/pages/NotFound";
 import PublicProfilePage from "@/pages/PublicProfile";
 import TopicPage from "@/pages/Topic";
-
-// The administration screens are only needed by administrators, so they load on demand.
-const AdminPage = lazy(() => import("@/pages/admin/AdminPage"));
 
 function Routes() {
   const route = useRoute();
@@ -32,12 +27,6 @@ function Routes() {
       return <LoginPage />;
     case "account":
       return <AccountPage />;
-    case "admin":
-      return (
-        <Suspense fallback={<Spinner />}>
-          <AdminPage section={route.section} />
-        </Suspense>
-      );
     default:
       return <NotFound />;
   }

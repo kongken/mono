@@ -1,12 +1,14 @@
 import { Notice } from "@kongken/account/ui";
 import { Link } from "@/lib/router";
+import { metroOffered, useMetro } from "@/lib/metro";
 import { useRoles } from "@/lib/session";
 import { ROLE_LABEL } from "@/lib/users";
 import { sectionsFor } from "@/lib/sections";
 
 export default function HomePage() {
   const roles = useRoles();
-  const sections = sectionsFor(roles);
+  const metro = useMetro();
+  const sections = sectionsFor(roles, metroOffered(metro));
   return (
     <div className="grid gap-6">
       <h1 className="text-xl font-semibold">管理控制台</h1>
@@ -26,7 +28,13 @@ export default function HomePage() {
           ))}
         </ul>
       ) : (
-        <Notice kind="info">你的角色在控制台里暂时没有可用的分区。地铁目录管理还没有迁入控制台，请继续使用现有的管理入口。</Notice>
+        <Notice kind="info">
+          {roles.includes("metro-admin") && metro === "absent"
+            ? "这个环境没有部署地铁目录服务，所以没有可管理的分区。"
+            : roles.includes("metro-admin") && metro === "checking"
+              ? "正在确认可用的分区…"
+              : "你的角色在控制台里暂时没有可用的分区。"}
+        </Notice>
       )}
     </div>
   );

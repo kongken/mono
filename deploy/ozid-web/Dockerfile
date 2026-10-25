@@ -12,6 +12,7 @@ COPY packages/account/package.json packages/account/package.json
 COPY packages/api-client/package.json packages/api-client/package.json
 COPY packages/geo-data/package.json packages/geo-data/package.json
 COPY packages/fixtures/package.json packages/fixtures/package.json
+COPY packages/metro-core/package.json packages/metro-core/package.json
 RUN npm ci
 COPY packages packages
 # The browser tests (apps/ozid/tests) are not needed to build the image.

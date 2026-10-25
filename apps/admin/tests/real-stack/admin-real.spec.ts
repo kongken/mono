@@ -96,11 +96,12 @@ test.describe("sign-in and the role gate", () => {
     await expect(page.getByTestId("sections")).toHaveCount(0);
   });
 
-  test("a metro-admin alone gets neither the user section nor any user data", async ({ page }) => {
+  test("a metro-admin alone gets the metro section, neither the user section nor any user data", async ({ page }) => {
     const userCalls: string[] = [];
     page.on("request", (r) => r.url().includes(USERS) && userCalls.push(r.url()));
     await openConsole(page, "metro", "/");
-    await expect(page.getByTestId("sections")).toHaveCount(0);
+    await expect(page.getByTestId("sections").getByRole("link", { name: "地铁目录" })).toBeVisible();
+    await expect(page.getByTestId("sections").getByRole("link", { name: "用户" })).toHaveCount(0);
     await expect(page.getByTestId("my-roles")).toHaveText("地铁目录管理员");
     await page.goto(`${stack.admin}/users`);
     await expect(page.getByTestId("no-permission")).toBeVisible();
@@ -379,7 +380,7 @@ test.describe("real account audit", () => {
       metro.on("request", (r) => AUDIT.test(r.url()) && calls.push(r.url()));
       await openConsole(metro, "metro", "/audit/users");
       await expect(metro.getByTestId("no-permission")).toBeVisible();
-      await expect(metro.getByTestId("sections")).toHaveCount(0);
+      await expect(metro.getByTestId("sections").getByRole("link", { name: "账号审计" })).toHaveCount(0);
       expect(calls).toEqual([]);
     } finally {
       await ctx.close();
@@ -483,5 +484,324 @@ test.describe("real account audit", () => {
     await expect(page.getByTestId("problem-network")).toBeVisible();
     await expect(auditRows(page)).toHaveCount(0);
     await setSource(page, stack.inside);
+  });
+});
+
+// ---- the metro catalogue administration ----------------------------------------------------------------------
+// The same console, the real metro service behind the real BFF. Names carry the project (desktop or mobile) so
+// the two runs of one stack never meet the other's records.
+
+const METRO = /AdminService\/|AccessTokenService\//;
+const METRO_WRITES = /bff\.metro\.v1\.AdminService\/(Create|Update|Delete)|AccessTokenService\/(Create|Revoke)|ImportCatalog/;
+const tag = () => test.info().project.name;
+const section = (page: Page, label: string) => page.getByRole("navigation", { name: "地铁目录分区" }).getByRole("link", { name: label, exact: true });
+const save = (page: Page) => page.getByRole("button", { name: "保存", exact: true });
+const nameField = (page: Page) => page.getByLabel("名称", { exact: true });
+
+test.describe("real metro administration", () => {
+  test("a metro administrator signs in from a metro address and manages cities and lines; every rule comes from the real service", async ({ page }) => {
+    const slug = `e2e-${tag()}`;
+    const failed: string[] = [];
+    page.on("response", (r) => METRO.test(r.url()) && r.status() >= 400 && failed.push(`${r.status()} ${r.url()}`));
+    await openConsole(page, "metro", "/metro/cities");
+    await expect(page.getByRole("heading", { name: "地铁目录" })).toBeVisible();
+    await expect(page.locator("iframe")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "新建城市" }).click();
+    await expect(page.getByLabel(/密码|原因/)).toHaveCount(0);
+    await page.getByLabel("标识 slug").fill("Bad Slug");
+    await nameField(page).fill("测试城");
+    await save(page).click();
+    await expect(page.getByLabel("标识 slug")).toHaveAttribute("aria-invalid", "true");
+    await page.getByLabel("标识 slug").fill(slug);
+    await save(page).click();
+    await expect(page.getByRole("cell", { name: slug, exact: true })).toBeVisible();
+
+    // A second city with the same slug: the real unique rule, said on the field.
+    await page.getByRole("button", { name: "新建城市" }).click();
+    await page.getByLabel("标识 slug").fill(slug);
+    await nameField(page).fill("重复");
+    await save(page).click();
+    await expect(page.getByLabel("标识 slug")).toHaveAttribute("aria-invalid", "true");
+    await page.getByRole("button", { name: "取消" }).click();
+
+    await section(page, "线路").click();
+    await page.getByRole("button", { name: "新建线路" }).click();
+    await page.getByLabel("代码", { exact: true }).fill(`${slug}-1`);
+    await page.getByLabel("所属城市 slug").fill("no-such-city");
+    await nameField(page).fill("一号线");
+    await page.getByLabel("颜色").fill("112233");
+    await save(page).click();
+    await expect(page.getByLabel("颜色")).toHaveAttribute("aria-invalid", "true");
+    // The existence of the city is checked after the shape of the form: the next answer names the city field.
+    await page.getByLabel("颜色").fill("#112233");
+    await save(page).click();
+    await expect(page.getByLabel("所属城市 slug")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByLabel("颜色")).not.toHaveAttribute("aria-invalid", "true");
+    await page.getByLabel("所属城市 slug").fill(slug);
+    await save(page).click();
+    await expect(page.getByRole("cell", { name: `${slug}-1`, exact: true })).toBeVisible();
+
+    // The city is in use: the real references answer, and the city stays.
+    await section(page, "城市").click();
+    await page.getByLabel("搜索城市").fill(slug);
+    await page.getByRole("button", { name: `删除 ${slug}` }).click();
+    await page.getByRole("button", { name: "确认删除" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "仍被引用，不能删除：线路 1" })).toBeVisible();
+    await page.getByRole("button", { name: "取消" }).click();
+    await expect(page.getByRole("cell", { name: slug, exact: true })).toBeVisible();
+
+    // Clean up in the order the references allow.
+    await section(page, "线路").click();
+    await page.getByLabel("搜索线路").fill(slug);
+    await page.getByRole("button", { name: `删除 ${slug}-1` }).click();
+    await page.getByRole("button", { name: "确认删除" }).click();
+    await expect(page.getByRole("button", { name: "确认删除" })).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: `${slug}-1` })).toHaveCount(0);
+    await section(page, "城市").click();
+    await page.getByLabel("搜索城市").fill(slug);
+    await page.getByRole("button", { name: `删除 ${slug}` }).click();
+    await page.getByRole("button", { name: "确认删除" }).click();
+    await expect(page.getByRole("button", { name: "确认删除" })).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: slug })).toHaveCount(0);
+    // The only refusals were the ones this scenario asked for (field errors, the duplicate, the reference).
+    expect(failed.every((f) => f.startsWith("400 ") || f.startsWith("409 "))).toBe(true);
+  });
+
+  test("a change made elsewhere while a record is open is a conflict that keeps what was typed, and nothing is overwritten by itself", async ({ page, context }) => {
+    const slug = `e2e-race-${tag()}`;
+    await openConsole(page, "metro", "/metro/cities");
+    await page.getByRole("button", { name: "新建城市" }).click();
+    await page.getByLabel("标识 slug").fill(slug);
+    await nameField(page).fill("原名");
+    await save(page).click();
+    await page.getByLabel("搜索城市").fill(slug);
+    await page.getByRole("button", { name: `编辑 ${slug}` }).click();
+    await nameField(page).fill("我的名字");
+
+    // The same administrator, another tab, changes the record first.
+    const other = await context.newPage();
+    await other.goto(`${stack.admin}/metro/cities`);
+    await other.getByLabel("搜索城市").fill(slug);
+    await other.getByRole("button", { name: `编辑 ${slug}` }).click();
+    await nameField(other).fill("别人的名字");
+    await save(other).click();
+    await expect(other.getByRole("cell", { name: "别人的名字", exact: true })).toBeVisible();
+    await other.close();
+
+    await save(page).click();
+    const conflict = page.getByTestId("conflict");
+    await expect(conflict).toContainText("已被他人修改");
+    await expect(conflict.getByRole("row", { name: /名称/ })).toContainText("别人的名字");
+    await expect(nameField(page)).toHaveValue("我的名字");
+    await expect(save(page)).toBeDisabled();
+    await page.getByRole("button", { name: "保留我的修改，基于最新版本" }).click();
+    await save(page).click();
+    await expect(page.getByRole("cell", { name: "我的名字", exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: `删除 ${slug}` }).click();
+    await page.getByRole("button", { name: "确认删除" }).click();
+    await expect(page.getByRole("button", { name: "确认删除" })).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: slug })).toHaveCount(0);
+  });
+
+  test("import is a preview first and all or nothing; an export is a file the import takes back unchanged", async ({ page }) => {
+    const slug = `e2e-imp-${tag()}`;
+    await openConsole(page, "metro", "/metro/import");
+    const apply = page.getByRole("button", { name: "确认导入" });
+    const box = page.getByLabel("目录 JSON");
+    const calls: string[] = [];
+    page.on("request", (r) => r.url().includes("ImportCatalog") && calls.push(r.postData() ?? ""));
+
+    await box.fill(JSON.stringify({ format: "metro-catalog/1", cities: [{ slug, name: "导入城" }], lines: [{ code: `${slug}-1`, city: slug, name: "坏线", color: "nope" }] }));
+    await expect(page.getByText(/lines\[0\]\.color/)).toBeVisible();
+    await expect(apply).toBeDisabled();
+
+    await box.fill(JSON.stringify({ format: "metro-catalog/1", cities: [{ slug, name: "导入城" }] }));
+    await expect(page.getByText(/预览（尚未写入）/)).toContainText("城市 新增 1");
+    await expect(apply).toBeEnabled();
+    expect(calls.every((c) => JSON.parse(c).dryRun === true)).toBe(true);
+    await section(page, "城市").click();
+    await page.getByLabel("搜索城市").fill(slug);
+    await expect(page.getByRole("cell", { name: slug })).toHaveCount(0);
+
+    await section(page, "导入").click();
+    await page.getByLabel("目录 JSON").fill(JSON.stringify({ format: "metro-catalog/1", cities: [{ slug, name: "导入城" }] }));
+    await expect(page.getByText(/预览（尚未写入）/)).toContainText("城市 新增 1");
+    await apply.click();
+    await expect(page.getByText(/已导入：.*目录版本/)).toBeVisible();
+    await section(page, "城市").click();
+    await page.getByLabel("搜索城市").fill(slug);
+    await expect(page.getByRole("cell", { name: slug, exact: true })).toBeVisible();
+
+    await section(page, "导出").click();
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "下载目录 JSON" }).click();
+    const text = await (await import("node:fs/promises")).readFile((await (await download).path())!, "utf8");
+    const doc = JSON.parse(text);
+    expect(doc.format).toBe("metro-catalog/1");
+    expect(doc.cities.map((c: { slug: string }) => c.slug)).toContain(slug);
+
+    await section(page, "导入").click();
+    await page.getByLabel("目录 JSON").fill(text);
+    const preview = page.getByText(/预览（尚未写入）/);
+    await expect(preview).toContainText(`城市 新增 0 / 更新 0 / 无变化 ${doc.cities.length}`);
+    await expect(preview).toContainText("线路 新增 0 / 更新 0");
+    await expect(preview).toContainText("专题 新增 0 / 更新 0");
+
+    await section(page, "城市").click();
+    await page.getByLabel("搜索城市").fill(slug);
+    await page.getByRole("button", { name: `删除 ${slug}` }).click();
+    await page.getByRole("button", { name: "确认删除" }).click();
+    await expect(page.getByRole("button", { name: "确认删除" })).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: slug })).toHaveCount(0);
+  });
+
+  test("the audit log tells the web edit from the operator and shows before and after; a token's secret is shown once", async ({ page }) => {
+    const slug = `e2e-audit-${tag()}`;
+    await openConsole(page, "metro", "/metro/cities");
+    await page.getByRole("button", { name: "新建城市" }).click();
+    await page.getByLabel("标识 slug").fill(slug);
+    await nameField(page).fill("审计城");
+    await save(page).click();
+    await page.getByLabel("搜索城市").fill(slug);
+    await page.getByRole("button", { name: `编辑 ${slug}` }).click();
+    await nameField(page).fill("审计城二");
+    await save(page).click();
+    await expect(page.getByRole("cell", { name: "审计城二", exact: true })).toBeVisible();
+
+    await section(page, "审计日志").click();
+    await page.getByLabel("对象").selectOption("city");
+    await page.getByLabel("渠道").selectOption("web");
+    const update = page.getByRole("row", { name: /city\.update/ }).first();
+    await expect(update).toBeVisible();
+    await expect(update).toContainText("网页");
+    await update.getByRole("button", { name: "详情" }).click();
+    const [before, after] = [page.locator("pre").nth(0), page.locator("pre").nth(1)];
+    await expect(before).toContainText('"name": "审计城"');
+    await expect(before).not.toContainText("审计城二");
+    await expect(after).toContainText('"name": "审计城二"');
+    await page.getByLabel("渠道").selectOption("mcp");
+    await expect(page.getByRole("cell", { name: "city.update" })).toHaveCount(0);
+
+    // The management token: the secret appears once, in memory only.
+    await section(page, "管理令牌").click();
+    await page.getByLabel("名称").fill(`e2e-${tag()}`);
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    const secret = page.getByTestId("token-secret");
+    await expect(secret).toContainText("mcp_");
+    const value = await secret.innerText();
+    await expect(page.locator("code", { hasText: `${stack.api}/mcp/metro` })).toBeVisible();
+    expect(await page.evaluate(() => JSON.stringify([{ ...localStorage }, { ...sessionStorage }]) + document.cookie + location.href)).not.toContain(value);
+    await page.reload();
+    await expect(page.getByRole("cell", { name: `e2e-${tag()}`, exact: true })).toBeVisible();
+    await expect(page.getByTestId("token-secret")).toHaveCount(0);
+    expect(await page.content()).not.toContain(value);
+    await page.getByRole("button", { name: `吊销 e2e-${tag()}` }).click();
+    await expect(page.getByRole("row", { name: new RegExp(`e2e-${tag()} `) }).getByText("已吊销")).toBeVisible();
+
+    await section(page, "城市").click();
+    await page.getByLabel("搜索城市").fill(slug);
+    await page.getByRole("button", { name: `删除 ${slug}` }).click();
+    await page.getByRole("button", { name: "确认删除" }).click();
+    await expect(page.getByRole("button", { name: "确认删除" })).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: slug })).toHaveCount(0);
+  });
+
+  test("a password check older than 15 minutes goes to OzID and back to the same metro page; the typed token form is offered again and never replayed", async ({ page, context }) => {
+    const label = `e2e-reauth-${tag()}`;
+    await openConsole(page, "metro", "/metro/tokens");
+    const writes: string[] = [];
+    page.on("request", (r) => METRO_WRITES.test(r.url()) && writes.push(r.url()));
+    await expect(page.getByLabel("名称")).toBeVisible();
+
+    // The gateway's control host makes the administrator's password check 16 minutes old (a browser cannot wait 15).
+    const control = await context.newPage();
+    await control.goto(`${stack.control}/age?age=${encodeURIComponent(account("metro").email)}`);
+    await control.close();
+
+    await page.getByLabel("名称").fill(label);
+    await page.getByLabel("权限").selectOption("metro:write");
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    await expect(page.getByTestId("problem-reauth")).toBeVisible();
+    await expect(page.getByTestId("token-secret")).toHaveCount(0);
+    expect(writes).toHaveLength(1);
+    await page.waitForTimeout(500);
+    expect(page.url().startsWith(stack.id)).toBe(false); // no redirect by itself
+
+    await page.getByRole("button", { name: "前往 OzID 验证密码" }).click();
+    await page.waitForURL(new RegExp(`^${stack.id}/security\\?app_id=admin&return_path=${encodeURIComponent("/metro/tokens")}$`));
+    await page.getByLabel("当前密码").fill(stack.password);
+    await page.getByRole("button", { name: "确认密码" }).click();
+    await page.waitForURL(`${stack.admin}/metro/tokens`);
+
+    // Back on the page: the content is there, and nothing was sent again.
+    await expect(page.getByText("已恢复你在验证密码前填写的内容")).toBeVisible();
+    await expect(page.getByLabel("名称")).toHaveValue(label);
+    await expect(page.getByLabel("权限")).toHaveValue("metro:write");
+    await page.waitForTimeout(500);
+    expect(writes).toHaveLength(1);
+    await expect(page.getByRole("cell", { name: label })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    await expect(page.getByTestId("token-secret")).toContainText("mcp_");
+    expect(writes).toHaveLength(2);
+    await page.getByRole("button", { name: `吊销 ${label}` }).click();
+    await expect(page.getByRole("row", { name: new RegExp(`${label} `) }).getByText("已吊销")).toBeVisible();
+  });
+
+  test("a platform administrator without the metro role gets no metro section and no metro call", async ({ page }) => {
+    const calls: string[] = [];
+    page.on("request", (r) => METRO.test(r.url()) && calls.push(r.url()));
+    await openConsole(page, "operator", "/metro/cities");
+    await expect(page.getByTestId("no-permission")).toBeVisible();
+    await expect(page.getByTestId("sections").getByRole("link", { name: "地铁目录" })).toHaveCount(0);
+    await page.goto(`${stack.admin}/metro/tokens`);
+    await expect(page.getByTestId("no-permission")).toBeVisible();
+    expect(calls).toEqual([]);
+  });
+
+  test("outside the allowlist the metro pages cannot be opened and an open console is refused at the BFF, reads included", async ({ page }) => {
+    await openConsole(page, "metro", "/metro/cities");
+    await expect(page.getByRole("cell", { name: /./ }).first()).toBeVisible();
+    const other = await page.context().newPage();
+    await setSource(other, stack.outside);
+    await other.close();
+    // The page that is already open: its next read is refused by the BFF's own perimeter (a bare 403 with no
+    // CORS grant, so the browser withholds it and the page can only say it could not be reached).
+    await section(page, "审计日志").click();
+    await expect(page.getByTestId("problem-network")).toBeVisible();
+    await expect(page.getByTestId("no-permission")).toHaveCount(0);
+    await section(page, "管理令牌").click();
+    await expect(page.getByTestId("problem-network")).toBeVisible();
+    // And a fresh load gets not even the page.
+    const res = await page.goto(`${stack.admin}/metro/cities`);
+    expect(res!.status()).toBe(403);
+    await setSource(page, stack.inside);
+  });
+
+  test("another product's page cannot use the metro administrator's session for the catalogue administration or the tokens", async ({ page }) => {
+    await openConsole(page, "metro", "/metro/cities");
+    await page.goto(`${stack.trip}/`);
+    await expect(page.locator("#me")).toHaveText(`user:${account("metro").displayName}`);
+    for (const call of ["bff.metro.v1.AdminService/ListAdminCities", "bff.metro.v1.AdminService/ExportCatalog", "bff.metro.v1.AdminService/ListAuditLogs", "bff.v1.AccessTokenService/ListAccessTokens"]) {
+      const result = await page.evaluate(async ([api, path]) => {
+        try {
+          const r = await fetch(`${api}/api/${path}`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json", "Connect-Protocol-Version": "1" },
+            body: "{}",
+          });
+          return { status: r.status, body: await r.text() };
+        } catch {
+          return { status: 0, body: "blocked" };
+        }
+      }, [stack.api, call]);
+      expect([0, 403], call).toContain(result.status);
+      expect(result.body, call).not.toContain("cities");
+      expect(result.body, call).not.toContain("tokens");
+      expect(result.body, call).not.toContain("logs");
+    }
   });
 });

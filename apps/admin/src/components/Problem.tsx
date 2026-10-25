@@ -11,8 +11,12 @@ import { NoPermission } from "./Gate";
  * a lost session leads back to OzID sign-in; an old password check offers password confirmation at
  * OzID (it is a choice, not an automatic redirect, so a screen can never loop); a missing role is
  * "no permission"; the closed perimeter says only that the network or origin is not admitted.
+ *
+ * `keepBeforeReauth` is for a screen with something typed in it: it is called just before the trip to OzID
+ * and keeps the input in this tab (lib/draft.ts); the screen offers it back after the return, and nothing
+ * is submitted again until the person says so.
  */
-export function Problem({ error, retry }: { error: unknown; retry?: () => void }) {
+export function Problem({ error, retry, keepBeforeReauth }: { error: unknown; retry?: () => void; keepBeforeReauth?: () => void }) {
   const { sessionLost } = useSession();
   const failure = classifyAccountError(error);
   useEffect(() => {
@@ -25,9 +29,19 @@ export function Problem({ error, retry }: { error: unknown; retry?: () => void }
     case "reauth_required":
       return (
         <div className="grid max-w-lg gap-3" data-testid="problem-reauth">
-          <Notice kind="info">{failure.message}。验证后会回到这个页面，当前输入不会被保留或重放。</Notice>
+          <Notice kind="info">
+            {failure.message}。验证后会回到这个页面，
+            {keepBeforeReauth ? "你已填写但尚未提交的内容会保留在这个标签页，回来后需要你核对并重新提交，不会自动重放。" : "当前输入不会被保留或重放。"}
+          </Notice>
           <div>
-            <Button onClick={() => goToOzid("security")}>前往 OzID 验证密码</Button>
+            <Button
+              onClick={() => {
+                keepBeforeReauth?.();
+                goToOzid("security");
+              }}
+            >
+              前往 OzID 验证密码
+            </Button>
           </div>
         </div>
       );

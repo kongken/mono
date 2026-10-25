@@ -1,7 +1,5 @@
 /** Pure formatting helpers (no generated code, so they run under plain node in tests). */
-export function formatKm(km: number): string {
-  return `${(Math.round(km * 100) / 100).toLocaleString("zh-CN", { maximumFractionDigits: 2 })} km`;
-}
+export { formatKm, lines } from "@kongken/metro-core/format";
 
 /** The year of a YYYY-MM-DD date, or "" when the date is missing. */
 export function yearOf(date: string): string {
@@ -47,6 +45,3 @@ export function parseYear(input: string): number | undefined {
   const n = Number(t);
   return Number.isInteger(n) && n >= 1900 && n <= new Date().getFullYear() ? n : NaN;
 }
-
-/** Splits a textarea into non-empty trimmed lines. */
-export const lines = (s: string) => s.split("\n").map((l) => l.trim()).filter(Boolean);

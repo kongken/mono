@@ -70,7 +70,7 @@ func TestAdminBrowserChain(t *testing.T) {
 	var source atomic.Value // the client address the gateway pretends to have seen
 	source.Store(inside)
 
-	h := NewChainHarness(t, ChainHTTPOptions{
+	h := NewChainHarness(t, ChainMetro{}, ChainHTTPOptions{
 		MailOzidOrigin: idO,
 		Configure: func(cfg *bffconfig.Config, _ string) {
 			cfg.Auth.CookieSecure = true
@@ -81,7 +81,7 @@ func TestAdminBrowserChain(t *testing.T) {
 				APIOrigin: apiO,
 				Apps: map[string]navigation.App{
 					"ozid":     {Origin: idO, Paths: []string{"/security"}},
-					"admin":    {Origin: adminO, Paths: []string{"/users", "/users/*", "/audit/users"}},
+					"admin":    {Origin: adminO, Paths: []string{"/users", "/users/*", "/audit/users", "/metro", "/metro/*"}},
 					"trip-map": {Origin: tripO},
 				},
 			}
