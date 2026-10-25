@@ -70,7 +70,9 @@ test.describe("closing the account", () => {
 
     // The session ended with the deletion, but the dedicated recovery Cookie is there: it is the only
     // way to see and continue this, host-only on the API host, and no page can read it.
-    expect(await sid(context), "the session Cookie is gone with the session").toBeUndefined();
+    // No deletion response writes the session Cookie (a late one could overwrite a later sign-in): the
+    // revoked value stays in the jar and is dead on the server, which the next call shows.
+    expect(await sid(context), "the revoked session Cookie is left alone").toBeTruthy();
     const cookie = await expectRecoveryAttributes(context, page);
 
     // The account is closed everywhere: the products see an anonymous browser and do not touch the Cookie.

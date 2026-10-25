@@ -8,19 +8,33 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 )
 
 const (
 	CookieName = "kongken_sid"
-	// RecoveryCookieName holds the credential to see and continue an account deletion, and nothing
-	// else: it never authenticates a request. Its value is the random token of the session that
-	// began the deletion, which is what the deletion workflow is bound to (by digest).
-	RecoveryCookieName = "kongken_del"
-	CSRFCookieName     = "kongken_csrf"
-	CSRFHeader         = "X-CSRF-Token"
-	tokenPrefix        = "bf_"
+	// RecoveryCookiePrefix starts the name of a deletion recovery Cookie. One Cookie exists per
+	// recovery generation: its name is the prefix plus the first RecoveryGenerationLength hex
+	// characters of the digest of its value, and its value is the random token of the session that
+	// began the deletion, which is what the workflow is bound to (by digest). A generation's Cookie
+	// is therefore immutable (the same name always carries the same value), and a late response about
+	// one generation can neither set, renew nor clear another one. It authenticates nothing.
+	RecoveryCookiePrefix = "kongken_del_"
+	// RecoveryGenerationLength is the number of hex characters of the digest in a generation's name.
+	RecoveryGenerationLength = 16
+	// MaxRecoveryCandidates bounds how many recovery Cookies a request may offer; the rest are ignored.
+	MaxRecoveryCandidates = 8
+	// maxCookiePairs bounds how many Cookie pairs are looked at while collecting candidates.
+	maxCookiePairs = 64
+	// LegacyRecoveryCookieName is the fixed name an earlier build of this change used for one
+	// mutable recovery Cookie. It is still accepted as a candidate (and moved to the generation Cookie
+	// by the next response about its deletion) and is never set again.
+	LegacyRecoveryCookieName = "kongken_del"
+	CSRFCookieName           = "kongken_csrf"
+	CSRFHeader               = "X-CSRF-Token"
+	tokenPrefix              = "bf_"
 )
 
 type browserKey struct{}
@@ -103,8 +117,8 @@ func (c CookieConfig) session(expires time.Time) *http.Cookie {
 
 // recovery is host-only (no Domain), HttpOnly, Secure as configured, with the session Cookie's
 // SameSite and Path: a browser sends it to the API host and to nothing else.
-func (c CookieConfig) recovery(expires time.Time) *http.Cookie {
-	return &http.Cookie{Name: RecoveryCookieName, Path: c.Path, HttpOnly: true, Secure: c.Secure, SameSite: c.SameSite, Expires: expires, MaxAge: int(time.Until(expires).Seconds())}
+func (c CookieConfig) recovery(name string, expires time.Time) *http.Cookie {
+	return &http.Cookie{Name: name, Path: c.Path, HttpOnly: true, Secure: c.Secure, SameSite: c.SameSite, Expires: expires, MaxAge: int(time.Until(expires).Seconds())}
 }
 
 func (c CookieConfig) csrf(token string, expires time.Time) *http.Cookie {
@@ -129,30 +143,45 @@ func ClearSessionCookie(h http.Header, cfg CookieConfig) {
 	h.Add("Set-Cookie", ClearSessionCookieValue(cfg))
 }
 
-// RecoveryCookie returns the Set-Cookie value that stores token as the deletion recovery
-// credential until expires.
+// RecoveryCookieName is the name of the recovery Cookie of the generation token belongs to.
+func RecoveryCookieName(token string) string {
+	return RecoveryCookiePrefix + HashToken(token)[:RecoveryGenerationLength]
+}
+
+// RecoveryCookie returns the Set-Cookie value that stores token as the recovery credential of its
+// generation until expires. The name and value never change for a generation.
 func RecoveryCookie(cfg CookieConfig, token string, expires time.Time) string {
-	c := cfg.recovery(expires)
+	c := cfg.recovery(RecoveryCookieName(token), expires)
 	c.Value = token
 	return c.String()
 }
 
-// SetRecoveryCookie stores token as the deletion recovery credential until expires.
+// SetRecoveryCookie stores token as the recovery credential of its generation until expires.
 func SetRecoveryCookie(h http.Header, cfg CookieConfig, token string, expires time.Time) {
 	h.Add("Set-Cookie", RecoveryCookie(cfg, token, expires))
 }
 
-// ClearRecoveryCookieValue is the Set-Cookie value that removes the recovery credential.
-func ClearRecoveryCookieValue(cfg CookieConfig) string {
-	c := cfg.recovery(time.Unix(0, 0))
+func clearedRecovery(cfg CookieConfig, name string) string {
+	c := cfg.recovery(name, time.Unix(0, 0))
 	c.MaxAge = -1
 	c.Value = ""
 	return c.String()
 }
 
-// ClearRecoveryCookie removes the deletion recovery credential.
-func ClearRecoveryCookie(h http.Header, cfg CookieConfig) {
-	h.Add("Set-Cookie", ClearRecoveryCookieValue(cfg))
+// ClearRecoveryCookieValue is the Set-Cookie value that removes the recovery Cookie of token's
+// generation, and no other.
+func ClearRecoveryCookieValue(cfg CookieConfig, token string) string {
+	return clearedRecovery(cfg, RecoveryCookieName(token))
+}
+
+// ClearRecoveryCookie removes the recovery Cookie of token's generation, and no other.
+func ClearRecoveryCookie(h http.Header, cfg CookieConfig, token string) {
+	h.Add("Set-Cookie", ClearRecoveryCookieValue(cfg, token))
+}
+
+// ClearLegacyRecoveryCookie removes the fixed-name recovery Cookie of the earlier build.
+func ClearLegacyRecoveryCookie(h http.Header, cfg CookieConfig) {
+	h.Add("Set-Cookie", clearedRecovery(cfg, LegacyRecoveryCookieName))
 }
 
 func SetCSRFCookie(h http.Header, cfg CookieConfig, token string, expires time.Time) {
@@ -174,10 +203,46 @@ func TokenFromRequest(h http.Header) string {
 	return cookieValue(h, CookieName)
 }
 
-// RecoveryTokenFromRequest is the deletion recovery credential the browser sent, or "".
-// Nothing authenticates with it.
-func RecoveryTokenFromRequest(h http.Header) string {
-	return cookieValue(h, RecoveryCookieName)
+// RecoveryTokens are the recovery credentials the browser sent: Cookies named exactly the prefix
+// plus RecoveryGenerationLength lowercase hex characters whose value hashes to that very suffix (a
+// name that does not belong to its value is ignored, so no Cookie can stand for another generation),
+// without duplicates, at most MaxRecoveryCandidates of them, in the order the browser sent them.
+// Nothing authenticates with them.
+func RecoveryTokens(h http.Header) []string {
+	var tokens []string
+	seen := 0
+	for _, line := range h.Values("Cookie") {
+		for _, part := range strings.Split(line, ";") {
+			if seen++; seen > maxCookiePairs || len(tokens) >= MaxRecoveryCandidates {
+				return tokens
+			}
+			name, value, ok := strings.Cut(strings.TrimSpace(part), "=")
+			value = strings.TrimSpace(value)
+			if !ok || value == "" || !validRecoveryName(name) || RecoveryCookieName(value) != name || slices.Contains(tokens, value) {
+				continue
+			}
+			tokens = append(tokens, value)
+		}
+	}
+	return tokens
+}
+
+func validRecoveryName(name string) bool {
+	suffix, ok := strings.CutPrefix(name, RecoveryCookiePrefix)
+	if !ok || len(suffix) != RecoveryGenerationLength {
+		return false
+	}
+	for _, r := range suffix {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// LegacyRecoveryToken is the value of the fixed-name Cookie of the earlier build, or "".
+func LegacyRecoveryToken(h http.Header) string {
+	return cookieValue(h, LegacyRecoveryCookieName)
 }
 
 func CSRFValid(h http.Header) bool {

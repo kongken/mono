@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { control, expectRecoveryAttributes, failMetro, form, kind, recovery, sid, signIn, stack, state } from "./helpers";
+import { control, expectRecoveryAttributes, failMetro, form, kind, recoveries, recovery, sid, signIn, stack, state } from "./helpers";
 
 /**
  * The recovery Cookie of an unfinished account deletion, in a real browser (two tabs of one
@@ -316,5 +316,135 @@ test.describe("the recovery Cookie of an unfinished deletion", () => {
     await other.reload();
     await other.goto(`${stack.id}/`);
     await expect(other.getByTestId("overview")).toBeVisible(); // the bystander is still signed in
+  });
+  /**
+   * S1: a status read made before the begin is answered after it. That answer writes nothing, so
+   * the Cookie confirmed a moment ago is still there and the deletion is still shown and retried.
+   */
+  test("a status answer held until after the deletion began cannot take the recovery Cookie away", async ({ page, context }, testInfo) => {
+    const subject = `close-s1-${kind(testInfo)}`;
+    await signIn(page, subject);
+    await page.goto(`${stack.id}/close-account`);
+    await expect(form(page)).toBeVisible();
+    await failMetro(true);
+    await hold("DeleteAccount", "request", 1); // the first call stores the Cookie; the second, the begin, waits in front of the BFF
+    await confirmClose(page);
+    await expect.poll(() => reached("DeleteAccount")).toBe(true);
+    expect((await state(subject)).workflow).toBe("none");
+    const cookie = await expectRecoveryAttributes(context, page);
+
+    // Another tab of the same browser asks for the status now (nothing exists yet); its answer is held.
+    await hold("GetAccountDeletion", "response");
+    const reader = await context.newPage();
+    await reader.goto(`${stack.id}/close-account`, { waitUntil: "commit" });
+    await expect.poll(() => reached("GetAccountDeletion")).toBe(true);
+
+    await release("DeleteAccount"); // the begin is handled now
+    await expect(progress(page)).toBeVisible();
+    expect((await state(subject)).workflow).toBe("cleanup");
+    await release("GetAccountDeletion"); // the late answer reaches the browser after the begin
+    await reader.waitForLoadState("networkidle");
+    expect((await recovery(context))?.value, "the late status answer must not take the Cookie away").toBe(cookie.value);
+
+    await page.reload();
+    await expect(progress(page)).toBeVisible();
+    await failMetro(false);
+    await page.getByRole("button", { name: "重试注销" }).click();
+    await expect(page.getByTestId("close-done")).toBeVisible();
+    expect(await state(subject)).toMatchObject({ mediaRows: 0, object: false, visits: 0, metroRows: 0, workflow: "done" });
+    expect(await recovery(context)).toBeUndefined();
+  });
+
+  /**
+   * S2/R2: the browser holds the revoked session Cookie of the closing account while a status answer is on
+   * its way and another account signs in. No deletion answer writes the session Cookie, so the late one
+   * leaves the signed-in account signed in.
+   */
+  test("a status answer that arrives after another account signed in leaves the session Cookie and the signed-in account alone", async ({ page, context }, testInfo) => {
+    const subject = `close-r2-${kind(testInfo)}`;
+    await signIn(page, subject);
+    await page.goto(`${stack.id}/close-account`);
+    await failMetro(true);
+    await confirmClose(page);
+    await expect(progress(page)).toBeVisible();
+    const cookie = await expectRecoveryAttributes(context, page);
+
+    await hold("GetAccountDeletion", "response");
+    const reader = await context.newPage();
+    await reader.goto(`${stack.id}/close-account`, { waitUntil: "commit" });
+    await expect.poll(() => reached("GetAccountDeletion")).toBe(true); // handled with the revoked session Cookie, answer held
+
+    const other = await context.newPage();
+    await other.goto(`${stack.id}/login`);
+    await submitLogin(other, BYSTANDER);
+    await expect(other.getByTestId("overview")).toBeVisible();
+    const signedIn = (await sid(context))?.value;
+    expect(signedIn).toBeTruthy();
+
+    await release("GetAccountDeletion");
+    await expect(reader.getByTestId("close-progress")).toBeVisible();
+    expect((await sid(context))?.value, "the late answer must not rewrite the session Cookie").toBe(signedIn);
+    expect((await recovery(context))?.value).toBe(cookie.value);
+    await other.goto(`${stack.id}/`);
+    await expect(other.getByTestId("overview")).toBeVisible();
+    expect((await state(BYSTANDER)).workflow).toBe("none");
+
+    await failMetro(false);
+    await page.reload();
+    await expectsForeignProgress(page);
+    await page.getByRole("button", { name: "重试注销" }).click();
+    await expect(form(page)).toBeVisible();
+    expect((await state(subject)).workflow).toBe("done");
+    expect((await sid(context))?.value).toBe(signedIn);
+    expect(await recovery(context)).toBeUndefined();
+  });
+
+  /**
+   * R3: the completion answer of the first deletion arrives after a second account began its own. It
+   * clears only its own generation's Cookie, so the second deletion stays recoverable.
+   */
+  test("the completion answer of an older deletion held until a newer one began leaves the newer Cookie alone", async ({ page, context }, testInfo) => {
+    const first = `close-r3a-${kind(testInfo)}`;
+    const second = `close-r3b-${kind(testInfo)}`;
+    await signIn(page, first);
+    await page.goto(`${stack.id}/close-account`);
+    await failMetro(true);
+    await confirmClose(page);
+    await expect(progress(page)).toBeVisible();
+    const g1 = await expectRecoveryAttributes(context, page);
+
+    await failMetro(false);
+    await hold("RetryAccountDeletion", "response"); // the retry finishes it; the answer, which clears G1, is held
+    await page.getByRole("button", { name: "重试注销" }).click();
+    await expect.poll(() => reached("RetryAccountDeletion")).toBe(true);
+    expect((await state(first)).workflow).toBe("done");
+    expect((await recovery(context))?.value).toBe(g1.value);
+
+    // Meanwhile another account signs in in the same browser and begins its own deletion.
+    const other = await context.newPage();
+    await other.goto(`${stack.id}/login`);
+    await submitLogin(other, second);
+    await expect(other.getByTestId("overview")).toBeVisible();
+    await other.goto(`${stack.id}/close-account`);
+    await failMetro(true);
+    await confirmClose(other);
+    await expect(progress(other)).toBeVisible();
+    expect((await state(second)).workflow).toBe("cleanup");
+    // (The second account's close page already read the first receipt, which may have removed G1: either way
+    // the second deletion has its own, different, Cookie.)
+    const g2 = (await recoveries(context)).map((c) => c.value).find((v) => v !== g1.value)!;
+    expect(g2, "the second deletion has its own recovery Cookie").toBeTruthy();
+
+    await release("RetryAccountDeletion"); // the first completion answer, late
+    await expect.poll(async () => (await recoveries(context)).map((c) => c.value)).toEqual([g2]);
+
+    // The second deletion is still shown, refreshed and finished by its own Cookie.
+    await other.reload();
+    await expect(progress(other)).toBeVisible();
+    await failMetro(false);
+    await other.getByRole("button", { name: "重试注销" }).click();
+    await expect(other.getByTestId("close-done")).toBeVisible();
+    expect((await state(second)).workflow).toBe("done");
+    expect(await recoveries(context)).toEqual([]);
   });
 });

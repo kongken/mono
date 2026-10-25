@@ -3,8 +3,10 @@ package e2e_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -124,15 +126,17 @@ func TestChainAccountDeletionRetryReceiptAndIsolation(t *testing.T) {
 	if len(blobs.keys) < 1 {
 		t.Fatalf("expected S3 deletes, got %v", blobs.keys)
 	}
-	if a.SessionCookie() != "" {
-		t.Fatal("the cookie survived the deletion")
+	if a.SessionCookie() != aToken || a.RecoveryCookie() != "" {
+		t.Fatal("the deletion RPCs must leave the session Cookie alone and remove the finished generation's recovery Cookie")
 	}
-	// A lost success response: the same Cookie replays the same result, once more.
-	a.SetSessionCookie(aToken)
+	// A lost success response: the same credential replays the same result, once more.
+	a.SetRecoveryCookie(aToken)
 	if err = a.DeleteAccount(ctx, req, aID); err != nil {
 		t.Fatalf("receipt replay: %v", err)
 	}
-	a.SetSessionCookie(aToken) // the replay cleared it again
+	if a.SessionCookie() != aToken {
+		t.Fatal("the replay rewrote the session Cookie")
+	}
 	if d, err = a.GetAccountDeletion(ctx); err != nil || d.GetState() != bffv1.AccountDeletionState_ACCOUNT_DELETION_STATE_COMPLETED {
 		t.Fatalf("receipt read: %v %v", d, err)
 	}
@@ -363,29 +367,73 @@ func isRecoveryNotStored(err error) bool {
 	return errors.As(err, &ce) && ce.Code() == connect.CodeFailedPrecondition && strings.Contains(ce.Message(), "recovery cookie")
 }
 
-// RecoveryCookie is the deletion recovery credential in the jar, or "".
-func (b *Browser) RecoveryCookie() string {
+// recoveryCookies are the deletion recovery Cookies (one per generation) in the jar, by name.
+func (b *Browser) recoveryCookies() map[string]string {
+	out := map[string]string{}
 	u, err := url.Parse(b.Origin)
 	if err != nil {
-		return ""
+		return out
 	}
 	for _, c := range b.HTTP.Jar.Cookies(u) {
-		if c.Name == session.RecoveryCookieName {
-			return c.Value
+		if strings.HasPrefix(c.Name, session.RecoveryCookiePrefix) || c.Name == session.LegacyRecoveryCookieName {
+			out[c.Name] = c.Value
 		}
 	}
-	return ""
+	return out
 }
 
-// SetRecoveryCookie puts a recovery credential into the jar.
+// RecoveryCookie is the one deletion recovery credential in the jar, or "". More than one fails the
+// test: use RecoveryCookies where several generations are expected.
+func (b *Browser) RecoveryCookie() string {
+	tokens := b.RecoveryCookies()
+	if len(tokens) > 1 {
+		panic(fmt.Sprintf("%d recovery Cookies in the jar", len(tokens)))
+	}
+	if len(tokens) == 0 {
+		return ""
+	}
+	return tokens[0]
+}
+
+// RecoveryCookies are the values of the generation recovery Cookies in the jar, sorted by name.
+func (b *Browser) RecoveryCookies() []string {
+	all := b.recoveryCookies()
+	names := make([]string, 0, len(all))
+	for n := range all {
+		if strings.HasPrefix(n, session.RecoveryCookiePrefix) {
+			names = append(names, n)
+		}
+	}
+	slices.Sort(names)
+	tokens := make([]string, 0, len(names))
+	for _, n := range names {
+		tokens = append(tokens, all[n])
+	}
+	return tokens
+}
+
+// SetRecoveryCookie puts the recovery credential of token's generation into the jar, under its name.
 func (b *Browser) SetRecoveryCookie(token string) {
 	u, _ := url.Parse(b.Origin)
-	b.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: session.RecoveryCookieName, Value: token, Path: "/"}})
+	b.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: session.RecoveryCookieName(token), Value: token, Path: "/"}})
 }
 
-// DropRecoveryCookie removes the recovery Cookie from the jar, as a browser that refuses it
+// SetLegacyRecoveryCookie puts the fixed-name Cookie of the earlier build into the jar.
+func (b *Browser) SetLegacyRecoveryCookie(token string) {
+	u, _ := url.Parse(b.Origin)
+	b.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: session.LegacyRecoveryCookieName, Value: token, Path: "/"}})
+}
+
+// LegacyRecoveryCookie is the fixed-name Cookie of the earlier build in the jar, or "".
+func (b *Browser) LegacyRecoveryCookie() string {
+	return b.recoveryCookies()[session.LegacyRecoveryCookieName]
+}
+
+// DropRecoveryCookie removes every recovery Cookie from the jar, as a browser that refuses it
 // (or lost the response that carried it) would never have stored it.
 func (b *Browser) DropRecoveryCookie() {
 	u, _ := url.Parse(b.Origin)
-	b.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: session.RecoveryCookieName, Value: "", Path: "/", MaxAge: -1}})
+	for n := range b.recoveryCookies() {
+		b.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: n, Value: "", Path: "/", MaxAge: -1}})
+	}
 }

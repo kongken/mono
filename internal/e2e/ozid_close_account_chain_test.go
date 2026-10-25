@@ -202,8 +202,8 @@ func TestChainCloseAccountKeepsTheRecoveryCookieWhilePending(t *testing.T) {
 	if token == "" {
 		t.Fatal("no recovery Cookie after the deletion began")
 	}
-	if a.SessionCookie() != "" {
-		t.Fatal("the revoked session Cookie of the closed account must be removed once the deletion is past its begin step")
+	if a.SessionCookie() == "" {
+		t.Fatal("no deletion RPC rewrites the session Cookie: the revoked one stays and is dead on the server")
 	}
 	if err := a.Logout(ctx); err != nil {
 		t.Fatalf("logout of a closed account must be harmless: %v", err)
@@ -227,7 +227,7 @@ func TestChainCloseAccountKeepsTheRecoveryCookieWhilePending(t *testing.T) {
 	// The workflow ID is not a credential, as session or recovery Cookie alike.
 	wfID := s.BFFDB.AccountDeletion.Query().Where(accountdeletion.UserID(aID)).OnlyX(ctx).ID
 	stranger := s.FreshBrowser()
-	stranger.SetRecoveryCookie(wfID)
+	stranger.SetRecoveryCookie(wfID) // no generation of any credential: it carries a name of its own
 	if _, err := stranger.GetAccountDeletion(ctx); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("the workflow ID opened a deletion: %v", err)
 	}

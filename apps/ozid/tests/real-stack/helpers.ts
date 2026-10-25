@@ -33,8 +33,17 @@ export async function signIn(page: Page, subject: string) {
 }
 
 export const sid = async (context: BrowserContext) => (await context.cookies()).find((c) => c.name === "kongken_sid");
-/** The dedicated, HttpOnly Cookie that only shows and continues an unfinished account deletion. */
-export const recovery = async (context: BrowserContext) => (await context.cookies()).find((c) => c.name === "kongken_del");
+/**
+ * The dedicated, HttpOnly Cookies that only show and continue an account deletion: one immutable Cookie per
+ * recovery generation, named kongken_del_<16 hex> after its value.
+ */
+export const recoveries = async (context: BrowserContext) => (await context.cookies()).filter((c) => /^kongken_del_[0-9a-f]{16}$/.test(c.name));
+/** The one recovery Cookie of the browser, if any (more than one fails the test: use recoveries). */
+export const recovery = async (context: BrowserContext) => {
+  const all = await recoveries(context);
+  expect(all.length, `recovery cookies: ${all.map((c) => c.name).join(",")}`).toBeLessThanOrEqual(1);
+  return all[0];
+};
 
 /** The recovery Cookie is host-only on the API host, HttpOnly, Secure and SameSite=Lax, and no page can read it. */
 export async function expectRecoveryAttributes(context: BrowserContext, page: Page) {

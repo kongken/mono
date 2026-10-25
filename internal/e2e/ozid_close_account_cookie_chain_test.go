@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,14 +15,17 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/bff/ent/accountdeletion"
+	"github.com/kongken/mono/internal/bff/session"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 )
 
-// The deletion recovery Cookie (kongken_del) is the credential to see, refresh and retry an account
-// deletion. It is separate from the session Cookie: signing in, signing out and ending sessions
-// never touch it, and the finished deletion removes it without signing anyone else out. Its value is
-// the random token of the session that began the deletion (the workflow is bound to its digest),
-// and nothing authenticates with it.
+// The deletion recovery Cookie (kongken_del_<generation>) is the credential to see, refresh and retry
+// an account deletion. It is separate from the session Cookie: signing in, signing out and ending
+// sessions never touch it, and no deletion RPC ever writes the session Cookie (the server revoked the
+// session, that is what ends it). There is one immutable Cookie per recovery generation: its value is
+// the random token of the session that began the deletion (the workflow is bound to its digest), its
+// name is derived from that value, a response only ever sets, renews or clears the generation it is
+// about, and an answer about a deletion that does not exist writes nothing. Nothing authenticates with it.
 
 const pendingState = bffv1.AccountDeletionState_ACCOUNT_DELETION_STATE_PENDING
 const completedState = bffv1.AccountDeletionState_ACCOUNT_DELETION_STATE_COMPLETED
@@ -255,7 +260,7 @@ func TestChainRecoveryCookieIsAdoptedForADeletionThatBeganWithoutIt(t *testing.T
 		t.Fatal(err)
 	}
 	token := a.RecoveryCookie()
-	a.DropRecoveryCookie() // what a browser has that began the deletion under the previous release:
+	a.DropRecoveryCookie()    // what a browser has that began the deletion under the previous release:
 	a.SetSessionCookie(token) // only the (revoked) session Cookie, still stored
 	if d, err := a.GetAccountDeletion(ctx); err != nil || d.GetState() != pendingState {
 		t.Fatalf("status through the session Cookie: %v %v", d, err)
@@ -263,8 +268,8 @@ func TestChainRecoveryCookieIsAdoptedForADeletionThatBeganWithoutIt(t *testing.T
 	if a.RecoveryCookie() != token {
 		t.Fatalf("the status read must store the recovery Cookie: %q", a.RecoveryCookie())
 	}
-	if a.SessionCookie() != "" {
-		t.Fatal("the status read of a deletion past its begin step must remove the revoked session Cookie")
+	if a.SessionCookie() != token {
+		t.Fatal("the status read must not rewrite the session Cookie")
 	}
 	a.DropRecoveryCookie()
 	a.SetSessionCookie(token)
@@ -276,43 +281,53 @@ func TestChainRecoveryCookieIsAdoptedForADeletionThatBeganWithoutIt(t *testing.T
 	}
 }
 
-// A recovery Cookie that opens nothing is removed when it is read: after a receipt expired and
-// when it never began anything.
-func TestChainRecoveryCookieIsRemovedOnceItOpensNothing(t *testing.T) {
+// A recovery Cookie that opens nothing is inert and is never written by the answer: it may belong to
+// a deletion that has not begun yet (its confirmation is in the browser, its begin still on the way),
+// and a late answer must not take that credential away. It leaves with its own Max-Age.
+func TestChainRecoveryCookieThatOpensNothingIsInertAndNeverCleared(t *testing.T) {
 	s := newCloseAccountStack(t)
 	ctx := context.Background()
+	tap := &cookieTap{match: "AccountDeletion"}
 	a, aID, _ := s.account("exp_a")
+	tap.wrap(a)
 	if err := a.DeleteAccount(ctx, closeReq("exp-a-1"), aID); err != nil {
 		t.Fatal(err)
 	}
 	token := a.SessionCookie()
-	if token != "" {
-		t.Fatalf("the finished deletion must clear the session Cookie of the account it deleted: %q", token)
+	if token == "" || a.RecoveryCookie() != "" {
+		t.Fatalf("a finished deletion leaves the session Cookie alone and clears its recovery Cookie: %q %q", token, a.RecoveryCookie())
 	}
-	// The receipt expired: nothing opens, and the Cookie goes.
+	// An unknown credential opens nothing and is not cleared.
+	a.SetSessionCookie("") // its own receipt would open through the session Cookie
 	a.SetRecoveryCookie("bf_00")
+	tap.reset()
 	if _, err := a.GetAccountDeletion(ctx); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("an unknown recovery Cookie: %v", err)
 	}
-	if a.RecoveryCookie() != "" {
-		t.Fatal("a recovery Cookie that opens nothing must be removed")
+	if a.RecoveryCookie() != "bf_00" || len(tap.seen()) != 0 {
+		t.Fatalf("an answer about nothing must write nothing: %q %v", a.RecoveryCookie(), tap.seen())
 	}
-	// A prepared but never begun one is removed the same way.
+	// A prepared but never begun one is the same: the answer writes nothing.
 	b, bID, _ := s.account("exp_b")
+	tap.wrap(b)
 	if err := b.DeleteAccountOnce(ctx, closeReq("exp-b-1"), bID); !isRecoveryNotStored(err) {
 		t.Fatal(err)
 	}
-	if b.RecoveryCookie() == "" {
+	prepared := b.RecoveryCookie()
+	if prepared == "" {
 		t.Fatal("no recovery Cookie")
 	}
+	tap.reset()
 	if _, err := b.GetAccountDeletion(ctx); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("status for a Cookie that began nothing: %v", err)
 	}
-	if b.RecoveryCookie() != "" {
-		t.Fatal("a recovery Cookie that began nothing must be removed when read")
+	if b.RecoveryCookie() != prepared || len(tap.seen()) != 0 {
+		t.Fatalf("a status read before the begin must not take the confirmed credential away: %q %v", b.RecoveryCookie(), tap.seen())
 	}
-	// And a finished deletion whose receipt has expired.
+	// A finished deletion whose receipt has expired: nothing opens, nothing is written; the Cookie
+	// lingers (inert) until its own expiry, because the answer cannot tell it from a prepared one.
 	c, cID, _ := s.account("exp_c")
+	tap.wrap(c)
 	s.failMetro.Store(true)
 	if err := c.DeleteAccount(ctx, closeReq("exp-c-1"), cID); connect.CodeOf(err) != connect.CodeUnavailable {
 		t.Fatal(err)
@@ -324,11 +339,12 @@ func TestChainRecoveryCookieIsRemovedOnceItOpensNothing(t *testing.T) {
 	}
 	s.BFFDB.AccountDeletion.Update().Where(accountdeletion.UserID(cID)).SetReceiptExpiresAt(time.Now().UTC().Add(-time.Minute)).ExecX(ctx)
 	c.SetRecoveryCookie(cToken)
+	tap.reset()
 	if _, err := c.GetAccountDeletion(ctx); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("an expired receipt: %v", err)
 	}
-	if c.RecoveryCookie() != "" {
-		t.Fatal("the recovery Cookie of an expired receipt must be removed")
+	if c.RecoveryCookie() != cToken || len(tap.seen()) != 0 {
+		t.Fatalf("an expired receipt answer must write nothing: %q %v", c.RecoveryCookie(), tap.seen())
 	}
 }
 
@@ -502,3 +518,370 @@ func (d *dropResponse) wrap(b *Browser) {
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// cookieTap watches the Set-Cookie headers of the responses whose path contains match, and can hold
+// them back (hold) so the browser applies them later, as a response delayed in the network would be.
+type cookieTap struct {
+	match string
+
+	mu    sync.Mutex
+	names []string
+	hold  bool
+	held  []string
+}
+
+func (c *cookieTap) wrap(b *Browser) {
+	next := b.HTTP.Transport
+	if next == nil {
+		next = http.DefaultTransport
+	}
+	b.HTTP.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		res, err := next.RoundTrip(r)
+		if err != nil || !strings.Contains(r.URL.Path, c.match) {
+			return res, err
+		}
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		for _, sc := range res.Header.Values("Set-Cookie") {
+			c.names = append(c.names, strings.SplitN(sc, "=", 2)[0])
+		}
+		if c.hold {
+			c.hold = false
+			c.held = append(c.held, res.Header.Values("Set-Cookie")...)
+			res.Header.Del("Set-Cookie")
+		}
+		return res, err
+	})
+}
+
+// holdNext keeps the Set-Cookie headers of the next matching response from the browser.
+func (c *cookieTap) holdNext() {
+	c.mu.Lock()
+	c.hold = true
+	c.mu.Unlock()
+}
+
+// release hands the held headers to the browser now, late.
+func (c *cookieTap) release(b *Browser) {
+	c.mu.Lock()
+	held := c.held
+	c.held = nil
+	c.mu.Unlock()
+	h := http.Header{}
+	for _, sc := range held {
+		h.Add("Set-Cookie", sc)
+	}
+	u, _ := url.Parse(b.Origin)
+	b.HTTP.Jar.SetCookies(u, (&http.Response{Header: h}).Cookies())
+}
+
+func (c *cookieTap) heldCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.held)
+}
+
+// seen are the names of the cookies the matching responses set or cleared since the last reset.
+func (c *cookieTap) seen() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.names...)
+}
+
+func (c *cookieTap) reset() {
+	c.mu.Lock()
+	c.names = nil
+	c.mu.Unlock()
+}
+
+func (c *cookieTap) wroteSession() bool {
+	for _, n := range c.seen() {
+		if n == session.CookieName {
+			return true
+		}
+	}
+	return false
+}
+
+// S1: the answer to a status read made before the deletion began arrives after it began. Such an
+// answer writes nothing, so the confirmed credential cannot be taken away; and a late answer that is
+// held back and applied after the begin changes nothing either.
+func TestChainLateStatusAnswerCannotTakeTheRecoveryCredentialAway(t *testing.T) {
+	s := newCloseAccountStack(t)
+	ctx := context.Background()
+	a, aID, aKey := s.account("s1_a")
+	tap := &cookieTap{match: "GetAccountDeletion"}
+	tap.wrap(a)
+	s.failMetro.Store(true)
+
+	if err := a.DeleteAccountOnce(ctx, closeReq("s1-a-1"), aID); !isRecoveryNotStored(err) {
+		t.Fatal(err)
+	}
+	token := a.RecoveryCookie()
+	tap.holdNext() // the status read goes out now, its answer arrives after the begin
+	if _, err := a.GetAccountDeletion(ctx); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("status before the begin: %v", err)
+	}
+	if err := a.DeleteAccountOnce(ctx, closeReq("s1-a-1"), aID); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("begin: %v", err)
+	}
+	tap.release(a)
+	if tap.heldCount() != 0 || a.RecoveryCookie() != token {
+		t.Fatalf("the late answer took the recovery credential away: %q", a.RecoveryCookie())
+	}
+	if d, err := a.GetAccountDeletion(ctx); err != nil || d.GetState() != pendingState || d.GetMutationId() != "s1-a-1" {
+		t.Fatalf("the deletion cannot be seen: %v %v", d, err)
+	}
+	s.failMetro.Store(false)
+	if d, err := a.RetryAccountDeletion(ctx); err != nil || d.GetState() != completedState {
+		t.Fatalf("retry: %v %v", d, err)
+	}
+	if s.hasObject(aKey) {
+		t.Fatal("media survived")
+	}
+}
+
+// S2/R2: no deletion RPC rewrites the session Cookie, whatever its answer is, so an answer delayed
+// past a later sign-in cannot sign the browser out of the account signed in since.
+func TestChainDeletionRPCsNeverWriteTheSessionCookie(t *testing.T) {
+	s := newCloseAccountStack(t)
+	ctx := context.Background()
+	_, r2bID, _ := s.account("r2_b")
+	a, aID, _ := s.account("r2_a")
+	tap := &cookieTap{match: "AccountDeletion"}
+	tap.wrap(a)
+	del := &cookieTap{match: "DeleteAccount"}
+	del.wrap(a)
+	s.failMetro.Store(true)
+
+	token := a.SessionCookie()
+	if err := a.DeleteAccount(ctx, closeReq("r2-a-1"), aID); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("begin: %v", err)
+	}
+	// The failed answer, the repeat, the read, the retry (failing and finishing), the replay.
+	step := func(name string, err error, want connect.Code) {
+		t.Helper()
+		if want == 0 && err != nil || want != 0 && connect.CodeOf(err) != want {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	a.SetSessionCookie(token) // a stale session Cookie is what a delayed answer would have overwritten
+	_, err := a.GetAccountDeletion(ctx)
+	step("read", err, 0)
+	// The scenario: a read is on its way with the stale session Cookie, another account signs in
+	// meanwhile, then the read's answer arrives.
+	tap.holdNext()
+	_, err = a.GetAccountDeletion(ctx)
+	step("held read", err, 0)
+	if err := a.Login(ctx, "r2_b", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	tap.release(a)
+	if me, err := a.Me(ctx); err != nil || me.GetId() != r2bID {
+		t.Fatalf("the late answer signed the other account out: %v %v", me, err)
+	}
+	_, err = a.RetryAccountDeletion(ctx)
+	step("retry", err, connect.CodeUnavailable)
+	err = a.DeleteAccountOnce(ctx, closeReq("r2-a-1"), aID)
+	step("repeat while another account is signed in", err, connect.CodeUnauthenticated)
+	err = a.DeleteAccountOnce(ctx, closeReq("r2-other"), r2bID)
+	step("another mutation", err, connect.CodeFailedPrecondition)
+	s.failMetro.Store(false)
+	d, err := a.RetryAccountDeletion(ctx)
+	if err != nil || d.GetState() != completedState {
+		t.Fatalf("finish: %v %v", d, err)
+	}
+	a.SetRecoveryCookie(token) // a lost completion answer: the receipt is read once more
+	if d, err = a.GetAccountDeletion(ctx); err != nil || d.GetState() != completedState {
+		t.Fatalf("receipt: %v %v", d, err)
+	}
+	if tap.wroteSession() || del.wroteSession() {
+		t.Fatalf("a deletion RPC wrote the session Cookie: %v %v", tap.seen(), del.seen())
+	}
+	if me, err := a.Me(ctx); err != nil || me.GetId() != r2bID {
+		t.Fatalf("the other account is no longer signed in: %v %v", me, err)
+	}
+}
+
+// R3/R4: answers about an older generation (a completion, a replay, a renewal) that arrive after a
+// newer deletion began cannot set, renew or clear the newer generation's Cookie.
+func TestChainLateAnswersAboutAnOlderGenerationLeaveTheNewOneAlone(t *testing.T) {
+	s := newCloseAccountStack(t)
+	ctx := context.Background()
+	_, bID, _ := s.account("r3_b")
+	a, aID, _ := s.account("r3_a")
+	tap := &cookieTap{match: "AccountDeletion"}
+	tap.wrap(a)
+	s.failMetro.Store(true)
+	if err := a.DeleteAccount(ctx, closeReq("r3-a-1"), aID); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("W1: %v", err)
+	}
+	g1 := a.RecoveryCookie()
+
+	// A renewal of G1 (a status read answer) is held back; then W1 finishes and its completion answer
+	// is held back as well.
+	tap.holdNext()
+	if _, err := a.GetAccountDeletion(ctx); err != nil {
+		t.Fatal(err)
+	}
+	renewal := append([]string(nil), tap.held...)
+	tap.mu.Lock()
+	tap.held = nil
+	tap.mu.Unlock()
+	s.failMetro.Store(false)
+	tap.holdNext()
+	if d, err := a.RetryAccountDeletion(ctx); err != nil || d.GetState() != completedState {
+		t.Fatalf("W1 retry: %v %v", d, err)
+	}
+	completion := append([]string(nil), tap.held...)
+	tap.mu.Lock()
+	tap.held = nil
+	tap.mu.Unlock()
+	if len(renewal) != 1 || len(completion) != 1 || a.RecoveryCookie() != g1 {
+		t.Fatalf("setup: %v %v %q", renewal, completion, a.RecoveryCookie())
+	}
+
+	// Another account signs in and begins its own deletion (W2, G2) while those answers are late.
+	if err := a.Login(ctx, "r3_b", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	s.failMetro.Store(true)
+	if err := a.DeleteAccount(ctx, closeReq("r3-b-1"), bID); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("W2: %v", err)
+	}
+	tokens := a.RecoveryCookies()
+	if len(tokens) != 2 {
+		t.Fatalf("expected the generations of W1 and W2: %v", tokens)
+	}
+	g2 := tokens[0]
+	if g2 == g1 {
+		g2 = tokens[1]
+	}
+
+	// The late answers arrive, in the worst order: the renewal of G1 and the completion of W1.
+	for _, late := range [][]string{renewal, completion} {
+		h := http.Header{}
+		for _, sc := range late {
+			h.Add("Set-Cookie", sc)
+		}
+		u, _ := url.Parse(a.Origin)
+		a.HTTP.Jar.SetCookies(u, (&http.Response{Header: h}).Cookies())
+		if !slices.Contains(a.RecoveryCookies(), g2) {
+			t.Fatal("a late answer about W1 removed the recovery Cookie of W2")
+		}
+	}
+	// W2 is what the browser sees, retries and finishes; W1's receipt (or its inert Cookie) does not
+	// get in the way.
+	if d, err := a.GetAccountDeletion(ctx); err != nil || d.GetState() != pendingState || d.GetMutationId() != "r3-b-1" {
+		t.Fatalf("W2 cannot be seen: %v %v", d, err)
+	}
+	s.failMetro.Store(false)
+	if d, err := a.RetryAccountDeletion(ctx); err != nil || d.GetState() != completedState || d.GetMutationId() != "r3-b-1" {
+		t.Fatalf("W2 retry: %v %v", d, err)
+	}
+	if slices.Contains(a.RecoveryCookies(), g2) {
+		t.Fatal("the finished W2 left its Cookie")
+	}
+}
+
+// A deletion that began under the earlier build kept one mutable fixed-name Cookie. It is still
+// honoured, in every call, and the answer moves the browser to the generation Cookie and removes
+// the old one; a fixed-name Cookie whose value opens nothing is inert.
+func TestChainLegacyFixedNameRecoveryCookieIsAdoptedAndRetired(t *testing.T) {
+	s := newCloseAccountStack(t)
+	ctx := context.Background()
+	a, aID, aKey := s.account("leg_a")
+	s.failMetro.Store(true)
+	if err := a.DeleteAccount(ctx, closeReq("leg-a-1"), aID); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatal(err)
+	}
+	token := a.RecoveryCookie()
+	a.DropRecoveryCookie()
+	a.SetLegacyRecoveryCookie(token)
+	if d, err := a.GetAccountDeletion(ctx); err != nil || d.GetState() != pendingState {
+		t.Fatalf("read through the fixed-name Cookie: %v %v", d, err)
+	}
+	if a.RecoveryCookie() != token || a.LegacyRecoveryCookie() != "" {
+		t.Fatalf("the answer must move the browser to the generation Cookie: %q %q", a.RecoveryCookie(), a.LegacyRecoveryCookie())
+	}
+
+	// A fixed-name Cookie that was set while the begin was still to come (the old confirmation) lets it begin.
+	b, bID, bKey := s.account("leg_b")
+	b.SetLegacyRecoveryCookie(b.SessionCookie())
+	if err := b.DeleteAccountOnce(ctx, closeReq("leg-b-1"), bID); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("begin with the fixed-name confirmation: %v", err)
+	}
+	if b.RecoveryCookie() != a.SessionCookie() && b.RecoveryCookie() == "" || b.LegacyRecoveryCookie() != "" {
+		t.Fatalf("after the begin: %q %q", b.RecoveryCookie(), b.LegacyRecoveryCookie())
+	}
+
+	// A fixed-name Cookie with a value that opens nothing is inert, and is left alone.
+	c := s.FreshBrowser()
+	c.SetLegacyRecoveryCookie("bf_nothing")
+	if _, err := c.GetAccountDeletion(ctx); connect.CodeOf(err) != connect.CodeUnauthenticated || c.LegacyRecoveryCookie() != "bf_nothing" {
+		t.Fatalf("an inert fixed-name Cookie: %v %q", err, c.LegacyRecoveryCookie())
+	}
+	s.failMetro.Store(false)
+	for _, x := range []struct {
+		b   *Browser
+		key string
+	}{{a, aKey}, {b, bKey}} {
+		if d, err := x.b.RetryAccountDeletion(ctx); err != nil || d.GetState() != completedState {
+			t.Fatalf("retry: %v %v", d, err)
+		}
+		if s.hasObject(x.key) {
+			t.Fatal("media survived")
+		}
+	}
+}
+
+// Several credentials in one browser are never mixed up: the call that names a mutation reaches that
+// deletion, an unnamed one the oldest unfinished, and a Cookie whose name belongs to another value, or
+// that is not a generation Cookie at all, opens nothing.
+func TestChainSeveralRecoveryCookiesInOneBrowser(t *testing.T) {
+	s := newCloseAccountStack(t)
+	ctx := context.Background()
+	a1, a1ID, _ := s.account("multi_a")
+	a2, a2ID, _ := s.account("multi_b")
+	s.failMetro.Store(true)
+	if err := a1.DeleteAccount(ctx, closeReq("multi-a"), a1ID); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatal(err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	if err := a2.DeleteAccount(ctx, closeReq("multi-b"), a2ID); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatal(err)
+	}
+	tokenA, tokenB := a1.RecoveryCookie(), a2.RecoveryCookie()
+	a1.SetRecoveryCookie(tokenB) // the browser now holds both generations
+
+	if d, err := a1.GetAccountDeletion(ctx); err != nil || d.GetMutationId() != "multi-a" {
+		t.Fatalf("the oldest unfinished deletion is the unnamed answer: %v %v", d, err)
+	}
+	if err := a1.DeleteAccountOnce(ctx, closeReq("multi-b"), a2ID); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("a call naming the second mutation must reach it: %v", err)
+	}
+	if got := a1.RecoveryCookies(); len(got) != 2 || !slices.Contains(got, tokenA) || !slices.Contains(got, tokenB) {
+		t.Fatalf("both Cookies must stay while both are unfinished: %v", got)
+	}
+	// A name that does not belong to its value opens nothing, and neither does a plain name.
+	forged := s.FreshBrowser()
+	u, _ := url.Parse(forged.Origin)
+	forged.HTTP.Jar.SetCookies(u, []*http.Cookie{
+		{Name: session.RecoveryCookieName(tokenA), Value: tokenB, Path: "/"},
+		{Name: session.RecoveryCookiePrefix + "0000000000000000", Value: tokenA, Path: "/"},
+		{Name: "kongken_del_x", Value: tokenA, Path: "/"},
+	})
+	if _, err := forged.GetAccountDeletion(ctx); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("a Cookie standing for another generation: %v", err)
+	}
+	s.failMetro.Store(false)
+	for _, want := range []string{"multi-a", "multi-b"} {
+		d, err := a1.RetryAccountDeletion(ctx)
+		if err != nil || d.GetState() != completedState || d.GetMutationId() != want {
+			t.Fatalf("retry for %s: %v %v", want, d, err)
+		}
+	}
+	if len(a1.RecoveryCookies()) != 0 {
+		t.Fatalf("finished deletions left Cookies: %v", a1.RecoveryCookies())
+	}
+}

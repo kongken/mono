@@ -463,7 +463,7 @@ curl --fail http://127.0.0.1:18081/api/bff.tripmap.v1.StatusService/GetStatus \
 | `users` | BFF 身份映射 ID、`schema_version`（足迹结构，默认 1，F5 升级后为 2）、可空且可重复的登录名、展示名/头像缓存、`friend_code`（F7 好友邀请码）、`friend_show_cities/dates/notes`（F7 对好友公开范围）、足迹 `revision`、创建/更新时间；不保存认证凭据 |
 | `auth_identities`（遗留） | 旧的外部身份 `(issuer, sub)` 映射；不再被运行时读写，由 `retire_logto_identities.sql` 手动清理（范围见 [Logto 退役](usersrv/retirement.md)） |
 | `auth_browser_sessions` | BFF 浏览器会话：令牌摘要、用户 UUID、`auth_version`、`authenticated_at`（真实的密码验证时间）、创建/过期/最近使用时间与撤销标记 |
-| `bff_account_deletions` | 注销工作流（按 Cookie 摘要，一个用户一行）：阶段 `begin/cleanup/finish/local/done`、固定的产品清单与已完成产品、次数/最后错误/下次重试时间、租约、回执过期时间 |
+| `bff_account_deletions` | 注销工作流（按开始注销的会话令牌摘要，一个用户一行；恢复凭据是按代次命名的 `kongken_del_*` Cookie）：阶段 `begin/cleanup/finish/local/done`、固定的产品清单与已完成产品、次数/最后错误/下次重试时间、租约、回执过期时间 |
 | `city_visits` | 所属用户、区域 ID/名称、所属省份、颜色、日期字符串、备注；`user_id + region_code` 唯一。F5 起日期与备注列是版本 1 的冻结副本，不再更新 |
 | `city_trips` | F5：所属用户、所属城市行（外键，级联删除）、旅行 ID（`user_id + trip_id` 唯一）、区域 ID、日期字符串、备注、创建/更新时间 |
 | `province_marks` | 所属用户、省份 ID、颜色；`user_id + province_code` 唯一 |

@@ -69,12 +69,13 @@ export function CloseAccountScope() {
  * The self-service "close account" flow of OzID.
  *
  * Beginning needs the current password checked again and a typed confirmation. From the
- * moment the BFF accepts it the account is closed and the session is gone. Before it accepts it,
+ * moment the BFF accepts it the account is closed and the session is revoked on the server (no deletion answer rewrites the session Cookie). Before it accepts it,
  * the BFF has had the browser store a dedicated HttpOnly recovery Cookie (the API call repeats once
  * for that), which is the only credential that can show or continue this deletion: it is not a
  * session and signs nothing in. So after a lost response, a reload, a restart, a failing product or
  * another account signing in, the page asks that Cookie where the deletion is and offers to continue
- * it. Nothing here clears it: only the finished deletion does, on the server's answer.
+ * it. The page never clears it: the server drops the finished deletion's own Cookie, and an answer
+ * about nothing writes nothing.
  */
 export function CloseAccountFlow({ api, mode, account, onNoSession }: CloseAccountFlowProps) {
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });

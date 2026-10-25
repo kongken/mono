@@ -222,8 +222,10 @@ func TestOzidBrowserChain(t *testing.T) {
 		// arrives after the deletion began; lreq: a sign-out request that arrives after it began;
 		// lost1 / lost2: the first (recovery Cookie) / the second (the start) response is lost;
 		// rst: a restarted BFF finishes it; open and swap are never closed (a sign-out response
-		// that arrives late; another account's sign-in in another tab).
-		for _, kind := range []string{"guard", "late", "lreq", "lost1", "lost2", "rst", "open", "swap"} {
+		// that arrives late; another account's sign-in in another tab); s1: a status answer held
+		// until after the begin; r2: one held until another account signed in; r3a / r3b: the first
+		// deletion's completion answer held until the second account's began.
+		for _, kind := range []string{"guard", "late", "lreq", "lost1", "lost2", "rst", "open", "swap", "s1", "r2", "r3a", "r3b"} {
 			seedNames = append(seedNames, "close-"+kind+"-"+project)
 		}
 	}
