@@ -478,3 +478,249 @@ test.describe("account changes", () => {
     await expect(page.getByTestId("act-status")).toBeFocused();
   });
 });
+
+// ---- account audit ---------------------------------------------------------------------------------
+// UI behaviour against the fake BFF, in the desktop and the mobile project alike. The same rules against the
+// real stack are in internal/e2e (TestChainUserAudit*) and the real-stack spec.
+
+const auditRows = (page: Page) => page.getByTestId("audit-row");
+const queryAudit = (page: Page) => page.getByRole("button", { name: "查询" }).click();
+
+test.describe("account audit", () => {
+  test("the audit is a section of the platform administrator only, and a metro-admin gets no data even by address", async ({ page }) => {
+    const s = await setup(page, { roles: ["metro-admin"] });
+    await page.goto("/audit/users");
+    await expect(page.getByTestId("no-permission")).toBeVisible();
+    expect(s.admin.auditCalls()).toHaveLength(0);
+
+    const ok = await setup(await page.context().newPage(), { roles: ["ozid-admin"] });
+    const p2 = page.context().pages()[1]!;
+    await p2.goto("/");
+    await expect(p2.getByTestId("sections").getByRole("link", { name: "账号审计" })).toBeVisible();
+    await expect(p2.getByTestId("section-cards")).toContainText("账号安全与管理操作");
+    await p2.getByTestId("sections").getByRole("link", { name: "账号审计" }).click();
+    await expect(p2.getByRole("heading", { name: "账号审计" })).toBeVisible();
+    await expect(p2.getByTestId("sections").getByRole("link", { name: "账号审计" })).toHaveAttribute("aria-current", "page");
+    expect(ok.admin.auditCalls().length).toBeGreaterThan(0);
+  });
+
+  test("an anonymous visitor is sent to OzID login and comes back to the audit", async ({ page }) => {
+    const s = await setup(page, { signedIn: false });
+    await page.goto("/audit/users");
+    await page.waitForURL(`${OZID}/login?**`);
+    expect(new URL(page.url()).searchParams.get("return_path")).toBe("/audit/users");
+    expect(s.admin.auditCalls()).toHaveLength(0);
+  });
+
+  test("lists the newest rows first, 50 to a page, and pages forward and back without repeating or skipping", async ({ page }) => {
+    await setup(page, { roles: ["ozid-admin"] });
+    await page.goto("/audit/users");
+    await expect(auditRows(page)).toHaveCount(50);
+    await expect(page.getByTestId("page-number")).toHaveText("第 1 页");
+    const ids = async () => (await page.getByTestId("audit-row").evaluateAll((els) => els.map((e) => e.textContent ?? "")));
+    const first = await ids();
+    await page.getByRole("button", { name: "下一页" }).click();
+    await expect(page.getByTestId("page-number")).toHaveText("第 2 页");
+    await expect(auditRows(page)).toHaveCount(50);
+    await page.getByRole("button", { name: "下一页" }).click();
+    await expect(page.getByTestId("page-number")).toHaveText("第 3 页");
+    await expect(auditRows(page)).toHaveCount(32); // 132 rows: two replays and 130 seeded
+    await expect(page.getByRole("button", { name: "下一页" })).toBeDisabled();
+    await page.getByRole("button", { name: "上一页" }).click();
+    await page.getByRole("button", { name: "上一页" }).click();
+    await expect(page.getByTestId("page-number")).toHaveText("第 1 页");
+    expect(await ids()).toEqual(first);
+    // Newest first: the times never increase down the list.
+    const times = await page.getByTestId("audit-time").evaluateAll((els) => els.map((e) => (e as HTMLTimeElement).dateTime));
+    expect([...times].sort().reverse()).toEqual(times);
+  });
+
+  test("a replay says it was not run again and shows the original it points at - or that there is none to show", async ({ page }) => {
+    await setup(page, { roles: ["ozid-admin"] });
+    await page.goto("/audit/users");
+    const [purged, exact] = [auditRows(page).nth(0), auditRows(page).nth(1)];
+    await expect(exact.getByTestId("audit-result")).toContainText("重复提交");
+    await expect(exact.getByTestId("audit-origin")).toContainText("没有再执行");
+    await expect(exact.getByTestId("audit-origin")).toContainText("禁用账号");
+    await expect(exact.getByTestId("audit-origin")).toContainText("状态：正常 → 已禁用");
+    await expect(exact.getByTestId("audit-change")).toHaveCount(0); // a replay carries no state of its own
+    await expect(purged.getByTestId("audit-origin")).toContainText("超出保留范围");
+  });
+
+  test("shows the channel and the operator: a web operator is an account, a command-line operator is only a name", async ({ page }) => {
+    await setup(page, { roles: ["ozid-admin"] });
+    await page.goto("/audit/users");
+    await page.getByLabel("渠道").selectOption("cli");
+    await queryAudit(page);
+    await expect(auditRows(page).first()).toBeVisible();
+    const n = await auditRows(page).count();
+    expect(n).toBeGreaterThan(5);
+    for (let i = 0; i < n; i++) {
+      const r = auditRows(page).nth(i);
+      await expect(r.getByTestId("audit-channel")).toHaveText("命令行（运维）");
+      await expect(r.getByTestId("audit-operator")).toContainText("ops-cli");
+      await expect(r.getByTestId("audit-operator")).toContainText("不是网页账号");
+      await expect(r.getByTestId("audit-operator").getByRole("link")).toHaveCount(0);
+    }
+    await page.getByLabel("渠道").selectOption("web");
+    await queryAudit(page);
+    const web = auditRows(page).first();
+    await expect(web.getByTestId("audit-channel")).toHaveText("网页控制台");
+    await expect(web.getByTestId("audit-operator").getByRole("link")).toHaveAttribute("href", `/users/${uid(9001)}`);
+  });
+
+  test("filters by account, operator, result, action, key and time, combines them and clears them", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await page.goto("/audit/users");
+    const sent = () => s.admin.auditCalls().at(-1)!.body;
+
+    await page.getByLabel("结果").selectOption("refused_target_protected");
+    await queryAudit(page);
+    await expect(auditRows(page).first()).toBeVisible();
+    for (const r of await auditRows(page).all()) await expect(r.getByTestId("audit-result")).toContainText("受保护的账号");
+    expect(sent()).toMatchObject({ result: "refused_target_protected" });
+
+    await page.getByLabel("操作类型").fill("admin.account.disable");
+    await page.getByLabel("操作编号").fill("key-4");
+    await queryAudit(page);
+    expect(sent()).toMatchObject({ result: "refused_target_protected", action: "admin.account.disable", mutationId: "key-4" });
+    await expect(auditRows(page)).toHaveCount(1);
+    await expect(auditRows(page).first().getByTestId("audit-mutation")).toHaveText("key-4");
+    await expect(auditRows(page).first().getByTestId("audit-reason")).toHaveText("误操作");
+
+    await page.getByRole("button", { name: "清除条件" }).click();
+    await expect(auditRows(page)).toHaveCount(50);
+    expect(sent()).toEqual({}); // nothing set: the JSON of an empty request
+
+    await page.getByLabel("被操作账号 ID").fill(uid(9));
+    await queryAudit(page);
+    for (const r of await auditRows(page).all()) await expect(r.getByTestId("audit-user")).toHaveText(uid(9));
+    await page.getByRole("button", { name: "清除条件" }).click();
+
+    await page.getByLabel("操作者账号 ID").fill(uid(9001));
+    await queryAudit(page);
+    for (const r of await auditRows(page).all()) await expect(r.getByTestId("audit-channel")).toHaveText("网页控制台");
+
+    await page.getByRole("button", { name: "清除条件" }).click();
+    await page.getByLabel("开始时间（含）").fill("2999-01-01T00:00");
+    await queryAudit(page);
+    await expect(page.getByTestId("no-audit")).toBeVisible();
+    expect(sent().from).toBeTruthy();
+  });
+
+  test("a malformed or contradictory filter is explained and never sent", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await page.goto("/audit/users");
+    await expect(auditRows(page).first()).toBeVisible();
+    const before = s.admin.auditCalls().length;
+    await page.getByLabel("被操作账号 ID").fill("not-an-id");
+    await queryAudit(page);
+    await expect(page.getByTestId("audit-filter-problem")).toContainText("账号 ID");
+    await page.getByLabel("被操作账号 ID").fill("");
+    await page.getByLabel("操作编号").fill("has space");
+    await queryAudit(page);
+    await expect(page.getByTestId("audit-filter-problem")).toContainText("操作编号");
+    await page.getByLabel("操作编号").fill("");
+    await page.getByLabel("开始时间（含）").fill("2026-02-01T00:00");
+    await page.getByLabel("结束时间（不含）").fill("2026-01-01T00:00");
+    await queryAudit(page);
+    await expect(page.getByTestId("audit-filter-problem")).toContainText("早于");
+    expect(s.admin.auditCalls()).toHaveLength(before);
+    await page.getByLabel("结束时间（不含）").fill("2026-12-01T00:00");
+    await queryAudit(page);
+    await expect(page.getByTestId("audit-filter-problem")).toHaveCount(0);
+  });
+
+  test("a real change made in the console is in the audit of that account, with who, why and before and after", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await open(page, ACTIVE);
+    await page.getByTestId("act-status").click();
+    await confirm(page, "工单 91：用户申请");
+    await expect(page.getByTestId("detail-status")).toHaveText("已禁用");
+    await page.getByTestId("audit-link").click();
+    await expect(page).toHaveURL(new RegExp(`/audit/users\\?user=${ACTIVE}$`));
+    await expect(page.getByTestId("audit-scope")).toContainText(ACTIVE);
+    const mine = auditRows(page).first();
+    await expect(mine.getByTestId("audit-action")).toHaveText("禁用账号");
+    await expect(mine.getByTestId("audit-result")).toContainText("已完成");
+    await expect(mine.getByTestId("audit-change")).toHaveText("状态：正常 → 已禁用");
+    await expect(mine.getByTestId("audit-reason")).toHaveText("工单 91：用户申请");
+    await expect(mine.getByTestId("audit-operator")).toContainText(s.account.id);
+    await expect(mine.getByTestId("audit-channel")).toHaveText("网页控制台");
+    expect(s.admin.auditCalls().at(0)!.body).toMatchObject({ userId: ACTIVE });
+    // From the audit back to the account.
+    await page.getByRole("link", { name: "查看账号详情" }).click();
+    await expect(page.getByTestId("detail-id")).toHaveText(ACTIVE);
+    // The menu link starts over with no account.
+    await page.getByTestId("audit-link").click();
+    await page.getByTestId("sections").getByRole("link", { name: "账号审计" }).click();
+    await expect(page.getByTestId("audit-scope")).toHaveCount(0);
+    await expect(auditRows(page)).toHaveCount(50);
+  });
+
+  test("nothing but allowed metadata is shown or kept: no email, password or token, and only an account ID in the address", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await page.goto("/audit/users");
+    await expect(auditRows(page).first()).toBeVisible();
+    await page.getByLabel("被操作账号 ID").fill(uid(9));
+    await queryAudit(page);
+    await expect(auditRows(page).first()).toBeVisible();
+    const text = (await page.locator("main").innerText()).toLowerCase();
+    for (const secret of ["@example.com", "password", "token", "密码哈希", "bearer"]) expect(text).not.toContain(secret);
+    const stored = await page.evaluate(() => JSON.stringify([{ ...localStorage }, { ...sessionStorage }]));
+    expect(stored).not.toContain(uid(9));
+    expect(stored).not.toContain("example.com");
+    expect(page.url()).toBe("http://127.0.0.1:4177/audit/users"); // an account typed into the form is not put in the address
+    for (const c of s.admin.auditCalls()) expect(JSON.stringify(c.body)).not.toContain("@");
+  });
+
+  test("a slow older answer never replaces a newer one", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    await page.goto("/audit/users");
+    await expect(auditRows(page)).toHaveCount(50);
+    const slow = s.admin.holdNext();
+    await page.getByLabel("渠道").selectOption("cli");
+    await queryAudit(page);
+    await slow.arrived;
+    await page.getByLabel("渠道").selectOption("self");
+    await queryAudit(page);
+    await expect(auditRows(page).first().getByTestId("audit-channel")).toHaveText("账号本人");
+    slow.release();
+    await page.waitForTimeout(300);
+    await expect(auditRows(page).first().getByTestId("audit-channel")).toHaveText("账号本人");
+  });
+
+  test("refusals keep their meaning", async ({ page }) => {
+    const s = await setup(page, { roles: ["ozid-admin"] });
+    s.admin.state.perimeterClosed = true;
+    await page.goto("/audit/users");
+    await expect(page.getByTestId("problem-not_allowed")).toBeVisible();
+    await expect(page.getByTestId("no-permission")).toHaveCount(0);
+    s.admin.state.perimeterClosed = false;
+    s.admin.state.reauthNeeded = true;
+    await queryAudit(page);
+    await expect(page.getByTestId("problem-reauth")).toBeVisible();
+    expect(s.visited).toHaveLength(0);
+    s.admin.state.reauthNeeded = false;
+    s.admin.state.unavailable = 1;
+    await queryAudit(page);
+    await expect(page.getByTestId("problem-unavailable")).toBeVisible();
+    await page.getByRole("button", { name: "重试" }).click();
+    await expect(auditRows(page).first()).toBeVisible();
+  });
+
+  test("the audit works on a narrow screen: nothing overflows and the filters and paging can be reached", async ({ page }) => {
+    await setup(page, { roles: ["ozid-admin"] });
+    await page.goto("/audit/users");
+    await expect(auditRows(page).first()).toBeVisible();
+    expect(await noOverflow(page)).toBe(true);
+    await page.getByLabel("被操作账号 ID").fill(uid(9));
+    await page.getByRole("button", { name: "清除条件" }).scrollIntoViewIfNeeded();
+    expect(await noOverflow(page)).toBe(true);
+    await page.getByRole("button", { name: "清除条件" }).click();
+    await page.getByRole("button", { name: "下一页" }).scrollIntoViewIfNeeded();
+    await page.getByRole("button", { name: "下一页" }).click();
+    await expect(page.getByTestId("page-number")).toHaveText("第 2 页");
+    expect(await noOverflow(page)).toBe(true);
+  });
+});

@@ -348,3 +348,140 @@ test.describe("real account changes", () => {
     await setSource(page, stack.inside);
   });
 });
+
+test.describe("real account audit", () => {
+  const AUDIT = /UserAdminService\/ListSecurityAudit/;
+  const auditRows = (page: Page) => page.getByTestId("audit-row");
+  const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+
+  test("an operator signs in from the audit address and lands back on it; the registry allows exactly this page", async ({ page }) => {
+    await openConsole(page, "operator", "/audit/users");
+    await expect(page.getByRole("heading", { name: "账号审计" })).toBeVisible();
+    await expect(auditRows(page).first()).toBeVisible();
+    await expect(page.getByTestId("sections").getByRole("link", { name: "账号审计" })).toHaveAttribute("aria-current", "page");
+    expect(await noOverflow(page)).toBe(true);
+    // The newest rows are the sign-ins and audit reads of this scenario: classified, with no address in them.
+    const text = await page.getByTestId("audit-list").innerText();
+    expect(text).toMatch(/登录|查询账号审计/);
+    for (const a of stack.accounts) expect(text).not.toContain(a.email);
+    expect(text).not.toContain(stack.password);
+  });
+
+  test("an account with no platform role and a metro-admin alone get no audit data", async ({ page, browser }) => {
+    const calls: string[] = [];
+    page.on("request", (r) => AUDIT.test(r.url()) && calls.push(r.url()));
+    await openConsole(page, "plain", "/audit/users");
+    await expect(page.getByTestId("no-permission")).toBeVisible();
+    expect(calls).toEqual([]);
+    const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: page.viewportSize() });
+    const metro = await ctx.newPage();
+    try {
+      metro.on("request", (r) => AUDIT.test(r.url()) && calls.push(r.url()));
+      await openConsole(metro, "metro", "/audit/users");
+      await expect(metro.getByTestId("no-permission")).toBeVisible();
+      await expect(metro.getByTestId("sections")).toHaveCount(0);
+      expect(calls).toEqual([]);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test("a change made in the console shows in that account's audit: who, what, why, before and after - and the command line is told apart", async ({ page }) => {
+    const target = account("target");
+    await openConsole(page, "operator", "/users");
+    await page.getByLabel("查找方式").selectOption({ label: "邮箱（精确）" });
+    await page.getByLabel("查找内容").fill(target.email);
+    await page.getByRole("button", { name: "查询" }).click();
+    await expect(rows(page)).toHaveCount(1);
+    await rows(page).first().getByRole("link").click();
+    await expect(page.getByTestId("detail-email")).toHaveText(target.email);
+    const id = await page.getByTestId("detail-id").innerText();
+
+    const reason = `工单 ${Date.now() % 1000}：审计验证`;
+    for (const done of ["已禁用", "正常"]) {
+      await page.getByTestId("act-status").click();
+      await page.getByTestId("change-reason").fill(reason);
+      await page.getByTestId("change-confirm").scrollIntoViewIfNeeded();
+      await page.getByTestId("change-confirm").click();
+      await expect(page.getByTestId("detail-status")).toHaveText(done);
+    }
+
+    await page.getByTestId("audit-link").click();
+    await expect(page).toHaveURL(`${stack.admin}/audit/users?user=${id}`);
+    await expect(auditRows(page).first()).toBeVisible();
+    const web = auditRows(page).filter({ hasText: "网页控制台" }).filter({ hasText: reason });
+    await expect(web).toHaveCount(2);
+    await expect(web.nth(0).getByTestId("audit-action")).toHaveText("启用账号");
+    await expect(web.nth(0).getByTestId("audit-change")).toHaveText("状态：已禁用 → 正常");
+    await expect(web.nth(1).getByTestId("audit-action")).toHaveText("禁用账号");
+    await expect(web.nth(1).getByTestId("audit-change")).toHaveText("状态：正常 → 已禁用");
+    await expect(web.nth(1).getByTestId("audit-result")).toContainText("已完成");
+    // The web operator is an account (a link), the same one on both rows; every row of the page is about this account.
+    const operatorHref = await web.nth(0).getByTestId("audit-operator").getByRole("link").getAttribute("href");
+    expect(operatorHref).toMatch(/^\/users\/[0-9a-f-]{36}$/);
+    expect(await web.nth(1).getByTestId("audit-operator").getByRole("link").getAttribute("href")).toBe(operatorHref);
+    for (const u of await page.getByTestId("audit-user").all()) await expect(u).toHaveText(id);
+    // The command line (how the platform role of the operator was granted) is a different channel, with only a name.
+    await page.getByRole("button", { name: "清除条件" }).click();
+    await page.getByLabel("渠道").selectOption("cli");
+    await page.getByRole("button", { name: "查询" }).click();
+    await expect(auditRows(page).first()).toBeVisible();
+    await expect(auditRows(page).first().getByTestId("audit-operator")).toContainText("不是网页账号");
+    await expect(auditRows(page).first().getByTestId("audit-operator").getByRole("link")).toHaveCount(0);
+    // The page and the address hold no email, password or token; storage holds nothing of the audit.
+    const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + document.cookie);
+    expect(stored).not.toContain(id);
+    expect(stored).not.toContain(stack.password);
+    expect(await page.locator("main").innerText()).not.toContain("@");
+    expect(await noOverflow(page)).toBe(true);
+  });
+
+  test("filters and paging work against the real list", async ({ page }) => {
+    await openConsole(page, "operator", "/audit/users");
+    await expect(auditRows(page).first()).toBeVisible();
+    await page.getByLabel("结果").selectOption("ok");
+    await page.getByLabel("操作类型").fill("account.create");
+    await page.getByRole("button", { name: "查询" }).click();
+    await expect(auditRows(page).first()).toBeVisible();
+    for (const r of await auditRows(page).all()) await expect(r.getByTestId("audit-action")).toHaveText("创建账号");
+    await page.getByLabel("操作类型").fill("Not A Class");
+    await page.getByRole("button", { name: "查询" }).click();
+    await expect(page.getByTestId("audit-filter-problem")).toContainText("操作类型");
+    await page.getByRole("button", { name: "清除条件" }).click();
+    await expect(page.getByTestId("page-number")).toHaveText("第 1 页");
+    await expect(page.getByRole("button", { name: "上一页" })).toBeDisabled();
+  });
+
+  test("another product's page cannot read the audit with the operator's session, and a source outside the allowlist gets nothing", async ({ page }) => {
+    await openConsole(page, "operator", "/audit/users");
+    await expect(auditRows(page).first()).toBeVisible();
+    await page.goto(`${stack.trip}/`);
+    await expect(page.locator("#me")).toHaveText(`user:${account("operator").displayName}`);
+    const result = await page.evaluate(async (api) => {
+      try {
+        const r = await fetch(`${api}/api/bff.v1.UserAdminService/ListSecurityAudit`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json", "Connect-Protocol-Version": "1" },
+          body: "{}",
+        });
+        return { status: r.status, body: await r.text() };
+      } catch {
+        return { status: 0, body: "blocked" };
+      }
+    }, stack.api);
+    expect([0, 403]).toContain(result.status);
+    expect(result.body).not.toContain("entries");
+
+    // A console page that is already open, queried again from outside the allowlist, is refused at the BFF.
+    await page.goto(`${stack.admin}/audit/users`);
+    await expect(auditRows(page).first()).toBeVisible();
+    const other = await page.context().newPage();
+    await setSource(other, stack.outside);
+    await other.close();
+    await page.getByRole("button", { name: "查询" }).click();
+    await expect(page.getByTestId("problem-network")).toBeVisible();
+    await expect(auditRows(page)).toHaveCount(0);
+    await setSource(page, stack.inside);
+  });
+});

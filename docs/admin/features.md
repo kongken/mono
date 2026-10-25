@@ -1,13 +1,13 @@
-# 统一管理控制台：功能描述（T4 受控控制台与用户查询，T5 账号状态与角色修改）
+# 统一管理控制台：功能描述（T4 受控控制台与用户查询，T5 账号状态与角色修改，T6 账号安全与管理审计查询）
 
-本文描述 [OzID 规格](../ozid/spec.md) 中 [Issue #82（T4）](https://github.com/kongken/mono/issues/82) 已实现的行为：独立的管理控制台 `apps/admin`、它的受控入口（来源网络、控制台 Origin、会话与平台角色），以及用户查询；[Issue #83（T5）](https://github.com/kongken/mono/issues/83) 在其上加入普通账号的禁用/启用与 `metro-admin` 的授予/撤销（见“账号状态与角色修改”）。**尚未实现**的部分见文末“当前限制”：metro 后台迁移、账号审计页、metro 管理接口的来源策略切换。文中域名与地址全部是保留示例（`admin.example.com`、`203.0.113.0/24` 等），不代表任何真实部署。
+本文描述 [OzID 规格](../ozid/spec.md) 中 [Issue #82（T4）](https://github.com/kongken/mono/issues/82) 已实现的行为：独立的管理控制台 `apps/admin`、它的受控入口（来源网络、控制台 Origin、会话与平台角色），以及用户查询；[Issue #83（T5）](https://github.com/kongken/mono/issues/83) 在其上加入普通账号的禁用/启用与 `metro-admin` 的授予/撤销（见“账号状态与角色修改”）；[Issue #84（T6）](https://github.com/kongken/mono/issues/84) 加入账号安全与管理审计查询页（见“账号安全与管理审计查询（T6）”）。**尚未实现**的部分见文末“当前限制”：metro 后台迁移、metro 管理接口的来源策略切换。文中域名与地址全部是保留示例（`admin.example.com`、`203.0.113.0/24` 等），不代表任何真实部署。
 
 ## 现状与范围
 
-| 已实现（T4、T5） | 尚未实现 |
+| 已实现（T4、T5、T6） | 尚未实现 |
 |---|---|
-| `apps/admin`（`@kongken/admin`）：独立构建、独立镜像 `admin-web`；匿名跳 OzID 登录并返回；无角色显示“没有权限”（不跳转、不循环）；按真实角色显示分区；“管理 OzID 账号”链接到 OzID | metro 后台页面迁移（控制台里没有 metro 分区，也不展示假分区）、账号审计页 |
-| BFF `bff.v1.UserAdminService` 与内部 `usersrv.v1.UserAdminService`：`ListUsers/GetUser`（只读）、T5 的 `DisableUser/EnableUser/GrantMetroAdmin/RevokeMetroAdmin`（仅这四个动作）；`required_role = "ozid-admin"`，BFF 入口与 usersrv 各自独立校验 | 网页上授予/撤销平台角色、改平台管理员的状态或角色、设置他人密码、代登录、代注销、批量或任意角色替换（没有对应接口） |
+| `apps/admin`（`@kongken/admin`）：独立构建、独立镜像 `admin-web`；匿名跳 OzID 登录并返回；无角色显示“没有权限”（不跳转、不循环）；按真实角色显示分区；“管理 OzID 账号”链接到 OzID | metro 后台页面迁移（控制台里没有 metro 分区，也不展示假分区）；全站统一审计（metro 目录审计与管理令牌调用日志各自留在原处） |
+| BFF `bff.v1.UserAdminService` 与内部 `usersrv.v1.UserAdminService`：`ListUsers/GetUser`（只读）、T6 的 `ListSecurityAudit`（只读，账号审计）、T5 的 `DisableUser/EnableUser/GrantMetroAdmin/RevokeMetroAdmin`（仅这四个动作）；`required_role = "ozid-admin"`，BFF 入口与 usersrv 各自独立校验 | 网页上授予/撤销平台角色、改平台管理员的状态或角色、设置他人密码、代登录、代注销、批量或任意角色替换（没有对应接口） |
 | 管理面“周界”（`admin` 配置）：来源 IP 白名单、受信代理链、精确控制台 Origin；BFF 对每个管理读接口独立检查，网关镜像对页面、静态资源和 SPA fallback 同样限制 | 现有 metro `AdminService`/`AccessTokenService` 的来源策略：随各自迁移任务切换，**T4 没有给它们加 IP 限制** |
 | 平台角色 `ozid-admin`：只能由运维 CLI `usersrv-admin grant-role/revoke-role` 授予/撤销，授予不随首位注册用户，不继承也不授予 `metro-admin`；每次变更提升 `auth_version` 并写审计 | 控制台的 metro 目录管理分区（继续使用现有管理入口） |
 | 平台管理员账号从引入起**不能被网页自助注销**（`BeginDeletion` 拒绝）；权限收回后也不会被之前被拒的注销自动关闭 | |
@@ -16,18 +16,18 @@
 
 控制台按**真实角色**显示分区；这只决定“显示什么”，每一次调用都由服务端再判断一次，隐藏菜单不是授权。
 
-| 账号 | 首页 | `/users`、`/users/:id` | 调用管理 API |
+| 账号 | 首页 | `/users`、`/users/:id`、`/audit/users` | 调用管理 API |
 |---|---|---|---|
 | 无角色 | “没有权限”页（可退出换账号、可去 OzID），不跳转 | “没有权限”，不发起任何用户查询 | `PERMISSION_DENIED` |
-| 只有 `ozid-admin` | 用户分区 | 可用 | 允许 |
+| 只有 `ozid-admin` | 用户与账号审计分区 | 可用 | 允许 |
 | 只有 `metro-admin` | 说明“地铁目录管理还没有迁入控制台”，无分区 | “没有权限” | `PERMISSION_DENIED`（**不**继承） |
-| 两个角色都有 | 用户分区（metro 分区待迁移任务） | 可用 | 允许 |
+| 两个角色都有 | 用户与账号审计分区（metro 分区待迁移任务） | 可用 | 允许 |
 
-匿名访问任何页面：控制台整页跳到 `OzID /login?app_id=admin&return_path=<当前页>`，登录后由 BFF 注册表（`navigation.apps.admin`）决定返回地址。未知地址（不是 `/`、`/users`、`/users/<UUID>`）显示控制台自己的“没有这个页面”，不要求登录、不展示数据。会话查询本身失败（网络、服务不可用）显示故障和“重试”，**不当成已退出**。
+匿名访问任何页面：控制台整页跳到 `OzID /login?app_id=admin&return_path=<当前页>`，登录后由 BFF 注册表（`navigation.apps.admin`）决定返回地址。未知地址（不是 `/`、`/users`、`/users/<UUID>`、`/audit/users`）显示控制台自己的“没有这个页面”，不要求登录、不展示数据。会话查询本身失败（网络、服务不可用）显示故障和“重试”，**不当成已退出**。
 
 ## 页面与交互
 
-- `/`：角色与可用分区。`/users`：筛选 + 表格 + 分页；`/users/:id`：账号详情，普通账号在此有“状态与角色”操作（T5）。
+- `/`：角色与可用分区。`/users`：筛选 + 表格 + 分页；`/users/:id`：账号详情，普通账号在此有“状态与角色”操作（T5），并有“查看此账号的审计记录”链接（T6）；`/audit/users`：账号审计（T6）。
 - 筛选：邮箱精确（规范化为小写；不是前缀/包含）、用户 ID、昵称（字面包含，不区分大小写，`%`、`_` 是普通字符，1–40 字符）、状态、角色。邮箱/用户 ID/昵称**最多选一种**。筛选条件只保存在组件状态里，**不写入地址栏、历史或浏览器存储**。
 - 分页：服务端按“创建时间倒序、ID 倒序”稳定排序；默认 50 条，上限 100，负数拒绝；翻页令牌不透明（页面不解析，不展示），“上一页”由页面保存已走过的令牌栈。较慢的旧响应不会覆盖较新的结果（最新请求才生效）。
 - 返回字段只有：用户 ID、邮箱、昵称、状态（正常/已禁用/注销中）、角色、注册时间，以及供修改使用的目标认证版本 `auth_version`（T5）。**没有**密码哈希、令牌、会话、产品私有数据，也没有批量导出。
@@ -76,9 +76,9 @@
 - 已经处于目标状态的请求（再次禁用已禁用账号、再次授予已有角色等）结果为 `unchanged`：不提升版本、不使旧会话失效，审计分类为 `unchanged`；重试已完成的请求也不会再次提升版本。
 - 启用或重新授予**不会让旧会话和管理令牌复活**：禁用与撤销已经提升了 `auth_version`，启用不会回退它，旧凭证按版本一直失效；账号需要重新登录，令牌需要重新创建。授予角色同样提升版本，所以账号会话重建后才带新角色。
 
-**审计。** 每次尝试在同一事务内写一行 `security_audit`：真实操作者（`actor_user_id`）、目标、动作（`admin.account.disable`、`admin.account.enable`、`admin.role.grant:metro-admin`、`admin.role.revoke:metro-admin`）、原因、变更 ID、渠道（`web`；CLI 为 `cli`）、变更前后的状态与角色（发生变化的那次操作有真实的前后值；`unchanged` 行与目标已读取之后才被拒绝的行记录读到的前后值，更早被拒绝的行为空；`replayed` 行为空，见下）、请求关联 ID、时间，以及结果：`ok`、`unchanged`、`replayed`、`refused_forbidden`、`not_found`、`refused_target_protected`、`refused_version_conflict`、`refused_not_active`、`refused_mutation_reuse`。不含密码、令牌或邮箱明文的查询内容。
+**审计。** 每次尝试在同一事务内写一行 `security_audit`：真实操作者（`actor_user_id`）、目标、动作（`admin.account.disable`、`admin.account.enable`、`admin.role.grant:metro-admin`、`admin.role.revoke:metro-admin`）、原因、变更 ID、渠道（网页为 `web`，CLI 为 `cli`；T6 起显式存储，另有 `self`、`system`，见 T6 一节）、变更前后的状态与角色（发生变化的那次操作有真实的前后值；`unchanged` 行与目标已读取之后才被拒绝的行记录读到的前后值，更早被拒绝的行为空；`replayed` 行为空，见下）、请求关联 ID、时间，以及结果：`ok`、`unchanged`、`replayed`、`refused_forbidden`、`not_found`、`refused_target_protected`、`refused_version_conflict`、`refused_not_active`、`refused_mutation_reuse`。不含密码、令牌或邮箱明文的查询内容。
 
-**重放的审计语义。** `replayed` 行只表示“把原结果重新送了一遍”：它有真实操作者、目标、动作、原因和变更 ID，但 `before_*`、`after_*` 一律为空——回执快照既不是账号当前状态，重放也不是一次新变化，所以不在这一行里描述状态。要看那次真实变化，用（`actor_user_id`，`mutation_id`）找到同键下结果不是 `replayed` 的那一行（`ok`/`unchanged`），它带有真实的前后状态与角色；同一个键下恰有一行原始记录和任意多行重放。
+**重放的审计语义。** `replayed` 行只表示“把原结果重新送了一遍”：它有真实操作者、目标、动作、原因和变更 ID，但 `before_*`、`after_*` 一律为空——回执快照既不是账号当前状态，重放也不是一次新变化，所以不在这一行里描述状态。要看那次真实变化，**不能**用（`actor_user_id`，`mutation_id`）去推断：回执 24 小时后过期，过期后同一个变更 ID 可被新请求复用；被拒绝的请求不留回执，也可能用同一个 ID。所以同一个（操作者，变更 ID）下可以有多个使用周期，每个周期各有自己的原始记录（`ok`/`unchanged`，或被拒绝的行）和零到多行重放，（操作者，变更 ID）不对应唯一的原始事件。T6 起重放行带 `origin_id`——它答复的那一行原始审计的 ID（由回执在写入时记下）——这是精确关联，见下一节；T6 之前写入的回执没有这个关联，对应重放行 `origin_id` 为空，只能说明“发生过重放”。
 
 **在途请求的授权边界。** 授权在事务开头检查一次（操作者仍是正常的 `ozid-admin`），不对操作者行加锁。事务已通过检查之后，CLI 撤销操作者权限或禁用它，在途的这一次写入仍会完成；这是被接受的边界（[父规格 #77](https://github.com/kongken/mono/issues/77) 验收 21 不承诺撤回已开始的请求），不为此增加更强的串行化。边界只在于“已经开始的”请求：撤权或禁用**提交之后**才开始的请求，包括回执重放，都被拒绝。
 
@@ -95,12 +95,44 @@
 | 密码确认过旧 | `FAILED_PRECONDITION`（`bffauth.ErrReauthRequired`） | 前往 OzID 验证并返回 |
 | 缺角色 / 来源不允许 / 限流 / 服务不可用 | 与读取相同 | 与读取相同 |
 
-**迁移与数据。** `migrations/usersrv/20261025130000_admin_mutations.sql`：`security_audit` 增加 `channel`、`actor_user_id`、`mutation_id`、`before/after_status`、`before/after_roles`（旧行取空默认值，`channel` 为空即迁移前由 CLI 写入的记录，数据原样保留）及检查约束；新建 `admin_mutations`（回执，`(operator_id, mutation_id)` 唯一，`expires_at` 索引）。usersrv 的定期清理（`PurgeExpired`）同时删除已过期回执。回滚前不需要数据迁移；回滚只会让新列与新表不再被使用。Ent 代码由 `make ent-usersrv` 生成，Protobuf 由 `make buf` 生成。
+**迁移与数据。** `migrations/usersrv/20261025130000_admin_mutations.sql`：`security_audit` 增加 `channel`、`actor_user_id`、`mutation_id`、`before/after_status`、`before/after_roles`（旧行取空默认值，`channel` 为空即迁移前写入的记录，数据原样保留；T6 的迁移 `20261025140000_audit_query.sql` 把这些空值按下文规则回填）及检查约束；新建 `admin_mutations`（回执，`(operator_id, mutation_id)` 唯一，`expires_at` 索引）。usersrv 的定期清理（`PurgeExpired`）同时删除已过期回执。回滚前不需要数据迁移；回滚只会让新列与新表不再被使用。Ent 代码由 `make ent-usersrv` 生成，Protobuf 由 `make buf` 生成。
+
+## 账号安全与管理审计查询（T6）
+
+`/audit/users` 把 usersrv 已经写入 `security_audit` 的账号安全与管理记录交给平台管理员查看：谁（哪个渠道、哪个操作者）、对哪个账号、做了什么、为什么、结果如何；**真实的状态/角色变化、被拒绝的尝试、没有变化的结果都在里面**。
+
+**范围与边界。** 只读 usersrv 的账号审计。metro 目录审计仍由 metro 服务保存并在 metro 管理里查看，管理令牌的调用日志仍是 BFF 现有范围；没有新的跨库原子事务，也不假装是全站统一审计（页面顶部写明）。`metro-admin` 看不到账号审计，`ozid-admin` 也不因此看到 metro 的目录审计。
+
+**读取要同时通过：** 来源白名单 → 控制台 Origin → 有效会话 → 当前持有 `ozid-admin` → 最近 `AdminSessionMaxAge` 内的真实密码认证（与用户查询一致；是读取，不要求 CSRF）。BFF 方法 `bff.v1.UserAdminService/ListSecurityAudit` 在入口层按只读过程登记，usersrv 再在读取事务里确认调用者仍是正常的 `ozid-admin`（拒绝也写一行 `refused_forbidden`）。读取共用 BFF 的读取限流。
+
+**渠道与操作者（显式存储，不靠读取时猜测）。** `security_audit.channel` 现在对每一行都有值：
+
+| 渠道 | 含义 | 操作者展示 |
+|---|---|---|
+| `web` | 管理控制台里的修改与管理读取 | 操作者是真实账号（用户 UUID，`actor_user_id`），页面显示为可点开的账号 ID |
+| `cli` | 运维命令行（`usersrv-admin`） | 只有受控的运维标识（`actor`，1–64 个可见字符，由 CLI 校验），页面标明“运维标识，不是网页账号”，**不当作任何账号** |
+| `self` | 账号本人的流程（登录、改密、注销、创建等） | 账号本人（该行所属账号） |
+| `system` | 系统自己 | “系统” |
+
+自由文本的操作者永远不会被当成网页身份：网页身份只来自 `actor_user_id`，CLI 标识只在 `cli` 渠道里作为名字显示。`origin` 之外的展示字段只有：行 ID、时间、渠道、操作者、目标账号 ID、动作、结果、原因（写入时已校验过不含邮箱、密码、令牌）、请求关联 ID、变更 ID、变更前后状态与角色，以及重放的原始记录摘要。**没有**密码、令牌、完整请求、原始异常、邮箱或产品私有内容；请求 ID 与 CLI 标识展示前再做一次可见字符裁剪。
+
+**迁移回填。** `20261025140000_audit_query.sql` 增加 `admin_mutations.audit_id`、`security_audit.origin_id`（均可空、不可变）和两条索引（`(actor_user_id, created_at)`、`(action, created_at)`），并把迁移前 `channel` 为空的旧行按固定顺序分类：`actor = 'system'` → `system`；`admin.users.*` 且 `actor` 形如 `user:<UUID>` → `web`（同时补上 `actor_user_id`）；其他 `actor` 形如 `user:<UUID>` → `self`；其余（包括 T4/T5 之前的 CLI 行）→ `cli`。上线后所有写入点都显式写渠道。回滚只会让新列和索引不再被使用，不需要数据迁移。
+
+**筛选与稳定翻页。** 筛选项：被操作账号 ID、操作者账号 ID（网页操作者，或 `self` 行的账号本人）、渠道、动作、结果、变更 ID、开始时间（含）与结束时间（不含）。全部有固定格式（UUID；动作与结果 `^[a-z0-9][a-z0-9._:-]{0,63}$`；变更 ID `^[A-Za-z0-9._-]{1,64}$`；开始早于结束），格式不对返回 `INVALID_ARGUMENT` 且**不回显输入**，页面在发送前先做同样的检查。默认 50 条，最多 100，负数拒绝。排序“创建时间倒序、行 ID 倒序”是全序，翻页令牌是不透明的 base64url（位置：微秒时间与行 ID）；时间相同的行不会重复或遗漏，翻页期间新写入的行只出现在更新的一侧，不会打乱已经走过的页。令牌不签名，只含位置，服务端每页仍校验调用者和过滤条件。
+
+**审计本身被审计。** 每次读取在同一事务里写一行 `admin.audit.list`（`web` 渠道，真实操作者）；原因是脱敏的，只有用了哪些筛选和是否翻页（如 `filters=user,action paged`），**不含任何筛选值**。所以“谁在什么时候查过审计”可以在审计里查到，也意味着每次查询都会让最新一页多出这一行。
+
+**重放的精确关联。** 变更 ID 在回执过期后可被复用，被拒绝的尝试也可能使用同一个 ID，所以展示**不假定**（操作者，变更 ID）对应唯一的原始事件，也不按它去匹配。正确做法是：回执在首次成功时记下那一行审计的 ID（`admin_mutations.audit_id`），重放时审计行写入 `origin_id` 指向它；列表只在被指向的行确实存在、且变更 ID、操作者、目标与重放一致、本身不是重放时才展示“当时的记录”（时间、动作、结果、前后状态）。因此：不会跨使用周期误关联；原始行已被清理时显示“当时的记录已超出保留范围”；T6 之前的回执没有关联，显示“没有关联到原始记录”。页面的“操作编号”筛选旁边也注明“同一编号过期后可能被复用，不一定是同一次操作”。
+
+**BFF 日志。** `admin audit query` 记录 request_id、操作者、使用了哪几类筛选（如 `user+action+mutation`）、是否翻页、条数与结果；**不记录任何筛选值**（账号 ID、变更 ID、时间、原因都不在），也没有邮箱。
+
+**页面。** `/audit/users`（平台管理员的分区“账号审计”；首页卡片说明范围）：筛选表单 + 记录列表（桌面与手机同一套卡片布局，无横向溢出）+ 上一页/下一页；记录显示动作名与原始分类、结果（已完成、无变化、重复提交、各类被拒绝）、渠道、操作者、账号、原因、变化（状态与角色前后）、变更 ID、请求 ID；重放行显示原始记录摘要。账号详情页有“查看此账号的审计记录”链接，进入 `/audit/users?user=<账号 ID>`——地址里只可能有一个合法的账号 UUID（标识符，不是邮箱或机密，其他筛选条件不进地址、历史或浏览器存储）；记录里的账号 ID 与操作者 ID 链接到对应账号详情。错误的含义与用户查询一致（会话失效回登录、密码确认过旧给“前往 OzID 验证密码”、无权限、来源不允许、限流与服务不可用可重试）。
 
 ## 查询接口与审计
 
 `UserAdminService`（BFF 与 usersrv 同名，字段见 `proto/bff/v1/user_admin.proto`、`proto/usersrv/v1/admin.proto`）：
 
+- `ListSecurityAudit`（T6）：账号审计列表，见“账号安全与管理审计查询（T6）”。
 - `ListUsers`：`email`（精确）、`user_id`、`nickname`（字面包含）、`status`、`role`、`page_size`、`page_token`。`GetUser`：`user_id`；不存在返回 `NOT_FOUND`。
 - usersrv 在读取事务里**再次**确认调用者是仍然正常的、当前持有 `ozid-admin` 的账号（不信任调用者带来的角色声明），审计行与读取在同一个事务里写入：`admin.users.list`/`admin.users.get`，结果 `ok`/`not_found`/`refused_forbidden`；审计原因是**脱敏**的（只记录用了哪类查找和是否分页，如 `lookup=email status role paged`，不含任何邮箱、昵称或 ID 值）。
 - BFF 按操作者限流（Redis 计数，键 `admin:users:<用户ID>`），默认每分钟 120 次（`admin.rate_limit_per_minute`）；限流器故障返回 `UNAVAILABLE`（不放行）。每次查询写一行脱敏日志 `admin user query`（request_id、操作者、动作、查找类型、条数、结果）。
@@ -156,19 +188,20 @@ docker build -f deploy/admin-web/Dockerfile \
 scripts/admin-web-smoke.sh   # 构建并启动容器，实测白名单、伪造头、Host、响应头与拒绝启动（CI 的 admin-web-image 任务）
 ```
 
-**部署顺序。** usersrv（含迁移 `20261025120000_platform_admin_role.sql` 与 T5 的 `20261025130000_admin_mutations.sql`）→ BFF（新配置 `admin`、注册 `navigation.apps.admin`、CORS 加入控制台 origin）→ 网关与 `admin-web`。BFF 先于控制台上线时，管理读接口已经受周界保护。回滚：先下线控制台，再回滚 BFF；回滚 usersrv 迁移前先用 CLI 撤销所有 `ozid-admin`。镜像不会自动部署、不会自动开放白名单。
+**部署顺序。** usersrv（含迁移 `20261025120000_platform_admin_role.sql`、T5 的 `20261025130000_admin_mutations.sql` 与 T6 的 `20261025140000_audit_query.sql`）→ BFF（新配置 `admin`、注册 `navigation.apps.admin`、CORS 加入控制台 origin）→ 网关与 `admin-web`。BFF 先于控制台上线时，管理读接口已经受周界保护。回滚：先下线控制台，再回滚 BFF；回滚 usersrv 迁移前先用 CLI 撤销所有 `ozid-admin`。镜像不会自动部署、不会自动开放白名单。
 
 ## 验证与限制
 
 按三层分别陈述证据，不互相替代：
 
 1. **代码与自动化**：Go 单测与真实 Postgres/Redis 的 `internal/e2e`（`TestChainUserAdmin*`：四种角色矩阵、控制台 Origin、来源策略（含受信代理链、伪造头、预检、其他路径）、查询/分页/脱敏审计、限流、角色生命周期与注销保护、认证过旧）；`internal/bff/adminguard`、`ingress` 周界单测、`config` 校验单测；usersrv 的 `useradmin` 单测与 gRPC 层独立授权；迁移集成测试（含 `TestPlatformRoleMigrationUpgradesAnExistingDatabaseInPlace`：在已有 `metro-admin` 行的上一版库上单独应用 `20261025120000_platform_admin_role.sql`，数据原样保留、新约束只接受两个白名单角色、回滚顺序）；真实 PostgreSQL 的并发测试 `internal/usersrv/account/deletion_race_test.go`（用行锁闸门强制“授予/撤销先拿锁”与“注销先拿锁”两个顺序，另有 40 轮不加闸门的真并发，断言任何时刻不会同时处于 `deleting` 且持有平台角色；拒绝后撤销角色不会自动注销、需要新的明确请求）；`cmd/usersrv-admin` 的 CLI 测试；`npm run test:admin`；`npm run test:e2e:admin`（**模拟 BFF**，覆盖匿名跳转、无权限不循环、按角色分区、列表/筛选/分页/详情、过期响应不覆盖新结果、各类错误、手机宽度、地址与存储无个人信息）。模拟 BFF 的结果只证明页面自身行为。**T5 增加：** `internal/usersrv/account/adminweb_test.go`（真实 PostgreSQL：四个动作、受保护目标、注销中、版本冲突、同 ID 同内容重放（原审计行的真实前后值、重放行的空前后值与按操作者+变更 ID 的关联）、已有回执后操作者被撤销平台角色或被禁用再用原请求重放均被拒绝且不改目标不动回执、恰好 `expires_at` 的过期边界、同 ID 不同内容拒绝、按操作者隔离、回执过期、未变化不提升版本、禁用/撤销后启用不复活旧凭证、并发相同请求只生效一次、CLI 授予平台角色与网页禁用在两种锁序下的结果，以及去掉 `FOR UPDATE` 或近期认证检查后对应测试会失败的变异验证）、`internal/usersrv/integration/migrations_test.go`（在上一版库上原地升级，旧审计行保留）、`internal/usersrv/app/useradmin_test.go`（gRPC 层角色与错误映射）、`internal/e2e/user_admin_write_chain_test.go`（完整链路：来源/Origin/角色/CSRF/15 分钟认证叠加、操作者不可伪造、旧会话与真实 metro 管理令牌不复活、审计内容、禁止项没有任何入口）、`apps/admin` 的 `change.test.ts` 与 Playwright“account changes”用例（模拟 BFF，桌面与手机：影响与原因、版本冲突刷新、重新认证后不重放、丢失响应后同 ID 重试、原因变化换新 ID、受保护/注销中账号无操作）。
-2. **真实浏览器与代理链**：`ADMIN_BROWSER_E2E=1 go test ./internal/e2e -run TestAdminBrowserChain`（CI 的 `admin-browser` 任务）。真实 BFF 与 usersrv，OzID、API、控制台和一个外来产品页分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，一次性证书）；Chromium 实测：匿名 → OzID 登录 → 返回 `/users`、Cookie 仅属于 API 主机且不进存储、无角色“没有权限”且无循环无查询、只有 metro-admin 无用户分区、真实查询（邮箱精确、昵称字面包含、角色筛选、详情）、来源在名单外时页面和资源全部 403、已打开的控制台再查询被 BFF 周界拒绝而 OzID 账号功能不受影响、外来产品页（在公共 CORS 列表内）用操作员 Cookie 读用户被拒。**T5 增加（桌面与手机各一遍）：** 操作员在详情页依次禁用、启用、授予、撤销 `metro-admin`，被修改账号在另一个浏览器里的会话每次都在下一次请求失效，禁用时无法登录，重新登录后才带新角色；平台管理员自己的详情页没有任何操作；网关控制主机把操作员的密码认证时间调到 16 分钟前后，写入得到“请重新输入密码”，经 OzID `/security` 输错、输对密码后回到原详情页，页面没有重放写请求，账号未被改动，再人为重新发起才生效；来源移到白名单外后，已打开的控制台的写入被 BFF 周界拒绝。这里的网关是**替身**（用同一份 Go 周界规则和模板里的 CSP/头复刻 `admin-web` 的行为，并按受信代理的方式写 `X-Forwarded-For`）；Nginx 本身由 `scripts/admin-web-smoke.sh` 的容器验收检验。
+   **T6 增加：** `internal/usersrv/account/auditquery_test.go`（真实 PostgreSQL：网页修改的真实前后值、被拒绝与无变化结果可见；四种渠道与操作者互不混淆，CLI 标识不被当作账号；各筛选项及其组合、非法格式与不回显；时间戳相同的行翻页不重复不遗漏；只有当前仍是平台管理员才能读、撤权后下一次读被拒绝并留下 `refused_forbidden`；读取本身被审计且筛选值不进审计；所有行不含邮箱、密码、令牌；回执过期后同一变更 ID 的两个使用周期与同键被拒绝尝试都不会被误关联、清理后的原始行与没有关联的旧回执有明确状态；迁移回填规则逐类用真实 SQL 文件验证）、`internal/usersrv/integration/migrations_test.go`（`TestAuditQueryMigrationUpgradesAnExistingDatabaseInPlace`：在上一版库上原地升级，旧行被正确分类）、`internal/usersrv/app/useradmin_test.go`（gRPC 层 `ListSecurityAudit` 的角色、过滤与分页）、`internal/e2e/user_admin_audit_chain_test.go`（完整链路：四种角色矩阵——只有 `metro-admin` 读不到账号审计但读得到 metro 审计、来源白名单与伪造头、受信代理、控制台 Origin、预检、认证过旧不到达 usersrv、读取限流、真实控制台修改后可见（含重放的精确原始、拒绝与无变化、CLI 行）、筛选与分页、非法输入不回显、日志不含筛选值与原因）、`apps/admin` 的路由单测与 Playwright“account audit”用例（模拟 BFF，桌面与手机：列表与翻页、重放原始、渠道与操作者展示、筛选与清除、非法筛选不发送、真实修改后可见、地址与存储无个人信息、较慢旧响应不覆盖新结果、各类错误含义、窄屏无溢出）。
+2. **真实浏览器与代理链**：`ADMIN_BROWSER_E2E=1 go test ./internal/e2e -run TestAdminBrowserChain`（CI 的 `admin-browser` 任务）。真实 BFF 与 usersrv，OzID、API、控制台和一个外来产品页分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，一次性证书）；Chromium 实测：匿名 → OzID 登录 → 返回 `/users`、Cookie 仅属于 API 主机且不进存储、无角色“没有权限”且无循环无查询、只有 metro-admin 无用户分区、真实查询（邮箱精确、昵称字面包含、角色筛选、详情）、来源在名单外时页面和资源全部 403、已打开的控制台再查询被 BFF 周界拒绝而 OzID 账号功能不受影响、外来产品页（在公共 CORS 列表内）用操作员 Cookie 读用户被拒。**T6 增加（桌面与手机各一遍）：** 从 `/audit/users` 匿名登录后回到该地址（BFF 注册表允许 `/audit/users`）；无角色与只有 `metro-admin` 的账号既没有审计数据也没有发出审计请求；操作员在详情页真实禁用再启用账号后，从详情页链接进入的审计里按顺序看到两行网页修改（前后状态、原因、同一个操作者账号），CLI 渠道只显示运维标识；真实列表的筛选与翻页；页面与地址、存储不含邮箱、密码、令牌；外来产品页用操作员 Cookie 读审计被拒，已打开的审计页在来源移出白名单后再查询被 BFF 拒绝。**T5 增加（桌面与手机各一遍）：** 操作员在详情页依次禁用、启用、授予、撤销 `metro-admin`，被修改账号在另一个浏览器里的会话每次都在下一次请求失效，禁用时无法登录，重新登录后才带新角色；平台管理员自己的详情页没有任何操作；网关控制主机把操作员的密码认证时间调到 16 分钟前后，写入得到“请重新输入密码”，经 OzID `/security` 输错、输对密码后回到原详情页，页面没有重放写请求，账号未被改动，再人为重新发起才生效；来源移到白名单外后，已打开的控制台的写入被 BFF 周界拒绝。这里的网关是**替身**（用同一份 Go 周界规则和模板里的 CSP/头复刻 `admin-web` 的行为，并按受信代理的方式写 `X-Forwarded-For`）；Nginx 本身由 `scripts/admin-web-smoke.sh` 的容器验收检验。
 3. **运维仍须自行验证**：真实 DNS、证书与 TLS 终止、真实来源地址与白名单取值、真实前置代理/CDN 链路（谁在 `trusted_proxies` 里、是否覆盖而非透传 `X-Forwarded-For`）、邮件厂商。自动化只覆盖受控环境，不能替代这些检查。
 
 当前限制：
 
-- 账号审计页未开放（审计行已写入 `security_audit`，目前由运维直接查询）；平台角色、平台管理员的状态与角色、密码、注销仍只能用 CLI 或用户自己在 OzID 完成。
+- 账号审计只覆盖 usersrv 保存的账号安全与管理记录（不是全站统一审计；metro 目录审计、管理令牌调用日志不在其中）；没有导出、没有按邮箱查询的入口（邮箱不进审计，也不能成为审计查询条件）；审计保留期限与清理由运维按数据策略决定，原始记录被清理后重放行只显示“超出保留范围”。平台角色、平台管理员的状态与角色、密码、注销仍只能用 CLI 或用户自己在 OzID 完成。
 - 网页写入的 15 分钟认证窗口是代码常量（与密码修改、注销等敏感操作共用 `SensitiveAuthMaxAge`），不可配置；写入限流可通过 `admin.write_rate_limit_per_minute` 调整。
 - 控制台没有 metro 分区；metro `AdminService`/`AccessTokenService`/MCP 的来源策略和页面迁移是后续任务。metro-admin 在 BFF 侧的“把暂时故障当成未登录”的既有行为属于 [#89（T11）](https://github.com/kongken/mono/issues/89) 的故障与失效区分验收，届时修复并回归，T4 不处理。
 - 限流只在 BFF 一层（usersrv 不另做）。分页令牌不做签名（只含位置，服务端每页仍校验调用者与过滤条件）。

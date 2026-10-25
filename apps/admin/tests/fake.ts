@@ -1,6 +1,6 @@
 /**
  * A fake BFF for the console's screens (UI only): the shared account fake for `AuthService`
- * plus an in-memory `UserAdminService` that applies the rules the real one applies where a screen
+ * plus an in-memory `UserAdminService` (the account audit included: fixed filter patterns, keyset paging, rows added by real changes) that applies the rules the real one applies where a screen
  * can see them: signed in, the platform role, the exact console Origin, a recent password check,
  * the network perimeter, a rate limit, exact email lookup, literal nickname search, filters and
  * stable paging (50 by default, 100 at most) - and, for the four account changes, the CSRF header, the
@@ -44,6 +44,76 @@ export function seedUsers(): FakeUser[] {
   });
 }
 
+/** One row of the fake account audit, in the shape the BFF's JSON has. */
+export type FakeAudit = {
+  id: string;
+  createdAt: string;
+  channel: "WEB" | "CLI" | "SELF" | "SYSTEM";
+  operatorUserId: string;
+  operatorLabel: string;
+  userId: string;
+  action: string;
+  result: string;
+  reason: string;
+  requestId: string;
+  mutationId: string;
+  beforeStatus: string;
+  afterStatus: string;
+  beforeRoles: string[];
+  afterRoles: string[];
+  originId: string;
+};
+
+/** The administrator of the seeded web rows (the signed-in operator of a spec writes its own rows with its own ID). */
+export const SEED_OPERATOR = uuid(9001);
+
+/**
+ * 130 rows, newest first: web changes (done, unchanged and refused), a replay that points at its original,
+ * command-line operations with a controlled operator name, self-service events and system rows. Every
+ * tenth pair shares a timestamp so stable paging is visible.
+ */
+export function seedAudit(): FakeAudit[] {
+  const base = Date.UTC(2026, 5, 1, 12, 0, 0);
+  const rows: FakeAudit[] = [];
+  const kinds = [
+    { channel: "WEB", action: "admin.account.disable", result: "ok", before: "active", after: "disabled", reason: "支持工单 77" },
+    { channel: "WEB", action: "admin.account.enable", result: "ok", before: "disabled", after: "active", reason: "支持工单 78" },
+    { channel: "WEB", action: "admin.account.disable", result: "unchanged", before: "disabled", after: "disabled", reason: "重复操作" },
+    { channel: "WEB", action: "admin.account.disable", result: "refused_target_protected", before: "", after: "", reason: "误操作" },
+    { channel: "CLI", action: "role.grant:metro-admin", result: "ok", before: "", after: "", reason: "运维授权" },
+    { channel: "SELF", action: "password.change", result: "ok", before: "", after: "", reason: "" },
+    { channel: "WEB", action: "admin.users.get", result: "ok", before: "", after: "", reason: "" },
+  ] as const;
+  for (let i = 0; i < 130; i++) {
+    const k = kinds[i % kinds.length]!;
+    const n = i + 1;
+    const web = k.channel === "WEB";
+    rows.push({
+      id: uuid(10_000 + n),
+      // Oldest first by index; every tenth row shares the timestamp of the previous one.
+      createdAt: new Date(base - i * 60_000 + (i % 10 === 9 ? 60_000 : 0)).toISOString(),
+      channel: k.channel,
+      operatorUserId: web ? SEED_OPERATOR : k.channel === "SELF" ? uuid(((n * 7) % 125) + 1) : "",
+      operatorLabel: k.channel === "CLI" ? "ops-cli" : "",
+      userId: uuid(((n * 7) % 125) + 1),
+      action: k.action,
+      result: k.result,
+      reason: k.reason,
+      requestId: `req-${n}`,
+      mutationId: web && k.action.startsWith("admin.account") ? `key-${n}` : "",
+      beforeStatus: k.before,
+      afterStatus: k.after,
+      beforeRoles: [],
+      afterRoles: k.channel === "CLI" ? ["metro-admin"] : [],
+      originId: "",
+    });
+  }
+  // One replay of row 1's change, with its exact origin; one replay whose origin is no longer kept.
+  rows.unshift({ ...rows[0]!, id: uuid(9_999), createdAt: new Date(base + 60_000).toISOString(), result: "replayed", beforeStatus: "", afterStatus: "", originId: rows[0]!.id, requestId: "req-replay" });
+  rows.unshift({ ...rows[1]!, id: uuid(9_998), createdAt: new Date(base + 120_000).toISOString(), result: "replayed", beforeStatus: "", afterStatus: "", originId: uuid(1), requestId: "req-purged", mutationId: "key-old" });
+  return rows;
+}
+
 type Body = Record<string, any>;
 type Held = { arrived: Promise<void>; release: () => void };
 
@@ -64,11 +134,13 @@ export function createFakeAdmin(accounts: FakeAccounts, users: FakeUser[] = seed
     /** Account changes sent without the CSRF header (must stay empty). */
     writesWithoutCsrf: [] as string[],
     /** Idempotency receipts, per operator: "<operator>|<key>" -> what the first answer said. */
-    receipts: new Map<string, { hash: string; outcome: Body }>(),
+    receipts: new Map<string, { hash: string; outcome: Body; auditId: string }>(),
     /** Runs on the server side just before the next account change is decided (another administrator, the CLI). */
     beforeNextChange: null as null | ((users: FakeUser[]) => void),
     /** The next account change is applied and then its response is lost (the connection fails). */
     loseNextResponse: false,
+    /** The account audit, in no particular order; real changes made through the fake add their rows. */
+    audit: seedAudit(),
   };
 
   const json = (route: Route, status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -93,6 +165,49 @@ export function createFakeAdmin(accounts: FakeAccounts, users: FakeUser[] = seed
     return { status: 200, body: { users: page.map(out), nextPageToken: next } };
   }
 
+  const sortedAudit = () => [...state.audit].sort((a, b) => (a.createdAt === b.createdAt ? (a.id < b.id ? 1 : -1) : a.createdAt < b.createdAt ? 1 : -1));
+  const originOut = (id: string) => {
+    const o = state.audit.find((x) => x.id === id);
+    return o ? { id: o.id, createdAt: o.createdAt, action: o.action, result: o.result, beforeStatus: o.beforeStatus, afterStatus: o.afterStatus, beforeRoles: o.beforeRoles, afterRoles: o.afterRoles } : undefined;
+  };
+
+  /** The audit list with the real rules: fixed filter patterns, keyset paging over (time, id), 50 by default and 100 at most. */
+  function listAudit(b: Body) {
+    const bad = (m: string) => ({ status: 400, body: { code: "invalid_argument", message: m } });
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    if (b.userId && !UUID.test(b.userId)) return bad("user_id: invalid");
+    if (b.operatorUserId && !UUID.test(b.operatorUserId)) return bad("operator_user_id: invalid");
+    if (b.action && !/^[a-z0-9][a-z0-9._:-]{0,63}$/.test(b.action)) return bad("action: invalid");
+    if (b.mutationId && !/^[A-Za-z0-9._-]{1,64}$/.test(b.mutationId)) return bad("mutation_id: invalid");
+    const channel = String(b.channel ?? "").replace("AUDIT_CHANNEL_", "");
+    let rows = sortedAudit();
+    if (b.userId) rows = rows.filter((r) => r.userId === b.userId);
+    if (b.operatorUserId) rows = rows.filter((r) => r.operatorUserId === b.operatorUserId);
+    if (channel && channel !== "UNSPECIFIED") rows = rows.filter((r) => r.channel === channel);
+    if (b.action) rows = rows.filter((r) => r.action === b.action);
+    if (b.result) rows = rows.filter((r) => r.result === b.result);
+    if (b.mutationId) rows = rows.filter((r) => r.mutationId === b.mutationId);
+    if (b.from) rows = rows.filter((r) => r.createdAt >= new Date(b.from).toISOString());
+    if (b.to) rows = rows.filter((r) => r.createdAt < new Date(b.to).toISOString());
+    const size = Math.min(b.pageSize || 50, 100);
+    let start = 0;
+    if (b.pageToken) {
+      const [at, id] = Buffer.from(String(b.pageToken), "base64url").toString().split("|");
+      start = rows.findIndex((r) => r.createdAt < at! || (r.createdAt === at && r.id < id!));
+      if (start < 0) start = rows.length;
+    }
+    const page = rows.slice(start, start + size);
+    const last = page[page.length - 1];
+    const next = last && start + size < rows.length ? Buffer.from(`${last.createdAt}|${last.id}`).toString("base64url") : "";
+    return {
+      status: 200,
+      body: {
+        entries: page.map((r) => ({ ...r, channel: `AUDIT_CHANNEL_${r.channel}`, origin: r.originId ? originOut(r.originId) : undefined })),
+        nextPageToken: next,
+      },
+    };
+  }
+
   async function answer(route: Route) {
     const req = route.request();
     const method = req.url().split("/").pop()!;
@@ -112,7 +227,51 @@ export function createFakeAdmin(accounts: FakeAccounts, users: FakeUser[] = seed
     return json(route, decided.status, decided.body);
   }
 
+  const AUDIT_ACTION: Record<string, string> = { DisableUser: "admin.account.disable", EnableUser: "admin.account.enable", GrantMetroAdmin: "admin.role.grant:metro-admin", RevokeMetroAdmin: "admin.role.revoke:metro-admin" };
+
+  /** A change as the real service records it: every decided attempt leaves a row; invalid input does not. */
   function change(method: string, body: Body, operator: string): { status: number; body: unknown } {
+    const target = state.users.find((x) => x.id === body.userId);
+    const before = target ? { status: target.status.toLowerCase(), roles: [...target.roles] } : null;
+    const res = decideChange(method, body, operator);
+    const msg = String((res.body as Body)?.message ?? "");
+    const code = String((res.body as Body)?.code ?? "");
+    let result = "";
+    if (res.status === 200) result = (res.body as Body).replayed ? "replayed" : (res.body as Body).changed ? "ok" : "unchanged";
+    else if (code === "aborted") result = "refused_version_conflict";
+    else if (code === "already_exists") result = "refused_mutation_reuse";
+    else if (code === "failed_precondition") result = msg.includes("platform administrators") ? "refused_target_protected" : "refused_not_active";
+    if (!result) return res;
+    const done = result === "ok";
+    const o = res.status === 200 ? (res.body as Body) : null;
+    const prior = result === "replayed" ? state.receipts.get(`${operator}|${body.mutationId}`)?.auditId ?? "" : "";
+    const id = uuid(20_000 + state.audit.length);
+    state.audit.push({
+      id,
+      createdAt: new Date().toISOString(),
+      channel: "WEB",
+      operatorUserId: accounts.state.current?.id ?? "",
+      operatorLabel: "",
+      userId: String(body.userId),
+      action: AUDIT_ACTION[method]!,
+      result,
+      reason: String(body.reason ?? "").trim(),
+      requestId: `req-fake-${state.audit.length}`,
+      mutationId: String(body.mutationId ?? ""),
+      beforeStatus: done || result === "unchanged" ? before?.status ?? "" : "",
+      afterStatus: done || result === "unchanged" ? String(o?.status ?? "").replace("USER_STATUS_", "").toLowerCase() : "",
+      beforeRoles: done || result === "unchanged" ? before?.roles ?? [] : [],
+      afterRoles: done || result === "unchanged" ? ((o?.roles as string[]) ?? []) : [],
+      originId: prior,
+    });
+    if (res.status === 200 && !(res.body as Body).replayed) {
+      const r = state.receipts.get(`${operator}|${body.mutationId}`);
+      if (r) r.auditId = id;
+    }
+    return res;
+  }
+
+  function decideChange(method: string, body: Body, operator: string): { status: number; body: unknown } {
     state.beforeNextChange?.(state.users);
     state.beforeNextChange = null;
     const refuse = (status: number, code: string, message: string) => ({ status, body: { code, message } });
@@ -140,7 +299,7 @@ export function createFakeAdmin(accounts: FakeAccounts, users: FakeUser[] = seed
     if (method === "RevokeMetroAdmin" && target.roles.includes("metro-admin")) (target.roles = target.roles.filter((r) => r !== "metro-admin")), (changed = true);
     if (changed) target.authVersion += 1;
     const outcome = { userId: target.id, status: `USER_STATUS_${target.status}`, roles: target.roles, authVersion: String(target.authVersion), changed, replayed: false };
-    state.receipts.set(receiptKey, { hash, outcome });
+    state.receipts.set(receiptKey, { hash, outcome, auditId: "" });
     return { status: 200, body: outcome };
   }
 
@@ -168,6 +327,7 @@ export function createFakeAdmin(accounts: FakeAccounts, users: FakeUser[] = seed
       return change(method, body, me.email);
     }
     if (method === "ListUsers") return list(body);
+    if (method === "ListSecurityAudit") return listAudit(body);
     if (method === "GetUser") {
       const u = state.users.find((x) => x.id === body.userId);
       return u ? { status: 200, body: { user: out(u) } } : { status: 404, body: { code: "not_found", message: "account not found" } };
@@ -188,6 +348,7 @@ export function createFakeAdmin(accounts: FakeAccounts, users: FakeUser[] = seed
       return { arrived, release };
     },
     userCalls: () => state.calls.filter((c) => c.method === "ListUsers" || c.method === "GetUser"),
+    auditCalls: () => state.calls.filter((c) => c.method === "ListSecurityAudit"),
   };
 }
 
@@ -198,7 +359,7 @@ export async function setup(page: Page, opts: { roles?: string[]; signedIn?: boo
   const accounts = createFakeAccounts({
     navigation: {
       ozid: { origin: OZID, paths: ["/security"] },
-      admin: { origin: CONSOLE_ORIGIN, paths: ["/users", "/users/*"] },
+      admin: { origin: CONSOLE_ORIGIN, paths: ["/users", "/users/*", "/audit/users"] },
     },
   });
   await installFakeAccounts(page, accounts);

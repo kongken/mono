@@ -81,7 +81,7 @@ func TestAdminBrowserChain(t *testing.T) {
 				APIOrigin: apiO,
 				Apps: map[string]navigation.App{
 					"ozid":     {Origin: idO, Paths: []string{"/security"}},
-					"admin":    {Origin: adminO, Paths: []string{"/users", "/users/*"}},
+					"admin":    {Origin: adminO, Paths: []string{"/users", "/users/*", "/audit/users"}},
 					"trip-map": {Origin: tripO},
 				},
 			}

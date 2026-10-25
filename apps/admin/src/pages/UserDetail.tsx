@@ -8,6 +8,7 @@ import { Problem } from "@/components/Problem";
 import { Spinner } from "@/components/Layout";
 import { CHANGES, offerFor, type ChangeKind } from "@/lib/change";
 import { Link } from "@/lib/router";
+import { auditPathOf } from "@/lib/routes.ts";
 import { getUser, ROLE_LABEL, STATUS_LABEL, type ChangeOutcome, type UserRow } from "@/lib/users";
 
 type View = { kind: "loading" } | { kind: "ready"; user: UserRow } | { kind: "failed"; error: unknown };
@@ -91,6 +92,9 @@ function Detail({ user: loaded, reload }: { user: UserRow; reload: () => void })
           <Notice kind="success">{notice}</Notice>
         </div>
       ) : null}
+      <p className="text-sm">
+        <Link to={auditPathOf(user.id)} className="text-primary underline-offset-4 hover:underline" data-testid="audit-link">查看此账号的审计记录</Link>
+      </p>
       <Actions user={user} open={(kind) => { setNotice(null); setChange(kind); }} />
       <p className="text-xs leading-relaxed text-muted-foreground">
         这里只显示识别账号所需的信息，不含密码、令牌或任何产品里的私有数据。网页上只能禁用或启用普通账号、授予或收回地铁目录管理员；平台角色、密码和注销都不在这里处理。

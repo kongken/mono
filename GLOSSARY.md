@@ -25,7 +25,7 @@
 | 稳定应用 ID | `ozid`、`admin`、`trip-map`、`metro`；不是主机名、Cookie domain 或跳转 URL |
 | 统一管理控制台 | 独立于用户中心的管理站点，集中承载账号管理和 metro 等产品管理；不是只管理账号的 OzID Admin。T4 起存在（`apps/admin`，用户查询；T5 起可禁用/启用普通账号、授予/撤销 `metro-admin`），metro 分区待迁移，见 [功能描述](docs/admin/features.md) |
 | 管理周界（`admin` 配置） | BFF 对管理接口的独立入口检查：来源 IP 白名单（空 = 全部拒绝）、受信代理链、精确控制台 Origin；与网关/`admin-web` 镜像的白名单是两道各自独立的防线 |
-| 平台管理员 | 持有 `ozid-admin` 的用户，管理允许的账号状态和角色（T4 起可查询用户，T5 起可在网页修改普通账号状态与 `metro-admin`，不能改平台管理员）；只能由运维 CLI 授予，不自动获得 metro 管理权，也不能被网页自助注销（usersrv 在 `BeginDeletion` 拒绝，对所有调用方有效；缺少的只是 OzID 自己的注销页） |
+| 平台管理员 | 持有 `ozid-admin` 的用户，管理允许的账号状态和角色（T4 起可查询用户，T5 起可在网页修改普通账号状态与 `metro-admin`，不能改平台管理员；T6 起可查看账号安全与管理审计）；只能由运维 CLI 授予，不自动获得 metro 管理权，也不能被网页自助注销（usersrv 在 `BeginDeletion` 拒绝，对所有调用方有效；缺少的只是 OzID 自己的注销页） |
 | metro 管理员 | 持有 `metro-admin` 的用户，只获得地铁管理权限；不自动获得用户管理权 |
 | 共享浏览器会话 | 多个已接入应用通过同一 BFF 使用的登录会话；退出当前会话影响这些应用，但不同于退出所有设备 |
 

@@ -3,6 +3,7 @@ import { Layout } from "@/components/Layout";
 import { useRoute } from "@/lib/router";
 import { roleOf } from "@/lib/routes.ts";
 import { SessionProvider } from "@/lib/session";
+import AuditUsersPage from "@/pages/AuditUsers";
 import HomePage from "@/pages/Home";
 import NotFound from "@/pages/NotFound";
 import UserDetailPage from "@/pages/UserDetail";
@@ -14,7 +15,15 @@ function Routes() {
   if (route.name === "not-found") return <NotFound />;
   return (
     <Gate role={roleOf(route)}>
-      {route.name === "home" ? <HomePage /> : route.name === "users" ? <UsersPage /> : <UserDetailPage id={route.id} />}
+      {route.name === "home" ? (
+        <HomePage />
+      ) : route.name === "users" ? (
+        <UsersPage />
+      ) : route.name === "audit-users" ? (
+        <AuditUsersPage />
+      ) : (
+        <UserDetailPage id={route.id} />
+      )}
     </Gate>
   );
 }

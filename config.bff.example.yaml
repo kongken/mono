@@ -83,7 +83,7 @@ cors_allowed_origins:
 #     ozid:     {origin: https://id.example.com, paths: ["/security"]}
 #     trip-map: {origin: https://trip.example.com}
 #     metro:    {origin: https://metro.example.com, paths: ["/me", "/city/*"]}
-#     admin:    {origin: https://admin.example.com, paths: ["/users", "/users/*"]}
+#     admin:    {origin: https://admin.example.com, paths: ["/users", "/users/*", "/audit/users"]}
 # Omit the section to run without OzID: the navigation procedure then answers FAILED_PRECONDITION.
 navigation:
   api_origin: http://localhost:18081
@@ -91,7 +91,7 @@ navigation:
     ozid:     {origin: http://localhost:5175, paths: ["/security"]}
     trip-map: {origin: http://localhost:5173}
     metro:    {origin: http://localhost:5174, paths: ["/me", "/city/*"]}
-    admin:    {origin: http://localhost:5176, paths: ["/users", "/users/*"]}
+    admin:    {origin: http://localhost:5176, paths: ["/users", "/users/*", "/audit/users"]}
 
 # The unified management console's perimeter (apps/admin, deploy/admin-web, docs/admin/features.md).
 # It guards every user-management API (and, with the console gateway, the console's pages and
@@ -111,7 +111,7 @@ navigation:
 #     allowed_cidrs: ["203.0.113.0/24", "2001:db8:100::/48"]
 #     trusted_proxies: ["198.51.100.0/24"]
 #     forwarded_header: X-Forwarded-For
-#     rate_limit_per_minute: 120
+#     rate_limit_per_minute: 120        # reads (users, one user, the account audit), per operator
 #     write_rate_limit_per_minute: 30   # account changes (state, metro-admin), per operator
 # This development file only admits the machine itself.
 admin:

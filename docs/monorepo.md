@@ -8,7 +8,7 @@
 apps/
   trip-map/             前端应用“山海足迹”：Vite + React，自己的 index.html、vite.config.ts、tsconfig、public/、tests/（Playwright）、scripts/
   metro/                前端应用“地铁足迹”：Vite + React，自己的路由与内存目录缓存，tests/（Playwright，模拟 BFF），不含地图资源脚本
-  admin/                前端应用“统一管理控制台”（T4）：Vite + React，匿名跳 OzID 登录、按真实角色分区、用户查询与（T5）普通账号状态/`metro-admin` 的受限修改；没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`；tests/ 有模拟 BFF 的 Playwright 与真实 BFF 的 real-stack 用例（由 internal/e2e 的 `TestAdminBrowserChain` 启动）
+  admin/                前端应用“统一管理控制台”（T4）：Vite + React，匿名跳 OzID 登录、按真实角色分区、用户查询、（T5）普通账号状态/`metro-admin` 的受限修改与（T6）账号安全与管理审计查询页；没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`；tests/ 有模拟 BFF 的 Playwright 与真实 BFF 的 real-stack 用例（由 internal/e2e 的 `TestAdminBrowserChain` 启动）
   ozid/                 前端应用“OzID 用户中心”：Vite + React，登录、注册、找回密码、邮件落地页（注册验证、密码重置）、概览、密码重新认证，以及资料、改密码与设备会话页面（T3）；没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL`；tests/ 有模拟 BFF 的 Playwright 与真实 BFF 的 real-stack 用例（由 internal/e2e 启动）
 packages/
   ui/                   shadcn 组件与 cn()：@kongken/ui/button、dialog、input、utils

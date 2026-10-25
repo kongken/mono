@@ -22,6 +22,7 @@ export function navigate(to: string, replace = false) {
 }
 
 export const usePath = () => useSyncExternalStore(subscribe, () => window.location.pathname);
+export const useSearch = () => useSyncExternalStore(subscribe, () => window.location.search);
 export const useRoute = () => matchRoute(usePath());
 
 /** A same-origin link that navigates without reloading. */

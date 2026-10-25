@@ -49,5 +49,5 @@ export const freshCsrf = ensureCsrf;
 /** The shared account client. The console only uses Me, sign-out and navigation resolution. */
 export const account = createAccountApi({ transport, appId: APP_ID, ensureCsrf });
 
-/** The user management API: two reads and four narrow changes (disable, enable, grant and revoke metro-admin). */
+/** The user management API: three reads (users, one user, the account audit) and four narrow changes (disable, enable, grant and revoke metro-admin). */
 export const userAdmin = createClient(UserAdminService, transport);
