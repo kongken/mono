@@ -80,12 +80,18 @@ export function createFakeAccounts(
     failures: new Map<string, FakeFailure[]>(),
     /** Held calls per method, taken in order: the reply is decided on arrival and delivered on release. */
     holds: new Map<string, Array<{ arrive: () => void; released: Promise<void> }>>(),
+    /** Calls whose reply is dropped on the way back: the server did the work, the browser sees a network failure. */
+    lostReplies: new Map<string, number>(),
     /** The mail send requests are refused with this until cleared (rate limit, closed sign-ups ...). */
     mailRefusal: null as FakeFailure | null,
     registrationOpen: true,
     /** How many DeleteAccount / RetryAccountDeletion calls still fail with `unavailable` after the account closed. */
     deletionFailures: 0,
     deletion: null as null | { mutationId: string; account: FakeAccount },
+    /** The products whose data a failed (unfinished) deletion has already removed; a retry resumes after them. */
+    deletionDone: [] as string[],
+    /** The finished deletion, replayable by the same Cookie (the BFF keeps the receipt for 24 hours). */
+    receipt: null as null | { mutationId: string },
     csrfRequired: true,
     nextId: 1,
   };
@@ -145,9 +151,22 @@ export function createFakeAccounts(
     return t;
   };
 
+  /** One failed pass: the first product that is not done yet is cleaned, then the next one fails. */
+  const failDeletionPass = () => {
+    state.deletionFailures -= 1;
+    const next = PRODUCTS.find((p) => !state.deletionDone.includes(p));
+    if (next && state.deletionDone.length < PRODUCTS.length - 1) state.deletionDone.push(next);
+    return failure(503, "unavailable", "cleanup incomplete");
+  };
+  const pendingDeletion = (d: NonNullable<typeof state.deletion>) => ({
+    deletion: { state: "ACCOUNT_DELETION_STATE_PENDING", mutationId: d.mutationId, products: PRODUCTS, completedProducts: [...state.deletionDone] },
+  });
+
   const finishDeletion = (d: NonNullable<typeof state.deletion>) => {
     state.accounts = state.accounts.filter((a) => a !== d.account);
     state.deletion = null;
+    state.deletionDone = [];
+    state.receipt = { mutationId: d.mutationId };
     return { body: completed(d.mutationId) };
   };
 
@@ -276,6 +295,7 @@ export function createFakeAccounts(
     },
 
     DeleteAccount: (b) => {
+      if (state.receipt && state.receipt.mutationId === b.mutationId) return { body: completed(b.mutationId) };
       const resuming = state.deletion && state.deletion.mutationId === b.mutationId;
       if (!resuming) {
         const denied = needUser();
@@ -283,25 +303,21 @@ export function createFakeAccounts(
         if (b.confirmation !== "DELETE") return failure(400, "invalid_argument", "explicit DELETE confirmation is required");
         if (!/^[A-Za-z0-9._-]{1,64}$/.test(b.mutationId ?? "")) return failure(400, "invalid_argument", "mutation_id must be 1-64 characters of A-Z a-z 0-9 . _ -");
         if (Date.now() - state.authenticatedAt > 15 * 60_000) return failure(400, "failed_precondition", "enter your password again to continue");
+        if (state.current!.roles.includes("ozid-admin")) return failure(400, "failed_precondition", "platform administrator accounts cannot be closed here; an operator must revoke the role first");
+        state.deletionDone = [];
         state.deletion = { mutationId: b.mutationId, account: state.current! };
         set(null);
       }
-      if (state.deletionFailures > 0) {
-        state.deletionFailures -= 1;
-        return failure(503, "unavailable", "cleanup incomplete");
-      }
+      if (state.deletionFailures > 0) return failDeletionPass();
       return finishDeletion(state.deletion!);
     },
+    // Only the Cookie that started a deletion can read or continue it: anything else is "not signed in".
     GetAccountDeletion: () =>
-      state.deletion
-        ? { body: { deletion: { state: "ACCOUNT_DELETION_STATE_PENDING", mutationId: state.deletion.mutationId, products: PRODUCTS, completedProducts: [] } } }
-        : failure(404, "not_found", "deletion not found"),
+      state.deletion ? { body: pendingDeletion(state.deletion) } : state.receipt ? { body: completed(state.receipt.mutationId) } : failure(401, "unauthenticated", "sign in required"),
     RetryAccountDeletion: () => {
-      if (!state.deletion) return failure(404, "not_found", "deletion not found");
-      if (state.deletionFailures > 0) {
-        state.deletionFailures -= 1;
-        return failure(503, "unavailable", "cleanup incomplete");
-      }
+      if (!state.deletion && state.receipt) return { body: completed(state.receipt.mutationId) };
+      if (!state.deletion) return failure(401, "unauthenticated", "sign in required");
+      if (state.deletionFailures > 0) return failDeletionPass();
       return finishDeletion(state.deletion);
     },
   };
@@ -350,6 +366,15 @@ export function createFakeAccounts(
       state.holds.set(method, [...(state.holds.get(method) ?? []), { arrive, released }]);
       return { arrived, release };
     },
+    /** The server handles the next call of `method` and its answer never reaches the browser. */
+    loseNextResponse(method: string, times = 1) {
+      state.lostReplies.set(method, (state.lostReplies.get(method) ?? 0) + times);
+    },
+    takeLostReply(method: string) {
+      const n = state.lostReplies.get(method) ?? 0;
+      if (n > 0) state.lostReplies.set(method, n - 1);
+      return n > 0;
+    },
     takeHold: (method: string) => state.holds.get(method)?.shift(),
     /** Pretends the last password check on this session is older than 15 minutes. */
     ageAuthentication: () => void (state.authenticatedAt = Date.now() - 16 * 60_000),
@@ -379,6 +404,7 @@ export async function installFakeAccounts(page: Page, fake: FakeAccounts) {
       hold.arrive();
       await hold.released;
     }
+    if (reply && fake.takeLostReply(method)) return route.abort("connectionreset");
     if (!reply) return route.fulfill({ status: 501, contentType: "application/json", body: JSON.stringify({ code: "unimplemented", message: method }) });
     return route.fulfill({ status: reply.status ?? 200, contentType: "application/json", body: JSON.stringify(reply.body) });
   };

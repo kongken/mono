@@ -10,6 +10,7 @@ const NAV = [
   { to: "/profile", label: "资料" },
   { to: "/security", label: "安全" },
   { to: "/sessions", label: "设备" },
+  { to: "/close-account", label: "注销账号" },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -37,7 +38,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </Link>
           <span className="hidden text-sm text-muted-foreground sm:inline">山海足迹、地铁足迹共用的账号</span>
           <div className="ml-auto flex items-center gap-3">
-            {session.status === "signed-in" ? (
+            {session.status === "signed-in" && path !== "/close-account" ? (
               <>
                 <span className="max-w-40 truncate text-sm" data-testid="header-name">{session.profile.user.displayName}</span>
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => void leave()}>

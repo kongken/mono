@@ -6,6 +6,7 @@ const SECTIONS = [
   { to: "/profile", title: "资料", text: "修改昵称和头像；登录邮箱只读。" },
   { to: "/security", title: "安全", text: "修改密码，或再次确认当前密码。" },
   { to: "/sessions", title: "设备与登录", text: "查看已登录的设备，退出其他设备或这个浏览器。" },
+  { to: "/close-account", title: "注销账号", text: "永久删除共用账号和各产品的数据，无法恢复。" },
 ];
 
 /** The account overview: where OzID ends when it was opened directly. */
@@ -24,7 +25,7 @@ export default function OverviewPage() {
             <dt className="text-muted-foreground">登录邮箱</dt>
             <dd className="break-all" data-testid="overview-email">{email}</dd>
           </dl>
-          <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-3">
+          <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2">
             {SECTIONS.map((s) => (
               <li key={s.to} className="rounded-lg border bg-card p-4">
                 <h2 className="text-base font-semibold">
