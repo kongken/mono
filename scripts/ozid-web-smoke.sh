@@ -71,7 +71,9 @@ header() { # header <file> <name>: the value of a response header, case-insensit
 }
 status_is() { [ "$(head -n1 "$1" | awk '{print $2}')" = "$2" ]; }          # status_is <headfile> <code>
 header_is() { [ "$(header "$1" "$2")" = "$3" ]; }                          # header_is <headfile> <name> <value>
-header_has() { header "$1" "$2" | grep -qi -- "$3"; }                      # header_has <headfile> <name> <substring>
+# header_has <headfile> <name> <substring>: in any line of that header (Nginx sends two Cache-Control
+# lines for assets: the one `expires` makes and the immutable one).
+header_has() { tr -d '\r' <"$1" | grep -i -- "^$2:" | grep -qi -- "$3"; }
 contains() { grep -qF -- "$2" <<<"$1"; }                                   # contains <text> <substring>
 no_wildcard() { [[ "$1" != *'*'* ]]; }
 get() { # get <url> <name>: writes $tmp/<name>.head and $tmp/<name>.body
@@ -105,6 +107,7 @@ if [ -n "$js" ]; then
   check "the script answers 200" status_is "$tmp/js.head" 200
   check "the script is served as JavaScript" header_has "$tmp/js.head" content-type javascript
   check "assets are cached as immutable" header_has "$tmp/js.head" cache-control immutable
+  check "assets are cached for a long time" header_has "$tmp/js.head" cache-control max-age=31536000
   check "assets are sent with nosniff" header_has "$tmp/js.head" x-content-type-options nosniff
   check "the bundle carries the API base it was built for" grep -qF "$API_BASE" "$tmp/js.body"
 fi
