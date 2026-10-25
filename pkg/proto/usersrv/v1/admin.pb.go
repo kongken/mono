@@ -455,8 +455,8 @@ func (x *ChangeUserRequest) GetReason() string {
 	return ""
 }
 
-// ChangeUserResponse is the target after the change (or after the first answer, when
-// replayed).
+// ChangeUserResponse is the target after the change; when replayed it is the stored
+// first answer, a snapshot from the time of the original request, not the current state.
 type ChangeUserResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

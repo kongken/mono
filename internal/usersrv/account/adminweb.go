@@ -182,7 +182,11 @@ func (s *Service) applyAdminChange(ctx context.Context, in AdminChange) (AdminRe
 			roles := splitRoles(receipt.Roles)
 			res = AdminResult{ChangeResult: ChangeResult{Changed: receipt.Changed, Status: Status(receipt.Status),
 				AuthVersion: receipt.AuthVersion, Roles: roles}, Replayed: true}
-			entry.result, entry.afterStatus, entry.afterRoles = "replayed", res.Status, roles
+			// A replay only hands the original answer back. Its audit row says so and nothing more: no
+			// before/after (the receipt is a snapshot of the first request, not of the account now, and
+			// nothing changed), tied to the original row by (actor_user_id, mutation_id), which
+			// carries the real before/after values.
+			entry.result = "replayed"
 			return s.audit(ctx, tx, entry)
 		case !ent.IsNotFound(err):
 			return err

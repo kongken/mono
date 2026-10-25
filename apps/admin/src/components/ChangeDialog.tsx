@@ -107,6 +107,9 @@ export function ChangeDialog({ user, kind, onClose, onDone, onRefresh }: Props) 
                 {...a}
                 data-testid="change-reason"
                 rows={3}
+                // The server counts characters (code points) after trimming, the browser counts UTF-16 units
+                // before: 400 is the most 200 valid characters can take, so this never cuts a valid reason.
+                // The real limit is checkReason.
                 maxLength={400}
                 value={reason}
                 disabled={pending}

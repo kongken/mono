@@ -240,8 +240,8 @@ export const ChangeUserRequestSchema: GenMessage<ChangeUserRequest> = /*@__PURE_
   messageDesc(file_usersrv_v1_admin, 5);
 
 /**
- * ChangeUserResponse is the target after the change (or after the first answer, when
- * replayed).
+ * ChangeUserResponse is the target after the change; when replayed it is the stored
+ * first answer, a snapshot from the time of the original request, not the current state.
  *
  * @generated from message usersrv.v1.ChangeUserResponse
  */
@@ -325,7 +325,9 @@ export const ChangeUserResponseSchema: GenMessage<ChangeUserResponse> = /*@__PUR
  *     is changed (ABORTED, reason TARGET_CHANGED): read the account again;
  *   - (operator, mutation_id) names one request for 24 hours: the same request again
  *     returns the first answer (replayed = true, no second change, no second version
- *     advance), another request under the same key is ALREADY_EXISTS (MUTATION_REUSED).
+ *     advance; the answer is a snapshot of the first request, not the account's state
+ *     now, and the replay's audit row has no before/after: the original row, found by
+ *     operator and mutation_id, holds them), another request under the same key is ALREADY_EXISTS (MUTATION_REUSED).
  *     Receipts are per operator, so one administrator's key never answers another's;
  *   - reason is required: 1-200 characters, no control characters, and nothing that
  *     looks like an email address, password or token.

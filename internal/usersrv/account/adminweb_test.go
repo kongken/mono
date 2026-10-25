@@ -317,8 +317,23 @@ func TestAdminChangeIsIdempotentPerOperatorFor24Hours(t *testing.T) {
 		t.Fatalf("a replay changed the account again: %+v", u)
 	}
 	rows := db.SecurityAudit.Query().Where(securityaudit.MutationID("same")).Order(ent.Asc(securityaudit.FieldCreatedAt)).AllX(ctx)
-	if len(rows) != 2 || rows[0].Result != "ok" || rows[1].Result != "replayed" || rows[1].AfterStatus != "disabled" {
+	if len(rows) != 2 || rows[0].Result != "ok" || rows[1].Result != "replayed" {
 		t.Fatalf("audit rows: %+v", rows)
+	}
+	// The original row carries the real before/after of the change; the replay row only points at it
+	// (same operator, same mutation ID, same action and target) and does not claim a state or a change.
+	orig, rep := rows[0], rows[1]
+	if orig.BeforeStatus != "active" || orig.AfterStatus != "disabled" || orig.BeforeRoles != "" || orig.AfterRoles != "" ||
+		orig.UserID == nil || *orig.UserID != target || orig.ActorUserID == nil || *orig.ActorUserID != a || orig.Channel != "web" {
+		t.Fatalf("original audit row: %+v", orig)
+	}
+	if rep.MutationID != orig.MutationID || rep.Action != orig.Action || rep.Reason != orig.Reason ||
+		rep.ActorUserID == nil || *rep.ActorUserID != a || rep.UserID == nil || *rep.UserID != target ||
+		rep.BeforeStatus != "" || rep.AfterStatus != "" || rep.BeforeRoles != "" || rep.AfterRoles != "" {
+		t.Fatalf("replay audit row: %+v", rep)
+	}
+	if n := db.SecurityAudit.Query().Where(securityaudit.ActorUserID(a), securityaudit.MutationID("same"), securityaudit.ResultNEQ("replayed")).CountX(ctx); n != 1 {
+		t.Fatalf("%d original rows for the key", n)
 	}
 	if n := db.AdminMutation.Query().Where(adminmutation.OperatorID(a)).CountX(ctx); n != 1 {
 		t.Fatalf("%d receipts", n)
@@ -534,4 +549,134 @@ func TestConcurrentAdminChangesAreSerialisedByTheVersion(t *testing.T) {
 			t.Fatalf("%d receipts", n)
 		}
 	})
+}
+
+// A receipt answers only an operator who is still authorised: once the platform role is revoked or the
+// account is disabled, the original request is refused like any other, nothing about the target
+// changes, and the receipt is neither used nor consumed.
+func TestAdminReplayIsRefusedOnceTheOperatorLosesAuthorisation(t *testing.T) {
+	for name, lose := range map[string]struct {
+		cut, restore func(t *testing.T, s *account.Service, admin uuid.UUID)
+	}{
+		"role revoked": {
+			cut: func(t *testing.T, s *account.Service, admin uuid.UUID) {
+				if _, err := s.RevokeRole(ctx, op, admin, account.RolePlatformAdmin); err != nil {
+					t.Fatal(err)
+				}
+			},
+			restore: func(t *testing.T, s *account.Service, admin uuid.UUID) {
+				if _, err := s.GrantRole(ctx, op, admin, account.RolePlatformAdmin); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		"account disabled": {
+			cut: func(t *testing.T, s *account.Service, admin uuid.UUID) {
+				if _, err := s.SetDisabled(ctx, op, admin, true); err != nil {
+					t.Fatal(err)
+				}
+			},
+			restore: func(t *testing.T, s *account.Service, admin uuid.UUID) {
+				if _, err := s.SetDisabled(ctx, op, admin, false); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, db := setup(t)
+			admin := platformAdmin(t, s, "root@example.com")
+			target := create(t, s, "plain@example.com")
+			v := versionOf(t, db, target)
+			original := req(admin, account.ActionDisable, target, v, "lost-response")
+			first, err := s.ApplyAdminChange(ctx, original)
+			if err != nil || !first.Changed {
+				t.Fatalf("first: %+v %v", first, err)
+			}
+			state := db.User.GetX(ctx, target)
+			receipt := db.AdminMutation.Query().OnlyX(ctx)
+
+			lose.cut(t, s, admin)
+			// The CLI's own change of the operator is a different account's event: note the audit baseline now.
+			replays := db.SecurityAudit.Query().Where(securityaudit.Result("replayed")).CountX(ctx)
+			forbidden := db.SecurityAudit.Query().Where(securityaudit.Result("refused_forbidden")).CountX(ctx)
+
+			// The original request, byte for byte, and one with different content: both refused as forbidden,
+			// not as a replay and not as a reuse - the receipt is not consulted for someone not authorised.
+			for label, c := range map[string]account.AdminChange{
+				"same request":      original,
+				"different content": req(admin, account.ActionEnable, target, v, "lost-response"),
+			} {
+				if r, err := s.ApplyAdminChange(ctx, c); !errors.Is(err, account.ErrForbidden) || r.Replayed {
+					t.Fatalf("%s: %+v %v", label, r, err)
+				}
+			}
+			got := db.User.GetX(ctx, target)
+			if got.Status != state.Status || got.AuthVersion != state.AuthVersion {
+				t.Fatalf("a refused replay changed the target: %+v -> %+v", state, got)
+			}
+			if n := db.SecurityAudit.Query().Where(securityaudit.Result("replayed")).CountX(ctx); n != replays {
+				t.Fatalf("a refused request was audited as a replay (%d -> %d)", replays, n)
+			}
+			if n := db.SecurityAudit.Query().Where(securityaudit.Result("refused_forbidden"), securityaudit.MutationID("lost-response")).CountX(ctx); n != forbidden+2 {
+				t.Fatalf("%d forbidden attempts audited, want %d", n, forbidden+2)
+			}
+			if after := db.AdminMutation.Query().OnlyX(ctx); after.ID != receipt.ID || !after.ExpiresAt.Equal(receipt.ExpiresAt) || after.AuthVersion != receipt.AuthVersion {
+				t.Fatalf("the receipt was touched: %+v -> %+v", receipt, after)
+			}
+
+			// The receipt was not consumed or leaked: once the same administrator is authorised again, it answers.
+			lose.restore(t, s, admin)
+			if r, err := s.ApplyAdminChange(ctx, original); err != nil || !r.Replayed || r.AuthVersion != first.AuthVersion {
+				t.Fatalf("after the authorisation came back: %+v %v", r, err)
+			}
+		})
+	}
+}
+
+// A receipt is valid up to, not including, its expiry instant: one tick before it still answers, at
+// exactly expires_at it answers nothing and the key is free again.
+func TestAdminReceiptExpiresExactlyAtItsExpiryTime(t *testing.T) {
+	s, db := setup(t)
+	// PostgreSQL keeps microseconds, so the clock stays on that grid.
+	start := time.Now().UTC().Truncate(time.Microsecond)
+	clock := start
+	s.SetClock(func() time.Time { return clock })
+	admin := platformAdmin(t, s, "root@example.com")
+	target := create(t, s, "plain@example.com")
+	v := versionOf(t, db, target)
+
+	first, err := s.ApplyAdminChange(ctx, req(admin, account.ActionDisable, target, v, "edge"))
+	if err != nil || !first.Changed || first.Replayed {
+		t.Fatalf("first: %+v %v", first, err)
+	}
+	rec := db.AdminMutation.Query().OnlyX(ctx)
+	if !rec.ExpiresAt.Equal(start.Add(account.AdminMutationTTL)) {
+		t.Fatalf("receipt expires at %s, want creation + TTL (%s)", rec.ExpiresAt, start.Add(account.AdminMutationTTL))
+	}
+
+	clock = rec.ExpiresAt.Add(-time.Microsecond)
+	if r, err := s.ApplyAdminChange(ctx, req(admin, account.ActionDisable, target, v, "edge")); err != nil || !r.Replayed || r.AuthVersion != first.AuthVersion {
+		t.Fatalf("one tick before expiry: %+v %v", r, err)
+	}
+	if n := db.AdminMutation.Query().CountX(ctx); n != 1 {
+		t.Fatalf("%d receipts one tick before expiry", n)
+	}
+
+	// At exactly expires_at the receipt is gone: the identical request is judged afresh. Its version
+	// is now stale (the first change advanced it), so it is a conflict, not a replay.
+	clock = rec.ExpiresAt
+	if r, err := s.ApplyAdminChange(ctx, req(admin, account.ActionDisable, target, v, "edge")); !errors.Is(err, account.ErrTargetChanged) || r.Replayed {
+		t.Fatalf("at expiry: %+v %v", r, err)
+	}
+	if n := db.AdminMutation.Query().CountX(ctx); n != 0 {
+		t.Fatalf("the expired receipt was kept (%d)", n)
+	}
+	// And the key is free for a new request, which makes its own receipt.
+	if r, err := s.ApplyAdminChange(ctx, req(admin, account.ActionEnable, target, versionOf(t, db, target), "edge")); err != nil || r.Replayed || !r.Changed {
+		t.Fatalf("a new request under the freed key: %+v %v", r, err)
+	}
+	if n := db.AdminMutation.Query().CountX(ctx); n != 1 {
+		t.Fatalf("%d receipts after the new request", n)
+	}
 }
