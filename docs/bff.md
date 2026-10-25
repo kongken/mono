@@ -280,3 +280,15 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 详细规则、页面与验证分层见 [OzID 功能描述](ozid/features.md)。
 
+## 管理周界与用户查询（OzID T4）
+
+`bff.v1.UserAdminService/ListUsers`、`GetUser`（只读；`required_role = "ozid-admin"`）是浏览器可见的第一批新增管理接口，前面有一道“周界”（`internal/bff/adminguard`，配置段 `admin`）：
+
+- **检查项**：来源 IP 在 `admin.allowed_cidrs` 内、`Origin` 恰好等于 `navigation.apps.admin.origin`、有效会话、平台角色。四项各自独立，且读方法虽免 CSRF，但**不免**这四项。周界先于 CORS 与 CSRF 运行，对任何方法（含 `OPTIONS` 预检）生效；被拒绝时 `servePublic` 返回不带 CORS 许可的 403，拦截器层（纵深）返回 `PERMISSION_DENIED "request rejected"`，两者都不说明是哪一项失败。
+- **白名单与客户端地址**：空白名单（或没有注册控制台）拒绝所有请求；CIDR 必须带前缀、无主机位，IPv4 不比 `/8` 宽、IPv6 不比 `/16` 宽，不接受 IPv4 映射网段，配置校验失败启动即失败。客户端地址默认是 TCP 对端；只有对端属于 `admin.trusted_proxies` 才读取 `admin.forwarded_header`（默认 `X-Forwarded-For`，多行合并，从右向左跳过受信代理），无法解析的跳点拒绝。它独立于 `client_ip_header`（后者只服务分享/退订限流）。
+- **角色**：BFF 入口按会话角色判断 `required_role`（并要求管理会话的认证时效 `auth.admin_session_max_age`），usersrv 在内部凭证与读取事务里再次独立判断。角色只在声明了 `required_role` 的方法的内部凭证里传递。
+- **限流与审计**：按操作者限流（Redis，默认每分钟 120 次，`admin.rate_limit_per_minute`，限流器故障 `UNAVAILABLE`）；每次查询写脱敏日志 `admin user query`；usersrv 在读取事务里写 `security_audit`（`admin.users.list/get`，原因只记查找类型）。BFF 只适配内部契约，不读 usersrv 数据库。
+- **范围**：这一周界只覆盖新增的用户管理读接口和控制台页面；现有 metro 管理接口（`AdminService`、`AccessTokenService`）与 MCP 的来源策略**没有**改变，随各自迁移任务切换。
+- **测试**：`internal/bff/adminguard`（来源/CIDR/受信代理/转发头单测）、`internal/bff/ingress/perimeter_test.go`、`internal/bff/config`（`TestValidateAdminPerimeter`）、`internal/e2e/user_admin_chain_test.go`（四种角色、控制台 Origin、来源策略与预检、查询/分页/审计、限流、角色生命周期与注销保护）、`internal/e2e/admin_browser_test.go`（真实浏览器，`ADMIN_BROWSER_E2E=1`）。
+
+规则、配置、镜像与验证分层见 [控制台功能描述](admin/features.md)。

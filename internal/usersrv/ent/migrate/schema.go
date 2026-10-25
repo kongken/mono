@@ -271,6 +271,6 @@ func init() {
 		Table: "user_roles",
 	}
 	UserRolesTable.Annotation.Checks = map[string]string{
-		"user_roles_role": "role IN ('metro-admin')",
+		"user_roles_role": "role IN ('metro-admin', 'ozid-admin')",
 	}
 }

@@ -198,3 +198,26 @@ id.example.com {
 	header -Server
 	reverse_proxy ozid-web:80
 }
+
+# The management console (deploy/admin-web): the same site as the API, behind a source allowlist.
+# Three independent layers say the same thing: this proxy (optional but cheap), the admin-web
+# container (every page, asset and fallback) and the BFF (`admin.allowed_cidrs`, every user-management
+# call). Edit them together. This proxy is the FIRST hop that sees the real client address, so it sets
+# X-Forwarded-For from the TCP peer (a value the client sent is replaced, never passed on), and the
+# other two list this proxy's network as a trusted proxy (ADMIN_TRUSTED_PROXIES / admin.trusted_proxies).
+# If a CDN or load balancer sits in front of this proxy, its address ranges become part of that
+# trusted chain and Caddy's `trusted_proxies` global option must name them; otherwise leave it out.
+# A source outside the list gets a bare 403 and no body; other Host names and ports get nothing here.
+admin.example.com {
+	encode gzip zstd
+	header -Server
+
+	@outside not remote_ip 203.0.113.0/24
+	respond @outside 403
+
+	reverse_proxy admin-web:80 {
+		header_up Host {host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}

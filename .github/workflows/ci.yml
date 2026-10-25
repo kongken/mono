@@ -98,6 +98,11 @@ jobs:
       - run: npm run build:ozid
         env:
           VITE_API_BASE_URL: https://api.example.com/api
+      # The console needs two public addresses and has no defaults (reserved example names).
+      - run: npm run build:admin
+        env:
+          VITE_API_BASE_URL: https://api.example.com/api
+          VITE_OZID_ORIGIN: https://id.example.com
       - name: Browser acceptance (mocked BFF, no real mail)
         run: |
           npx playwright install --with-deps chromium
@@ -106,6 +111,8 @@ jobs:
         run: npm run test:e2e:metro
       - name: Browser acceptance for OzID (mocked BFF)
         run: npm run test:e2e:ozid
+      - name: Browser acceptance for the admin console (mocked BFF)
+        run: npm run test:e2e:admin
 
   # OzID in a real browser against the real BFF and usersrv: HTTPS, sibling sub-domains of a
   # reserved test site, the host-only Cookie, exact CORS/CSRF/Origin checks. It builds the OzID
@@ -153,6 +160,53 @@ jobs:
       - name: OzID sign-in, return and reauthentication in Chromium
         run: go test ./internal/e2e -run TestOzidBrowserChain -count=1 -v
 
+  # The admin console in a real browser against the real BFF and usersrv: HTTPS, sibling
+  # sub-domains of a reserved test site, the host-only Cookie, the four-role matrix, the source
+  # allowlist in front of the console and again at the BFF, real user queries. It builds the OzID and
+  # console bundles for the addresses of the scenario itself (see internal/e2e/admin_browser_test.go).
+  admin-browser:
+    name: Admin console real-browser acceptance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tripmap
+          POSTGRES_PASSWORD: tripmap-ci
+          POSTGRES_DB: tripmap
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tripmap" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ADMIN_BROWSER_E2E: "1"
+      TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
+      USERSRV_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      USERSRV_TEST_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Console sign-in, role gate, perimeter and user queries in Chromium
+        run: go test ./internal/e2e -run TestAdminBrowserChain -count=1 -v
+
   # The ozid-web image as a running container: /healthz, the page and its assets, the CSP and
   # X-Frame-Options the real Nginx sends, and that a missing or illegal API_ORIGIN keeps it from
   # starting. Reserved example addresses only (scripts/ozid-web-smoke.sh). Nothing is published.
@@ -167,3 +221,17 @@ jobs:
       - name: Build the image and run the acceptance checks
         run: scripts/ozid-web-smoke.sh
 
+  # The admin-web image as a running container: the source allowlist over the page, the assets and
+  # the single-page fallback, forged forwarded headers, other Host values, the headers real Nginx
+  # sends, and that a missing, empty or fully open setting keeps it from starting. Reserved example
+  # addresses only (scripts/admin-web-smoke.sh). Nothing is published.
+  admin-web-image:
+    name: admin-web container acceptance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build the image and run the acceptance checks
+        run: scripts/admin-web-smoke.sh

@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package usersrv.v1;
+
+import "google/protobuf/timestamp.proto";
+import "platform/v1/options.proto";
+import "usersrv/v1/account.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/usersrv/v1;usersrvv1";
+
+// UserAdminService is the internal user management interface (BFF -> usersrv gRPC),
+// read-only in this release. It is the only usersrv interface whose methods may name
+// an account other than the caller: the caller (the credential's sub) is the
+// administrator, and a target is a request field.
+//
+// Every method declares required_role "ozid-admin". usersrv enforces it twice and
+// independently of the BFF: from the roles carried by the verified credential
+// (rpcauth), and again against its own database (the caller must be an active
+// account that holds the role now). A caller without the role is PERMISSION_DENIED;
+// no data is read before both checks pass.
+//
+// Each call is recorded in security_audit in the transaction that reads: the
+// administrator, the action, the request ID, the result and a redacted description
+// of the query (which filters were used, never their values). Nothing is returned
+// when that record cannot be written (UNAVAILABLE). Neither method returns a password
+// hash, a token, a session secret or any product data, and there is no export.
+//
+// Errors:
+//
+//	INVALID_ARGUMENT   a malformed filter, cursor or target (metadata "field" names it)
+//	NOT_FOUND          GetUser: no such account
+//	PERMISSION_DENIED  the caller does not hold ozid-admin
+//	UNAVAILABLE        the store could not serve the read or its audit record
+service UserAdminService {
+  // ListUsers pages through accounts, newest first (created_at, then id, both
+  // descending: a stable total order, so no row repeats or is skipped while the
+  // list is not being changed). At most one of email, user_id and nickname may be set;
+  // status and role narrow the result further. An empty result is a normal answer.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // GetUser reads one account by UUID.
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+}
+
+// AdminUser is the account as an administrator may see it: what is needed to
+// recognise and support the account, and nothing else.
+message AdminUser {
+  string user_id = 1;
+  // The canonical login email, verified at registration. Sensitive: only this
+  // interface and the account's owner see it.
+  string email = 2;
+  // The base nickname (not a product profile).
+  string display_name = 3;
+  AccountStatus status = 4;
+  // Current role names, sorted; empty for none.
+  repeated string roles = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message ListUsersRequest {
+  // Exact lookup by login email; normalised like every other entry point, so
+  // "Alice@Example.COM " finds alice@example.com. Not a prefix or fuzzy search.
+  string email = 1;
+  // Exact lookup by user UUID.
+  string user_id = 2;
+  // Literal, case-insensitive substring of the nickname (1-40 characters); "%" and
+  // "_" are ordinary characters.
+  string nickname = 3;
+  // Unspecified means any status.
+  AccountStatus status = 4;
+  // A whitelisted role name; empty means any.
+  string role = 5;
+  // 0 means 50; the largest accepted value is 100.
+  int32 page_size = 6;
+  // From a previous response; empty starts at the newest account. Use it with the
+  // same filters.
+  string page_token = 7;
+}
+
+message ListUsersResponse {
+  repeated AdminUser users = 1;
+  // Empty when there is no further page.
+  string next_page_token = 2;
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  AdminUser user = 1;
+}

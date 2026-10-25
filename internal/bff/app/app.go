@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/kongken/mono/internal/bff/accesstoken"
+	"github.com/kongken/mono/internal/bff/adminguard"
 	bffauth "github.com/kongken/mono/internal/bff/auth"
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/ent"
@@ -32,6 +33,7 @@ import (
 	"github.com/kongken/mono/internal/bff/session"
 	bfftripmap "github.com/kongken/mono/internal/bff/tripmap"
 	"github.com/kongken/mono/internal/bff/upstream"
+	"github.com/kongken/mono/internal/bff/useradmin"
 	"github.com/kongken/mono/internal/bff/usersrv"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
@@ -41,6 +43,10 @@ import (
 )
 
 const publicPrefix = "/api/bff."
+
+// adminPrefix is the public path of the admin console's procedures: the admin perimeter
+// applies to every request under it, whatever its method.
+const adminPrefix = "/api/" + bffv1connect.UserAdminServiceName + "/"
 
 // authReadMaxBytes bounds a request to the account, profile and access-token
 // services.
@@ -63,6 +69,7 @@ type Handlers struct {
 	auth        atomic.Pointer[bffauth.Handler]
 	authSvc     atomic.Pointer[bffauth.Service]
 	usersClient atomic.Pointer[usersrv.Client]
+	adminGuard  atomic.Pointer[adminguard.Guard]
 	stopRunner  atomic.Pointer[context.CancelFunc]
 }
 
@@ -183,7 +190,20 @@ func heavyProcedures() map[string]bool {
 func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 	conn := clients.Conn(bfftripmap.Service)
 	usersConn := clients.Conn(usersrv.Service)
+	// The admin perimeter exists even when nothing is configured: an empty allowlist
+	// (or no registered console) refuses every management procedure.
+	guard, err := adminguard.New(h.cfg.Admin, h.cfg.Navigation.Apps[navigation.AppAdmin].Origin)
+	if err != nil {
+		return nil, fmt.Errorf("admin: %w", err)
+	}
+	h.adminGuard.Store(guard)
 	policy := ingress.Policy{
+		Perimeter: func(procedure string, header http.Header, remoteAddr string) error {
+			if strings.HasPrefix(procedure, "/"+bffv1connect.UserAdminServiceName+"/") {
+				return guard.Check(header, remoteAddr)
+			}
+			return nil
+		},
 		ClientIPHeader:     h.cfg.ClientIPHeader,
 		AllowedOrigins:     h.cfg.CORSAllowedOrigins,
 		Heavy:              heavyProcedures(),
@@ -231,6 +251,11 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 		if r := h.resources.Load(); r != nil {
 			route, handler = bffv1connect.NewAccessTokenServiceHandler(accesstoken.NewHandler(accesstoken.New(r.DB)), authOpts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
+			if users := h.usersClient.Load(); users != nil {
+				adminHandler := useradmin.New(users, ratelimit.New(r.Redis, r.KeyPrefix), h.cfg.Admin.Limit())
+				route, handler = bffv1connect.NewUserAdminServiceHandler(adminHandler, authOpts...)
+				mux.Handle(route, ingress.ConnectOnly(handler))
+			}
 		}
 		if conn != nil {
 			bfftripmap.MountRPC(mux, conn, opts)
@@ -390,6 +415,14 @@ func (h *Handlers) servePublic(gw *gateway.Gateway, c *gin.Context) {
 	if public == nil || path.Clean(p) != p {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
+	}
+	// The admin perimeter comes before CORS: a request from outside the allowlist, a
+	// preflight included, gets no CORS grant and no hint that the procedure exists.
+	if strings.HasPrefix(p, adminPrefix) {
+		if h.adminGuard.Load().Check(c.Request.Header, c.Request.RemoteAddr) != nil {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
 	}
 	if gw.CORS()(c); c.IsAborted() {
 		return

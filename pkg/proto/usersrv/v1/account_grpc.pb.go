@@ -109,7 +109,10 @@ type AccountServiceClient interface {
 	UpdateMyProfile(ctx context.Context, in *UpdateMyProfileRequest, opts ...grpc.CallOption) (*UpdateMyProfileResponse, error)
 	// BeginDeletion idempotently moves the caller's account to deleting, bumps
 	// auth_version and voids its account tokens. A second call with the same
-	// mutation_id succeeds; a different mutation_id is DELETION_MISMATCH.
+	// mutation_id succeeds; a different mutation_id is DELETION_MISMATCH. An account
+	// that holds the platform role ozid-admin is FAILED_PRECONDITION with reason
+	// PLATFORM_ADMIN_PROTECTED and nothing changes: the role has to be revoked through
+	// the operator CLI before the account can be closed.
 	BeginDeletion(ctx context.Context, in *BeginDeletionRequest, opts ...grpc.CallOption) (*BeginDeletionResponse, error)
 	// FinishDeletion removes the account, credential, roles, tokens and profile and
 	// leaves a 24 hour tombstone, so a lost response can be replayed with the same
@@ -322,7 +325,10 @@ type AccountServiceServer interface {
 	UpdateMyProfile(context.Context, *UpdateMyProfileRequest) (*UpdateMyProfileResponse, error)
 	// BeginDeletion idempotently moves the caller's account to deleting, bumps
 	// auth_version and voids its account tokens. A second call with the same
-	// mutation_id succeeds; a different mutation_id is DELETION_MISMATCH.
+	// mutation_id succeeds; a different mutation_id is DELETION_MISMATCH. An account
+	// that holds the platform role ozid-admin is FAILED_PRECONDITION with reason
+	// PLATFORM_ADMIN_PROTECTED and nothing changes: the role has to be revoked through
+	// the operator CLI before the account can be closed.
 	BeginDeletion(context.Context, *BeginDeletionRequest) (*BeginDeletionResponse, error)
 	// FinishDeletion removes the account, credential, roles, tokens and profile and
 	// leaves a 24 hour tombstone, so a lost response can be replayed with the same

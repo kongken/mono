@@ -108,6 +108,45 @@ func TestGrantRevokeDisableEnableAndShow(t *testing.T) {
 	}
 }
 
+// The platform role is granted and revoked only here, one role at a time: holding ozid-admin
+// grants nothing of metro-admin and the other way round, every change bumps auth_version, and a
+// refused or repeated attempt is recorded too.
+func TestPlatformAdminRoleIsIndependentOfMetroAdmin(t *testing.T) {
+	c := newCLI(t)
+	id := c.user("platform@example.com")
+	common := []string{"-operator", "alice", "-reason", "ticket 9"}
+	grant := func(role string) string {
+		t.Helper()
+		code, out, errOut := c.run(append([]string{"grant-role", "-user-id", id.String(), "-role", role}, common...)...)
+		if code != 0 {
+			t.Fatalf("grant %s: %d %q %q", role, code, out, errOut)
+		}
+		return out
+	}
+	if out := grant("ozid-admin"); !strings.Contains(out, "roles=[ozid-admin]") || !strings.Contains(out, "auth_version=2") {
+		t.Fatalf("grant ozid-admin: %q", out)
+	}
+	if out := grant("ozid-admin"); !strings.Contains(out, "unchanged") || !strings.Contains(out, "auth_version=2") {
+		t.Fatalf("repeat: %q", out)
+	}
+	if out := grant("metro-admin"); !strings.Contains(out, "metro-admin") || !strings.Contains(out, "ozid-admin") || !strings.Contains(out, "auth_version=3") {
+		t.Fatalf("both roles: %q", out)
+	}
+	code, out, _ := c.run(append([]string{"revoke-role", "-user-id", id.String(), "-role", "ozid-admin"}, common...)...)
+	if code != 0 || !strings.Contains(out, "roles=[metro-admin]") || !strings.Contains(out, "auth_version=4") {
+		t.Fatalf("revoke ozid-admin must keep metro-admin: %d %q", code, out)
+	}
+	rows := c.db.SecurityAudit.Query().Where(securityaudit.ActorEQ("alice")).AllX(context.Background())
+	results := map[string]int{}
+	for _, r := range rows {
+		results[r.Action+"="+r.Result]++
+	}
+	want := map[string]int{"role.grant:ozid-admin=ok": 1, "role.grant:ozid-admin=unchanged": 1, "role.grant:metro-admin=ok": 1, "role.revoke:ozid-admin=ok": 1}
+	if len(results) != len(want) || results["role.grant:ozid-admin=ok"] != 1 || results["role.grant:ozid-admin=unchanged"] != 1 || results["role.grant:metro-admin=ok"] != 1 || results["role.revoke:ozid-admin=ok"] != 1 {
+		t.Fatalf("audit: %v", results)
+	}
+}
+
 func TestFailuresAndUsageErrors(t *testing.T) {
 	c := newCLI(t)
 	c.user("exists@example.com")

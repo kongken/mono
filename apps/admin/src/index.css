@@ -1,0 +1,63 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@source "../../../packages/ui/src";
+@source "../../../packages/account/src";
+@custom-variant dark (&:is(.dark *));
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+:root {
+  font-family: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --radius: 0.625rem;
+  --background: #fafbfd;
+  --foreground: #1b2330;
+  --card: #ffffff;
+  --card-foreground: #1b2330;
+  --popover: #ffffff;
+  --popover-foreground: #1b2330;
+  --primary: #2f6b5a;
+  --primary-foreground: #ffffff;
+  --secondary: #e7f2ee;
+  --secondary-foreground: #1d4b3e;
+  --muted: #f0f3f8;
+  --muted-foreground: #5b6779;
+  --accent: #e3f0eb;
+  --accent-foreground: #173f33;
+  --destructive: #b3372b;
+  --border: #dbe2ec;
+  --input: #cdd6e3;
+  --ring: #4f9a84;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--background);
+  color: var(--foreground);
+}
+a { color: inherit; }
+img { max-width: 100%; }

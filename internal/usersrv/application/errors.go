@@ -26,6 +26,9 @@ const (
 	ReasonDeletionMismatch   = "DELETION_MISMATCH"
 	ReasonTokenInvalid       = "TOKEN_INVALID"
 	ReasonRegistrationClosed = "REGISTRATION_CLOSED"
+	// ReasonPlatformAdminProtected: BeginDeletion of an account that holds the
+	// platform role ozid-admin; the role must be revoked through the operator CLI first.
+	ReasonPlatformAdminProtected = "PLATFORM_ADMIN_PROTECTED"
 )
 
 func detailed(code codes.Code, message, reason string, metadata map[string]string) error {
@@ -73,6 +76,10 @@ func toStatus(op string, err error) error {
 		return detailed(codes.FailedPrecondition, "link is not usable", ReasonTokenInvalid, nil)
 	case errors.Is(err, account.ErrRegistrationClosed):
 		return detailed(codes.FailedPrecondition, "registration is closed", ReasonRegistrationClosed, nil)
+	case errors.Is(err, account.ErrPlatformAdmin):
+		return detailed(codes.FailedPrecondition, "platform administrator accounts cannot be closed here", ReasonPlatformAdminProtected, nil)
+	case errors.Is(err, account.ErrForbidden):
+		return status.Error(codes.PermissionDenied, "permission denied")
 	case errors.Is(err, account.ErrRateLimited):
 		return errRateLimited()
 	case errors.Is(err, account.ErrEmailTaken):

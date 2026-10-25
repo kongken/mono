@@ -770,7 +770,10 @@ export const AccountService: GenService<{
   /**
    * BeginDeletion idempotently moves the caller's account to deleting, bumps
    * auth_version and voids its account tokens. A second call with the same
-   * mutation_id succeeds; a different mutation_id is DELETION_MISMATCH.
+   * mutation_id succeeds; a different mutation_id is DELETION_MISMATCH. An account
+   * that holds the platform role ozid-admin is FAILED_PRECONDITION with reason
+   * PLATFORM_ADMIN_PROTECTED and nothing changes: the role has to be revoked through
+   * the operator CLI before the account can be closed.
    *
    * @generated from rpc usersrv.v1.AccountService.BeginDeletion
    */

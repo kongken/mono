@@ -3,6 +3,7 @@ FROM node:24-alpine AS build
 WORKDIR /app
 # Workspace manifests first so the dependency layer is cached until one changes.
 COPY package.json package-lock.json ./
+COPY apps/admin/package.json apps/admin/package.json
 COPY apps/ozid/package.json apps/ozid/package.json
 COPY apps/trip-map/package.json apps/trip-map/package.json
 COPY apps/metro/package.json apps/metro/package.json

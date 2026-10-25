@@ -47,3 +47,20 @@ test("no connection, an unavailable service and a lost deletion answer are diffe
   assert.match(lost.message, /重试注销/);
   assert.match(classifyAccountError(new TypeError("Failed to fetch"), "delete").message, /重试注销/);
 });
+
+test("management refusals keep their meaning: lost session, old password check, missing role, closed perimeter", () => {
+  assert.equal(classifyAccountError(err(Code.Unauthenticated, "sign in required")).kind, "not_signed_in");
+  assert.equal(classifyAccountError(err(Code.Unauthenticated, "sign in again to use this feature")).kind, "reauth_required");
+  assert.equal(classifyAccountError(err(Code.PermissionDenied, "required role missing")).kind, "forbidden");
+  assert.equal(classifyAccountError(err(Code.PermissionDenied, "permission denied")).kind, "forbidden");
+  assert.equal(classifyAccountError(err(Code.PermissionDenied, "request rejected")).kind, "not_allowed");
+  assert.equal(classifyAccountError(err(Code.PermissionDenied, "403 Forbidden")).kind, "not_allowed");
+  assert.equal(classifyAccountError(err(Code.PermissionDenied, "something else")).kind, "other");
+  assert.equal(classifyAccountError(err(Code.ResourceExhausted, "too many requests, try again later")).kind, "rate_limited");
+});
+
+test("a platform administrator is told why the web cannot close the account, and it is not a lost answer", () => {
+  const f = classifyAccountError(err(Code.FailedPrecondition, "platform administrator accounts cannot be closed here; an operator must revoke the role first"), "delete");
+  assert.equal(f.kind, "platform_admin");
+  assert.match(f.message, /平台管理员/);
+});

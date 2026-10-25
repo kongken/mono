@@ -1,0 +1,127 @@
+#!/bin/sh
+# Runs before the Nginx image's own template step (20-envsubst-on-templates.sh), so a bad value
+# never reaches the generated configuration; a non-zero exit stops the container's entrypoint.
+#
+# It validates the settings that decide WHO may see the console and writes the access rules
+# (/etc/nginx/admin-access.conf, included by the console's server block):
+#
+#   API_ORIGIN             the BFF's https origin (the page's CSP connect-src), origin only
+#   ADMIN_HOST             the one host name this console answers to; any other Host gets nothing
+#   ADMIN_ALLOWED_CIDRS    comma-separated source networks allowed to load the console. Required:
+#                          empty means refuse to start, never "open to everyone". A network
+#                          without a prefix length, with host bits (IPv4), wider than /8 (IPv4) or
+#                          /16 (IPv6), an IPv4-mapped IPv6 network or a wildcard is refused.
+#   ADMIN_TRUSTED_PROXIES  optional comma-separated networks of the gateways in front of this
+#                          container. Only then is the forwarded header read, right to left,
+#                          skipping these hops; without it the TCP peer is the client.
+#   ADMIN_REAL_IP_HEADER   the forwarded header (default X-Forwarded-For)
+#
+# The BFF checks the same allowlist again on its own (admin.allowed_cidrs): this is the first of
+# two independent layers, not a replacement for the second.
+set -eu
+set -f
+
+fail() {
+  echo "admin-web: $*" >&2
+  exit 1
+}
+
+conf_dir="${ADMIN_CONF_DIR:-/etc/nginx}"
+
+case "${API_ORIGIN:-}" in
+  https://*[!/]) ;;
+  *) fail "API_ORIGIN must be the BFF's https origin, for example https://api.example.com" ;;
+esac
+case "${API_ORIGIN#https://}" in
+  */*|*\**|*\;*|*\ *|*\"*|*\'*|*\\*|*\$*) fail "API_ORIGIN must be an origin only (no path, wildcard or spaces)" ;;
+esac
+
+case "${ADMIN_HOST:-}" in
+  ''|*[!a-z0-9.-]*|.*|*.|*..*|-*) fail "ADMIN_HOST must be one lower-case host name such as admin.example.com (no wildcard, port or path)" ;;
+esac
+
+header="${ADMIN_REAL_IP_HEADER:-X-Forwarded-For}"
+case "$header" in
+  ''|*[!A-Za-z0-9-]*) fail "ADMIN_REAL_IP_HEADER must be a header name such as X-Forwarded-For" ;;
+esac
+
+# check_cidr <setting> <value>
+check_cidr() {
+  setting="$1"
+  value="$2"
+  addr="${value%/*}"
+  len="${value#*/}"
+  [ "$addr" != "$value" ] || fail "$setting: '$value' needs a prefix length, for example 203.0.113.0/24"
+  case "$len" in
+    ''|*[!0-9]*) fail "$setting: '$value' has an invalid prefix length" ;;
+  esac
+  case "$addr" in
+    *:*)
+      case "$addr" in
+        *[!0-9a-fA-F:]*) fail "$setting: '$value' is not an IPv6 network" ;;
+      esac
+      lower="$(printf '%s' "$addr" | tr 'A-F' 'a-f')"
+      case "$lower" in
+        ::ffff:*|*:ffff:*.*) fail "$setting: '$value' is an IPv4-mapped network; list the IPv4 network itself" ;;
+      esac
+      [ "$len" -le 128 ] || fail "$setting: '$value' has an invalid prefix length"
+      [ "$len" -ge 16 ] || fail "$setting: '$value' is wider than /16, which is almost everyone"
+      ;;
+    *)
+      case "$addr" in
+        *[!0-9.]*|*..*|.*|*.) fail "$setting: '$value' is not an IPv4 network" ;;
+      esac
+      oldifs="$IFS"
+      IFS=.
+      # shellcheck disable=SC2086
+      set -- $addr
+      IFS="$oldifs"
+      [ "$#" -eq 4 ] || fail "$setting: '$value' is not an IPv4 network"
+      for octet in "$@"; do
+        case "$octet" in
+          0?*) fail "$setting: '$value' has a leading zero in an address part (it is ambiguous: octal or decimal)" ;;
+        esac
+        [ "${#octet}" -le 3 ] && [ "$octet" -le 255 ] || fail "$setting: '$value' is not an IPv4 network"
+      done
+      [ "$len" -le 32 ] || fail "$setting: '$value' has an invalid prefix length"
+      [ "$len" -ge 8 ] || fail "$setting: '$value' is wider than /8, which is almost everyone"
+      ip=$(( ($1 << 24) | ($2 << 16) | ($3 << 8) | $4 ))
+      hostbits=$(( ip & ((1 << (32 - len)) - 1) ))
+      [ "$hostbits" -eq 0 ] || fail "$setting: '$value' has host bits set; write the network address, for example 203.0.113.0/24"
+      ;;
+  esac
+}
+
+# validate_list <setting> <value>: validates every item (a bad one stops the script right here,
+# not in a subshell) and leaves the items, space separated, in $validated.
+validate_list() {
+  validated=""
+  items="$(printf '%s' "$2" | tr ',' ' ')"
+  for item in $items; do
+    check_cidr "$1" "$item"
+    validated="$validated $item"
+  done
+}
+
+validate_list ADMIN_ALLOWED_CIDRS "${ADMIN_ALLOWED_CIDRS:-}"
+[ -n "$validated" ] || fail "ADMIN_ALLOWED_CIDRS is empty: an empty allowlist denies everyone, so the console would be unusable. List the networks that may use it."
+allowed="$validated"
+proxies=""
+if [ -n "${ADMIN_TRUSTED_PROXIES:-}" ]; then
+  validate_list ADMIN_TRUSTED_PROXIES "$ADMIN_TRUSTED_PROXIES"
+  [ -n "$validated" ] || fail "ADMIN_TRUSTED_PROXIES has no usable item"
+  proxies="$validated"
+fi
+
+out="$conf_dir/admin-access.conf"
+{
+  echo "# Generated by 19-admin-access.sh from the container's environment. Do not edit."
+  if [ -n "$proxies" ]; then
+    # The client is the first hop, read from the right, that is not one of these gateways.
+    echo "real_ip_header $header;"
+    echo "real_ip_recursive on;"
+    for p in $proxies; do echo "set_real_ip_from $p;"; done
+  fi
+  for c in $allowed; do echo "allow $c;"; done
+  echo "deny all;"
+} >"$out"

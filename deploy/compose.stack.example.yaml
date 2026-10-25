@@ -153,6 +153,27 @@ services:
       API_ORIGIN: https://api.example.com
     networks: [edge]
 
+  # The unified management console (apps/admin; docs/admin/features.md) is static too and sits behind
+  # a source allowlist: the container REFUSES TO START without ADMIN_ALLOWED_CIDRS (an empty or fully
+  # open list is a refusal, never "open"), and every response of it (the page, the assets, the
+  # single-page fallback) is limited to those networks. The BFF checks its own `admin.allowed_cidrs`
+  # again on every user-management call, so the two lists belong together. Build it with
+  #   docker build -f deploy/admin-web/Dockerfile \
+  #     --build-arg VITE_API_BASE_URL=https://api.example.com/api \
+  #     --build-arg VITE_OZID_ORIGIN=https://id.example.com .
+  # ADMIN_TRUSTED_PROXIES is the edge proxy's network on `edge`: only then is the forwarded header
+  # (which that proxy sets from the real peer) believed. Publish it only through that proxy, on its own
+  # host (deploy/reverse-proxy/Caddyfile.example); never map its port to the internet.
+  # Reserved example addresses: replace them in a private copy, and do not commit real ones.
+  admin-web:
+    image: ghcr.io/kongken/mono-admin-web:main   # replace with an image built for your API base and OzID origin
+    environment:
+      API_ORIGIN: https://api.example.com
+      ADMIN_HOST: admin.example.com
+      ADMIN_ALLOWED_CIDRS: 203.0.113.0/24
+      ADMIN_TRUSTED_PROXIES: 172.16.0.0/12
+    networks: [edge]
+
 networks:
   internal:
     internal: true

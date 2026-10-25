@@ -70,6 +70,11 @@ var (
 	ErrRegistrationClosed = errors.New("registration is closed")
 	// ErrRateLimited: a public limit (client address or the service-wide mail cap) is hit.
 	ErrRateLimited = errors.New("rate limited")
+	// ErrPlatformAdmin: the account holds the platform role, which protects it from
+	// being closed by the ordinary self-service deletion.
+	ErrPlatformAdmin = errors.New("platform administrators cannot close their account through the web")
+	// ErrForbidden: the caller of an administrator interface does not hold the role now.
+	ErrForbidden = errors.New("administrator role required")
 )
 
 // Service is the account core over one usersrv database.
@@ -377,13 +382,17 @@ func (s *Service) activeUser(ctx context.Context, id uuid.UUID) (*ent.User, erro
 // BeginDeletion moves an active account to deleting for one workflow. Repeating
 // it with the same mutation ID succeeds; another mutation ID is refused. It
 // bumps auth_version and voids every account token of the user and of its
-// address, and cancels the account mails still waiting in the outbox.
+// address, and cancels the account mails still waiting in the outbox. An account
+// that holds the platform role (ozid-admin) is refused with ErrPlatformAdmin and
+// nothing changes but an audit row: that role must first be revoked through the
+// operator CLI, so no web page can remove a platform administrator.
 func (s *Service) BeginDeletion(ctx context.Context, id uuid.UUID, mutationID, requestID string) (int64, error) {
 	mutationID, err := identity.NormalizeMutationID(mutationID)
 	if err != nil {
 		return 0, err
 	}
 	var version int64
+	var refusal error
 	err = s.inTx(ctx, func(tx *ent.Tx) error {
 		u, err := tx.User.Query().Where(user.ID(id)).ForUpdate().Only(ctx)
 		if err != nil {
@@ -400,6 +409,17 @@ func (s *Service) BeginDeletion(ctx context.Context, id uuid.UUID, mutationID, r
 		default:
 			return ErrNotActive
 		}
+		// The platform role is checked under the same row lock the role CLI takes, so a
+		// concurrent grant either lands first (and this refuses) or finds the account
+		// already deleting (and the grant is refused: only active accounts get roles).
+		platform, err := tx.UserRole.Query().Where(userrole.UserID(id), userrole.Role(RolePlatformAdmin)).Exist(ctx)
+		if err != nil {
+			return err
+		}
+		if platform {
+			refusal = ErrPlatformAdmin
+			return s.audit(ctx, tx, auditEntry{userID: &id, actor: userActor(id), action: "deletion.begin", requestID: requestID, result: "refused_platform_admin"})
+		}
 		updated, err := tx.User.UpdateOneID(id).SetStatus(user.StatusDeleting).SetDeletionStartedAt(s.now()).
 			SetDeletionMutationID(mutationID).AddAuthVersion(1).Save(ctx)
 		if err != nil {
@@ -413,6 +433,9 @@ func (s *Service) BeginDeletion(ctx context.Context, id uuid.UUID, mutationID, r
 	})
 	if err != nil {
 		return 0, mapStoreError(err)
+	}
+	if refusal != nil {
+		return 0, refusal
 	}
 	return version, nil
 }
@@ -521,7 +544,8 @@ func mapStoreError(err error) error {
 		return nil
 	case errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalidCredentials), errors.Is(err, ErrNotActive), errors.Is(err, ErrEmailTaken),
 		errors.Is(err, ErrConflict), errors.Is(err, ErrDeletionMismatch), errors.Is(err, ErrUnavailable),
-		errors.Is(err, ErrTokenInvalid), errors.Is(err, ErrRegistrationClosed), errors.Is(err, ErrRateLimited):
+		errors.Is(err, ErrTokenInvalid), errors.Is(err, ErrRegistrationClosed), errors.Is(err, ErrRateLimited),
+		errors.Is(err, ErrPlatformAdmin), errors.Is(err, ErrForbidden):
 		return err
 	case errors.Is(err, passwordhash.ErrBusy):
 		return fmt.Errorf("%w: password budget", ErrUnavailable)

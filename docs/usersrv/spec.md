@@ -363,6 +363,7 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 - 本人方法从签名的 `sub` 取得目标用户；认证版本/密码重新校验结果与 BFF 会话版本比较。`GetAuthState` 仅在已有用户凭证上下文读取对应用户，不接受任意请求体 user ID。
 - `BeginDeletion` / `FinishDeletion` 绑定原用户 sub 和工作流 mutation ID；幂等重复完成依赖注销 tombstone/完成回执（24 小时），不能通过“用户已不存在”就允许任意状态推进。
 - usersrv 的 gRPC 拦截器不能为 `GetAuthState` 再反向依赖自身资格 RPC，避免循环；它验证 BFF 签名，资格状态由目标方法查询。产品 RPC 的鉴权继续使用平台拦截器。
+- `UserAdminService`（OzID T4，只读）：`ListUsers`、`GetUser`，`required_role = "ozid-admin"`；usersrv 在读取事务里再次确认调用者是仍然正常且当前持有 `ozid-admin` 的账号，审计（`admin.users.list/get`，脱敏原因）与读取同事务；邮箱精确、昵称字面包含、状态/角色过滤、稳定分页（默认 50、上限 100），不返回密码哈希、令牌或私有业务数据。`BeginDeletion` 拒绝持有 `ozid-admin` 的账号（`PLATFORM_ADMIN_PROTECTED`）。详见 [控制台功能描述](../admin/features.md)。
 - `SystemService.GetStatus`：内部匿名状态，仅有依赖与 worker 就绪信息。CLI 的角色/禁用操作不公开为匿名 RPC，也不给普通用户配置一个任意 user ID 的管理方法。
 
 ## 10. 滥用防护与链接安全

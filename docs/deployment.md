@@ -180,3 +180,14 @@ OzID（`apps/ozid`，镜像 `ozid-web`）是纯静态站点，没有同源 `/api
 
 运维仍须自行确认：真实 DNS、证书、TLS 终止、IP 允许名单和邮件厂商；自动化只覆盖受控的保留测试域名。镜像发布与 CI 不会自动部署，也不清理数据。运行示例见 `deploy/compose.stack.example.yaml` 的 `ozid-web`。
 
+## 统一管理控制台的部署
+
+控制台（`apps/admin`，镜像 `admin-web`）是纯静态站点，也没有同源 `/api`，并且**只在来源白名单之后**提供页面。它与 BFF 的 `admin` 周界是两道各自独立的防线，白名单与受信代理要一起维护：
+
+1. **前端重建**：`--build-arg VITE_API_BASE_URL=https://api.example.com/api --build-arg VITE_OZID_ORIGIN=https://id.example.com`（都无默认值，缺失或不合法构建失败）；运行时 `API_ORIGIN`、`ADMIN_HOST`、`ADMIN_ALLOWED_CIDRS` 必填，空值或全开的白名单使容器拒绝启动；`ADMIN_TRUSTED_PROXIES`（前置代理网段）可选。
+2. **BFF 配置**：`admin.allowed_cidrs`（空 = 全部拒绝）、`admin.trusted_proxies`；`navigation.apps.admin`（`origin`、`paths: ["/users", "/users/*"]`）；控制台 origin 加入 `cors_allowed_origins`，且与 API 同站点。
+3. **反代与 DNS/TLS**：见 `deploy/reverse-proxy/Caddyfile.example` 的 `admin.example.com` 站点：代理是第一个看到真实客户端的跳点，用对端地址**覆盖** `X-Forwarded-For`（不透传客户端的值），并列入后两层的受信代理。前面如果还有 CDN/负载均衡，它们的网段也属于受信链，必须同时配置，否则真实来源会被误判。
+4. **授予平台角色**：`usersrv-admin grant-role -role ozid-admin ...`（先于上线）。usersrv 迁移 `20261025120000_platform_admin_role.sql` 随 usersrv 上线。
+5. **上线顺序与回滚**：usersrv → BFF → 网关与 `admin-web`；回滚先下线控制台，再回滚 BFF；回滚迁移前先撤销所有 `ozid-admin`。
+
+镜像发布与 CI 不会自动部署、不会自动开放白名单，也不清理数据；运维仍须自行确认真实 DNS、证书与 TLS、真实来源地址与白名单取值、代理/CDN 链路和邮件厂商。详见 [控制台功能描述](admin/features.md)。

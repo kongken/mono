@@ -28,6 +28,12 @@ export type AccountErrorKind =
   | "reauth_required"
   | "not_signed_in"
   | "deletion_in_progress"
+  /** The account holds the platform role, which keeps it from the web self-service deletion. */
+  | "platform_admin"
+  /** Signed in, but the account does not hold the role the management call needs. */
+  | "forbidden"
+  /** The management call came from a network or origin the perimeter does not admit; it never says which. */
+  | "not_allowed"
   | "validation"
   | "other";
 
@@ -75,6 +81,8 @@ function classify(error: unknown, action: AccountAction): AccountFailure {
       if (action === "login") return { kind: "credentials", message: LOGIN_FAILURE };
       if (raw.startsWith("current password is incorrect") && (action === "reauthenticate" || action === "change-password" || action === "delete"))
         return { kind: "wrong_password", message: "当前密码不正确" };
+      // The management calls ask for a recent password check; the session itself is still valid.
+      if (raw.startsWith("sign in again to use this feature")) return { kind: "reauth_required", message: "为了安全，请先重新验证密码再继续" };
       return { kind: "not_signed_in", message: "登录已失效，请重新登录" };
     case Code.FailedPrecondition:
       if (raw.startsWith("link is not usable")) return { kind: "link_invalid", message: LINK_INVALID };
@@ -82,6 +90,8 @@ function classify(error: unknown, action: AccountAction): AccountFailure {
       if (raw.startsWith("navigation is not configured")) return { kind: "other", message: "账号入口尚未配置完整，暂时无法申请，请联系管理员" };
       if (raw.startsWith("enter your password again")) return { kind: "reauth_required", message: "为了安全，请先输入当前密码再继续" };
       if (raw.startsWith("another account deletion")) return { kind: "deletion_in_progress", message: "这个账号已有一次注销正在进行，请等待它完成" };
+      if (raw.startsWith("platform administrator accounts cannot be closed"))
+        return { kind: "platform_admin", message: "这个账号是平台管理员，不能在网页上注销。请联系运维先回收管理员角色，再重新注销" };
       if (action === "register-complete" || action === "reset-complete") return { kind: "link_invalid", message: LINK_INVALID };
       return { kind: "other", message: "现在无法执行此操作" };
     case Code.AlreadyExists:
@@ -97,6 +107,11 @@ function classify(error: unknown, action: AccountAction): AccountFailure {
       return { kind: "validation", message: "提交的内容不符合要求，请检查后再试" };
     }
     case Code.PermissionDenied:
+      if (raw.startsWith("required role missing") || raw.startsWith("permission denied"))
+        return { kind: "forbidden", message: "当前账号没有使用这个功能的权限" };
+      // The perimeter's answer is the same whatever it checked (network, origin); so is this text.
+      if (raw.startsWith("request rejected") || raw.startsWith("403"))
+        return { kind: "not_allowed", message: "当前网络或访问来源不允许使用管理功能" };
       return { kind: "other", message: "当前无法执行此操作" };
     case Code.NotFound:
       return { kind: "other", message: "没有找到对应的内容，可能已经处理完成" };

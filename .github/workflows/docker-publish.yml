@@ -52,6 +52,15 @@ jobs:
             dockerfile: deploy/ozid-web/Dockerfile
             build_args: |
               VITE_API_BASE_URL=https://api.example.com/api
+          # The unified management console: the same kind of build check. It also needs the OzID
+          # origin at build time, and at run time ADMIN_HOST, ADMIN_ALLOWED_CIDRS and API_ORIGIN
+          # (the container refuses to start without a usable allowlist).
+          - image: admin-web
+            suffix: '-admin-web'
+            dockerfile: deploy/admin-web/Dockerfile
+            build_args: |
+              VITE_API_BASE_URL=https://api.example.com/api
+              VITE_OZID_ORIGIN=https://id.example.com
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

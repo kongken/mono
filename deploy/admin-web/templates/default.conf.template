@@ -1,0 +1,67 @@
+# The unified management console: static files only, never a proxy to the BFF.
+#
+# Two servers. The default one answers nothing but /healthz: a request for any other Host (a
+# bare IP, another site name pointed here by mistake) is dropped without a response. The console
+# server answers only to ADMIN_HOST, and EVERY response of it (the page, the static assets, the
+# single-page fallback, even a 404) sits behind the source allowlist from admin-access.conf, so a
+# network outside the list cannot even download the bundle. The BFF checks its own allowlist again
+# on every management call: this is the first layer, not the only one.
+server {
+    listen 80 default_server;
+    server_name _;
+    server_tokens off;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+    location / { return 444; }
+}
+
+server {
+    listen 80;
+    server_name ${ADMIN_HOST};
+    server_tokens off;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # The Host header must be exactly the console's host name: another name or a port (the
+    # gateway terminates TLS on the standard port and forwards Host unchanged) is dropped
+    # without a response, before anything is looked at.
+    if ($http_host != "${ADMIN_HOST}") { return 444; }
+
+    # real_ip (only with trusted proxies), then allow/deny: both are server-level, so every
+    # location below inherits them. Nothing here may add an "allow all".
+    include /etc/nginx/admin-access.conf;
+
+    include /etc/nginx/conf.d/inc/headers.inc;
+    error_page 403 @denied;
+    location @denied {
+        include /etc/nginx/conf.d/inc/headers.inc;
+        add_header Cache-Control "no-store" always;
+        default_type text/plain;
+        return 403 "forbidden\n";
+    }
+
+    location /assets/ {
+        try_files $uri =404;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        include /etc/nginx/conf.d/inc/headers.inc;
+    }
+    # The shell shows live administrator state: never cached, wherever it is reached from.
+    location = /index.html {
+        include /etc/nginx/conf.d/inc/headers.inc;
+        add_header Cache-Control "no-store" always;
+    }
+    # No /healthz here on purpose: a "return" runs before the access check, so a probe path on this
+    # server would answer to any network. Probes use the default server above.
+    # The single-page fallback. The shell is the same for every route, so an unknown address
+    # shows the console's own not-found page; it still comes only from inside the allowlist.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    gzip on;
+    gzip_types application/json application/javascript text/css image/svg+xml;
+}

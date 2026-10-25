@@ -108,6 +108,9 @@ func TestVersionedMigrationsMatchEntAndEnforceInvariants(t *testing.T) {
 	if err := exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), $1, 'metro-admin', now())`, u1); err != nil {
 		t.Fatal(err)
 	}
+	if err := exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), $1, 'ozid-admin', now())`, u1); err != nil {
+		t.Fatalf("the platform role is not admitted by the migrated schema: %v", err)
+	}
 	mustFail("the same role twice", exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), $1, 'metro-admin', now())`, u1))
 	mustFail("a role for a missing user", exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), gen_random_uuid(), 'metro-admin', now())`))
 

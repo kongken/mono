@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kongken/mono/internal/bff/adminguard"
 	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/httpx"
@@ -43,6 +44,10 @@ type Config struct {
 	// Navigation is the registry of front-end apps the browser may be sent back to
 	// after signing in at OzID. Omit it to run without OzID navigation.
 	Navigation navigation.Config `yaml:"navigation"`
+	// Admin is the perimeter of the unified admin console's API: which networks may
+	// use it and which reverse proxies are trusted to report the client address.
+	// Leaving it out closes the console: every management procedure is refused.
+	Admin adminguard.Config `yaml:"admin"`
 }
 
 // MCPConfig controls the metro MCP endpoint.
@@ -194,6 +199,14 @@ func (c *Config) Validate(services []string) error {
 	}
 	if _, err := navigation.New(c.Navigation, c.CORSAllowedOrigins, c.Auth.CookieSecure); err != nil {
 		return err
+	}
+	if err := c.Admin.Validate(); err != nil {
+		return err
+	}
+	if len(c.Admin.AllowedCIDRs) > 0 {
+		if _, ok := c.Navigation.Apps[navigation.AppAdmin]; !ok {
+			return fmt.Errorf("admin.allowed_cidrs is set but navigation.apps.%s is not: the console needs a registered origin", navigation.AppAdmin)
+		}
 	}
 	if c.Auth.AdminSessionMaxAge < 0 {
 		return fmt.Errorf("auth.admin_session_max_age must not be negative")

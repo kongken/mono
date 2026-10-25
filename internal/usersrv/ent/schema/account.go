@@ -74,7 +74,7 @@ type UserRole struct{ ent.Schema }
 func (UserRole) Annotations() []schema.Annotation {
 	return []schema.Annotation{
 		entsql.Annotation{Table: "user_roles"},
-		entsql.Checks(map[string]string{"user_roles_role": "role IN ('metro-admin')"}),
+		entsql.Checks(map[string]string{"user_roles_role": "role IN ('metro-admin', 'ozid-admin')"}),
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/platform/rpcauth"
@@ -40,6 +41,9 @@ const (
 	ReasonDeletionMismatch   = "DELETION_MISMATCH"
 	ReasonTokenInvalid       = "TOKEN_INVALID"
 	ReasonRegistrationClosed = "REGISTRATION_CLOSED"
+	// ReasonPlatformAdminProtected: the account holds the platform role, which
+	// forbids closing it from the web until the role is revoked by an operator.
+	ReasonPlatformAdminProtected = "PLATFORM_ADMIN_PROTECTED"
 )
 
 // LoginFailure is the one text of every failed login (spec 5.2): it does not say
@@ -95,11 +99,12 @@ var ErrNotFound = errors.New("account not found")
 // Client calls usersrv.
 type Client struct {
 	account usersrvv1.AccountServiceClient
+	admin   usersrvv1.UserAdminServiceClient
 }
 
 // New returns a client over the usersrv connection.
 func New(conn grpc.ClientConnInterface) *Client {
-	return &Client{account: usersrvv1.NewAccountServiceClient(conn)}
+	return &Client{account: usersrvv1.NewAccountServiceClient(conn), admin: usersrvv1.NewUserAdminServiceClient(conn)}
 }
 
 // anonymous describes a call without a user: the client address and request ID of
@@ -221,10 +226,28 @@ func (c *Client) UpdateProfile(ctx context.Context, userID, displayName, avatarU
 	return profile(res.GetProfile()), nil
 }
 
-// BeginDeletion idempotently moves the account to deleting under mutationID.
+// BeginDeletion idempotently moves the account to deleting under mutationID. An account
+// that holds the platform role is refused for good: the error satisfies
+// IsPlatformAdminProtected and nothing about the account has changed.
 func (c *Client) BeginDeletion(ctx context.Context, userID, mutationID string) error {
 	_, err := c.account.BeginDeletion(asUser(ctx, userID), &usersrvv1.BeginDeletionRequest{MutationId: mutationID})
+	if Reason(err) == ReasonPlatformAdminProtected {
+		return platformAdminProtected{connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("platform administrator accounts cannot be closed here; an operator must revoke the role first"))}
+	}
 	return MapError(err)
+}
+
+// platformAdminProtected marks the refusal to close a platform administrator's account. It
+// unwraps to a Connect error, so the browser sees an ordinary FAILED_PRECONDITION.
+type platformAdminProtected struct{ error }
+
+func (e platformAdminProtected) Unwrap() error { return e.error }
+
+// IsPlatformAdminProtected reports whether err is that refusal.
+func IsPlatformAdminProtected(err error) bool {
+	var p platformAdminProtected
+	return errors.As(err, &p)
 }
 
 // FinishDeletion removes the account (or confirms an earlier removal by its
@@ -311,4 +334,77 @@ func MapError(err error) error {
 	}
 	slog.Error("usersrv call failed", "code", st.Code().String(), "reason", reason)
 	return connect.NewError(connect.CodeInternal, errors.New("internal error"))
+}
+
+// AdminUser is an account as the user management section may show it.
+type AdminUser struct {
+	UserID      string
+	Email       string
+	DisplayName string
+	Status      Status
+	Roles       []string
+	CreatedAt   time.Time
+}
+
+// UserQuery narrows a user list. At most one of Email, UserID and Nickname is set.
+type UserQuery struct {
+	Email, UserID, Nickname string
+	Status                  Status
+	Role                    string
+	PageSize                int32
+	PageToken               string
+}
+
+// asAdmin describes a call made by the administrator userID. Unlike asUser it keeps the
+// roles the ingress verified from the session, because usersrv.v1.UserAdminService
+// declares a required role and checks it again from the credential.
+func asAdmin(ctx context.Context, userID string) context.Context {
+	c := rpcauth.CallFrom(ctx)
+	c.UserID, c.TokenID = userID, ""
+	return rpcauth.WithCall(ctx, c)
+}
+
+// ListUsers pages through accounts for the administrator operatorID.
+func (c *Client) ListUsers(ctx context.Context, operatorID string, q UserQuery) ([]AdminUser, string, error) {
+	res, err := c.admin.ListUsers(asAdmin(ctx, operatorID), &usersrvv1.ListUsersRequest{
+		Email: q.Email, UserId: q.UserID, Nickname: q.Nickname, Status: protoStatus(q.Status), Role: q.Role,
+		PageSize: q.PageSize, PageToken: q.PageToken,
+	})
+	if err != nil {
+		return nil, "", MapError(err)
+	}
+	users := make([]AdminUser, 0, len(res.GetUsers()))
+	for _, u := range res.GetUsers() {
+		users = append(users, adminUser(u))
+	}
+	return users, res.GetNextPageToken(), nil
+}
+
+// GetUser reads one account for the administrator operatorID; a missing account is ErrNotFound.
+func (c *Client) GetUser(ctx context.Context, operatorID, userID string) (AdminUser, error) {
+	res, err := c.admin.GetUser(asAdmin(ctx, operatorID), &usersrvv1.GetUserRequest{UserId: userID})
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return AdminUser{}, ErrNotFound
+		}
+		return AdminUser{}, MapError(err)
+	}
+	return adminUser(res.GetUser()), nil
+}
+
+func adminUser(u *usersrvv1.AdminUser) AdminUser {
+	return AdminUser{UserID: u.GetUserId(), Email: u.GetEmail(), DisplayName: u.GetDisplayName(), Status: statusOf(u.GetStatus()),
+		Roles: u.GetRoles(), CreatedAt: u.GetCreatedAt().AsTime()}
+}
+
+func protoStatus(s Status) usersrvv1.AccountStatus {
+	switch s {
+	case StatusActive:
+		return usersrvv1.AccountStatus_ACCOUNT_STATUS_ACTIVE
+	case StatusDisabled:
+		return usersrvv1.AccountStatus_ACCOUNT_STATUS_DISABLED
+	case StatusDeleting:
+		return usersrvv1.AccountStatus_ACCOUNT_STATUS_DELETING
+	}
+	return usersrvv1.AccountStatus_ACCOUNT_STATUS_UNSPECIFIED
 }

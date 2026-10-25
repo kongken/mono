@@ -32,6 +32,7 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 		usersrvv1.RegisterSystemServiceServer(r, application.NewSystemService(h))
 		if res := h.resources.Load(); res != nil && res.Accounts != nil {
 			usersrvv1.RegisterAccountServiceServer(r, application.NewAccountService(res.Accounts, res.Limiter, res.Limits))
+			usersrvv1.RegisterUserAdminServiceServer(r, application.NewUserAdminService(res.Accounts))
 		}
 		for _, register := range extra {
 			register(r)

@@ -60,6 +60,12 @@ type Policy struct {
 	// AdminSessionMaxAge is how old (since the password was last checked) a session may be when it calls
 	// a procedure that declares required_role. Zero disables the check.
 	AdminSessionMaxAge time.Duration
+	// Perimeter runs first for every procedure, before the write protection and any
+	// session lookup, with the request headers and the TCP peer address. A non-nil
+	// error refuses the call with the same "request rejected" whatever failed. It is
+	// how the admin console's source policy (network and Origin) reaches the procedures
+	// that need it; nil admits every procedure.
+	Perimeter func(procedure string, header http.Header, remoteAddr string) error
 	// Now defaults to time.Now; tests set it.
 	Now func() time.Time
 	// Authenticate resolves the browser session cookie for protected procedures and
@@ -109,6 +115,11 @@ func Interceptor(p Policy) connect.Interceptor {
 					ce.Meta().Set(RequestIDHeader, requestID)
 				}
 				return err
+			}
+			if p.Perimeter != nil {
+				if err := p.Perimeter(procedure, req.Header(), req.Peer().Addr); err != nil {
+					return nil, withID(errWriteRejected)
+				}
 			}
 			if RequiresWriteProtection(procedure) {
 				if err := session.CheckWrite(req.Header(), p.AllowedOrigins, req.Header().Get("Host")); err != nil {

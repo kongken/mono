@@ -14,11 +14,18 @@ import (
 	"github.com/kongken/mono/internal/usersrv/identity"
 )
 
-// RoleMetroAdmin is the only role of the first release.
+// RoleMetroAdmin is the role of the metro catalogue administrators.
 const RoleMetroAdmin = "metro-admin"
 
+// RolePlatformAdmin is the platform administrator: it opens the user section of the
+// unified admin console. It is independent of RoleMetroAdmin (neither implies the
+// other) and is granted and revoked only through the operator CLI. Registration never
+// grants it, whoever registers first, and an account that holds it cannot close itself
+// from the web (see BeginDeletion).
+const RolePlatformAdmin = "ozid-admin"
+
 // Roles is the whitelist of grantable roles.
-var Roles = []string{RoleMetroAdmin}
+var Roles = []string{RoleMetroAdmin, RolePlatformAdmin}
 
 // Operator identifies who runs an administrative change and why. Both are
 // recorded in the audit row of the change, whatever its result. There is no

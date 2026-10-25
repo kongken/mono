@@ -21,6 +21,11 @@ var readOnlyProcedures = map[string]bool{
 
 	bffv1connect.AccessTokenServiceListAccessTokensProcedure: true,
 
+	// User management reads: nothing is changed, so no CSRF token is needed. They are
+	// not exempt from the admin perimeter, which demands the console's exact Origin.
+	bffv1connect.UserAdminServiceListUsersProcedure: true,
+	bffv1connect.UserAdminServiceGetUserProcedure:   true,
+
 	bfftripmapv1connect.FootprintServiceGetChangesProcedure:    true,
 	bfftripmapv1connect.FootprintServiceGetFootprintsProcedure: true,
 

@@ -1,6 +1,6 @@
 # 项目协作说明
 
-本仓库（`kongken/mono`）是多产品 monorepo：每个产品有自己的前端应用 `apps/<产品>`、业务服务 `internal/<产品>`、浏览器契约 `proto/bff/<产品>/v1` 与产品文档 `docs/<产品>/`；账号、会话与公网入口（BFF）由各产品共用。当前有两个产品：「山海足迹」（目录名 `trip-map`，后端业务服务名 `tripmap`）和「地铁足迹」（`metro`，可选）；另有跨产品的用户中心 OzID（`apps/ozid`，没有自己的业务服务，只调用 BFF，见 [OzID 功能描述](docs/ozid/features.md)）。
+本仓库（`kongken/mono`）是多产品 monorepo：每个产品有自己的前端应用 `apps/<产品>`、业务服务 `internal/<产品>`、浏览器契约 `proto/bff/<产品>/v1` 与产品文档 `docs/<产品>/`；账号、会话与公网入口（BFF）由各产品共用。当前有两个产品：「山海足迹」（目录名 `trip-map`，后端业务服务名 `tripmap`）和「地铁足迹」（`metro`，可选）；另有跨产品的用户中心 OzID（`apps/ozid`，没有自己的业务服务，只调用 BFF，见 [OzID 功能描述](docs/ozid/features.md)）和统一管理控制台（`apps/admin`，只调用 BFF，只在来源白名单内提供页面，见 [控制台功能描述](docs/admin/features.md)）。
 
 山海足迹是中国旅行地图 WebApp，前端使用 React、Vite、TypeScript 和 shadcn/ui；后端沿用 neo-box 的 Go、Butterfly、Gin、ConnectRPC、Ent，基础设施使用 PostgreSQL、Redis 和 S3。保持中文旅行手账风格，以省份探索和城市足迹记录为核心。
 
@@ -19,7 +19,7 @@
 - 地图使用随项目分发的 GeoJSON；默认保持运行时无需第三方地图请求或 API Key。联网底图是显式启用的可选能力（OSM 或服务端代理的 Mapbox，见 [数据与地图说明](docs/trip-map/data-and-maps.md)），Mapbox token 只留在 tripmap 配置，不进入前端。
 - 更改存储结构或区域索引时，处理已有足迹的兼容或迁移，避免将旧数据直接当作空数据覆盖。
 
-- 前端是 npm workspaces monorepo，细节见 [前后端 monorepo 布局](docs/monorepo.md)：`apps/<应用>` 是可独立构建部署的前端应用（当前有 `apps/trip-map`、`apps/metro` 与 `apps/ozid`，包名 `@kongken/trip-map`、`@kongken/metro`、`@kongken/ozid`），`packages/` 放跨应用或前后端共用的代码和数据（`ui`、`api-client`、`geo-data`、`fixtures`、`account`）。应用之间不互相 import，共用部分抽到 `packages/`；只被一个应用使用的代码留在该应用内，出现第二个使用方时再抽出。
+- 前端是 npm workspaces monorepo，细节见 [前后端 monorepo 布局](docs/monorepo.md)：`apps/<应用>` 是可独立构建部署的前端应用（当前有 `apps/trip-map`、`apps/metro`、`apps/ozid` 与 `apps/admin`，包名 `@kongken/trip-map`、`@kongken/metro`、`@kongken/ozid`、`@kongken/admin`），`packages/` 放跨应用或前后端共用的代码和数据（`ui`、`api-client`、`geo-data`、`fixtures`、`account`）。应用之间不互相 import，共用部分抽到 `packages/`；只被一个应用使用的代码留在该应用内，出现第二个使用方时再抽出。
 - `packages/api-client/src/` 是 `make buf` 的生成目录，`packages/geo-data/data/` 的区域索引与 `internal/tripmap/regions/`、`internal/tripmap/itinerary/` 里的后端副本必须一致，`packages/fixtures/` 是前后端共同验证的夹具；它们的更新方式见 [数据与地图说明](docs/trip-map/data-and-maps.md)。
 
 ## 后端约定

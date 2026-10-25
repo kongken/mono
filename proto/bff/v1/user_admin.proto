@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package bff.v1;
+
+import "google/protobuf/timestamp.proto";
+import "platform/v1/options.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
+
+// UserAdminService is the browser interface of the unified admin console's user
+// section: finding accounts and reading what an administrator may know about them.
+// It is read-only in this release; there is no method that changes an account.
+//
+// Every method is a management procedure and is refused unless ALL of these hold,
+// each checked independently of the others (a failure of any is the same refusal,
+// so a caller cannot tell which one it missed):
+//
+//   - the caller's address (resolved from the trusted proxy chain, never from a
+//     header the caller controls) is inside admin.allowed_cidrs; an empty list
+//     refuses everything;
+//   - the Origin header is exactly the admin console's registered origin
+//     (navigation.apps.admin.origin), not a product origin and not absent;
+//   - the Cookie session is valid and its account is active with an unchanged
+//     auth_version (checked with usersrv on every call);
+//   - the session holds the platform role ozid-admin now (metro-admin is not enough,
+//     and ozid-admin does not imply any metro role);
+//   - the password was verified within admin_session_max_age (re-authenticate at
+//     OzID, which returns UNAUTHENTICATED "sign in again to use this feature" here).
+//
+// The BFF then calls usersrv.v1.UserAdminService, which checks the role again. The
+// reads are exempt from CSRF (they change nothing) but not from any check above.
+// Each operator may make 120 calls a minute (RESOURCE_EXHAUSTED beyond that; a
+// failing limiter store refuses the call). Errors never carry internal detail.
+service UserAdminService {
+  // ListUsers pages through accounts newest first, 50 per page by default and 100 at most.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // GetUser reads one account by UUID; NOT_FOUND when there is none.
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+}
+
+enum UserStatus {
+  USER_STATUS_UNSPECIFIED = 0;
+  USER_STATUS_ACTIVE = 1;
+  USER_STATUS_DISABLED = 2;
+  // The account is being closed; read-only, "enable" never cancels a deletion.
+  USER_STATUS_DELETING = 3;
+}
+
+// AdminUser is one account as an administrator may see it. There is no password
+// hash, token, session, product data or profile of any product here.
+message AdminUser {
+  string user_id = 1;
+  // The canonical login email. Administrator-only; never shown to metro-admin.
+  string email = 2;
+  string display_name = 3;
+  UserStatus status = 4;
+  // Current role names, sorted.
+  repeated string roles = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message ListUsersRequest {
+  // At most one of email, user_id and nickname.
+  //
+  // Exact lookup by login email (normalised: case and surrounding spaces do not matter).
+  string email = 1;
+  // Exact lookup by user UUID.
+  string user_id = 2;
+  // Literal, case-insensitive substring of the nickname, 1-40 characters.
+  string nickname = 3;
+  UserStatus status = 4;
+  // "metro-admin" or "ozid-admin"; empty means any.
+  string role = 5;
+  // 0 means 50; at most 100.
+  int32 page_size = 6;
+  // From the previous response, with the same filters; empty starts over.
+  string page_token = 7;
+}
+
+message ListUsersResponse {
+  repeated AdminUser users = 1;
+  // Empty at the last page.
+  string next_page_token = 2;
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  AdminUser user = 1;
+}

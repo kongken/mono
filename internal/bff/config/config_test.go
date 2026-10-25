@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kongken/mono/internal/bff/adminguard"
 	"github.com/kongken/mono/internal/bff/navigation"
 )
 
@@ -178,6 +179,49 @@ func TestAuthAdminSessionAndAccountCleanup(t *testing.T) {
 			}
 			continue
 		}
+		if c.Validate(services) == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestValidateAdminPerimeter(t *testing.T) {
+	services := []string{"tripmap"}
+	ok := func() Config {
+		return Config{
+			Upstreams:          map[string]string{"tripmap": "http://tripmap:18081"},
+			CORSAllowedOrigins: []string{"https://id.example.com", "https://admin.example.com"},
+			Auth:               AuthConfig{CookieSecure: true},
+			Navigation: navigation.Config{
+				APIOrigin: "https://api.example.com",
+				Apps: map[string]navigation.App{
+					"ozid":  {Origin: "https://id.example.com"},
+					"admin": {Origin: "https://admin.example.com"},
+				},
+			},
+			Admin: adminguard.Config{AllowedCIDRs: []string{"192.0.2.0/24"}, TrustedProxies: []string{"10.0.0.0/8"}},
+		}
+	}
+	if c := ok(); c.Validate(services) != nil {
+		t.Fatal(c.Validate(services))
+	}
+	// Leaving the section out is valid and closes the console.
+	if c := ok(); true {
+		c.Admin = adminguard.Config{}
+		if c.Validate(services) != nil {
+			t.Fatal("an empty admin section must be valid")
+		}
+	}
+	for name, mutate := range map[string]func(*Config){
+		"open to everyone":                       func(c *Config) { c.Admin.AllowedCIDRs = []string{"0.0.0.0/0"} },
+		"open to everyone (v6)":                  func(c *Config) { c.Admin.AllowedCIDRs = []string{"::/0"} },
+		"open in two halves":                     func(c *Config) { c.Admin.AllowedCIDRs = []string{"0.0.0.0/1", "128.0.0.0/1"} },
+		"every proxy trusted":                    func(c *Config) { c.Admin.TrustedProxies = []string{"0.0.0.0/0"} },
+		"not a network":                          func(c *Config) { c.Admin.AllowedCIDRs = []string{"office"} },
+		"allowlist without a registered console": func(c *Config) { delete(c.Navigation.Apps, "admin") },
+	} {
+		c := ok()
+		mutate(&c)
 		if c.Validate(services) == nil {
 			t.Errorf("%s: accepted", name)
 		}

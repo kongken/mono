@@ -687,7 +687,7 @@ func (b *Browser) LoginWithRoles(ctx context.Context, subject string, roles ...s
 		return err
 	}
 	for _, role := range roles {
-		if role != "metro-admin" {
+		if role != "metro-admin" && role != "ozid-admin" {
 			continue
 		}
 		if _, err := b.h.Accounts.GrantRole(ctx, usersrvaccount.Operator{Name: "e2e", Reason: "test"}, id, role); err != nil {
