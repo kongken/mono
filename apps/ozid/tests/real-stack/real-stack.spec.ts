@@ -442,6 +442,8 @@ test.describe("profile, password and devices, end to end", () => {
   /** What a product on another origin learns from the shared Cookie of this device. */
   async function productSees(d: { page: Page }, origin: string) {
     await d.page.goto(`${origin}/`);
+    // The stand-in page asks `Me` after it loads; "checking" is its answer-pending text, not a result.
+    await expect(d.page.locator("#me")).not.toHaveText(/^checking/);
     return (await d.page.locator("#me").innerText()).trim();
   }
 
