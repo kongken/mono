@@ -177,6 +177,22 @@ test.describe("asking for a mail", () => {
   });
 });
 
+test.describe("a BFF without a navigation registry", () => {
+  // The BFF refuses a mail request that carries a context it cannot vouch for (internal/bff/auth
+  // and internal/e2e cover that). OzID never sends one it could not resolve itself, so the user
+  // is told the way back is unconfirmed and the plain request goes through.
+  test("OzID tells the user it cannot confirm the way back and asks without a context", async ({ page }) => {
+    const accounts = createFakeAccounts(); // no registry configured
+    await installFakeAccounts(page, accounts);
+    await page.goto("/register?app_id=metro&return_path=%2Fcity%2Fshanghai");
+    await expect(page.getByRole("alert").filter({ hasText: "无法确认要返回的应用或页面" })).toBeVisible();
+    await page.getByLabel("邮箱").fill(EMAIL);
+    await page.getByRole("button", { name: "发送验证邮件" }).click();
+    await expect(page.getByTestId("register-sent")).toBeVisible();
+    expect(accounts.lastMail("registration")?.bound).toBeNull();
+  });
+});
+
 test.describe("finishing from the mail", () => {
   test("another browser completes registration; nothing signs in, the way back is kept", async ({ page }) => {
     const { accounts, visited } = await setup(page);

@@ -626,7 +626,7 @@ func (b *Browser) LoginWithEmail(ctx context.Context, email, password string) (*
 // the account exists; it does not sign in.
 func (b *Browser) register(ctx context.Context, h *ChainHarness, subject, display string) error {
 	email := emailFor(subject)
-	if _, err := b.RequestRegistration(ctx, email, "trip-map"); err != nil {
+	if _, err := b.RequestRegistration(ctx, email, ""); err != nil {
 		return err
 	}
 	h.DeliverMail()

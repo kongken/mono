@@ -8,13 +8,13 @@
 apps/
   trip-map/             前端应用“山海足迹”：Vite + React，自己的 index.html、vite.config.ts、tsconfig、public/、tests/（Playwright）、scripts/
   metro/                前端应用“地铁足迹”：Vite + React，自己的路由与内存目录缓存，tests/（Playwright，模拟 BFF），不含地图资源脚本
-  ozid/                 前端应用“OzID 用户中心”：Vite + React，登录、概览与密码重新认证；没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL`；tests/ 有模拟 BFF 的 Playwright 与真实 BFF 的 real-stack 用例（由 internal/e2e 启动）
+  ozid/                 前端应用“OzID 用户中心”：Vite + React，登录、注册、找回密码、邮件落地页（注册验证、密码重置）、概览与密码重新认证；没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL`；tests/ 有模拟 BFF 的 Playwright 与真实 BFF 的 real-stack 用例（由 internal/e2e 启动）
 packages/
   ui/                   shadcn 组件与 cn()：@kongken/ui/button、dialog、input、utils
   api-client/           buf 生成的 ConnectRPC TypeScript 契约：@kongken/api-client/<包>/v1/<文件>_pb（`bff/v1` 为共用的账号契约，`bff/<产品>/v1` 如 `bff/tripmap/v1` 为各产品的浏览器契约，`tripmap/v1` 为业务服务契约，`platform/v1` 为共享选项）
   geo-data/             区域索引、城市坐标、区域目录、搜索索引、省份邻接表：@kongken/geo-data/<名称>.json（文件在 data/）
   fixtures/             前端与 Go 后端共同验证的 JSON 夹具
-  account/              两个前端共用的邮箱账号流程：`createAccountApi`（经 `bff.v1` 的 Connect 客户端）、错误文案、登录/注册/资料/改密码/设备/注销表单、邮件落地页、落地页响应头的 Vite 插件，以及测试用的假账号服务与 SMTP 接收器（`@kongken/account/<模块>`）
+  account/              trip-map、metro 与 OzID 共用的邮箱账号流程（T2 起新邮件的落地页在 OzID，产品的落地页只服务旧邮件）：`createAccountApi`（经 `bff.v1` 的 Connect 客户端）、错误文案、登录/注册/资料/改密码/设备/注销表单、邮件落地页、落地页响应头的 Vite 插件，以及测试用的假账号服务与 SMTP 接收器（`@kongken/account/<模块>`）
 cmd/ internal/ pkg/ proto/ migrations/   Go 后端，规则见 AGENTS.md 与 backend.md、bff.md
 deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deployment.md）
 ```

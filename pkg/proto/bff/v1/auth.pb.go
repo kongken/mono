@@ -361,7 +361,8 @@ type RequestRegistrationRequest struct {
 	Email string `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
 	// Optional return context: the app the user came from and a pathname in it. It is
 	// checked against the navigation registry (an unknown app or path is
-	// INVALID_ARGUMENT; without a configured registry the context is dropped) and bound
+	// INVALID_ARGUMENT; without a configured registry any non-empty context is
+	// FAILED_PRECONDITION, before usersrv is called) and bound
 	// to the challenge. It never picks the mail link: that always points at the
 	// central OzID origin.
 	AppId string `protobuf:"bytes,2,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`

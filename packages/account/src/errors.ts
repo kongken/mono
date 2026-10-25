@@ -79,6 +79,7 @@ function classify(error: unknown, action: AccountAction): AccountFailure {
     case Code.FailedPrecondition:
       if (raw.startsWith("link is not usable")) return { kind: "link_invalid", message: LINK_INVALID };
       if (raw.startsWith("registration is closed")) return { kind: "registration_closed", message: "目前暂未开放新用户注册" };
+      if (raw.startsWith("navigation is not configured")) return { kind: "other", message: "账号入口尚未配置完整，暂时无法申请，请联系管理员" };
       if (raw.startsWith("enter your password again")) return { kind: "reauth_required", message: "为了安全，请先输入当前密码再继续" };
       if (raw.startsWith("another account deletion")) return { kind: "deletion_in_progress", message: "这个账号已有一次注销正在进行，请等待它完成" };
       if (action === "register-complete" || action === "reset-complete") return { kind: "link_invalid", message: LINK_INVALID };

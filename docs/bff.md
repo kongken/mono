@@ -43,7 +43,8 @@
 
 - 浏览器 RPC 仅 `/api/bff.*`（共用的 `bff.v1`、各产品的 `bff.<产品>.v1`）；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/unsubscribe 由 BFF `publichttp` 提供）。
 - 前端的业务 RPC（含分享 API）使用 `bff.tripmap.v1`；账号与会话管理使用 `bff.v1`。BFF 会话和注销工作流在 BFF 独立库；tripmap `users` 只保存用户 UUID 对应的展示投影与产品数据，好友只能凭 `fc_` 邀请码添加（没有按用户名查找）。
-- 浏览器登录、注册、找回密码、账号设置与邮件落地页已在两个前端实现（P5，见 [usersrv 规格](usersrv/spec.md#p5-已实现内容)）；发布与退役（P6）：usersrv 镜像与部署示例、Logto 运行时入口删除、手动退役文档已完成（[退役说明](usersrv/retirement.md)）；正式环境开放前仍需对真实邮件厂商做手动冒烟（[说明](usersrv/mail-smoke-test.md)，未对任何真实厂商实测）。
+- 浏览器登录、注册、找回密码、账号设置与邮件落地页已在 trip-map 与 metro 实现（P5，见 [usersrv 规格](usersrv/spec.md#p5-已实现内容)）；发布与退役（P6）：usersrv 镜像与部署示例、Logto 运行时入口删除、手动退役文档已完成（[退役说明](usersrv/retirement.md)）；正式环境开放前仍需对真实邮件厂商做手动冒烟（[说明](usersrv/mail-smoke-test.md)，未对任何真实厂商实测）。
+- **T2 之后的区别：** 产品入口（trip-map 的账号弹窗、metro 的登录页）尚未切换到 OzID，仍可发起注册与找回；但新邮件已集中到 OzID（链接都指向 `auth.apps.ozid`），邮件落地页与完成后的“去登录”在 OzID，产品自己的落地页只服务升级前发出的旧邮件。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）
@@ -263,7 +264,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 ## 多 Web App 登录与跨域
 
-账号 Cookie 是 host-only，跨域只靠精确的 `cors_allowed_origins`：精确允许 Origin 的正常、错误与 OPTIONS 响应均带 Allow-Origin、Allow-Credentials 与 Vary，预检包含 Connect/CSRF/区域头及 X-Kongken-User；不允许 `*` 或任意回显。读取授权不会免除写入的 Origin/CSRF 验证。CSRF token 从 IssueCSRFToken 响应体取得，并在凭据请求中放入 X-CSRF-Token（不要求前端读取 BFF Cookie）。退出只撤销当前 BFF 会话；其他设备会话保留。邮件里的链接来源由 usersrv 的 `auth.apps.<app_id>.origin` 决定，不由请求决定。
+账号 Cookie 是 host-only，跨域只靠精确的 `cors_allowed_origins`：精确允许 Origin 的正常、错误与 OPTIONS 响应均带 Allow-Origin、Allow-Credentials 与 Vary，预检包含 Connect/CSRF/区域头及 X-Kongken-User；不允许 `*` 或任意回显。读取授权不会免除写入的 Origin/CSRF 验证。CSRF token 从 IssueCSRFToken 响应体取得，并在凭据请求中放入 X-CSRF-Token（不要求前端读取 BFF Cookie）。退出只撤销当前 BFF 会话；其他设备会话保留。新注册验证与重置邮件的链接一律指向 usersrv 的 `auth.apps.ozid.origin`（中央 OzID），不由请求决定；请求里的应用 ID 只是返回上下文。`auth.apps` 里其余条目只服务升级前签发或已排队的旧邮件（见 [OzID 功能描述](ozid/features.md#邮件流程t2)）。
 
 共享 Cookie 换账号保护：页面为已确定身份的请求携带 `X-Kongken-User`，足迹引擎把该值绑定到自身账号。BFF 在同一请求内解析 Cookie 后比较预期 ID，不相符即 unauthenticated，旧缓存不会写入新账号。该头只能收窄会话身份，不能代替认证或选择其他账号；Me 恢复时不发送它。未升级客户端不发送该头仍按原会话认证，但不能获得这一并发账号切换保护，运营方应同步升级各共享 Cookie 的应用。
 
@@ -273,7 +274,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 配置段（`config.bff.example.yaml`）：`navigation.api_origin` 与 `navigation.apps`（`ozid` 必需；ID 取 `ozid`、`admin`、`trip-map`、`metro`；每项 `origin`、可选 `default_path` 与 `paths`）。BFF 启动时校验并在出错时拒绝启动：origin 必须精确且在 `cors_allowed_origins` 内、`auth.cookie_secure` 为 true 时必须 https、各 origin 与 `api_origin` 须在同一 schemeful site、origin 不重复。**同站点不等于授权**：未登记的兄弟子域名拿不到 CORS，写请求也过不了 Origin/CSRF 校验（`session_test`/`app_test` 与浏览器测试有覆盖）。Cookie 始终 host-only，不设置 `Domain`。
 
-**注册与重置的返回上下文（T2）。** `RequestRegistration` / `RequestPasswordReset` 的请求可带 `app_id` 与 `return_path`：BFF 在调 usersrv 之前用注册表按 T1 的同一规则校验（不合法为 `INVALID_ARGUMENT`，不创建挑战、不发邮件；没有注册表时上下文被丢弃）；`CompleteRegistration` / `ResetPassword` 的响应带回挑战保存的上下文，BFF 出口处再校验一次，应用已下线或路径不再允许就静默丢弃。完成接口不建立会话。邮件链接指向 usersrv 的 `auth.apps.ozid`，与申请来自哪个应用无关。
+**注册与重置的返回上下文（T2）。** `RequestRegistration` / `RequestPasswordReset` 的请求可带 `app_id` 与 `return_path`：BFF 在调 usersrv 之前用注册表按 T1 的同一规则校验（不合法为 `INVALID_ARGUMENT`，不创建挑战、不发邮件；没有配置注册表时，携带非空应用 ID 或路径的申请返回 `FAILED_PRECONDITION`，同样发生在调用 usersrv 之前，无上下文的申请照常处理）；`CompleteRegistration` / `ResetPassword` 的响应带回挑战保存的上下文，BFF 出口处再校验一次，应用已下线或路径不再允许就静默丢弃。完成接口不建立会话。因为产品的账号弹窗默认带自己的应用 ID，发布 T2 时 BFF 必须配置 `navigation`。邮件链接指向 usersrv 的 `auth.apps.ozid`，与申请来自哪个应用无关。
 
 详细规则、页面与验证分层见 [OzID 功能描述](ozid/features.md)。
 

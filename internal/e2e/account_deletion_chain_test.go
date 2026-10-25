@@ -84,7 +84,7 @@ func TestChainAccountDeletionRetryReceiptAndIsolation(t *testing.T) {
 		t.Fatalf("sign-in while deleting: %v", err)
 	}
 	mails := h.Inbox.Total()
-	if _, err = h.FreshBrowser().RequestPasswordReset(ctx, "delete_a@example.com", "trip-map"); err != nil {
+	if _, err = h.FreshBrowser().RequestPasswordReset(ctx, "delete_a@example.com", ""); err != nil {
 		t.Fatal(err)
 	}
 	h.DeliverMail()

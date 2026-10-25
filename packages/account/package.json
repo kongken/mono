@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "两个前端共用的邮箱账号流程：RPC 客户端、错误文案、表单与邮件落地页。",
+  "description": "trip-map、metro 与 OzID 共用的邮箱账号流程：RPC 客户端、错误文案、表单与邮件落地页。",
   "scripts": {
     "test": "node --test --experimental-strip-types src/*.test.ts"
   },

@@ -108,18 +108,27 @@ export function createFakeAccounts(
     state.mails.push(m);
     return m;
   };
-  /** The BFF's rule for a mail request: no context, a registered one, or a refusal (undefined). */
-  const bind = (b: Body): FakeReturn | null | undefined => {
+  /**
+   * The BFF's rule for a mail request: no context, a registered one, or a refusal: "unconfigured"
+   * (FAILED_PRECONDITION: a context reached a BFF without a registry) or "refused" (INVALID_ARGUMENT).
+   */
+  const bind = (b: Body): FakeReturn | null | "unconfigured" | "refused" => {
     const appId = b.appId ?? "";
     const returnPath = b.returnPath ?? "";
     if (!appId && !returnPath) return null;
     const registry = options.navigation;
-    if (!registry) return null; // nothing can validate it: dropped, not trusted
+    if (!registry) return "unconfigured";
     const app = registry[appId];
     const path = returnPath || app?.defaultPath || "/";
-    if (!appId || !app || !pathAllowed(app, path)) return undefined;
+    if (!appId || !app || !pathAllowed(app, path)) return "refused";
     return { appId, returnPath: path };
   };
+  const refusal = (ctx: ReturnType<typeof bind>) =>
+    ctx === "unconfigured"
+      ? failure(400, "failed_precondition", "navigation is not configured")
+      : ctx === "refused"
+        ? failure(400, "invalid_argument", "navigation target not allowed")
+        : null;
   /** The BFF's rule on the way out: re-validated now, dropped (never an error) when no longer allowed. */
   const bound = (t: { bound: FakeReturn | null }) => {
     const registry = options.navigation;
@@ -159,7 +168,7 @@ export function createFakeAccounts(
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.email ?? "")) return failure(400, "invalid_argument", "email: invalid format");
       // The same answer whether or not the address can register; mail goes out only when it can.
       const ctx = bind(b);
-      if (ctx === undefined) return failure(400, "invalid_argument", "navigation target not allowed");
+      if (typeof ctx === "string") return refusal(ctx)!;
       if (!findAccount(b.email)) mail("registration", b.email.trim().toLowerCase(), ctx);
       return { body: { message: "ok" } };
     },
@@ -185,7 +194,7 @@ export function createFakeAccounts(
       if (state.mailRefusal) return { status: state.mailRefusal.status, body: state.mailRefusal };
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.email ?? "")) return failure(400, "invalid_argument", "email: invalid format");
       const ctx = bind(b);
-      if (ctx === undefined) return failure(400, "invalid_argument", "navigation target not allowed");
+      if (typeof ctx === "string") return refusal(ctx)!;
       if (findAccount(b.email)) mail("reset", b.email.trim().toLowerCase(), ctx);
       return { body: { message: "ok" } };
     },

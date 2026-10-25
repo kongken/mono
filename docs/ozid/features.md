@@ -47,13 +47,35 @@ https://id.example.com/login?app_id=metro&return_path=%2Fcity%2Fshanghai
 
 **链接。** 注册验证和密码重置邮件的链接只有一种形状：`<中央 OzID origin><固定路径>#token=<令牌>`，固定路径是 `/account/verify-email` 或 `/account/reset-password`，令牌只在 URL fragment。邮件 origin 只来自 usersrv 的服务端配置 `auth.apps.ozid.origin`（必填），发起请求的产品、请求里的任何字段都不能改变它；邮件正文和链接里没有来源应用或返回路径。`ozid` 的 origin 必须和 BFF `navigation.apps.ozid.origin` 一致，并在 `cors_allowed_origins` 里（运维配置项，启动时 usersrv 只校验自己的配置）。
 
-**返回上下文。** 产品（或 OzID 的 `?app_id=&return_path=`）申请注册或重置时，BFF 在发邮件之前用导航注册表校验 `(app_id, return_path)`（规则同 T1），校验失败的请求以 `INVALID_ARGUMENT` 拒绝，不创建挑战、不发邮件。通过的上下文与挑战一起写入 `account_tokens.return_app_id` / `return_path`（两个可空、不可变的列，迁移 `20261025044828_account_token_return_context.sql`，成对出现的检查约束），因此用邮件在**另一个浏览器**里也能续上，不依赖原浏览器的存储。完成注册/重置时 usersrv 回传保存的上下文，BFF 出口处再校验一次：应用已下线或路径不再允许时静默丢弃，页面照常完成、只是没有“回到来源”。没有注册表的 BFF 不接受也不回传上下文。旧挑战（没有上下文）完成后按无上下文处理，行为不变。usersrv 自己只校验上下文的形态（应用 ID 格式、共享的 `internal/platform/navpath` 路径规则），不持有注册表。
+**返回上下文。** 产品（或 OzID 的 `?app_id=&return_path=`）申请注册或重置时，BFF 在发邮件之前用导航注册表校验 `(app_id, return_path)`（规则同 T1），校验失败的请求以 `INVALID_ARGUMENT` 拒绝，不创建挑战、不发邮件。通过的上下文与挑战一起写入 `account_tokens.return_app_id` / `return_path`（两个可空、不可变的列，迁移 `20261025044828_account_token_return_context.sql`，成对出现的检查约束），因此用邮件在**另一个浏览器**里也能续上，不依赖原浏览器的存储。完成注册/重置时 usersrv 回传保存的上下文，BFF 出口处再校验一次：应用已下线或路径不再允许时静默丢弃，页面照常完成、只是没有“回到来源”。BFF 没有配置导航注册表时，申请若携带非空的应用 ID 或路径，以 `FAILED_PRECONDITION` 拒绝（没有注册表就无从担保，静默丢弃会让用户走进一条回不到来源的流程）；这个拒绝发生在调用 usersrv 之前，所以不会创建挑战、写审计、入队或发信；没有上下文的申请照常处理，完成接口在没有注册表时也不回传上下文。注意：trip-map 与 metro 的账号弹窗默认带着自己的应用 ID 作为上下文，所以发布 T2 的 BFF 必须同时配置 `navigation`（至少登记 `ozid` 与各产品）。旧挑战（没有上下文）完成后按无上下文处理，行为不变。usersrv 自己只校验上下文的形态（应用 ID 格式、共享的 `internal/platform/navpath` 路径规则），不持有注册表。
 
 **落地页。** 页面先把令牌读入内存并立即从地址栏清除（`captureLandingToken()`），不写任何浏览器存储；打开页面不发任何请求（不查会话、不查导航、不消耗令牌），所以邮件安全扫描器预取链接不会用掉它；用户提交表单才调用 `CompleteRegistration` / `ResetPassword`；用过、过期、缺失或刷新后都显示同一个“链接不可用”页；在同一标签页打开另一封邮件的链接（只改了 fragment）会以新令牌重新开始。页面带 `<meta name="referrer" content="no-referrer">`。**完成不自动登录，也不改变这个浏览器已有的会话**（页面如此提示）：注册完成只创建账号；重置成功会按既有规则结束该账号的全部会话，但不会替任何人登录。完成后的“去登录”带着已保存并通过校验的上下文进入 `/login?app_id=…&return_path=…`，登录后安全返回。
 
 **响应头。** `deploy/ozid-web/default.conf.template` 为 `/account/verify-email`、`/account/reset-password` 单独声明 `Cache-Control: no-store`、`Referrer-Policy: no-referrer`、`script-src 'self'` 的 CSP 及其余安全头（`add_header` 不继承，所以整组重复）；Vite 开发/预览服务器由 `accountLandingHeaders()` 设置同一组。`scripts/ozid-web-smoke.sh` 在容器里对这两个路径逐项检查。
 
 **过渡期。** 升级前已发出（或已排队）的邮件指向产品自己的落地页，这些页面和令牌仍然有效：`auth.apps` 里保留的 `trip-map`、`metro` 条目只用于这些旧邮件，不会再为任何新邮件生成链接；排队中的旧任务若其来源应用已不再配置，则改用中央链接（令牌相同，OzID 可以完成）。条目可在令牌过期后（最长为 `registration_ttl` 与 `reset_ttl` 中较大者）从配置里删除。令牌从来不会被移到查询串，也没有任何“把片段改写成 query”的兼容层。
+
+### 升级顺序、回滚与兼容边界（T2）
+
+**邮件的切换点就是 usersrv 的升级**：新版 usersrv 一启动，之后签发的所有注册验证与重置邮件都链接到 `auth.apps.ozid.origin`。所以 OzID 的落地页必须先就绪，再升级 usersrv。
+
+升级顺序（每步确认后再进行）：
+
+1. **迁移**：先对 `usersrv` 库应用 `20261025044828_account_token_return_context.sql`。它只增加两个可空列和一个约束，对现有行没有回填、没有重写；旧版 usersrv 二进制不读写这两列，因此迁移可以早于任何二进制升级。
+2. **`ozid-web`（带落地页的版本）**：部署并确认 `/account/verify-email`、`/account/reset-password` 可从 `auth.apps.ozid.origin` 打开且响应头正确（`scripts/ozid-web-smoke.sh` 对镜像做同样的检查），并且该 origin 已在 BFF 的 `cors_allowed_origins` 与 `navigation.apps.ozid` 里。**邮件切换前这一步必须完成。**
+3. **usersrv**（T2 配置）：加入必填的 `auth.apps.ozid`，**保留** `trip-map`、`metro` 条目直到旧邮件过期。这一步之后新邮件才指向 OzID。
+4. **BFF**（T2 版本，且配置了 `navigation`，见下）：晚于 usersrv。
+5. 产品与其他前端。
+
+**不支持的组合：新版 BFF 配旧版（T1）usersrv。** 新 BFF 把返回上下文放在原来的 `app_id` 字段里发给 usersrv，而旧 usersrv 把这个字段当作“选邮件 origin 的应用”，并且**空的 `app_id` 会被旧 usersrv 以 `INVALID_ARGUMENT` 拒绝**（例如 OzID 里没有来源应用的注册申请）。因此不能依赖这个组合做过渡；升级必须先 usersrv、后 BFF，回滚则先 BFF、后 usersrv。反过来的组合（旧 BFF 配新 usersrv）按字段含义是安全的（旧 BFF 发来的产品应用 ID 只会被当作返回上下文，链接始终指向 OzID），但它也不属于计划内的发布路径。
+
+**回滚**：不要回退这个迁移（只有新增的可空列；旧二进制忽略它们，约束只限制新写入的行）。回滚 usersrv 到 T1 版本前须确认其配置里仍有 `trip-map` 与 `metro` 条目（T1 版本要求两者都存在），此后新邮件重新指向产品落地页；已经发出、指向 OzID 的邮件在过期前仍需要 `ozid-web` 与一个能完成它们的 BFF 在线（令牌在 usersrv 里，不依赖 BFF 版本），所以回滚后 `ozid-web` 至少保留到令牌过期（≤ `registration_ttl` 与 `reset_ttl` 中较大者）。
+
+**BFF 必须配置 `navigation`**：产品的账号弹窗默认带着自己的应用 ID 作为返回上下文，没有注册表的 BFF 会以 `FAILED_PRECONDITION` 拒绝这类申请（见上文“返回上下文”）。发布 T2 的 BFF 前先把 `navigation`（`ozid` 与各产品）配好。
+
+**已测试与未测试**：
+- 已测试（`internal/usersrv/app`、`internal/usersrv/outbox`、`internal/e2e`，真实 Postgres/Redis）：没有上下文（两列为 NULL）的旧注册挑战完成后不返回任何应用（重置挑战走同一段读取代码，没有单独的用例）；升级前已排队的旧任务在“产品来源仍配置”与“已移除”两种配置下的链接；上下文列只填一半被约束拒绝；没有注册表时的 BFF 行为。
+- **未执行**：滚动升级矩阵（旧/新 BFF × 旧/新 usersrv 的各种混合，以及 `ozid-web` 新版配旧 BFF 的窗口）没有自动化测试，上面对混合组合的结论来自对字段语义和 T1 代码的阅读，而不是运行结果。发布前如需依赖某个混合状态，请先在隔离环境验证。
 
 ## 服务端配置：`navigation`
 

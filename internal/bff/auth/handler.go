@@ -48,15 +48,16 @@ func NewHandler(svc *Service, csrfTTL time.Duration) *Handler {
 
 // bindReturn validates the return context of a mail request against the navigation
 // registry and returns the canonical form to bind to the challenge. No context is
-// fine. A context the registry refuses is INVALID_ARGUMENT, before anything is counted
-// or written. Without a configured registry nothing can be validated, so the context is
-// dropped instead of trusted: the flow works and returns to no app.
+// fine. A context the registry refuses is INVALID_ARGUMENT, and a context sent to a BFF
+// that has no registry is FAILED_PRECONDITION (nothing can vouch for it, and silently
+// dropping it would send the user to a flow that never returns them); both come before
+// anything is counted, written or sent to usersrv.
 func (h *Handler) bindReturn(appID, path string) (usersrv.Return, error) {
 	if appID == "" && path == "" {
 		return usersrv.Return{}, nil
 	}
 	if h.navigation == nil {
-		return usersrv.Return{}, nil
+		return usersrv.Return{}, connect.NewError(connect.CodeFailedPrecondition, errors.New("navigation is not configured"))
 	}
 	target, err := h.navigation.Resolve(appID, path)
 	if err != nil {

@@ -11,6 +11,7 @@ const PASSWORD = "correct horse battery";
 async function setup(page: Page, opts: { signedIn?: boolean } = {}) {
   const fake = fakeBackend(page);
   const accounts = createFakeAccounts({
+    navigation: { metro: { origin: "https://metro.example.com" } },
     onSession: (a) => {
       fake.state.user = a ? { id: a.id, displayName: a.displayName, roles: a.roles } : null;
     },

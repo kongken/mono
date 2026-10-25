@@ -11,7 +11,7 @@ const SESSION_KEY = "shanhai-session-v1";
 
 async function setup(page: Page, opts: { signedIn?: boolean } = {}) {
   const backend = fakeBackend(page, { visits: [] });
-  const accounts = createFakeAccounts();
+  const accounts = createFakeAccounts({ navigation: { "trip-map": { origin: "https://trip.example.com" } } });
   await backend.install();
   await installFakeAccounts(page, accounts);
   // Lets a test make the footprint service answer "not signed in", as after an expired or revoked session.

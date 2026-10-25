@@ -136,7 +136,7 @@ docker run --rm --network <内部网络> -e USERSRV_DATABASE_URL='postgres://…
   grant-role -email admin@example.com -role metro-admin -operator alice -reason "ticket 42"
 ```
 
-8. **上线顺序与回滚。** usersrv（含迁移）→ BFF（含迁移与配置）→ tripmap / metro → 前端。回滚镜像时不要回退 usersrv 的迁移，先确认旧镜像兼容当前表结构；一旦用户已在 usersrv 注册，回滚到 Logto 版本不是受支持的路径，需要恢复备份并接受账号丢失。
+8. **上线顺序与回滚。** usersrv（含迁移）→ BFF（含迁移与配置）→ tripmap / metro → 前端。涉及 OzID 邮件的版本（T2）有更严格的顺序：迁移 → `ozid-web`（落地页就绪）→ usersrv（邮件由此开始链接到 OzID）→ BFF（必须配置 `navigation`）→ 其余前端；新版 BFF 配旧版 usersrv 是**不支持的组合**（空 `app_id` 会被旧 usersrv 拒绝），回滚时先 BFF 后 usersrv，细节与已测试/未测试范围见 [OzID 功能描述](ozid/features.md#升级顺序回滚与兼容边界t2)。回滚镜像时不要回退 usersrv 的迁移，先确认旧镜像兼容当前表结构；一旦用户已在 usersrv 注册，回滚到 Logto 版本不是受支持的路径，需要恢复备份并接受账号丢失。
 9. **验收。** BFF `/readyz` 中 `usersrv` 与 `usersrv_grpc` 就绪；走一遍注册 → 收邮件 → 设密码 → 登录 → 业务写入 → 找回密码 → 重新登录 → 注销（`make test-integration` 在隔离的真实 PostgreSQL / Redis / S3 上自动走这条链，不含真实邮件）。
 
 旧 Logto 的外部资源与旧表的清理见 [Logto 退役与手动清理](usersrv/retirement.md)；服务启动与迁移不会自动删除任何东西。
@@ -152,7 +152,7 @@ docker run --rm --network <内部网络> -e USERSRV_DATABASE_URL='postgres://…
 5. 验证注册、登录、`Me`、业务读写、退出、会话撤销和注销后，**BFF 数据库**可手动执行（建议 `psql -v ON_ERROR_STOP=1 -f …`） `deploy/sql/bff/retire_logto_identities.sql`，删除旧的 `auth_identities`、`account_deletion_receipts`（以及更早的 `auth_sessions`、`auth_users`）。该脚本会先检查新的 `bff_account_deletions` 已存在、没有未完成的旧注销回执依赖。
 6. 恢复流量。清理后不能直接回滚至旧版本；需要恢复数据库备份。
 
-退出仅撤销当前 BFF 会话。会话在每个请求都和 usersrv 的账号状态、`auth_version`、角色核对：禁用账号、改密码、撤销角色在下一个请求生效。浏览器登录、注册与邮件落地页已在两个前端实现（P5）；usersrv 的发布见上一节，真实邮件厂商需要上线前手动验证。落地页 `/account/verify-email`、`/account/reset-password` 在 Nginx 与 Caddy 示例里（`ozid-web` 的模板为这两个路径单独声明，并限制 `script-src 'self'`）带 `Referrer-Policy: no-referrer`、`Cache-Control: no-store` 并回退到 `index.html`，自建边缘需保持这三点。
+退出仅撤销当前 BFF 会话。会话在每个请求都和 usersrv 的账号状态、`auth_version`、角色核对：禁用账号、改密码、撤销角色在下一个请求生效。浏览器登录、注册与邮件落地页已在 trip-map 与 metro 实现（P5）；产品入口尚未切换到 OzID，但自 T2 起新邮件都链接到 OzID 的落地页（`ozid-web`），产品自己的落地页只服务升级前发出的旧邮件；usersrv 的发布见上一节，真实邮件厂商需要上线前手动验证。落地页 `/account/verify-email`、`/account/reset-password` 在 Nginx 与 Caddy 示例里（`ozid-web` 的模板为这两个路径单独声明，并限制 `script-src 'self'`）带 `Referrer-Policy: no-referrer`、`Cache-Control: no-store` 并回退到 `index.html`，自建边缘需保持这三点。
 
 ## 验证清单
 

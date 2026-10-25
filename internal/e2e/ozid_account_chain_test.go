@@ -339,15 +339,15 @@ func TestChainOzidExpiredLegacyAndRetiredChallenges(t *testing.T) {
 	}
 }
 
-// A BFF without a navigation registry cannot validate a context, so it never trusts or
-// stores one: the flow still works and returns to no app. This is the state of every
-// deployment that has not configured the user center yet.
-func TestChainWithoutARegistryTheContextIsDropped(t *testing.T) {
+// Without a navigation registry (every deployment that has not configured the user center
+// yet) a request without a context works as before, stores no context and completes
+// returning to no app. A request that carries a context is refused (next test).
+func TestChainWithoutARegistryAContextFreeFlowStillWorks(t *testing.T) {
 	h := NewChainHarness(t)
 	ctx := context.Background()
 	b := h.FreshBrowser()
 	const email = "noreg@example.com"
-	if err := b.requestRegistrationFrom(ctx, email, "trip-map", "/anything"); err != nil {
+	if err := b.requestRegistrationFrom(ctx, email, "", ""); err != nil {
 		t.Fatal(err)
 	}
 	h.DeliverMail()
@@ -357,10 +357,75 @@ func TestChainWithoutARegistryTheContextIsDropped(t *testing.T) {
 		t.Fatal(n, err)
 	}
 	if tok := h.UsersrvDB.AccountToken.Query().OnlyX(ctx); tok.ReturnAppID != nil || tok.ReturnPath != nil {
-		t.Fatalf("an unvalidated context was stored: %+v", tok)
+		t.Fatalf("a context was stored for a context-free request: %+v", tok)
 	}
 	done, err := b.completeRegistration(ctx, token, E2EPassword, "N")
 	if err != nil || done.GetAppId() != "" || done.GetReturnPath() != "" {
 		t.Fatalf("completion: %v, %v", done, err)
+	}
+}
+
+// A BFF without a navigation registry cannot vouch for a return context: a request that
+// carries one is refused before usersrv is called, so no challenge, mail job, audit row or
+// mail follows; a request without a context is served as usual.
+func TestChainMailRequestWithContextButNoRegistryCreatesNothing(t *testing.T) {
+	h := NewChainHarness(t) // no navigation configured
+	ctx := context.Background()
+	count := func(table string) int {
+		t.Helper()
+		var n int
+		if err := h.UsersrvSQL.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := map[string]int{}
+	tables := []string{"account_tokens", "mail_jobs", "security_audit"}
+	for _, table := range tables {
+		before[table] = count(table)
+	}
+	reg := h.FreshBrowser()
+	if _, err := reg.Register(ctx, "known", "", "Known"); err != nil { // an account, for the reset requests
+		t.Fatal(err)
+	}
+	for _, table := range tables {
+		before[table] = count(table)
+	}
+	mails := h.Inbox.Total()
+
+	b := h.FreshBrowser()
+	for _, tc := range []struct{ app, path string }{{"metro", ""}, {"metro", "/city/shanghai"}, {"", "/city/shanghai"}} {
+		for name, ask := range map[string]func() error{
+			"registration": func() error { return b.requestRegistrationFrom(ctx, "fresh@example.com", tc.app, tc.path) },
+			"reset":        func() error { return b.requestResetFrom(ctx, emailFor("known"), tc.app, tc.path) },
+		} {
+			if err := ask(); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+				t.Fatalf("%s %q %q: %v", name, tc.app, tc.path, err)
+			}
+		}
+	}
+	h.DeliverMail()
+	for _, table := range tables {
+		if got := count(table); got != before[table] {
+			t.Fatalf("%s changed by refused requests: %d -> %d", table, before[table], got)
+		}
+	}
+	if h.Inbox.Total() != mails {
+		t.Fatal("a refused request sent mail")
+	}
+
+	// Without a context the same requests work: one challenge and one mail each.
+	if err := b.requestRegistrationFrom(ctx, "fresh@example.com", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.requestResetFrom(ctx, emailFor("known"), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	h.DeliverMail()
+	if got := count("account_tokens") - before["account_tokens"]; got != 2 {
+		t.Fatalf("%d challenges after two context-free requests", got)
+	}
+	if h.Inbox.Total() != mails+2 {
+		t.Fatalf("%d mails after two context-free requests", h.Inbox.Total()-mails)
 	}
 }

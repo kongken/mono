@@ -61,7 +61,7 @@ docker build -f deploy/metro-web/Dockerfile -t mono-metro-web:local .
 
 `ozid-web` 没有 `BACKEND_UPSTREAM`：它是纯静态站点，浏览器直接调用 BFF 的公开 origin（`API_ORIGIN`、`VITE_API_BASE_URL`，见 [部署](deployment.md#ozid-用户中心的部署)）。
 
-`metro-web` 使用同一个 `BACKEND_UPSTREAM`（默认 `bff:18081`）。`/mcp/metro` 不写访问日志、`error_log` 限为 `crit`（请求头带 Bearer 令牌）；`/api/`、`/mcp/metro` 的请求体上限 2 MiB（目录导入文档上限 1 MiB）。邮件链接的来源由 usersrv 的 `auth.apps.metro.origin` 决定，需填该站点的 origin。
+`metro-web` 使用同一个 `BACKEND_UPSTREAM`（默认 `bff:18081`）。`/mcp/metro` 不写访问日志、`error_log` 限为 `crit`（请求头带 Bearer 令牌）；`/api/`、`/mcp/metro` 的请求体上限 2 MiB（目录导入文档上限 1 MiB）。新邮件的链接不再指向 metro：usersrv 一律用 `auth.apps.ozid.origin`（中央 OzID）；`auth.apps.metro` 只在过渡期服务升级前发出的旧邮件，令牌过期后可从 usersrv 配置里删除。metro 的登录与账号入口本身仍在 `metro-web`（产品入口尚未切换到 OzID）。
 
 前端 `/healthz` 仅检查静态服务，不代表后端可用；后端就绪状态检查 `/readyz`。Nginx 在请求时解析后端地址，后端暂时不存在不会阻止静态站点启动。默认 resolver 使用 Docker 内置 DNS `127.0.0.11`，运行容器时需加入自定义 Docker 网络（Compose 默认创建此类网络），而不是 Docker 默认 bridge。
 

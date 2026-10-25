@@ -30,7 +30,7 @@
 
 ## 2. 当前事实、增量与非目标
 
-### 当前已实现（基线）
+### 当前已实现（基线，T1 之前的状态；T1、T2 的现状见 [功能描述](features.md)）
 
 - `usersrv` 是唯一账号来源：邮箱规范化、Argon2id、注册验证、登录、改密/重置、资料、认证版本、角色 CLI、四种邮件 adapter 与加密 outbox。
 - BFF 持有 HttpOnly Cookie 会话和注销工作流；每个受保护请求以及 MCP 工具调用复核 usersrv 的状态、`auth_version`、角色；产品服务只认内部凭证。
