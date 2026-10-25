@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createEpoch } from "@kongken/account/latest";
 import { account } from "./rpc";
 import { isUnauthenticated } from "./errors";
 import { navigate } from "./router";
@@ -58,22 +59,30 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setPending(pending);
   }, []);
 
+  // Only the newest read of the account counts: a read overtaken by a newer one, or begun
+  // before this browser signed out, must not overwrite the newer answer.
+  const [reads] = useState(createEpoch);
+
   const refresh = useCallback(async () => {
+    const current = reads.begin();
     try {
       const me = await account.me();
+      if (!current()) return;
       setSession({
         status: "signed-in",
         account: { id: me.user.id, displayName: me.user.displayName, avatarUrl: me.user.avatarUrl, roles: me.roles },
       });
     } catch (e) {
+      if (!current()) return;
       if (!isUnauthenticated(e)) console.warn("me failed", e);
       setSession({ status: "anonymous" });
     }
-  }, []);
+  }, [reads]);
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    return () => reads.invalidate();
+  }, [refresh, reads]);
 
   const value = useMemo<Ctx>(
     () => ({
@@ -82,6 +91,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       signIn: () => navigate(loginPath(window.location.pathname + window.location.search)),
       signOut: async () => {
         await account.logout();
+        reads.invalidate();
         setSession({ status: "anonymous" });
         navigate("/");
       },
@@ -91,7 +101,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       deletionPending,
       setDeletionPending,
     }),
-    [session, refresh, deletionPending, setDeletionPending],
+    [session, refresh, reads, deletionPending, setDeletionPending],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

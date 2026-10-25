@@ -326,6 +326,7 @@ function SettingsView({ cloud, onBack, onClosed }: { cloud: Cloud; onBack: () =>
       {email !== null && !user.deletionPending && (
         <>
           <ProfileForm
+            key={user.id}
             api={api}
             user={{ id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl }}
             email={email}
@@ -335,7 +336,7 @@ function SettingsView({ cloud, onBack, onClosed }: { cloud: Cloud; onBack: () =>
             if ((await cloud.passwordChanged()) === "left") onClosed();
             else onBack();
           }} />
-          <SessionsList api={api} />
+          <SessionsList api={api} identity={user.id} />
         </>
       )}
       <DeleteAccountPanel

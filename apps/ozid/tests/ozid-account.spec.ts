@@ -282,3 +282,140 @@ test.describe("devices", () => {
     expect(accounts.state.calls).not.toContain("RevokeOtherSessions");
   });
 });
+
+// Late, overtaken and stale answers. The fake decides each held reply when the call arrives and
+// delivers it only on release, so these specs make the answer of an old read land after a newer
+// one, a sign-out or a change of account.
+const recheck = (page: Page) => page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+const settle = (page: Page) => page.evaluate(() => new Promise<void>((done) => setTimeout(() => requestAnimationFrame(() => done()), 250)));
+
+test.describe("late answers", () => {
+  test("an older 'signed in' cannot undo a newer 'not signed in'", async ({ page }) => {
+    const { accounts } = await setup(page);
+    await page.goto("/profile");
+    await expect(page.getByTestId("header-name")).toHaveText("Oz 用户");
+    const old = accounts.holdNext("Me");
+    await recheck(page);
+    await old.arrived; // decided while the account was still signed in
+    accounts.signOut();
+    await recheck(page); // the newer read finds the session gone
+    await expect(page).toHaveURL(/\/login$/);
+    old.release();
+    await settle(page);
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByTestId("signed-in-here")).toHaveCount(0);
+    await expect(page.getByTestId("header-name")).toHaveCount(0);
+    await expect(nav(page)).toHaveCount(0);
+  });
+
+  test("an older 'not signed in' cannot hide a newer valid identity", async ({ page }) => {
+    const { accounts, account } = await setup(page);
+    await page.goto("/profile");
+    await expect(page.getByTestId("header-name")).toHaveText("Oz 用户");
+    accounts.signOut();
+    const old = accounts.holdNext("Me");
+    await recheck(page);
+    await old.arrived; // decided while there was no session
+    accounts.signIn(account);
+    await recheck(page); // the newer read finds a valid session
+    await expect(page.getByTestId("header-name")).toHaveText("Oz 用户");
+    old.release();
+    await settle(page);
+    await expect(page).toHaveURL(/\/profile$/);
+    await expect(page.getByTestId("header-name")).toHaveText("Oz 用户");
+    await expect(page.getByTestId("profile-form")).toBeVisible();
+  });
+
+  test("after the account changed, a late answer about the previous account is dropped", async ({ page }) => {
+    const { accounts } = await setup(page);
+    const other = accounts.addAccount({ email: "ozid-second@example.com", password: PASSWORD, displayName: "第二位用户" });
+    await page.goto("/profile");
+    await expect(page.getByTestId("header-name")).toHaveText("Oz 用户");
+    const old = accounts.holdNext("Me");
+    await recheck(page);
+    await old.arrived; // still the first account
+    accounts.signIn(other);
+    await recheck(page);
+    await expect(page.getByTestId("header-name")).toHaveText("第二位用户");
+    await expect(page.getByTestId("profile-form").getByLabel("登录邮箱")).toHaveValue("ozid-second@example.com");
+    old.release();
+    await settle(page);
+    await expect(page.getByTestId("header-name")).toHaveText("第二位用户");
+    await expect(page.getByTestId("profile-form").getByLabel("登录邮箱")).toHaveValue("ozid-second@example.com");
+  });
+
+  test("signing out here, a read that began before it cannot sign the page back in", async ({ page }) => {
+    const { accounts } = await setup(page);
+    await page.goto("/sessions");
+    await expect(page.getByTestId("header-name")).toBeVisible();
+    const old = accounts.holdNext("Me");
+    await recheck(page);
+    await old.arrived;
+    await page.getByRole("button", { name: "退出登录" }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    expect(accounts.state.current).toBeNull();
+    old.release();
+    await settle(page);
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByTestId("signed-in-here")).toHaveCount(0);
+    await expect(page.getByTestId("header-name")).toHaveCount(0);
+  });
+
+  test("after a revoke, an older list read cannot bring the revoked devices back", async ({ page }) => {
+    const { accounts } = await setup(page, { others: 2 });
+    await page.goto("/sessions");
+    const list = page.getByTestId("sessions");
+    const otherRows = list.locator("li").filter({ hasText: "其他设备" });
+    await expect(otherRows).toHaveCount(2);
+    // A revoke whose follow-up read fails leaves the old rows and a retry link on screen.
+    accounts.failNext("ListSessions", FAILURES.unavailable);
+    await otherRows.first().getByRole("button", { name: /退出/ }).click();
+    await expect(list).toContainText("暂时无法读取设备列表");
+    expect(accounts.state.otherSessions).toBe(1);
+    // The retry is the older read: decided now (one other device) and delivered last.
+    const old = accounts.holdNext("ListSessions");
+    await list.getByRole("button", { name: "重试" }).click();
+    await old.arrived;
+    // The other device is revoked next; its follow-up read is the newer one.
+    await otherRows.first().getByRole("button", { name: /退出/ }).click();
+    await expect(otherRows).toHaveCount(0);
+    expect(accounts.state.otherSessions).toBe(0);
+    old.release();
+    await settle(page);
+    await expect(otherRows).toHaveCount(0);
+    await expect(list.locator("li")).toHaveCount(1);
+    await expect(list.locator("li").first()).toContainText("当前设备");
+    await expect(page.getByTestId("sign-out-others").getByRole("button")).toHaveText("没有其他设备");
+    await expect(list).not.toContainText("暂时无法读取设备列表");
+  });
+
+  test("after the account changed, the old device list goes at once and its late answer is dropped", async ({ page }) => {
+    const { accounts } = await setup(page, { others: 2 });
+    const other = accounts.addAccount({ email: "ozid-second@example.com", password: PASSWORD, displayName: "第二位用户" });
+    await page.goto("/sessions");
+    const list = page.getByTestId("sessions");
+    const otherRows = list.locator("li").filter({ hasText: "其他设备" });
+    await expect(otherRows).toHaveCount(2);
+    accounts.failNext("ListSessions", FAILURES.unavailable);
+    await otherRows.first().getByRole("button", { name: /退出/ }).click();
+    await expect(list).toContainText("暂时无法读取设备列表");
+    // The first account's retry is still on its way (it would show one other device).
+    const old = accounts.holdNext("ListSessions");
+    await list.getByRole("button", { name: "重试" }).click();
+    await old.arrived;
+    // Another account takes over this browser; it has no other device.
+    accounts.signIn(other);
+    accounts.state.otherSessions = 0;
+    await recheck(page);
+    await expect(page.getByTestId("header-name")).toHaveText("第二位用户");
+    await expect(list.locator("li")).toHaveCount(1);
+    await expect(otherRows).toHaveCount(0);
+    await expect(list).not.toContainText("暂时无法读取设备列表");
+    old.release();
+    await settle(page);
+    await expect(list.locator("li")).toHaveCount(1);
+    await expect(list.locator("li").first()).toContainText("当前设备");
+    await expect(otherRows).toHaveCount(0);
+    await expect(page.getByTestId("header-name")).toHaveText("第二位用户");
+  });
+});

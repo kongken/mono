@@ -78,6 +78,8 @@ export function createFakeAccounts(
     writesWithoutCsrf: [] as string[],
     /** One-shot failures per method, taken in order. */
     failures: new Map<string, FakeFailure[]>(),
+    /** Held calls per method, taken in order: the reply is decided on arrival and delivered on release. */
+    holds: new Map<string, Array<{ arrive: () => void; released: Promise<void> }>>(),
     /** The mail send requests are refused with this until cleared (rate limit, closed sign-ups ...). */
     mailRefusal: null as FakeFailure | null,
     registrationOpen: true,
@@ -335,6 +337,20 @@ export function createFakeAccounts(
     failNext(method: string, f: FakeFailure, times = 1) {
       state.failures.set(method, [...(state.failures.get(method) ?? []), ...Array.from({ length: times }, () => f)]);
     },
+    /**
+     * Holds the reply of the next call of `method`: the fake decides the answer when the call
+     * arrives (from the state at that moment) and sends it only on `release()`. This is how a
+     * spec makes a response late, overtaken or stale. `arrived` resolves once the call is in.
+     */
+    holdNext(method: string) {
+      let release!: () => void;
+      let arrive!: () => void;
+      const released = new Promise<void>((r) => (release = r));
+      const arrived = new Promise<void>((r) => (arrive = r));
+      state.holds.set(method, [...(state.holds.get(method) ?? []), { arrive, released }]);
+      return { arrived, release };
+    },
+    takeHold: (method: string) => state.holds.get(method)?.shift(),
     /** Pretends the last password check on this session is older than 15 minutes. */
     ageAuthentication: () => void (state.authenticatedAt = Date.now() - 16 * 60_000),
     /** The mailed link is past its lifetime. */
@@ -358,6 +374,11 @@ export async function installFakeAccounts(page: Page, fake: FakeAccounts) {
     const method = req.url().split("/").pop()!;
     const raw = req.postData();
     const reply = fake.handle(method, raw ? (JSON.parse(raw) as Body) : {}, req.headers());
+    const hold = fake.takeHold(method);
+    if (hold) {
+      hold.arrive();
+      await hold.released;
+    }
     if (!reply) return route.fulfill({ status: 501, contentType: "application/json", body: JSON.stringify({ code: "unimplemented", message: method }) });
     return route.fulfill({ status: reply.status ?? 200, contentType: "application/json", body: JSON.stringify(reply.body) });
   };

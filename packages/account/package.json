@@ -14,6 +14,7 @@
     "./fragment": "./src/fragment.ts",
     "./scope": "./src/scope.ts",
     "./forms": "./src/forms.tsx",
+    "./latest": "./src/latest.ts",
     "./landing": "./src/landing.tsx",
     "./vite": "./src/vite.ts",
     "./testing": "./src/testing.ts",

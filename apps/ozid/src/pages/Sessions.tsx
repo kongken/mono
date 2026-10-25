@@ -37,13 +37,13 @@ export default function SessionsPage() {
 
   return (
     <RequireSession>
-      {() => (
+      {({ user }) => (
         <div className="mx-auto grid max-w-md gap-8" data-testid="sessions-page">
           <div>
             <h1 className="text-xl font-semibold">设备与登录</h1>
             <p className="mt-1 text-sm text-muted-foreground">只显示服务器实际记录的登录时间、最近使用时间和有效期，不记录设备型号或所在位置。</p>
           </div>
-          <SessionsList api={account} revokeOthers onSignedOutHere={() => void refresh(true)} />
+          <SessionsList api={account} identity={user.id} revokeOthers onSignedOutHere={() => void refresh(true)} />
           <section aria-labelledby="sign-out-here-title" className="grid gap-3 rounded-lg border bg-card p-4" data-testid="sign-out-here">
             <h2 id="sign-out-here-title" className="text-base font-semibold">退出这个浏览器</h2>
             <p className="text-sm text-muted-foreground">

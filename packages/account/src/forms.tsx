@@ -13,6 +13,7 @@ import {
   newMutationId,
   trimEmail,
 } from "./validate.ts";
+import { createEpoch } from "./latest.ts";
 import { FORM_CLASS, LinkButton, Notice, PasswordField, TextField, useCooldown, useFocusFirstInvalid, useRunner } from "./ui.tsx";
 
 /** The resend cooldown of mail requests; usersrv enforces its own, this only explains the wait. */
@@ -554,6 +555,12 @@ const when = (date: Date | null) => (date ? date.toLocaleString("zh-CN", { hour1
 
 type SessionsListProps = {
   api: AccountApi;
+  /**
+   * The signed-in account's id. A different id drops the list on screen at once and discards
+   * every answer still on its way, so one account's devices are never shown (or acted on)
+   * under another. Every caller must pass it.
+   */
+  identity: string;
   /** The server says this very session is gone (signed out elsewhere, password changed): the app must ask for a new sign-in. */
   onSignedOutHere?: () => void;
   /**
@@ -568,7 +575,11 @@ type SessionsListProps = {
  * last used and expires), never an invented device name, address or place. A failed read is
  * shown as a failure to read, and only the server's "not signed in" is treated as a sign-out.
  */
-export function SessionsList({ api, onSignedOutHere, revokeOthers = false }: SessionsListProps) {
+export function SessionsList(props: SessionsListProps) {
+  return <SessionsListOf key={props.identity} {...props} />;
+}
+
+function SessionsListOf({ api, onSignedOutHere, revokeOthers = false }: SessionsListProps) {
   const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [signedOut, setSignedOut] = useState(false);
@@ -576,10 +587,19 @@ export function SessionsList({ api, onSignedOutHere, revokeOthers = false }: Ses
   const { pending, run } = useRunner();
   const signedOutHere = useRef(onSignedOutHere);
   signedOutHere.current = onSignedOutHere;
+  // Reads of the list: only the newest one still counts, and none counts after this list is gone.
+  const [reads] = useState(createEpoch);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const failed = useCallback((error: unknown) => {
     const failure = classifyAccountError(error, "other");
-    if (failure.kind === "not_signed_in") {
+    if (failure.kind === "not_signed_in" && mounted.current) {
       setSignedOut(true);
       signedOutHere.current?.();
     }
@@ -587,16 +607,21 @@ export function SessionsList({ api, onSignedOutHere, revokeOthers = false }: Ses
   }, []);
 
   const load = useCallback(async () => {
+    const current = reads.begin();
     try {
-      setSessions(await api.listSessions());
+      const rows = await api.listSessions();
+      if (!current()) return;
+      setSessions(rows);
       setLoadFailed(false);
     } catch (error) {
+      if (!current()) return;
       setLoadFailed(failed(error).kind !== "not_signed_in");
     }
-  }, [api, failed]);
+  }, [api, failed, reads]);
   useEffect(() => {
     void load();
-  }, [load]);
+    return () => reads.invalidate();
+  }, [load, reads]);
 
   const revoke = (id: string) =>
     run(async () => {
@@ -605,7 +630,8 @@ export function SessionsList({ api, onSignedOutHere, revokeOthers = false }: Ses
         await api.revokeSession(id);
         await load();
       } catch (error) {
-        setNotice({ kind: "error", text: failed(error).message });
+        const failure = failed(error);
+        if (mounted.current) setNotice({ kind: "error", text: failure.message });
       }
     });
 
@@ -614,10 +640,11 @@ export function SessionsList({ api, onSignedOutHere, revokeOthers = false }: Ses
       setNotice(null);
       try {
         const n = await api.revokeOtherSessions();
-        setNotice({ kind: "success", text: n > 0 ? `已退出其他 ${n} 台设备，本设备保持登录。` : "没有其他设备需要退出，本设备保持登录。" });
+        if (mounted.current) setNotice({ kind: "success", text: n > 0 ? `已退出其他 ${n} 台设备，本设备保持登录。` : "没有其他设备需要退出，本设备保持登录。" });
         await load();
       } catch (error) {
-        setNotice({ kind: "error", text: failed(error).message });
+        const failure = failed(error);
+        if (mounted.current) setNotice({ kind: "error", text: failure.message });
       }
     });
 

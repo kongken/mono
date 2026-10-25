@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createEpoch } from "@kongken/account/latest";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { classifyAccountError } from "@kongken/account/errors";
 import type { AccountProfile } from "@kongken/account/api";
@@ -30,17 +31,25 @@ export const useSession = () => {
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionState>({ status: "loading" });
+  // Only the newest read of the account counts. A read that was overtaken by a newer one, or
+  // that started before this browser signed out (or the provider went away), must not write:
+  // an old success cannot undo a newer "not signed in", and an old failure cannot hide a newer
+  // valid identity.
+  const [reads] = useState(createEpoch);
 
   const refresh = useCallback(async (quiet = false) => {
+    const current = reads.begin();
     if (!quiet) setSession({ status: "loading" });
     try {
-      setSession({ status: "signed-in", profile: await account.me() });
+      const profile = await account.me();
+      if (current()) setSession({ status: "signed-in", profile });
     } catch (e) {
+      if (!current()) return;
       if (ConnectError.from(e).code === Code.Unauthenticated) setSession({ status: "anonymous" });
       // A failed check leaves a signed-in screen where it is; only a first load shows the failure.
       else setSession((s) => (quiet && s.status !== "loading" ? s : { status: "unavailable", message: classifyAccountError(e, "other").message }));
     }
-  }, []);
+  }, [reads]);
 
   useEffect(() => {
     void refresh();
@@ -49,8 +58,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState === "visible") void refresh(true);
     };
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [refresh]);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      reads.invalidate();
+    };
+  }, [refresh, reads]);
 
   const value = useMemo<Ctx>(
     () => ({
@@ -58,10 +70,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       refresh,
       signOut: async () => {
         await account.logout();
+        // Reads that began before the sign-out ended may still say "signed in": drop them.
+        reads.invalidate();
         setSession({ status: "anonymous" });
       },
     }),
-    [session, refresh],
+    [session, refresh, reads],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

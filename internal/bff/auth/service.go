@@ -236,11 +236,13 @@ func (s *Service) RevokeSession(ctx context.Context, userID, sessionID string) e
 }
 
 // RevokeOtherSessions revokes every live session of the caller except the current one in one
-// UPDATE, so a session that exists while it runs cannot be missed and two concurrent calls
-// revoke each row exactly once between them. It reads and writes nothing but the BFF's
-// session table: the account's auth_version, its password and its management tokens are
-// untouched, and a session created after the statement is not affected. It returns how
-// many sessions this call revoked.
+// UPDATE. The guarantee is about the sessions that already exist when the statement starts
+// (under READ COMMITTED, the rows it can see): each of them, other than the current one, is
+// revoked, and two concurrent calls revoke each such row exactly once between them. A login
+// that commits after the statement started is not part of that set and stays valid; the next
+// call would revoke it. It reads and writes nothing but the BFF's session table: the
+// account's auth_version, its password and its management tokens are untouched. It returns
+// how many sessions this call revoked.
 func (s *Service) RevokeOtherSessions(ctx context.Context, bs session.BrowserSession) (int, error) {
 	if err := s.allow(ctx, "revoke-others:"+bs.UserID, revokeOthersLimit, revokeOthersWindow); err != nil {
 		return 0, err

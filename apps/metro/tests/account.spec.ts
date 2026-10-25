@@ -375,3 +375,30 @@ test("the account pages fit a phone and stay out of the way of anonymous browsin
   await expect(page.getByRole("button", { name: "登录", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "账号", exact: true })).toHaveCount(0);
 });
+
+// The shared device list inside metro: answers that arrive late must not repaint it.
+const settle = (page: Page) => page.evaluate(() => new Promise<void>((done) => setTimeout(() => requestAnimationFrame(() => done()), 250)));
+
+test.describe("late answers in the device list", () => {
+  test("after a revoke, an older list read cannot bring the revoked device back", async ({ page }) => {
+    const { accounts } = await setup(page, { signedIn: true });
+    accounts.state.otherSessions = 2;
+    await page.goto("/account");
+    const list = page.getByTestId("sessions");
+    const otherRows = list.locator("li").filter({ hasText: "其他设备" });
+    await expect(otherRows).toHaveCount(2);
+    accounts.failNext("ListSessions", FAILURES.unavailable);
+    await otherRows.first().getByRole("button", { name: /退出/ }).click();
+    await expect(list).toContainText("暂时无法读取设备列表");
+    const old = accounts.holdNext("ListSessions");
+    await list.getByRole("button", { name: "重试" }).click();
+    await old.arrived; // decided with one other device left
+    await otherRows.first().getByRole("button", { name: /退出/ }).click();
+    await expect(otherRows).toHaveCount(0);
+    old.release();
+    await settle(page);
+    await expect(otherRows).toHaveCount(0);
+    await expect(list.locator("li")).toHaveCount(1);
+    await expect(list.locator("li").first()).toContainText("当前设备");
+  });
+});

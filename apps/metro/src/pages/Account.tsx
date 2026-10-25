@@ -46,7 +46,7 @@ export default function AccountPage() {
         <Spinner />
       ) : email !== null ? (
         <>
-          <ProfileForm api={account} user={user} email={email} onUpdated={(u) => updateAccount({ displayName: u.displayName, avatarUrl: u.avatarUrl })} />
+          <ProfileForm key={user.id} api={account} user={user} email={email} onUpdated={(u) => updateAccount({ displayName: u.displayName, avatarUrl: u.avatarUrl })} />
           <ChangePasswordForm
             api={account}
             email={email}
@@ -56,7 +56,7 @@ export default function AccountPage() {
               navigate("/login?changed=1", true);
             }}
           />
-          <SessionsList api={account} onSignedOutHere={() => void refresh()} />
+          <SessionsList api={account} identity={user.id} onSignedOutHere={() => void refresh()} />
           <DeleteAccountPanel
             api={account}
             appName={APP_NAME}
