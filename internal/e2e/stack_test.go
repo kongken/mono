@@ -12,6 +12,7 @@ package e2e_test
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"sync/atomic"
@@ -29,6 +30,7 @@ import (
 	tripmapconfig "github.com/kongken/mono/internal/tripmap/config"
 	"github.com/kongken/mono/internal/tripmap/testutil"
 	bfftripmapv1connect "github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
+	usersrvv1 "github.com/kongken/mono/pkg/proto/usersrv/v1"
 	"google.golang.org/grpc"
 )
 
@@ -127,16 +129,19 @@ func newStack(t *testing.T, mutate ...func(*options, *stack)) *stack {
 	if opts.signing != nil {
 		signing, kid = *opts.signing, opts.signingKID
 	}
+	usersrvAddr, usersrvHTTP := startUsersrvStub(t)
 	bffCfg := &bffconfig.Config{
-		Upstreams:    map[string]string{"tripmap": tripmapHTTP.URL},
+		Upstreams:    map[string]string{"usersrv": usersrvHTTP, "tripmap": tripmapHTTP.URL},
 		InternalAuth: bffconfig.InternalAuth{Issuer: issuer, KID: kid, PrivateKeyFile: signing.PrivateFile},
 		GRPC: bffconfig.GRPCConfig{CAFile: s.ca.CAFile, Services: map[string]bffconfig.GRPCService{
+			"usersrv": {Address: usersrvAddr, Transport: "h2c"},
 			"tripmap": {Address: s.tripmap.GRPCAddr(), ServerName: "tripmap.internal"},
 		}},
 	}
 	if opts.bffTransport == "h2c" {
 		// No CA and no server name: an all-h2c BFF has no TLS material at all.
 		bffCfg.GRPC = bffconfig.GRPCConfig{Services: map[string]bffconfig.GRPCService{
+			"usersrv": {Address: usersrvAddr, Transport: "h2c"},
 			"tripmap": {Address: s.tripmap.GRPCAddr(), Transport: "h2c"},
 		}}
 	}
@@ -172,4 +177,30 @@ func (s *stack) probes() []health.Probe {
 		}}
 	}
 	return []health.Probe{wrap("postgres", postgres), wrap("redis", redis), wrap("s3", up)}
+}
+
+// stubSystem answers usersrv's readiness probe and nothing else: the transport and
+// trust tests of this file exercise the BFF-to-tripmap link, and only need the
+// required account service to be reachable and ready. The account flows are tested
+// against the real usersrv by ChainHarness.
+type stubSystem struct {
+	usersrvv1.UnimplementedSystemServiceServer
+}
+
+func (stubSystem) GetStatus(context.Context, *usersrvv1.GetStatusRequest) (*usersrvv1.GetStatusResponse, error) {
+	return &usersrvv1.GetStatusResponse{Ready: true}, nil
+}
+
+func startUsersrvStub(t *testing.T) (grpcAddr, httpURL string) {
+	t.Helper()
+	srv, err := grpcx.Start(grpcx.ServerConfig{Transport: "h2c", Listen: "127.0.0.1:0"}, func(r grpc.ServiceRegistrar) {
+		usersrvv1.RegisterSystemServiceServer(r, stubSystem{})
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { srv.Shutdown(time.Second) })
+	web := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	t.Cleanup(web.Close)
+	return srv.Addr(), web.URL
 }

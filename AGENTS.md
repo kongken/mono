@@ -19,7 +19,7 @@
 - 地图使用随项目分发的 GeoJSON；默认保持运行时无需第三方地图请求或 API Key。联网底图是显式启用的可选能力（OSM 或服务端代理的 Mapbox，见 [数据与地图说明](docs/trip-map/data-and-maps.md)），Mapbox token 只留在 tripmap 配置，不进入前端。
 - 更改存储结构或区域索引时，处理已有足迹的兼容或迁移，避免将旧数据直接当作空数据覆盖。
 
-- 前端是 npm workspaces monorepo，细节见 [前后端 monorepo 布局](docs/monorepo.md)：`apps/<应用>` 是可独立构建部署的前端应用（当前只有 `apps/trip-map`，包名 `@kongken/trip-map`），`packages/` 放跨应用或前后端共用的代码和数据（`ui`、`api-client`、`geo-data`、`fixtures`）。应用之间不互相 import，共用部分抽到 `packages/`；只被一个应用使用的代码留在该应用内，出现第二个使用方时再抽出。
+- 前端是 npm workspaces monorepo，细节见 [前后端 monorepo 布局](docs/monorepo.md)：`apps/<应用>` 是可独立构建部署的前端应用（当前只有 `apps/trip-map`，包名 `@kongken/trip-map`），`packages/` 放跨应用或前后端共用的代码和数据（`ui`、`api-client`、`geo-data`、`fixtures`、`account`）。应用之间不互相 import，共用部分抽到 `packages/`；只被一个应用使用的代码留在该应用内，出现第二个使用方时再抽出。
 - `packages/api-client/src/` 是 `make buf` 的生成目录，`packages/geo-data/data/` 的区域索引与 `internal/tripmap/regions/`、`internal/tripmap/itinerary/` 里的后端副本必须一致，`packages/fixtures/` 是前后端共同验证的夹具；它们的更新方式见 [数据与地图说明](docs/trip-map/data-and-maps.md)。
 
 ## 后端约定
@@ -30,6 +30,7 @@
 - 修改 `proto/` 后运行 `make buf`，修改 `internal/<业务>/ent/schema/` 后运行 `make ent`，将生成的 Go / TypeScript / Ent 文件一起提交；生成文件只通过生成器更新。版本化迁移按业务放在 `migrations/<业务>/`。
 - 私有业务接口先实现认证与用户隔离，当前公共接口除健康状态外，只有可选的匿名瓦片代理 `GET /api/tiles/{z}/{x}/{y}.png`（默认关闭，见 [后端初始化](docs/backend.md)）；城市区域 ID 规则与前端一致。
 - 配置示例使用本地开发值，真实凭据放在忽略的 `config.tripmap.yaml` 或挂载 Secret 中。
+- `usersrv`（自建用户系统，阶段状态见 [规格](docs/usersrv/spec.md)）是内部账号服务：`internal/usersrv` 不 import 其他业务，BFF 不 import `internal/usersrv`，只经 `usersrv.v1` 内部 gRPC 调用（`internal/bff/usersrv` 只放错误映射）；目前实现 P1（账号核心）、P2（邮件 adapter 与加密 outbox）、P3（注册验证、邮箱密码登录、找回密码）、P4（BFF 会话、每请求 `GetAuthState`、注销工作流、产品鉴权）P5（两个前端的登录、注册、找回密码、账号设置和邮件落地页，共用代码在 `packages/account`）与 P6（镜像、部署示例与 Logto 退役文档，见 [退役说明](docs/usersrv/retirement.md)）。BFF 不保存密码，运行时没有 Logto 或 OAuth 代码。邮件的真实厂商只做手动冒烟验证（至今没有对任何真实厂商实测），自动化测试只连本地假服务。跑 `make test-integration` 需要真实 Redis 并设置 `USERSRV_TEST_*`，否则账号链整体跳过。修改其 Ent schema 用 `make ent-usersrv`，迁移用 `make usersrv-migration`，测试用 `make test-integration-usersrv`。
 
 ## 文档同步
 

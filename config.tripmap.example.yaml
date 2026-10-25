@@ -46,7 +46,7 @@ internal_auth:
 
 auth:
   # Client address for share/unsubscribe rate limits when those routes are mounted in tests.
-  # Production public HTTP is served by the BFF; account/OAuth/session config is in config.bff.yaml.
+  # Production public HTTP is served by the BFF; account and session config is in config.bff.yaml and config.usersrv.yaml.
   client_ip_header: X-Real-IP
 
 # Public share page (F6). Sharing is off while public_base_url is empty.

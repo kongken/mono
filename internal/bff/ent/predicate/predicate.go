@@ -9,11 +9,8 @@ import (
 // AccessToken is the predicate function for accesstoken builders.
 type AccessToken func(*sql.Selector)
 
-// AccountDeletionReceipt is the predicate function for accountdeletionreceipt builders.
-type AccountDeletionReceipt func(*sql.Selector)
+// AccountDeletion is the predicate function for accountdeletion builders.
+type AccountDeletion func(*sql.Selector)
 
 // Session is the predicate function for session builders.
 type Session func(*sql.Selector)
-
-// User is the predicate function for user builders.
-type User func(*sql.Selector)

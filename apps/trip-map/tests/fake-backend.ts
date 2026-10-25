@@ -26,7 +26,7 @@ import { searchNotes } from "../src/lib/search";
 
 export const green = "#4b937d";
 export const gold = "#e2af5c";
-export const user = { id: "ci-migrate", username: "ci_user", displayName: "CI 旅行者" };
+export const user = { id: "ci-migrate", displayName: "CI 旅行者" };
 
 /** Old-shape input: a city with its single trip's date and note. */
 export type V = { code: string; name: string; province: string; color: string; date: string; note: string };
@@ -146,11 +146,8 @@ export function fakeBackend(
   });
   const bffUser = () => ({
     id: user.id,
-    username: user.username,
     displayName: user.displayName,
     avatarUrl: "",
-    createdAt: ts(),
-    deletionPending: false,
   });
   const csrfToken = "ci-csrf-test-token";
   const wireItinerary = (r: ItineraryRecord) => {
@@ -271,10 +268,6 @@ export function fakeBackend(
     /** Saves a snapshot of the current server state, as the server's scheduler would. */
     seedSnapshot: (reason = "scheduled") => capture(reason).snap,
     install: async () => {
-      await page.route("**/auth/login?*", async (route) => {
-        state.authenticated = true; // Controlled Logto callback in browser fixtures.
-        await route.fulfill({ status: 303, headers: { Location: "/" } });
-      });
       await page.route("**/api/**", async (route) => {
         const req = route.request();
         const method = req.url().split("/").pop()!;
@@ -310,17 +303,9 @@ export function fakeBackend(
             return send(statusPb.GetStatusResponseSchema, { footprintSchema: state.footprintSchema, shareEnabled: options.shareEnabled ?? false, regionVersion: state.regionVersion });
           case "IssueCSRFToken":
             return send(bffAuth.IssueCSRFTokenResponseSchema, { token: csrfToken });
-          case "Register":
-          case "Login":
-            return route.fulfill(failure("unimplemented", "password accounts retired", 501));
           case "Logout":
             state.authenticated = false;
             return send(bffAuth.LogoutResponseSchema, {});
-          case "ListOAuthProviders":
-            return send(bffAuth.ListOAuthProvidersResponseSchema, { providers: [{ name: "logto", displayName: "Logto" }] });
-          case "BeginOAuthFlow":
-          case "CompleteOAuthFlow":
-            return route.fulfill(failure("unimplemented", "use BFF HTTP login", 501));
           case "Me": {
             if (state.authenticated === undefined)
               state.authenticated = !!(await page.evaluate(() => localStorage.getItem("shanhai-session-v1")));
@@ -714,10 +699,17 @@ export async function seedLocal(page: Page, visits: V[], provinces: Record<strin
   );
 }
 
+/**
+ * Signs in as the fixture account without going through the sign-in form (tests/account.spec.ts
+ * covers that): the fixture starts from a stored session, the fake backend answers Me as
+ * authenticated and the page restores from it.
+ */
 export async function login(page: Page) {
   await page.goto("/");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("button", { name: "前往用户中心登录", exact: true }).click();
+  await page.evaluate((u) => {
+    localStorage.setItem("shanhai-session-v1", JSON.stringify({ user: { id: u.id, displayName: u.displayName, avatarUrl: "" } }));
+  }, user);
+  await page.reload();
 }
 
 

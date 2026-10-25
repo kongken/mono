@@ -7,41 +7,100 @@ import "platform/v1/options.proto";
 
 option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
 
-// AuthService handles Logto-backed browser sessions (HttpOnly Cookie).
-// Password and SPA OAuth RPCs are retired, unimplemented compatibility stubs.
+// AuthService is the browser account contract (HttpOnly Cookie session). The
+// account itself (email, password, roles, account mail) lives in usersrv; the BFF
+// owns the Cookie session, CSRF and the account deletion workflow.
+//
+// Every state-changing method, anonymous ones included, passes the Origin and CSRF
+// check. A protected method re-checks the account with usersrv before it runs
+// (status active, auth_version equal to the session's, current roles); when usersrv
+// cannot answer, the call is UNAVAILABLE and nothing is forwarded.
+//
+// Errors:
+//
+//	UNAUTHENTICATED      wrong email or password (one text for every login failure), a wrong
+//	                     current password, or no valid session
+//	INVALID_ARGUMENT     format and password policy only
+//	RESOURCE_EXHAUSTED   public client-address or service-wide limit
+//	FAILED_PRECONDITION  an unusable registration or reset link, closed sign-ups, or a sensitive
+//	                     action that needs a recent password check (reauthenticate first)
+//	UNAVAILABLE          usersrv, storage or Redis cannot answer; the request was not carried out
 service AuthService {
-  rpc Register(RegisterRequest) returns (RegisterResponse) {
-    option deprecated = true;
-    option (platform.v1.anonymous) = true;
-  }
-  rpc Login(LoginRequest) returns (LoginResponse) {
-    option deprecated = true;
-    option (platform.v1.anonymous) = true;
-  }
-  rpc Logout(LogoutRequest) returns (LogoutResponse);
-  rpc Me(MeRequest) returns (MeResponse);
-  // ListSessions lists the caller's active browser sessions in BFF storage.
-  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
-  // RevokeSession revokes one of the caller's own sessions.
-  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
-  // DeleteAccount deletes application cloud data, NOT the Logto account.
-  // Requires a BFF session issued within 15 minutes; cleanup retries are exempt.
-  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
   // IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
   rpc IssueCSRFToken(IssueCSRFTokenRequest) returns (IssueCSRFTokenResponse) {
     option (platform.v1.anonymous) = true;
   }
-  rpc ListOAuthProviders(ListOAuthProvidersRequest) returns (ListOAuthProvidersResponse) {
+
+  // RequestRegistration asks for a verification mail. A well-formed address always
+  // gets the same answer, whether or not it can register; no user, session or token
+  // is returned and no password is accepted here.
+  rpc RequestRegistration(RequestRegistrationRequest) returns (RequestRegistrationResponse) {
     option (platform.v1.anonymous) = true;
   }
-  rpc BeginOAuthFlow(BeginOAuthFlowRequest) returns (BeginOAuthFlowResponse) {
-    option deprecated = true;
+  // CompleteRegistration consumes the mailed token and creates the account with the
+  // chosen password and nickname. It signs nobody in.
+  rpc CompleteRegistration(CompleteRegistrationRequest) returns (CompleteRegistrationResponse) {
     option (platform.v1.anonymous) = true;
   }
-  rpc CompleteOAuthFlow(CompleteOAuthFlowRequest) returns (CompleteOAuthFlowResponse) {
-    option deprecated = true;
+  // LoginWithEmail checks email and password and, on success only, sets a new
+  // random session Cookie. The response carries the profile and expiry, never the token.
+  rpc LoginWithEmail(LoginWithEmailRequest) returns (LoginWithEmailResponse) {
     option (platform.v1.anonymous) = true;
   }
+  // RequestPasswordReset always answers the same way for a well-formed address.
+  rpc RequestPasswordReset(RequestPasswordResetRequest) returns (RequestPasswordResetResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  // ResetPassword consumes the mailed token and sets a new password. Every existing
+  // session and management token stops working; the caller is not signed in.
+  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+
+  // Me returns the caller's account, including the login email. The roles are the
+  // account's current roles, not a snapshot.
+  rpc Me(MeRequest) returns (MeResponse);
+  // ListSessions lists the caller's active browser sessions in BFF storage.
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  // Logout revokes the session of the Cookie and clears it. It is idempotent: it
+  // succeeds, and clears the Cookie, even when the session is already gone.
+  rpc Logout(LogoutRequest) returns (LogoutResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  // RevokeSession revokes one of the caller's own sessions.
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+  // Reauthenticate re-checks the current password and, only then, records a fresh
+  // authentication time on this session. Sensitive actions (DeleteAccount, creating
+  // a management token) need it within the last 15 minutes.
+  rpc Reauthenticate(ReauthenticateRequest) returns (ReauthenticateResponse);
+  // ChangePassword needs the current password. On success every session and
+  // management token of the account, this one included, stops working.
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+
+  // DeleteAccount closes the shared account and removes the data of every enabled
+  // product. It needs a session that checked its password within 15 minutes, the
+  // confirmation "DELETE" and an idempotency key. The workflow is stored before
+  // anything is removed and every step can be retried: while a product cleanup
+  // fails the account stays "deleting" and the call is UNAVAILABLE.
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
+  // GetAccountDeletion reads the state of the deletion started by the caller's
+  // Cookie. Only that Cookie can read it; a workflow ID alone opens nothing.
+  rpc GetAccountDeletion(GetAccountDeletionRequest) returns (GetAccountDeletionResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+  // RetryAccountDeletion continues the deletion started by the caller's Cookie. It
+  // is idempotent, and once finished it replays the result for 24 hours.
+  rpc RetryAccountDeletion(RetryAccountDeletionRequest) returns (RetryAccountDeletionResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+}
+
+// UserService edits the caller's own cross-product profile.
+service UserService {
+  // UpdateMyProfile replaces the nickname and avatar. It takes no user, role, email
+  // or status: the account is the session's. It does not touch any product's own
+  // profile; products pick the change up on the caller's next request.
+  rpc UpdateMyProfile(UpdateMyProfileRequest) returns (UpdateMyProfileResponse);
 }
 
 message Session {
@@ -53,35 +112,61 @@ message Session {
   bool current = 5;
 }
 
+// User is the cross-product public face of an account: no email, no roles.
 message User {
   string id = 1;
-  string username = 2;
+  reserved 2;
+  reserved "username";
   string display_name = 3;
   string avatar_url = 4;
-  google.protobuf.Timestamp created_at = 5;
-  bool deletion_pending = 6;
+  reserved 5, 6;
+  reserved "created_at", "deletion_pending";
 }
 
-message RegisterRequest {
-  string username = 1;
+message RequestRegistrationRequest {
+  string email = 1;
+  // An app configured in usersrv (trip-map, metro); it picks the link origin.
+  string app_id = 2;
+}
+
+message RequestRegistrationResponse {
+  // The same neutral notice for every well-formed address.
+  string message = 1;
+}
+
+message CompleteRegistrationRequest {
+  string token = 1;
   string password = 2;
   string display_name = 3;
 }
 
-message RegisterResponse {
-  User user = 1;
-  google.protobuf.Timestamp expires_at = 2;
-}
+message CompleteRegistrationResponse {}
 
-message LoginRequest {
-  string username = 1;
+message LoginWithEmailRequest {
+  string email = 1;
   string password = 2;
 }
 
-message LoginResponse {
+message LoginWithEmailResponse {
   User user = 1;
   google.protobuf.Timestamp expires_at = 2;
 }
+
+message RequestPasswordResetRequest {
+  string email = 1;
+  string app_id = 2;
+}
+
+message RequestPasswordResetResponse {
+  string message = 1;
+}
+
+message ResetPasswordRequest {
+  string token = 1;
+  string new_password = 2;
+}
+
+message ResetPasswordResponse {}
 
 message LogoutRequest {}
 
@@ -91,11 +176,14 @@ message MeRequest {}
 
 message MeResponse {
   User user = 1;
-  // Roles the Logto account held when this session was signed in, such as
-  // "metro-admin". Clients may use them to show or hide entry points only;
-  // every server call checks the role again. Sessions created before roles were
-  // recorded have none.
+  // The account's current roles, such as "metro-admin". Clients may use them to
+  // show or hide entry points only; every server call checks the role again.
   repeated string roles = 2;
+  // The canonical login email, for the owner's own account screen only.
+  string email = 3;
+  // When the password was last checked on this session (login or reauthentication).
+  google.protobuf.Timestamp authenticated_at = 4;
+  google.protobuf.Timestamp session_expires_at = 5;
 }
 
 message ListSessionsRequest {}
@@ -110,48 +198,78 @@ message RevokeSessionRequest {
 
 message RevokeSessionResponse {}
 
+message ReauthenticateRequest {
+  string password = 1;
+}
+
+message ReauthenticateResponse {
+  google.protobuf.Timestamp authenticated_at = 1;
+}
+
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+
+message ChangePasswordResponse {}
+
+message UpdateMyProfileRequest {
+  string display_name = 1;
+  string avatar_url = 2;
+}
+
+message UpdateMyProfileResponse {
+  User user = 1;
+}
+
 message DeleteAccountRequest {
   // Must be exactly "DELETE".
   string confirmation = 1;
   reserved 2;
   reserved "password";
+  // Idempotency key of this deletion: 1-64 characters of [A-Za-z0-9._-]. Repeating the
+  // call with the same key (for example after a lost response) continues the same deletion.
+  string mutation_id = 3;
 }
 
-message DeleteAccountResponse {}
+message DeleteAccountResponse {
+  AccountDeletion deletion = 1;
+}
+
+enum AccountDeletionState {
+  ACCOUNT_DELETION_STATE_UNSPECIFIED = 0;
+  // Not finished: some step failed or is running. The account is closed ("deleting")
+  // and the deletion can be retried.
+  ACCOUNT_DELETION_STATE_PENDING = 1;
+  // Finished: the account and the data of every listed product are gone.
+  ACCOUNT_DELETION_STATE_COMPLETED = 2;
+}
+
+message AccountDeletion {
+  AccountDeletionState state = 1;
+  string mutation_id = 2;
+  // The products whose data this deletion removes, fixed when it started.
+  repeated string products = 3;
+  // The products already cleaned.
+  repeated string completed_products = 4;
+  // Set once completed: until then a replay with the same Cookie returns the result.
+  google.protobuf.Timestamp receipt_expires_at = 5;
+}
+
+message GetAccountDeletionRequest {}
+
+message GetAccountDeletionResponse {
+  AccountDeletion deletion = 1;
+}
+
+message RetryAccountDeletionRequest {}
+
+message RetryAccountDeletionResponse {
+  AccountDeletion deletion = 1;
+}
 
 message IssueCSRFTokenRequest {}
 
 message IssueCSRFTokenResponse {
   string token = 1;
-}
-
-message OAuthProvider {
-  string name = 1;
-  string display_name = 2;
-}
-
-message ListOAuthProvidersRequest {}
-
-message ListOAuthProvidersResponse {
-  repeated OAuthProvider providers = 1;
-}
-
-message BeginOAuthFlowRequest {
-  string provider = 1;
-}
-
-message BeginOAuthFlowResponse {
-  string authorize_url = 1;
-  string state = 2;
-}
-
-message CompleteOAuthFlowRequest {
-  string provider = 1;
-  string code = 2;
-  string state = 3;
-}
-
-message CompleteOAuthFlowResponse {
-  User user = 1;
-  google.protobuf.Timestamp expires_at = 2;
 }

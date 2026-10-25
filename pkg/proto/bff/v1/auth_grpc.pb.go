@@ -19,46 +19,92 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthService_Register_FullMethodName           = "/bff.v1.AuthService/Register"
-	AuthService_Login_FullMethodName              = "/bff.v1.AuthService/Login"
-	AuthService_Logout_FullMethodName             = "/bff.v1.AuthService/Logout"
-	AuthService_Me_FullMethodName                 = "/bff.v1.AuthService/Me"
-	AuthService_ListSessions_FullMethodName       = "/bff.v1.AuthService/ListSessions"
-	AuthService_RevokeSession_FullMethodName      = "/bff.v1.AuthService/RevokeSession"
-	AuthService_DeleteAccount_FullMethodName      = "/bff.v1.AuthService/DeleteAccount"
-	AuthService_IssueCSRFToken_FullMethodName     = "/bff.v1.AuthService/IssueCSRFToken"
-	AuthService_ListOAuthProviders_FullMethodName = "/bff.v1.AuthService/ListOAuthProviders"
-	AuthService_BeginOAuthFlow_FullMethodName     = "/bff.v1.AuthService/BeginOAuthFlow"
-	AuthService_CompleteOAuthFlow_FullMethodName  = "/bff.v1.AuthService/CompleteOAuthFlow"
+	AuthService_IssueCSRFToken_FullMethodName       = "/bff.v1.AuthService/IssueCSRFToken"
+	AuthService_RequestRegistration_FullMethodName  = "/bff.v1.AuthService/RequestRegistration"
+	AuthService_CompleteRegistration_FullMethodName = "/bff.v1.AuthService/CompleteRegistration"
+	AuthService_LoginWithEmail_FullMethodName       = "/bff.v1.AuthService/LoginWithEmail"
+	AuthService_RequestPasswordReset_FullMethodName = "/bff.v1.AuthService/RequestPasswordReset"
+	AuthService_ResetPassword_FullMethodName        = "/bff.v1.AuthService/ResetPassword"
+	AuthService_Me_FullMethodName                   = "/bff.v1.AuthService/Me"
+	AuthService_ListSessions_FullMethodName         = "/bff.v1.AuthService/ListSessions"
+	AuthService_Logout_FullMethodName               = "/bff.v1.AuthService/Logout"
+	AuthService_RevokeSession_FullMethodName        = "/bff.v1.AuthService/RevokeSession"
+	AuthService_Reauthenticate_FullMethodName       = "/bff.v1.AuthService/Reauthenticate"
+	AuthService_ChangePassword_FullMethodName       = "/bff.v1.AuthService/ChangePassword"
+	AuthService_DeleteAccount_FullMethodName        = "/bff.v1.AuthService/DeleteAccount"
+	AuthService_GetAccountDeletion_FullMethodName   = "/bff.v1.AuthService/GetAccountDeletion"
+	AuthService_RetryAccountDeletion_FullMethodName = "/bff.v1.AuthService/RetryAccountDeletion"
 )
 
 // AuthServiceClient is the client API for AuthService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// AuthService handles Logto-backed browser sessions (HttpOnly Cookie).
-// Password and SPA OAuth RPCs are retired, unimplemented compatibility stubs.
+// AuthService is the browser account contract (HttpOnly Cookie session). The
+// account itself (email, password, roles, account mail) lives in usersrv; the BFF
+// owns the Cookie session, CSRF and the account deletion workflow.
+//
+// Every state-changing method, anonymous ones included, passes the Origin and CSRF
+// check. A protected method re-checks the account with usersrv before it runs
+// (status active, auth_version equal to the session's, current roles); when usersrv
+// cannot answer, the call is UNAVAILABLE and nothing is forwarded.
+//
+// Errors:
+//
+//	UNAUTHENTICATED      wrong email or password (one text for every login failure), a wrong
+//	                     current password, or no valid session
+//	INVALID_ARGUMENT     format and password policy only
+//	RESOURCE_EXHAUSTED   public client-address or service-wide limit
+//	FAILED_PRECONDITION  an unusable registration or reset link, closed sign-ups, or a sensitive
+//	                     action that needs a recent password check (reauthenticate first)
+//	UNAVAILABLE          usersrv, storage or Redis cannot answer; the request was not carried out
 type AuthServiceClient interface {
-	// Deprecated: Do not use.
-	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error)
-	// Deprecated: Do not use.
-	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
-	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
+	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
+	IssueCSRFToken(ctx context.Context, in *IssueCSRFTokenRequest, opts ...grpc.CallOption) (*IssueCSRFTokenResponse, error)
+	// RequestRegistration asks for a verification mail. A well-formed address always
+	// gets the same answer, whether or not it can register; no user, session or token
+	// is returned and no password is accepted here.
+	RequestRegistration(ctx context.Context, in *RequestRegistrationRequest, opts ...grpc.CallOption) (*RequestRegistrationResponse, error)
+	// CompleteRegistration consumes the mailed token and creates the account with the
+	// chosen password and nickname. It signs nobody in.
+	CompleteRegistration(ctx context.Context, in *CompleteRegistrationRequest, opts ...grpc.CallOption) (*CompleteRegistrationResponse, error)
+	// LoginWithEmail checks email and password and, on success only, sets a new
+	// random session Cookie. The response carries the profile and expiry, never the token.
+	LoginWithEmail(ctx context.Context, in *LoginWithEmailRequest, opts ...grpc.CallOption) (*LoginWithEmailResponse, error)
+	// RequestPasswordReset always answers the same way for a well-formed address.
+	RequestPasswordReset(ctx context.Context, in *RequestPasswordResetRequest, opts ...grpc.CallOption) (*RequestPasswordResetResponse, error)
+	// ResetPassword consumes the mailed token and sets a new password. Every existing
+	// session and management token stops working; the caller is not signed in.
+	ResetPassword(ctx context.Context, in *ResetPasswordRequest, opts ...grpc.CallOption) (*ResetPasswordResponse, error)
+	// Me returns the caller's account, including the login email. The roles are the
+	// account's current roles, not a snapshot.
 	Me(ctx context.Context, in *MeRequest, opts ...grpc.CallOption) (*MeResponse, error)
 	// ListSessions lists the caller's active browser sessions in BFF storage.
 	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
+	// Logout revokes the session of the Cookie and clears it. It is idempotent: it
+	// succeeds, and clears the Cookie, even when the session is already gone.
+	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
 	// RevokeSession revokes one of the caller's own sessions.
 	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*RevokeSessionResponse, error)
-	// DeleteAccount deletes application cloud data, NOT the Logto account.
-	// Requires a BFF session issued within 15 minutes; cleanup retries are exempt.
+	// Reauthenticate re-checks the current password and, only then, records a fresh
+	// authentication time on this session. Sensitive actions (DeleteAccount, creating
+	// a management token) need it within the last 15 minutes.
+	Reauthenticate(ctx context.Context, in *ReauthenticateRequest, opts ...grpc.CallOption) (*ReauthenticateResponse, error)
+	// ChangePassword needs the current password. On success every session and
+	// management token of the account, this one included, stops working.
+	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ChangePasswordResponse, error)
+	// DeleteAccount closes the shared account and removes the data of every enabled
+	// product. It needs a session that checked its password within 15 minutes, the
+	// confirmation "DELETE" and an idempotency key. The workflow is stored before
+	// anything is removed and every step can be retried: while a product cleanup
+	// fails the account stays "deleting" and the call is UNAVAILABLE.
 	DeleteAccount(ctx context.Context, in *DeleteAccountRequest, opts ...grpc.CallOption) (*DeleteAccountResponse, error)
-	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
-	IssueCSRFToken(ctx context.Context, in *IssueCSRFTokenRequest, opts ...grpc.CallOption) (*IssueCSRFTokenResponse, error)
-	ListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest, opts ...grpc.CallOption) (*ListOAuthProvidersResponse, error)
-	// Deprecated: Do not use.
-	BeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest, opts ...grpc.CallOption) (*BeginOAuthFlowResponse, error)
-	// Deprecated: Do not use.
-	CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest, opts ...grpc.CallOption) (*CompleteOAuthFlowResponse, error)
+	// GetAccountDeletion reads the state of the deletion started by the caller's
+	// Cookie. Only that Cookie can read it; a workflow ID alone opens nothing.
+	GetAccountDeletion(ctx context.Context, in *GetAccountDeletionRequest, opts ...grpc.CallOption) (*GetAccountDeletionResponse, error)
+	// RetryAccountDeletion continues the deletion started by the caller's Cookie. It
+	// is idempotent, and once finished it replays the result for 24 hours.
+	RetryAccountDeletion(ctx context.Context, in *RetryAccountDeletionRequest, opts ...grpc.CallOption) (*RetryAccountDeletionResponse, error)
 }
 
 type authServiceClient struct {
@@ -69,32 +115,60 @@ func NewAuthServiceClient(cc grpc.ClientConnInterface) AuthServiceClient {
 	return &authServiceClient{cc}
 }
 
-// Deprecated: Do not use.
-func (c *authServiceClient) Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error) {
+func (c *authServiceClient) IssueCSRFToken(ctx context.Context, in *IssueCSRFTokenRequest, opts ...grpc.CallOption) (*IssueCSRFTokenResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RegisterResponse)
-	err := c.cc.Invoke(ctx, AuthService_Register_FullMethodName, in, out, cOpts...)
+	out := new(IssueCSRFTokenResponse)
+	err := c.cc.Invoke(ctx, AuthService_IssueCSRFToken_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Deprecated: Do not use.
-func (c *authServiceClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
+func (c *authServiceClient) RequestRegistration(ctx context.Context, in *RequestRegistrationRequest, opts ...grpc.CallOption) (*RequestRegistrationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(LoginResponse)
-	err := c.cc.Invoke(ctx, AuthService_Login_FullMethodName, in, out, cOpts...)
+	out := new(RequestRegistrationResponse)
+	err := c.cc.Invoke(ctx, AuthService_RequestRegistration_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *authServiceClient) Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error) {
+func (c *authServiceClient) CompleteRegistration(ctx context.Context, in *CompleteRegistrationRequest, opts ...grpc.CallOption) (*CompleteRegistrationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(LogoutResponse)
-	err := c.cc.Invoke(ctx, AuthService_Logout_FullMethodName, in, out, cOpts...)
+	out := new(CompleteRegistrationResponse)
+	err := c.cc.Invoke(ctx, AuthService_CompleteRegistration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) LoginWithEmail(ctx context.Context, in *LoginWithEmailRequest, opts ...grpc.CallOption) (*LoginWithEmailResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LoginWithEmailResponse)
+	err := c.cc.Invoke(ctx, AuthService_LoginWithEmail_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) RequestPasswordReset(ctx context.Context, in *RequestPasswordResetRequest, opts ...grpc.CallOption) (*RequestPasswordResetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequestPasswordResetResponse)
+	err := c.cc.Invoke(ctx, AuthService_RequestPasswordReset_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ResetPassword(ctx context.Context, in *ResetPasswordRequest, opts ...grpc.CallOption) (*ResetPasswordResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResetPasswordResponse)
+	err := c.cc.Invoke(ctx, AuthService_ResetPassword_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -121,10 +195,40 @@ func (c *authServiceClient) ListSessions(ctx context.Context, in *ListSessionsRe
 	return out, nil
 }
 
+func (c *authServiceClient) Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LogoutResponse)
+	err := c.cc.Invoke(ctx, AuthService_Logout_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*RevokeSessionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RevokeSessionResponse)
 	err := c.cc.Invoke(ctx, AuthService_RevokeSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) Reauthenticate(ctx context.Context, in *ReauthenticateRequest, opts ...grpc.CallOption) (*ReauthenticateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReauthenticateResponse)
+	err := c.cc.Invoke(ctx, AuthService_Reauthenticate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ChangePasswordResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChangePasswordResponse)
+	err := c.cc.Invoke(ctx, AuthService_ChangePassword_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -141,42 +245,20 @@ func (c *authServiceClient) DeleteAccount(ctx context.Context, in *DeleteAccount
 	return out, nil
 }
 
-func (c *authServiceClient) IssueCSRFToken(ctx context.Context, in *IssueCSRFTokenRequest, opts ...grpc.CallOption) (*IssueCSRFTokenResponse, error) {
+func (c *authServiceClient) GetAccountDeletion(ctx context.Context, in *GetAccountDeletionRequest, opts ...grpc.CallOption) (*GetAccountDeletionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(IssueCSRFTokenResponse)
-	err := c.cc.Invoke(ctx, AuthService_IssueCSRFToken_FullMethodName, in, out, cOpts...)
+	out := new(GetAccountDeletionResponse)
+	err := c.cc.Invoke(ctx, AuthService_GetAccountDeletion_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *authServiceClient) ListOAuthProviders(ctx context.Context, in *ListOAuthProvidersRequest, opts ...grpc.CallOption) (*ListOAuthProvidersResponse, error) {
+func (c *authServiceClient) RetryAccountDeletion(ctx context.Context, in *RetryAccountDeletionRequest, opts ...grpc.CallOption) (*RetryAccountDeletionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListOAuthProvidersResponse)
-	err := c.cc.Invoke(ctx, AuthService_ListOAuthProviders_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Deprecated: Do not use.
-func (c *authServiceClient) BeginOAuthFlow(ctx context.Context, in *BeginOAuthFlowRequest, opts ...grpc.CallOption) (*BeginOAuthFlowResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BeginOAuthFlowResponse)
-	err := c.cc.Invoke(ctx, AuthService_BeginOAuthFlow_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Deprecated: Do not use.
-func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, in *CompleteOAuthFlowRequest, opts ...grpc.CallOption) (*CompleteOAuthFlowResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CompleteOAuthFlowResponse)
-	err := c.cc.Invoke(ctx, AuthService_CompleteOAuthFlow_FullMethodName, in, out, cOpts...)
+	out := new(RetryAccountDeletionResponse)
+	err := c.cc.Invoke(ctx, AuthService_RetryAccountDeletion_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -187,29 +269,71 @@ func (c *authServiceClient) CompleteOAuthFlow(ctx context.Context, in *CompleteO
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
 //
-// AuthService handles Logto-backed browser sessions (HttpOnly Cookie).
-// Password and SPA OAuth RPCs are retired, unimplemented compatibility stubs.
+// AuthService is the browser account contract (HttpOnly Cookie session). The
+// account itself (email, password, roles, account mail) lives in usersrv; the BFF
+// owns the Cookie session, CSRF and the account deletion workflow.
+//
+// Every state-changing method, anonymous ones included, passes the Origin and CSRF
+// check. A protected method re-checks the account with usersrv before it runs
+// (status active, auth_version equal to the session's, current roles); when usersrv
+// cannot answer, the call is UNAVAILABLE and nothing is forwarded.
+//
+// Errors:
+//
+//	UNAUTHENTICATED      wrong email or password (one text for every login failure), a wrong
+//	                     current password, or no valid session
+//	INVALID_ARGUMENT     format and password policy only
+//	RESOURCE_EXHAUSTED   public client-address or service-wide limit
+//	FAILED_PRECONDITION  an unusable registration or reset link, closed sign-ups, or a sensitive
+//	                     action that needs a recent password check (reauthenticate first)
+//	UNAVAILABLE          usersrv, storage or Redis cannot answer; the request was not carried out
 type AuthServiceServer interface {
-	// Deprecated: Do not use.
-	Register(context.Context, *RegisterRequest) (*RegisterResponse, error)
-	// Deprecated: Do not use.
-	Login(context.Context, *LoginRequest) (*LoginResponse, error)
-	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
+	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
+	IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error)
+	// RequestRegistration asks for a verification mail. A well-formed address always
+	// gets the same answer, whether or not it can register; no user, session or token
+	// is returned and no password is accepted here.
+	RequestRegistration(context.Context, *RequestRegistrationRequest) (*RequestRegistrationResponse, error)
+	// CompleteRegistration consumes the mailed token and creates the account with the
+	// chosen password and nickname. It signs nobody in.
+	CompleteRegistration(context.Context, *CompleteRegistrationRequest) (*CompleteRegistrationResponse, error)
+	// LoginWithEmail checks email and password and, on success only, sets a new
+	// random session Cookie. The response carries the profile and expiry, never the token.
+	LoginWithEmail(context.Context, *LoginWithEmailRequest) (*LoginWithEmailResponse, error)
+	// RequestPasswordReset always answers the same way for a well-formed address.
+	RequestPasswordReset(context.Context, *RequestPasswordResetRequest) (*RequestPasswordResetResponse, error)
+	// ResetPassword consumes the mailed token and sets a new password. Every existing
+	// session and management token stops working; the caller is not signed in.
+	ResetPassword(context.Context, *ResetPasswordRequest) (*ResetPasswordResponse, error)
+	// Me returns the caller's account, including the login email. The roles are the
+	// account's current roles, not a snapshot.
 	Me(context.Context, *MeRequest) (*MeResponse, error)
 	// ListSessions lists the caller's active browser sessions in BFF storage.
 	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
+	// Logout revokes the session of the Cookie and clears it. It is idempotent: it
+	// succeeds, and clears the Cookie, even when the session is already gone.
+	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
 	// RevokeSession revokes one of the caller's own sessions.
 	RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error)
-	// DeleteAccount deletes application cloud data, NOT the Logto account.
-	// Requires a BFF session issued within 15 minutes; cleanup retries are exempt.
+	// Reauthenticate re-checks the current password and, only then, records a fresh
+	// authentication time on this session. Sensitive actions (DeleteAccount, creating
+	// a management token) need it within the last 15 minutes.
+	Reauthenticate(context.Context, *ReauthenticateRequest) (*ReauthenticateResponse, error)
+	// ChangePassword needs the current password. On success every session and
+	// management token of the account, this one included, stops working.
+	ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error)
+	// DeleteAccount closes the shared account and removes the data of every enabled
+	// product. It needs a session that checked its password within 15 minutes, the
+	// confirmation "DELETE" and an idempotency key. The workflow is stored before
+	// anything is removed and every step can be retried: while a product cleanup
+	// fails the account stays "deleting" and the call is UNAVAILABLE.
 	DeleteAccount(context.Context, *DeleteAccountRequest) (*DeleteAccountResponse, error)
-	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
-	IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error)
-	ListOAuthProviders(context.Context, *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error)
-	// Deprecated: Do not use.
-	BeginOAuthFlow(context.Context, *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error)
-	// Deprecated: Do not use.
-	CompleteOAuthFlow(context.Context, *CompleteOAuthFlowRequest) (*CompleteOAuthFlowResponse, error)
+	// GetAccountDeletion reads the state of the deletion started by the caller's
+	// Cookie. Only that Cookie can read it; a workflow ID alone opens nothing.
+	GetAccountDeletion(context.Context, *GetAccountDeletionRequest) (*GetAccountDeletionResponse, error)
+	// RetryAccountDeletion continues the deletion started by the caller's Cookie. It
+	// is idempotent, and once finished it replays the result for 24 hours.
+	RetryAccountDeletion(context.Context, *RetryAccountDeletionRequest) (*RetryAccountDeletionResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -220,14 +344,23 @@ type AuthServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAuthServiceServer struct{}
 
-func (UnimplementedAuthServiceServer) Register(context.Context, *RegisterRequest) (*RegisterResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
+func (UnimplementedAuthServiceServer) IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method IssueCSRFToken not implemented")
 }
-func (UnimplementedAuthServiceServer) Login(context.Context, *LoginRequest) (*LoginResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Login not implemented")
+func (UnimplementedAuthServiceServer) RequestRegistration(context.Context, *RequestRegistrationRequest) (*RequestRegistrationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestRegistration not implemented")
 }
-func (UnimplementedAuthServiceServer) Logout(context.Context, *LogoutRequest) (*LogoutResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
+func (UnimplementedAuthServiceServer) CompleteRegistration(context.Context, *CompleteRegistrationRequest) (*CompleteRegistrationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CompleteRegistration not implemented")
+}
+func (UnimplementedAuthServiceServer) LoginWithEmail(context.Context, *LoginWithEmailRequest) (*LoginWithEmailResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LoginWithEmail not implemented")
+}
+func (UnimplementedAuthServiceServer) RequestPasswordReset(context.Context, *RequestPasswordResetRequest) (*RequestPasswordResetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestPasswordReset not implemented")
+}
+func (UnimplementedAuthServiceServer) ResetPassword(context.Context, *ResetPasswordRequest) (*ResetPasswordResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetPassword not implemented")
 }
 func (UnimplementedAuthServiceServer) Me(context.Context, *MeRequest) (*MeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Me not implemented")
@@ -235,23 +368,26 @@ func (UnimplementedAuthServiceServer) Me(context.Context, *MeRequest) (*MeRespon
 func (UnimplementedAuthServiceServer) ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListSessions not implemented")
 }
+func (UnimplementedAuthServiceServer) Logout(context.Context, *LogoutRequest) (*LogoutResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
+}
 func (UnimplementedAuthServiceServer) RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RevokeSession not implemented")
+}
+func (UnimplementedAuthServiceServer) Reauthenticate(context.Context, *ReauthenticateRequest) (*ReauthenticateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Reauthenticate not implemented")
+}
+func (UnimplementedAuthServiceServer) ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ChangePassword not implemented")
 }
 func (UnimplementedAuthServiceServer) DeleteAccount(context.Context, *DeleteAccountRequest) (*DeleteAccountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccount not implemented")
 }
-func (UnimplementedAuthServiceServer) IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method IssueCSRFToken not implemented")
+func (UnimplementedAuthServiceServer) GetAccountDeletion(context.Context, *GetAccountDeletionRequest) (*GetAccountDeletionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAccountDeletion not implemented")
 }
-func (UnimplementedAuthServiceServer) ListOAuthProviders(context.Context, *ListOAuthProvidersRequest) (*ListOAuthProvidersResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListOAuthProviders not implemented")
-}
-func (UnimplementedAuthServiceServer) BeginOAuthFlow(context.Context, *BeginOAuthFlowRequest) (*BeginOAuthFlowResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BeginOAuthFlow not implemented")
-}
-func (UnimplementedAuthServiceServer) CompleteOAuthFlow(context.Context, *CompleteOAuthFlowRequest) (*CompleteOAuthFlowResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CompleteOAuthFlow not implemented")
+func (UnimplementedAuthServiceServer) RetryAccountDeletion(context.Context, *RetryAccountDeletionRequest) (*RetryAccountDeletionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RetryAccountDeletion not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
@@ -274,56 +410,110 @@ func RegisterAuthServiceServer(s grpc.ServiceRegistrar, srv AuthServiceServer) {
 	s.RegisterService(&AuthService_ServiceDesc, srv)
 }
 
-func _AuthService_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RegisterRequest)
+func _AuthService_IssueCSRFToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IssueCSRFTokenRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthServiceServer).Register(ctx, in)
+		return srv.(AuthServiceServer).IssueCSRFToken(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AuthService_Register_FullMethodName,
+		FullMethod: AuthService_IssueCSRFToken_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).Register(ctx, req.(*RegisterRequest))
+		return srv.(AuthServiceServer).IssueCSRFToken(ctx, req.(*IssueCSRFTokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AuthService_Login_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LoginRequest)
+func _AuthService_RequestRegistration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestRegistrationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthServiceServer).Login(ctx, in)
+		return srv.(AuthServiceServer).RequestRegistration(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AuthService_Login_FullMethodName,
+		FullMethod: AuthService_RequestRegistration_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).Login(ctx, req.(*LoginRequest))
+		return srv.(AuthServiceServer).RequestRegistration(ctx, req.(*RequestRegistrationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AuthService_Logout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LogoutRequest)
+func _AuthService_CompleteRegistration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteRegistrationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthServiceServer).Logout(ctx, in)
+		return srv.(AuthServiceServer).CompleteRegistration(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AuthService_Logout_FullMethodName,
+		FullMethod: AuthService_CompleteRegistration_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).Logout(ctx, req.(*LogoutRequest))
+		return srv.(AuthServiceServer).CompleteRegistration(ctx, req.(*CompleteRegistrationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_LoginWithEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LoginWithEmailRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).LoginWithEmail(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_LoginWithEmail_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).LoginWithEmail(ctx, req.(*LoginWithEmailRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_RequestPasswordReset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestPasswordResetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).RequestPasswordReset(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_RequestPasswordReset_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).RequestPasswordReset(ctx, req.(*RequestPasswordResetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ResetPassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetPasswordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ResetPassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ResetPassword_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ResetPassword(ctx, req.(*ResetPasswordRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -364,6 +554,24 @@ func _AuthService_ListSessions_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_Logout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LogoutRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).Logout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_Logout_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).Logout(ctx, req.(*LogoutRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_RevokeSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RevokeSessionRequest)
 	if err := dec(in); err != nil {
@@ -378,6 +586,42 @@ func _AuthService_RevokeSession_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).RevokeSession(ctx, req.(*RevokeSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_Reauthenticate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReauthenticateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).Reauthenticate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_Reauthenticate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).Reauthenticate(ctx, req.(*ReauthenticateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ChangePassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangePasswordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ChangePassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ChangePassword_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ChangePassword(ctx, req.(*ChangePasswordRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -400,74 +644,38 @@ func _AuthService_DeleteAccount_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AuthService_IssueCSRFToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(IssueCSRFTokenRequest)
+func _AuthService_GetAccountDeletion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAccountDeletionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthServiceServer).IssueCSRFToken(ctx, in)
+		return srv.(AuthServiceServer).GetAccountDeletion(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AuthService_IssueCSRFToken_FullMethodName,
+		FullMethod: AuthService_GetAccountDeletion_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).IssueCSRFToken(ctx, req.(*IssueCSRFTokenRequest))
+		return srv.(AuthServiceServer).GetAccountDeletion(ctx, req.(*GetAccountDeletionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AuthService_ListOAuthProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListOAuthProvidersRequest)
+func _AuthService_RetryAccountDeletion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetryAccountDeletionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthServiceServer).ListOAuthProviders(ctx, in)
+		return srv.(AuthServiceServer).RetryAccountDeletion(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AuthService_ListOAuthProviders_FullMethodName,
+		FullMethod: AuthService_RetryAccountDeletion_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ListOAuthProviders(ctx, req.(*ListOAuthProvidersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AuthService_BeginOAuthFlow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BeginOAuthFlowRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).BeginOAuthFlow(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_BeginOAuthFlow_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).BeginOAuthFlow(ctx, req.(*BeginOAuthFlowRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AuthService_CompleteOAuthFlow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CompleteOAuthFlowRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).CompleteOAuthFlow(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_CompleteOAuthFlow_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).CompleteOAuthFlow(ctx, req.(*CompleteOAuthFlowRequest))
+		return srv.(AuthServiceServer).RetryAccountDeletion(ctx, req.(*RetryAccountDeletionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -480,16 +688,28 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AuthServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Register",
-			Handler:    _AuthService_Register_Handler,
+			MethodName: "IssueCSRFToken",
+			Handler:    _AuthService_IssueCSRFToken_Handler,
 		},
 		{
-			MethodName: "Login",
-			Handler:    _AuthService_Login_Handler,
+			MethodName: "RequestRegistration",
+			Handler:    _AuthService_RequestRegistration_Handler,
 		},
 		{
-			MethodName: "Logout",
-			Handler:    _AuthService_Logout_Handler,
+			MethodName: "CompleteRegistration",
+			Handler:    _AuthService_CompleteRegistration_Handler,
+		},
+		{
+			MethodName: "LoginWithEmail",
+			Handler:    _AuthService_LoginWithEmail_Handler,
+		},
+		{
+			MethodName: "RequestPasswordReset",
+			Handler:    _AuthService_RequestPasswordReset_Handler,
+		},
+		{
+			MethodName: "ResetPassword",
+			Handler:    _AuthService_ResetPassword_Handler,
 		},
 		{
 			MethodName: "Me",
@@ -500,28 +720,144 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_ListSessions_Handler,
 		},
 		{
+			MethodName: "Logout",
+			Handler:    _AuthService_Logout_Handler,
+		},
+		{
 			MethodName: "RevokeSession",
 			Handler:    _AuthService_RevokeSession_Handler,
+		},
+		{
+			MethodName: "Reauthenticate",
+			Handler:    _AuthService_Reauthenticate_Handler,
+		},
+		{
+			MethodName: "ChangePassword",
+			Handler:    _AuthService_ChangePassword_Handler,
 		},
 		{
 			MethodName: "DeleteAccount",
 			Handler:    _AuthService_DeleteAccount_Handler,
 		},
 		{
-			MethodName: "IssueCSRFToken",
-			Handler:    _AuthService_IssueCSRFToken_Handler,
+			MethodName: "GetAccountDeletion",
+			Handler:    _AuthService_GetAccountDeletion_Handler,
 		},
 		{
-			MethodName: "ListOAuthProviders",
-			Handler:    _AuthService_ListOAuthProviders_Handler,
+			MethodName: "RetryAccountDeletion",
+			Handler:    _AuthService_RetryAccountDeletion_Handler,
 		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "bff/v1/auth.proto",
+}
+
+const (
+	UserService_UpdateMyProfile_FullMethodName = "/bff.v1.UserService/UpdateMyProfile"
+)
+
+// UserServiceClient is the client API for UserService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// UserService edits the caller's own cross-product profile.
+type UserServiceClient interface {
+	// UpdateMyProfile replaces the nickname and avatar. It takes no user, role, email
+	// or status: the account is the session's. It does not touch any product's own
+	// profile; products pick the change up on the caller's next request.
+	UpdateMyProfile(ctx context.Context, in *UpdateMyProfileRequest, opts ...grpc.CallOption) (*UpdateMyProfileResponse, error)
+}
+
+type userServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewUserServiceClient(cc grpc.ClientConnInterface) UserServiceClient {
+	return &userServiceClient{cc}
+}
+
+func (c *userServiceClient) UpdateMyProfile(ctx context.Context, in *UpdateMyProfileRequest, opts ...grpc.CallOption) (*UpdateMyProfileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateMyProfileResponse)
+	err := c.cc.Invoke(ctx, UserService_UpdateMyProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// UserServiceServer is the server API for UserService service.
+// All implementations must embed UnimplementedUserServiceServer
+// for forward compatibility.
+//
+// UserService edits the caller's own cross-product profile.
+type UserServiceServer interface {
+	// UpdateMyProfile replaces the nickname and avatar. It takes no user, role, email
+	// or status: the account is the session's. It does not touch any product's own
+	// profile; products pick the change up on the caller's next request.
+	UpdateMyProfile(context.Context, *UpdateMyProfileRequest) (*UpdateMyProfileResponse, error)
+	mustEmbedUnimplementedUserServiceServer()
+}
+
+// UnimplementedUserServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedUserServiceServer struct{}
+
+func (UnimplementedUserServiceServer) UpdateMyProfile(context.Context, *UpdateMyProfileRequest) (*UpdateMyProfileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateMyProfile not implemented")
+}
+func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
+func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
+
+// UnsafeUserServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to UserServiceServer will
+// result in compilation errors.
+type UnsafeUserServiceServer interface {
+	mustEmbedUnimplementedUserServiceServer()
+}
+
+func RegisterUserServiceServer(s grpc.ServiceRegistrar, srv UserServiceServer) {
+	// If the following call pancis, it indicates UnimplementedUserServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&UserService_ServiceDesc, srv)
+}
+
+func _UserService_UpdateMyProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMyProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UpdateMyProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UpdateMyProfile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UpdateMyProfile(ctx, req.(*UpdateMyProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var UserService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bff.v1.UserService",
+	HandlerType: (*UserServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "BeginOAuthFlow",
-			Handler:    _AuthService_BeginOAuthFlow_Handler,
-		},
-		{
-			MethodName: "CompleteOAuthFlow",
-			Handler:    _AuthService_CompleteOAuthFlow_Handler,
+			MethodName: "UpdateMyProfile",
+			Handler:    _UserService_UpdateMyProfile_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

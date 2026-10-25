@@ -15,7 +15,8 @@ service CollaborationService {
   rpc GetCollaborationOverview(GetCollaborationOverviewRequest) returns (GetCollaborationOverviewResponse);
   // UpdateFriendSettings updates which footprint fields confirmed friends can see.
   rpc UpdateFriendSettings(UpdateFriendSettingsRequest) returns (UpdateFriendSettingsResponse);
-  // SendFriendRequest invites another user by username or friend invite code.
+  // SendFriendRequest invites another user by friend invite code (fc_...). There is
+  // no lookup by name, nickname or email.
   rpc SendFriendRequest(SendFriendRequestRequest) returns (SendFriendRequestResponse);
   // RespondFriendRequest accepts or declines a pending friend request (or cancels an outgoing one).
   rpc RespondFriendRequest(RespondFriendRequestRequest) returns (RespondFriendRequestResponse);
@@ -46,7 +47,8 @@ service CollaborationService {
 
 message FriendUser {
   string id = 1;
-  string username = 2;
+  reserved 2;
+  reserved "username";
   string display_name = 3;
   string avatar_url = 4;
 }
@@ -114,7 +116,7 @@ message UpdateFriendSettingsResponse {
 }
 
 message SendFriendRequestRequest {
-  // Username or friend invite code.
+  // A friend invite code (fc_...).
   string target = 1;
 }
 

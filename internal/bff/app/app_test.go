@@ -79,6 +79,10 @@ func withInternalTransport(t *testing.T, cfg *config.Config) {
 	keys, ca := testkit.NewKeys(t), testkit.NewCA(t)
 	cfg.InternalAuth = config.InternalAuth{Issuer: "bff", KID: "k1", PrivateKeyFile: keys.PrivateFile}
 	cfg.GRPC = config.GRPCConfig{CAFile: ca.CAFile, Services: map[string]config.GRPCService{"tripmap": {Address: "127.0.0.1:1"}}}
+	// The default route table also has the account service.
+	if _, ok := cfg.Upstreams["usersrv"]; ok {
+		cfg.GRPC.Services["usersrv"] = config.GRPCService{Address: "127.0.0.1:1"}
+	}
 }
 
 func newBFF(t *testing.T, cfg *config.Config, services []gateway.Service) *gin.Engine {
@@ -213,24 +217,21 @@ func TestExampleConfigCoversTheRouteTable(t *testing.T) {
 	if err := cfg.ValidateInternal(gateway.GRPCNames(active)); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.GRPC.CAFile != "" || cfg.GRPC.Services["tripmap"].Transport != "h2c" || cfg.GRPC.Services["metro"].Transport != "h2c" {
+	if cfg.GRPC.CAFile != "" || cfg.GRPC.Services["usersrv"].Transport != "h2c" || cfg.GRPC.Services["tripmap"].Transport != "h2c" || cfg.GRPC.Services["metro"].Transport != "h2c" {
 		t.Fatal("local example must use explicit h2c without a CA")
-	}
-	if _, err := cfg.Auth.OAuthApps["metro"].ReturnURL("/admin"); err != nil {
-		t.Fatalf("metro oauth app: %v", err)
 	}
 }
 
 func TestOptionalServicesNeedAnUpstream(t *testing.T) {
 	names := func(s []gateway.Service) []string { return gateway.Names(s) }
-	without := names(gateway.Active(gateway.Services, map[string]string{"tripmap": "http://t"}))
-	with := names(gateway.Active(gateway.Services, map[string]string{"tripmap": "http://t", "metro": "http://m"}))
-	if len(without) != 1 || without[0] != "tripmap" || len(with) != 2 {
+	without := names(gateway.Active(gateway.Services, map[string]string{"usersrv": "http://u", "tripmap": "http://t"}))
+	with := names(gateway.Active(gateway.Services, map[string]string{"usersrv": "http://u", "tripmap": "http://t", "metro": "http://m"}))
+	if len(without) != 2 || without[0] != "usersrv" || without[1] != "tripmap" || len(with) != 3 {
 		t.Fatalf("active services without metro %v, with metro %v", without, with)
 	}
 	// A required service stays in the list even when its upstream is missing, so
 	// validation can report it.
-	if got := names(gateway.Active(gateway.Services, nil)); len(got) != 1 || got[0] != "tripmap" {
+	if got := names(gateway.Active(gateway.Services, nil)); len(got) != 2 || got[0] != "usersrv" || got[1] != "tripmap" {
 		t.Fatalf("no upstreams at all: %v", got)
 	}
 }
@@ -238,7 +239,7 @@ func TestOptionalServicesNeedAnUpstream(t *testing.T) {
 func TestCredentialPathsStayOutOfTraces(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	trip := newFake(t, "tripmap")
-	cfg := &config.Config{Upstreams: map[string]string{"tripmap": trip.URL}}
+	cfg := &config.Config{Upstreams: map[string]string{"usersrv": "http://127.0.0.1:1", "tripmap": trip.URL}}
 	withInternalTransport(t, cfg)
 	h := app.New(cfg)
 	if err := h.Bootstrap(); err != nil {

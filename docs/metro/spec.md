@@ -1,12 +1,14 @@
 # 地铁足迹（metro）产品规格
 
 > **状态：P0–P7 已实现。** 本文是规格，描述要做什么以及为什么这样做；落地后的当前行为以 [功能描述](features.md)、[后端初始化](../backend.md#metro-服务地铁足迹) 和 [BFF](../bff.md) 为准，与下表的偏差和补充决定记在下面。
+>
+> **账号与角色部分已被 [usersrv 规格](../usersrv/spec.md) 取代。** 下文凡提到 Logto、OAuth、`oauth_apps`、Logto 角色、`roles` scope 与 userinfo 的地方，都是**当时的设计与决策记录，不再是当前行为**：账号是 usersrv 的邮箱＋密码账号，`metro-admin` 是 usersrv 的角色（只能由运维命令 `usersrv-admin` 授予或撤销），BFF 每个请求与每个 MCP 工具调用都向 usersrv 复核账号状态、认证版本与角色，没有 `roles` 快照随会话保存，也没有 `oauth_apps`。目录、业务规则、接口、管理后台与 MCP 令牌的设计仍然有效。当前行为见 [BFF](../bff.md) 与 [功能描述](features.md)。
 
 **实现状态**
 
 | 阶段 | 状态 | 说明 |
 | --- | --- | --- |
-| P0 共用层 | 已实现 | 角色进会话与凭证、`required_role`、`admin_session_max_age`、账号清理多产品化、`oauth_apps` 沿用既有机制 |
+| P0 共用层 | 已实现 | 角色进会话与凭证、`required_role`、`admin_session_max_age`、账号清理多产品化、`oauth_apps` 沿用既有机制（历史：已被 usersrv 取代） |
 | P1 服务骨架与目录读取 | 已实现 | `cmd/metro`、Ent 与 `migrations/metro/`、`CatalogService`（内部与 BFF）、可选上游、`metro_grpc` 就绪探测、模块边界检查 |
 | P2 管理接口 | 已实现 | 12 个增删改、4 个管理列表、导入导出、审计、引用完整性、`expected_revision` |
 | P3 骑行者 | 已实现 | `RiderService`、`AccountCleanupService`、BFF 适配与清理器 |
@@ -39,7 +41,7 @@
 
 本产品把这些功能迁入本仓库，成为第二个产品，目标如下：
 
-1. **新产品，不是迁移。** 不导入旧数据，不兼容旧账号；账号体系与山海足迹完全一致（Logto + BFF 会话）。
+1. **新产品，不是迁移。** 不导入旧数据，不兼容旧账号；账号体系与山海足迹完全一致（当时是 Logto + BFF 会话；现为 usersrv + BFF 会话）。
 2. **数据由管理员维护。** 取消 Google Sheet 同步，改为管理员通过 admin 接口维护城市、线路、车型和车型专题。
 3. **两种入口。** admin 接口既能被管理后台页面使用，也能被 AI 客户端经 MCP 调用。两者走同一套业务规则，不存在绕过校验的后门。
 4. **完整的产品形态。** 同时交付后端、BFF 契约和前端应用 `apps/metro`。
@@ -58,8 +60,8 @@
 | --- | --- | --- |
 | 服务归属 | 新建业务服务 `metro`，不放进 tripmap | tripmap 是中国省市足迹，这里的 `City` 是地铁城市，同名不同义；`AGENTS.md` 要求一个产品一套目录，业务包之间不互相 import |
 | 数据库 | 独立 PostgreSQL 库，Ent 建模，迁移在 `migrations/metro/` | 与现有服务一致；旧服务的 MySQL + MongoDB + Redis 锁全部去掉，用唯一约束代替锁 |
-| 账号 | Logto，经 BFF 会话；业务只认内部凭证里的用户 ID | 与 tripmap 一致 |
-| 管理员 | Logto 角色，角色名 `metro-admin` | 用户指定；在 Logto 租户里授予，不在业务库维护管理员名单 |
+| 账号 | （历史）Logto，经 BFF 会话；现为 usersrv。业务只认内部凭证里的用户 ID | 与 tripmap 一致 |
+| 管理员 | （历史）Logto 角色；现为 usersrv 角色，角色名 `metro-admin` | 用户指定；由运维命令授予，不在业务库维护管理员名单 |
 | 浏览器入口 | 只经 BFF，契约在 `proto/bff/metro/v1`（包 `bff.metro.v1`） | `AGENTS.md`：BFF 是唯一公网入口 |
 | MCP | 由 BFF 对外提供，工具与 admin 接口一一对应 | 业务服务不暴露公网；规则只实现一次 |
 | 前端 | `apps/metro`，包名 `@kongken/metro` | 多产品命名约定见 [monorepo](../monorepo.md) |
@@ -77,7 +79,7 @@
 | 乘坐记录 | 用户标记“坐过”某条线路，可带年份 |
 | 骑行者资料 | 用户的公开主页资料：昵称、简介、社交链接、是否公开 |
 | 目录 | 城市、线路、车型、车型专题的统称，由管理员维护 |
-| 管理员 | 持有 Logto 角色 `metro-admin` 的用户 |
+| 管理员 | 持有 `metro-admin` 角色的用户（当时是 Logto 角色，现为 usersrv 角色） |
 | 管理令牌 | 供 MCP 客户端使用的长期凭证，由管理员创建，可吊销（见 8） |
 
 ## 4. 架构
@@ -286,7 +288,7 @@ PostgreSQL，Ent 定义。所有目录实体带 `revision`（从 1 起，每次�
 
 ### 7.1 角色如何到达业务服务
 
-现状：BFF 只保存 Logto 的 `(issuer, sub)` 和展示资料，内部凭证只有 `sub`。需要补足三处：
+（历史，设计当时的现状）BFF 只保存 Logto 的 `(issuer, sub)` 和展示资料，内部凭证只有 `sub`。需要补足三处：
 
 1. **登录时取角色。** 向 Logto 请求 `roles` scope，把 userinfo 里的 `roles` 随会话保存（会话表新增 `roles` 与 `authenticated_at`）。已存在的会话没有角色，视为非管理员。部署前必须核实所用 Logto 版本在 userinfo 中返回 `roles`（见待决问题 5）。
 2. **声明式要求。** 在 `proto/platform/v1/options.proto` 新增方法选项 `required_role`（字符串）。与 `anonymous` 一样，由 BFF 和业务服务**各自独立**执行：BFF 在 ingress 检查会话角色，metro 的服务端拦截器检查内部凭证里的角色。没有该选项的方法不检查角色。
@@ -413,7 +415,7 @@ v1 不提供 MCP resources 和 prompts，也不提供面向普通用户的工具
 - `Makefile`：`dev-metro`、`build`（加 `bin/metro`）；`make dev` 同时启动 BFF、tripmap、metro；`make test` 覆盖新包。
 - 新增 `deploy/metro/Dockerfile`、`deploy/metro-web/`，Compose/K8s/反代示例同步增加；镜像发布和 CI 矩阵登记。
 - 不需要新增 S3：v1 的头图和地图是外链 URL（见待决问题 3）。
-- Logto：创建角色 `metro-admin`，登记 metro 前端应用对应的 BFF 回调（BFF 回调是固定的一个，见 `docs/bff.md` 多 Web App 登录）。
+- （历史，已不适用）Logto：创建角色 `metro-admin`，登记 metro 前端应用对应的 BFF 回调。现在用 `usersrv-admin grant-role` 授予角色，见 [部署](../deployment.md#usersrv-的部署)。
 
 ## 12. 分阶段交付
 

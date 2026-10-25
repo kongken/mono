@@ -26,8 +26,10 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// ProfileService keeps tripmap business user rows in sync with BFF identity.
-// Only the BFF calls these methods over internal gRPC.
+// ProfileService keeps tripmap's display projection of an account: the user ID,
+// nickname and avatar from usersrv, nothing else (no email, no login name). Only
+// the BFF calls it over internal gRPC, before a signed-in tripmap request whose
+// projection is behind the account's profile_version.
 type ProfileServiceClient interface {
 	// EnsureProfile creates or updates the business profile for user_id.
 	EnsureProfile(ctx context.Context, in *EnsureProfileRequest, opts ...grpc.CallOption) (*EnsureProfileResponse, error)
@@ -55,8 +57,10 @@ func (c *profileServiceClient) EnsureProfile(ctx context.Context, in *EnsureProf
 // All implementations must embed UnimplementedProfileServiceServer
 // for forward compatibility.
 //
-// ProfileService keeps tripmap business user rows in sync with BFF identity.
-// Only the BFF calls these methods over internal gRPC.
+// ProfileService keeps tripmap's display projection of an account: the user ID,
+// nickname and avatar from usersrv, nothing else (no email, no login name). Only
+// the BFF calls it over internal gRPC, before a signed-in tripmap request whose
+// projection is behind the account's profile_version.
 type ProfileServiceServer interface {
 	// EnsureProfile creates or updates the business profile for user_id.
 	EnsureProfile(context.Context, *EnsureProfileRequest) (*EnsureProfileResponse, error)

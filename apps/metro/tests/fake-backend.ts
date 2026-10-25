@@ -23,7 +23,7 @@ function failure(status: number, code: string, message: string, details: { type:
  */
 export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) {
   const state = {
-    user: opts.signedIn ? { id: "u1", username: "rider", displayName: "骑行者", roles: opts.signedIn === "admin" ? ["metro-admin"] : [] } : null as null | { id: string; username: string; displayName: string; roles: string[] },
+    user: opts.signedIn ? { id: "u1", displayName: "骑行者", roles: opts.signedIn === "admin" ? ["metro-admin"] : [] } : null as null | { id: string; displayName: string; roles: string[] },
     version: 1,
     seq: 10,
     cities: [{ id: "c1", revision: 1, slug: "shanghai", name: "上海", headerImages: [], mapSvgUrl: "", sortOrder: 0 }] as City[],
@@ -40,7 +40,6 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
     csrfIssued: 0,
     /** Procedures that were called with a CSRF header, to check writes carry one. */
     writesWithoutCsrf: [] as string[],
-    loginRequests: [] as string[],
     calls: [] as string[],
     secrets: [] as string[],
   };
@@ -71,7 +70,7 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
 
   type Body = Record<string, any>;
   const handlers: Record<string, (b: Body) => { status?: number; body: unknown }> = {
-    "bff.v1.AuthService/Me": () => needUser() ?? { body: { user: { id: state.user!.id, username: state.user!.username, displayName: state.user!.displayName }, roles: state.user!.roles } },
+    "bff.v1.AuthService/Me": () => needUser() ?? { body: { user: { id: state.user!.id, displayName: state.user!.displayName }, roles: state.user!.roles } },
     "bff.v1.AuthService/IssueCSRFToken": () => ({ body: { token: `csrf-${++state.csrfIssued}` } }),
     "bff.v1.AuthService/Logout": () => { state.user = null; return { body: {} }; },
     "bff.v1.AuthService/DeleteAccount": () => needUser() ?? { body: {} },
@@ -234,12 +233,6 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
 
   const install = async () => {
     await page.route("**/api/**", handle);
-    // The login redirect: the BFF would send the browser to Logto and back; here it signs in at once.
-    await page.route("**/auth/login**", (route) => {
-      state.loginRequests.push(route.request().url());
-      state.user ??= { id: "u1", username: "rider", displayName: "骑行者", roles: [] };
-      return route.fulfill({ status: 303, headers: { location: "/" } });
-    });
   };
 
   return {
@@ -253,7 +246,7 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
       bump();
     },
     signInAs(role: Role) {
-      state.user = { id: "u1", username: "rider", displayName: "骑行者", roles: role === "admin" ? ["metro-admin"] : [] };
+      state.user = { id: "u1", displayName: "骑行者", roles: role === "admin" ? ["metro-admin"] : [] };
     },
   };
 }

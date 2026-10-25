@@ -3,7 +3,6 @@
 package ent
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/kongken/mono/internal/bff/ent/session"
-	"github.com/kongken/mono/internal/bff/ent/user"
 )
 
 // Session is the model entity for the Session schema.
@@ -31,34 +29,11 @@ type Session struct {
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 	// Revoked holds the value of the "revoked" field.
 	Revoked bool `json:"revoked,omitempty"`
-	// Roles holds the value of the "roles" field.
-	Roles []string `json:"roles,omitempty"`
+	// AuthVersion holds the value of the "auth_version" field.
+	AuthVersion int64 `json:"auth_version,omitempty"`
 	// AuthenticatedAt holds the value of the "authenticated_at" field.
 	AuthenticatedAt *time.Time `json:"authenticated_at,omitempty"`
-	// Edges holds the relations/edges for other nodes in the graph.
-	// The values are being populated by the SessionQuery when eager-loading is set.
-	Edges        SessionEdges `json:"edges"`
-	selectValues sql.SelectValues
-}
-
-// SessionEdges holds the relations/edges for other nodes in the graph.
-type SessionEdges struct {
-	// User holds the value of the user edge.
-	User *User `json:"user,omitempty"`
-	// loadedTypes holds the information for reporting if a
-	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
-}
-
-// UserOrErr returns the User value or an error if the edge
-// was not loaded in eager-loading, or loaded but was not found.
-func (e SessionEdges) UserOrErr() (*User, error) {
-	if e.User != nil {
-		return e.User, nil
-	} else if e.loadedTypes[0] {
-		return nil, &NotFoundError{label: user.Label}
-	}
-	return nil, &NotLoadedError{edge: "user"}
+	selectValues    sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -66,10 +41,10 @@ func (*Session) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case session.FieldRoles:
-			values[i] = new([]byte)
 		case session.FieldRevoked:
 			values[i] = new(sql.NullBool)
+		case session.FieldAuthVersion:
+			values[i] = new(sql.NullInt64)
 		case session.FieldID, session.FieldUserID, session.FieldTokenHash:
 			values[i] = new(sql.NullString)
 		case session.FieldCreatedAt, session.FieldExpiresAt, session.FieldLastUsedAt, session.FieldAuthenticatedAt:
@@ -132,13 +107,11 @@ func (_m *Session) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Revoked = value.Bool
 			}
-		case session.FieldRoles:
-			if value, ok := values[i].(*[]byte); !ok {
-				return fmt.Errorf("unexpected type %T for field roles", values[i])
-			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &_m.Roles); err != nil {
-					return fmt.Errorf("unmarshal field roles: %w", err)
-				}
+		case session.FieldAuthVersion:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field auth_version", values[i])
+			} else if value.Valid {
+				_m.AuthVersion = value.Int64
 			}
 		case session.FieldAuthenticatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -158,11 +131,6 @@ func (_m *Session) assignValues(columns []string, values []any) error {
 // This includes values selected through modifiers, order, etc.
 func (_m *Session) Value(name string) (ent.Value, error) {
 	return _m.selectValues.Get(name)
-}
-
-// QueryUser queries the "user" edge of the Session entity.
-func (_m *Session) QueryUser() *UserQuery {
-	return NewSessionClient(_m.config).QueryUser(_m)
 }
 
 // Update returns a builder for updating this Session.
@@ -207,8 +175,8 @@ func (_m *Session) String() string {
 	builder.WriteString("revoked=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Revoked))
 	builder.WriteString(", ")
-	builder.WriteString("roles=")
-	builder.WriteString(fmt.Sprintf("%v", _m.Roles))
+	builder.WriteString("auth_version=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AuthVersion))
 	builder.WriteString(", ")
 	if v := _m.AuthenticatedAt; v != nil {
 		builder.WriteString("authenticated_at=")

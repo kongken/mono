@@ -19,7 +19,8 @@ service FriendService {
 
 message FriendUser {
   string id = 1;
-  string username = 2;
+  reserved 2;
+  reserved "username";
   string display_name = 3;
   string avatar_url = 4;
 }

@@ -206,7 +206,7 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 	if got, want := pendingChanges(t, ctx, client), pendingChanges(t, ctx, reference); got != want {
 		t.Fatalf("migrations differ from the Ent schema.\nmigrated database wants:\n%s\nEnt-created database wants:\n%s", got, want)
 	}
-	// Logto-only clients never select or write legacy credential columns.
+	// Clients of the usersrv release never select or write legacy credential columns.
 	if _, err := client.User.Create().SetID("u-new").SetUsername("fresh_user").SetDisplayName("新用户").Save(ctx); err != nil {
 		t.Fatalf("ent create profile-only user: %v", err)
 	}

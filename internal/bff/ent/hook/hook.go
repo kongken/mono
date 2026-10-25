@@ -21,16 +21,16 @@ func (f AccessTokenFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AccessTokenMutation", m)
 }
 
-// The AccountDeletionReceiptFunc type is an adapter to allow the use of ordinary
-// function as AccountDeletionReceipt mutator.
-type AccountDeletionReceiptFunc func(context.Context, *ent.AccountDeletionReceiptMutation) (ent.Value, error)
+// The AccountDeletionFunc type is an adapter to allow the use of ordinary
+// function as AccountDeletion mutator.
+type AccountDeletionFunc func(context.Context, *ent.AccountDeletionMutation) (ent.Value, error)
 
 // Mutate calls f(ctx, m).
-func (f AccountDeletionReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.AccountDeletionReceiptMutation); ok {
+func (f AccountDeletionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AccountDeletionMutation); ok {
 		return f(ctx, mv)
 	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AccountDeletionReceiptMutation", m)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AccountDeletionMutation", m)
 }
 
 // The SessionFunc type is an adapter to allow the use of ordinary
@@ -43,18 +43,6 @@ func (f SessionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SessionMutation", m)
-}
-
-// The UserFunc type is an adapter to allow the use of ordinary
-// function as User mutator.
-type UserFunc func(context.Context, *ent.UserMutation) (ent.Value, error)
-
-// Mutate calls f(ctx, m).
-func (f UserFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.UserMutation); ok {
-		return f(ctx, mv)
-	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserMutation", m)
 }
 
 // Condition is a hook condition function.

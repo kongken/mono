@@ -14,6 +14,7 @@
     "@bufbuild/protobuf": "^2.16.0",
     "@connectrpc/connect": "^2.2.0",
     "@connectrpc/connect-web": "^2.2.0",
+    "@kongken/account": "*",
     "@kongken/api-client": "*",
     "@kongken/ui": "*",
     "@phosphor-icons/react": "^2.1.10",

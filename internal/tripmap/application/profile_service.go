@@ -14,7 +14,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// ProfileService keeps business user rows aligned with BFF identity.
+// ProfileService keeps tripmap's display projection of an account (nickname and
+// avatar under the account's own ID) aligned with usersrv. Nothing else about the
+// account is stored here: no email and no login name.
 type ProfileService struct {
 	tripmapv1.UnimplementedProfileServiceServer
 	src StoreSource
@@ -46,15 +48,6 @@ func (s *ProfileService) EnsureProfile(ctx context.Context, req *tripmapv1.Ensur
 			up.SetAvatarURL(av)
 			changed = true
 		}
-		if un := strings.TrimSpace(req.GetUsername()); un == "" {
-			if existing.Username != nil {
-				up.ClearUsername()
-				changed = true
-			}
-		} else if existing.Username == nil || *existing.Username != un {
-			up.SetUsername(un)
-			changed = true
-		}
 		if changed {
 			if err := up.Exec(ctx); err != nil {
 				return nil, grpcError(internalError(err))
@@ -66,9 +59,6 @@ func (s *ProfileService) EnsureProfile(ctx context.Context, req *tripmapv1.Ensur
 		return nil, grpcError(internalError(err))
 	}
 	create := st.DB.User.Create().SetID(userID).SetDisplayName(strings.TrimSpace(req.GetDisplayName()))
-	if un := strings.TrimSpace(req.GetUsername()); un != "" {
-		create.SetUsername(un)
-	}
 	if av := strings.TrimSpace(req.GetAvatarUrl()); av != "" {
 		create.SetAvatarURL(av)
 	}

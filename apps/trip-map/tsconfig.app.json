@@ -22,7 +22,7 @@
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
+    /* The generated api-client declares enums (AccountDeletionState), which erasable-only mode rejects. */
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"]

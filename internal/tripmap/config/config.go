@@ -126,7 +126,7 @@ func (s StorageConfig) MediaURL(key string) string {
 }
 
 // AuthConfig holds tripmap settings for client address resolution on public HTTP
-// adapters used in tests. Account sessions and OAuth live on the BFF.
+// adapters used in tests. Account sessions live on the BFF and accounts in usersrv.
 type AuthConfig struct {
 	// ClientIPHeader names a header set by a trusted reverse proxy (for example
 	// X-Real-IP) holding the client address. Leave empty to use the TCP peer

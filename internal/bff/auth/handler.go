@@ -7,58 +7,79 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/kongken/mono/internal/bff/ent"
+	"github.com/kongken/mono/internal/bff/ent/schema"
 	"github.com/kongken/mono/internal/bff/session"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// Neutral answers: a well-formed address always gets the same text, whether or not
+// the address can register or has an account.
+const (
+	registrationNotice = "若该邮箱可注册，验证邮件将发送，请检查收件箱。"
+	resetNotice        = "若该邮箱对应可用账号，重置邮件将发送，请检查收件箱。"
+)
+
+// Handler serves bff.v1.AuthService and bff.v1.UserService. The ingress interceptor
+// has already applied CSRF/Origin, the anonymous policy and, for protected
+// methods, the usersrv re-check; handlers read the verified session from ctx.
 type Handler struct {
 	svc           *Service
 	csrfCookieTTL time.Duration
 }
 
-func NewHandler(svc *Service, _ []string, csrfTTL time.Duration) *Handler {
+func NewHandler(svc *Service, csrfTTL time.Duration) *Handler {
 	if csrfTTL <= 0 {
 		csrfTTL = 24 * time.Hour
 	}
 	return &Handler{svc: svc, csrfCookieTTL: csrfTTL}
 }
 
-func (h *Handler) Register(ctx context.Context, req *connect.Request[bffv1.RegisterRequest]) (*connect.Response[bffv1.RegisterResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("password accounts are retired; use Logto"))
-}
-
-func (h *Handler) Login(ctx context.Context, req *connect.Request[bffv1.LoginRequest]) (*connect.Response[bffv1.LoginResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("password accounts are retired; use Logto"))
-}
-
-func (h *Handler) Logout(ctx context.Context, req *connect.Request[bffv1.LogoutRequest]) (*connect.Response[bffv1.LogoutResponse], error) {
-	bs, ok := session.FromBrowser(ctx)
-	if !ok {
-		return nil, errUnauth
-	}
-	if err := h.svc.Logout(ctx, bs.SessionID); err != nil {
+func (h *Handler) RequestRegistration(ctx context.Context, req *connect.Request[bffv1.RequestRegistrationRequest]) (*connect.Response[bffv1.RequestRegistrationResponse], error) {
+	if err := h.svc.users.RequestRegistration(ctx, req.Msg.GetEmail(), req.Msg.GetAppId()); err != nil {
 		return nil, err
 	}
-	res := connect.NewResponse(&bffv1.LogoutResponse{})
-	session.ClearSessionCookie(res.Header(), h.svc.cookies)
+	return connect.NewResponse(&bffv1.RequestRegistrationResponse{Message: registrationNotice}), nil
+}
+
+func (h *Handler) CompleteRegistration(ctx context.Context, req *connect.Request[bffv1.CompleteRegistrationRequest]) (*connect.Response[bffv1.CompleteRegistrationResponse], error) {
+	if err := h.svc.users.CompleteRegistration(ctx, req.Msg.GetToken(), req.Msg.GetPassword(), req.Msg.GetDisplayName()); err != nil {
+		return nil, err
+	}
+	// No session: verifying an address proves the mailbox, not a login.
+	return connect.NewResponse(&bffv1.CompleteRegistrationResponse{}), nil
+}
+
+func (h *Handler) LoginWithEmail(ctx context.Context, req *connect.Request[bffv1.LoginWithEmailRequest]) (*connect.Response[bffv1.LoginWithEmailResponse], error) {
+	msg, token, err := h.svc.Login(ctx, req.Msg.GetEmail(), req.Msg.GetPassword())
+	if err != nil {
+		return nil, err
+	}
+	res := connect.NewResponse(msg)
+	session.SetSessionCookie(res.Header(), h.svc.cookies, token, msg.GetExpiresAt().AsTime())
 	return res, nil
 }
 
-func (h *Handler) DeleteAccount(ctx context.Context, req *connect.Request[bffv1.DeleteAccountRequest]) (*connect.Response[bffv1.DeleteAccountResponse], error) {
-	token := session.TokenFromRequest(req.Header())
-	if h.svc.CompletionReceiptValid(ctx, token) {
-		res := connect.NewResponse(&bffv1.DeleteAccountResponse{})
-		session.ClearSessionCookie(res.Header(), h.svc.cookies)
-		return res, nil
-	}
-	bs, ok := session.FromBrowser(ctx)
-	if !ok {
-		return nil, errUnauth
-	}
-	if err := h.svc.DeleteAccount(ctx, bs, req.Msg); err != nil {
+func (h *Handler) RequestPasswordReset(ctx context.Context, req *connect.Request[bffv1.RequestPasswordResetRequest]) (*connect.Response[bffv1.RequestPasswordResetResponse], error) {
+	if err := h.svc.users.RequestPasswordReset(ctx, req.Msg.GetEmail(), req.Msg.GetAppId()); err != nil {
 		return nil, err
 	}
-	res := connect.NewResponse(&bffv1.DeleteAccountResponse{})
+	return connect.NewResponse(&bffv1.RequestPasswordResetResponse{Message: resetNotice}), nil
+}
+
+func (h *Handler) ResetPassword(ctx context.Context, req *connect.Request[bffv1.ResetPasswordRequest]) (*connect.Response[bffv1.ResetPasswordResponse], error) {
+	if err := h.svc.users.ResetPassword(ctx, req.Msg.GetToken(), req.Msg.GetNewPassword()); err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&bffv1.ResetPasswordResponse{}), nil
+}
+
+func (h *Handler) Logout(ctx context.Context, req *connect.Request[bffv1.LogoutRequest]) (*connect.Response[bffv1.LogoutResponse], error) {
+	if err := h.svc.Logout(ctx, session.TokenFromRequest(req.Header())); err != nil {
+		return nil, err
+	}
+	res := connect.NewResponse(&bffv1.LogoutResponse{})
 	session.ClearSessionCookie(res.Header(), h.svc.cookies)
 	return res, nil
 }
@@ -68,7 +89,7 @@ func (h *Handler) Me(ctx context.Context, _ *connect.Request[bffv1.MeRequest]) (
 	if !ok {
 		return nil, errUnauth
 	}
-	msg, err := h.svc.Me(ctx, bs.UserID, bs.Roles)
+	msg, err := h.svc.Me(ctx, bs)
 	if err != nil {
 		return nil, err
 	}
@@ -98,20 +119,99 @@ func (h *Handler) RevokeSession(ctx context.Context, req *connect.Request[bffv1.
 	return connect.NewResponse(&bffv1.RevokeSessionResponse{}), nil
 }
 
-func (h *Handler) ListOAuthProviders(ctx context.Context, _ *connect.Request[bffv1.ListOAuthProvidersRequest]) (*connect.Response[bffv1.ListOAuthProvidersResponse], error) {
-	msg, err := h.svc.ListOAuthProviders(ctx)
+func (h *Handler) Reauthenticate(ctx context.Context, req *connect.Request[bffv1.ReauthenticateRequest]) (*connect.Response[bffv1.ReauthenticateResponse], error) {
+	bs, ok := session.FromBrowser(ctx)
+	if !ok {
+		return nil, errUnauth
+	}
+	at, err := h.svc.Reauthenticate(ctx, bs, req.Msg.GetPassword())
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(msg), nil
+	return connect.NewResponse(&bffv1.ReauthenticateResponse{AuthenticatedAt: timestamppb.New(at)}), nil
 }
 
-func (h *Handler) BeginOAuthFlow(ctx context.Context, req *connect.Request[bffv1.BeginOAuthFlowRequest]) (*connect.Response[bffv1.BeginOAuthFlowResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("use GET /auth/login"))
+func (h *Handler) ChangePassword(ctx context.Context, req *connect.Request[bffv1.ChangePasswordRequest]) (*connect.Response[bffv1.ChangePasswordResponse], error) {
+	bs, ok := session.FromBrowser(ctx)
+	if !ok {
+		return nil, errUnauth
+	}
+	if err := h.svc.ChangePassword(ctx, bs, req.Msg.GetCurrentPassword(), req.Msg.GetNewPassword()); err != nil {
+		return nil, err
+	}
+	res := connect.NewResponse(&bffv1.ChangePasswordResponse{})
+	// This device must sign in again with the new password too.
+	session.ClearSessionCookie(res.Header(), h.svc.cookies)
+	return res, nil
 }
 
-func (h *Handler) CompleteOAuthFlow(ctx context.Context, req *connect.Request[bffv1.CompleteOAuthFlowRequest]) (*connect.Response[bffv1.CompleteOAuthFlowResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("use BFF HTTP callback"))
+func (h *Handler) UpdateMyProfile(ctx context.Context, req *connect.Request[bffv1.UpdateMyProfileRequest]) (*connect.Response[bffv1.UpdateMyProfileResponse], error) {
+	bs, ok := session.FromBrowser(ctx)
+	if !ok {
+		return nil, errUnauth
+	}
+	u, err := h.svc.UpdateProfile(ctx, bs, req.Msg.GetDisplayName(), req.Msg.GetAvatarUrl())
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&bffv1.UpdateMyProfileResponse{User: u}), nil
+}
+
+// DeleteAccount starts, or continues with the same mutation_id, the deletion of the
+// account. The ingress admits it for a live session or for a Cookie that already
+// started a deletion (its session no longer passes the account check once the
+// account is deleting).
+func (h *Handler) DeleteAccount(ctx context.Context, req *connect.Request[bffv1.DeleteAccountRequest]) (*connect.Response[bffv1.DeleteAccountResponse], error) {
+	token := session.TokenFromRequest(req.Header())
+	wf := h.existing(ctx, token)
+	var err error
+	if wf != nil {
+		if wf.MutationID != req.Msg.GetMutationId() {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("another account deletion is already in progress"))
+		}
+		wf, err = h.svc.ContinueDeletion(ctx, token)
+	} else {
+		bs, ok := session.FromBrowser(ctx)
+		if !ok {
+			return nil, errUnauth
+		}
+		wf, err = h.svc.StartDeletion(ctx, bs, token, req.Msg)
+	}
+	if err != nil {
+		return nil, err
+	}
+	res := connect.NewResponse(&bffv1.DeleteAccountResponse{Deletion: DeletionMessage(wf)})
+	h.clearCookieIfDone(res.Header(), wf)
+	return res, nil
+}
+
+// existing returns the workflow the Cookie started, or nil.
+func (h *Handler) existing(ctx context.Context, token string) *ent.AccountDeletion {
+	wf, err := h.svc.DeletionByCookie(ctx, token)
+	if err != nil {
+		return nil
+	}
+	return wf
+}
+
+func (h *Handler) GetAccountDeletion(ctx context.Context, req *connect.Request[bffv1.GetAccountDeletionRequest]) (*connect.Response[bffv1.GetAccountDeletionResponse], error) {
+	wf, err := h.svc.DeletionByCookie(ctx, session.TokenFromRequest(req.Header()))
+	if err != nil {
+		return nil, err
+	}
+	res := connect.NewResponse(&bffv1.GetAccountDeletionResponse{Deletion: DeletionMessage(wf)})
+	h.clearCookieIfDone(res.Header(), wf)
+	return res, nil
+}
+
+func (h *Handler) RetryAccountDeletion(ctx context.Context, req *connect.Request[bffv1.RetryAccountDeletionRequest]) (*connect.Response[bffv1.RetryAccountDeletionResponse], error) {
+	wf, err := h.svc.ContinueDeletion(ctx, session.TokenFromRequest(req.Header()))
+	if err != nil {
+		return nil, err
+	}
+	res := connect.NewResponse(&bffv1.RetryAccountDeletionResponse{Deletion: DeletionMessage(wf)})
+	h.clearCookieIfDone(res.Header(), wf)
+	return res, nil
 }
 
 func (h *Handler) IssueCSRFToken(_ context.Context, req *connect.Request[bffv1.IssueCSRFTokenRequest]) (*connect.Response[bffv1.IssueCSRFTokenResponse], error) {
@@ -128,4 +228,16 @@ func (h *Handler) IssueCSRFToken(_ context.Context, req *connect.Request[bffv1.I
 // Authenticate implements ingress session resolution.
 func (h *Handler) Authenticate(ctx context.Context, header http.Header) (session.BrowserSession, error) {
 	return h.svc.ResolveSession(ctx, session.TokenFromRequest(header))
+}
+
+// DeletionKnown implements the ingress hook that lets DeleteAccount through for a
+// Cookie whose deletion is already persisted.
+func (h *Handler) DeletionKnown(ctx context.Context, token string) bool {
+	return h.svc.HasDeletion(ctx, token)
+}
+
+func (h *Handler) clearCookieIfDone(header http.Header, wf *ent.AccountDeletion) {
+	if wf.Stage == schema.DeletionStageDone {
+		session.ClearSessionCookie(header, h.svc.cookies)
+	}
 }

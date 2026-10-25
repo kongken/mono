@@ -1,21 +1,24 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { auth, loginURL, write } from "./rpc";
+import { account } from "./rpc";
 import { isUnauthenticated } from "./errors";
-import { loginReturnPaths } from "./route";
 import { navigate } from "./router";
+import { loginPath } from "./next";
 
-export type Account = { id: string; displayName: string; username: string; roles: string[] };
+export type Account = { id: string; displayName: string; avatarUrl: string; roles: string[] };
 export type SessionState = { status: "loading" } | { status: "anonymous" } | { status: "signed-in"; account: Account };
-
-const RETURN_KEY = "metro.return";
 
 type Ctx = {
   session: SessionState;
   isAdmin: boolean;
-  /** Sends the browser to the login page and back to the current page afterwards. */
+  /** Sends the browser to the sign-in page and back to the current page afterwards. */
   signIn: () => void;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** The signed-in account's profile changed (nickname, avatar). */
+  updateAccount: (patch: Partial<Pick<Account, "displayName" | "avatarUrl">>) => void;
+  /** An account deletion was started in this browser and has not been confirmed finished. */
+  deletionPending: boolean;
+  setDeletionPending: (pending: boolean) => void;
 };
 
 const SessionContext = createContext<Ctx | null>(null);
@@ -26,28 +29,41 @@ export const useSession = () => {
   return v;
 };
 
-/** The BFF only returns to a few fixed paths; the page the user came from is restored on arrival. */
-export function signIn() {
-  const here = window.location.pathname + window.location.search;
-  const target = loginReturnPaths.includes(window.location.pathname) ? window.location.pathname : "/";
+/**
+ * A deletion whose end was not confirmed leaves the account closed ("deleting") and the
+ * session unusable, so the page cannot learn about it from Me. This flag is the only
+ * thing kept in the browser: it makes the retry offer survive a reload. It holds no
+ * identity and is cleared once the deletion is confirmed.
+ */
+const PENDING_KEY = "metro-account-deletion-pending";
+const readPending = () => {
   try {
-    if (here !== target) sessionStorage.setItem(RETURN_KEY, here);
+    return localStorage.getItem(PENDING_KEY) === "1";
   } catch {
-    // Storage may be unavailable; the user simply lands on the fixed path.
+    return false;
   }
-  window.location.assign(loginURL(target));
-}
+};
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionState>({ status: "loading" });
+  const [deletionPending, setPending] = useState(readPending);
+
+  const setDeletionPending = useCallback((pending: boolean) => {
+    try {
+      if (pending) localStorage.setItem(PENDING_KEY, "1");
+      else localStorage.removeItem(PENDING_KEY);
+    } catch {
+      /* Without storage the offer simply does not survive a reload. */
+    }
+    setPending(pending);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
-      const me = await auth.me({});
-      if (!me.user) throw new Error("incomplete user");
+      const me = await account.me();
       setSession({
         status: "signed-in",
-        account: { id: me.user.id, displayName: me.user.displayName, username: me.user.username, roles: me.roles },
+        account: { id: me.user.id, displayName: me.user.displayName, avatarUrl: me.user.avatarUrl, roles: me.roles },
       });
     } catch (e) {
       if (!isUnauthenticated(e)) console.warn("me failed", e);
@@ -59,33 +75,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  // Back from the login redirect: go on to the page the user started from.
-  useEffect(() => {
-    if (session.status !== "signed-in") return;
-    try {
-      const back = sessionStorage.getItem(RETURN_KEY);
-      if (back) {
-        sessionStorage.removeItem(RETURN_KEY);
-        if (back.startsWith("/") && !back.startsWith("//")) navigate(back, true);
-      }
-    } catch {
-      // ignore
-    }
-  }, [session.status]);
-
   const value = useMemo<Ctx>(
     () => ({
       session,
       isAdmin: session.status === "signed-in" && session.account.roles.includes("metro-admin"),
-      signIn,
+      signIn: () => navigate(loginPath(window.location.pathname + window.location.search)),
       signOut: async () => {
-        await write(() => auth.logout({}));
+        await account.logout();
         setSession({ status: "anonymous" });
         navigate("/");
       },
       refresh,
+      updateAccount: (patch) =>
+        setSession((s) => (s.status === "signed-in" ? { status: "signed-in", account: { ...s.account, ...patch } } : s)),
+      deletionPending,
+      setDeletionPending,
     }),
-    [session, refresh],
+    [session, refresh, deletionPending, setDeletionPending],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

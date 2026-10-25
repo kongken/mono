@@ -16,7 +16,7 @@ var readOnlyProcedures = map[string]bool{
 	bffv1connect.AuthServiceMeProcedure:                 true,
 	bffv1connect.AuthServiceListSessionsProcedure:       true,
 	bffv1connect.AuthServiceIssueCSRFTokenProcedure:     true,
-	bffv1connect.AuthServiceListOAuthProvidersProcedure: true,
+	bffv1connect.AuthServiceGetAccountDeletionProcedure: true,
 
 	bffv1connect.AccessTokenServiceListAccessTokensProcedure: true,
 

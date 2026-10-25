@@ -36,9 +36,9 @@ const adminReadMaxBytes = 2 << 20
 
 // NewMCP returns the MCP endpoint handler (route mcp.Path). tokens verifies the
 // Bearer management token; ratePerMinute is the per-token request limit.
-func NewMCP(conn *grpc.ClientConn, tokens mcp.Authenticator, limiter mcp.Limiter, ratePerMinute int, clientIPHeader string) http.Handler {
+func NewMCP(conn *grpc.ClientConn, tokens mcp.Authenticator, accounts mcp.Accounts, limiter mcp.Limiter, ratePerMinute int, clientIPHeader string) http.Handler {
 	return mcp.New(mcp.Config{
-		Admin: metrov1.NewAdminServiceClient(conn), Tokens: tokens, Limiter: limiter,
+		Admin: metrov1.NewAdminServiceClient(conn), Tokens: tokens, Accounts: accounts, Limiter: limiter,
 		RatePerMinute: ratePerMinute, ClientIPHeader: clientIPHeader,
 	})
 }

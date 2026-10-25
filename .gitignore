@@ -28,6 +28,7 @@ dist-ssr
 config.tripmap.yaml
 config.bff.yaml
 config.metro.yaml
+config.usersrv.yaml
 bin/
 coverage.out
 
@@ -35,3 +36,4 @@ coverage.out
 playwright-report/
 test-results/
 /dev-secrets/
+/.real-stack/

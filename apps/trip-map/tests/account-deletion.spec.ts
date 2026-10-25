@@ -5,20 +5,18 @@ import * as footprint from "@kongken/api-client/bff/tripmap/v1/footprint_pb";
 import * as statusPb from "@kongken/api-client/bff/tripmap/v1/status_pb";
 import { REGION_VERSION } from "../src/lib/region-catalog";
 
-test("confirmed account deletion retries cleanup, clears account cache and preserves local footprints", async ({
+test("closing the account retries cleanup, clears account cache and preserves local footprints", async ({
   page,
 }) => {
   let attempts = 0;
-  let authenticated = false;
+  let retries = 0;
+  let reauthenticated = 0;
+  let authenticated = true;
   const local = { version: 1, visits: [], provinces: { "330000": "#4b937d" } };
   await page.addInitScript(
     (data) => localStorage.setItem("shanhai-travel-v1", JSON.stringify(data)),
     local,
   );
-  await page.route("**/auth/login?*", async (route) => {
-    authenticated = true;
-    await route.fulfill({ status: 303, headers: { Location: "/" } });
-  });
   await page.route("**/api/**", async (route) => {
     const method = route.request().url().split("/").pop();
     const binary = route.request().headers()["content-type"]?.includes("proto");
@@ -29,10 +27,6 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
         schema = auth.IssueCSRFTokenResponseSchema;
         data = { token: "ci-csrf" };
         break;
-      case "ListOAuthProviders":
-        schema = auth.ListOAuthProvidersResponseSchema;
-        data = { providers: [{ name: "logto", displayName: "Logto" }] };
-        break;
       case "Me":
         if (!authenticated) {
           await route.fulfill({status:401,contentType:"application/json",body:'{"code":"unauthenticated"}'});
@@ -42,7 +36,6 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
         data = {
           user: {
             id: "ci-account",
-            username: "ci_user",
             displayName: "CI 旅行者",
           },
         };
@@ -50,6 +43,14 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
       case "ListSessions":
         schema = auth.ListSessionsResponseSchema;
         break;
+      case "Reauthenticate": {
+        const raw = route.request().postDataBuffer()!;
+        const request = binary ? fromBinary(auth.ReauthenticateRequestSchema, raw) : JSON.parse(raw.toString());
+        expect(request.password).toBe("correct horse battery");
+        reauthenticated++;
+        schema = auth.ReauthenticateResponseSchema;
+        break;
+      }
       case "GetStatus":
         schema = statusPb.GetStatusResponseSchema;
         data = { footprintSchema: 2, regionVersion: REGION_VERSION };
@@ -70,22 +71,25 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
           : JSON.parse(raw.toString());
         expect(request.confirmation).toBe("DELETE");
         expect("password" in request).toBe(false);
+        expect(request.mutationId).toMatch(/^del-/);
         attempts++;
-        if (attempts === 1) {
-          await route.fulfill({
-            status: 503,
-            contentType: "application/json",
-            body: JSON.stringify({
-              code: "unavailable",
-              message: "cleanup incomplete",
-            }),
-          });
-          return;
-        }
+        // The account is closed on the server, but the cleanup could not be confirmed.
         authenticated = false;
-        schema = auth.DeleteAccountResponseSchema;
-        break;
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({
+            code: "unavailable",
+            message: "cleanup incomplete",
+          }),
+        });
+        return;
       }
+      case "RetryAccountDeletion":
+        retries++;
+        schema = auth.RetryAccountDeletionResponseSchema;
+        data = { deletion: { state: auth.AccountDeletionState.COMPLETED, mutationId: "del-x", products: ["tripmap", "metro"], completedProducts: ["tripmap", "metro"] } };
+        break;
       default:
         await route.fulfill({
           status: 404,
@@ -104,8 +108,10 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
     });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
-  await page.getByRole("button", { name: "前往用户中心登录", exact: true }).click();
+  await page.evaluate(() => {
+    localStorage.setItem("shanhai-session-v1", JSON.stringify({ user: { id: "ci-account", displayName: "CI 旅行者", avatarUrl: "" } }));
+  });
+  await page.reload();
   // The local footprint is offered for migration; this test is about deletion.
   await page.getByRole("button", { name: "稍后再说" }).click();
   await expect(
@@ -127,24 +133,27 @@ test("confirmed account deletion retries cleanup, clears account cache and prese
   await expect(notice).toBeVisible();
   await notice.getByRole("button", { name: "不合并，保留在旧位置" }).click();
   await page.getByRole("button", { name: "账号", exact: true }).click();
-  await page.getByRole("button", { name: "删除云端数据", exact: true }).click();
-  const confirm = page.getByRole("button", {
-    name: "确认永久删除",
-    exact: true,
-  });
+  await page.getByRole("dialog").getByRole("button", { name: "账号设置" }).click();
+  const panel = page.getByTestId("delete-account");
+  await panel.getByRole("button", { name: "注销账号…" }).click();
+  const confirm = panel.getByRole("button", { name: "确认永久注销", exact: true });
   await expect(confirm).toBeDisabled();
-  await expect(page.getByText("不会注销用户中心账号", { exact: false })).toBeVisible();
+  // The scope is the whole account, not only this product's cloud data.
+  await expect(panel).toContainText("共用账号");
+  await expect(panel).toContainText("地铁足迹");
   await expect(page.getByRole("dialog")).not.toContainText(/Logto/i);
-  await expect(page.locator('input[type="password"]')).toHaveCount(0);
-  await page.getByLabel("输入“删除”确认", { exact: true }).fill("删除");
+  await panel.getByLabel("当前密码").fill("correct horse battery");
+  await panel.getByLabel("输入“注销”确认", { exact: true }).fill("注销");
   await confirm.click();
-  await expect(page.getByText(/云端数据删除可能尚未完成/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "重试注销" })).toBeVisible();
   await expect.poll(() => attempts).toBe(1);
-  await confirm.click();
+  expect(reauthenticated).toBe(1);
+  await page.getByRole("button", { name: "重试注销" }).click();
   await expect(
     page.getByRole("button", { name: "登录", exact: true }),
   ).toBeVisible();
-  await expect.poll(() => attempts).toBe(2);
+  await expect.poll(() => retries).toBe(1);
+  expect(attempts).toBe(1);
   expect(
     await page.evaluate(() => localStorage.getItem("shanhai-session-v1")),
   ).toBeNull();

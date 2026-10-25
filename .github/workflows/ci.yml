@@ -46,6 +46,9 @@ jobs:
       TRIPMAP_TEST_S3_BUCKET: tripmap
       TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
       TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
+      # usersrv tests use throwaway schemas and unique Redis key prefixes on the same servers.
+      USERSRV_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      USERSRV_TEST_REDIS_ADDR: 127.0.0.1:6379
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -89,9 +92,9 @@ jobs:
       - run: npm run build
         env:
           VITE_API_BASE_URL: /api
-      - name: Browser acceptance (mocked RPC, no real OAuth)
+      - name: Browser acceptance (mocked BFF, no real mail)
         run: |
           npx playwright install --with-deps chromium
           npm run test:e2e:trip-map
-      - name: Browser acceptance for metro (mocked BFF, no real OAuth)
+      - name: Browser acceptance for metro (mocked BFF, no real mail)
         run: npm run test:e2e:metro
