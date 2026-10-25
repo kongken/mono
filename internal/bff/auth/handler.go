@@ -173,7 +173,24 @@ func (h *Handler) RevokeSession(ctx context.Context, req *connect.Request[bffv1.
 	if err := h.svc.RevokeSession(ctx, bs.UserID, req.Msg.GetId()); err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&bffv1.RevokeSessionResponse{}), nil
+	res := connect.NewResponse(&bffv1.RevokeSessionResponse{})
+	if req.Msg.GetId() == bs.SessionID {
+		// The caller ended its own session: same as signing out, so the Cookie goes too.
+		session.ClearSessionCookie(res.Header(), h.svc.cookies)
+	}
+	return res, nil
+}
+
+func (h *Handler) RevokeOtherSessions(ctx context.Context, _ *connect.Request[bffv1.RevokeOtherSessionsRequest]) (*connect.Response[bffv1.RevokeOtherSessionsResponse], error) {
+	bs, ok := session.FromBrowser(ctx)
+	if !ok {
+		return nil, errUnauth
+	}
+	n, err := h.svc.RevokeOtherSessions(ctx, bs)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&bffv1.RevokeOtherSessionsResponse{Revoked: int32(n)}), nil
 }
 
 func (h *Handler) Reauthenticate(ctx context.Context, req *connect.Request[bffv1.ReauthenticateRequest]) (*connect.Response[bffv1.ReauthenticateResponse], error) {

@@ -8,7 +8,10 @@ test("only the OzID pages exist", () => {
   assert.equal(matchRoute("/login/"), "login");
   assert.equal(matchRoute("/register"), "register");
   assert.equal(matchRoute("/forgot-password"), "forgot-password");
+  assert.equal(matchRoute("/profile"), "profile");
   assert.equal(matchRoute("/security"), "security");
+  assert.equal(matchRoute("/sessions"), "sessions");
+  assert.equal(matchRoute("/sessions/"), "sessions");
   // The mail landing pages are not routes of the app: they are served before it starts.
   for (const other of ["/admin", "/login/x", "/register/x", "/account/verify-email", "/account/reset-password", "//evil.example"]) assert.equal(matchRoute(other), "not-found", other);
 });

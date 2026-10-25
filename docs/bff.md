@@ -12,7 +12,7 @@
 
 - `bff.tripmap.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
 - `bff.v1.AuthService`（账号与会话）与 `bff.v1.UserService`：BFF 不保存密码，也不再有任何第三方登录。注册、登录、找回/重置密码、改密码、资料与注销都经内部 gRPC 调用 usersrv（`usersrv.v1.AccountService`），BFF 自己只负责浏览器会话、CSRF、入口策略和注销工作流。详见下文「账号、会话与注销（P4）」。
-- `bff.v1` 的 RPC：`RequestRegistration`、`CompleteRegistration`、`LoginWithEmail`、`RequestPasswordReset`、`ResetPassword`（匿名）；`Me`、`ListSessions`、`Logout`、`RevokeSession`、`Reauthenticate`、`ChangePassword`、`UpdateMyProfile`、`DeleteAccount`、`GetAccountDeletion`、`RetryAccountDeletion`（登录后）。旧的 Register/Login/OAuth RPC 已从契约删除，字段编号用 protobuf `reserved` 保留。
+- `bff.v1` 的 RPC：`RequestRegistration`、`CompleteRegistration`、`LoginWithEmail`、`RequestPasswordReset`、`ResetPassword`（匿名）；`Me`、`ListSessions`、`Logout`、`RevokeSession`、`RevokeOtherSessions`、`Reauthenticate`、`ChangePassword`、`UpdateMyProfile`、`DeleteAccount`、`GetAccountDeletion`、`RetryAccountDeletion`（登录后）。旧的 Register/Login/OAuth RPC 已从契约删除，字段编号用 protobuf `reserved` 保留。
 - usersrv 已登记为上游服务（`gateway.Services`，`upstreams.usersrv`、`grpc.services.usersrv`），是必需的：不配置则启动失败。`/readyz` 增加 `usersrv_grpc`。
 - `bff.tripmap.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。tripmap 的展示投影（用户 ID、昵称、头像）在首次调用 `bff.tripmap.v1.*` 时由 BFF 按需确保：读 usersrv 的账号后调用 `ProfileService/EnsureProfile`，并在 Redis 记下已投影的 `profile_version`（24 小时），昵称或头像变化后下一次调用重新投影；Redis 故障不致命，只多做一次幂等调用。投影只含用户 ID、昵称、头像，不含邮箱。
 - `bff.tripmap.v1.NotificationService`（全部提醒设置 RPC）→ tripmap gRPC `NotificationService`；浏览器经 Cookie 会话，业务仍只认 BFF 签发的内部凭证与用户 ID。
@@ -239,7 +239,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 - `internal/bff/auth`：账号服务（会话解析各状态、注销工作流阶段与重试、错误映射）；`internal/bff/ingress`：会话检查失败保持各自含义（`unavailable` 不变成 `unauthenticated`）、注销 Cookie 的例外、投影钩子；`internal/bff/usersrv`：usersrv 错误映射。
 - metro 经 BFF 的链路测试（`internal/e2e/metro_*_chain_test.go`，`ChainMetro`）：匿名目录与 `known_version`、`metro_grpc` 就绪、无 `upstreams.metro` 时无 metro 路由、管理接口的角色要求（匿名 / 无角色 / 其他角色 / 管理员 / 缺 CSRF）、校验与 revision 冲突 detail 抵达浏览器、导入预览与写入、审计渠道与执行者、绕过 BFF 直连 metro 时仅含 `sub` 的凭证被拒、骑行者资料与乘坐记录、云端数据删除同时清理 tripmap 与 metro 且单个产品失败时保持待删除并可重试。
 - `internal/bff/accesstoken`：令牌创建/校验/吊销/过期/数量上限/只存摘要（用 `SetClock` 覆盖过期）；`internal/bff/metro/mcp`：工具表与 JSON Schema（读 7、写 13）。MCP 链路测试在 `internal/e2e/metro_mcp_chain_test.go`：令牌与作用域（只读令牌调写工具被拒；写令牌 `metro_import_catalog` 不传 `dryRun` 只预览）、吊销/过期/只带 Cookie 的请求失败、令牌数量上限、MCP 写入与 Web 写入共用 `expectedRevision` 与审计（`channel=mcp`、令牌 ID）、限流、协议（批量、通知、未知方法）。
-- `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与内部 gRPC（TLS 与 h2c）信任。
+- `internal/bff/ingress`、`internal/bff/app`、`internal/e2e`：Connect 策略与内部 gRPC（TLS 与 h2c）信任。设备会话与改密的链路测试在 `internal/e2e/device_sessions_chain_test.go`（OzID T3：退出其他设备的保留当前会话、幂等、并发与限流，撤销指定设备的跨账号隔离，改密只结束本账号的会话与管理令牌，资料修改不碰 metro 骑行者资料）。
 - **`internal/e2e` `ChainHarness`**（见 [后端初始化](backend.md#生成构建与验证)）：真实 BFF + 真实 usersrv + PostgreSQL/Redis + tripmap/metro，只把邮件远端换成本地收件箱。覆盖：邮件注册（统一应答）、登录失败统一、Cookie 会话与跨设备撤销、改密码/重置密码使全部会话失效、敏感操作要求最近的密码验证、usersrv 不可用时受保护调用 `unavailable` 且业务无调用、角色只能由运维授予并实时生效（撤销后重新授予也不恢复旧令牌）、tripmap 展示投影与好友码、metro 管理接口与 MCP（每次调用重新校验）、注销工作流（每个阶段失败/响应丢失后可恢复、产品清理失败时保持“删除中”、回执 24 小时内可重放、跨用户隔离）、错误 Origin/CSRF、响应体不含会话令牌；`go test ./internal/e2e/ -count=1`。浏览器注销 UI 使用 Playwright 模拟 RPC（`apps/trip-map/tests/account-deletion.spec.ts`），真实 Cookie 链路以 e2e 为准。
 - **Playwright 真实栈**（默认跳过）：`apps/trip-map/tests/bff-cookie-real.spec.ts`；先 `make dev`（BFF、usersrv、tripmap 等价组合），再 `E2E_REAL_BFF=1 TRIPMAP_DEV_BACKEND=http://127.0.0.1:18081 npm run test:e2e -w @kongken/trip-map -- bff-cookie-real.spec.ts`。CI 与常规 `npm run test:e2e` 仍用 fake backend；本 spec 在本沙箱未对真实栈执行。
 - 其余 UI：Playwright 模拟后端覆盖登录骨架与业务场景。
@@ -251,6 +251,8 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 ## 账号、会话与注销（P4）
 
 **会话**。登录（`LoginWithEmail`）成功后，BFF 生成新的随机令牌放进 host-only、HttpOnly Cookie，库里只存它的摘要；会话行记录用户 UUID、usersrv 的 `auth_version`、真实的密码验证时间（`authenticated_at`）和过期时间。每个受保护请求先用令牌摘要找到会话，再调用 usersrv `GetAuthState`：账号必须 `active` 且 `auth_version` 与会话一致，否则会话被撤销并返回 `unauthenticated`；usersrv 不可用则返回 `unavailable`，不转发。改密码或重置密码会撤销该用户的全部会话。`Reauthenticate` 用 usersrv 的 `VerifyPassword` 刷新 `authenticated_at`；管理接口（`required_role`）、创建管理令牌、注销与创建管理令牌要求最近一次验证（管理接口见 `auth.admin_session_max_age`，其余 15 分钟）；改密码要求提交当前密码，由 usersrv 校验。
+
+**设备会话（OzID T3）**。`ListSessions` 只返回本人未撤销且未过期的会话行里真实存在的字段（创建、最近使用、过期时间、是否当前）。`RevokeSession` 按“会话 ID + 调用者用户 ID”匹配，别人的和不存在的 ID 同为 `NOT_FOUND`（同一文案），已撤销的重复撤销成功，撤销自己的会话同时清 Cookie。`RevokeOtherSessions`（登录后，写：CSRF + Origin）用**一条** `UPDATE ... WHERE user_id = ? AND id <> 当前会话 AND NOT revoked AND expires_at > now` 撤销本人其余有效会话，返回撤销条数：幂等，并发调用合计恰好撤销每行一次，不动 `auth_version`、密码、管理令牌，之后新建的会话不受影响；按账号限流（Redis，每 15 分钟 10 次，`RESOURCE_EXHAUSTED`，Redis 故障 `UNAVAILABLE`），被拒绝的调用不撤销任何会话。改密码要求当前密码并受 usersrv 的账号级限流（默认每 15 分钟 10 次，与 `Reauthenticate` 共用），成功后撤销本账号全部会话并清当前 Cookie。
 
 **在途窗口**。BFF 对 usersrv 的 `GetAuthState` 在每个请求开头检查一次，通过后签发的内部凭证有效期最长 60 秒（`servicetoken.Lifetime`，另有 10 秒时钟偏差容忍）：在这之前已经发往产品服务的请求，即使账号随后被禁用、改密或撤销角色，仍可能在该窗口内执行完毕——不宣称即时中断。登录与改密并发时，会话记录的是登录时读到的 `auth_version`，之后版本变化的会话在下一次检查就失效。
 

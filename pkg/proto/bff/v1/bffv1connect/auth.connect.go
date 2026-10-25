@@ -66,6 +66,9 @@ const (
 	// AuthServiceRevokeSessionProcedure is the fully-qualified name of the AuthService's RevokeSession
 	// RPC.
 	AuthServiceRevokeSessionProcedure = "/bff.v1.AuthService/RevokeSession"
+	// AuthServiceRevokeOtherSessionsProcedure is the fully-qualified name of the AuthService's
+	// RevokeOtherSessions RPC.
+	AuthServiceRevokeOtherSessionsProcedure = "/bff.v1.AuthService/RevokeOtherSessions"
 	// AuthServiceReauthenticateProcedure is the fully-qualified name of the AuthService's
 	// Reauthenticate RPC.
 	AuthServiceReauthenticateProcedure = "/bff.v1.AuthService/Reauthenticate"
@@ -122,8 +125,17 @@ type AuthServiceClient interface {
 	// Logout revokes the session of the Cookie and clears it. It is idempotent: it
 	// succeeds, and clears the Cookie, even when the session is already gone.
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
-	// RevokeSession revokes one of the caller's own sessions.
+	// RevokeSession revokes one of the caller's own sessions. Repeating it for a session
+	// that is already revoked succeeds; an ID that is not the caller's (another account's
+	// or unknown) is NOT_FOUND, with the same answer for both. Revoking the session of the
+	// request itself also clears its Cookie, like Logout.
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
+	// RevokeOtherSessions revokes every live browser session of the caller except the one
+	// making the request, in a single statement, so no concurrent session can be missed.
+	// It is idempotent (a repeat revokes nothing and still succeeds) and limited to 10 calls
+	// per 15 minutes per account. It does not touch auth_version, the password or the
+	// management (MCP) tokens, and a session opened after it ran is not affected.
+	RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error)
 	// Reauthenticate re-checks the current password and, only then, records a fresh
 	// authentication time on this session. Sensitive actions (DeleteAccount, creating
 	// a management token) need it within the last 15 minutes.
@@ -222,6 +234,12 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("RevokeSession")),
 			connect.WithClientOptions(opts...),
 		),
+		revokeOtherSessions: connect.NewClient[v1.RevokeOtherSessionsRequest, v1.RevokeOtherSessionsResponse](
+			httpClient,
+			baseURL+AuthServiceRevokeOtherSessionsProcedure,
+			connect.WithSchema(authServiceMethods.ByName("RevokeOtherSessions")),
+			connect.WithClientOptions(opts...),
+		),
 		reauthenticate: connect.NewClient[v1.ReauthenticateRequest, v1.ReauthenticateResponse](
 			httpClient,
 			baseURL+AuthServiceReauthenticateProcedure,
@@ -268,6 +286,7 @@ type authServiceClient struct {
 	listSessions         *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
 	logout               *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
 	revokeSession        *connect.Client[v1.RevokeSessionRequest, v1.RevokeSessionResponse]
+	revokeOtherSessions  *connect.Client[v1.RevokeOtherSessionsRequest, v1.RevokeOtherSessionsResponse]
 	reauthenticate       *connect.Client[v1.ReauthenticateRequest, v1.ReauthenticateResponse]
 	changePassword       *connect.Client[v1.ChangePasswordRequest, v1.ChangePasswordResponse]
 	deleteAccount        *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
@@ -328,6 +347,11 @@ func (c *authServiceClient) Logout(ctx context.Context, req *connect.Request[v1.
 // RevokeSession calls bff.v1.AuthService.RevokeSession.
 func (c *authServiceClient) RevokeSession(ctx context.Context, req *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error) {
 	return c.revokeSession.CallUnary(ctx, req)
+}
+
+// RevokeOtherSessions calls bff.v1.AuthService.RevokeOtherSessions.
+func (c *authServiceClient) RevokeOtherSessions(ctx context.Context, req *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error) {
+	return c.revokeOtherSessions.CallUnary(ctx, req)
 }
 
 // Reauthenticate calls bff.v1.AuthService.Reauthenticate.
@@ -391,8 +415,17 @@ type AuthServiceHandler interface {
 	// Logout revokes the session of the Cookie and clears it. It is idempotent: it
 	// succeeds, and clears the Cookie, even when the session is already gone.
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
-	// RevokeSession revokes one of the caller's own sessions.
+	// RevokeSession revokes one of the caller's own sessions. Repeating it for a session
+	// that is already revoked succeeds; an ID that is not the caller's (another account's
+	// or unknown) is NOT_FOUND, with the same answer for both. Revoking the session of the
+	// request itself also clears its Cookie, like Logout.
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
+	// RevokeOtherSessions revokes every live browser session of the caller except the one
+	// making the request, in a single statement, so no concurrent session can be missed.
+	// It is idempotent (a repeat revokes nothing and still succeeds) and limited to 10 calls
+	// per 15 minutes per account. It does not touch auth_version, the password or the
+	// management (MCP) tokens, and a session opened after it ran is not affected.
+	RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error)
 	// Reauthenticate re-checks the current password and, only then, records a fresh
 	// authentication time on this session. Sensitive actions (DeleteAccount, creating
 	// a management token) need it within the last 15 minutes.
@@ -487,6 +520,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("RevokeSession")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceRevokeOtherSessionsHandler := connect.NewUnaryHandler(
+		AuthServiceRevokeOtherSessionsProcedure,
+		svc.RevokeOtherSessions,
+		connect.WithSchema(authServiceMethods.ByName("RevokeOtherSessions")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceReauthenticateHandler := connect.NewUnaryHandler(
 		AuthServiceReauthenticateProcedure,
 		svc.Reauthenticate,
@@ -541,6 +580,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceLogoutHandler.ServeHTTP(w, r)
 		case AuthServiceRevokeSessionProcedure:
 			authServiceRevokeSessionHandler.ServeHTTP(w, r)
+		case AuthServiceRevokeOtherSessionsProcedure:
+			authServiceRevokeOtherSessionsHandler.ServeHTTP(w, r)
 		case AuthServiceReauthenticateProcedure:
 			authServiceReauthenticateHandler.ServeHTTP(w, r)
 		case AuthServiceChangePasswordProcedure:
@@ -602,6 +643,10 @@ func (UnimplementedAuthServiceHandler) Logout(context.Context, *connect.Request[
 
 func (UnimplementedAuthServiceHandler) RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.RevokeSession is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.RevokeOtherSessions is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) Reauthenticate(context.Context, *connect.Request[v1.ReauthenticateRequest]) (*connect.Response[v1.ReauthenticateResponse], error) {

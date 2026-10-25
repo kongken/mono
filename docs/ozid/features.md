@@ -1,12 +1,13 @@
-# OzID 用户中心：功能描述（T1 统一登录与安全返回；T2 统一注册验证与密码重置邮件）
+# OzID 用户中心：功能描述（T1 统一登录与安全返回；T2 统一注册验证与密码重置邮件；T3 账号资料、密码与设备会话）
 
-本文描述 [OzID 规格](spec.md) 中 [Issue #79（T1）](https://github.com/kongken/mono/issues/79) 与 [Issue #80（T2）](https://github.com/kongken/mono/issues/80) 已实现的行为。其余阶段（独立管理控制台、网页用户管理、集中邮件落地、产品入口收敛、管理 IP 白名单）**尚未实现**，规格仍是它们的依据。文中域名全部是保留示例（`id.example.com` 等），不代表任何真实部署。
+本文描述 [OzID 规格](spec.md) 中 [Issue #79（T1）](https://github.com/kongken/mono/issues/79)、[Issue #80（T2）](https://github.com/kongken/mono/issues/80) 与 [Issue #81（T3）](https://github.com/kongken/mono/issues/81) 已实现的行为。其余阶段（独立管理控制台、网页用户管理、网页注销页、产品入口收敛、管理 IP 白名单）**尚未实现**，规格仍是它们的依据。文中域名全部是保留示例（`id.example.com` 等），不代表任何真实部署。
 
 ## 现状与范围
 
 | 已实现（T1） | 尚未实现 |
 | --- | --- |
-| `apps/ozid`（`@kongken/ozid`）：登录页、账号概览、密码重新认证页，独立构建与部署 | 资料、改密码、设备管理、注销等自助页面（产品里的这些页面不变） |
+| `apps/ozid`（`@kongken/ozid`）：登录页、账号概览、密码重新认证页，独立构建与部署 | 注销页（`/close-account`，产品里的注销照旧）；产品里的资料、改密码、设备页面也不变 |
+| （T3）`/profile`、`/security`（改密码）、`/sessions`（设备列表、撤销指定设备、退出其他设备、退出这个浏览器）；BFF `RevokeOtherSessions` | |
 | （T2）注册、找回密码、`/account/verify-email`、`/account/reset-password` 页面；邮件链接统一落到 OzID；返回上下文随挑战保存 | 产品里的注册、找回密码和邮件落地页仍保留（过渡期与产品入口收敛，后续阶段才移除） |
 | BFF `ResolveNavigation`（匿名只读）与 `navigation` 服务端注册表 | `admin` 控制台应用；产品登录入口改指向 OzID |
 | 同一 API origin、host-only Cookie、精确 CORS、CSRF 与 Origin 校验的真实浏览器验证 | 管理 IP 白名单；集中账号写来源收紧（后续收尾票） |
@@ -19,8 +20,10 @@
 | 路径 | 内容 |
 | --- | --- |
 | `/login` | 邮箱＋密码登录。无会话显示表单；已有有效会话显示“已登录”，可继续回到来源应用或进入概览，也可显式“使用其他账号登录”（会先说明这会退出这个浏览器上所有应用的当前登录）。 |
-| `/` | 账号概览：显示名与登录邮箱（邮箱只在这里显示）、安全入口。无会话时转到 `/login`。 |
-| `/security` | 重新输入当前密码（调用 BFF `Reauthenticate`），成功后更新“上次确认密码”的时间，并回到来源应用，或停留在 OzID。无会话、会话已失效（改密码、禁用、角色变化等使 `auth_version` 变化）时转到登录，**不会**把失效的身份升级成有效；登录后仍回到原来源。 |
+| `/` | 账号概览：显示名与登录邮箱（邮箱只在概览和资料页显示）、资料/安全/设备三个入口。无会话时转到 `/login`。 |
+| `/security` | 两种模式。**带来源上下文**（地址里有 `app_id` / `return_path`，产品或控制台因为敏感操作把浏览器送来）：只显示“确认密码”（调用 BFF `Reauthenticate`），成功后更新“上次确认密码”的时间，并回到来源应用，或停留在 OzID。**直接打开**：先是“修改密码”，再是同一个“确认密码”。无会话、会话已失效（改密码、禁用、角色变化等使 `auth_version` 变化）时转到登录，**不会**把失效的身份升级成有效；登录后仍回到原来源。 |
+| `/profile` | 本人登录邮箱只读（没有修改邮箱的入口），昵称和头像可编辑。 |
+| `/sessions` | 本人有效的浏览器会话列表、撤销指定设备、“退出其他 N 台设备”、“退出这个浏览器的登录”。 |
 | `/register`、`/forgot-password` | 申请注册、找回密码：只收邮箱；回答始终中性（不透露邮箱是否已注册）。有发送中、重新发送冷却、限流、注册已关闭、网络/服务故障等状态；登录页提供两个入口，三个页面之间切换会带着来源上下文。 |
 | `/account/verify-email`、`/account/reset-password` | 邮件里的链接落地页（见下一节）。 |
 | 其他路径 | “页面不存在”，不回退到别的页面。 |
@@ -77,6 +80,24 @@ https://id.example.com/login?app_id=metro&return_path=%2Fcity%2Fshanghai
 - 已测试（`internal/usersrv/app`、`internal/usersrv/outbox`、`internal/e2e`，真实 Postgres/Redis）：没有上下文（两列为 NULL）的旧注册挑战完成后不返回任何应用（重置挑战走同一段读取代码，没有单独的用例）；升级前已排队的旧任务在“产品来源仍配置”与“已移除”两种配置下的链接；上下文列只填一半被约束拒绝；没有注册表时的 BFF 行为。
 - **未执行**：滚动升级矩阵（旧/新 BFF × 旧/新 usersrv 的各种混合，以及 `ozid-web` 新版配旧 BFF 的窗口）没有自动化测试，上面对混合组合的结论来自对字段语义和 T1 代码的阅读，而不是运行结果。发布前如需依赖某个混合状态，请先在隔离环境验证。
 
+## 账号资料、密码与设备（T3）
+
+三个页面都要有效会话：无会话（从未登录、已退出、过期、被撤销、改过密码）转到登录；而检查登录状态本身失败（BFF、usersrv 或 Redis 暂时不可用）显示“这不代表你已退出登录”和重试按钮，**不会**跳转到登录，也不会调用退出或清理任何东西。账号导航只在有会话时出现。
+
+**资料（`/profile`）。** 调用 `UserService.UpdateMyProfile`，请求只有 `display_name` 与 `avatar_url`：邮箱、用户、角色、状态都不是它的字段，所以不能被页面或伪造请求修改。登录邮箱只读，没有修改邮箱的流程。资料只写 usersrv 的共用昵称/头像，`profile_version` 随之变化，各产品在下一次请求时取用；它不碰 metro 的骑行者资料（`handle`、简介等）、metro 目录及其 `revision`（`TestChainSharedProfileEditLeavesEverythingElseAlone` 对此断言：修改前后骑行者资料与目录行数不变，邮箱、角色、`auth_version` 与其他设备的会话也不变）。
+
+**密码（`/security`）。** 调用 `ChangePassword`，请求为当前密码和新密码：当前密码由 usersrv 校验（错误回答 `UNAUTHENTICATED`，页面显示“当前密码不正确”，会话不动）；新密码规则与注册相同（12 到 128 个字符）。成功后 usersrv 递增 `auth_version`，BFF 撤销该账号全部浏览器会话并清除当前 Cookie，既有管理令牌（MCP）在下次复核时因版本不同失效，**当前设备也要重新登录**：页面转到 `/login?reason=password-changed` 并说明“所有设备上的登录都已退出”。其他账号的会话和令牌不受影响；用旧密码登录失败，新密码可以；重新认证不能让已失效的会话复活。猜测当前密码受 usersrv 的账号级限流（默认 `password_per_account` 每 15 分钟 10 次，与“确认密码”共用，每次尝试都计数，成功也算；另有按地址的 `password_per_ip`）：达到上限后即使密码正确也被拒绝（`RESOURCE_EXHAUSTED`，“操作太频繁”），不改任何东西。真实密码验证时间只由 BFF 记录：`Reauthenticate` 与 `ChangePassword` 的请求里没有时间字段，错误密码不会移动它。
+
+**设备（`/sessions`）。** 列表来自 BFF 的会话表，只显示真实存在的数据：登录时间、最近使用时间、有效期，以及哪个是当前设备；**不显示**也不记录设备型号、IP、位置或浏览器名称。
+- **撤销指定设备**（`RevokeSession`）：只能撤销本人的会话；别人的会话 ID 与不存在的 ID 得到同一个 `NOT_FOUND`（文案也相同，不泄露存在性）；对已撤销的会话重复撤销成功（幂等，并发重复也都成功）；撤销的是发出请求的这个会话时，等同退出，Cookie 同时被清除。
+- **退出其他设备**（`RevokeOtherSessions`）：对本人除当前会话以外所有有效会话执行**一条** `UPDATE`，所以并发中的会话不会漏掉，多个并发调用合计恰好撤销每个会话一次（`TestChainRevokeOtherSessionsIsAtomicUnderConcurrency`：8 个并发调用合计撤销 6 个，调用者不在其中）；幂等，重复调用返回 0 且成功；保留当前会话和 Cookie；**不**递增 `auth_version`、不改密码、不吊销管理（MCP）令牌；调用之后新登录的会话不受影响（只有之后的再次调用才会撤销它）。每个账号每 15 分钟最多 10 次，超过返回 `RESOURCE_EXHAUSTED`，且被拒绝的调用不撤销任何会话。它要求有效会话、CSRF 与允许的 Origin（与其他账号写操作相同）；usersrv 不可用时在会话检查处就返回 `UNAVAILABLE`，什么也不撤销。
+- **退出这个浏览器**（`Logout`）：结束这个浏览器上共用的 Cookie 会话；产品等已接入的应用在**下一次**检查登录状态时发现已退出，其他设备保持登录。页面明确写出这个范围，并写明：OzID **不能、也不会**清除各应用保存在这个浏览器里的数据（本地足迹、未同步的修改等）——它没有跨域清理 localStorage 的能力，也不宣称有。退出请求失败时页面说明“你仍处于登录状态”，会话保持不变。
+- 读取列表失败显示“暂时无法读取设备列表，这不代表你已退出登录”和重试；只有服务端回答“未登录”才转到登录。操作被限流或服务暂时不可用时，页面分别说“操作太频繁”和“这次请求没有生效”。
+
+**产品入口不变。** trip-map 的账号弹窗和 metro 的账号页仍保留自己的资料、改密码和设备表单（共用 `packages/account` 的组件；设备列表现在多显示登录时间和有效期，没有“退出其他 N 台设备”按钮，那只在 OzID 开启）；收敛到 OzID 是后续阶段。
+
+**部署顺序。** T3 没有迁移，也不改 usersrv：只有 BFF（新增 `RevokeOtherSessions`，并让 `RevokeSession` 撤销自己时清 Cookie）和 `ozid-web`。先升级 BFF，再升级 `ozid-web`；顺序反了时，新页面的“退出其他设备”会因 BFF 不认识这个方法而失败（页面显示服务暂时不可用，其余功能不受影响）。回滚 BFF 同理，不涉及数据。`navigation.apps.ozid.paths` 仍只需包含 `/security`（重新认证的返回目标）；资料和设备页不是返回目标，不必登记。
+
 ## 服务端配置：`navigation`
 
 BFF 配置（`config.bff.example.yaml`）新增段落，字段与[规格 §4](spec.md) 对应：
@@ -129,9 +150,9 @@ docker run --rm -p 8089:80 -e API_ORIGIN=https://api.example.com ozid-web
 
 分四层给出结果（完成报告里同样分开）：
 
-1. **代码与自动化**：Go 单测与真实 Postgres/Redis 的 `internal/e2e` 链路测试（`TestChainOzid*`：登录与安全返回、未登记同站点兄弟被拒、失效身份重新认证不升级；T2 的 `TestChainOzid*Mail*`：真实 outbox 与假厂商收件箱，覆盖中央链接、上下文绑定与持久化、旧挑战、另一个浏览器完成、不自动登录且不改已有会话、重放/过期、关闭注册、限流、BFF 出口再校验；这是真实 BFF 与 usersrv，不是 mock）；`npm test`（路由、导航参数、API base 校验）；`npm run test:e2e:ozid`（**模拟 BFF**，桌面与手机，各种恶意返回参数、键盘、故障分类；T2 的 `ozid-mail.spec.ts` 覆盖注册/找回密码页面、冷却、限流与关闭注册等状态，落地页的令牌清除、不自动登录、重放与替换链接）。**证据边界**：模拟 BFF 的 Playwright 只证明 OzID 页面自身的行为（表单、键盘、版面、它发出的请求内容、它对服务端回答的处理、被拒绝时不跳转），**不**证明 Cookie 属性、CORS、CSRF、Origin 校验、同站点兄弟被拒或会话不入存储这类跨 origin 会话不变量——这些只由 `internal/e2e` 链路测试和第 3 项的真实栈测试证明。
+1. **代码与自动化**：Go 单测与真实 Postgres/Redis 的 `internal/e2e` 链路测试（`TestChainOzid*`：登录与安全返回、未登记同站点兄弟被拒、失效身份重新认证不升级；T2 的 `TestChainOzid*Mail*`：真实 outbox 与假厂商收件箱，覆盖中央链接、上下文绑定与持久化、旧挑战、另一个浏览器完成、不自动登录且不改已有会话、重放/过期、关闭注册、限流、BFF 出口再校验；这是真实 BFF 与 usersrv，不是 mock；T3 的 `device_sessions_chain_test.go`：退出其他设备保留当前会话与 Cookie、不动 `auth_version` 与管理令牌、不影响他人与之后的新登录、重复与 8 路并发调用合计恰好撤销每个会话一次、10 次/15 分钟限流且被拒不撤销、撤销指定设备的跨账号与不存在 ID 同一 `NOT_FOUND`、并发重复撤销、撤销自己清 Cookie、无会话/缺 CSRF/外来 Origin/usersrv 不可用都不撤销任何会话、改密只结束本账号的会话与管理令牌、猜测当前密码被限流、真实认证时间由服务端写入、资料修改不碰邮箱/角色/`auth_version`/他处会话与 metro 骑行者资料和目录）；`npm test`（路由、导航参数、API base 校验）；`npm run test:e2e:ozid`（**模拟 BFF**，桌面与手机，各种恶意返回参数、键盘、故障分类；T3 的 `ozid-account.spec.ts` 覆盖资料、改密码、设备三个页面（只读邮箱、请求体只含允许字段、错误分类、服务故障不当成退出、“退出其他设备”的说明与结果、退出这个浏览器不清本地存储、手机宽度无横向滚动）；T2 的 `ozid-mail.spec.ts` 覆盖注册/找回密码页面、冷却、限流与关闭注册等状态，落地页的令牌清除、不自动登录、重放与替换链接）。**证据边界**：模拟 BFF 的 Playwright 只证明 OzID 页面自身的行为（表单、键盘、版面、它发出的请求内容、它对服务端回答的处理、被拒绝时不跳转），**不**证明 Cookie 属性、CORS、CSRF、Origin 校验、同站点兄弟被拒或会话不入存储这类跨 origin 会话不变量——这些只由 `internal/e2e` 链路测试和第 3 项的真实栈测试证明。
 2. **容器运行验收**：`scripts/ozid-web-smoke.sh`（CI 的 `ozid-web-image` 任务）构建 `ozid-web` 镜像并启动容器，检查 `/healthz`、页面与静态资源（类型、缓存、nosniff、产物里写入的 API base）、真实 Nginx 在页面及各回退路由上返回的 CSP（`connect-src 'self' <API_ORIGIN>`、无通配符、禁止被嵌入）与 `X-Frame-Options: DENY`、换一个有效 `API_ORIGIN` 无需重建，以及缺少或非法 `API_ORIGIN`（空值、http、无 scheme、含路径或结尾斜线、通配符、夹带第二条 CSP 指令、含空格）时容器拒绝启动；缺少或相对的 `VITE_API_BASE_URL` 构建失败。只用保留示例地址。
-3. **真实浏览器与代理链**：`OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain`。在受控 HTTPS 下用真实 BFF 与 usersrv，OzID、API、两个产品和一个未登记兄弟分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，由浏览器解析到本机前置代理，使用一次性证书）；Chromium 实测登录、返回、跨应用同一身份、退出、重新认证、Cookie 属性、存储与 URL 无令牌、CSP 无违规、兄弟域名无 CORS、外来 Origin 的写被拒；T2 起还包括真实邮件回路：一个浏览器申请注册/重置，另一个只拿邮件链接的浏览器完成，不自动登录、返回到绑定的产品页，落地页响应头取自 nginx 模板的落地页 `location`，令牌没有出现在任何请求 URL 或 Referer 里（邮件厂商是唯一的替身：收件箱经 `mailbox` 测试主机读取；这里的前置代理只**复刻**模板里的头，nginx 本身由第 2 项的容器验收检验）。需要 Node 依赖与 Playwright Chromium，CI 的 `ozid-browser` 任务运行它。
+3. **真实浏览器与代理链**：`OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain`。在受控 HTTPS 下用真实 BFF 与 usersrv，OzID、API、两个产品和一个未登记兄弟分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，由浏览器解析到本机前置代理，使用一次性证书）；Chromium 实测登录、返回、跨应用同一身份、退出、重新认证、Cookie 属性、存储与 URL 无令牌、CSP 无违规、兄弟域名无 CORS、外来 Origin 的写被拒；T2 起还包括真实邮件回路：一个浏览器申请注册/重置，另一个只拿邮件链接的浏览器完成，不自动登录、返回到绑定的产品页，落地页响应头取自 nginx 模板的落地页 `location`，令牌没有出现在任何请求 URL 或 Referer 里；T3 的两个用例（桌面与手机）：每个浏览器上下文是一台独立设备、各有自己的 Cookie 会话，实测改昵称后各设备和产品页同时看到、列表三台设备、撤销指定设备（三台中恰好一台失效）、退出其他设备后另两台与其产品页都已退出而当前设备仍在、之后新登录的设备保持有效、退出这个浏览器后本机各产品页看到匿名而另一台设备不受影响且本源的本地存储未被清除、错误当前密码不改任何东西、改密码后所有设备（含当前）退出并只能用新密码登录，以及外来 Origin / 缺 CSRF / 匿名对 `RevokeOtherSessions` 的请求都被拒且不撤销（邮件厂商是唯一的替身：收件箱经 `mailbox` 测试主机读取；这里的前置代理只**复刻**模板里的头，nginx 本身由第 2 项的容器验收检验）。需要 Node 依赖与 Playwright Chromium，CI 的 `ozid-browser` 任务运行它。
 4. **仍须运维确认**（自动化无法覆盖）：真实 DNS、证书与 TLS 终止；反代是否按文档保留 `Host`、覆盖 `X-Real-IP`；真实域名下的 CORS/Cookie 表现；真实邮件厂商的投递与链接跟踪设置（邮件已统一指向 OzID，但至今没有对真实厂商实测，见[手动冒烟](../usersrv/mail-smoke-test.md)）；`auth.apps.ozid.origin` 与 BFF 注册表里 `ozid` 的 origin 是否一致；旧产品条目在令牌过期后的清理；镜像在私有构建参数下的构建。
 
-当前限制：产品自己的登录、注册、找回密码和账号页面尚未改指向 OzID（产品入口收敛是后续阶段），产品的邮件落地页因此仍保留以服务旧邮件；`admin` 应用 ID 已被注册表接受，但控制台应用尚不存在；OzID 还没有资料、改密码、设备管理与注销页面；管理 IP 白名单和“集中账号写只接受 OzID Origin”的收紧在后续阶段，T1、T2 都没有改变现有账号写方法的来源策略。注册与重置请求的来源应用只在 BFF 配置了导航注册表时才被接受并保存；`auth.apps.ozid` 现在是 usersrv 的必填配置，没有它 usersrv 拒绝启动。
+当前限制：产品自己的登录、注册、找回密码和账号页面尚未改指向 OzID（产品入口收敛是后续阶段），产品的邮件落地页因此仍保留以服务旧邮件；`admin` 应用 ID 已被注册表接受，但控制台应用尚不存在；OzID 还没有注销页；设备列表没有 IP、位置或设备型号（BFF 不记录这些）；OzID 无法清除其他 origin 的浏览器存储；管理 IP 白名单和“集中账号写只接受 OzID Origin”的收紧在后续阶段，T1、T2、T3 都没有改变现有账号写方法的来源策略。注册与重置请求的来源应用只在 BFF 配置了导航注册表时才被接受并保存；`auth.apps.ozid` 现在是 usersrv 的必填配置，没有它 usersrv 拒绝启动。

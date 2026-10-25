@@ -1,6 +1,6 @@
 // The pages of OzID. Pure, so node:test can cover it.
 
-export type Route = "overview" | "login" | "register" | "forgot-password" | "security" | "not-found";
+export type Route = "overview" | "login" | "register" | "forgot-password" | "profile" | "security" | "sessions" | "not-found";
 
 export function matchRoute(pathname: string): Route {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
@@ -13,8 +13,12 @@ export function matchRoute(pathname: string): Route {
       return "register";
     case "/forgot-password":
       return "forgot-password";
+    case "/profile":
+      return "profile";
     case "/security":
       return "security";
+    case "/sessions":
+      return "sessions";
     default:
       return "not-found";
   }

@@ -1,6 +1,6 @@
 # OzID 用户中心与统一管理控制台规格
 
-> **状态：访谈范围已确认；T1（[#79](https://github.com/kongken/mono/issues/79)：统一登录、重新认证与安全返回）与 T2（[#80](https://github.com/kongken/mono/issues/80)：统一注册验证与密码重置邮件流程）已实现并记录在 [OzID 功能描述](features.md)，其余阶段待实现。** 基线为 `104a712`（PR #76）：usersrv 第一版已完成。本规格不是再次替换账号后端，而是在现有账号体系上交付 OzID 用户中心、独立管理控制台和入口收敛。T1、T2 之外的内容仍只是规格，不改变当前接口、配置或部署。
+> **状态：访谈范围已确认；T1（[#79](https://github.com/kongken/mono/issues/79)：统一登录、重新认证与安全返回）与 T2（[#80](https://github.com/kongken/mono/issues/80)：统一注册验证与密码重置邮件流程）与 T3（[#81](https://github.com/kongken/mono/issues/81)：账号资料、密码与设备会话管理）已实现并记录在 [OzID 功能描述](features.md)，其余阶段待实现。** 基线为 `104a712`（PR #76）：usersrv 第一版已完成。本规格不是再次替换账号后端，而是在现有账号体系上交付 OzID 用户中心、独立管理控制台和入口收敛。T1、T2、T3 之外的内容仍只是规格，不改变当前接口、配置或部署。
 >
 > 规格与评审：[GitHub Issue #77](https://github.com/kongken/mono/issues/77)。本文为仓库副本，评审变更同步到该 Issue；不因文档 PR 合并就关闭实施规格。
 >
@@ -30,7 +30,7 @@
 
 ## 2. 当前事实、增量与非目标
 
-### 当前已实现（基线，T1 之前的状态；T1、T2 的现状见 [功能描述](features.md)）
+### 当前已实现（基线，T1 之前的状态；T1、T2、T3 的现状见 [功能描述](features.md)）
 
 - `usersrv` 是唯一账号来源：邮箱规范化、Argon2id、注册验证、登录、改密/重置、资料、认证版本、角色 CLI、四种邮件 adapter 与加密 outbox。
 - BFF 持有 HttpOnly Cookie 会话和注销工作流；每个受保护请求以及 MCP 工具调用复核 usersrv 的状态、`auth_version`、角色；产品服务只认内部凭证。

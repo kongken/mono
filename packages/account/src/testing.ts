@@ -236,6 +236,14 @@ export function createFakeAccounts(
       if (String(b.id).startsWith("s-other-") && state.otherSessions > 0) state.otherSessions -= 1;
       return { body: {} };
     },
+    // Atomic and idempotent like the BFF: ends every other session, keeps this one, repeats as 0.
+    RevokeOtherSessions: () => {
+      const denied = needUser();
+      if (denied) return denied;
+      const revoked = state.otherSessions;
+      state.otherSessions = 0;
+      return { body: { revoked } };
+    },
     Reauthenticate: (b) => {
       const denied = needUser();
       if (denied) return denied;

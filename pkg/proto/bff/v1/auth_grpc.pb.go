@@ -30,6 +30,7 @@ const (
 	AuthService_ListSessions_FullMethodName         = "/bff.v1.AuthService/ListSessions"
 	AuthService_Logout_FullMethodName               = "/bff.v1.AuthService/Logout"
 	AuthService_RevokeSession_FullMethodName        = "/bff.v1.AuthService/RevokeSession"
+	AuthService_RevokeOtherSessions_FullMethodName  = "/bff.v1.AuthService/RevokeOtherSessions"
 	AuthService_Reauthenticate_FullMethodName       = "/bff.v1.AuthService/Reauthenticate"
 	AuthService_ChangePassword_FullMethodName       = "/bff.v1.AuthService/ChangePassword"
 	AuthService_DeleteAccount_FullMethodName        = "/bff.v1.AuthService/DeleteAccount"
@@ -94,8 +95,17 @@ type AuthServiceClient interface {
 	// Logout revokes the session of the Cookie and clears it. It is idempotent: it
 	// succeeds, and clears the Cookie, even when the session is already gone.
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
-	// RevokeSession revokes one of the caller's own sessions.
+	// RevokeSession revokes one of the caller's own sessions. Repeating it for a session
+	// that is already revoked succeeds; an ID that is not the caller's (another account's
+	// or unknown) is NOT_FOUND, with the same answer for both. Revoking the session of the
+	// request itself also clears its Cookie, like Logout.
 	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*RevokeSessionResponse, error)
+	// RevokeOtherSessions revokes every live browser session of the caller except the one
+	// making the request, in a single statement, so no concurrent session can be missed.
+	// It is idempotent (a repeat revokes nothing and still succeeds) and limited to 10 calls
+	// per 15 minutes per account. It does not touch auth_version, the password or the
+	// management (MCP) tokens, and a session opened after it ran is not affected.
+	RevokeOtherSessions(ctx context.Context, in *RevokeOtherSessionsRequest, opts ...grpc.CallOption) (*RevokeOtherSessionsResponse, error)
 	// Reauthenticate re-checks the current password and, only then, records a fresh
 	// authentication time on this session. Sensitive actions (DeleteAccount, creating
 	// a management token) need it within the last 15 minutes.
@@ -235,6 +245,16 @@ func (c *authServiceClient) RevokeSession(ctx context.Context, in *RevokeSession
 	return out, nil
 }
 
+func (c *authServiceClient) RevokeOtherSessions(ctx context.Context, in *RevokeOtherSessionsRequest, opts ...grpc.CallOption) (*RevokeOtherSessionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeOtherSessionsResponse)
+	err := c.cc.Invoke(ctx, AuthService_RevokeOtherSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) Reauthenticate(ctx context.Context, in *ReauthenticateRequest, opts ...grpc.CallOption) (*ReauthenticateResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReauthenticateResponse)
@@ -342,8 +362,17 @@ type AuthServiceServer interface {
 	// Logout revokes the session of the Cookie and clears it. It is idempotent: it
 	// succeeds, and clears the Cookie, even when the session is already gone.
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
-	// RevokeSession revokes one of the caller's own sessions.
+	// RevokeSession revokes one of the caller's own sessions. Repeating it for a session
+	// that is already revoked succeeds; an ID that is not the caller's (another account's
+	// or unknown) is NOT_FOUND, with the same answer for both. Revoking the session of the
+	// request itself also clears its Cookie, like Logout.
 	RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error)
+	// RevokeOtherSessions revokes every live browser session of the caller except the one
+	// making the request, in a single statement, so no concurrent session can be missed.
+	// It is idempotent (a repeat revokes nothing and still succeeds) and limited to 10 calls
+	// per 15 minutes per account. It does not touch auth_version, the password or the
+	// management (MCP) tokens, and a session opened after it ran is not affected.
+	RevokeOtherSessions(context.Context, *RevokeOtherSessionsRequest) (*RevokeOtherSessionsResponse, error)
 	// Reauthenticate re-checks the current password and, only then, records a fresh
 	// authentication time on this session. Sensitive actions (DeleteAccount, creating
 	// a management token) need it within the last 15 minutes.
@@ -405,6 +434,9 @@ func (UnimplementedAuthServiceServer) Logout(context.Context, *LogoutRequest) (*
 }
 func (UnimplementedAuthServiceServer) RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RevokeSession not implemented")
+}
+func (UnimplementedAuthServiceServer) RevokeOtherSessions(context.Context, *RevokeOtherSessionsRequest) (*RevokeOtherSessionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeOtherSessions not implemented")
 }
 func (UnimplementedAuthServiceServer) Reauthenticate(context.Context, *ReauthenticateRequest) (*ReauthenticateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Reauthenticate not implemented")
@@ -640,6 +672,24 @@ func _AuthService_RevokeSession_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_RevokeOtherSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeOtherSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).RevokeOtherSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_RevokeOtherSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).RevokeOtherSessions(ctx, req.(*RevokeOtherSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_Reauthenticate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReauthenticateRequest)
 	if err := dec(in); err != nil {
@@ -780,6 +830,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RevokeSession",
 			Handler:    _AuthService_RevokeSession_Handler,
+		},
+		{
+			MethodName: "RevokeOtherSessions",
+			Handler:    _AuthService_RevokeOtherSessions_Handler,
 		},
 		{
 			MethodName: "Reauthenticate",

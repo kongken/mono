@@ -98,6 +98,9 @@ export default function LoginPage() {
   return (
     <div className="mx-auto grid max-w-md gap-4">
       {reason === "expired" ? <Notice kind="info">登录已失效，请重新登录。</Notice> : null}
+      {reason === "password-changed" ? (
+        <Notice kind="success">密码已修改。所有设备上的登录都已退出，请用新密码重新登录。</Notice>
+      ) : null}
       <TargetNotice target={target} action="登录后将进入账号概览。" />
       <AuthPanel
         api={account}

@@ -344,7 +344,8 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 | `AuthService.RequestPasswordReset` | 匿名写 | email、app_id；统一受理提示 |
 | `AuthService.ResetPassword` | 匿名写 | token、new_password；成功不登录 |
 | `AuthService.Me` / `ListSessions` | 当前会话，只读 | 当前账号、角色；本人的设备列表 |
-| `AuthService.Logout` / `RevokeSession` | 当前会话，写 | 退出清 Cookie；撤销不能指定其他用户的会话 |
+| `AuthService.Logout` / `RevokeSession` | 当前会话，写 | 退出清 Cookie；撤销不能指定其他用户的会话（别人的与不存在的 ID 同为 `NOT_FOUND`，重复撤销成功，撤销自己清 Cookie） |
+| `AuthService.RevokeOtherSessions` | 当前会话，写 | OzID T3：一条语句撤销本人除当前外的有效会话，幂等；不改 `auth_version`、不吊销管理令牌；每账号 15 分钟 10 次 |
 | `AuthService.Reauthenticate` | 当前会话，写 | 当前密码；只刷新真实认证时间 |
 | `AuthService.ChangePassword` | 当前会话，写 | 当前密码、新密码；全部凭证失效 |
 | `UserService.UpdateMyProfile` | 当前会话，写 | 仅基础昵称/头像，返回本人资料 |

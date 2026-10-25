@@ -5,8 +5,10 @@ import ForgotPasswordPage from "@/pages/ForgotPassword";
 import LoginPage from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 import OverviewPage from "@/pages/Overview";
+import ProfilePage from "@/pages/Profile";
 import RegisterPage from "@/pages/Register";
 import SecurityPage from "@/pages/Security";
+import SessionsPage from "@/pages/Sessions";
 
 function Routes() {
   switch (useRoute()) {
@@ -18,8 +20,12 @@ function Routes() {
       return <RegisterPage />;
     case "forgot-password":
       return <ForgotPasswordPage />;
+    case "profile":
+      return <ProfilePage />;
     case "security":
       return <SecurityPage />;
+    case "sessions":
+      return <SessionsPage />;
     default:
       return <NotFound />;
   }

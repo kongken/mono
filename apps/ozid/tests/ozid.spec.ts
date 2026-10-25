@@ -223,8 +223,10 @@ test.describe("password confirmation", () => {
   test("without a target the user stays in OzID after confirming", async ({ page }) => {
     await setup(page, { signedIn: true });
     await page.goto("/security");
-    await page.getByLabel("当前密码").fill(PASSWORD);
-    await page.getByRole("button", { name: "确认密码" }).click();
+    // Opened directly, the page also holds the password change: scope to the confirmation.
+    const confirm = page.getByTestId("reauthenticate");
+    await confirm.getByLabel("当前密码").fill(PASSWORD);
+    await confirm.getByRole("button", { name: "确认密码" }).click();
     await expect(page.getByTestId("reauthenticated")).toBeVisible();
   });
 

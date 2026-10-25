@@ -27,6 +27,9 @@ const (
 	// deletionWindow is the window of the per-account limit on account deletion starts and retries.
 	deletionWindow = 15 * time.Minute
 	deletionLimit  = 10
+	// revokeOthersWindow is the window of the per-account limit on "sign out other devices".
+	revokeOthersWindow = 15 * time.Minute
+	revokeOthersLimit  = 10
 )
 
 // Users is the part of usersrv the account layer needs; *usersrv.Client implements it.
@@ -217,6 +220,9 @@ func (s *Service) ListSessions(ctx context.Context, userID, currentSessionID str
 	return out, nil
 }
 
+// RevokeSession revokes one session of the caller. The row is matched on both the ID and the
+// caller's user ID, so another account's session and an unknown ID give the same NOT_FOUND;
+// a session that is already revoked is matched too, which makes a repeat succeed.
 func (s *Service) RevokeSession(ctx context.Context, userID, sessionID string) error {
 	n, err := s.db.Session.Update().
 		Where(entsession.ID(sessionID), entsession.UserID(userID)).SetRevoked(true).Save(ctx)
@@ -227,6 +233,25 @@ func (s *Service) RevokeSession(ctx context.Context, userID, sessionID string) e
 		return connect.NewError(connect.CodeNotFound, errors.New("session not found"))
 	}
 	return nil
+}
+
+// RevokeOtherSessions revokes every live session of the caller except the current one in one
+// UPDATE, so a session that exists while it runs cannot be missed and two concurrent calls
+// revoke each row exactly once between them. It reads and writes nothing but the BFF's
+// session table: the account's auth_version, its password and its management tokens are
+// untouched, and a session created after the statement is not affected. It returns how
+// many sessions this call revoked.
+func (s *Service) RevokeOtherSessions(ctx context.Context, bs session.BrowserSession) (int, error) {
+	if err := s.allow(ctx, "revoke-others:"+bs.UserID, revokeOthersLimit, revokeOthersWindow); err != nil {
+		return 0, err
+	}
+	n, err := s.db.Session.Update().
+		Where(entsession.UserID(bs.UserID), entsession.IDNEQ(bs.SessionID), entsession.Revoked(false), entsession.ExpiresAtGT(s.now())).
+		SetRevoked(true).Save(ctx)
+	if err != nil {
+		return 0, internal(err)
+	}
+	return n, nil
 }
 
 func (s *Service) IssueCSRF() (string, error) { return session.NewCSRF() }

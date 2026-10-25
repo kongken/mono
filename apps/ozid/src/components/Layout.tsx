@@ -2,11 +2,19 @@ import { useState, type ReactNode } from "react";
 import { Button } from "@kongken/ui/button";
 import { Notice } from "@kongken/account/ui";
 import { UserCircle } from "@phosphor-icons/react";
-import { Link } from "@/lib/router";
+import { Link, usePath } from "@/lib/router";
 import { useSession } from "@/lib/session";
+
+const NAV = [
+  { to: "/", label: "概览" },
+  { to: "/profile", label: "资料" },
+  { to: "/security", label: "安全" },
+  { to: "/sessions", label: "设备" },
+];
 
 export function Layout({ children }: { children: ReactNode }) {
   const { session, signOut } = useSession();
+  const path = usePath();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const leave = async () => {
@@ -39,6 +47,20 @@ export function Layout({ children }: { children: ReactNode }) {
             ) : null}
           </div>
         </div>
+        {session.status === "signed-in" ? (
+          <nav aria-label="账号" className="mx-auto flex max-w-3xl gap-1 overflow-x-auto px-4 pb-2 text-sm">
+            {NAV.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                aria-current={path === item.to ? "page" : undefined}
+                className="whitespace-nowrap rounded-md px-3 py-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-[current=page]:bg-muted aria-[current=page]:font-medium aria-[current=page]:text-foreground"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        ) : null}
         {failed ? (
           <div className="mx-auto max-w-3xl px-4 pb-3">
             <Notice kind="error">退出登录没有完成，请检查网络后重试。</Notice>

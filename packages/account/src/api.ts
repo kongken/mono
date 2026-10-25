@@ -151,6 +151,12 @@ export function createAccountApi({ transport, appId, ensureCsrf }: AccountApiOpt
         expiresAt: date(s.expiresAt),
       })),
     revokeSession: (id: string) => write(() => auth.revokeSession({ id })).then(() => undefined),
+    /**
+     * Signs out every other device in one atomic, idempotent step and keeps this session. It
+     * neither changes the password nor ends management tokens. Resolves with how many sessions
+     * this call ended (0 on a repeat).
+     */
+    revokeOtherSessions: async (): Promise<number> => (await write(() => auth.revokeOtherSessions({}))).revoked,
     logout: () => write(() => auth.logout({})).then(() => undefined),
     reauthenticate: (password: string) => write(() => auth.reauthenticate({ password })).then(() => undefined),
     changePassword: (currentPassword: string, newPassword: string) =>

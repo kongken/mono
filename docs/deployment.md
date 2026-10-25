@@ -136,7 +136,7 @@ docker run --rm --network <内部网络> -e USERSRV_DATABASE_URL='postgres://…
   grant-role -email admin@example.com -role metro-admin -operator alice -reason "ticket 42"
 ```
 
-8. **上线顺序与回滚。** usersrv（含迁移）→ BFF（含迁移与配置）→ tripmap / metro → 前端。涉及 OzID 邮件的版本（T2）有更严格的顺序：迁移 → `ozid-web`（落地页就绪）→ usersrv（邮件由此开始链接到 OzID）→ BFF（必须配置 `navigation`）→ 其余前端；新版 BFF 配旧版 usersrv 是**不支持的组合**（空 `app_id` 会被旧 usersrv 拒绝），回滚时先 BFF 后 usersrv，细节与已测试/未测试范围见 [OzID 功能描述](ozid/features.md#升级顺序回滚与兼容边界t2)。回滚镜像时不要回退 usersrv 的迁移，先确认旧镜像兼容当前表结构；一旦用户已在 usersrv 注册，回滚到 Logto 版本不是受支持的路径，需要恢复备份并接受账号丢失。
+8. **上线顺序与回滚。** usersrv（含迁移）→ BFF（含迁移与配置）→ tripmap / metro → 前端。涉及 OzID 邮件的版本（T2）有更严格的顺序：迁移 → `ozid-web`（落地页就绪）→ usersrv（邮件由此开始链接到 OzID）→ BFF（必须配置 `navigation`）→ 其余前端；新版 BFF 配旧版 usersrv 是**不支持的组合**（空 `app_id` 会被旧 usersrv 拒绝），回滚时先 BFF 后 usersrv，细节与已测试/未测试范围见 [OzID 功能描述](ozid/features.md#升级顺序回滚与兼容边界t2)。OzID 的资料/密码/设备页（T3）没有迁移也不改 usersrv：先 BFF（新增 `RevokeOtherSessions`）后 `ozid-web`，见 [同一文档](ozid/features.md#账号资料密码与设备t3)。回滚镜像时不要回退 usersrv 的迁移，先确认旧镜像兼容当前表结构；一旦用户已在 usersrv 注册，回滚到 Logto 版本不是受支持的路径，需要恢复备份并接受账号丢失。
 9. **验收。** BFF `/readyz` 中 `usersrv` 与 `usersrv_grpc` 就绪；走一遍注册 → 收邮件 → 设密码 → 登录 → 业务写入 → 找回密码 → 重新登录 → 注销（`make test-integration` 在隔离的真实 PostgreSQL / Redis / S3 上自动走这条链，不含真实邮件）。
 
 旧 Logto 的外部资源与旧表的清理见 [Logto 退役与手动清理](usersrv/retirement.md)；服务启动与迁移不会自动删除任何东西。

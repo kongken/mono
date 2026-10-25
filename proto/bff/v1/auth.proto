@@ -79,8 +79,17 @@ service AuthService {
   rpc Logout(LogoutRequest) returns (LogoutResponse) {
     option (platform.v1.anonymous) = true;
   }
-  // RevokeSession revokes one of the caller's own sessions.
+  // RevokeSession revokes one of the caller's own sessions. Repeating it for a session
+  // that is already revoked succeeds; an ID that is not the caller's (another account's
+  // or unknown) is NOT_FOUND, with the same answer for both. Revoking the session of the
+  // request itself also clears its Cookie, like Logout.
   rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+  // RevokeOtherSessions revokes every live browser session of the caller except the one
+  // making the request, in a single statement, so no concurrent session can be missed.
+  // It is idempotent (a repeat revokes nothing and still succeeds) and limited to 10 calls
+  // per 15 minutes per account. It does not touch auth_version, the password or the
+  // management (MCP) tokens, and a session opened after it ran is not affected.
+  rpc RevokeOtherSessions(RevokeOtherSessionsRequest) returns (RevokeOtherSessionsResponse);
   // Reauthenticate re-checks the current password and, only then, records a fresh
   // authentication time on this session. Sensitive actions (DeleteAccount, creating
   // a management token) need it within the last 15 minutes.
@@ -249,6 +258,13 @@ message RevokeSessionRequest {
 }
 
 message RevokeSessionResponse {}
+
+message RevokeOtherSessionsRequest {}
+
+message RevokeOtherSessionsResponse {
+  // How many sessions this call revoked; 0 on a repeat or when there were no others.
+  int32 revoked = 1;
+}
 
 message ReauthenticateRequest {
   string password = 1;

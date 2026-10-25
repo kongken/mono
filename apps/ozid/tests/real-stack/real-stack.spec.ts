@@ -400,3 +400,168 @@ test.describe("account mail, end to end", () => {
     }
   });
 });
+
+/**
+ * Profile, password and devices through the real chain and real Chromium profiles: each browser
+ * context is a separate device with its own Cookie jar, so every sign-in is a separate BFF session.
+ */
+test.describe("profile, password and devices, end to end", () => {
+  const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+
+  /** An account registered through the real mail path; the returned address signs in with stack.password. */
+  async function newAccount(browser: Browser, label: string, display: string) {
+    const email = uniqueEmail(label);
+    const asker = await freshBrowser(browser, () => {});
+    const reader = await freshBrowser(browser, () => {});
+    await asker.page.goto(`${stack.id}/register`);
+    await asker.page.getByLabel("邮箱").fill(email);
+    await asker.page.getByRole("button", { name: "发送验证邮件" }).click();
+    await expect(asker.page.getByTestId("register-sent")).toBeVisible();
+    await asker.page.goto(await mailedLink(reader.page, email));
+    await asker.page.getByLabel("昵称（可选）").fill(display);
+    await asker.page.getByLabel("密码", { exact: true }).fill(stack.password);
+    await asker.page.getByLabel("再次输入密码").fill(stack.password);
+    await asker.page.getByRole("button", { name: "完成注册" }).click();
+    await expect(asker.page.getByTestId("landing-done")).toBeVisible();
+    await asker.context.close();
+    await reader.context.close();
+    return email;
+  }
+
+  /** A new device: its own context, signed in at OzID. */
+  async function device(browser: Browser, email: string, password = stack.password) {
+    const d = await freshBrowser(browser, () => {});
+    await d.page.goto(`${stack.id}/login`);
+    await d.page.getByLabel("邮箱").fill(email);
+    await d.page.getByLabel("密码", { exact: true }).fill(password);
+    await d.page.getByRole("button", { name: "登录", exact: true }).click();
+    await expect(d.page.getByTestId("overview")).toBeVisible();
+    return d;
+  }
+
+  /** What a product on another origin learns from the shared Cookie of this device. */
+  async function productSees(d: { page: Page }, origin: string) {
+    await d.page.goto(`${origin}/`);
+    return (await d.page.locator("#me").innerText()).trim();
+  }
+
+  const stillIn = async (d: { page: Page }) => {
+    await d.page.goto(`${stack.id}/`);
+    await d.page.waitForLoadState("networkidle");
+    return !new URL(d.page.url()).pathname.startsWith("/login");
+  };
+
+  test("edit the profile, sign out other devices, sign out this browser, change the password", async ({ browser }) => {
+    const email = await newAccount(browser, "devices", "起始昵称");
+    const a = await device(browser, email);
+    const b = await device(browser, email);
+    const c = await device(browser, email);
+
+    // Profile: the email is shown and cannot be edited; the nickname is shared with every device and product.
+    await a.page.goto(`${stack.id}/profile`);
+    const form = a.page.getByTestId("profile-form");
+    await expect(form.getByLabel("登录邮箱")).toHaveValue(email);
+    await expect(form.getByLabel("登录邮箱")).toHaveAttribute("readonly", "");
+    await form.getByLabel("昵称").fill("改过的昵称");
+    await form.getByRole("button", { name: "保存资料" }).click();
+    await expect(form.getByRole("status")).toContainText("资料已保存");
+    await expect(a.page.getByTestId("header-name")).toHaveText("改过的昵称");
+    expect(await productSees(a, stack.metro)).toBe("user:改过的昵称");
+    expect(await productSees(b, stack.trip)).toBe("user:改过的昵称");
+    expect(await noOverflow(a.page)).toBe(true);
+
+    // Devices: three real sessions, only real metadata.
+    await a.page.goto(`${stack.id}/sessions`);
+    const list = a.page.getByTestId("sessions");
+    await expect(list.getByText("当前设备")).toHaveCount(1);
+    await expect(list.locator("li").filter({ hasText: "其他设备" })).toHaveCount(2);
+    await expect(list).toContainText("有效期至");
+    expect(await noOverflow(a.page)).toBe(true);
+
+    // One specific device: exactly one of the other two is out, this one stays.
+    await list.getByRole("button", { name: /退出其他设备（最近使用/ }).first().click();
+    await expect(list.locator("li").filter({ hasText: "其他设备" })).toHaveCount(1);
+    const survivors = [await stillIn(b), await stillIn(c)];
+    expect(survivors.filter(Boolean)).toHaveLength(1);
+
+    // Sign out other devices: the rest go in one call, this device stays, a later sign-in is not affected.
+    await a.page.goto(`${stack.id}/sessions`);
+    const area = a.page.getByTestId("sign-out-others");
+    await area.getByRole("button", { name: "退出其他 1 台设备" }).click();
+    await expect(a.page.getByTestId("sessions").getByRole("status")).toContainText("已退出其他 1 台设备，本设备保持登录");
+    expect(await stillIn(b)).toBe(false);
+    expect(await stillIn(c)).toBe(false);
+    expect(await productSees(b, stack.metro)).toMatch(/^anonymous/);
+    expect(await productSees(a, stack.metro)).toBe("user:改过的昵称");
+    const d = await device(browser, email);
+    expect(await stillIn(d)).toBe(true);
+    expect(await stillIn(a)).toBe(true);
+
+    // Sign out this browser: every product on this device sees it; the other device keeps its login;
+    // OzID leaves what the origin's own storage holds alone.
+    await a.page.goto(`${stack.id}/sessions`);
+    await a.page.evaluate(() => localStorage.setItem("kongken.sentinel", "keep"));
+    const here = a.page.getByTestId("sign-out-here");
+    await expect(here).toContainText("不会清除各应用保存在这个浏览器里的数据");
+    await here.getByRole("button", { name: "退出这个浏览器的登录" }).click();
+    await expect(a.page).toHaveURL(`${stack.id}/login`);
+    expect(await a.page.evaluate(() => localStorage.getItem("kongken.sentinel"))).toBe("keep");
+    expect(await productSees(a, stack.trip)).toMatch(/^anonymous/);
+    expect(await productSees(a, stack.metro)).toMatch(/^anonymous/);
+    expect(await stillIn(d)).toBe(true);
+
+    // Password: a wrong current one changes nothing; the right one ends every session, this device included.
+    const e = await device(browser, email);
+    const next = "another long password 2";
+    await e.page.goto(`${stack.id}/security`);
+    expect(await noOverflow(e.page)).toBe(true);
+    const pw = e.page.getByTestId("password-form");
+    await pw.getByLabel("当前密码").fill("not the password at all");
+    await pw.getByLabel("新密码", { exact: true }).fill(next);
+    await pw.getByLabel("再次输入新密码").fill(next);
+    await pw.getByRole("button", { name: "修改密码" }).click();
+    await expect(pw.getByText("当前密码不正确")).toBeVisible();
+    expect(await stillIn(d)).toBe(true);
+    await e.page.goto(`${stack.id}/security`);
+    await pw.getByLabel("当前密码").fill(stack.password);
+    await pw.getByLabel("新密码", { exact: true }).fill(next);
+    await pw.getByLabel("再次输入新密码").fill(next);
+    await pw.getByRole("button", { name: "修改密码" }).click();
+    await expect(e.page).toHaveURL(`${stack.id}/login?reason=password-changed`);
+    await expect(e.page.getByText("所有设备上的登录都已退出")).toBeVisible();
+    expect(await stillIn(d)).toBe(false);
+    expect(await productSees(e, stack.metro)).toMatch(/^anonymous/);
+    // Old password refused, new one works.
+    await e.page.goto(`${stack.id}/login`);
+    await e.page.getByLabel("邮箱").fill(email);
+    await e.page.getByLabel("密码", { exact: true }).fill(stack.password);
+    await e.page.getByRole("button", { name: "登录", exact: true }).click();
+    await expect(e.page.getByRole("alert")).toBeVisible();
+    await e.page.getByLabel("密码", { exact: true }).fill(next);
+    await e.page.getByRole("button", { name: "登录", exact: true }).click();
+    await expect(e.page.getByTestId("overview")).toBeVisible();
+
+    for (const x of [a, b, c, d, e]) await x.context.close();
+  });
+
+  test("device operations refuse a foreign Origin and a missing CSRF token, and end nothing", async ({ browser }) => {
+    const email = await newAccount(browser, "guarded", "守卫");
+    const a = await device(browser, email);
+    const b = await device(browser, email);
+    const csrf = (await a.context.cookies()).find((c) => c.name === "kongken_csrf")!.value;
+    const foreign = await raw(`${AUTH}RevokeOtherSessions`, { origin: stack.evil, headers: { "X-CSRF-Token": csrf }, context: a.context });
+    expect(foreign.status, foreign.text).toBeGreaterThanOrEqual(400);
+    const noCsrf = await raw(`${AUTH}RevokeOtherSessions`, { origin: stack.id, context: a.context });
+    expect(noCsrf.status, noCsrf.text).toBeGreaterThanOrEqual(400);
+    const anonymous = await raw(`${AUTH}RevokeOtherSessions`, { origin: stack.id, headers: { "X-CSRF-Token": "x" } });
+    expect(anonymous.status).toBeGreaterThanOrEqual(400);
+    expect(await stillIn(b)).toBe(true);
+    // The registered Origin with the pair works, and ends exactly the other device.
+    const ok = await raw(`${AUTH}RevokeOtherSessions`, { origin: stack.id, headers: { "X-CSRF-Token": csrf }, context: a.context });
+    expect(ok.status, ok.text).toBe(200);
+    expect(await stillIn(b)).toBe(false);
+    expect(await stillIn(a)).toBe(true);
+    await a.context.close();
+    await b.context.close();
+  });
+});

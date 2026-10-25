@@ -387,11 +387,14 @@ export function ProfileForm({
   user,
   email,
   onUpdated,
+  onSessionInvalid,
 }: {
   api: AccountApi;
   user: AccountUser;
   email: string;
   onUpdated: (user: AccountUser) => void;
+  /** The server says there is no valid session any more; the page should look again and ask for a sign-in. */
+  onSessionInvalid?: () => void;
 }) {
   const [displayName, setDisplayName] = useState(user.displayName);
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl);
@@ -422,6 +425,7 @@ export function ProfileForm({
         onUpdated(updated);
       } catch (error) {
         const failure = classifyAccountError(error, "profile");
+        if (failure.kind === "not_signed_in") onSessionInvalid?.();
         if (failure.field) setErrors({ [failure.field]: failure.message });
         else setNotice({ kind: "error", text: failure.message });
         setTick((t) => t + 1);
@@ -469,12 +473,15 @@ export function ChangePasswordForm({
   api,
   email,
   onChanged,
+  onSessionInvalid,
 }: {
   api: AccountApi;
   /** Lets a password manager tie the new password to the right login. */
   email?: string;
   /** Every session of the account, this one too, stopped working: the app must sign the user out here. */
   onChanged: () => void | Promise<void>;
+  /** The server says there is no valid session any more (not a wrong password); the page should ask for a sign-in. */
+  onSessionInvalid?: () => void;
 }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -503,6 +510,7 @@ export function ChangePasswordForm({
         await api.changePassword(current, next);
       } catch (error) {
         const failure = classifyAccountError(error, "change-password");
+        if (failure.kind === "not_signed_in") onSessionInvalid?.();
         if (failure.kind === "wrong_password") setErrors({ password: failure.message });
         else if (failure.field) setErrors({ [failure.field]: failure.message });
         else setNotice(failure.message);
@@ -544,47 +552,88 @@ export function ChangePasswordForm({
 
 const when = (date: Date | null) => (date ? date.toLocaleString("zh-CN", { hour12: false }) : "—");
 
-export function SessionsList({ api, onSignedOutHere }: { api: AccountApi; onSignedOutHere?: () => void }) {
+type SessionsListProps = {
+  api: AccountApi;
+  /** The server says this very session is gone (signed out elsewhere, password changed): the app must ask for a new sign-in. */
+  onSignedOutHere?: () => void;
+  /**
+   * Offers "sign out other devices" (one atomic call that keeps this device). Off for the
+   * products, which only show the list; OzID turns it on.
+   */
+  revokeOthers?: boolean;
+};
+
+/**
+ * The account's live browser sessions: only what the BFF really stores (when each was opened,
+ * last used and expires), never an invented device name, address or place. A failed read is
+ * shown as a failure to read, and only the server's "not signed in" is treated as a sign-out.
+ */
+export function SessionsList({ api, onSignedOutHere, revokeOthers = false }: SessionsListProps) {
   const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [signedOut, setSignedOut] = useState(false);
+  const [notice, setNotice] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const { pending, run } = useRunner();
+  const signedOutHere = useRef(onSignedOutHere);
+  signedOutHere.current = onSignedOutHere;
+
+  const failed = useCallback((error: unknown) => {
+    const failure = classifyAccountError(error, "other");
+    if (failure.kind === "not_signed_in") {
+      setSignedOut(true);
+      signedOutHere.current?.();
+    }
+    return failure;
+  }, []);
 
   const load = useCallback(async () => {
     try {
       setSessions(await api.listSessions());
       setLoadFailed(false);
-    } catch {
-      setLoadFailed(true);
+    } catch (error) {
+      setLoadFailed(failed(error).kind !== "not_signed_in");
     }
-  }, [api]);
+  }, [api, failed]);
   useEffect(() => {
     void load();
   }, [load]);
 
   const revoke = (id: string) =>
     run(async () => {
-      setNotice("");
+      setNotice(null);
       try {
         await api.revokeSession(id);
         await load();
       } catch (error) {
-        const failure = classifyAccountError(error, "other");
-        if (failure.kind === "not_signed_in") onSignedOutHere?.();
-        setNotice(failure.message);
+        setNotice({ kind: "error", text: failed(error).message });
       }
     });
+
+  const signOutOthers = () =>
+    run(async () => {
+      setNotice(null);
+      try {
+        const n = await api.revokeOtherSessions();
+        setNotice({ kind: "success", text: n > 0 ? `已退出其他 ${n} 台设备，本设备保持登录。` : "没有其他设备需要退出，本设备保持登录。" });
+        await load();
+      } catch (error) {
+        setNotice({ kind: "error", text: failed(error).message });
+      }
+    });
+
+  const others = sessions?.filter((s) => !s.current).length ?? 0;
 
   return (
     <section className="account-sessions grid gap-2" aria-labelledby="account-sessions-title" data-testid="sessions">
       <h3 id="account-sessions-title" className="text-base font-semibold">已登录的设备</h3>
-      {sessions === null && !loadFailed ? <p role="status" className="text-sm text-muted-foreground">正在读取…</p> : null}
+      {sessions === null && !loadFailed && !signedOut ? <p role="status" className="text-sm text-muted-foreground">正在读取…</p> : null}
+      {signedOut ? <Notice kind="error">登录已失效，请重新登录。</Notice> : null}
       {loadFailed ? (
         <Notice kind="error">
-          暂时无法读取设备列表。 <LinkButton onClick={() => void load()}>重试</LinkButton>
+          暂时无法读取设备列表，这不代表你已退出登录。 <LinkButton onClick={() => void load()}>重试</LinkButton>
         </Notice>
       ) : null}
-      {notice ? <Notice kind="error">{notice}</Notice> : null}
+      {notice ? <Notice kind={notice.kind}>{notice.text}</Notice> : null}
       {sessions && sessions.length > 0 ? (
         <ul className="m-0 grid list-none gap-0 p-0">
           {sessions.map((s) => (
@@ -592,6 +641,7 @@ export function SessionsList({ api, onSignedOutHere }: { api: AccountApi; onSign
               <span className="min-w-0">
                 {s.current ? "当前设备" : "其他设备"}
                 <small className="mt-0.5 block text-xs text-muted-foreground">最近使用 {when(s.lastUsedAt)}</small>
+                <small className="block text-xs text-muted-foreground">登录于 {when(s.createdAt)}，有效期至 {when(s.expiresAt)}</small>
               </span>
               {!s.current ? (
                 <Button variant="outline" size="sm" disabled={pending} aria-label={`退出其他设备（最近使用 ${when(s.lastUsedAt)}）`} onClick={() => void revoke(s.id)}>
@@ -601,6 +651,18 @@ export function SessionsList({ api, onSignedOutHere }: { api: AccountApi; onSign
             </li>
           ))}
         </ul>
+      ) : null}
+      {revokeOthers && sessions ? (
+        <div className="grid gap-2 border-t pt-3" data-testid="sign-out-others">
+          <p className="text-sm text-muted-foreground">
+            “退出其他设备”会让除这台设备以外的所有登录失效，不影响本设备，也不会修改密码或已创建的管理令牌；之后再登录的设备不受影响。
+          </p>
+          <div>
+            <Button variant="outline" disabled={pending || others === 0} onClick={() => void signOutOthers()}>
+              {pending ? "处理中…" : others > 0 ? `退出其他 ${others} 台设备` : "没有其他设备"}
+            </Button>
+          </div>
+        </div>
       ) : null}
     </section>
   );
