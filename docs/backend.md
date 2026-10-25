@@ -1,5 +1,7 @@
 # 后端初始化
 
+> **后续扩展，待实现：** [OzID 与统一管理控制台规格](ozid/spec.md) 在现有 usersrv 上规划平台管理员角色、受限用户管理与审计，并复用现有 BFF 会话承载两个独立前端。本次只有规格；本文的当前接口、模型、配置和命令尚未随之改变。
+
 ## 当前状态与技术栈
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
