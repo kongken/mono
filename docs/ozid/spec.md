@@ -11,10 +11,10 @@
 | 决策 | 已确认结论 |
 | --- | --- |
 | 用户中心品牌 | **OzID**，面向用户的统一账号系统，不只是登录页面 |
-| 用户中心前端 | `apps/ozid`，包名 `@kongken/ozid`，当前正式域名 `https://id.orz.ee` |
-| 统一管理控制台 | 独立前端 `apps/admin`，包名 `@kongken/admin`，当前正式域名 `https://admin.orz.ee`；不是 `id.orz.ee/admin`，也不是只管理账号的“OzID Admin” |
+| 用户中心前端 | `apps/ozid`，包名 `@kongken/ozid`，部署示例 `https://id.example.com`（非真实地址）；正式地址由私有部署配置给出 |
+| 统一管理控制台 | 独立前端 `apps/admin`，包名 `@kongken/admin`，部署示例 `https://admin.example.com`（非真实地址）；不放在用户中心的 `/admin` 下，也不是只管理账号的“OzID Admin” |
 | 账号后端 | 复用现有 usersrv、用户 UUID、密码/邮件/角色/认证版本；不为产品品牌重命名后端，不增加第二个账号库 |
-| 公网入口与会话 | 继续使用同一个 BFF，当前为 `https://api.orz.ee`；前端直接携带 credentials 请求它，Cookie 只属于 API 主机 |
+| 公网入口与会话 | 继续使用同一个 BFF，部署示例 `https://api.example.com`（非真实地址）；前端直接携带 credentials 请求它，Cookie 只属于 API 主机 |
 | 首版接入 | 山海足迹、地铁足迹、OzID 和管理控制台；普通账号默认能使用两个产品的普通功能，无逐应用审批 |
 | 后续范围 | 面向用户自己的其他项目；首版只承诺同站点、同 BFF 的接入，不开放第三方开发者自助接入 |
 | 登录与入口 | 邮箱＋密码；产品的登录、注册、找回密码、邮箱落地页和账号设置收敛至 OzID，产品只保留业务设置；不重新引入 Logto |
@@ -49,7 +49,7 @@
 ### 非目标
 
 - OAuth/OIDC/SAML、跨根域或独立 BFF 的单点登录、第三方开发者平台、自助应用接入、应用授权审批。
-- 根域 `Domain=.orz.ee` Cookie、前端 Bearer 长期登录、自创一次性登录票据/认证码交换协议。
+- 根域 Cookie（如示例 `Domain=.example.com`）、前端 Bearer 长期登录、自创一次性登录票据/认证码交换协议。
 - 修改邮箱、账号合并、外部身份绑定、手机号/社交登录、Passkey、MFA/TOTP/恢复码；上一轮曾提出的 MFA 并未纳入本版。管理后台不能脱离 IP 限制直接开放公网；若要开放，另评审 MFA 等风险控制。
 - 用户管理后台中的直接设密、查看密码/密码哈希、冒充登录、代用户注销、批量用户导出、自定义角色编辑器。
 - 邮件模板编辑、厂商配置 Web UI、送达追踪或替换 usersrv 第一版邮件机制；F12 通知邮箱继续独立，不自动使用登录邮箱。
@@ -59,9 +59,9 @@
 ## 3. 架构与职责
 
 ```text
-OzID 用户中心     id.orz.ee       ─┐
-统一管理控制台    admin.orz.ee    ─┤
-山海足迹         tripmap 子域名   ─┼─ credentials → api.orz.ee / BFF
+OzID 用户中心     id.example.com       ─┐
+统一管理控制台    admin.example.com    ─┤
+山海足迹         产品子域名            ─┼─ credentials → api.example.com / BFF
 地铁足迹         metro 子域名     ─┘                    ├─ usersrv（内网）
                                                        ├─ tripmap（内网）
 MCP 客户端 ─ 机器 IP 白名单 + Bearer → BFF /mcp/metro    └─ metro（内网）
@@ -91,11 +91,11 @@ MCP 客户端 ─ 机器 IP 白名单 + Bearer → BFF /mcp/metro    └─ metr
 | usersrv | 中央账号邮件 origin、允许来源应用和导航上下文、角色白名单相关配置 | 服务端配置，变更重启；不再让产品各自产生邮件落地页 |
 | 部署 | DNS、TLS、Ingress/反代 host、前端 IP 防护、BFF 的受信网络入口 | 随部署更新，不修改业务源码 |
 
-可保留 `VITE_API_BASE_URL` 等现有参数；新增变量及 YAML 字段在实现时定名，并同时更新类型、配置校验、example、Docker build args 和文档。参数只含公开地址，不含 Secret。禁止只提供环境变量示意却遗漏镜像构建参数传递；Butterfly YAML 当前不会自动展开 `${VAR}`。
+可保留 `VITE_API_BASE_URL` 等现有参数；新增变量及 YAML 字段在实现时定名，并同时更新类型、配置校验、example、Docker build args 和文档。参数只含前端运行所需的公开地址，不含 Secret。**公开仓库、Issue、PR 与配置示例只使用保留示例域名或占位符，不记录真实部署域名、IP 白名单或凭据；真实值由私有构建/部署配置注入。** 禁止只提供环境变量示意却遗漏镜像构建参数传递；Butterfly YAML 当前不会自动展开 `${VAR}`。
 
 ### 4.2 不变量
 
-- `id.orz.ee`、`admin.orz.ee`、`api.orz.ee` 仅作为正式部署配置值；业务源码、路由守卫、模板不嵌入这些域名。测试可以显式使用独立测试域名。
+- `id.example.com`、`admin.example.com`、`api.example.com` 仅为保留示例，均不代表真实部署地址；正式值通过私有配置注入，业务源码、路由守卫、模板不嵌入真实域名。测试使用独立保留测试域名。
 - 稳定应用 ID 首版为 `ozid`、`admin`、`trip-map`、`metro`；应用 ID 不是 hostname、Cookie domain 或可任意填写的跳转 URL。
 - 所有启用前端必须使用同一个规范 API origin，不保留产品各自同源 `/api` 代理来冒充共享会话；用户中心/控制台也不把 API Cookie 留在自己主机上。
 - 生产 HTTPS、Secure Cookie、同一 schemeful site、允许的受信任子域名；**同根域不等于同源**。CORS 为精确 origin（协议、域名、端口），不能使用 `*` 或任意回显。
