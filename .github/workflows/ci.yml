@@ -89,12 +89,66 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run check:maps
+      # trip-map and metro are served behind a same-origin /api proxy.
       - run: npm run build
         env:
           VITE_API_BASE_URL: /api
+      # OzID calls the BFF at its own public origin (absolute https only, no default). The
+      # address is a reserved example name: nothing is deployed from CI.
+      - run: npm run build:ozid
+        env:
+          VITE_API_BASE_URL: https://api.example.com/api
       - name: Browser acceptance (mocked BFF, no real mail)
         run: |
           npx playwright install --with-deps chromium
           npm run test:e2e:trip-map
       - name: Browser acceptance for metro (mocked BFF, no real mail)
         run: npm run test:e2e:metro
+      - name: Browser acceptance for OzID (mocked BFF)
+        run: npm run test:e2e:ozid
+
+  # OzID in a real browser against the real BFF and usersrv: HTTPS, sibling sub-domains of a
+  # reserved test site, the host-only Cookie, exact CORS/CSRF/Origin checks. It builds the OzID
+  # bundle for the addresses of the scenario itself (see internal/e2e/ozid_browser_test.go).
+  ozid-browser:
+    name: OzID real-browser acceptance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tripmap
+          POSTGRES_PASSWORD: tripmap-ci
+          POSTGRES_DB: tripmap
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tripmap" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      OZID_BROWSER_E2E: "1"
+      TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
+      USERSRV_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      USERSRV_TEST_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: OzID sign-in, return and reauthentication in Chromium
+        run: go test ./internal/e2e -run TestOzidBrowserChain -count=1 -v

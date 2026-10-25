@@ -168,3 +168,15 @@ docker run --rm --network <内部网络> -e USERSRV_DATABASE_URL='postgres://…
 公网 API 域名提供 `/api/bff.*` 与 `/mcp/metro`；不再有 `/auth/login` 或 `/auth/callback/*`。多个 HTTPS 同站点应用分别构建 `VITE_API_BASE_URL=https://api.example.com/api`；BFF 配置精确的 `cors_allowed_origins`，生产 `cookie_secure: true`。邮件里的链接来源由 usersrv 的 `auth.apps.<app_id>.origin` 决定。API 主机保存 host-only Cookie，应用用 credentials include 和 CSRF 响应体 token 调用；不要扩大 Domain。任意跨站点及第三方 Cookie 限制不属于支持承诺。
 
 同源 `/api` 模式把 `/api` 代理到 BFF。独立前端代理会得到各自的 Cookie，不能与直连共享 BFF 主机会话混为一谈。`client_ip_header` 只信任已覆盖客户端同名头的网关；BFF 不按 Host/Referer 推导可信来源。
+
+## OzID 用户中心的部署
+
+OzID（`apps/ozid`，镜像 `ozid-web`）是纯静态站点，没有同源 `/api`：浏览器直接以 `credentials: include` 调用 BFF 的规范公开 origin，Cookie 只属于该 API 主机（host-only）。三个主机——OzID、API、各产品——须在同一 HTTPS 站点内，示例 `id.example.com`、`api.example.com`、`trip.example.com`、`metro.example.com`（均为保留示例，真实值由私有构建与部署配置注入）。
+
+1. **前端重建**：OzID 以 `--build-arg VITE_API_BASE_URL=https://api.example.com/api` 构建（无默认值，缺失或非 https 即构建失败）；运行时设置 `API_ORIGIN=https://api.example.com`（用于 CSP，缺失则容器拒绝启动）。产品前端要与同一 API origin 对接，需同样改成绝对地址（见上文“多前端共用 BFF 的部署”）。
+2. **BFF 配置**：`cors_allowed_origins` 列出所有前端的精确 origin；`navigation` 登记 `api_origin` 与各应用 origin/允许返回路径；生产 `auth.cookie_secure: true`。配置不一致时 BFF 启动失败并指出字段，不靠通配 CORS 补救。
+3. **反代与 DNS/TLS**：见 `deploy/reverse-proxy/Caddyfile.example` 的 `api.example.com` 与 `id.example.com` 站点；API 主机必须覆盖并传递 `X-Real-IP`、`Host`、`X-Forwarded-Proto`（参见“受信代理与客户端地址”）。
+4. 更换 API 主机或域名后旧 Cookie 不会转移，用户需重新登录；这是配置变更，不改源码。
+
+运维仍须自行确认：真实 DNS、证书、TLS 终止、IP 允许名单和邮件厂商；自动化只覆盖受控的保留测试域名。镜像发布与 CI 不会自动部署，也不清理数据。运行示例见 `deploy/compose.stack.example.yaml` 的 `ozid-web`。
+

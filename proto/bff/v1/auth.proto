@@ -31,6 +31,16 @@ service AuthService {
     option (platform.v1.anonymous) = true;
   }
 
+  // ResolveNavigation validates a "sign in (or confirm the password) and come back"
+  // target against the server-side app registry and returns the canonical OzID and
+  // return addresses. It is anonymous and read-only: it reads no account, creates no
+  // session and is not a login ticket, so a crafted target can never yield an identity.
+  // An unknown app, a path the app does not allow, or an unconfigured registry is
+  // refused (INVALID_ARGUMENT / FAILED_PRECONDITION); the caller must not redirect then.
+  rpc ResolveNavigation(ResolveNavigationRequest) returns (ResolveNavigationResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+
   // RequestRegistration asks for a verification mail. A well-formed address always
   // gets the same answer, whether or not it can register; no user, session or token
   // is returned and no password is accepted here.
@@ -121,6 +131,27 @@ message User {
   string avatar_url = 4;
   reserved 5, 6;
   reserved "created_at", "deletion_pending";
+}
+
+message ResolveNavigationRequest {
+  // A stable app ID of the registry: ozid, admin, trip-map or metro. Never a hostname or URL.
+  string app_id = 1;
+  // The canonical pathname to come back to: "/" first, no "//", backslash, "." or ".."
+  // segment, percent-encoding, query, fragment or control character. Empty means the
+  // app's default path.
+  string return_path = 2;
+}
+
+message ResolveNavigationResponse {
+  string app_id = 1;
+  // The accepted pathname; the app's default path when the request gave none.
+  string return_path = 2;
+  // The registered origin of the app plus return_path: the only address a client may
+  // send the browser to after the account step.
+  string return_url = 3;
+  // The registered origin of the OzID user center, for the sign-in and
+  // reauthentication pages.
+  string ozid_origin = 4;
 }
 
 message RequestRegistrationRequest {

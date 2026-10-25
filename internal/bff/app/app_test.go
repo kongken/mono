@@ -217,6 +217,9 @@ func TestExampleConfigCoversTheRouteTable(t *testing.T) {
 	if err := cfg.ValidateInternal(gateway.GRPCNames(active)); err != nil {
 		t.Fatal(err)
 	}
+	if _, ok := cfg.Navigation.Apps["ozid"]; !ok {
+		t.Fatal("the example must register OzID so that the sign-in return flow works locally")
+	}
 	if cfg.GRPC.CAFile != "" || cfg.GRPC.Services["usersrv"].Transport != "h2c" || cfg.GRPC.Services["tripmap"].Transport != "h2c" || cfg.GRPC.Services["metro"].Transport != "h2c" {
 		t.Fatal("local example must use explicit h2c without a CA")
 	}
@@ -275,4 +278,30 @@ func TestMCPRouteIsRegisteredAsBFFOwned(t *testing.T) {
 		}
 	}
 	t.Fatalf("%s is not in gateway.BFFOwnedRoutes as a POST route", mcp.Path)
+}
+
+// Only exact origins get CORS. A same-site sibling of an allowed origin (it may send the
+// host-only Cookie) gets none, and neither does any variation of an allowed origin.
+func TestCORSIsExactForSameSiteSiblings(t *testing.T) {
+	trip := newFake(t, "tripmap")
+	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL, "other": "http://127.0.0.1:1"}, CORSAllowedOrigins: []string{"https://id.example.com"}}, testServices)
+	for _, origin := range []string{"https://evil.example.com", "https://id.example.com.evil.test", "http://id.example.com", "https://id.example.com:8443", "null"} {
+		for _, method := range []string{http.MethodOptions, http.MethodPost} {
+			req := httptest.NewRequest(method, "/api/bff.tripmap.v1.FootprintService/GetFootprints", nil)
+			req.Header.Set("Origin", origin)
+			got := serve(r, req)
+			if got.Header().Get("Access-Control-Allow-Origin") != "" || got.Header().Get("Access-Control-Allow-Credentials") != "" {
+				t.Errorf("%s from %q was given CORS: %v", method, origin, got.Header())
+			}
+		}
+	}
+	req := httptest.NewRequest(http.MethodOptions, "/api/bff.tripmap.v1.FootprintService/GetFootprints", nil)
+	req.Header.Set("Origin", "https://id.example.com")
+	got := serve(r, req)
+	if got.Header().Get("Access-Control-Allow-Origin") != "https://id.example.com" || got.Header().Get("Access-Control-Allow-Credentials") != "true" {
+		t.Fatalf("the registered origin was refused: %v", got.Header())
+	}
+	if h := got.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(h, "X-CSRF-Token") {
+		t.Fatalf("preflight does not allow the CSRF header: %q", h)
+	}
 }

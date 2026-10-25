@@ -3,6 +3,8 @@ package config
 import (
 	"testing"
 	"time"
+
+	"github.com/kongken/mono/internal/bff/navigation"
 )
 
 func TestValidate(t *testing.T) {
@@ -21,6 +23,46 @@ func TestValidate(t *testing.T) {
 		"URL with query":      func(c *Config) { c.Upstreams["tripmap"] = "http://tripmap:18081?x=1" },
 		"URL with password":   func(c *Config) { c.Upstreams["tripmap"] = "http://u:p@tripmap:18081" },
 		"origin with a slash": func(c *Config) { c.CORSAllowedOrigins = []string{"https://trip.example.com/"} },
+	} {
+		c := ok()
+		mutate(&c)
+		if c.Validate(services) == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestValidateNavigation(t *testing.T) {
+	services := []string{"tripmap"}
+	ok := func() Config {
+		return Config{
+			Upstreams:          map[string]string{"tripmap": "http://tripmap:18081"},
+			CORSAllowedOrigins: []string{"https://id.example.com", "https://trip.example.com"},
+			Auth:               AuthConfig{CookieSecure: true},
+			Navigation: navigation.Config{
+				APIOrigin: "https://api.example.com",
+				Apps: map[string]navigation.App{
+					"ozid":     {Origin: "https://id.example.com"},
+					"trip-map": {Origin: "https://trip.example.com"},
+				},
+			},
+		}
+	}
+	if c := ok(); c.Validate(services) != nil {
+		t.Fatal(c.Validate(services))
+	}
+	if c := (Config{Upstreams: ok().Upstreams}); c.Validate(services) != nil {
+		t.Fatal("navigation is optional")
+	}
+	for name, mutate := range map[string]func(*Config){
+		"app origin not in CORS": func(c *Config) { c.CORSAllowedOrigins = c.CORSAllowedOrigins[:1] },
+		"no ozid":                func(c *Config) { delete(c.Navigation.Apps, "ozid") },
+		"no api origin":          func(c *Config) { c.Navigation.APIOrigin = "" },
+		"cross-site app": func(c *Config) {
+			c.Navigation.Apps["trip-map"] = navigation.App{Origin: "https://trip.other.test"}
+			c.CORSAllowedOrigins = append(c.CORSAllowedOrigins, "https://trip.other.test")
+		},
+		"http with secure cookies": func(c *Config) { c.Navigation.APIOrigin = "http://api.example.com" },
 	} {
 		c := ok()
 		mutate(&c)

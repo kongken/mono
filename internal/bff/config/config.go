@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/httpx"
 )
@@ -39,6 +40,9 @@ type Config struct {
 	Auth        AuthConfig `yaml:"auth"`
 	// MCP configures the metro MCP endpoint (POST /mcp/metro).
 	MCP MCPConfig `yaml:"mcp"`
+	// Navigation is the registry of front-end apps the browser may be sent back to
+	// after signing in at OzID. Omit it to run without OzID navigation.
+	Navigation navigation.Config `yaml:"navigation"`
 }
 
 // MCPConfig controls the metro MCP endpoint.
@@ -186,6 +190,9 @@ func (c *Config) Validate(services []string) error {
 		}
 	}
 	if err := httpx.CheckOrigins("cors_allowed_origins", c.CORSAllowedOrigins); err != nil {
+		return err
+	}
+	if _, err := navigation.New(c.Navigation, c.CORSAllowedOrigins, c.Auth.CookieSecure); err != nil {
 		return err
 	}
 	if c.Auth.AdminSessionMaxAge < 0 {

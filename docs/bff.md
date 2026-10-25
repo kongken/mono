@@ -1,6 +1,6 @@
 # BFF（公网入口）
 
-> **后续方案，待实现：** [OzID 与统一管理控制台规格](ozid/spec.md) 规划统一用户中心、独立管理前端、配置化域名/导航、网页用户管理、集中账号写来源及浏览器/MCP 两类 IP 白名单。继续复用本文的 usersrv 和 BFF 会话；下文描述当前实现，不代表新防护或入口已生效。
+> **后续方案：** [OzID 与统一管理控制台规格](ozid/spec.md) 规划统一用户中心、独立管理前端、配置化域名/导航、网页用户管理、集中账号写来源及浏览器/MCP 两类 IP 白名单。其中 T1（统一登录、重新认证与安全返回）已实现，见[导航注册表与 `ResolveNavigation`](#导航注册表与-resolvenavigation-ozid-t1) 和 [OzID 功能描述](ozid/features.md)；其余（独立管理控制台、网页用户管理、集中账号写来源、IP 白名单）仍待实现，不代表新防护或入口已生效。
 
 一个仓库承载多个业务时，BFF（`cmd/bff`）是唯一的公网入口，统一处理跨域、客户端地址、请求生命周期和追踪脱敏。业务服务只在内网监听。当前有 tripmap（山海足迹）和 metro（地铁足迹，可选）两个业务。
 
@@ -266,3 +266,12 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 账号 Cookie 是 host-only，跨域只靠精确的 `cors_allowed_origins`：精确允许 Origin 的正常、错误与 OPTIONS 响应均带 Allow-Origin、Allow-Credentials 与 Vary，预检包含 Connect/CSRF/区域头及 X-Kongken-User；不允许 `*` 或任意回显。读取授权不会免除写入的 Origin/CSRF 验证。CSRF token 从 IssueCSRFToken 响应体取得，并在凭据请求中放入 X-CSRF-Token（不要求前端读取 BFF Cookie）。退出只撤销当前 BFF 会话；其他设备会话保留。邮件里的链接来源由 usersrv 的 `auth.apps.<app_id>.origin` 决定，不由请求决定。
 
 共享 Cookie 换账号保护：页面为已确定身份的请求携带 `X-Kongken-User`，足迹引擎把该值绑定到自身账号。BFF 在同一请求内解析 Cookie 后比较预期 ID，不相符即 unauthenticated，旧缓存不会写入新账号。该头只能收窄会话身份，不能代替认证或选择其他账号；Me 恢复时不发送它。未升级客户端不发送该头仍按原会话认证，但不能获得这一并发账号切换保护，运营方应同步升级各共享 Cookie 的应用。
+
+## 导航注册表与 `ResolveNavigation`（OzID T1）
+
+`bff.v1.AuthService/ResolveNavigation` 是匿名、只读的过程（不要求 CSRF，不读取或建立会话，不签发票据）：请求为稳定 `app_id` 与可选的 `return_path`，响应 `return_url` 由配置 `navigation.apps.<id>.origin` 加已校验的 pathname 拼成，另含 OzID 的 origin。客户端给出的绝对地址、`//`、反斜线、点段、百分号编码、query、fragment、未登记路径或未知应用都得到 `INVALID_ARGUMENT`；未配置 `navigation` 时得到 `FAILED_PRECONDITION`。
+
+配置段（`config.bff.example.yaml`）：`navigation.api_origin` 与 `navigation.apps`（`ozid` 必需；ID 取 `ozid`、`admin`、`trip-map`、`metro`；每项 `origin`、可选 `default_path` 与 `paths`）。BFF 启动时校验并在出错时拒绝启动：origin 必须精确且在 `cors_allowed_origins` 内、`auth.cookie_secure` 为 true 时必须 https、各 origin 与 `api_origin` 须在同一 schemeful site、origin 不重复。**同站点不等于授权**：未登记的兄弟子域名拿不到 CORS，写请求也过不了 Origin/CSRF 校验（`session_test`/`app_test` 与浏览器测试有覆盖）。Cookie 始终 host-only，不设置 `Domain`。
+
+详细规则、页面与验证分层见 [OzID 功能描述](ozid/features.md)。
+

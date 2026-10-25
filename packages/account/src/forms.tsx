@@ -40,6 +40,13 @@ type AuthPanelProps = {
   /** Called after the Cookie session exists. The panel keeps no credentials afterwards. */
   onSignedIn: (result: SignedIn) => void | Promise<void>;
   initialMode?: AuthMode;
+  /**
+   * Whether to offer registration and password reset (the two mail-based entrances).
+   * Default true. A front end that does not host them yet shows the sign-in form alone.
+   */
+  allowMail?: boolean;
+  /** The sentence under the title; the default names the two products. */
+  intro?: ReactNode;
 };
 
 /**
@@ -47,15 +54,15 @@ type AuthPanelProps = {
  * sent, the password is chosen after the address is verified) and password reset. The
  * texts never say whether an address is registered.
  */
-export function AuthPanel({ api, appName, onSignedIn, initialMode = "login" }: AuthPanelProps) {
-  const [mode, setMode] = useState<AuthMode>(initialMode);
+export function AuthPanel({ api, appName, onSignedIn, initialMode = "login", allowMail = true, intro }: AuthPanelProps) {
+  const [mode, setMode] = useState<AuthMode>(allowMail ? initialMode : "login");
   const [email, setEmail] = useState("");
   // Switching forms drops what the previous one showed, but keeps the address typed.
   const switchTo = (next: AuthMode) => setMode(next);
   return (
     <div data-testid="auth-panel" className="grid gap-4">
       {mode === "login" ? (
-        <LoginForm api={api} appName={appName} email={email} setEmail={setEmail} onSignedIn={onSignedIn} onSwitch={switchTo} />
+        <LoginForm api={api} appName={appName} email={email} setEmail={setEmail} onSignedIn={onSignedIn} onSwitch={switchTo} allowMail={allowMail} intro={intro} />
       ) : (
         <MailRequestForm key={mode} api={api} appName={appName} mode={mode} email={email} setEmail={setEmail} onSwitch={switchTo} />
       )}
@@ -70,7 +77,9 @@ function LoginForm({
   setEmail,
   onSignedIn,
   onSwitch,
-}: Pick<AuthPanelProps, "api" | "appName" | "onSignedIn"> & { email: string; setEmail: (v: string) => void; onSwitch: (m: AuthMode) => void }) {
+  allowMail,
+  intro,
+}: Pick<AuthPanelProps, "api" | "appName" | "onSignedIn" | "intro"> & { email: string; setEmail: (v: string) => void; onSwitch: (m: AuthMode) => void; allowMail: boolean }) {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [notice, setNotice] = useState("");
@@ -109,7 +118,7 @@ function LoginForm({
     <form ref={form} noValidate onSubmit={(e) => void submit(e)} className={FORM_CLASS} aria-labelledby="account-login-title">
       <div>
         <h2 id="account-login-title" className="text-lg font-semibold">登录{appName}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">使用邮箱和密码登录；同一个账号可在山海足迹和地铁足迹通用。</p>
+        <p className="mt-1 text-sm text-muted-foreground">{intro ?? "使用邮箱和密码登录；同一个账号可在山海足迹和地铁足迹通用。"}</p>
       </div>
       <TextField
         label="邮箱"
@@ -136,10 +145,12 @@ function LoginForm({
       <Button type="submit" disabled={pending}>
         {pending ? "登录中…" : "登录"}
       </Button>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <LinkButton onClick={() => onSwitch("forgot")}>忘记密码？</LinkButton>
-        <LinkButton onClick={() => onSwitch("register")}>没有账号？申请注册</LinkButton>
-      </div>
+      {allowMail ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <LinkButton onClick={() => onSwitch("forgot")}>忘记密码？</LinkButton>
+          <LinkButton onClick={() => onSwitch("register")}>没有账号？申请注册</LinkButton>
+        </div>
+      ) : null}
     </form>
   );
 }
@@ -250,6 +261,84 @@ function MailRequestForm({
         <LinkButton onClick={() => onSwitch("login")}>返回登录</LinkButton>
         {register ? <LinkButton onClick={() => onSwitch("forgot")}>忘记密码？</LinkButton> : <LinkButton onClick={() => onSwitch("register")}>申请注册</LinkButton>}
       </div>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// Password confirmation (reauthentication)
+// ---------------------------------------------------------------------------------------
+
+type ReauthenticateFormProps = {
+  api: AccountApi;
+  /** Called once the BFF recorded a fresh password check on this session. */
+  onConfirmed: () => void | Promise<void>;
+  /**
+   * Called when the server says there is no valid session any more (expired, signed out
+   * elsewhere, password or roles changed). A session like that cannot be upgraded by
+   * entering the password; the page must send the user to sign in again.
+   */
+  onSessionInvalid: () => void | Promise<void>;
+  /** What the confirmation is for, shown under the title. */
+  intro?: ReactNode;
+  submitLabel?: string;
+};
+
+/**
+ * Asks for the current password and has the BFF check it against the account of this
+ * session (never an identity, time or user ID the page supplies). It records nothing in
+ * the browser and replays nothing: whatever the user was doing before is not retried.
+ */
+export function ReauthenticateForm({ api, onConfirmed, onSessionInvalid, intro, submitLabel = "确认密码" }: ReauthenticateFormProps) {
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<Errors>({});
+  const [notice, setNotice] = useState("");
+  const [tick, setTick] = useState(0);
+  const form = useRef<HTMLFormElement>(null);
+  const { pending, run } = useRunner();
+  useFocusFirstInvalid(form, tick);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const passwordError = checkExistingPassword(password);
+    setErrors(passwordError ? { password: passwordError } : {});
+    setNotice("");
+    if (passwordError) return setTick((t) => t + 1);
+    await run(async () => {
+      try {
+        await api.reauthenticate(password);
+      } catch (error) {
+        const failure = classifyAccountError(error, "reauthenticate");
+        setPassword("");
+        if (failure.kind === "not_signed_in") return await onSessionInvalid();
+        if (failure.kind === "wrong_password") setErrors({ password: failure.message });
+        else setNotice(failure.message);
+        setTick((t) => t + 1);
+        return;
+      }
+      setPassword("");
+      await onConfirmed();
+    });
+  };
+
+  return (
+    <form ref={form} noValidate onSubmit={(e) => void submit(e)} className={FORM_CLASS} aria-labelledby="account-reauth-title" data-testid="reauthenticate">
+      <div>
+        <h2 id="account-reauth-title" className="text-lg font-semibold">确认密码</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{intro ?? "为了账号安全，请再次输入当前密码。"}</p>
+      </div>
+      <PasswordField
+        label="当前密码"
+        name="password"
+        autoComplete="current-password"
+        value={password}
+        error={errors.password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      {notice ? <Notice kind="error">{notice}</Notice> : null}
+      <Button type="submit" disabled={pending}>
+        {pending ? "确认中…" : submitLabel}
+      </Button>
     </form>
   );
 }

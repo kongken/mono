@@ -9,6 +9,7 @@
 | 应用 / 服务 | 代码位置 | 职责 | 本地开发入口 |
 | --- | --- | --- | --- |
 | trip-map（山海足迹） | `apps/trip-map/` | React、Vite、TypeScript、Tailwind CSS、shadcn/ui 前端 | Vite 输出地址，通常为 `http://localhost:5173` |
+| ozid（OzID 用户中心，T1 已实现） | `apps/ozid/` | 独立的统一登录、账号概览与密码重新认证；登录后只返回服务端校验过的应用与路径（见 [OzID 功能描述](docs/ozid/features.md)） | Vite `http://localhost:5175`（需 BFF 配置 `navigation`） |
 | bff | `cmd/bff/`、`internal/bff/` | 唯一公网 API 入口；账号接口（经 usersrv）、Cookie 会话、CSRF、账号注销工作流和业务接口适配 | HTTP `127.0.0.1:18081` |
 | tripmap | `cmd/tripmap/`、`internal/tripmap/` | 足迹、行程、媒体、分享等旅行领域业务 | 内网 HTTP `127.0.0.1:18082`；内部 gRPC `127.0.0.1:18083`（默认 TLS，可显式选 h2c） |
 | usersrv（自建用户系统，P1–P6 已实现） | `cmd/usersrv/`、`internal/usersrv/`、`cmd/usersrv-admin/` | 邮箱＋密码账号、注册验证与找回密码流程、角色与账号安全状态、邮件发送模块（四种 adapter）；只有内部 gRPC，由 BFF 调用；两个前端的登录、注册、找回密码与账号设置已实现（P5，共用代码在 `packages/account`），有镜像 `mono-usersrv` 与部署示例（[部署](docs/deployment.md#usersrv-的部署)）；真实邮件厂商没有实测，开放前须手动冒烟（见 [规格](docs/usersrv/spec.md#验证状态)） | 仅内网：HTTP `127.0.0.1:18086`、gRPC `127.0.0.1:18087`（需自己的数据库与 Redis） |
@@ -21,6 +22,7 @@
 ```text
 apps/trip-map/        山海足迹前端应用
 apps/metro/           地铁足迹前端应用（含管理后台）
+apps/ozid/            OzID 用户中心前端应用
 packages/
   ui/                 共享 shadcn/ui 组件
   api-client/         Buf 生成的 TypeScript RPC 契约
@@ -83,7 +85,7 @@ make dev-secrets
 make dev
 ```
 
-也可在不同终端分别运行 `make dev-bff`、`make dev-tripmap` 和 `make dev-metro`。地铁足迹的前端另开终端运行 `make dev-metro-web`（等价 `npm run dev:metro`，端口 5174，把 `/api` 代理到 BFF；管理需要 `metro-admin` 角色，登录与注册在 `/login`，见 [部署](docs/deployment.md#地铁足迹metro可选)）。另开终端启用前端后端连接：
+也可在不同终端分别运行 `make dev-bff`、`make dev-tripmap` 和 `make dev-metro`。地铁足迹的前端另开终端运行 `make dev-metro-web`（等价 `npm run dev:metro`，端口 5174，把 `/api` 代理到 BFF；管理需要 `metro-admin` 角色，登录与注册在 `/login`，见 [部署](docs/deployment.md#地铁足迹metro可选)）。OzID 用户中心另开终端运行 `npm run dev:ozid`（端口 5175，直接调用 `.env.development` 里的回环示例 API 地址 `http://localhost:18081/api`；`config.bff.example.yaml` 已含对应的 `navigation` 与 CORS 示例，生产构建需给出绝对 `VITE_API_BASE_URL`，见 [OzID 功能描述](docs/ozid/features.md#构建镜像与运行)；本地可用 `npm run test:e2e:ozid`，真实浏览器链路 `OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain`）。另开终端启用前端后端连接：
 
 ```bash
 npm install

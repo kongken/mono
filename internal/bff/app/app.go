@@ -27,6 +27,7 @@ import (
 	"github.com/kongken/mono/internal/bff/ingress"
 	bffmetro "github.com/kongken/mono/internal/bff/metro"
 	"github.com/kongken/mono/internal/bff/metro/mcp"
+	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/bff/ratelimit"
 	"github.com/kongken/mono/internal/bff/session"
 	bfftripmap "github.com/kongken/mono/internal/bff/tripmap"
@@ -188,7 +189,13 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 		h.usersClient.Store(users)
 		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix), users, h.cleaners(clients))
 		h.authSvc.Store(svc)
-		authHandler := bffauth.NewHandler(svc, h.cfg.Auth.CSRFTokenTTL)
+		// Validated at startup by config.Validate; a registry that cannot be built here
+		// leaves ResolveNavigation refusing every request rather than guessing.
+		registry, err := navigation.New(h.cfg.Navigation, h.cfg.CORSAllowedOrigins, h.cfg.Auth.CookieSecure)
+		if err != nil {
+			slog.Error("navigation registry", "error", err)
+		}
+		authHandler := bffauth.NewHandler(svc, h.cfg.Auth.CSRFTokenTTL).WithNavigation(registry)
 		h.auth.Store(authHandler)
 		policy.Authenticate = authHandler.Authenticate
 		policy.DeletionKnown = authHandler.DeletionKnown

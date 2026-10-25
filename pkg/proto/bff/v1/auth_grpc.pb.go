@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	AuthService_IssueCSRFToken_FullMethodName       = "/bff.v1.AuthService/IssueCSRFToken"
+	AuthService_ResolveNavigation_FullMethodName    = "/bff.v1.AuthService/ResolveNavigation"
 	AuthService_RequestRegistration_FullMethodName  = "/bff.v1.AuthService/RequestRegistration"
 	AuthService_CompleteRegistration_FullMethodName = "/bff.v1.AuthService/CompleteRegistration"
 	AuthService_LoginWithEmail_FullMethodName       = "/bff.v1.AuthService/LoginWithEmail"
@@ -61,6 +62,13 @@ const (
 type AuthServiceClient interface {
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(ctx context.Context, in *IssueCSRFTokenRequest, opts ...grpc.CallOption) (*IssueCSRFTokenResponse, error)
+	// ResolveNavigation validates a "sign in (or confirm the password) and come back"
+	// target against the server-side app registry and returns the canonical OzID and
+	// return addresses. It is anonymous and read-only: it reads no account, creates no
+	// session and is not a login ticket, so a crafted target can never yield an identity.
+	// An unknown app, a path the app does not allow, or an unconfigured registry is
+	// refused (INVALID_ARGUMENT / FAILED_PRECONDITION); the caller must not redirect then.
+	ResolveNavigation(ctx context.Context, in *ResolveNavigationRequest, opts ...grpc.CallOption) (*ResolveNavigationResponse, error)
 	// RequestRegistration asks for a verification mail. A well-formed address always
 	// gets the same answer, whether or not it can register; no user, session or token
 	// is returned and no password is accepted here.
@@ -119,6 +127,16 @@ func (c *authServiceClient) IssueCSRFToken(ctx context.Context, in *IssueCSRFTok
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(IssueCSRFTokenResponse)
 	err := c.cc.Invoke(ctx, AuthService_IssueCSRFToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ResolveNavigation(ctx context.Context, in *ResolveNavigationRequest, opts ...grpc.CallOption) (*ResolveNavigationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveNavigationResponse)
+	err := c.cc.Invoke(ctx, AuthService_ResolveNavigation_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -290,6 +308,13 @@ func (c *authServiceClient) RetryAccountDeletion(ctx context.Context, in *RetryA
 type AuthServiceServer interface {
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error)
+	// ResolveNavigation validates a "sign in (or confirm the password) and come back"
+	// target against the server-side app registry and returns the canonical OzID and
+	// return addresses. It is anonymous and read-only: it reads no account, creates no
+	// session and is not a login ticket, so a crafted target can never yield an identity.
+	// An unknown app, a path the app does not allow, or an unconfigured registry is
+	// refused (INVALID_ARGUMENT / FAILED_PRECONDITION); the caller must not redirect then.
+	ResolveNavigation(context.Context, *ResolveNavigationRequest) (*ResolveNavigationResponse, error)
 	// RequestRegistration asks for a verification mail. A well-formed address always
 	// gets the same answer, whether or not it can register; no user, session or token
 	// is returned and no password is accepted here.
@@ -346,6 +371,9 @@ type UnimplementedAuthServiceServer struct{}
 
 func (UnimplementedAuthServiceServer) IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IssueCSRFToken not implemented")
+}
+func (UnimplementedAuthServiceServer) ResolveNavigation(context.Context, *ResolveNavigationRequest) (*ResolveNavigationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveNavigation not implemented")
 }
 func (UnimplementedAuthServiceServer) RequestRegistration(context.Context, *RequestRegistrationRequest) (*RequestRegistrationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestRegistration not implemented")
@@ -424,6 +452,24 @@ func _AuthService_IssueCSRFToken_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).IssueCSRFToken(ctx, req.(*IssueCSRFTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ResolveNavigation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveNavigationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ResolveNavigation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ResolveNavigation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ResolveNavigation(ctx, req.(*ResolveNavigationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -690,6 +736,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "IssueCSRFToken",
 			Handler:    _AuthService_IssueCSRFToken_Handler,
+		},
+		{
+			MethodName: "ResolveNavigation",
+			Handler:    _AuthService_ResolveNavigation_Handler,
 		},
 		{
 			MethodName: "RequestRegistration",

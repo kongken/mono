@@ -8,6 +8,7 @@
 apps/
   trip-map/             前端应用“山海足迹”：Vite + React，自己的 index.html、vite.config.ts、tsconfig、public/、tests/（Playwright）、scripts/
   metro/                前端应用“地铁足迹”：Vite + React，自己的路由与内存目录缓存，tests/（Playwright，模拟 BFF），不含地图资源脚本
+  ozid/                 前端应用“OzID 用户中心”：Vite + React，登录、概览与密码重新认证；没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL`；tests/ 有模拟 BFF 的 Playwright 与真实 BFF 的 real-stack 用例（由 internal/e2e 启动）
 packages/
   ui/                   shadcn 组件与 cn()：@kongken/ui/button、dialog、input、utils
   api-client/           buf 生成的 ConnectRPC TypeScript 契约：@kongken/api-client/<包>/v1/<文件>_pb（`bff/v1` 为共用的账号契约，`bff/<产品>/v1` 如 `bff/tripmap/v1` 为各产品的浏览器契约，`tripmap/v1` 为业务服务契约，`platform/v1` 为共享选项）
@@ -48,7 +49,7 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 
 1. 建 `apps/<名称>/`，带 `package.json`（`name` 取 `@kongken/<名称>`，依赖用到的 `@kongken/*` 包，版本写 `*`）。
 2. 复制 `apps/trip-map` 的 Vite、TypeScript 配置，在 CSS 入口加 `@source "…/packages/ui/src"`。
-3. 在根 `package.json` 增加按应用命名的转发脚本（`dev:<名称>`、`build:<名称>`、`test:<名称>` 等），或直接使用 `npm run <脚本> -w @kongken/<名称>`；根 `build`、`test` 会自动覆盖所有应用。
+3. 在根 `package.json` 增加按应用命名的转发脚本（`dev:<名称>`、`build:<名称>`、`test:<名称>` 等），或直接使用 `npm run <脚本> -w @kongken/<名称>`；根 `test` 会自动覆盖所有应用；根 `build` 只构建使用同源 `/api` 的 trip-map 与 metro，OzID 必须带绝对 API 地址单独构建（`npm run build:ozid`）。
 4. 新增 `deploy/<名称>-web/Dockerfile`（镜像后缀 `-<名称>-web`），先复制各 workspace 的 `package.json` 再 `npm ci`，并在 `.github/workflows/docker-publish.yml` 的矩阵中登记；`.github/workflows/ci.yml` 增加对应测试。
 5. 如需访问后端，在 BFF 路由表登记浏览器请求头（见 [BFF](bff.md)），应用只使用 `@kongken/api-client`。
 

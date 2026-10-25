@@ -11,6 +11,7 @@
 | `ghcr.io/kongken/mono-usersrv` | `deploy/usersrv/Dockerfile` | usersrv 账号服务，18086（HTTP，仅 `/ping`、`/readyz`）与 18087（内部 gRPC，默认 TLS）；镜像里还有运维命令 `/usersrv-admin`（用 `--entrypoint` 运行，见 [部署](deployment.md#usersrv-的部署)），运行时挂载配置、BFF 公钥和（TLS 时）证书，只在内网暴露 |
 | `ghcr.io/kongken/mono-trip-map-web` | `deploy/trip-map-web/Dockerfile` | Nginx 提供 Vite 静态文件，80 端口，同源转发后端请求 |
 | `ghcr.io/kongken/mono-metro` | `deploy/metro/Dockerfile` | metro 业务服务（地铁足迹），18084（HTTP，仅 `/ping`、`/readyz`）与 18085（内部 gRPC），运行时挂载配置与 BFF 公钥，只在内网暴露 |
+| `ghcr.io/kongken/mono-ozid-web` | `deploy/ozid-web/Dockerfile` | Nginx 提供 `apps/ozid` 静态文件（OzID 用户中心），80 端口，**不转发任何请求**；构建参数 `VITE_API_BASE_URL`（BFF 的绝对 https API base，无默认值）必填，运行时 `API_ORIGIN` 必填（用于 CSP）。发布工作流只用示例地址构建，作为构建检查，不是可直接部署的镜像，见 [OzID 功能描述](ozid/features.md#构建镜像与运行) |
 | `ghcr.io/kongken/mono-metro-web` | `deploy/metro-web/Dockerfile` | Nginx 提供 `apps/metro` 静态文件，80 端口，把 `/api/`、`/mcp/metro`、`/ping`、`/readyz` 转发给 BFF |
 
 `.github/workflows/docker-publish.yml` 使用官方 Checkout、Buildx、GHCR 登录、metadata 和 build-push actions，按已核对的 commit SHA 固定版本。构建 linux/amd64 镜像，各镜像使用独立 GitHub Actions 缓存。
@@ -57,6 +58,8 @@ docker build -f deploy/metro-web/Dockerfile -t mono-metro-web:local .
 `/api/`、`/ping` 和 `/readyz` 保留完整路径转发到后端；F6 的 `/s/` 与 `/api/share/` 也转发到后端（后端对 `/s/<令牌>` 返回带 Open Graph 标签的页面），这两类路径不写访问日志、`error_log` 限为 `crit`，因为路径含分享令牌，详见 [公开分享页与预览图](trip-map/sharing.md#配置与部署)；后端需配置 `share.public_base_url` 与 `share.app_index_url`（指向前端容器的根地址，且不得路由回 `/s/`）。SPA 路由返回 index.html，不存在的地图或打包资源返回 404。哈希静态文件长缓存，index.html 不缓存，地图资源重新验证缓存。
 
 前端镜像默认不配置 `VITE_API_BASE_URL`，页面是纯本地模式，不会请求后端，没有后端时也可单独运行；需要连接后端时构建时传入 `--build-arg VITE_API_BASE_URL=/api`（当前 CI 未传递）。多应用共享 BFF 时使用绝对 API 地址，见 [BFF](bff.md#多-web-app-登录与迁移54)。邮件里的链接 `/account/verify-email`、`/account/reset-password` 由前端静态站点提供（回退到 `index.html`），nginx 为这两个路径设置 `Referrer-Policy: no-referrer`、`Cache-Control: no-store` 与只允许同源脚本的 CSP；用户中心的 `/auth/` 代理已删除。
+
+`ozid-web` 没有 `BACKEND_UPSTREAM`：它是纯静态站点，浏览器直接调用 BFF 的公开 origin（`API_ORIGIN`、`VITE_API_BASE_URL`，见 [部署](deployment.md#ozid-用户中心的部署)）。
 
 `metro-web` 使用同一个 `BACKEND_UPSTREAM`（默认 `bff:18081`）。`/mcp/metro` 不写访问日志、`error_log` 限为 `crit`（请求头带 Bearer 令牌）；`/api/`、`/mcp/metro` 的请求体上限 2 MiB（目录导入文档上限 1 MiB）。邮件链接的来源由 usersrv 的 `auth.apps.metro.origin` 决定，需填该站点的 origin。
 

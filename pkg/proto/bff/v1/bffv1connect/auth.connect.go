@@ -38,6 +38,9 @@ const (
 	// AuthServiceIssueCSRFTokenProcedure is the fully-qualified name of the AuthService's
 	// IssueCSRFToken RPC.
 	AuthServiceIssueCSRFTokenProcedure = "/bff.v1.AuthService/IssueCSRFToken"
+	// AuthServiceResolveNavigationProcedure is the fully-qualified name of the AuthService's
+	// ResolveNavigation RPC.
+	AuthServiceResolveNavigationProcedure = "/bff.v1.AuthService/ResolveNavigation"
 	// AuthServiceRequestRegistrationProcedure is the fully-qualified name of the AuthService's
 	// RequestRegistration RPC.
 	AuthServiceRequestRegistrationProcedure = "/bff.v1.AuthService/RequestRegistration"
@@ -87,6 +90,13 @@ const (
 type AuthServiceClient interface {
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
+	// ResolveNavigation validates a "sign in (or confirm the password) and come back"
+	// target against the server-side app registry and returns the canonical OzID and
+	// return addresses. It is anonymous and read-only: it reads no account, creates no
+	// session and is not a login ticket, so a crafted target can never yield an identity.
+	// An unknown app, a path the app does not allow, or an unconfigured registry is
+	// refused (INVALID_ARGUMENT / FAILED_PRECONDITION); the caller must not redirect then.
+	ResolveNavigation(context.Context, *connect.Request[v1.ResolveNavigationRequest]) (*connect.Response[v1.ResolveNavigationResponse], error)
 	// RequestRegistration asks for a verification mail. A well-formed address always
 	// gets the same answer, whether or not it can register; no user, session or token
 	// is returned and no password is accepted here.
@@ -148,6 +158,12 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			httpClient,
 			baseURL+AuthServiceIssueCSRFTokenProcedure,
 			connect.WithSchema(authServiceMethods.ByName("IssueCSRFToken")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveNavigation: connect.NewClient[v1.ResolveNavigationRequest, v1.ResolveNavigationResponse](
+			httpClient,
+			baseURL+AuthServiceResolveNavigationProcedure,
+			connect.WithSchema(authServiceMethods.ByName("ResolveNavigation")),
 			connect.WithClientOptions(opts...),
 		),
 		requestRegistration: connect.NewClient[v1.RequestRegistrationRequest, v1.RequestRegistrationResponse](
@@ -240,6 +256,7 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 // authServiceClient implements AuthServiceClient.
 type authServiceClient struct {
 	issueCSRFToken       *connect.Client[v1.IssueCSRFTokenRequest, v1.IssueCSRFTokenResponse]
+	resolveNavigation    *connect.Client[v1.ResolveNavigationRequest, v1.ResolveNavigationResponse]
 	requestRegistration  *connect.Client[v1.RequestRegistrationRequest, v1.RequestRegistrationResponse]
 	completeRegistration *connect.Client[v1.CompleteRegistrationRequest, v1.CompleteRegistrationResponse]
 	loginWithEmail       *connect.Client[v1.LoginWithEmailRequest, v1.LoginWithEmailResponse]
@@ -259,6 +276,11 @@ type authServiceClient struct {
 // IssueCSRFToken calls bff.v1.AuthService.IssueCSRFToken.
 func (c *authServiceClient) IssueCSRFToken(ctx context.Context, req *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {
 	return c.issueCSRFToken.CallUnary(ctx, req)
+}
+
+// ResolveNavigation calls bff.v1.AuthService.ResolveNavigation.
+func (c *authServiceClient) ResolveNavigation(ctx context.Context, req *connect.Request[v1.ResolveNavigationRequest]) (*connect.Response[v1.ResolveNavigationResponse], error) {
+	return c.resolveNavigation.CallUnary(ctx, req)
 }
 
 // RequestRegistration calls bff.v1.AuthService.RequestRegistration.
@@ -335,6 +357,13 @@ func (c *authServiceClient) RetryAccountDeletion(ctx context.Context, req *conne
 type AuthServiceHandler interface {
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
+	// ResolveNavigation validates a "sign in (or confirm the password) and come back"
+	// target against the server-side app registry and returns the canonical OzID and
+	// return addresses. It is anonymous and read-only: it reads no account, creates no
+	// session and is not a login ticket, so a crafted target can never yield an identity.
+	// An unknown app, a path the app does not allow, or an unconfigured registry is
+	// refused (INVALID_ARGUMENT / FAILED_PRECONDITION); the caller must not redirect then.
+	ResolveNavigation(context.Context, *connect.Request[v1.ResolveNavigationRequest]) (*connect.Response[v1.ResolveNavigationResponse], error)
 	// RequestRegistration asks for a verification mail. A well-formed address always
 	// gets the same answer, whether or not it can register; no user, session or token
 	// is returned and no password is accepted here.
@@ -392,6 +421,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		AuthServiceIssueCSRFTokenProcedure,
 		svc.IssueCSRFToken,
 		connect.WithSchema(authServiceMethods.ByName("IssueCSRFToken")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceResolveNavigationHandler := connect.NewUnaryHandler(
+		AuthServiceResolveNavigationProcedure,
+		svc.ResolveNavigation,
+		connect.WithSchema(authServiceMethods.ByName("ResolveNavigation")),
 		connect.WithHandlerOptions(opts...),
 	)
 	authServiceRequestRegistrationHandler := connect.NewUnaryHandler(
@@ -482,6 +517,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		switch r.URL.Path {
 		case AuthServiceIssueCSRFTokenProcedure:
 			authServiceIssueCSRFTokenHandler.ServeHTTP(w, r)
+		case AuthServiceResolveNavigationProcedure:
+			authServiceResolveNavigationHandler.ServeHTTP(w, r)
 		case AuthServiceRequestRegistrationProcedure:
 			authServiceRequestRegistrationHandler.ServeHTTP(w, r)
 		case AuthServiceCompleteRegistrationProcedure:
@@ -521,6 +558,10 @@ type UnimplementedAuthServiceHandler struct{}
 
 func (UnimplementedAuthServiceHandler) IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.IssueCSRFToken is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) ResolveNavigation(context.Context, *connect.Request[v1.ResolveNavigationRequest]) (*connect.Response[v1.ResolveNavigationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.ResolveNavigation is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) RequestRegistration(context.Context, *connect.Request[v1.RequestRegistrationRequest]) (*connect.Response[v1.RequestRegistrationResponse], error) {

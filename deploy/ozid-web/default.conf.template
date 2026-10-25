@@ -1,0 +1,41 @@
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # OzID is static: it never proxies to the BFF. The browser calls the BFF's own origin with
+    # credentials (API_ORIGIN, the origin of the build's VITE_API_BASE_URL). Nothing here may be
+    # framed (clickjacking of the password form), and the address carries only an app ID and
+    # a registered path, never a credential, but the Referer is withheld anyway.
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options DENY always;
+    add_header Referrer-Policy no-referrer always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${API_ORIGIN}; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
+
+    location /assets/ {
+        try_files $uri =404;
+        expires 1y;
+        # add_header does not inherit into a location that sets its own: repeat the common ones.
+        add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options nosniff always;
+    }
+    # Every page of the account flow shows live account state: do not cache the shell.
+    location = /index.html {
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options DENY always;
+        add_header Referrer-Policy no-referrer always;
+        add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${API_ORIGIN}; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
+        add_header Cache-Control "no-store" always;
+    }
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+    location / { try_files $uri $uri/ /index.html; }
+    gzip on;
+    gzip_types application/json application/javascript text/css image/svg+xml;
+}

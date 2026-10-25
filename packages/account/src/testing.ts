@@ -28,13 +28,36 @@ export const FAILURES = {
 } satisfies Record<string, FakeFailure>;
 
 const b64url = (n: number) => Buffer.from(Array.from({ length: n }, () => Math.floor(Math.random() * 256))).toString("base64url");
-const READ_ONLY = new Set(["Me", "ListSessions", "IssueCSRFToken", "GetAccountDeletion"]);
+const READ_ONLY = new Set(["Me", "ListSessions", "IssueCSRFToken", "GetAccountDeletion", "ResolveNavigation"]);
 const PRODUCTS = ["tripmap", "metro"];
+
+/** A registered app of the fake BFF's navigation registry; the same rules as internal/bff/navigation. */
+export type FakeNavApp = { origin: string; defaultPath?: string; paths?: string[] };
+
+/** The canonical return pathname rule of the BFF: ASCII letters, digits and -._~/, no //, no dot segments. */
+function canonicalPath(p: string) {
+  return p.length > 0 && p.length <= 256 && /^\/[A-Za-z0-9._~/-]*$/.test(p) && !p.includes("//") && !p.split("/").some((seg) => seg === "." || seg === "..");
+}
+
+function pathAllowed(app: FakeNavApp, p: string) {
+  if (!canonicalPath(p)) return false;
+  if (p === (app.defaultPath ?? "/")) return true;
+  return (app.paths ?? []).some((rule) => {
+    if (rule === "/*") return true;
+    if (rule.endsWith("/*")) {
+      const base = rule.slice(0, -2);
+      return p === base || p.startsWith(`${base}/`);
+    }
+    return p === rule;
+  });
+}
 
 export function createFakeAccounts(
   options: {
     /** Told whenever the signed-in account changes (sign-in, sign-out, deletion), so an app's fake can follow. */
     onSession?: (account: { id: string; displayName: string; roles: string[] } | null) => void;
+    /** The fake's app registry for ResolveNavigation; without it every target is refused. */
+    navigation?: Record<string, FakeNavApp>;
   } = {},
 ) {
   const state = {
@@ -96,6 +119,16 @@ export function createFakeAccounts(
 
   const handlers: Record<string, (b: Body) => Reply> = {
     IssueCSRFToken: () => ({ body: { token: `csrf-${++state.csrfIssued}` } }),
+
+    ResolveNavigation: (b) => {
+      const registry = options.navigation;
+      if (!registry) return failure(400, "failed_precondition", "navigation is not configured");
+      const app = registry[b.appId ?? ""];
+      const path = b.returnPath || app?.defaultPath || "/";
+      if (!app || !pathAllowed(app, path)) return failure(400, "invalid_argument", "navigation target not allowed");
+      const ozid = registry["ozid"];
+      return { body: { appId: b.appId, returnPath: path, returnUrl: app.origin + path, ozidOrigin: ozid?.origin ?? "" } };
+    },
 
     RequestRegistration: (b) => {
       if (!state.registrationOpen) return failure(400, "failed_precondition", "registration is closed");

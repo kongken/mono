@@ -14,13 +14,15 @@
 
 详见 [usersrv 规格](docs/usersrv/spec.md) 与 [后端初始化](docs/backend.md#usersrv-服务账号核心p1)。
 
-## 用户中心与统一管理（目标用语，待实现）
+## 用户中心与统一管理（T1 已实现，其余待实现）
 
-以下是 [OzID 与统一管理控制台规格](docs/ozid/spec.md) 确定的目标用语，不表示已有独立前端或网页用户管理能力。
+以下是 [OzID 与统一管理控制台规格](docs/ozid/spec.md) 确定的用语。OzID 的统一登录、重新认证与安全返回（T1）已实现，见 [OzID 功能描述](docs/ozid/features.md)；统一管理控制台和网页用户管理尚未实现。
 
 | 术语 | 含义 |
 | --- | --- |
 | OzID | 跨产品用户中心的正式品牌，提供统一登录和用户自助账号管理；不是另一套账号来源 |
+| 导航注册表（`navigation`） | BFF 配置：稳定应用 ID → 精确 origin 与允许的返回路径；`ResolveNavigation` 只从它生成返回地址，客户端传入的任何地址都不会成为跳转目标或 CORS 项 |
+| 稳定应用 ID | `ozid`、`admin`、`trip-map`、`metro`；不是主机名、Cookie domain 或跳转 URL |
 | 统一管理控制台 | 独立于用户中心的管理站点，集中承载账号管理和 metro 等产品管理；不是只管理账号的 OzID Admin |
 | 平台管理员 | 持有 `ozid-admin` 的用户，管理允许的账号状态和角色；不自动获得 metro 管理权 |
 | metro 管理员 | 持有 `metro-admin` 的用户，只获得地铁管理权限；不自动获得用户管理权 |

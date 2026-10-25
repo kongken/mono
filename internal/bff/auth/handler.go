@@ -9,6 +9,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/bff/ent"
 	"github.com/kongken/mono/internal/bff/ent/schema"
+	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/bff/session"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -27,6 +28,14 @@ const (
 type Handler struct {
 	svc           *Service
 	csrfCookieTTL time.Duration
+	navigation    *navigation.Registry
+}
+
+// WithNavigation sets the app registry ResolveNavigation answers from. Without one the
+// method refuses every request.
+func (h *Handler) WithNavigation(r *navigation.Registry) *Handler {
+	h.navigation = r
+	return h
 }
 
 func NewHandler(svc *Service, csrfTTL time.Duration) *Handler {
@@ -212,6 +221,21 @@ func (h *Handler) RetryAccountDeletion(ctx context.Context, req *connect.Request
 	res := connect.NewResponse(&bffv1.RetryAccountDeletionResponse{Deletion: DeletionMessage(wf)})
 	h.clearCookieIfDone(res.Header(), wf)
 	return res, nil
+}
+
+// ResolveNavigation validates a return target against the registry. It is anonymous and
+// read-only: no session, account or usersrv call is involved.
+func (h *Handler) ResolveNavigation(_ context.Context, req *connect.Request[bffv1.ResolveNavigationRequest]) (*connect.Response[bffv1.ResolveNavigationResponse], error) {
+	if h.navigation == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("navigation is not configured"))
+	}
+	target, err := h.navigation.Resolve(req.Msg.GetAppId(), req.Msg.GetReturnPath())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("navigation target not allowed"))
+	}
+	return connect.NewResponse(&bffv1.ResolveNavigationResponse{
+		AppId: target.AppID, ReturnPath: target.Path, ReturnUrl: target.URL, OzidOrigin: target.OzIDOrigin,
+	}), nil
 }
 
 func (h *Handler) IssueCSRFToken(_ context.Context, req *connect.Request[bffv1.IssueCSRFTokenRequest]) (*connect.Response[bffv1.IssueCSRFTokenResponse], error) {

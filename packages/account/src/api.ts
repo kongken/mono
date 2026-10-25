@@ -36,6 +36,15 @@ export type DeletionStatus = {
   completedProducts: string[];
 };
 
+/** A navigation target the BFF accepted: the only address a page may send the browser to. */
+export type NavigationTarget = {
+  appId: string;
+  returnPath: string;
+  /** The registered origin of the app plus the path. */
+  returnUrl: string;
+  ozidOrigin: string;
+};
+
 export type AccountApiOptions = {
   /** The browser transport of this app: cookies included, CSRF header added by its interceptors. */
   transport: Transport;
@@ -87,6 +96,17 @@ export function createAccountApi({ transport, appId, ensureCsrf }: AccountApiOpt
     requestPasswordReset: (email: string) => write(() => auth.requestPasswordReset({ email, appId })).then(() => undefined),
     resetPassword: (token: string, newPassword: string) =>
       write(() => auth.resetPassword({ token, newPassword })).then(() => undefined),
+
+    /**
+     * Asks the BFF whether an app ID and return path are registered. Anonymous and
+     * read-only: it needs no session or CSRF token and establishes nothing. A refusal
+     * (unknown app, path not allowed, registry not configured) throws; the caller must
+     * then not navigate anywhere but stay in OzID.
+     */
+    resolveNavigation: async (targetAppId: string, returnPath: string): Promise<NavigationTarget> => {
+      const res = await auth.resolveNavigation({ appId: targetAppId, returnPath });
+      return { appId: res.appId, returnPath: res.returnPath, returnUrl: res.returnUrl, ozidOrigin: res.ozidOrigin };
+    },
 
     me: async (): Promise<AccountProfile> => {
       const res = await auth.me({});

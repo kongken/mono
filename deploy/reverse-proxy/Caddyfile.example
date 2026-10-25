@@ -159,3 +159,42 @@ metro.example.com {
 		file_server
 	}
 }
+
+# OzID (user center) on the three sibling hosts of one site. The session Cookie is host-only on
+# the API host: it is never given a Domain, and the browser sends it only to api.example.com.
+# id.example.com and the product hosts call that API origin with credentials (the BFF's exact
+# CORS list and Origin/CSRF checks are what keep an unlisted sibling out; see docs/bff.md).
+# Build every front end for it: OzID with
+#   --build-arg VITE_API_BASE_URL=https://api.example.com/api
+# and set the BFF's navigation registry to the same origins (config.bff.example.yaml).
+api.example.com {
+	encode gzip zstd
+
+	header {
+		X-Content-Type-Options nosniff
+		-Server
+	}
+
+	@bff path /api/* /ping /readyz
+	handle @bff {
+		request_body {
+			max_size 20MB
+		}
+		reverse_proxy bff:18081 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+	handle {
+		respond 404
+	}
+}
+
+# The static OzID container (deploy/ozid-web); it sets its own security headers and CSP.
+id.example.com {
+	encode gzip zstd
+	header -Server
+	reverse_proxy ozid-web:80
+}
