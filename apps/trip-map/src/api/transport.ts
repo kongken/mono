@@ -1,7 +1,6 @@
-import type { Interceptor } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import { resolveApiConfig } from "@/lib/backend";
-import { csrfRetry } from "@/lib/csrf-retry";
+import { createApiTransport } from "./transport-core";
 import { csrfHeader, refreshCSRF } from "./csrf";
 import { REGION_HEADER, REGION_VERSION } from "@/lib/region-catalog";
 
@@ -17,25 +16,15 @@ let expectedAccount: string | undefined;
 /** Guard requests against another application's replacement of the shared Cookie. */
 export function setTransportAccount(userId?: string) { expectedAccount = userId; }
 
-const schemaHeaders: Interceptor = (next) => (req) => {
-  req.header.set("X-Tripmap-Schema", "2");
-  if (expectedAccount && !req.url.endsWith("/Me") && !req.header.has("X-Kongken-User"))
-    req.header.set("X-Kongken-User", expectedAccount);
-  req.header.set(REGION_HEADER, REGION_VERSION);
-  const csrf = csrfHeader();
-  if (csrf) req.header.set("X-CSRF-Token", csrf);
-  if (typeof window !== "undefined") {
-    req.header.set("Origin", window.location.origin);
-  }
-  return next(req);
-};
-
 export const transport = apiConfig.enabled
-  ? createConnectTransport({
+  ? createApiTransport({
       baseUrl: apiConfig.baseUrl,
-      // The retry wraps the header interceptor: a repeat after a stale token picks up the fresh one.
-      interceptors: [csrfRetry(refreshCSRF), schemaHeaders],
       fetch: withCredentials,
+      csrf: csrfHeader,
+      refresh: refreshCSRF,
+      account: () => expectedAccount,
+      fixed: () => ({ "X-Tripmap-Schema": "2", [REGION_HEADER]: REGION_VERSION }),
+      origin: () => (typeof window !== "undefined" ? window.location.origin : undefined),
     })
   : null;
 

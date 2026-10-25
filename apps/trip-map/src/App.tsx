@@ -95,7 +95,7 @@ import {
 import { cloudItinerariesKey, isMigrated, markMigrated } from "./lib/session";
 import AccountDialog from "./components/AccountDialog";
 import { OzidSignIn } from "./components/OzidEntry";
-import { ozid } from "@/api/ozid";
+import { ozid, signInAddress } from "@/api/ozid";
 import { legacyAccountEntry } from "@/lib/ozid";
 import MigrationDialog from "./components/MigrationDialog";
 import LegacyDialog from "./components/LegacyDialog";
@@ -453,7 +453,8 @@ function App() {
       setLeaveBlocked(true);
       return;
     }
-    window.location.assign(ozid.login);
+    // Come back to this page when the BFF has a rule for it, otherwise to the start page (see `signInAddress`).
+    void signInAddress().then((address) => window.location.assign(address));
   };
   // Offer to move this device's footprints once the account's cloud data is
   // confirmed. Nothing is prompted when there is nothing to move.

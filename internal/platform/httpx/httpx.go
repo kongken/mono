@@ -53,7 +53,7 @@ func CORS(origins func() []string, headers ...string) gin.HandlerFunc {
 		header := c.Writer.Header()
 		header.Set("Access-Control-Allow-Origin", origin)
 		header.Set("Access-Control-Allow-Credentials", "true")
-		header.Set("Access-Control-Expose-Headers", "Connect-Protocol-Version, Content-Type, Grpc-Status, Grpc-Message, Grpc-Status-Details-Bin, Connect-Content-Encoding, Connect-Accept-Encoding")
+		header.Set("Access-Control-Expose-Headers", "Connect-Protocol-Version, Content-Type, Grpc-Status, Grpc-Message, Grpc-Status-Details-Bin, Connect-Content-Encoding, Connect-Accept-Encoding, X-Bff-Rejection")
 		if c.Request.Method == http.MethodOptions {
 			header.Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 			header.Set("Access-Control-Allow-Headers", allowHeaders)

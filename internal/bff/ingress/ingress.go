@@ -93,6 +93,27 @@ var (
 	errWriteRejected   = connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
 )
 
+// RejectionHeader names the response header that tells a browser client why a write was
+// refused before it ran, when the reason is one it can repair and repeat. Today that is a
+// single value, RejectionCSRF: the double-submit token did not match the Cookie, which
+// happens when another tab or application replaced the shared token. It carries no value
+// from the request, the session or the account. Origin, perimeter, role, session and
+// business refusals never carry it, so a client that retries only on this marker repeats
+// nothing else.
+const (
+	RejectionHeader = "X-Bff-Rejection"
+	RejectionCSRF   = "csrf"
+)
+
+// csrfRejected is the "request rejected" answer for a CSRF mismatch, with the marker. It is
+// built per call: the shared errWriteRejected must never carry the marker, because the
+// request ID is set on whichever error value is returned.
+func csrfRejected() error {
+	err := connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
+	err.Meta().Set(RejectionHeader, RejectionCSRF)
+	return err
+}
+
 func (p Policy) now() time.Time {
 	if p.Now != nil {
 		return p.Now()
@@ -124,6 +145,9 @@ func Interceptor(p Policy) connect.Interceptor {
 			}
 			if RequiresWriteProtection(procedure) {
 				if err := session.CheckWrite(req.Header(), p.AllowedOrigins, req.Header().Get("Host")); err != nil {
+					if errors.Is(err, session.ErrCSRF) {
+						return nil, withID(csrfRejected())
+					}
 					return nil, withID(errWriteRejected)
 				}
 			}

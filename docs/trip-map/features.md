@@ -194,7 +194,7 @@
 
 仅当构建时设置了 `VITE_API_BASE_URL`（见 [后端初始化](../backend.md)）才出现，未设置时界面没有任何登录入口，不渲染也不请求账号中心，应用保持纯本地模式。登录可选，不登录的行为完全不变。配置后端的构建必须同时给出两个公开地址，缺失或不合法时构建失败：绝对的 `VITE_API_BASE_URL`（BFF 的规范公开地址，例如 `https://api.example.com/api`；会话 Cookie 属于 API 主机，同源 `/api` 代理无法共享它，所以产品直接调用该地址）和 `VITE_OZID_ORIGIN`（OzID 的 origin，例如 `https://id.example.com`）。产品在 BFF 导航注册表中的 `app_id` 是 `trip-map`，只登记默认路径 `/`，BFF 决定允许的返回 origin 与路径。
 
-**登录。** 账号由 OzID 统一管理（与地铁足迹共用），会话是 BFF 的 HttpOnly Cookie `kongken_sid`（`SameSite=Lax`，只属于 API 主机），写操作带 CSRF；`localStorage` 的 `shanhai-session-v1` 只存用户资料，不存 Bearer、令牌、密码或返回地址。未登录时页眉的“登录”按钮打开账号弹窗，弹窗里只有一个“使用 OzID 登录”按钮：没有邮箱、密码字段或任何表单，页面里也没有隐藏的备份表单。按钮把浏览器带到 OzID 的 `/login?app_id=trip-map&return_path=%2F`（只有产品标识和起始页，不含用户、页面状态或会话信息），登录或注册后由 OzID 经 BFF 校验返回产品起始页。返回后页面用 `Me` 取得身份并以 Me 返回的用户 UUID 恢复该账号自己的缓存 `shanhai-cloud-v2:<用户 UUID>`。离开前先保证本页修改已保存在本机：账号缓存每次修改都先写入，通常无事可做；只有最近一次本机写入失败时（浏览器存储不可用或已满），不离开，弹出“暂时不能离开本页”，提供“导出足迹备份”“留在本页”和“重试保存并前往”，保存成功后才前往 OzID（本地模式的 `storageError` 同样处理）。账号弹窗里“管理 OzID 账号”在新标签页打开 OzID（资料、密码、登录设备、注销都在那里，`noopener noreferrer`，本页和未保存的编辑原样保留）。
+**登录。** 账号由 OzID 统一管理（与地铁足迹共用），会话是 BFF 的 HttpOnly Cookie `kongken_sid`（`SameSite=Lax`，只属于 API 主机），写操作带 CSRF；`localStorage` 的 `shanhai-session-v1` 只存用户资料，不存 Bearer、令牌、密码或返回地址。未登录时页眉的“登录”按钮打开账号弹窗，弹窗里只有一个“使用 OzID 登录”按钮：没有邮箱、密码字段或任何表单，页面里也没有隐藏的备份表单。按钮把浏览器带到 OzID 的 `/login?app_id=trip-map&return_path=<路径>`（只有产品标识和一个规范 pathname，不含用户、query、fragment、页面状态或会话信息），登录或注册后由 OzID 经 BFF 校验返回。返回路径来自一个封闭的名单：从起始页（带 base 时是该 base）发起回到起始页，从 `/status` 发起回到 `/status`（见“服务状态页”）；其他任何页面（分享页 `/s/<令牌>`、邮件落地页、未知路径）以及 URL 里的 query 和 fragment 都不会进入，一律回到起始页。名单内的非起始页在发出前先问 BFF 是否登记了这个 pathname，BFF 拒绝、不可达或 3 秒没答复都退回起始页（所以没有登记 `/status` 的部署不会让登录卡在 OzID 的“地址不允许”页）；部署者要登记 `navigation.apps.trip-map.paths: ["/status"]`。已打开的弹窗和未保存的临时状态不属于返回承诺，返回的是页面；本地修改由“离开前保存”保证。返回后页面用 `Me` 取得身份并以 Me 返回的用户 UUID 恢复该账号自己的缓存 `shanhai-cloud-v2:<用户 UUID>`。离开前先保证本页修改已保存在本机：账号缓存每次修改都先写入，通常无事可做；只有最近一次本机写入失败时（浏览器存储不可用或已满），不离开，弹出“暂时不能离开本页”，提供“导出足迹备份”“留在本页”和“重试保存并前往”，保存成功后才前往 OzID（本地模式的 `storageError` 同样处理）。账号弹窗里“管理 OzID 账号”在新标签页打开 OzID（资料、密码、登录设备、注销都在那里，`noopener noreferrer`，本页和未保存的编辑原样保留）。
 
 **邮件链接与旧入口。** 升级前发出的注册、重置邮件仍打开 `/account/verify-email` 或 `/account/reset-password`（令牌在 URL 片段里）。页面先把令牌读入内存并立即用 `history.replaceState` 清除地址栏片段，不写 `localStorage` 或 `sessionStorage`，不挂载应用（因此不读取会话、缓存或足迹，也不发任何请求），响应带 `Referrer-Policy: no-referrer` 与 `Cache-Control: no-store`，只在用户提交表单时才使用令牌；链接用过、过期、缺失或刷新页面后一律显示同一个“链接不可用”页。注册完成与重置密码都不会自动登录，“去登录”指向 OzID：只使用 BFF 校验并随结果返回的返回上下文（邮件当初绑定的 `app_id` 与路径），没有就回到产品起始页。旧的 `/?signin=1`、`/login`、`/account` 不再是页面：它们只打开账号弹窗并把整个查询从地址栏移除，其中的 `next` 等参数从不被读取、保留或跟随，弹窗按钮仍只去 OzID。
 
@@ -219,7 +219,7 @@
 - **其他应用退出、改密码或会话被撤销：** `Me` 回答“未登录”，保留账号缓存和未同步修改，弹窗顶部显示“前往 OzID 重新登录”和“导出账号缓存”（无缓存时是全屏“登录已失效”）。在 OzID 重新登录同一账号后回到页面，下一次核对即恢复并继续同步，无需刷新。
 - **网络或服务故障不是退出：** `Me` 取不到答案时什么都不改，不提示登录失效，不清除任何东西。
 - **账号 A 切换到 B：** `Me` 返回的 UUID 与本页记录的不同时，页面切换到 B 自己的缓存（并提示“账号已切换”），A 尚未同步的缓存原样保留给 A；B 的编辑只写入 B 的缓存。所有足迹写请求都带 `X-Kongken-User`（发起时的账号 UUID），在 B 已接管 Cookie、本页还没核对时，旧页面的写入被 BFF 在到达任何业务服务之前拒绝，不会写进 B 的账号；换回 A 后 A 的缓存、祖先副本、待发批次和原请求 ID 一起恢复并以原 ID 重放。切换只清理其他账号“没有未同步内容”的缓存，登录前的本地足迹和旧数据读取保护不受影响。
-- **CSRF 令牌被其他页面替换：** 令牌 Cookie 是各标签页、各应用共用的，OzID 登录会替换它；写请求被拒绝时重新取令牌并重放一次（每个写请求带服务端去重的请求 ID，被拒绝的请求没有执行）。
+- **CSRF 令牌被其他页面替换：** 令牌 Cookie 是各标签页、各应用共用的，OzID 登录会替换它。BFF 只对“CSRF 双提交不匹配或缺失”这一种拒绝额外返回响应头 `X-Bff-Rejection: csrf`（Origin、周界、角色、会话、账号守卫和业务拒绝都不带，状态码与消息也相同，所以不能凭状态码判断）。客户端只对**带这个标记的一元写调用**重新取令牌并原样重放一次：同一个请求对象，所以消息体、其中的 mutation ID 和已经带上的 `X-Kongken-User` 都不变，只有令牌被替换；读请求（BFF 不做 CSRF 校验，也不会带标记）、流式调用、没有标记的 `PermissionDenied`、第二次拒绝和取不到令牌都不重放。重放期间浏览器若已换成账号 B，重放仍以 A 的身份发出，被 BFF 的账号守卫在到达业务服务前拒绝，B 不会被写入，A 的修改和 mutation ID 留在 A 的缓存里。
 
 退出登录只撤销当前 BFF 会话、清理当前账号缓存并回到本机足迹；未同步修改仍按原规则提示导出。
 
@@ -338,12 +338,14 @@
 - 页面显示总体结论（“全部服务正常”或“部分服务异常”）、各依赖的“正常 / 异常”（数据库、缓存、对象存储）以及分享链接是否开启，并提供“重新检查”按钮。
 - 状态来自公网 `bff.tripmap.v1.StatusService/GetStatus`，由 BFF 经内部 TLS gRPC 向 tripmap 查询，不含任何用户数据。查询不带 Authorization 与 Cookie，不读取登录状态、本机足迹或账号缓存，也不会修改它们。
 - 云端服务不可达时显示“暂时无法获取服务状态”并说明本地足迹不受影响，可重新检查；不会显示过期或猜测的状态。
+- 配置了账号中心（后端与 OzID 地址）时，页面底部在“返回地图”旁有“使用 OzID 登录”链接（T10）：它是指向 OzID 登录页的普通链接，页面不读取账号、不保存任何修改，所以点击前没有需要保存的东西。点击先问 BFF 是否登记了 `/status`，已登记则登录后回到状态页，否则回到起始页（链接本身的地址就是回到起始页的登录页，没有脚本、新标签页打开也可用）。URL 里的 query 和 fragment 不会带给 OzID。
 
 ### 服务状态页验收
 
 - 未登录打开 `/status`，在桌面与 390px 宽度下都能完整读到结论与各依赖状态，页面没有横向滚动。
 - 某个依赖异常时显示该依赖“异常”和“部分服务异常”；云端不可达时显示不可用说明，点击“重新检查”后恢复显示。
 - 打开 `/status` 前后，浏览器本地足迹和已有会话保持不变，状态请求不携带凭据。
+- （配置账号中心）点“使用 OzID 登录”：已登记 `/status` 时地址是 `…/login?app_id=trip-map&return_path=%2Fstatus`，登录后回到状态页；未登记或 BFF 不可达时回到起始页；`/status?x=…#…` 的 query 和 fragment 不出现在发给 OzID 的任何地址或 Referer 里。
 
 ## 响应式与键盘交互
 
@@ -505,9 +507,10 @@
 范围：[#88](https://github.com/kongken/mono/issues/88)。产品里不再有登录、注册、找回密码、资料、改密码、设备和注销表单；两个入口（普通弹窗与无缓存时的全屏“登录已失效”页）都去 OzID；同步状态、历史版本、导入本机足迹、媒体、分享、好友和通知入口保留；没有后端配置时不渲染、不请求账号中心。
 
 - **分层验证。**
-  1. 单元（`npm test -w @kongken/trip-map`）：`scripts/ozid.test.mjs`（OzID 地址的解析与拒绝、只含 `app_id` 与 `return_path` 的登录地址、旧入口只打开弹窗且整个查询被丢弃、构建门禁：无后端的本地构建、完整配置、相对 `/api`、非 https、缺失或带路径的 OzID origin 都按预期通过或失败）与 `scripts/csrf-retry.test.mjs`（被拒绝的写请求取新令牌后重放一次，其他错误、第二次拒绝、取不到令牌、流式调用都不重放）。
-  2. 模拟 BFF 的 Playwright（`npm run test:e2e:trip-map`，桌面与手机）：`tests/account.spec.ts` 覆盖入口、无任何表单或密码字段、业务入口保留、返回后恢复、旧入口与带 `next` 的旧链接、旧邮件落地页、会话失效保留缓存并可导出、其他应用退出或改密码、网络失败不是退出、同账号在别处登录后恢复同步、全屏失效页、A/B 切换不串写、匿名本地足迹与旧数据保护不受影响、存储失败时不离开并提供导出（账号模式与本地模式）、升级前未完成注销只提供 OzID 重试。
-  3. 真实栈（`TRIPMAP_BROWSER_E2E=1 go test ./internal/e2e -run TestTripMapBrowserChain`，需要 Postgres/Redis、node 与 Chromium）：真实 BFF、usersrv、tripmap，HTTPS 同站点的 `id`/`api`/`trip` 三个保留测试域名，产品与 OzID 按这些地址构建；专属种子账号（每个场景、每个视口各一个，服务端已有一条杭州足迹）。覆盖真实跨 origin 返回后以 `Me` 的用户 UUID 恢复原缓存、Cookie 属性（仅 API 主机、HttpOnly、Secure、Lax）与页面不含会话值或密码；服务端已应用但响应丢失的批次，在离开到 OzID、会话结束、重新登录返回后用**原请求 ID** 重放，服务端只有一条回执、一份变更；A/B 切换时旧页面的写入被 `X-Kongken-User` 守卫拒绝、B 的账号不被写入、A 的未同步编辑以原 ID 回到 A；其他应用退出后保留并恢复；网络失败不清理任何东西。
-  4. CI：`tripmap-browser` 任务以 `-v` 运行上述真实栈测试，要求 `--- PASS`、不得有 `--- SKIP`、Playwright 报告 12 项全部通过，并保存日志与 trace。
-- **反向检查（变异）。** 开发时对关键保护逐一做过破坏性验证并确认对应用例失败：保存失败时仍放行离开、任何 `Me` 失败都当作退出、旧入口保留查询、不切换到另一账号、写请求不带 `X-Kongken-User`、去掉 CSRF 重放（真实栈在没有 CSRF 重放时的 403 就是这样发现并修复的）。这些变异没有作为自动化用例保存。
-- **已知限制。** 真实栈测试用 `page.clock` 推进时间触发核对，没有等待真实的 5 秒；浏览器标签页之间没有 BroadcastChannel，OzID 里的变化只在本页重新可见、获得焦点或网络恢复时被发现；改密码在模拟 BFF 中覆盖，真实栈用“OzID 退出登录”覆盖同一路径（二者对产品都是 `Me` 返回未登录）；生产代理（Nginx/Caddy）的 CORS 与 Cookie 行为按示例配置给出，没有在真实生产代理上验证。
+  1. 单元（`npm test -w @kongken/trip-map`）：`scripts/ozid.test.mjs`（OzID 地址的解析与拒绝、登录地址只含 `app_id` 与 `return_path`、返回路径的封闭名单与敏感路径回退、先问 BFF 再用的规则及超时/拒绝/异常回退、旧入口清理、构建门禁）与 `scripts/csrf-retry.test.mjs`（只对带标记的写重放一次；用真实的 Connect 传输与 `FootprintService.syncChanges` 断言重放的字节级相同消息体、同一 mutation ID、同一 `X-Kongken-User`，只有令牌不同；无标记的 `PermissionDenied`、读请求、流式、第二次拒绝、取不到令牌都不重放；换账号发生在取令牌期间时重放仍是原账号）。
+  2. BFF（`go test ./internal/bff/ingress`，`rejection_marker_test.go`）：CSRF 不匹配/缺失带标记；非法 Origin、周界拒绝、会话拒绝、账号守卫、角色拒绝都不带；一次带标记的拒绝不会让标记残留到下一次拒绝。
+  3. 模拟 BFF 的 Playwright（`npm run test:e2e:trip-map`，桌面与手机）：`tests/account.spec.ts`。入口、无任何表单或密码字段、业务入口保留、返回后恢复、旧入口与带 `next` 的旧链接、旧邮件落地页、会话失效保留缓存并可导出、其他应用退出或改密码、网络失败不是退出、同账号在别处登录后恢复同步、全屏失效页、A/B 切换不串写、匿名本地足迹与旧数据保护不受影响、存储失败时不离开并提供导出（账号与本地模式）、升级前未完成注销只提供 OzID 重试；返回路径：状态页返回状态页且 query/fragment 不外传、未登记或 BFF 不可达时回到起始页、非业务页面带 query/fragment 回到起始页、分享页没有账号入口；冲突：冲突窗口打开时离开再回来，冲突仍在、本机编辑与祖先副本和原请求 ID 不变，选“以本机为准/以云端为准”都按选择生效。
+  4. 真实栈真实跨 origin（`TRIPMAP_BROWSER_E2E=1 go test ./internal/e2e -run TestTripMapBrowserChain`，需要 Postgres/Redis、node 与 Chromium，22 项 = 11 个场景 × 桌面/手机）：真实 BFF、usersrv、tripmap，HTTPS 同站点的 `*.ozid-e2e.test` 三个主机，BFF 注册表登记 `/status`；专属种子账号（每个场景、每个视口各一个，服务端已有一条杭州足迹）。覆盖真实返回后以 `Me` 的用户 UUID 恢复原缓存；Cookie 属性；响应丢失的批次跨跳转后用原请求 ID 重放且服务端只有一份回执；A/B 切换时旧页面写入被账号守卫拒绝；其他应用退出后保留并恢复；网络失败不清理任何东西；旧链接 `next` 不被跟随；**从 `/status` 登录后真实返回 `/status`，且 query/fragment 没有出现在发往 OzID 的任何地址或 Referer 里；非业务页面带 capability 登录回到起始页；BFF 不可达时回到起始页；CSRF 令牌被另一个标签页替换后，写请求先被拒绝（带标记）、取新令牌、同一请求再发一次，服务端只应用一次（一份回执、与普通写入相同数量的变更记录）；替换期间浏览器换成 B 时，重放仍以 A 的头和同一 mutation ID 发出并被账号守卫以 401 拒绝，A、B 的服务端数据都不变，A 的修改仍在 A 的缓存里。**
+  5. CI：`tripmap-browser` 任务以 `-v` 运行上述真实栈测试，要求 `--- PASS`、不得有 `--- SKIP`、Playwright 报告 22 项全部通过且没有 failed/skipped/flaky，并保存日志与 trace；`trip-map-web-image` 任务运行 `scripts/trip-map-web-smoke.sh`，同一脚本构建两种镜像：后端模式（示例参数 `VITE_API_BASE_URL=https://api.example.com/api`、`VITE_OZID_ORIGIN=https://id.example.com`，产物里必须有这两个地址、容器能提供起始页与 `/status`、已退役的 `/auth/login` 返回 404）和纯本地模式（不带参数，产物里没有后端或 OzID 地址）；只给后端地址不给 OzID、或后端地址是同源 `/api` 时构建必须失败。
+- **反向检查（变异）。** 开发时对关键保护逐一做过破坏性验证并确认对应用例失败：保存失败时仍放行离开、任何 `Me` 失败都当作退出、旧入口保留查询、不切换到另一账号、写请求不带 `X-Kongken-User`、去掉 CSRF 重放、BFF 不再发标记（真实栈 4 项失败）、客户端不问 BFF 就用名单内页面（未登记与不可达两项失败）、重放时重写账号头（账号变化用例失败）。这些变异没有作为自动化用例保存。
+- **已知限制。** 真实栈测试用 `page.clock` 推进时间触发核对，没有等待真实的 5 秒；浏览器标签页之间没有 BroadcastChannel，OzID 里的变化只在本页重新可见、获得焦点或网络恢复时被发现；改密码在模拟 BFF 中覆盖，真实栈用“OzID 退出登录”覆盖同一路径（二者对产品都是 `Me` 返回未登录）；生产代理（Nginx/Caddy）的 CORS 与 Cookie 行为按示例配置给出，没有在真实生产代理上验证；冲突窗口打开时无法从产品内触发离开（窗口不可关闭），测试以浏览器直接前往 OzID 再返回来模拟；账号缓存损坏、离线回归和迁移原子意图沿用既有用例（`data-safety`、离线与迁移套件），没有新增“跨 OzID 跳转”的版本；分支保护是否把 `tripmap-browser` 设为必需检查无法从仓库确认。

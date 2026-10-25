@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadConfigFromFile } from "vite";
-import { APP_ID, legacyAccountEntry, resolveOzid } from "../src/lib/ozid.ts";
+import { APP_ID, chooseReturn, legacyAccountEntry, resolveOzid, returnPathFor } from "../src/lib/ozid.ts";
 
 // Reserved example names only (id.example.com, api.example.com); nothing here is a real deployment.
 const ID = "https://id.example.com";
@@ -52,6 +52,68 @@ test("a mail landing page may only continue with a context the BFF validated", (
   assert.equal(url.origin, ID);
   assert.equal(url.searchParams.get("app_id"), "metro");
   assert.equal(url.searchParams.get("return_path"), "/me");
+});
+
+test("a sign-in returns to the page it started on when that page is a listed one, otherwise to the start page", () => {
+  assert.equal(returnPathFor("/"), "/");
+  assert.equal(returnPathFor("/status"), "/status");
+  assert.equal(returnPathFor("/status/"), "/status", "trailing slash is normalised, the result is canonical");
+  // Anything not listed, or that holds a capability, is the start page: never carried to OzID.
+  const token = "A".repeat(43);
+  for (const path of [
+    `/s/${token}`,
+    "/s",
+    "/account/verify-email",
+    "/account/reset-password",
+    "/login",
+    "/account",
+    "/status/extra",
+    "/statuses",
+    "/anything/else",
+    "//evil.example.net",
+    "/status/../s",
+    "/%73tatus",
+    "",
+  ]) {
+    assert.equal(returnPathFor(path), "/", JSON.stringify(path));
+  }
+});
+
+test("only the pathname is read: a query or fragment can never reach the return path", () => {
+  // The caller passes location.pathname; if a whole href were passed by mistake it still must not leak.
+  for (const path of ["/status?x=secret", "/status#secret", "/?token=secret", "/status?next=https://evil.example.net"]) {
+    const result = returnPathFor(path);
+    assert.ok(!/[?#=]|secret|evil/.test(result), path);
+  }
+  const r = resolveOzid({ VITE_OZID_ORIGIN: ID }, true);
+  const url = new URL(r.loginAt(returnPathFor("/status")));
+  assert.deepEqual([...url.searchParams.keys()].sort(), ["app_id", "return_path"]);
+  assert.equal(url.searchParams.get("return_path"), "/status");
+});
+
+test("a return path under a base path is canonical and registered per base", () => {
+  assert.equal(returnPathFor("/footprints/", "/footprints/"), "/footprints/");
+  assert.equal(returnPathFor("/footprints/status", "/footprints/"), "/footprints/status");
+  assert.equal(returnPathFor("/status", "/footprints/"), "/footprints/", "outside the base is the start page");
+  assert.equal(returnPathFor("/footprints/s/" + "A".repeat(43), "/footprints/"), "/footprints/");
+});
+
+test("a listed page is used only after the BFF confirmed that exact pathname; every other answer is the start page", async () => {
+  const asked = [];
+  const yes = async (p) => (asked.push(p), true);
+  assert.equal(await chooseReturn("/status", "/", yes), "/status");
+  assert.deepEqual(asked, ["/status"]);
+  // The start page needs no question at all.
+  assert.equal(await chooseReturn("/", "/", async () => assert.fail("no question for the start page")), "/");
+  // A page holding a capability is never even asked about.
+  assert.equal(await chooseReturn(`/s/${"A".repeat(43)}`, "/", async () => assert.fail("never asked")), "/");
+  // Not registered, refused, an outage, a throw: the start page.
+  assert.equal(await chooseReturn("/status", "/", async () => false), "/");
+  assert.equal(await chooseReturn("/status", "/", async () => { throw new Error("unavailable"); }), "/");
+  // A BFF that does not answer in time does not hold the sign-in back.
+  const started = Date.now();
+  assert.equal(await chooseReturn("/status", "/", () => new Promise(() => {}), 50), "/");
+  assert.ok(Date.now() - started < 1000);
 });
 
 test("old account entry points only open the account window and are cleaned up", () => {

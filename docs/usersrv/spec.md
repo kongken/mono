@@ -24,7 +24,7 @@
 - **镜像与发布**：`deploy/usersrv/Dockerfile`（只复制 usersrv 相关目录，构建阶段跑这些包的 Go 单元测试，产出 `/usersrv` 与 `/usersrv-admin`，distroless 运行层）；`docker-publish.yml` 的矩阵加入 `usersrv`；`make test-integration` 现在同时设置 `USERSRV_TEST_*`（没有它们，真实账号链整体跳过）。
 - **部署示例**：`deploy/compose.stack.example.yaml` 增加 `usersrv` 服务与 `deploy/postgres/init-databases.sql`（三个独立库）；`deploy/k8s/secrets.layout.example.yaml` 增加 `usersrv-tls`、`usersrv-keys`、`usersrv-mail`；Nginx 模板与 Caddy 示例对 `/auth/` 返回 404。
 - **Logto 退役**：运行时没有任何 Logto/OAuth 入口、配置、依赖或废弃 RPC；`/auth/login`、`/auth/callback/*`、`/auth/logout`、`/api/auth/login` 返回 404（无重定向、无 Cookie），旧 RPC 不存在（`internal/e2e/logto_retired_chain_test.go`）。仓库里仍出现这些词的地方只有：已应用的历史迁移与 `atlas.sum`、退役文档与脚本、本规格、断言“界面没有 Logto/OAuth 文案”的负向测试，以及清除浏览器里 `shanhai-oauth-pending-v1` 旧键的一行。旧表、旧 Redis OAuth state、旧测试数据与 S3 对象的清理**全部手动**，范围写在退役文档里；没有任何自动 DROP 或清库。
-- **产品**：trip-map 全屏的“无法加载云端足迹”页在会话失效且本地没有缓存时，现在直接提供登录表单（此前只有导出与重试，没有重新登录入口）。
+- **产品**：trip-map 全屏的“无法加载云端足迹”页在会话失效且本地没有缓存时提供重新登录入口（此前只有导出与重试）；T10 起该入口是前往 OzID 的按钮，产品里不再有登录表单。
 - **文档**：§15 列出的文档已同步，旧的 Logto 当前行为改为历史说明；[邮件冒烟说明](mail-smoke-test.md)改为适用于已集成的栈。
 
 #### 验证状态
@@ -39,7 +39,7 @@
 | 无 Logto 全链：注册申请 → 邮件 → 完成注册 → 登录 → tripmap / metro 业务写入 → 邮件重置（旧会话失效）→ 重新登录 → 数据仍在 → 重新认证 → 注销 → 无法登录且数据已删（`TestChainFullAccountLifecycleWithoutLogto`） | 通过（邮件换成进程内收件箱） |
 | 带照片的账号在真实 S3 兼容服务上注销（`real_s3_deletion_chain_test.go`）：已完成照片的对象与缩略图、未完成上传的暂存对象全部删除，他人对象保留 | 通过 |
 | BFF 手动退役脚本（`retire_logto_identities.sql`）在真实 PostgreSQL 上的行为（`retire_logto_sql_test.go`）：有未完成注销时拒绝并不删表；完成后只删四个旧表、可重复执行、不影响新表 | 通过 |
-| 默认 Playwright 套件（模拟 BFF，桌面与手机）：trip-map 与 metro | 通过，含新增的“会话失效且无缓存时重新登录”用例 |
+| 默认 Playwright 套件（模拟 BFF，桌面与手机）：trip-map 与 metro | 通过；trip-map 的账号用例在 T10 改写为 OzID 入口、会话失效保留缓存与账号切换用例（原“会话失效且无缓存时重新登录”表单用例随表单删除，由“全屏失效页前往 OzID 重新登录”用例取代） |
 | 真实 nginx 1.26.3（Debian 构建）加载两个前端模板、真实 Caddy 2.11.7 加载 `Caddyfile.example`，用 curl 检查响应头与路由 | 通过；发现并修复了三个已有问题（见下） |
 
 验证中发现并修复的示例问题：nginx 的 `index.html` 只带 `Cache-Control`（`add_header` 不继承，安全头丢失）；`/auth/login` 经 SPA 回退得到 200；Caddy 示例的 `handle /ping /readyz` 语法无效、站点级 `try_files` 吞掉所有 `handle`、站点级 `Referrer-Policy` 覆盖落地页的 `no-referrer`。
@@ -388,7 +388,7 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 
 ## 11. 两个应用与既有功能的调整
 
-- `apps/trip-map` 和 `apps/metro` 都提供邮箱登录、申请注册、验证后设置密码、忘记密码、重置、基础资料、改密及注销入口；复用 `packages/ui`，两应用共同的账号表单/客户端逻辑在第二个使用方出现时抽到 `packages/`，应用之间不互相 import。
+- `apps/metro` 提供邮箱登录、申请注册、验证后设置密码、忘记密码、重置、基础资料、改密及注销入口（`apps/trip-map` 自 T10 起没有这些表单，所有账号入口都去 OzID）；复用 `packages/ui`，两应用共同的账号表单/客户端逻辑在第二个使用方出现时抽到 `packages/`，应用之间不互相 import。
 - 邮件落地页固定 `/account/verify-email`、`/account/reset-password`，由各应用路由和静态站 fallback 接住，不再走 `/auth/` OAuth 代理。注册/重置成功回到该应用登录入口，不自动跳转客户端提供的外站。
 - trip-map 继续保留本地模式；没有 `VITE_API_BASE_URL` 时不出现登录入口，也不发账号请求。账号过期/失效仍先保留未同步缓存并允许导出，不能为了更换认证删除本地足迹。
 - metro 的 `handle`、骑行者资料公开规则不变；公开昵称与 usersrv 基础昵称相互独立，登录不覆盖用户已编辑的产品资料。

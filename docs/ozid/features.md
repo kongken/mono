@@ -153,11 +153,13 @@ navigation:
   api_origin: https://api.example.com       # BFF 的规范公开 origin
   apps:
     ozid:     {origin: https://id.example.com, paths: ["/security"]}
-    trip-map: {origin: https://trip.example.com}
+    trip-map: {origin: https://trip.example.com, paths: ["/status"]}
     metro:    {origin: https://metro.example.com, paths: ["/me", "/city/*"]}
 ```
 
 路径规则：默认路径（缺省 `/`）总是允许；`paths` 里的项是精确 pathname，或以 `/*` 结尾的前缀（`/city/*` 允许 `/city` 及其下所有路径，`/*` 允许整个应用）。启动时校验，**配置缺失或不合法会让 BFF 启动失败并指出字段**，不会降级：
+
+**山海足迹的返回页面（T10）。** 产品从哪个页面发起登录，就申请回到哪个页面，但只限一个封闭的名单：起始页（默认路径 `/`，带 Vite base 时是该 base）和 `/status`（公开的服务状态页，页面上有“使用 OzID 登录”链接）。名单之外的任何页面（分享页 `/s/<令牌>`、邮件落地页、未知路径）一律回到起始页；申请里永远只有 `app_id` 与规范 pathname，query、fragment 和令牌不会进入，也没有浏览器 `Referer` 泄露（跨站点只发 origin）。产品在发出名单内的非起始页之前先请 BFF 校验这个 pathname（`ResolveNavigation`，只读且匿名），BFF 没有对应规则、拒绝、不可达或超过 3 秒都退回起始页，所以未登记 `/status` 的部署不会让登录结束在 OzID 的“地址不允许”状态。部署者要让登录回到状态页，就在 `navigation.apps.trip-map.paths` 登记 `/status`（带 base 时是 `<base>status`）；弹窗打开与未保存的修改不属于返回承诺，返回的是页面，不是页面里的临时状态。
 
 - `navigation` 段整体缺省 = 不启用，`ResolveNavigation` 返回 `FAILED_PRECONDITION`（带来源参数的登录只进入 OzID，不跳转，也不会放行任何地址）。设置了任一字段就需要 `api_origin` 与至少含 `ozid` 的 `apps`。
 - 每个 origin 必须是精确的 `scheme://host[:port]`（无路径、query、userinfo）；`auth.cookie_secure: true` 时必须是 https（plain http 仅限本机回环主机名/地址，且只在不启用 secure Cookie 时可用）。

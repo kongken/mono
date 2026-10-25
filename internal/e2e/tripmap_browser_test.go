@@ -56,8 +56,10 @@ func TestTripMapBrowserChain(t *testing.T) {
 			cfg.Navigation = navigation.Config{
 				APIOrigin: apiO,
 				Apps: map[string]navigation.App{
-					"ozid":     {Origin: idO, Paths: []string{"/security"}},
-					"trip-map": {Origin: tripO},
+					"ozid": {Origin: idO, Paths: []string{"/security"}},
+					// The start page and the status page: the pages an account step may return to (the product asks
+					// the BFF about a page before naming it; anything not listed is answered with the start page).
+					"trip-map": {Origin: tripO, Paths: []string{"/status"}},
 				},
 			}
 		},
@@ -73,7 +75,7 @@ func TestTripMapBrowserChain(t *testing.T) {
 	}
 	accounts := map[string]seeded{}
 	for _, project := range []string{"desktop", "mobile"} {
-		for _, kind := range []string{"round", "lost", "a", "b", "out", "net"} {
+		for _, kind := range []string{"round", "lost", "a", "b", "out", "net", "csrf", "swapa", "swapb", "status"} {
 			name := "tm-" + kind + "-" + project
 			_, id, _ := stack0.account(name)
 			accounts[name] = seeded{ID: id, Email: name + "@example.com"}

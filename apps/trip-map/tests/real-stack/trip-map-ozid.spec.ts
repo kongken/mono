@@ -399,3 +399,198 @@ test.describe("old entry points", () => {
     expect([...hosts].filter((h) => h.includes("evil"))).toEqual([]);
   });
 });
+
+// ---- where a sign-in returns to, for real ------------------------------------------------------------------------
+
+test.describe("returning to the page that started the sign-in", () => {
+  const SECRET = "SECRET-capability-0123456789";
+  const STATUS_LOGIN = `${stack.id}/login?app_id=trip-map&return_path=%2Fstatus`;
+
+  /** What the browser sent to OzID, with the Referer it carried. */
+  function toOzid(page: Page) {
+    const sent: { url: string; referer?: string }[] = [];
+    page.on("request", (r) => {
+      if (r.url().startsWith(stack.id)) sent.push({ url: r.url(), referer: r.headers().referer });
+    });
+    return sent;
+  }
+
+  test("signing in from the status page comes back to the status page, and the account is the real one", async ({ page }, info) => {
+    const who = acct("status", info);
+    const sent = toOzid(page);
+    // The page carries a query and a fragment that must go nowhere.
+    await page.goto(`${stack.trip}/status?share=${SECRET}#${SECRET}`);
+    await expect(page.getByRole("heading", { name: "服务状态" })).toBeVisible();
+    expect(await noOverflow(page)).toBe(true);
+    await page.getByTestId("status-sign-in").click();
+    // The real BFF's registry accepted the pathname (the product asked it first); OzID got only the product and the page.
+    await expect(page).toHaveURL(STATUS_LOGIN);
+    await submitLogin(page, who);
+    await page.waitForURL(`${stack.trip}/status`);
+    await expect(page.getByRole("heading", { name: "服务状态" })).toBeVisible();
+    expect(await noOverflow(page)).toBe(true);
+    // The session is the real one: the map restores this account under its UUID, with its own footprint.
+    await page.goto(`${stack.trip}/`);
+    await expect(accountButton(page)).toBeVisible();
+    await expect.poll(() => sessionUser(page)).toBe(who.id);
+    await expect.poll(async () => codes(await cacheOf(page, who.id))).toEqual(["330100"]);
+    // Nothing of the product's URL reached OzID: not in an address, not in a Referer.
+    expect(sent.length).toBeGreaterThan(0);
+    expect(JSON.stringify(sent)).not.toContain(SECRET);
+  });
+
+  test("a page that is not a business page, with a capability in its URL, signs in to the start page and tells OzID nothing of it", async ({ page }) => {
+    const sent = toOzid(page);
+    await page.goto(`${stack.trip}/somewhere/else?share=${SECRET}&token=${SECRET}#${SECRET}`);
+    await signInButton(page).click();
+    await dialog(page).getByTestId("ozid-sign-in").click();
+    await expect(page).toHaveURL(LOGIN);
+    expect(sent.length).toBeGreaterThan(0);
+    expect(JSON.stringify(sent)).not.toContain(SECRET);
+    expect(sent.every((s) => !s.referer || new URL(s.referer).pathname === "/")).toBe(true);
+  });
+
+  test("when the BFF cannot be asked about the page, the sign-in goes to the start page and is not held back", async ({ page }) => {
+    await page.route("**/bff.v1.AuthService/ResolveNavigation", (route) => route.abort("connectionrefused"));
+    await page.goto(`${stack.trip}/status`);
+    await page.getByTestId("status-sign-in").click();
+    await expect(page).toHaveURL(LOGIN);
+  });
+});
+
+// ---- the CSRF token another tab replaced -----------------------------------------------------------------------------
+
+type Hit = { kind: "sync" | "csrf"; mutationId?: string; account?: string; token?: string; body?: string; status?: number; marker?: string };
+function recordTraffic(page: Page) {
+  const timeline: Hit[] = [];
+  const mine = new Map<Request, Hit>();
+  page.on("request", (r: Request) => {
+    let hit: Hit | undefined;
+    if (r.url().endsWith("/bff.tripmap.v1.FootprintService/SyncChanges")) {
+      const body = r.postData() ?? "";
+      hit = { kind: "sync", mutationId: JSON.parse(body || "{}").mutationId, account: r.headers()["x-kongken-user"], token: r.headers()["x-csrf-token"], body };
+    } else if (r.url().endsWith("/bff.v1.AuthService/IssueCSRFToken")) {
+      hit = { kind: "csrf" };
+    }
+    if (hit) {
+      mine.set(r, hit);
+      timeline.push(hit);
+    }
+  });
+  page.on("response", (res) => {
+    const hit = mine.get(res.request());
+    if (hit) {
+      hit.status = res.status();
+      hit.marker = res.headers()["x-bff-rejection"];
+    }
+  });
+  return timeline;
+}
+
+/** Another tab of the same browser asks the BFF for a token: the shared Cookie is replaced, this page's copy is stale. */
+async function rotateCSRF(context: BrowserContext) {
+  const tab = await context.newPage();
+  await tab.goto(`${stack.trip}/status`);
+  const status = await tab.evaluate(async (api) => {
+    const res = await fetch(`${api}/api/bff.v1.AuthService/IssueCSRFToken`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "Connect-Protocol-Version": "1" },
+      body: "{}",
+    });
+    return res.status;
+  }, stack.api);
+  expect(status).toBe(200);
+  await tab.close();
+}
+
+test.describe("a token replaced by another tab", () => {
+  test("is refused once with the BFF's marker, replaced, and the same write goes through exactly once", async ({ page, context }, info) => {
+    const who = acct("csrf", info);
+    await page.clock.install();
+    const timeline = recordTraffic(page);
+    await enterViaOzid(page, who);
+    await expect.poll(async () => codes(await cacheOf(page, who.id))).toEqual(["330100"]);
+    // The page holds a token (it asks for one when it starts); then another tab replaces the shared one.
+    await expect.poll(() => timeline.some((h) => h.kind === "csrf" && h.status === 200)).toBe(true);
+    // A first, ordinary write shows what one new city costs on the server (its change records).
+    const start = await server(who.id);
+    await addCity(page, "440000", "440100");
+    await expect.poll(async () => (await server(who.id)).visits).toEqual(["330100", "440100"]);
+    const perCity = (await server(who.id)).changes - start.changes;
+    expect(perCity).toBeGreaterThan(0);
+    const before = await server(who.id);
+    await rotateCSRF(context);
+    timeline.length = 0;
+
+    await addCity(page, "440000", "440300");
+    await expect(page.locator(".local-status")).toContainText("已同步到云端");
+
+    // One write, refused for the CSRF mismatch (and marked so), a new token, the same write again.
+    expect(timeline.map((h) => h.kind)).toEqual(["sync", "csrf", "sync"]);
+    const [first, , second] = timeline;
+    expect(first.status).toBe(403);
+    expect(first.marker).toBe("csrf");
+    expect(second.status).toBe(200);
+    expect(second.marker).toBeUndefined();
+    expect(second.mutationId).toBe(first.mutationId);
+    expect(second.body).toBe(first.body);
+    expect(first.account).toBe(who.id);
+    expect(second.account).toBe(who.id);
+    expect(first.token).toBeTruthy();
+    expect(second.token).toBeTruthy();
+    expect(second.token).not.toBe(first.token);
+    // The server applied it once: one new city, one change, one receipt under that mutation ID.
+    const after = await server(who.id);
+    expect(after.visits).toEqual(["330100", "440100", "440300"]);
+    expect(after.changes).toBe(before.changes + perCity);
+    expect(after.receipts.filter((id) => id === first.mutationId)).toHaveLength(1);
+    expect((await cacheOf(page, who.id))?.pendingBatch).toBeUndefined();
+  });
+
+  test("while it is replaced the browser switches to B: the repeat still names A, is refused, and B is not written", async ({ page, context }, info) => {
+    const a = acct("swapa", info);
+    const b = acct("swapb", info);
+    await page.clock.install();
+    const timeline = recordTraffic(page);
+    await enterViaOzid(page, a);
+    await expect.poll(async () => codes(await cacheOf(page, a.id))).toEqual(["330100"]);
+    await expect.poll(() => timeline.some((h) => h.kind === "csrf" && h.status === 200)).toBe(true);
+    const serverA = await server(a.id);
+    const serverB = await server(b.id);
+
+    // A edits while nothing can be sent: the batch (and its mutation ID) is only in A's cache.
+    let blocked = true;
+    await page.route("**/bff.tripmap.v1.FootprintService/SyncChanges", (route) => (blocked ? route.abort("connectionrefused") : route.fallback()));
+    await addCity(page, "440000", "440300");
+    await expect.poll(async () => (await cacheOf(page, a.id))?.pendingBatch?.id).toBeTruthy();
+    const mutation = (await cacheOf(page, a.id))!.pendingBatch!.id;
+
+    // OzID switches the browser to B in another tab (new session, new token). This page still believes it is A.
+    await ozidSignOut(context);
+    await ozidSignIn(context, b);
+    blocked = false;
+    timeline.length = 0;
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    // The write is refused for its stale token (marked), a new token is fetched with B's Cookie, and the repeat
+    // goes out as it was: A's header, A's mutation. The BFF's guard refuses that, before any service sees it.
+    await expect.poll(() => timeline.filter((h) => h.kind === "sync" && h.status !== undefined).length).toBe(2);
+    const syncs = timeline.filter((h) => h.kind === "sync");
+    expect(syncs.map((h) => h.status)).toEqual([403, 401]);
+    expect(syncs[0].marker).toBe("csrf");
+    expect(syncs[1].marker).toBeUndefined();
+    expect(syncs.map((h) => h.account)).toEqual([a.id, a.id]);
+    expect(syncs.map((h) => h.mutationId)).toEqual([mutation, mutation]);
+    expect(syncs[1].body).toBe(syncs[0].body);
+    expect(syncs[1].token).not.toBe(syncs[0].token);
+    expect(timeline.filter((h) => h.kind === "sync" || h.kind === "csrf").map((h) => h.kind)).toEqual(["sync", "csrf", "sync"]);
+
+    // Nobody was written: not B (the Cookie's account), and not A either (the repeat was refused).
+    expect(await server(b.id)).toEqual(serverB);
+    expect(await server(a.id)).toEqual(serverA);
+    // A's edit is still held for A, under the same mutation ID.
+    const kept = await cacheOf(page, a.id);
+    expect(kept?.pendingBatch?.id).toBe(mutation);
+    expect(codes(kept)).toContain("440300");
+  });
+});

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Compass } from "@phosphor-icons/react";
 import { Button } from "@kongken/ui/button";
 import { getBackendStatus, statusApi } from "@/api/system";
+import { ozid, signInAddress } from "@/api/ozid";
 import { dependencyLabel } from "@/lib/status";
 import "./StatusPage.css";
 
@@ -75,9 +76,28 @@ export default function StatusPage() {
           </Button>
         )}
       </section>
-      <a className="status-back" href={import.meta.env.BASE_URL}>
-        返回地图
-      </a>
+      <nav className="status-links">
+        <a className="status-back" href={import.meta.env.BASE_URL}>
+          返回地图
+        </a>
+        {ozid.enabled && (
+          // A plain link to OzID's sign-in (it works without script and in a new tab); a click first asks the
+          // BFF whether this page itself is a registered return, so sign-in comes back here and not to the map.
+          // This page keeps no edits and reads no account storage, so there is nothing to save before leaving.
+          <a
+            className="status-back"
+            href={ozid.login}
+            data-testid="status-sign-in"
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+              event.preventDefault();
+              void signInAddress().then((address) => window.location.assign(address));
+            }}
+          >
+            使用 OzID 登录
+          </a>
+        )}
+      </nav>
     </main>
   );
 }

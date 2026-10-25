@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createFakeAccounts, installFakeAccounts } from "@kongken/account/testing";
-import { fakeBackend } from "./fake-backend";
+import { fakeBackend, green, type V } from "./fake-backend";
 
 // The account entry of the trip-map app against a fake BFF (UI only). The product has no account forms of its
 // own: every sign-in, registration, password and device screen is OzID's. These specs cover what the product
@@ -14,10 +14,19 @@ const PASSWORD = "correct horse battery";
 const SESSION_KEY = "shanhai-session-v1";
 const CLOUD = "shanhai-cloud-v2:";
 
-async function setup(page: Page, opts: { signedIn?: boolean } = {}) {
-  const backend = fakeBackend(page, { visits: [] }, { shareEnabled: true });
+const hangzhou = (): V => ({ code: "330100", name: "杭州市", province: "330000", color: green, date: "2026-10-01", note: "西湖" });
+
+async function setup(
+  page: Page,
+  opts: { signedIn?: boolean; seed?: Parameters<typeof fakeBackend>[1]; statusRegistered?: boolean } = {},
+) {
+  const backend = fakeBackend(page, opts.seed ?? { visits: [] }, { shareEnabled: true });
   const accounts = createFakeAccounts({
-    navigation: { "trip-map": { origin: "https://trip.example.com" }, metro: { origin: "https://metro.example.com", paths: ["/me"] } },
+    // The BFF's registry: the start page, and (like a deployment that registered it) the status page.
+    navigation: {
+      "trip-map": { origin: "https://trip.example.com", ...(opts.statusRegistered === false ? {} : { paths: ["/status"] }) },
+      metro: { origin: "https://metro.example.com", paths: ["/me"] },
+    },
   });
   await backend.install();
   await installFakeAccounts(page, accounts);
@@ -524,5 +533,147 @@ test.describe("an account closure left unfinished by an older version", () => {
     await refocus(page);
     await expect(signInButton(page)).toBeVisible();
     expect(await readKey(page, SESSION_KEY)).toBeNull();
+  });
+});
+
+// ---- where a sign-in returns to ----------------------------------------------------------------------------------
+
+test.describe("the return path", () => {
+  const STATUS_LOGIN = `${OZID}/login?app_id=trip-map&return_path=%2Fstatus`;
+  const SECRET = "SECRET-capability-0123456789";
+
+  test("the status page offers sign-in and returns to the status page, with nothing of the URL carried", async ({ page }) => {
+    const { ozid } = await setup(page);
+    await page.goto(`/status?share=${SECRET}&next=https://evil.example.net#${SECRET}`);
+    await expect(page.getByRole("heading", { name: "服务状态" })).toBeVisible();
+    // The page is anonymous: nothing of the account is read or rendered, only the way in.
+    await expect(page.getByTestId("status-sign-in")).toBeVisible();
+    expect(await noOverflow(page)).toBe(true);
+    await page.getByTestId("status-sign-in").click();
+    await expect(page).toHaveURL(STATUS_LOGIN);
+    expect(ozid).toEqual([STATUS_LOGIN]);
+    expect(ozid.join()).not.toContain(SECRET);
+    expect(ozid.join()).not.toContain("evil");
+  });
+
+  test("a page the BFF has no rule for is never named: the sign-in returns to the start page", async ({ page }) => {
+    const { ozid } = await setup(page, { statusRegistered: false });
+    await page.goto("/status");
+    await page.getByTestId("status-sign-in").click();
+    await expect(page).toHaveURL(LOGIN_URL);
+    expect(ozid).toEqual([LOGIN_URL]);
+  });
+
+  test("an unreachable BFF does not hold the sign-in back or change where it goes", async ({ page }) => {
+    const { ozid } = await setup(page);
+    await page.route("**/api/bff.v1.AuthService/ResolveNavigation", (route) =>
+      route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ code: "unavailable", message: "down" }) }),
+    );
+    await page.goto("/status");
+    await page.getByTestId("status-sign-in").click();
+    await expect(page).toHaveURL(LOGIN_URL);
+    expect(ozid).toEqual([LOGIN_URL]);
+  });
+
+  test("without a script the link still reaches OzID, at the start page", async ({ page }) => {
+    await setup(page);
+    await page.goto("/status");
+    await expect(page.getByTestId("status-sign-in")).toHaveAttribute("href", LOGIN_URL);
+  });
+
+  test("the account window, opened at a path that is not a business page, returns to the start page without its query or fragment", async ({ page }) => {
+    const { ozid } = await setup(page);
+    await page.goto(`/somewhere/else?share=${SECRET}&token=${SECRET}#${SECRET}`);
+    await signInButton(page).click();
+    await dialog(page).getByTestId("ozid-sign-in").click();
+    await expect(page).toHaveURL(LOGIN_URL);
+    expect(ozid).toEqual([LOGIN_URL]);
+    expect(ozid.join()).not.toContain(SECRET);
+  });
+
+  test("a share link has no account entry at all, so its capability can never be offered to OzID", async ({ page }) => {
+    const { ozid } = await setup(page);
+    await page.goto(`/s/${"A".repeat(43)}`);
+    await expect(page.getByTestId("status-sign-in")).toHaveCount(0);
+    await expect(page.getByTestId("ozid-sign-in")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /OzID/ })).toHaveCount(0);
+    expect(ozid).toEqual([]);
+  });
+
+  test("an old mail's landing page still uses only the context the BFF validated", async ({ page }) => {
+    await setup(page);
+    await page.goto(`/account/reset-password#${SECRET}`);
+    // The token is read into memory and the fragment is gone; the link out carries no part of it.
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe("");
+    const out = await page.getByRole("link").evaluateAll((links) => links.map((a) => (a as HTMLAnchorElement).href));
+    expect(out.length).toBeGreaterThan(0);
+    expect(out.join()).not.toContain(SECRET);
+  });
+});
+
+// ---- a conflict when leaving ---------------------------------------------------------------------------------------
+
+test.describe("leaving with a conflict open", () => {
+  test("the conflict is still there on return, nothing was decided for the user, and the choice still works", async ({ page }) => {
+    const { backend, account, ozid } = await setup(page, { signedIn: true, seed: { visits: [hangzhou()], trips: [{ id: "t-spring", code: "330100", date: "2026-03-01", note: "春" }] } });
+    await page.goto("/");
+    await expect(accountButton(page)).toBeVisible();
+    await page.getByRole("button", { name: "旅行足迹" }).first().click();
+    await page.locator(".visit-card").first().click();
+    const editor = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "保存足迹" }) });
+    await editor.getByRole("button", { name: "添加另一次旅行" }).click();
+    // The other device deletes the city only now, with the local edit already made: a deletion that arrived
+    // earlier would simply be applied by the periodic sync (nothing local to conflict with) and the card gone.
+    backend.otherDeviceDeleteVisit("330100");
+    await editor.getByRole("button", { name: "保存足迹" }).click();
+    const conflict = page.getByRole("dialog", { name: "多台设备修改了相同足迹" });
+    await expect(conflict).toBeVisible();
+    expect(backend.state.visits.size).toBe(0);
+    const key = CLOUD + account.id;
+    const before = JSON.parse((await readKey(page, key))!);
+
+    // The browser goes to OzID (the conflict window cannot be closed from inside the product) and comes back.
+    await page.goto(LOGIN_URL);
+    expect(ozid).toEqual([LOGIN_URL]);
+    await page.goto("/");
+
+    await expect(conflict).toBeVisible();
+    await expect(conflict).toContainText("杭州市");
+    expect(await noOverflow(page)).toBe(true);
+    // Nothing was resolved by leaving: the server is as the other device left it, and the cache holds the same
+    // local edit and the same ancestor it held before.
+    expect(backend.state.visits.size).toBe(0);
+    const after = JSON.parse((await readKey(page, key))!);
+    expect(after.saved).toEqual(before.saved);
+    expect(after.confirmed).toEqual(before.confirmed);
+    expect(after.pendingBatch?.id).toBe(before.pendingBatch?.id);
+
+    await conflict.getByRole("button", { name: "冲突以本机为准" }).click();
+    await expect(conflict).toHaveCount(0);
+    await expect.poll(() => backend.state.trips.size).toBe(3);
+    expect(backend.state.visits.has("330100")).toBe(true);
+  });
+
+  test("the choice for the other side keeps the other device's deletion, and the local edit is not applied", async ({ page }) => {
+    const { backend, account } = await setup(page, { signedIn: true, seed: { visits: [hangzhou()], trips: [{ id: "t-spring", code: "330100", date: "2026-03-01", note: "春" }] } });
+    await page.goto("/");
+    await expect(accountButton(page)).toBeVisible();
+    await page.getByRole("button", { name: "旅行足迹" }).first().click();
+    await page.locator(".visit-card").first().click();
+    const editor = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "保存足迹" }) });
+    await editor.getByRole("button", { name: "添加另一次旅行" }).click();
+    // The other device deletes the city only now, with the local edit already made: a deletion that arrived
+    // earlier would simply be applied by the periodic sync (nothing local to conflict with) and the card gone.
+    backend.otherDeviceDeleteVisit("330100");
+    await editor.getByRole("button", { name: "保存足迹" }).click();
+    const conflict = page.getByRole("dialog", { name: "多台设备修改了相同足迹" });
+    await expect(conflict).toBeVisible();
+    await page.goto(LOGIN_URL);
+    await page.goto("/");
+    await expect(conflict).toBeVisible();
+    await conflict.getByRole("button", { name: "冲突以云端为准" }).click();
+    await expect(conflict).toHaveCount(0);
+    expect(backend.state.visits.size).toBe(0);
+    expect(JSON.parse((await readKey(page, CLOUD + account.id))!).pendingBatch ?? null).toBeNull();
   });
 });

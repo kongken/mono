@@ -334,8 +334,10 @@ jobs:
           go test ./internal/e2e -run '^TestTripMapBrowserChain$' -count=1 -v 2>&1 | tee "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"
           grep -q -- "--- PASS: TestTripMapBrowserChain " "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"
           if grep -q -- "--- SKIP" "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"; then echo "a skipped scenario is not evidence"; exit 1; fi
-          # Every scenario ran in both viewports (6 scenarios x desktop and mobile).
-          grep -Eq "12 passed" "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"
+          # Every scenario ran in both viewports (11 scenarios x desktop and mobile), and the report has
+          # no failed, skipped, flaky or interrupted line (a retried pass is not a pass either).
+          grep -Eq "22 passed" "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"
+          if grep -Eq "[0-9]+ (failed|skipped|flaky|interrupted|did not run)" "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"; then echo "the browser report is not all green"; exit 1; fi
       - name: Keep the traces and logs of the real-browser run
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -346,6 +348,21 @@ jobs:
             apps/trip-map/test-results/
           if-no-files-found: warn
           retention-days: 14
+
+  # The trip-map-web image in both build modes: local (no build args, no account center, no backend
+  # address in the bundle) and backend (the example API and OzID addresses a deployment passes, both in
+  # the bundle), plus the failing half configurations. Reserved example addresses only
+  # (scripts/trip-map-web-smoke.sh). Nothing is published.
+  trip-map-web-image:
+    name: trip-map-web image, local and backend modes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build both modes and run the acceptance checks
+        run: scripts/trip-map-web-smoke.sh
 
   # The ozid-web image as a running container: /healthz, the page and its assets, the CSP and
   # X-Frame-Options the real Nginx sends, and that a missing or illegal API_ORIGIN keeps it from
