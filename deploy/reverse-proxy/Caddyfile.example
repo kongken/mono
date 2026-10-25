@@ -141,23 +141,18 @@ metro.example.com {
 			header_up X-Forwarded-Proto {scheme}
 		}
 	}
+	# No /api here on purpose: the product calls the BFF's canonical public address (the session Cookie belongs
+	# to that host and is shared with OzID), never a same-origin proxy of this site.
 	handle /api/* {
-		request_body {
-			max_size 2MB
-		}
-		reverse_proxy bff:18081 {
-			header_up Host {host}
-			header_up X-Real-IP {remote_host}
-			header_up X-Forwarded-For {remote_host}
-			header_up X-Forwarded-Proto {scheme}
-		}
+		respond 404
 	}
 	@probes path /ping /readyz
 	handle @probes {
 		reverse_proxy bff:18081
 	}
 
-	# SPA static files (build with --build-arg VITE_API_BASE_URL=/api). This must be its own
+	# SPA static files (build with --build-arg VITE_API_BASE_URL=https://api.example.com/api and
+	# --build-arg VITE_OZID_ORIGIN=https://id.example.com). This must be its own
 	# last `handle`: a site-level try_files runs before every handle and would rewrite /api,
 	# /ping and the paths above to /index.html before they are matched.
 	handle {

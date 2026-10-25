@@ -7,7 +7,7 @@
 ```
 apps/
   trip-map/             前端应用“山海足迹”：Vite + React，自己的 index.html、vite.config.ts、tsconfig、public/、tests/（Playwright）、scripts/
-  metro/                前端应用“地铁足迹”：Vite + React，自己的路由与内存目录缓存，tests/（Playwright，模拟 BFF），不含地图资源脚本
+  metro/                前端应用“地铁足迹”：Vite + React，自己的路由与内存目录缓存，tests/（Playwright，模拟 BFF；`tests/real-stack` 是 `internal/e2e` `TestMetroBrowserChain` 的真实跨 origin 用例），没有账号表单（T11：账号入口都去 OzID），不含地图资源脚本
   admin/                前端应用“统一管理控制台”（T4）：Vite + React，匿名跳 OzID 登录、按真实角色分区、用户查询、（T5）普通账号状态/`metro-admin` 的受限修改与（T6）账号安全与管理审计查询页、（T8）metro 目录管理（城市、线路、车型、专题、导入/导出、目录审计、管理令牌，已从 `apps/metro` 迁入）；没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`；tests/ 有模拟 BFF 的 Playwright 与真实 BFF 的 real-stack 用例（由 internal/e2e 的 `TestAdminBrowserChain` 启动）
   ozid/                 前端应用“OzID 用户中心”：Vite + React，登录、注册、找回密码、邮件落地页（注册验证、密码重置）、概览、密码重新认证，以及资料、改密码与设备会话页面（T3）；没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL`；tests/ 有模拟 BFF 的 Playwright 与真实 BFF 的 real-stack 用例（由 internal/e2e 启动）
 packages/
@@ -16,7 +16,7 @@ packages/
   geo-data/             区域索引、城市坐标、区域目录、搜索索引、省份邻接表：@kongken/geo-data/<名称>.json（文件在 data/）
   fixtures/             前端与 Go 后端共同验证的 JSON 夹具
   metro-core/           metro 公开站与统一控制台共用的纯函数（线路状态文案、里程格式，无 React、无网络）：@kongken/metro-core；两个应用不互相 import，共用部分放这里（T8）
-  account/              trip-map、metro 与 OzID 共用的邮箱账号流程（T2 起新邮件的落地页在 OzID，产品的落地页只服务旧邮件）：`createAccountApi`（经 `bff.v1` 的 Connect 客户端）、错误文案、登录/注册/资料/改密码/设备/注销表单（trip-map 自 T10 起不再使用，只用邮件落地页；表单现用于 metro 与 OzID）、邮件落地页、落地页响应头的 Vite 插件，以及测试用的假账号服务与 SMTP 接收器（`@kongken/account/<模块>`）
+  account/              trip-map、metro 与 OzID 共用的邮箱账号流程（T2 起新邮件的落地页在 OzID，产品的落地页只服务旧邮件）：`createAccountApi`（经 `bff.v1` 的 Connect 客户端）、错误文案、登录/注册/资料/改密码/设备/注销表单（trip-map 自 T10、metro 自 T11 起不再使用，只用邮件落地页；表单现只用于 OzID）、CSRF 重放（`csrf-retry`）与返回页确认（`navigation`）、邮件落地页、落地页响应头的 Vite 插件，以及测试用的假账号服务与 SMTP 接收器（`@kongken/account/<模块>`）
 cmd/ internal/ pkg/ proto/ migrations/   Go 后端，规则见 AGENTS.md 与 backend.md、bff.md
 deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deployment.md）
 ```
@@ -39,7 +39,7 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 
 ## 规则
 
-- 所有 npm 命令在仓库根目录执行，根 `package.json` 的脚本转发到各应用（应用生命周期脚本按应用命名：`dev:trip-map`、`build:trip-map`、`test:trip-map`、`preview:trip-map`、`test:e2e:trip-map`，metro、ozid 同理（`dev:metro`、`build:ozid`、`test:e2e:ozid` 等）；`test` 对所有应用运行，`build` 只构建使用同源 `/api` 的 trip-map 与 metro，OzID 必须带绝对 `VITE_API_BASE_URL` 单独构建（`build:ozid`）；地图数据脚本 `check:maps`、`prepare:*`、`download:maps` 因属于 `packages/geo-data` 的数据流程，名称不带应用前缀，目前转发到 `@kongken/trip-map`）。依赖由根目录统一安装与锁定（单个 `package-lock.json`）。
+- 所有 npm 命令在仓库根目录执行，根 `package.json` 的脚本转发到各应用（应用生命周期脚本按应用命名：`dev:trip-map`、`build:trip-map`、`test:trip-map`、`preview:trip-map`、`test:e2e:trip-map`，metro、ozid 同理（`dev:metro`、`build:ozid`、`test:e2e:ozid` 等）；`test` 对所有应用运行，`build` 只构建 trip-map（本地模式可无后端），metro、OzID 与控制台必须带绝对 `VITE_API_BASE_URL`（metro 与控制台还要 `VITE_OZID_ORIGIN`）单独构建（`build:metro`、`build:ozid`、`build:admin`）；地图数据脚本 `check:maps`、`prepare:*`、`download:maps` 因属于 `packages/geo-data` 的数据流程，名称不带应用前缀，目前转发到 `@kongken/trip-map`）。依赖由根目录统一安装与锁定（单个 `package-lock.json`）。
 - `apps/*` 之间不互相 import；共用的代码放进 `packages/*`。包以源码形式发布（`exports` 指向 `.ts`、`.tsx`、`.json`），不单独构建，由使用它的应用的 Vite 与 `tsc` 一起编译。只被一个应用使用的代码留在该应用里，出现第二个使用方时再抽出。
 - `packages/ui` 与 `packages/account` 的 Tailwind 类名需要被扫描：应用的 CSS 入口用 `@source` 指向它们（`apps/trip-map/src/index.css`、`apps/metro/src/index.css`）。新增应用时同样要加。`packages/account` 的落地页响应头插件 `accountLandingHeaders()` 也要加进应用的 `vite.config.ts`，应用入口 `main.tsx` 在渲染前先调用 `captureLandingToken()`。OzID（`apps/ozid`）已按此接入（[#80 / T2](https://github.com/kongken/mono/issues/80)，T1 时的临时例外已消除）：`vite.config.ts` 用 `accountLandingHeaders()`，`main.tsx` 在渲染前调用 `captureLandingToken()`，`deploy/ozid-web/default.conf.template` 为两个落地页路径单独设置 `Referrer-Policy: no-referrer`、`Cache-Control: no-store` 与同源脚本 CSP。邮件安全要求不变：令牌只在 URL fragment、页面立即清除、不缓存、不外泄 Referer、只允许同源脚本。今后再有应用提供这些落地页时同样必须接入这两个钩子和响应头。
 - `packages/api-client/src/` 由 `make buf` 生成（`buf.gen.yaml`），不手改。
@@ -51,7 +51,7 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 
 1. 建 `apps/<名称>/`，带 `package.json`（`name` 取 `@kongken/<名称>`，依赖用到的 `@kongken/*` 包，版本写 `*`）。
 2. 复制 `apps/trip-map` 的 Vite、TypeScript 配置，在 CSS 入口加 `@source "…/packages/ui/src"`。
-3. 在根 `package.json` 增加按应用命名的转发脚本（`dev:<名称>`、`build:<名称>`、`test:<名称>` 等），或直接使用 `npm run <脚本> -w @kongken/<名称>`；根 `test` 会自动覆盖所有应用；根 `build` 只构建使用同源 `/api` 的 trip-map 与 metro，OzID 必须带绝对 API 地址单独构建（`npm run build:ozid`）。
+3. 在根 `package.json` 增加按应用命名的转发脚本（`dev:<名称>`、`build:<名称>`、`test:<名称>` 等），或直接使用 `npm run <脚本> -w @kongken/<名称>`；根 `test` 会自动覆盖所有应用；根 `build` 只构建 trip-map（本地模式可无后端），metro、OzID 与控制台必须带绝对地址单独构建（`npm run build:metro`、`build:ozid`、`build:admin`）。
 4. 新增 `deploy/<名称>-web/Dockerfile`（镜像后缀 `-<名称>-web`），先复制各 workspace 的 `package.json` 再 `npm ci`，并在 `.github/workflows/docker-publish.yml` 的矩阵中登记；`.github/workflows/ci.yml` 增加对应测试。
 5. 如需访问后端，在 BFF 路由表登记浏览器请求头（见 [BFF](bff.md)），应用只使用 `@kongken/api-client`。
 

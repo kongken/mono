@@ -105,7 +105,7 @@ cors_allowed_origins:
 #   apps:
 #     ozid:     {origin: https://id.example.com, paths: ["/security"]}
 #     trip-map: {origin: https://trip.example.com, paths: ["/status"]}   # /status: the public status page, a page a sign-in may return to
-#     metro:    {origin: https://metro.example.com, paths: ["/me", "/city/*"]}
+#     metro:    {origin: https://metro.example.com, paths: ["/me", "/cities/*", "/topics/*", "/u/*"]}   # the pages a sign-in may return to: personal page, city, topic and public profile pages
 #     admin:    {origin: https://admin.example.com, paths: ["/users", "/users/*", "/audit/users", "/metro", "/metro/*"]}
 # Omit the section to run without OzID: the navigation procedure then answers FAILED_PRECONDITION.
 navigation:
@@ -113,7 +113,7 @@ navigation:
   apps:
     ozid:     {origin: http://localhost:5175, paths: ["/security"]}
     trip-map: {origin: http://localhost:5173, paths: ["/status"]}
-    metro:    {origin: http://localhost:5174, paths: ["/me", "/city/*"]}
+    metro:    {origin: http://localhost:5174, paths: ["/me", "/cities/*", "/topics/*", "/u/*"]}
     admin:    {origin: http://localhost:5176, paths: ["/users", "/users/*", "/audit/users", "/metro", "/metro/*"]}
 
 # The unified management console's perimeter (apps/admin, deploy/admin-web, docs/admin/features.md).

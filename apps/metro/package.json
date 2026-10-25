@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "node --test --experimental-strip-types src/lib/*.test.ts",
+    "test": "node --test --experimental-transform-types --import ./scripts/register-ts.mjs src/lib/*.test.ts",
     "test:e2e": "E2E_PORT=4175 playwright test"
   },
   "dependencies": {

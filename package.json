@@ -10,7 +10,7 @@
     "dev:metro": "npm run dev -w @kongken/metro",
     "dev:ozid": "npm run dev -w @kongken/ozid",
     "dev:admin": "npm run dev -w @kongken/admin",
-    "build": "npm run build -w @kongken/trip-map -w @kongken/metro",
+    "build": "npm run build -w @kongken/trip-map",
     "build:trip-map": "npm run build -w @kongken/trip-map",
     "build:metro": "npm run build -w @kongken/metro",
     "build:ozid": "npm run build -w @kongken/ozid",

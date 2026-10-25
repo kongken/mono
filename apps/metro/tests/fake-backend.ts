@@ -33,13 +33,28 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
     ] as Line[],
     topics: [{ id: "t1", revision: 1, slug: "six-cars", name: "6 节编组", rollingStockCodes: [] as string[], cars: [6] }],
     stocks: [] as { id: string; revision: number; code: string }[],
-    rides: new Map<string, number>(),
+    /** The marked lines of every account that has marked any, by account ID. */
+    ridesBy: new Map<string, Map<string, number>>(),
+    /** The calls the BFF refused, by reason; a test arms these to make the next calls fail. */
+    csrfRefusals: 0,
+    meFailures: 0,
+    /** Every write that reached the service: who the Cookie belonged to, who the page said it was, and the message. */
+    writes: [] as { method: string; cookieUser: string; header: string | undefined; body: unknown }[],
     profile: { handle: "", displayName: "", subtitle: "", bio: "", location: "", headerImages: [] as string[], twitter: "", instagram: "", weibo: "", facebook: "", github: "", isPublic: false },
     csrfIssued: 0,
     /** Procedures that were called with a CSRF header, to check writes carry one. */
     writesWithoutCsrf: [] as string[],
     calls: [] as string[],
   };
+
+  /** The current account's marked lines (empty for nobody). */
+  Object.defineProperty(state, "rides", {
+    get: () => {
+      const id = state.user?.id ?? "-";
+      if (!state.ridesBy.has(id)) state.ridesBy.set(id, new Map());
+      return state.ridesBy.get(id)!;
+    },
+  });
 
   function line(id: string, code: string, citySlug: string, name: string, number: number, color: string, stations: number, km: number): Line {
     return { id, revision: 1, code, citySlug, name, number, status: OPERATING, rollingStockCode: "02A02", cars: 6, carsAddition: 0, stations, lengthKm: km, color, commencedOn: "1993-05-28", extendedOn: "", isLoop: false };
@@ -60,7 +75,7 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
 
   type Body = Record<string, any>;
   const handlers: Record<string, (b: Body) => { status?: number; body: unknown }> = {
-    "bff.v1.AuthService/Me": () => needUser() ?? { body: { user: { id: state.user!.id, displayName: state.user!.displayName }, roles: state.user!.roles } },
+    "bff.v1.AuthService/Me": () => (state.meFailures > 0 ? (state.meFailures--, failure(503, "unavailable", "account service unavailable")) : null) ?? needUser() ?? { body: { user: { id: state.user!.id, displayName: state.user!.displayName }, roles: state.user!.roles } },
     "bff.v1.AuthService/IssueCSRFToken": () => ({ body: { token: `csrf-${++state.csrfIssued}` } }),
     "bff.v1.AuthService/Logout": () => { state.user = null; return { body: {} }; },
     "bff.v1.AuthService/DeleteAccount": () => needUser() ?? { body: {} },
@@ -111,7 +126,7 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
         : failure(404, "not_found", "profile not found"),
   };
 
-  const readOnly = new Set(["Me", "IssueCSRFToken", "ListCities", "GetCity", "ListRollingStockTopics", "GetRollingStockTopic", "GetPublicProfile", "GetMyProfile", "ListMyLines"]);
+  const readOnly = new Set(["Me", "IssueCSRFToken", "ResolveNavigation", "ListCities", "GetCity", "ListRollingStockTopics", "GetRollingStockTopic", "GetPublicProfile", "GetMyProfile", "ListMyLines"]);
 
   function ridden() {
     const byCity = new Map<string, { citySlug: string; cityName: string; lines: object[] }>();
@@ -136,6 +151,22 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
     const key = `${service}/${method}`;
     state.calls.push(key);
     if (!readOnly.has(method) && !req.headers()["x-csrf-token"]) state.writesWithoutCsrf.push(key);
+    // The BFF's account guard: an authenticated call that names an account other than the Cookie's is refused.
+    const named = req.headers()["x-kongken-user"];
+    if (service.includes("RiderService") && state.user && named && named !== state.user.id) {
+      return route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ code: "unauthenticated", message: "sign in required" }) });
+    }
+    // A stale double-submit token: refused before anything runs, with the marker only this refusal carries.
+    if (!readOnly.has(method) && state.csrfRefusals > 0) {
+      state.csrfRefusals--;
+      return route.fulfill({
+        status: 403,
+        contentType: "application/json",
+        headers: { "x-bff-rejection": "csrf" },
+        body: JSON.stringify({ code: "permission_denied", message: "request rejected" }),
+      });
+    }
+    if (!readOnly.has(method)) state.writes.push({ method: key, cookieUser: state.user?.id ?? "", header: named, body: req.postDataJSON() });
     const h = handlers[key];
     if (!h) return route.fulfill({ status: 501, contentType: "application/json", body: JSON.stringify({ code: "unimplemented", message: key }) });
     const out = h((req.postDataJSON() ?? {}) as Body);
@@ -149,8 +180,8 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
   return {
     state,
     install,
-    signInAs(role: Role) {
-      state.user = { id: "u1", displayName: "骑行者", roles: role === "admin" ? ["metro-admin"] : [] };
+    signInAs(role: Role, id = "u1", displayName = "骑行者") {
+      state.user = { id, displayName, roles: role === "admin" ? ["metro-admin"] : [] };
     },
   };
 }

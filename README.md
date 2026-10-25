@@ -31,7 +31,7 @@ packages/
   geo-data/           区域索引、坐标与地图辅助数据
   fixtures/           前后端共同验证的测试夹具
   metro-core/         metro 公开站与统一控制台共用的纯函数（线路状态、里程格式）
-  account/            trip-map、metro 与 OzID 共用的邮箱账号流程（RPC 客户端、表单；邮件落地页由 OzID 使用，trip-map 与 metro 的仍保留以服务旧邮件）
+  account/            trip-map、metro 与 OzID 共用的邮箱账号流程（RPC 客户端、表单、CSRF 重放与返回确认；表单只由 OzID 使用，trip-map 与 metro 只保留邮件落地页以服务旧邮件）
 cmd/
   bff/                BFF 服务入口
   tripmap/            旅行业务服务入口
@@ -64,7 +64,7 @@ npm install
 npm run dev:trip-map
 ```
 
-默认无需启动后端，未登录的足迹保存在当前浏览器，可通过 JSON 导入导出备份。根目录 npm 脚本按应用命名（`dev:trip-map`、`build:trip-map` 等）；`test` 对所有应用运行，`build` 只构建 trip-map 与 metro：不带后端变量时 trip-map 是纯本地站点，metro 用同源 `/api`；trip-map 带后端时须同时给绝对 API 地址与 `VITE_OZID_ORIGIN`（OzID 同样须带绝对 API 地址单独构建：`build:ozid`）；地图数据脚本（`check:maps`、`prepare:*`、`download:maps`）目前转发到 `@kongken/trip-map`。
+默认无需启动后端，未登录的足迹保存在当前浏览器，可通过 JSON 导入导出备份。根目录 npm 脚本按应用命名（`dev:trip-map`、`build:trip-map` 等）；`test` 对所有应用运行，`build` 只构建 trip-map（不带后端变量时是纯本地站点）；metro、OzID 与控制台没有本地模式，必须带绝对 API 地址单独构建（`build:metro`、`build:ozid`、`build:admin`，metro 与控制台还要 `VITE_OZID_ORIGIN`），trip-map 带后端时同样须同时给绝对 API 地址与 `VITE_OZID_ORIGIN`；地图数据脚本（`check:maps`、`prepare:*`、`download:maps`）目前转发到 `@kongken/trip-map`。
 
 ### 前后端联调
 
@@ -88,7 +88,7 @@ make dev-secrets
 make dev
 ```
 
-也可在不同终端分别运行 `make dev-bff`、`make dev-tripmap` 和 `make dev-metro`。地铁足迹的前端另开终端运行 `make dev-metro-web`（等价 `npm run dev:metro`，端口 5174，把 `/api` 代理到 BFF；管理需要 `metro-admin` 角色，登录与注册在 `/login`，见 [部署](docs/deployment.md#地铁足迹metro可选)）。OzID 用户中心另开终端运行 `npm run dev:ozid`（端口 5175，直接调用 `.env.development` 里的回环示例 API 地址 `http://localhost:18081/api`；`config.bff.example.yaml` 已含对应的 `navigation` 与 CORS 示例，生产构建需给出绝对 `VITE_API_BASE_URL`，见 [OzID 功能描述](docs/ozid/features.md#构建镜像与运行)；本地可用 `npm run test:e2e:ozid`，真实浏览器链路 `OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain`）。另开终端启用前端后端连接：
+也可在不同终端分别运行 `make dev-bff`、`make dev-tripmap` 和 `make dev-metro`。地铁足迹的前端另开终端运行 `make dev-metro-web`（等价 `npm run dev:metro`，端口 5174；开发服务器把 `/api` 代理到 BFF 以浏览目录，要登录需在 `apps/metro/.env.local` 给出 `VITE_API_BASE_URL`（BFF 的公开 API 地址，如 `http://localhost:18081/api`）与 `VITE_OZID_ORIGIN`（OzID 的 origin，如 `http://localhost:5175`），没有则登录提示“账号中心尚未配置”；账号页面都在 OzID，目录管理在统一控制台，见 [部署](docs/deployment.md#地铁足迹metro可选)）。OzID 用户中心另开终端运行 `npm run dev:ozid`（端口 5175，直接调用 `.env.development` 里的回环示例 API 地址 `http://localhost:18081/api`；`config.bff.example.yaml` 已含对应的 `navigation` 与 CORS 示例，生产构建需给出绝对 `VITE_API_BASE_URL`，见 [OzID 功能描述](docs/ozid/features.md#构建镜像与运行)；本地可用 `npm run test:e2e:ozid`，真实浏览器链路 `OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain`）。另开终端启用前端后端连接：
 
 ```bash
 npm install
@@ -107,7 +107,7 @@ Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:180
 | 前端 | `npm run preview:trip-map` | 预览已构建的山海足迹 |
 | 前端 | `npm test` | 运行所有前端应用的脚本与业务逻辑测试（`npm run test:trip-map` 只跑山海足迹） |
 | 前端 | `npm run test:e2e:trip-map` | 运行 Playwright 浏览器测试 |
-| 前端 | `npm run build:metro`、`npm run test:metro`、`npm run test:e2e:metro` | 构建、单元测试与 Playwright 测试地铁足迹（浏览器测试使用模拟 BFF） |
+| 前端 | `npm run build:metro`、`npm run test:metro`、`npm run test:e2e:metro` | 构建（需 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`）、单元测试与 Playwright 测试地铁足迹（浏览器测试使用模拟 BFF；真实跨 origin 链路 `METRO_BROWSER_E2E=1 go test ./internal/e2e -run TestMetroBrowserChain`） |
 | 地图与数据 | `npm run check:maps` | 检查地图、区域索引及前后端数据副本 |
 | 后端 | `make build` | 构建 BFF、tripmap、metro、usersrv 与 usersrv-admin 至 `bin/` |
 | 后端 | `make test-integration-usersrv` | 用本地 PostgreSQL 与 Redis 运行 usersrv 的全部测试（独立 schema 与 key 前缀） |

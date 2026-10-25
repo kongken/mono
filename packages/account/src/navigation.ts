@@ -99,3 +99,29 @@ export function isNavigableUrl(raw: string): boolean {
     return false;
   }
 }
+
+/**
+ * Chooses the return path of a sign-in. `wanted` is the canonical pathname of the page the sign-in started on
+ * (the product decided that it is a page worth returning to), `start` its start page. A page other than the
+ * start page is used only after the BFF itself confirmed that exact pathname (`confirm` asks it): a deployment
+ * that has not registered the page, an outage, a refusal or a slow answer all end the same way, at the start
+ * page, so a sign-in never ends in OzID's "this address is not allowed" state because of a page the product
+ * offered.
+ */
+export async function confirmedReturn(
+  wanted: string,
+  start: string,
+  confirm: (path: string) => Promise<boolean>,
+  timeoutMs = 3000,
+): Promise<string> {
+  if (wanted === start) return start;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const answer = await Promise.race([
+    confirm(wanted).catch(() => false),
+    new Promise<false>((resolve) => {
+      timer = setTimeout(() => resolve(false), timeoutMs);
+    }),
+  ]);
+  clearTimeout(timer);
+  return answer ? wanted : start;
+}

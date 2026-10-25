@@ -134,10 +134,12 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run check:maps
-      # metro is served behind a same-origin /api proxy.
+      # metro (like trip-map) calls the BFF at its canonical public origin and sends every account page to
+      # OzID, so the build needs both addresses and has no same-origin /api proxy (reserved example names).
       - run: npm run build:metro
         env:
-          VITE_API_BASE_URL: /api
+          VITE_API_BASE_URL: https://api.example.com/api
+          VITE_OZID_ORIGIN: https://id.example.com
       # trip-map calls the BFF at its canonical public origin (a same-origin /api proxy cannot share the
       # session Cookie, which belongs to the API host) and sends every account page to OzID, so the build
       # needs both addresses (reserved example names: nothing is deployed from CI).
@@ -348,6 +350,89 @@ jobs:
             apps/trip-map/test-results/
           if-no-files-found: warn
           retention-days: 14
+
+  metro-browser:
+    name: metro account entry real-browser acceptance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tripmap
+          POSTGRES_PASSWORD: tripmap-ci
+          POSTGRES_DB: tripmap
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tripmap" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      METRO_BROWSER_E2E: "1"
+      TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
+      USERSRV_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      USERSRV_TEST_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # The evidence is the run itself: -v, the test must report PASS and none may be skipped (a skipped
+      # browser scenario is not a passed one). The full log, the browser's traces and its failure
+      # screenshots are kept as one artifact, also when the job is cancelled or times out.
+      - name: Sign-in through OzID, return, CSRF replay, A/B switching and session loss in Chromium
+        shell: bash
+        env:
+          METRO_BROWSER_ARTIFACTS: ${{ github.workspace }}/metro-browser-artifacts
+        run: |
+          set -o pipefail
+          mkdir -p "$METRO_BROWSER_ARTIFACTS"
+          go test ./internal/e2e -run '^TestMetroBrowserChain$' -count=1 -v 2>&1 | tee "$METRO_BROWSER_ARTIFACTS/go-test.log"
+          grep -q -- "--- PASS: TestMetroBrowserChain " "$METRO_BROWSER_ARTIFACTS/go-test.log"
+          if grep -q -- "--- SKIP" "$METRO_BROWSER_ARTIFACTS/go-test.log"; then echo "a skipped scenario is not evidence"; exit 1; fi
+          # Every scenario ran in both viewports (10 scenarios x desktop and mobile), and the report has
+          # no failed, skipped, flaky or interrupted line (a retried pass is not a pass either).
+          grep -Eq "20 passed" "$METRO_BROWSER_ARTIFACTS/go-test.log"
+          if grep -Eq "[0-9]+ (failed|skipped|flaky|interrupted|did not run)" "$METRO_BROWSER_ARTIFACTS/go-test.log"; then echo "the browser report is not all green"; exit 1; fi
+      - name: Keep the traces and logs of the real-browser run
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: metro-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            metro-browser-artifacts/
+            apps/metro/test-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # The metro-web image: it has no local-only mode, so the build needs both public example addresses and
+  # must fail without them or with a same-origin /api; the bundle carries exactly those addresses, the
+  # return pages are served, and the retired /api and /auth routes stay 404 (scripts/metro-web-smoke.sh).
+  # Reserved example addresses only. Nothing is published.
+  metro-web-image:
+    name: metro-web image, addresses and failing half configurations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build, break and run the image
+        run: scripts/metro-web-smoke.sh
 
   # The trip-map-web image in both build modes: local (no build args, no account center, no backend
   # address in the bundle) and backend (the example API and OzID addresses a deployment passes, both in

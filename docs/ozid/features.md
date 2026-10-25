@@ -6,7 +6,7 @@
 
 | 已实现（T1、T2、T3、T7） | 尚未实现 |
 | --- | --- |
-| `apps/ozid`（`@kongken/ozid`）：登录页、账号概览、密码重新认证页，独立构建与部署 | 产品里的注销入口照旧（T10、T11 才收敛）；产品里的资料、改密码、设备页面也不变 |
+| `apps/ozid`（`@kongken/ozid`）：登录页、账号概览、密码重新认证页，独立构建与部署 | 产品里的注销入口照旧（T10、T11 才收敛）；产品里的资料、改密码、设备页面也不变（T10 已收敛 trip-map，T11 已收敛 metro） |
 | （T7）`/close-account`：账号注销页与进度、失败重试 | |
 | （T3）`/profile`、`/security`（改密码）、`/sessions`（设备列表、撤销指定设备、退出其他设备、退出这个浏览器）；BFF `RevokeOtherSessions` | |
 | （T2）注册、找回密码、`/account/verify-email`、`/account/reset-password` 页面；邮件链接统一落到 OzID；返回上下文随挑战保存 | 产品里的注册、找回密码和邮件落地页仍保留（过渡期与产品入口收敛，后续阶段才移除） |
@@ -98,7 +98,7 @@ https://id.example.com/login?app_id=metro&return_path=%2Fcity%2Fshanghai
 
 **迟到响应。** 登录状态的读取和设备列表的读取都有“只认最新”的边界（`@kongken/account/latest`）：被更新的读取取代、发生在退出之前、或跨越账号变化和页面卸载的旧响应一律丢弃，不再写入状态。旧的“已登录”不能盖掉更新的“未登录”，旧的“未登录”或失败也不能盖掉更新的有效身份；退出成功时，退出之前发出的读取全部作废。`SessionsList` 必须传入当前账号 id（`identity`）：账号一变，旧设备列表立即移除并丢弃还在路上的旧应答；撤销之后的新列表不会被更早发出的读取覆盖。OzID、metro 的登录状态提供者和三处设备列表（OzID、metro、trip-map）共用这套规则。
 
-**产品入口。** 山海足迹（trip-map）自 T10 起没有任何账号表单：登录、注册、找回、资料、改密码、设备和注销都在 OzID，产品只保留“使用 OzID 登录 / 前往 OzID 重新登录”和“管理 OzID 账号”（见[山海足迹功能描述](../trip-map/features.md#账号与云端同步)）。产品直接调用 BFF 的规范公开地址（`VITE_API_BASE_URL` 是绝对地址，`VITE_OZID_ORIGIN` 是 OzID 的 origin；构建缺其一则失败），登录后由 BFF 的导航注册表校验返回产品起始页，用 `Me` 返回的用户 UUID 恢复自己的缓存。metro 的账号页仍保留自己的资料、改密码和设备表单（共用 `packages/account` 的组件），收敛是后续阶段。
+**产品入口。** 山海足迹（trip-map）自 T10 起没有任何账号表单：登录、注册、找回、资料、改密码、设备和注销都在 OzID，产品只保留“使用 OzID 登录 / 前往 OzID 重新登录”和“管理 OzID 账号”（见[山海足迹功能描述](../trip-map/features.md#账号与云端同步)）。产品直接调用 BFF 的规范公开地址（`VITE_API_BASE_URL` 是绝对地址，`VITE_OZID_ORIGIN` 是 OzID 的 origin；构建缺其一则失败），登录后由 BFF 的导航注册表校验返回产品起始页，用 `Me` 返回的用户 UUID 恢复自己的缓存。地铁足迹（metro）自 T11 起同样没有账号表单：顶栏只有“登录”（匿名）和“账号”“退出”（已登录），`/login`、`/account` 只剩一页说明；产品用同一套 `@kongken/account` 的会话判断（只有 `Me` 返回未登录才算退出，临时故障不算）、`X-Kongken-User` 账号守卫和 CSRF 重放，骑行者资料（公开主页名称、handle、公开开关）仍是地铁足迹自己的，与 OzID 的账号昵称/头像分开。见[地铁足迹功能描述](../metro/features.md#登录)。
 
 **部署顺序。** T3 没有迁移，也不改 usersrv：只有 BFF（新增 `RevokeOtherSessions`，并让 `RevokeSession` 撤销自己时清 Cookie）和 `ozid-web`。先升级 BFF，再升级 `ozid-web`；顺序反了时，新页面的“退出其他设备”会因 BFF 不认识这个方法而失败（页面显示服务暂时不可用，其余功能不受影响）。回滚 BFF 同理，不涉及数据。`navigation.apps.ozid.paths` 仍只需包含 `/security`（重新认证的返回目标）；资料和设备页不是返回目标，不必登记。
 
@@ -154,10 +154,12 @@ navigation:
   apps:
     ozid:     {origin: https://id.example.com, paths: ["/security"]}
     trip-map: {origin: https://trip.example.com, paths: ["/status"]}
-    metro:    {origin: https://metro.example.com, paths: ["/me", "/city/*"]}
+    metro:    {origin: https://metro.example.com, paths: ["/me", "/cities/*", "/topics/*", "/u/*"]}
 ```
 
 路径规则：默认路径（缺省 `/`）总是允许；`paths` 里的项是精确 pathname，或以 `/*` 结尾的前缀（`/city/*` 允许 `/city` 及其下所有路径，`/*` 允许整个应用）。启动时校验，**配置缺失或不合法会让 BFF 启动失败并指出字段**，不会降级：
+
+**地铁足迹的返回页面（T11）。** 与山海足迹同一规则，名单是起始页 `/`、`/me`、`/cities/<slug>`、`/topics/<slug>`、`/u/<handle>`（段只含 ASCII 字母、数字与 `-._~`，1–64 位；非 ASCII 的城市名没有规范路径，回起始页），部署者在 `navigation.apps.metro.paths` 登记 `["/me", "/cities/*", "/topics/*", "/u/*"]`；产品先请 BFF 确认这个 pathname 再使用，未登记、拒绝、不可达或超过 3 秒回到起始页，query 与 fragment 从不带入。
 
 **山海足迹的返回页面（T10）。** 产品从哪个页面发起登录，就申请回到哪个页面，但只限一个封闭的名单：起始页（默认路径 `/`，带 Vite base 时是该 base）和 `/status`（公开的服务状态页，页面上有“使用 OzID 登录”链接）。名单之外的任何页面（分享页 `/s/<令牌>`、邮件落地页、未知路径）一律回到起始页；申请里永远只有 `app_id` 与规范 pathname，query、fragment 和令牌不会进入，也没有浏览器 `Referer` 泄露（跨站点只发 origin）。产品在发出名单内的非起始页之前先请 BFF 校验这个 pathname（`ResolveNavigation`，只读且匿名），BFF 没有对应规则、拒绝、不可达或超过 3 秒都退回起始页，所以未登记 `/status` 的部署不会让登录结束在 OzID 的“地址不允许”状态。部署者要让登录回到状态页，就在 `navigation.apps.trip-map.paths` 登记 `/status`（带 base 时是 `<base>status`）；弹窗打开与未保存的修改不属于返回承诺，返回的是页面，不是页面里的临时状态。
 
@@ -202,4 +204,4 @@ docker run --rm -p 8089:80 -e API_ORIGIN=https://api.example.com ozid-web
 3. **真实浏览器与代理链**：`OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain`。在受控 HTTPS 下用真实 BFF 与 usersrv，OzID、API、两个产品和一个未登记兄弟分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，由浏览器解析到本机前置代理，使用一次性证书）；Chromium 实测登录、返回、跨应用同一身份、退出、重新认证、Cookie 属性、存储与 URL 无令牌、CSP 无违规、兄弟域名无 CORS、外来 Origin 的写被拒；T2 起还包括真实邮件回路：一个浏览器申请注册/重置，另一个只拿邮件链接的浏览器完成，不自动登录、返回到绑定的产品页，落地页响应头取自 nginx 模板的落地页 `location`，令牌没有出现在任何请求 URL 或 Referer 里；T3 的两个用例（桌面与手机）：每个浏览器上下文是一台独立设备、各有自己的 Cookie 会话，实测改昵称后各设备和产品页同时看到、列表三台设备、撤销指定设备（三台中恰好一台失效）、退出其他设备后另两台与其产品页都已退出而当前设备仍在、之后新登录的设备保持有效、退出这个浏览器后本机各产品页看到匿名而另一台设备不受影响且本源的本地存储未被清除、错误当前密码不改任何东西、改密码后所有设备（含当前）退出并只能用新密码登录，以及外来 Origin / 缺 CSRF / 匿名对 `RevokeOtherSessions` 的请求都被拒且不撤销（邮件厂商是唯一的替身：收件箱经 `mailbox` 测试主机读取；这里的前置代理只**复刻**模板里的头，nginx 本身由第 2 项的容器验收检验）。需要 Node 依赖与 Playwright Chromium，CI 的 `ozid-browser` 任务运行它。
 4. **仍须运维确认**（自动化无法覆盖）：真实 DNS、证书与 TLS 终止；反代是否按文档保留 `Host`、覆盖 `X-Real-IP`；真实域名下的 CORS/Cookie 表现；真实邮件厂商的投递与链接跟踪设置（邮件已统一指向 OzID，但至今没有对真实厂商实测，见[手动冒烟](../usersrv/mail-smoke-test.md)）；`auth.apps.ozid.origin` 与 BFF 注册表里 `ozid` 的 origin 是否一致；旧产品条目在令牌过期后的清理；镜像在私有构建参数下的构建。
 
-当前限制：产品自己的登录、注册、找回密码和账号页面尚未改指向 OzID（产品入口收敛是后续阶段），产品的邮件落地页因此仍保留以服务旧邮件；控制台应用（`admin`）自 T4 起存在，见 [控制台功能描述](../admin/features.md)；OzID 的注销页只能注销本人账号，注销前未同步的本地内容要先到各产品里导出；设备列表没有 IP、位置或设备型号（BFF 不记录这些）；OzID 无法清除其他 origin 的浏览器存储；“集中账号写只接受 OzID Origin”的收紧在后续阶段，T1、T2、T3 都没有改变现有账号写方法的来源策略（控制台与用户管理接口的周界属于 T4，metro 管理与令牌接口已由 T8 并入这道周界，MCP 由 T9 的独立 `mcp.allowed_cidrs` 保护，已实现）。注册与重置请求的来源应用只在 BFF 配置了导航注册表时才被接受并保存；`auth.apps.ozid` 现在是 usersrv 的必填配置，没有它 usersrv 拒绝启动。
+当前限制：trip-map（T10）与 metro（T11）的账号入口都已改指向 OzID，产品的邮件落地页只保留以服务旧邮件，metro 的管理入口仍在统一控制台；控制台应用（`admin`）自 T4 起存在，见 [控制台功能描述](../admin/features.md)；OzID 的注销页只能注销本人账号，注销前未同步的本地内容要先到各产品里导出；设备列表没有 IP、位置或设备型号（BFF 不记录这些）；OzID 无法清除其他 origin 的浏览器存储；“集中账号写只接受 OzID Origin”的收紧在后续阶段，T1、T2、T3 都没有改变现有账号写方法的来源策略（控制台与用户管理接口的周界属于 T4，metro 管理与令牌接口已由 T8 并入这道周界，MCP 由 T9 的独立 `mcp.allowed_cidrs` 保护，已实现）。注册与重置请求的来源应用只在 BFF 配置了导航注册表时才被接受并保存；`auth.apps.ozid` 现在是 usersrv 的必填配置，没有它 usersrv 拒绝启动。

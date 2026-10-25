@@ -44,8 +44,8 @@
 
 - 浏览器 RPC 仅 `/api/bff.*`（共用的 `bff.v1`、各产品的 `bff.<产品>.v1`）；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/unsubscribe 由 BFF `publichttp` 提供）。
 - 前端的业务 RPC（含分享 API）使用 `bff.tripmap.v1`；账号与会话管理使用 `bff.v1`。BFF 会话和注销工作流在 BFF 独立库；tripmap `users` 只保存用户 UUID 对应的展示投影与产品数据，好友只能凭 `fc_` 邀请码添加（没有按用户名查找）。
-- 浏览器登录、注册、找回密码与账号设置在 metro 与 OzID 实现（P5，见 [usersrv 规格](usersrv/spec.md#p5-已实现内容)；trip-map 自 T10 起没有账号表单，所有账号入口都去 OzID，只保留升级前旧邮件的落地页）；发布与退役（P6）：usersrv 镜像与部署示例、Logto 运行时入口删除、手动退役文档已完成（[退役说明](usersrv/retirement.md)）；正式环境开放前仍需对真实邮件厂商做手动冒烟（[说明](usersrv/mail-smoke-test.md)，未对任何真实厂商实测）。
-- **T2 之后的区别：** trip-map 的产品入口已在 T10 切换到 OzID（账号弹窗只有 OzID 入口，无表单）；metro 的登录页尚未切换，仍可发起注册与找回；但新邮件已集中到 OzID（链接都指向 `auth.apps.ozid`），邮件落地页与完成后的“去登录”在 OzID，产品自己的落地页只服务升级前发出的旧邮件。
+- 浏览器登录、注册、找回密码与账号设置在 metro 与 OzID 实现（P5，见 [usersrv 规格](usersrv/spec.md#p5-已实现内容)；trip-map（T10）与 metro（T11）自此没有账号表单，所有账号入口都去 OzID，只保留升级前旧邮件的落地页）；发布与退役（P6）：usersrv 镜像与部署示例、Logto 运行时入口删除、手动退役文档已完成（[退役说明](usersrv/retirement.md)）；正式环境开放前仍需对真实邮件厂商做手动冒烟（[说明](usersrv/mail-smoke-test.md)，未对任何真实厂商实测）。
+- **T2 之后的区别：** trip-map 的产品入口已在 T10 切换到 OzID（账号弹窗只有 OzID 入口，无表单）；metro 的产品入口也已在 T11 切换（没有账号表单，`/login`、`/account` 只是说明页）；新邮件已集中到 OzID（链接都指向 `auth.apps.ozid`），邮件落地页与完成后的“去登录”在 OzID，产品自己的落地页只服务升级前发出的旧邮件。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）

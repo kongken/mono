@@ -500,7 +500,7 @@
 - 两个 HTTPS 同站点 origin 使用同一 BFF；邮件里的链接按各应用在 usersrv 里配置的 origin 生成；Cookie 仅在 API 主机持有。
 - 允许 Origin 的凭据化预检、正常和错误响应可读取；Me 恢复身份，合法 CSRF 写请求成功，缺少/错误 CSRF 和非法 Origin 仍拒绝。退出只撤销 BFF 当前会话，不触发用户中心全局退出。
 - 前端 URL 和浏览器存储没有令牌；本地足迹、其他账号未同步缓存保留。共享 Cookie 变更账号时，旧账号同步暂停，避免将旧缓存写到新账号。
-- 山海足迹的构建自 T10 起不再支持同源 `/api` 代理：配置后端必须给出绝对的 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`，否则构建失败（metro 的前端仍可用同源代理）；真实邮件厂商仍需部署方凭据与 HTTPS 验收，真实 BFF 的链路验证见 BFF 文档。
+- 山海足迹的构建自 T10 起不再支持同源 `/api` 代理：配置后端必须给出绝对的 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`，否则构建失败（metro 自 T11 起同样不再有同源代理）；真实邮件厂商仍需部署方凭据与 HTTPS 验收，真实 BFF 的链路验证见 BFF 文档。
 
 ### 账号入口收敛验收（T10）
 

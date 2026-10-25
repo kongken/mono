@@ -136,9 +136,12 @@ services:
     depends_on: [bff]
     networks: [internal, edge]
 
-  # Serve it on its own host name (an entry of the BFF's
-  # cors_allowed_origins when the API is on another host) from the edge proxy, or publish a
-  # port here. It proxies /api and /mcp/metro to the BFF.
+  # Serve it on its own host name (an entry of the BFF's cors_allowed_origins and navigation.apps.metro)
+  # from the edge proxy, or publish a port here. Build it with the BFF's canonical public address and
+  # OzID's origin (no defaults; the session Cookie belongs to the API host and every account page is OzID's):
+  #   docker build -f deploy/metro-web/Dockerfile --build-arg VITE_API_BASE_URL=https://api.example.com/api \
+  #     --build-arg VITE_OZID_ORIGIN=https://id.example.com .
+  # It no longer proxies /api (answered 404); /mcp/metro and the health probes still go to the BFF.
   metro-web:
     image: ghcr.io/kongken/mono-metro-web:main
     environment:

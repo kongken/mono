@@ -6,6 +6,8 @@
 >
 > **MCP 来源白名单（T9，[#87](https://github.com/kongken/mono/issues/87)）：** `POST /mcp/metro` 在 Bearer 令牌之前先要求来源在 BFF 的 `mcp.allowed_cidrs`（独立于浏览器控制台的 `admin.allowed_cidrs`；空 = 拒绝全部）内，令牌、scope、账号状态与角色的检查不变，详见 [BFF 文档](../bff.md)。
 >
+> **账号入口已收敛到 OzID（T11，[#89](https://github.com/kongken/mono/issues/89)）：** 本规格里 metro 前端自己的登录、注册、账号设置等页面是 P5 当时的设计，现在这些入口都在 [OzID](../ozid/features.md)，地铁足迹只有“前往 OzID 登录 / 账号”的入口并在成功后回到原页面；公开目录、公开主页、乘坐记录和骑行者资料的规则不变。用户可见规则与验收见[功能描述](features.md#登录)。
+>
 > **账号与角色部分已被 [usersrv 规格](../usersrv/spec.md) 取代。** 下文凡提到 Logto、OAuth、`oauth_apps`、Logto 角色、`roles` scope 与 userinfo 的地方，都是**当时的设计与决策记录，不再是当前行为**：账号是 usersrv 的邮箱＋密码账号，`metro-admin` 是 usersrv 的角色（只能由运维命令 `usersrv-admin` 授予或撤销），BFF 每个请求与每个 MCP 工具调用都向 usersrv 复核账号状态、认证版本与角色，没有 `roles` 快照随会话保存，也没有 `oauth_apps`。目录、业务规则、接口、管理后台与 MCP 令牌的设计仍然有效。当前行为见 [BFF](../bff.md) 与 [功能描述](features.md)。
 
 **实现状态**

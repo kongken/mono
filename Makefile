@@ -77,8 +77,10 @@ dev-metro:
 dev-usersrv:
 	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.usersrv.yaml PORT=18086 go run ./cmd/usersrv
 
-# The metro web app (Vite on 5174, proxying /api to the BFF on 18081).
-# Run it next to `make dev`.
+# The metro web app (Vite on 5174, proxying /api to the BFF on 18081 for browsing the catalogue).
+# Signing in needs apps/metro/.env.local with VITE_API_BASE_URL (the BFF's public API base, e.g.
+# http://localhost:18081/api) and VITE_OZID_ORIGIN (OzID's origin, e.g. http://localhost:5175); without
+# them the sign-in button says the account center is not configured. Run it next to `make dev`.
 dev-metro-web:
 	npm run dev:metro
 

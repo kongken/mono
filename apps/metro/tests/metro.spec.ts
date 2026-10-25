@@ -1,11 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { fakeBackend } from "./fake-backend";
+import { loginUrl, setup } from "./support";
 
 // Acceptance scenarios 17-21 of docs/metro/spec.md, desktop and phone sizes.
 
 test("17 anonymous visitors browse cities and topics, and cannot mark rides", async ({ page }) => {
-  const fake = fakeBackend(page);
-  await fake.install();
+  const { fake, urls } = await setup(page);
 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "城市", exact: true })).toBeVisible();
@@ -28,15 +27,15 @@ test("17 anonymous visitors browse cities and topics, and cannot mark rides", as
   await expect(page.getByRole("img", { name: /上海 2 条/ })).toBeVisible();
 
   await page.getByTestId("line-sh-1").getByRole("button", { name: "标记坐过" }).click();
-  // Anonymous visitors cannot mark rides: nothing is written and they are sent to sign in,
-  // with the page they came from remembered.
-  await expect(page).toHaveURL(/\/login\?next=%2Ftopics%2Fsix-cars$/);
-  await expect(page.getByTestId("auth-panel")).toBeVisible();
+  // Anonymous visitors cannot mark rides: nothing is written and they are sent to OzID to sign in,
+  // with the page they came from (a registered one) as the page to return to.
+  await expect(page).toHaveURL(loginUrl("/topics/six-cars"));
+  expect(urls()).toEqual([loginUrl("/topics/six-cars")]);
+  expect(fake.state.writes).toEqual([]);
 });
 
 test("18 a signed-in rider marks and unmarks a line, and /me follows", async ({ page }) => {
-  const fake = fakeBackend(page, { signedIn: "user" });
-  await fake.install();
+  const { fake } = await setup(page, { signedIn: true });
 
   await page.goto("/cities/shanghai");
   const line1 = page.getByTestId("line-sh-1");
@@ -59,8 +58,10 @@ test("18 a signed-in rider marks and unmarks a line, and /me follows", async ({ 
 });
 
 test("19 the catalogue administration is not in this application: an administrator gets no entry and no old address works", async ({ page }) => {
-  const fake = fakeBackend(page, { signedIn: "admin" });
-  await fake.install();
+  const { fake, accounts, account } = await setup(page);
+  // An administrator is an account with the role; the product gives it no extra entry.
+  account.roles = ["metro-admin"];
+  accounts.signIn(account);
 
   await page.goto("/");
   await expect(page.getByRole("link", { name: "管理", exact: true })).toHaveCount(0);

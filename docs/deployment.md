@@ -23,7 +23,7 @@
 ```
 
 - **公网**只暴露边缘 HTTPS 与 BFF 的 HTTP 端口（经边缘反代）；**不得**把 tripmap 的 `18082`（HTTP `/ping`/`/readyz`）或 `18083`（gRPC）直接映射到公网。
-- 地铁足迹前端构建需 `--build-arg VITE_API_BASE_URL=/api`，使浏览器与 BFF 同源；**山海足迹自 T10 起必须用绝对的 `VITE_API_BASE_URL`（BFF 的规范公开地址，例如 `https://api.example.com/api`）加 `VITE_OZID_ORIGIN`（例如 `https://id.example.com`）构建**：会话 Cookie 是 API 主机的 host-only Cookie，产品页面直接跨站点调用它，BFF 需把产品 origin 列入 `cors_allowed_origins` 并在 `navigation.apps` 登记 `trip-map`（要让从服务状态页发起的登录回到状态页，再登记 `paths: ["/status"]`；带 Vite base 时是 `<base>status`；没登记时登录回到起始页，不会失败），缺少任一变量构建失败；两者都不设置时仍为纯本地模式。真实域名与地址由私有部署配置提供。
+- **地铁足迹自 T11 起与山海足迹一样**，构建必须带绝对的 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`，`metro-web` 不再有同源 `/api` 代理（见下“地铁足迹”一节的上线顺序）。**山海足迹自 T10 起必须用绝对的 `VITE_API_BASE_URL`（BFF 的规范公开地址，例如 `https://api.example.com/api`）加 `VITE_OZID_ORIGIN`（例如 `https://id.example.com`）构建**：会话 Cookie 是 API 主机的 host-only Cookie，产品页面直接跨站点调用它，BFF 需把产品 origin 列入 `cors_allowed_origins` 并在 `navigation.apps` 登记 `trip-map`（要让从服务状态页发起的登录回到状态页，再登记 `paths: ["/status"]`；带 Vite base 时是 `<base>status`；没登记时登录回到起始页，不会失败），缺少任一变量构建失败；两者都不设置时仍为纯本地模式。真实域名与地址由私有部署配置提供。
 - 示例文件：`deploy/trip-map-web/default.conf.template`、`deploy/metro-web/default.conf.template`（前端 Nginx）、`deploy/reverse-proxy/Caddyfile.example`（单站点 Caddy）、`deploy/compose.stack.example.yaml`（内网隔离的 Compose 栈，含 usersrv）、`deploy/postgres/init-databases.sql`（创建 `bff`、`usersrv`、`metro` 三个库的初始化脚本）、`deploy/k8s/secrets.layout.example.yaml`（Secret 键名示意）。
 - 边缘对 `/auth/` 前缀一律返回 404（Nginx 模板与 Caddy 示例都有），不让旧的 `/auth/login`、OAuth 回调落入 SPA 回退。
 
@@ -117,6 +117,7 @@ tripmap、BFF、metro、usersrv 与各前端为独立镜像（见 [Docker 镜像
 2. `config.bff.yaml` 加 `upstreams.metro`、`grpc.services.metro`，`auth.account_cleanup` 列入 `metro`（已配置 `upstreams.metro` 时漏列会让 BFF 拒绝启动：注销后该产品的数据不能被悄悄留下；未设置 `auth.account_cleanup` 时默认就是 tripmap 加上已配置上游的 metro），按需调整 `mcp.rate_limit_per_minute`。不部署 metro 时去掉这些项，BFF 不会挂载 metro 的任何路由。
 3. 管理员角色：用 `usersrv-admin` 给管理员账号授予 `metro-admin`；BFF 每次请求读取当前角色，上线前先让一个管理员登录并确认 `Me` 返回 `metro-admin`。
 4. 边缘网关对 `/mcp/metro` 不记录请求头与访问日志（Bearer 令牌），并保证转发头由网关覆盖或追加（见下面“MCP 来源白名单”）。MCP 令牌由管理员在统一管理控制台的“地铁目录 → 管理令牌”（`/metro/tokens`）创建，最长 90 天，明文只显示一次。
+5. **前端与账号入口（T11）。** `metro-web` 构建带 `--build-arg VITE_API_BASE_URL=https://api.example.com/api --build-arg VITE_OZID_ORIGIN=https://id.example.com`（无默认值，缺失、同源 `/api` 或 OzID 地址不是纯 origin 时构建失败）；BFF 的 `cors_allowed_origins` 加入 metro 站点 origin，`navigation.apps.metro` 登记 `origin: https://metro.example.com` 与 `paths: ["/me", "/cities/*", "/topics/*", "/u/*"]`（要让登录后回到原页面；未登记的页面登录后回到起始页，不会失败）。`metro-web` 的 Nginx 不再转发 `/api/`（返回 404），Caddy 示例里 metro 站点同理；浏览器直接调用 API 主机，Cookie 与 OzID 共用。**上线顺序：** BFF 配置（CORS 与注册表，旧版 `metro-web` 不受影响）→ 带新参数构建的 `metro-web`；回滚只换回旧版 `metro-web` 镜像（它仍用同源代理与自己的表单，BFF 多出的 CORS 与注册表项无害），不改 BFF、不回退迁移。真实 DNS、证书与生产代理上的 CORS/Cookie 行为需上线前手动验证。
 
 ## MCP 来源白名单（T9）：配置、发布与回退
 `POST /mcp/metro` 有自己的来源白名单，与上一节控制台的 `admin.*` 是两份**互不引用**的配置：一个地址在其中一份里，并不因此被另一份放行。
@@ -164,7 +165,7 @@ docker run --rm --network <内部网络> -e USERSRV_DATABASE_URL='postgres://…
 5. 验证注册、登录、`Me`、业务读写、退出、会话撤销和注销后，**BFF 数据库**可手动执行（建议 `psql -v ON_ERROR_STOP=1 -f …`） `deploy/sql/bff/retire_logto_identities.sql`，删除旧的 `auth_identities`、`account_deletion_receipts`（以及更早的 `auth_sessions`、`auth_users`）。该脚本会先检查新的 `bff_account_deletions` 已存在、没有未完成的旧注销回执依赖。
 6. 恢复流量。清理后不能直接回滚至旧版本；需要恢复数据库备份。
 
-退出仅撤销当前 BFF 会话。会话在每个请求都和 usersrv 的账号状态、`auth_version`、角色核对：禁用账号、改密码、撤销角色在下一个请求生效。浏览器登录、注册与账号设置在 metro 与 OzID 实现（P5）；trip-map 的产品入口自 T10 起已切换到 OzID（没有产品内账号表单），metro 尚未切换；自 T2 起新邮件都链接到 OzID 的落地页（`ozid-web`），产品自己的落地页只服务升级前发出的旧邮件；usersrv 的发布见上一节，真实邮件厂商需要上线前手动验证。落地页 `/account/verify-email`、`/account/reset-password` 在 Nginx 与 Caddy 示例里（`ozid-web` 的模板为这两个路径单独声明，并限制 `script-src 'self'`）带 `Referrer-Policy: no-referrer`、`Cache-Control: no-store` 并回退到 `index.html`，自建边缘需保持这三点。
+退出仅撤销当前 BFF 会话。会话在每个请求都和 usersrv 的账号状态、`auth_version`、角色核对：禁用账号、改密码、撤销角色在下一个请求生效。浏览器登录、注册与账号设置在 metro 与 OzID 实现（P5）；trip-map（T10）与 metro（T11）的产品入口都已切换到 OzID（没有产品内账号表单）；自 T2 起新邮件都链接到 OzID 的落地页（`ozid-web`），产品自己的落地页只服务升级前发出的旧邮件；usersrv 的发布见上一节，真实邮件厂商需要上线前手动验证。落地页 `/account/verify-email`、`/account/reset-password` 在 Nginx 与 Caddy 示例里（`ozid-web` 的模板为这两个路径单独声明，并限制 `script-src 'self'`）带 `Referrer-Policy: no-referrer`、`Cache-Control: no-store` 并回退到 `index.html`，自建边缘需保持这三点。
 
 ## 验证清单
 
@@ -177,9 +178,9 @@ docker run --rm --network <内部网络> -e USERSRV_DATABASE_URL='postgres://…
 
 ## 多前端共用 BFF 的部署
 
-公网 API 域名提供 `/api/bff.*` 与 `/mcp/metro`；不再有 `/auth/login` 或 `/auth/callback/*`。多个 HTTPS 同站点应用分别构建 `VITE_API_BASE_URL=https://api.example.com/api`；BFF 配置精确的 `cors_allowed_origins`，生产 `cookie_secure: true`。邮件里的链接来源由 usersrv 的 `auth.apps.ozid.origin` 决定，落地页 `/account/verify-email`、`/account/reset-password` 由 `ozid-web` 提供（响应头见 [OzID 功能描述](ozid/features.md#邮件流程t2)）。API 主机保存 host-only Cookie，应用用 credentials include 和 CSRF 响应体 token 调用；不要扩大 Domain。任意跨站点及第三方 Cookie 限制不属于支持承诺。
+公网 API 域名提供 `/api/bff.*` 与 `/mcp/metro`；不再有 `/auth/login` 或 `/auth/callback/*`。多个 HTTPS 同站点应用（trip-map、metro、OzID、控制台）分别构建 `VITE_API_BASE_URL=https://api.example.com/api`；BFF 配置精确的 `cors_allowed_origins`，生产 `cookie_secure: true`。邮件里的链接来源由 usersrv 的 `auth.apps.ozid.origin` 决定，落地页 `/account/verify-email`、`/account/reset-password` 由 `ozid-web` 提供（响应头见 [OzID 功能描述](ozid/features.md#邮件流程t2)）。API 主机保存 host-only Cookie，应用用 credentials include 和 CSRF 响应体 token 调用；不要扩大 Domain。任意跨站点及第三方 Cookie 限制不属于支持承诺。
 
-同源 `/api` 模式把 `/api` 代理到 BFF。独立前端代理会得到各自的 Cookie，不能与直连共享 BFF 主机会话混为一谈。`client_ip_header` 只信任已覆盖客户端同名头的网关；BFF 不按 Host/Referer 推导可信来源。
+trip-map 与 metro 没有同源 `/api` 代理模式（T10、T11）。独立前端代理会得到各自的 Cookie，不能与直连共享 BFF 主机会话混为一谈。`client_ip_header` 只信任已覆盖客户端同名头的网关；BFF 不按 Host/Referer 推导可信来源。
 
 ## OzID 用户中心的部署
 

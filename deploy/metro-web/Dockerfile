@@ -18,9 +18,14 @@ COPY packages packages
 COPY apps/metro/index.html apps/metro/vite.config.ts apps/metro/tsconfig.json apps/metro/tsconfig.app.json apps/metro/tsconfig.node.json apps/metro/
 COPY apps/metro/src apps/metro/src
 COPY apps/metro/public apps/metro/public
-# The browser talks to the BFF through the same origin, so the API base is /api.
-ARG VITE_API_BASE_URL=/api
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+COPY apps/metro/scripts apps/metro/scripts
+# Both addresses are public build settings with no default: the BFF's canonical public API base
+# (https://api.example.com/api; the session Cookie belongs to that host, so a same-origin /api proxy of this site
+# cannot carry the shared sign-in) and the OzID origin (https://id.example.com; every account page is OzID's).
+# A missing or malformed value fails the build.
+ARG VITE_API_BASE_URL
+ARG VITE_OZID_ORIGIN
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL VITE_OZID_ORIGIN=$VITE_OZID_ORIGIN
 RUN npm run test:metro && npm run build:metro
 
 FROM nginx:stable-alpine

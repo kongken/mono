@@ -47,9 +47,10 @@ server {
         proxy_read_timeout 30s;
     }
 
-    location ~ ^/(api/|ping$|readyz$) {
-        # A catalogue import is limited to 1 MiB by the service; leave room for the envelope.
-        client_max_body_size 2m;
+    # There is no /api here on purpose: the product calls the BFF's canonical public address (the session Cookie
+    # belongs to that host and is shared with OzID), never a same-origin proxy of this site. Only the health
+    # probes still pass through.
+    location ~ ^/(ping|readyz)$ {
         proxy_pass http://$backend_upstream$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -59,6 +60,8 @@ server {
         proxy_connect_timeout 5s;
         proxy_read_timeout 30s;
     }
+    # A request for the retired same-origin API is refused, not answered by the single-page fallback.
+    location ^~ /api/ { return 404; }
 
     location /assets/ {
         try_files $uri =404;

@@ -1,4 +1,4 @@
-import { ozidUrl, parseOrigin } from "@kongken/account/navigation";
+import { confirmedReturn, ozidUrl, parseOrigin } from "@kongken/account/navigation";
 
 /**
  * Every account entry of the product (sign in, sign in again, manage the account, close it) is a page of
@@ -99,10 +99,8 @@ export function returnPathFor(pathname: string, base = "/"): string {
 }
 
 /**
- * Chooses the return path of a sign-in started on `pathname`. A page other than the start page is used only
- * after the BFF itself confirmed that exact pathname (`confirm` asks it): a deployment that has not registered
- * the page, an outage, a refusal or a slow answer all end the same way, at the start page, so a sign-in never
- * ends in OzID's "this address is not allowed" state because of a page the product offered.
+ * Chooses the return path of a sign-in started on `pathname`: the page itself only after the BFF confirmed that
+ * exact pathname (see `confirmedReturn`), otherwise the start page.
  */
 export async function chooseReturn(
   pathname: string,
@@ -110,12 +108,5 @@ export async function chooseReturn(
   confirm: (path: string) => Promise<boolean>,
   timeoutMs = 3000,
 ): Promise<string> {
-  const wanted = returnPathFor(pathname, base);
-  const start = returnPathFor("/", base);
-  if (wanted === start) return start;
-  const answer = await Promise.race([
-    confirm(wanted).catch(() => false),
-    new Promise<false>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
-  ]);
-  return answer ? wanted : start;
+  return confirmedReturn(returnPathFor(pathname, base), returnPathFor("/", base), confirm, timeoutMs);
 }

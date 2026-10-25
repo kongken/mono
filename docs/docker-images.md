@@ -13,7 +13,7 @@
 | `ghcr.io/kongken/mono-metro` | `deploy/metro/Dockerfile` | metro 业务服务（地铁足迹），18084（HTTP，仅 `/ping`、`/readyz`）与 18085（内部 gRPC），运行时挂载配置与 BFF 公钥，只在内网暴露 |
 | `ghcr.io/kongken/mono-ozid-web` | `deploy/ozid-web/Dockerfile` | Nginx 提供 `apps/ozid` 静态文件（OzID 用户中心），80 端口，**不转发任何请求**；构建参数 `VITE_API_BASE_URL`（BFF 的绝对 https API base，无默认值）必填，运行时 `API_ORIGIN` 必填（用于 CSP）。发布工作流只用示例地址构建，作为构建检查，不是可直接部署的镜像，见 [OzID 功能描述](ozid/features.md#构建镜像与运行) |
 | `ghcr.io/kongken/mono-admin-web` | `deploy/admin-web/Dockerfile` | Nginx 提供 `apps/admin` 静态文件（统一管理控制台），80 端口，**不转发任何请求**，页面/资源/SPA fallback 全部在来源白名单之后；构建参数 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN` 必填（无默认值），运行时 `API_ORIGIN`、`ADMIN_HOST`、`ADMIN_ALLOWED_CIDRS` 必填（空值或全开的白名单使容器拒绝启动），`ADMIN_TRUSTED_PROXIES`、`ADMIN_REAL_IP_HEADER` 可选；发布的镜像按保留示例地址构建，只是构建检查，不是可部署产物，详见 [控制台功能描述](admin/features.md) |
-| `ghcr.io/kongken/mono-metro-web` | `deploy/metro-web/Dockerfile` | Nginx 提供 `apps/metro` 静态文件，80 端口，把 `/api/`、`/mcp/metro`、`/ping`、`/readyz` 转发给 BFF |
+| `ghcr.io/kongken/mono-metro-web` | `deploy/metro-web/Dockerfile` | Nginx 提供 `apps/metro` 静态文件，80 端口，只把 `/mcp/metro`、`/ping`、`/readyz` 转发给 BFF（T11 起没有同源 `/api/`，返回 404）；必须有构建参数 `VITE_API_BASE_URL`（BFF 的绝对公开 API 地址）与 `VITE_OZID_ORIGIN`，缺少或不合法时构建失败 |
 
 `.github/workflows/docker-publish.yml` 使用官方 Checkout、Buildx、GHCR 登录、metadata 和 build-push actions，按已核对的 commit SHA 固定版本。构建 linux/amd64 镜像，各镜像使用独立 GitHub Actions 缓存。
 
@@ -39,7 +39,7 @@ tripmap 与 BFF 镜像只复制本服务和 `internal/platform` 的代码，只�
 
 usersrv 镜像复制 `cmd/usersrv`、`cmd/usersrv-admin`、`internal/usersrv`、`internal/platform`、`pkg/` 与 `migrations/usersrv`，只运行这些包的 Go 单元测试（没有测试数据库与 Redis 时集成测试跳过），再生成 `/usersrv` 与 `/usersrv-admin` 两个静态二进制，运行层为 distroless，配置默认 `/config/config.yaml`。
 
-metro 镜像同样只复制 `cmd/metro`、`internal/metro`、`internal/platform`、`pkg/` 与 `migrations/metro`，只运行这些包的 Go 单元测试（没有测试数据库时集成测试跳过）；`metro-web` 镜像先复制全部 workspace 的 `package.json` 再 `npm ci`，构建阶段运行 `npm run test:metro` 与 `npm run build:metro`（`VITE_API_BASE_URL` 默认 `/api`，同源转发），不含浏览器测试（Playwright 在 CI 的前端任务中运行）。Docker 守护进程在编写这些 Dockerfile 的环境中不可用，镜像按同样的输入文件在临时目录里验证了 Go 测试/构建与 npm 构建，但没有实际执行 `docker build`（usersrv 镜像同样没有）；以 CI 的镜像矩阵为准。
+metro 镜像同样只复制 `cmd/metro`、`internal/metro`、`internal/platform`、`pkg/` 与 `migrations/metro`，只运行这些包的 Go 单元测试（没有测试数据库时集成测试跳过）；`metro-web` 镜像先复制全部 workspace 的 `package.json` 再 `npm ci`，构建阶段运行 `npm run test:metro` 与 `npm run build:metro`（T11 起必须传 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`，没有同源 `/api` 的默认值），不含浏览器测试（Playwright 在 CI 的前端任务中运行）。Docker 守护进程在编写这些 Dockerfile 的环境中不可用，镜像按同样的输入文件在临时目录里验证了 Go 测试/构建与 npm 构建，但没有实际执行 `docker build`（usersrv 镜像同样没有）；以 CI 的镜像矩阵为准。
 
 本地构建：
 
@@ -64,7 +64,7 @@ docker build -f deploy/metro-web/Dockerfile -t mono-metro-web:local .
 
 `ozid-web` 没有 `BACKEND_UPSTREAM`：它是纯静态站点，浏览器直接调用 BFF 的公开 origin（`API_ORIGIN`、`VITE_API_BASE_URL`，见 [部署](deployment.md#ozid-用户中心的部署)）。
 
-`metro-web` 使用同一个 `BACKEND_UPSTREAM`（默认 `bff:18081`）。`/mcp/metro` 不写访问日志、`error_log` 限为 `crit`（请求头带 Bearer 令牌）；`/api/`、`/mcp/metro` 的请求体上限 2 MiB（目录导入文档上限 1 MiB）。新邮件的链接不再指向 metro：usersrv 一律用 `auth.apps.ozid.origin`（中央 OzID）；`auth.apps.metro` 只在过渡期服务升级前发出的旧邮件，令牌过期后可从 usersrv 配置里删除。metro 的登录与账号入口本身仍在 `metro-web`（产品入口尚未切换到 OzID）。
+`metro-web` 使用同一个 `BACKEND_UPSTREAM`（默认 `bff:18081`）。`/mcp/metro` 不写访问日志、`error_log` 限为 `crit`（请求头带 Bearer 令牌）；`/mcp/metro` 的请求体上限 2 MiB（目录导入文档上限 1 MiB）；同源 `/api/` 与 `/auth/` 返回 404（会话 Cookie 属于 API 主机，同源代理无法共享登录）。新邮件的链接不再指向 metro：usersrv 一律用 `auth.apps.ozid.origin`（中央 OzID）；`auth.apps.metro` 只在过渡期服务升级前发出的旧邮件，令牌过期后可从 usersrv 配置里删除。metro 的产品入口自 T11 起已切换到 OzID：`metro-web` 没有账号表单，`/account/verify-email` 与 `/account/reset-password` 只服务旧邮件。CI 的 `metro-web-image` 任务（`scripts/metro-web-smoke.sh`）以示例地址构建并运行镜像，并检查缺少地址、同源 `/api` 时构建失败。
 
 前端 `/healthz` 仅检查静态服务，不代表后端可用；后端就绪状态检查 `/readyz`。Nginx 在请求时解析后端地址，后端暂时不存在不会阻止静态站点启动。默认 resolver 使用 Docker 内置 DNS `127.0.0.11`，运行容器时需加入自定义 Docker 网络（Compose 默认创建此类网络），而不是 Docker 默认 bridge。
 

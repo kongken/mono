@@ -1,10 +1,9 @@
 import { Layout } from "@/components/Layout";
 import { useRoute } from "@/lib/router";
-import { SessionProvider } from "@/lib/session";
-import AccountPage from "@/pages/Account";
+import { accountId, SessionProvider, useSession } from "@/lib/session";
 import CityPage from "@/pages/City";
 import Home from "@/pages/Home";
-import LoginPage from "@/pages/Login";
+import LegacyAccountPage from "@/pages/LegacyAccount";
 import MePage from "@/pages/Me";
 import NotFound from "@/pages/NotFound";
 import PublicProfilePage from "@/pages/PublicProfile";
@@ -24,20 +23,31 @@ function Routes() {
     case "me":
       return <MePage />;
     case "login":
-      return <LoginPage />;
     case "account":
-      return <AccountPage />;
+      return <LegacyAccountPage kind={route.name} />;
     default:
       return <NotFound />;
   }
 }
 
+/**
+ * The pages hold the signed-in person's own data (marked lines, the rider profile). Keying them by the account
+ * means a change of account, seen when the shared session is next checked, starts them over instead of showing
+ * the previous account's data for a moment.
+ */
+function Pages() {
+  const { session } = useSession();
+  return (
+    <Layout>
+      <Routes key={accountId(session) ?? "none"} />
+    </Layout>
+  );
+}
+
 export default function App() {
   return (
     <SessionProvider>
-      <Layout>
-        <Routes />
-      </Layout>
+      <Pages />
     </SessionProvider>
   );
 }
