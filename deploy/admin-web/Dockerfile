@@ -36,7 +36,8 @@ FROM nginx:stable-alpine
 #   ADMIN_HOST             the one host name the console answers to
 #   ADMIN_ALLOWED_CIDRS    source networks that may load the console (comma-separated)
 # Optional:
-#   ADMIN_TRUSTED_PROXIES  gateways in front of this container whose forwarded header is believed
+#   ADMIN_TRUSTED_PROXIES  gateways in front of this container whose forwarded header is believed;
+#                          must not overlap ADMIN_ALLOWED_CIDRS (the container refuses to start)
 #   ADMIN_REAL_IP_HEADER   that header (default X-Forwarded-For)
 ENV API_ORIGIN= ADMIN_HOST= ADMIN_ALLOWED_CIDRS= ADMIN_TRUSTED_PROXIES= ADMIN_REAL_IP_HEADER=X-Forwarded-For NGINX_ENVSUBST_FILTER=API_ORIGIN|ADMIN_HOST
 COPY deploy/admin-web/templates /etc/nginx/templates

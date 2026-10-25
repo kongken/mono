@@ -103,7 +103,9 @@ navigation:
 #   trusted_proxies networks of the reverse proxies that connect to the BFF directly. Only then is
 #                   forwarded_header read (right to left, skipping these hops); empty = the TCP
 #                   peer is the client and no header is believed. The proxy must APPEND to the
-#                   header, never pass a client's value through.
+#                   header, never pass a client's value through. It must not overlap allowed_cidrs
+#                   (either direction): a proxy inside the allowlist would open the console to
+#                   everyone behind it, so that combination is refused at startup.
 # Production example (reserved addresses; never commit real ones):
 #   admin:
 #     allowed_cidrs: ["203.0.113.0/24", "2001:db8:100::/48"]

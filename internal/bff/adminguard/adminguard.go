@@ -57,11 +57,24 @@ func (c Config) Limit() int {
 // Validate checks every network and the header name. It does not depend on the
 // deployment mode: a fully open network is never a valid setting.
 func (c Config) Validate() error {
-	if _, err := ParseCIDRs("admin.allowed_cidrs", c.AllowedCIDRs); err != nil {
+	allowed, err := ParseCIDRs("admin.allowed_cidrs", c.AllowedCIDRs)
+	if err != nil {
 		return err
 	}
-	if _, err := ParseCIDRs("admin.trusted_proxies", c.TrustedProxies); err != nil {
+	trusted, err := ParseCIDRs("admin.trusted_proxies", c.TrustedProxies)
+	if err != nil {
 		return err
+	}
+	// A request without a usable forwarded chain (no header, or only proxies in it) is judged
+	// by the address of the proxy itself. A proxy inside the allowlist would therefore let
+	// everyone who can reach it through that proxy in; the two lists must stay apart, which
+	// also keeps this layer and the console's Nginx (same rule at start) in agreement.
+	for _, p := range trusted {
+		for _, a := range allowed {
+			if p.Overlaps(a) {
+				return fmt.Errorf("admin.trusted_proxies %q overlaps admin.allowed_cidrs %q: a proxy inside the allowlist opens the console to everyone behind it; keep the two lists apart", p, a)
+			}
+		}
 	}
 	if c.RateLimitPerMinute < 0 {
 		return errors.New("admin.rate_limit_per_minute must not be negative")

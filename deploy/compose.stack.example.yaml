@@ -163,7 +163,8 @@ services:
   #     --build-arg VITE_OZID_ORIGIN=https://id.example.com .
   # ADMIN_TRUSTED_PROXIES is the edge proxy's network on `edge`: only then is the forwarded header
   # (which that proxy sets from the real peer) believed. Publish it only through that proxy, on its own
-  # host (deploy/reverse-proxy/Caddyfile.example); never map its port to the internet.
+  # host (deploy/reverse-proxy/Caddyfile.example); never map its port to the internet. The proxy's
+  # network must stay OUT of ADMIN_ALLOWED_CIDRS (overlap is refused at start).
   # Reserved example addresses: replace them in a private copy, and do not commit real ones.
   admin-web:
     image: ghcr.io/kongken/mono-admin-web:main   # replace with an image built for your API base and OzID origin

@@ -63,6 +63,38 @@ func TestInvalidOrOpenNetworksAreRejected(t *testing.T) {
 	}
 }
 
+// A trusted proxy inside the allowlist is the bypass of "judge the proxy's own address when the
+// forwarded chain is unusable" (the console's Nginx does exactly that), so it is a start-up error
+// in both layers, whichever list is the wider one.
+func TestTrustedProxyInsideTheAllowlistIsRefused(t *testing.T) {
+	for name, c := range map[string]Config{
+		"same network":            {AllowedCIDRs: []string{"10.0.0.0/8"}, TrustedProxies: []string{"10.0.0.0/8"}},
+		"proxy inside allowlist":  {AllowedCIDRs: []string{"10.0.0.0/8"}, TrustedProxies: []string{"10.2.0.0/16"}},
+		"allowlist inside proxy":  {AllowedCIDRs: []string{"10.2.0.0/16"}, TrustedProxies: []string{"10.0.0.0/8"}},
+		"one host of the list":    {AllowedCIDRs: []string{"192.0.2.0/24", "203.0.113.0/24"}, TrustedProxies: []string{"203.0.113.7/32"}},
+		"IPv6 proxy inside":       {AllowedCIDRs: []string{"2001:db8::/32"}, TrustedProxies: []string{"2001:db8:1::/48"}},
+		"IPv6 allowlist in proxy": {AllowedCIDRs: []string{"2001:db8:1::/48"}, TrustedProxies: []string{"2001:db8::/32"}},
+	} {
+		if err := c.Validate(); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+		if _, err := New(c, origin); err == nil {
+			t.Errorf("%s: New built a guard", name)
+		}
+	}
+	for name, c := range map[string]Config{
+		"disjoint IPv4":           {AllowedCIDRs: []string{"192.0.2.0/24"}, TrustedProxies: []string{"10.0.0.0/8"}},
+		"neighbour networks":      {AllowedCIDRs: []string{"10.1.0.0/16"}, TrustedProxies: []string{"10.2.0.0/16"}},
+		"disjoint IPv6":           {AllowedCIDRs: []string{"2001:db8::/32"}, TrustedProxies: []string{"2001:db9::/32"}},
+		"IPv6 proxies, IPv4 list": {AllowedCIDRs: []string{"192.0.2.0/24"}, TrustedProxies: []string{"2001:db8::/32"}},
+		"no proxy, any allowlist": {AllowedCIDRs: []string{"10.0.0.0/8"}},
+	} {
+		if err := c.Validate(); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
 func TestDirectPeerIsTheClientAndHeadersAreIgnored(t *testing.T) {
 	g := guard(t, Config{AllowedCIDRs: []string{"192.0.2.0/24"}})
 	if err := g.Check(hdr("Origin", origin), "192.0.2.10:5000"); err != nil {
@@ -112,6 +144,17 @@ func TestTrustedProxyChain(t *testing.T) {
 		{"untrusted peer cannot use the header", "198.51.100.1:1", hdr("X-Forwarded-For", "192.0.2.7"), false},
 		{"unparsable hop", "10.0.0.2:1", hdr("X-Forwarded-For", "192.0.2.7, nonsense"), false},
 		{"unparsable hop between proxies", "10.0.0.2:1", hdr("X-Forwarded-For", "192.0.2.7, nonsense, 10.0.0.9"), false},
+		// The same unusable chains the container acceptance (scripts/admin-web-smoke.sh) sends to
+		// the real Nginx, where each must end in 403 as well.
+		{"chain is a word", "10.0.0.2:1", hdr("X-Forwarded-For", "garbage"), false},
+		{"chain is unknown", "10.0.0.2:1", hdr("X-Forwarded-For", "unknown"), false},
+		{"allowed address then a word", "10.0.0.2:1", hdr("X-Forwarded-For", "192.0.2.7, garbage"), false},
+		{"allowed address, proxy, then a word", "10.0.0.2:1", hdr("X-Forwarded-For", "192.0.2.7, 10.0.0.9, garbage"), false},
+		{"word on a second header line", "10.0.0.2:1", hdr("X-Forwarded-For", "192.0.2.7", "X-Forwarded-For", "garbage"), false},
+		{"hop with a port", "10.0.0.2:1", hdr("X-Forwarded-For", "192.0.2.7:80"), false},
+		{"hop with trailing junk", "10.0.0.2:1", hdr("X-Forwarded-For", "192.0.2.7 junk"), false},
+		{"trailing empty hop", "10.0.0.2:1", hdr("X-Forwarded-For", "192.0.2.7,"), false},
+		{"junk left of a valid last hop is never read", "10.0.0.2:1", hdr("X-Forwarded-For", "garbage, 192.0.2.7"), true},
 		{"no header: the proxy itself is the client", "10.0.0.2:1", hdr(), false},
 		{"only proxies in the chain", "10.0.0.2:1", hdr("X-Forwarded-For", "10.0.0.9"), false},
 		{"mapped IPv6 hop", "10.0.0.2:1", hdr("X-Forwarded-For", "::ffff:192.0.2.7"), true},

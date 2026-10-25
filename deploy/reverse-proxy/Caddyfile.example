@@ -204,7 +204,8 @@ id.example.com {
 # container (every page, asset and fallback) and the BFF (`admin.allowed_cidrs`, every user-management
 # call). Edit them together. This proxy is the FIRST hop that sees the real client address, so it sets
 # X-Forwarded-For from the TCP peer (a value the client sent is replaced, never passed on), and the
-# other two list this proxy's network as a trusted proxy (ADMIN_TRUSTED_PROXIES / admin.trusted_proxies).
+# other two list this proxy's network as a trusted proxy (ADMIN_TRUSTED_PROXIES / admin.trusted_proxies),
+# a network that must NOT overlap the allowlist (both layers refuse to start otherwise).
 # If a CDN or load balancer sits in front of this proxy, its address ranges become part of that
 # trusted chain and Caddy's `trusted_proxies` global option must name them; otherwise leave it out.
 # A source outside the list gets a bare 403 and no body; other Host names and ports get nothing here.

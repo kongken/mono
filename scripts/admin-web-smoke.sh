@@ -5,7 +5,9 @@
 #   - the page, its static assets and the single-page fallback are served only to an allowlisted
 #     source, and every other source gets 403 for ALL of them (a missing asset included);
 #   - a forged forwarded header cannot lift a source into the list (only a trusted proxy's header is
-#     believed, read from the right); another Host (or a Host with a port) gets no response at all;
+#     believed, read from the right), an unusable chain (not an address, only gateways) never opens
+#     the console, and gateways that overlap the allowlist keep the container from starting;
+#     another Host (or a Host with a port) gets no response at all;
 #   - /healthz answers for probes only on the default server;
 #   - the CSP and clickjacking headers, and that a missing or illegal setting keeps the container
 #     from starting (an empty allowlist or a fully open one is a refusal, never "open").
@@ -26,6 +28,7 @@ INSIDE="203.0.113.9"
 OUTSIDE="198.51.100.7"       # TEST-NET-2: not on the list
 # The test client reaches the container from the docker bridge, so that range is the "gateway".
 GATEWAYS="10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+GATEWAY_HOP="10.1.2.3"       # an address inside GATEWAYS, written as a hop of the chain
 tmp="$(mktemp -d)"
 containers=()
 failures=0
@@ -171,6 +174,18 @@ get "$BASE" forged_prefix / -H "Host: $HOST" -H "X-Forwarded-For: $INSIDE, $OUTS
 check "forged: an allowed address written first by the client does not help (403)" status_is "$tmp/forged_prefix.head" 403
 get "$BASE" two_lines / -H "Host: $HOST" -H "X-Forwarded-For: $INSIDE" -H "X-Forwarded-For: $OUTSIDE"
 check "forged: a second header line with the real source wins (403)" status_is "$tmp/two_lines.head" 403
+# An unusable chain is the hard case: Nginx then falls back to the gateway's own address, which is
+# why the gateways must never be inside the allowlist (refused at start, see below). Here they are
+# not, so every such chain must end in 403. A valid last hop is believed, as in the BFF.
+for junk in "garbage" "unknown" "$INSIDE, garbage" "$INSIDE, $GATEWAY_HOP, garbage" "$GATEWAY_HOP" "$OUTSIDE:80" "$INSIDE junk" ",$INSIDE"; do
+  name="junk$(printf '%s' "$junk" | tr -c 'a-z0-9' '_')"
+  get "$BASE" "$name" / -H "Host: $HOST" -H "X-Forwarded-For: $junk"
+  check "unusable chain '$junk' does not open the console (403)" status_is "$tmp/$name.head" 403
+done
+get "$BASE" two_lines_junk / -H "Host: $HOST" -H "X-Forwarded-For: $INSIDE" -H "X-Forwarded-For: garbage"
+check "unusable chain on a second header line does not open the console (403)" status_is "$tmp/two_lines_junk.head" 403
+get "$BASE" junk_left / -H "Host: $HOST" -H "X-Forwarded-For: garbage, $INSIDE"
+check "a valid last hop is the client; junk to its left is never read (200, same as the BFF)" status_is "$tmp/junk_left.head" 200
 get "$BASE" no_header / -H "Host: $HOST"
 check "no forwarded header: the gateway itself is the client and is not on the list (403)" status_is "$tmp/no_header.head" 403
 get "$BASE" other_header / -H "Host: $HOST" -H "X-Real-IP: $INSIDE" -H "Forwarded: for=$INSIDE" -H "X-Client-IP: $INSIDE"
@@ -246,6 +261,12 @@ expect_refused "the allowlist entry has no prefix" "ADMIN_ALLOWED_CIDRS" ADMIN_A
 expect_refused "the allowlist is a wildcard" "ADMIN_ALLOWED_CIDRS" 'ADMIN_ALLOWED_CIDRS=*'
 expect_refused "the allowlist smuggles a directive" "ADMIN_ALLOWED_CIDRS" 'ADMIN_ALLOWED_CIDRS=203.0.113.0/24;allow all'
 expect_refused "a trusted proxy range opens everything" "ADMIN_TRUSTED_PROXIES" ADMIN_TRUSTED_PROXIES=0.0.0.0/0
+# the gateways and the allowlist must stay apart: otherwise an unusable forwarded chain falls back to
+# the gateway's own address and that address would open the console (shown by hand against real Nginx)
+expect_refused "a trusted proxy network is the allowlist itself" "ADMIN_TRUSTED_PROXIES" ADMIN_TRUSTED_PROXIES="$OFFICE"
+expect_refused "a trusted proxy network lies inside the allowlist" "ADMIN_TRUSTED_PROXIES" "ADMIN_ALLOWED_CIDRS=$GATEWAYS" ADMIN_TRUSTED_PROXIES=172.17.0.0/16
+expect_refused "the allowlist lies inside a trusted proxy network" "ADMIN_TRUSTED_PROXIES" ADMIN_ALLOWED_CIDRS=172.20.0.0/16 "ADMIN_TRUSTED_PROXIES=$GATEWAYS"
+expect_refused "an IPv6 trusted proxy network lies inside the IPv6 allowlist" "ADMIN_TRUSTED_PROXIES" ADMIN_ALLOWED_CIDRS=2001:db8::/32 ADMIN_TRUSTED_PROXIES=2001:db8:1::/48
 expect_refused "ADMIN_HOST is a wildcard" "ADMIN_HOST" 'ADMIN_HOST=*.example.com'
 expect_refused "ADMIN_HOST carries a port" "ADMIN_HOST" ADMIN_HOST=admin.example.com:8443
 expect_refused "ADMIN_HOST is empty" "ADMIN_HOST" ADMIN_HOST=

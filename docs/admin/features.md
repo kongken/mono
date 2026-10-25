@@ -45,6 +45,7 @@
 
 - 白名单为空（或没有注册 `navigation.apps.admin`）= **全部拒绝**，不会自动放开。CIDR 必须带前缀、无主机位，IPv4 不得比 `/8` 宽、IPv6 不得比 `/16` 宽，不接受 IPv4 映射的 IPv6 网段；`0.0.0.0/0`、`::/0`、通配符启动即被拒绝（BFF 配置校验，容器入口脚本同样校验）。
 - 客户端地址：默认就是 TCP 对端。**只有**对端属于 `trusted_proxies` 时才读取转发头（默认 `X-Forwarded-For`，多行合并），从右向左跳过受信代理跳点，取第一个不受信地址；无法解析的跳点拒绝；没有转发头则代理本身就是客户端。伪造转发头、`X-Real-IP`/`Forwarded` 等其他头、另一个 Host/端口或另一个代理都绕不过去。代理必须**追加**而不是透传客户端的值（Caddy 示例用 `header_up X-Forwarded-For {remote_host}` 覆盖）。
+- **`trusted_proxies` 与 `allowed_cidrs` 不得重叠**（BFF 配置校验与 `admin-web` 容器入口各自在启动时拒绝，任一方向的包含都算）。原因：两层对“转发链不可用”的处理不同——BFF 对无法解析的跳点直接拒绝，但 Nginx（`real_ip`）遇到不是地址的跳点会**回落到代理自己的地址**再判断白名单。实测（Nginx 1.26，代理网段同时在白名单里）：`X-Forwarded-For: garbage`、`<白名单内地址>, garbage` 和没有该头都得到 200，等于任何经过该代理的人都能打开控制台。两个列表分开之后，回落地址（代理自己，或全是代理的链里的最左跳）永远不在白名单内，所有不可用链都落在 403。分开后的实测（真实 Nginx，`scripts/admin-web-smoke.sh` 的容器 CI 保留这些反例）：`garbage`、`unknown`、`<白名单内地址>, garbage`、`<白名单内地址>, <代理>, garbage`、只有代理、`<地址>:80`（外部地址）、带尾随文字、第二行头里的 `garbage` 都是 403；最后一跳有效时其左边的垃圾不会被读到，仍按最后一跳判断（200，BFF 同样）。两层在边角上不完全相同（Nginx 接受 `地址:端口` 和尾随逗号而 BFF 拒绝；Nginx 拒绝前导逗号而 BFF 只看最右一跳），因为浏览器请求必须同时通过两层，所以只会更严，不会更松。
 - Origin 必须**恰好等于** `navigation.apps.admin.origin`（单个值）。产品（山海足迹、地铁足迹）在公共 CORS 列表里也不能调用管理数据；缺失或伪造 Origin 不是认证，仍须同时通过 Cookie、来源和角色。读方法免 CSRF，但**不免**来源、Origin、角色。
 - 受影响的现有功能：登录、注册、账号设置、产品匿名与普通功能都不在周界内，来源不在名单时照常可用（浏览器验收实测）。
 - 本票**没有**给 metro 的 `AdminService`/`AccessTokenService` 加来源限制；它们的来源策略随各自迁移任务切换，不能因本票悄悄关闭现有维护入口。
@@ -54,7 +55,7 @@
 - 只通过运维 CLI 授予/撤销：`usersrv-admin grant-role -email E|-user-id U -role ozid-admin -operator NAME -reason TEXT`，`revoke-role` 同理（没有单独的 `init` 命令：第一个平台管理员也是这样授予；**不会**因为谁最先注册而自动授予）。每次变更提升账号 `auth_version`（旧会话和管理令牌在下次检查失效）并写 `security_audit`（含被拒绝和未改变的尝试）。
 - `ozid-admin` 与 `metro-admin` 相互独立：持有一个不意味着持有另一个，撤销一个不影响另一个。
 - usersrv 迁移 `migrations/usersrv/20261025120000_platform_admin_role.sql` 把 `user_roles` 的角色检查约束扩展为 `('metro-admin','ozid-admin')`；回滚前必须先撤销所有 `ozid-admin`，否则旧约束会拒绝这些行。
-- 平台管理员保护：`BeginDeletion` 在账号行锁内发现 `ozid-admin` 即拒绝（原因 `PLATFORM_ADMIN_PROTECTED`，审计 `deletion.begin=refused_platform_admin`）；BFF 的注销流程在开始阶段遇到这个永久拒绝时丢弃该工作流，所以之后即使撤销角色，账号也不会被之前的请求自动关闭。共享前端包 `@kongken/account` 的错误分类已把这个拒绝识别为独立的 `platform_admin` 类（给出“请联系运维先回收管理员角色”的明确提示）；网页注销页本身是后续阶段，目前只有 BFF 的注销接口受此保护。
+- 平台管理员保护：**强制点在 usersrv，对所有调用方有效**——`BeginDeletion` 在账号行锁内发现 `ozid-admin` 即拒绝（原因 `PLATFORM_ADMIN_PROTECTED`，审计 `deletion.begin=refused_platform_admin`，账号状态与 `auth_version` 不变），BFF 的 `DeleteAccount`、后台 runner 和任何持有内部凭证的客户端都一样。BFF 只做两件事：把拒绝映射成明确错误；在开始阶段遇到这个永久拒绝时丢弃该工作流行，所以之后即使撤销角色，账号也不会被之前的请求自动关闭。产品（山海足迹、地铁足迹）里现有的注销入口走同一个 `DeleteAccount`，同样受保护。**缺少的只是 OzID 自己的网页注销页**（后续阶段），不是“所有前端都没有注销入口”。共享前端包 `@kongken/account` 的错误分类已把这个拒绝识别为独立的 `platform_admin` 类（给出“请联系运维先回收管理员角色”的明确提示）；OzID 的网页注销页本身是后续阶段。
 
 ## 查询接口与审计
 
@@ -91,7 +92,7 @@ admin:
 | 运行环境变量（必填） | `API_ORIGIN` | 上面 API base 的 origin，只用于页面 CSP 的 `connect-src` |
 | 运行环境变量（必填） | `ADMIN_HOST` | 控制台唯一回应的主机名（小写、无端口、无通配符） |
 | 运行环境变量（必填） | `ADMIN_ALLOWED_CIDRS` | 逗号分隔的来源网段；**空值、全开、无前缀、含主机位的值都使容器拒绝启动** |
-| 运行环境变量（可选） | `ADMIN_TRUSTED_PROXIES`、`ADMIN_REAL_IP_HEADER` | 前置代理网段与它写入的头（默认 `X-Forwarded-For`）；不设则只看 TCP 对端 |
+| 运行环境变量（可选） | `ADMIN_TRUSTED_PROXIES`、`ADMIN_REAL_IP_HEADER` | 前置代理网段与它写入的头（默认 `X-Forwarded-For`）；不设则只看 TCP 对端。**与 `ADMIN_ALLOWED_CIDRS` 重叠（任一方向包含）的代理网段使容器拒绝启动** |
 
 两份白名单（BFF 的 `admin.allowed_cidrs` 与镜像的 `ADMIN_ALLOWED_CIDRS`）、两份受信代理必须一起改；它们是各自独立的防线，不是互相替代。
 
@@ -120,7 +121,7 @@ scripts/admin-web-smoke.sh   # 构建并启动容器，实测白名单、伪造�
 
 按三层分别陈述证据，不互相替代：
 
-1. **代码与自动化**：Go 单测与真实 Postgres/Redis 的 `internal/e2e`（`TestChainUserAdmin*`：四种角色矩阵、控制台 Origin、来源策略（含受信代理链、伪造头、预检、其他路径）、查询/分页/脱敏审计、限流、角色生命周期与注销保护、认证过旧）；`internal/bff/adminguard`、`ingress` 周界单测、`config` 校验单测；usersrv 的 `useradmin` 单测与 gRPC 层独立授权；迁移集成测试；`cmd/usersrv-admin` 的 CLI 测试；`npm run test:admin`；`npm run test:e2e:admin`（**模拟 BFF**，覆盖匿名跳转、无权限不循环、按角色分区、列表/筛选/分页/详情、过期响应不覆盖新结果、各类错误、手机宽度、地址与存储无个人信息）。模拟 BFF 的结果只证明页面自身行为。
+1. **代码与自动化**：Go 单测与真实 Postgres/Redis 的 `internal/e2e`（`TestChainUserAdmin*`：四种角色矩阵、控制台 Origin、来源策略（含受信代理链、伪造头、预检、其他路径）、查询/分页/脱敏审计、限流、角色生命周期与注销保护、认证过旧）；`internal/bff/adminguard`、`ingress` 周界单测、`config` 校验单测；usersrv 的 `useradmin` 单测与 gRPC 层独立授权；迁移集成测试（含 `TestPlatformRoleMigrationUpgradesAnExistingDatabaseInPlace`：在已有 `metro-admin` 行的上一版库上单独应用 `20261025120000_platform_admin_role.sql`，数据原样保留、新约束只接受两个白名单角色、回滚顺序）；真实 PostgreSQL 的并发测试 `internal/usersrv/account/deletion_race_test.go`（用行锁闸门强制“授予/撤销先拿锁”与“注销先拿锁”两个顺序，另有 40 轮不加闸门的真并发，断言任何时刻不会同时处于 `deleting` 且持有平台角色；拒绝后撤销角色不会自动注销、需要新的明确请求）；`cmd/usersrv-admin` 的 CLI 测试；`npm run test:admin`；`npm run test:e2e:admin`（**模拟 BFF**，覆盖匿名跳转、无权限不循环、按角色分区、列表/筛选/分页/详情、过期响应不覆盖新结果、各类错误、手机宽度、地址与存储无个人信息）。模拟 BFF 的结果只证明页面自身行为。
 2. **真实浏览器与代理链**：`ADMIN_BROWSER_E2E=1 go test ./internal/e2e -run TestAdminBrowserChain`（CI 的 `admin-browser` 任务）。真实 BFF 与 usersrv，OzID、API、控制台和一个外来产品页分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，一次性证书）；Chromium 实测：匿名 → OzID 登录 → 返回 `/users`、Cookie 仅属于 API 主机且不进存储、无角色“没有权限”且无循环无查询、只有 metro-admin 无用户分区、真实查询（邮箱精确、昵称字面包含、角色筛选、详情）、来源在名单外时页面和资源全部 403、已打开的控制台再查询被 BFF 周界拒绝而 OzID 账号功能不受影响、外来产品页（在公共 CORS 列表内）用操作员 Cookie 读用户被拒。这里的网关是**替身**（用同一份 Go 周界规则和模板里的 CSP/头复刻 `admin-web` 的行为，并按受信代理的方式写 `X-Forwarded-For`）；Nginx 本身由 `scripts/admin-web-smoke.sh` 的容器验收检验。
 3. **运维仍须自行验证**：真实 DNS、证书与 TLS 终止、真实来源地址与白名单取值、真实前置代理/CDN 链路（谁在 `trusted_proxies` 里、是否覆盖而非透传 `X-Forwarded-For`）、邮件厂商。自动化只覆盖受控环境，不能替代这些检查。
 

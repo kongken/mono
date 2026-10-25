@@ -11,6 +11,7 @@ import (
 	"github.com/kongken/mono/internal/bff/adminguard"
 	bffconfig "github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/navigation"
+	usersrvaccount "github.com/kongken/mono/internal/usersrv/account"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
 	bffmetrov1 "github.com/kongken/mono/pkg/proto/bff/metro/v1"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
@@ -506,6 +507,14 @@ func TestChainUserAdminRoleLifecycle(t *testing.T) {
 	id, _ := h.Accounts.ResolveEmail(ctx, emailFor("life_admin"))
 	if _, err = h.Accounts.RevokeRole(ctx, operator, id, "ozid-admin"); err != nil {
 		t.Fatal(err)
+	}
+	// The refusal was final: revoking the role does not close the account by itself. No workflow row
+	// is left for a runner to finish, and the account is still active until a new request says otherwise.
+	if n := h.BFFDB.AccountDeletion.Query().CountX(ctx); n != 0 {
+		t.Fatalf("revoking the role left %d deletion workflow rows", n)
+	}
+	if st, serr := h.Accounts.GetAuthState(ctx, id); serr != nil || st.Status != usersrvaccount.StatusActive {
+		t.Fatalf("revoking the role changed the account: %+v %v", st, serr)
 	}
 	if _, err = listAll(adminClient(admin), &bffv1.ListUsersRequest{}); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("a session issued before the revocation: %v", err)
