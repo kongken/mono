@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import regions from "@kongken/geo-data/regions.json";
 import { loadWorldCatalog, type WorldCatalog, type WorldSearchIndex } from "../lib/world-catalog.ts";
 import { loadWorldMap, type WorldMap } from "../lib/world-map.ts";
-import { createVerifiedFetch, deleteOtherWorldVersions, prepareWorldOffline, type OfflineResult } from "../lib/world-offline.ts";
+import { createVerifiedFetch, refreshWorldOffline, type OfflineResult } from "../lib/world-offline.ts";
 import { worldCodeSet, type WorldCodes } from "../lib/world.ts";
 
 // What the world view loads, and in what order: the catalog (a code chunk, needed to validate
@@ -49,11 +49,11 @@ export function useWorldAssets(active: boolean) {
       (loaded) => {
         if (controller.signal.aborted) return;
         setMap({ status: "ready", map: loaded });
-        // Only after a successful, verified load: fill the offline cache and drop other versions' caches.
+        // Only after a successful, verified load: bring the offline copy up to date. Older versions' caches
+        // are dropped by that, and only once the new copy is complete.
         setOffline("pending");
         void (async () => {
-          if (caches) await deleteOtherWorldVersions(ready, caches).catch(() => []);
-          const result = await prepareWorldOffline({
+          const result = await refreshWorldOffline({
             baseUrl,
             origin: location.origin,
             catalog: ready,

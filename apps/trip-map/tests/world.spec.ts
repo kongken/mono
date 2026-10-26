@@ -202,14 +202,23 @@ test("zoomed in, the first mouse click on a country away from the middle marks i
   await page.mouse.click(target!.x, target!.y);
   await expect(el).toHaveAttribute("aria-pressed", "false");
 
-  // The same country reached from the keyboard is brought into view: this is why the click above is a test.
+  // Reached with Tab, the countries are brought into view: this is why the click above is a test.
   await page.getByRole("button", { name: "复位地图" }).click();
   for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "放大地图" }).click();
   const zoomed = await group.getAttribute("transform");
-  await page.keyboard.press("Shift");
-  await el.focus();
-  await expect(el).toBeFocused();
-  expect(await group.getAttribute("transform"), "keyboard focus pans to the country").not.toBe(zoomed);
+  await page.getByRole("button", { name: "复位地图" }).focus();
+  let moved = false;
+  for (let i = 0; i < 60 && !moved; i++) {
+    await page.keyboard.press("Tab");
+    moved = (await group.getAttribute("transform")) !== zoomed;
+  }
+  expect(moved, "Tab through the countries pans the zoomed map").toBe(true);
+  expect(await page.evaluate(() => document.activeElement?.getAttribute("data-code"))).toMatch(/^[A-Z]{2}$/);
+  // A click does not take that away from the keyboard: the arrows still pan and Tab still brings the next country in.
+  await page.mouse.click(target!.x, target!.y);
+  await page.keyboard.press("ArrowLeft");
+  const afterArrow = await group.getAttribute("transform");
+  expect(afterArrow).not.toBe(zoomed);
 });
 
 test("zoomed in, the first touch tap on a country away from the middle marks it and does not move the map", async ({ browser }) => {
@@ -608,6 +617,74 @@ test("a shell refresh that fails keeps the earlier offline copy whole: the page 
   await context.setOffline(false);
 });
 
+test("an update that fails keeps the earlier version's shell and map data and the page still starts offline; the next one that completes cleans up", async ({ page, context }) => {
+  test.setTimeout(120000);
+  const EARLIER_DATA = "shanhai-world-data-sha256:earlier-version";
+  const EARLIER_SHELL = "shanhai-world-shell-00000000000000aa";
+  await installBackend(page, []);
+  await page.goto("/");
+  await openWorld(page);
+  await mapReady(page);
+  await offlineReady(page);
+
+  // Make what is stored the offline copy of an earlier version: a shell of another build whose manifest names a
+  // data cache of another catalog version. This page's own data cache stays, as it would after loading online.
+  await page.evaluate(
+    async ([shellName, dataName, earlierShell, earlierData]) => {
+      const manifestUrl = new URL("/shell-manifest.json", location.origin).href;
+      const shell = await caches.open(shellName);
+      const target = await caches.open(earlierShell);
+      for (const request of await shell.keys()) {
+        if (request.url === manifestUrl) continue;
+        await target.put(request, (await shell.match(request))!);
+      }
+      const manifest = await (await shell.match(manifestUrl))!.json();
+      await target.put(manifestUrl, new Response(JSON.stringify({ ...manifest, dataCache: earlierData }), { headers: { "content-type": "application/json" } }));
+      const data = await caches.open(dataName);
+      const old = await caches.open(earlierData);
+      for (const request of await data.keys()) await old.put(request, (await data.match(request))!);
+      await caches.delete(shellName);
+    },
+    [(await page.evaluate(() => caches.keys())).find((n) => SHELL_CACHE.test(n))!, DATA_CACHE, EARLIER_SHELL, EARLIER_DATA],
+  );
+  const earlier = await worldCaches(page);
+  expect(Object.keys(earlier).sort()).toEqual([DATA_CACHE, EARLIER_DATA, EARLIER_SHELL].sort());
+
+  // The update fails: the page the server now sends names a file this page never loaded.
+  let changed = false;
+  await context.route("**/", async (route) => {
+    if (!changed) return route.continue();
+    const response = await route.fetch();
+    await route.fulfill({ response, body: (await response.text()).replace("</head>", '<link rel="modulepreload" href="/assets/not-loaded-ffffffff.js"></head>') });
+  });
+  await page.reload();
+  changed = true;
+  await openWorld(page);
+  await mapReady(page);
+  await expect(page.locator(".world-view")).toHaveAttribute("data-offline", "failed", { timeout: 20000 });
+  expect(await worldCaches(page), "the earlier shell and the data it reads are as they were").toEqual(earlier);
+
+  // Offline, the earlier copy serves the page and the China map (from the earlier data cache: this page's own is gone).
+  await page.evaluate((name) => caches.delete(name), DATA_CACHE);
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.locator(".intro"), "the page starts from the earlier shell").toBeVisible();
+  const china = await page.evaluate(() => fetch("/maps/100000.json").then((r) => r.status, () => "network error"));
+  expect(china, "the China map comes from the data cache the earlier shell names").toBe(200);
+  await context.setOffline(false);
+
+  // The next update completes: the earlier shell and the data nothing refers to any more are removed.
+  changed = false;
+  await context.unroute("**/");
+  await page.reload();
+  await openWorld(page);
+  await mapReady(page);
+  await offlineReady(page);
+  await expect
+    .poll(async () => Object.keys(await worldCaches(page)).sort().map((n) => (SHELL_CACHE.test(n) ? "shell" : n)))
+    .toEqual([DATA_CACHE, "shell"].sort());
+});
+
 test("offline, a national map whose bytes are not the catalog's is not served to the China view", async ({ page, context }) => {
   test.setTimeout(90000);
   await installBackend(page, []);
@@ -638,7 +715,9 @@ test("a cached map that does not match the catalog, or belongs to another versio
   await mapReady(page);
   expect(await page.evaluate(() => caches.keys())).toEqual([DATA_CACHE]);
 
-  // 1. A leftover cache of an older version is removed once this version has loaded.
+  // 1. A leftover cache of an older version stays while no complete offline copy of this version exists (here
+  //    the worker is blocked, so none can be made): an earlier shell might still be reading it. The
+  //    update tests below show it going once the copy is complete.
   await page.evaluate(async () => {
     const old = await caches.open("shanhai-world-data-sha256:0000");
     await old.put("/maps/world.json", new Response("{}"));
@@ -646,7 +725,9 @@ test("a cached map that does not match the catalog, or belongs to another versio
   await page.reload();
   await openWorld(page);
   await mapReady(page);
-  await expect.poll(() => page.evaluate(() => caches.keys())).toEqual([DATA_CACHE]);
+  await expect(page.locator(".world-view")).toHaveAttribute("data-offline", /failed|unsupported/, { timeout: 20000 });
+  expect((await page.evaluate(() => caches.keys())).sort()).toEqual([DATA_CACHE, "shanhai-world-data-sha256:0000"].sort());
+  await page.evaluate(() => caches.delete("shanhai-world-data-sha256:0000"));
 
   // 2. The same, correct bytes under another version's name are not read: with the network gone, no map.
   await page.evaluate(async (name) => {
@@ -767,10 +848,22 @@ test("keyboard: switch, focusable named countries, Enter and Space mark, arrows 
   await page.getByRole("button", { name: "放大地图" }).click();
   await page.getByRole("button", { name: "放大地图" }).click();
   await page.getByRole("button", { name: "放大地图" }).click();
-  const before = await group.getAttribute("transform");
-  await page.keyboard.press("Shift"); // the last input was a mouse click: focus from here on is the keyboard's
-  await page.getByRole("button", { name: "新西兰", exact: true }).focus();
-  expect(await group.getAttribute("transform")).not.toBe(before);
+  await page.getByRole("button", { name: "复位地图" }).focus();
+  const newZealand = page.getByRole("button", { name: "新西兰", exact: true });
+  let reached = false;
+  for (let i = 0; i < 300 && !reached; i++) {
+    await page.keyboard.press("Tab");
+    reached = await newZealand.evaluate((el) => el === document.activeElement);
+  }
+  expect(reached, "Tab reaches New Zealand").toBe(true);
+  const inView = await page.evaluate(() => {
+    const s = document.querySelector(".world-map-stage svg")!.getBoundingClientRect();
+    const r = document.activeElement!.getBoundingClientRect();
+    const cx = r.x + r.width / 2;
+    const cy = r.y + r.height / 2;
+    return cx >= s.x && cx <= s.right && cy >= s.y && cy <= s.bottom;
+  });
+  expect(inView, "the focused country was brought into view").toBe(true);
 
   // The skip control jumps to the list's search box; the list marks too.
   await page.getByRole("button", { name: "跳到国家/地区列表" }).focus();

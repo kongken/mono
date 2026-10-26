@@ -10,8 +10,9 @@ import type { WorldCatalog } from "./world-catalog.ts";
 //   SHA-256 the catalog records before using it, from the cache or from the network. A copy
 //   that does not match is deleted and fetched again; a network copy that does not match is
 //   refused and never cached, so an incomplete or stale map is never drawn. Another catalog
-//   version has another cache name, so it is never read, and it is deleted once this version
-//   has loaded.
+//   version has another cache name, so it is never read. It is deleted only once the offline
+//   copy of this version is complete (see refreshWorldOffline): until then the earlier
+//   shell, which names that cache in its manifest, still needs it.
 // - The page shell (index.html and the hashed scripts, styles and chunks it uses, among them
 //   the on-demand world catalog) lives in `shanhai-world-shell-<id>`, where the id is the
 //   SHA-256 of that index.html: one cache is one build, complete or not at all. Only
@@ -91,10 +92,16 @@ export function createVerifiedFetch(opts: {
   };
 }
 
-/** Deletes the data caches of other catalog versions (and nothing else). */
-export async function deleteOtherWorldVersions(catalog: Pick<WorldCatalog, "version">, caches: CacheStore): Promise<string[]> {
-  const keep = worldDataCacheName(catalog);
-  const old = (await caches.keys()).filter((name) => name.startsWith(WORLD_DATA_CACHE_PREFIX) && name !== keep);
+/**
+ * Deletes the data caches of other catalog versions (and nothing else), except those in `keep`.
+ */
+export async function deleteOtherWorldVersions(
+  catalog: Pick<WorldCatalog, "version">,
+  caches: CacheStore,
+  keep: ReadonlySet<string> = new Set(),
+): Promise<string[]> {
+  const current = worldDataCacheName(catalog);
+  const old = (await caches.keys()).filter((name) => name.startsWith(WORLD_DATA_CACHE_PREFIX) && name !== current && !keep.has(name));
   await Promise.all(old.map((name) => caches.delete(name)));
   return old;
 }
@@ -229,4 +236,40 @@ export async function prepareWorldOffline(env: OfflineEnv): Promise<OfflineResul
     if (writing) await caches.delete(writing).catch(() => false);
     return "failed";
   }
+}
+
+/** The data caches that the manifests of the complete shell caches name: what an offline start still reads. */
+async function dataCachesInUse(caches: CacheStore, manifestUrl: string): Promise<Set<string>> {
+  const used = new Set<string>();
+  for (const name of await caches.keys()) {
+    if (!name.startsWith(WORLD_SHELL_PREFIX)) continue;
+    try {
+      const hit = await (await caches.open(name)).match(manifestUrl);
+      const manifest = hit ? ((await hit.json()) as Partial<ShellManifest>) : undefined;
+      if (typeof manifest?.dataCache === "string") used.add(manifest.dataCache);
+    } catch {
+      // not a complete shell: it names nothing
+    }
+  }
+  return used;
+}
+
+/**
+ * What the world view runs after its map has loaded: bring the offline copy up to date, and only
+ * if that succeeded, clean up. The copy of the version before stays whole whenever the update
+ * fails, is interrupted or is not possible (`unsupported`), and that includes the map data its
+ * shell reads, so the older data caches are deleted only after the new shell is complete, and
+ * even then not those a remaining shell still names (an older shell that could not be deleted).
+ */
+export async function refreshWorldOffline(env: OfflineEnv): Promise<OfflineResult> {
+  const result = await prepareWorldOffline(env);
+  if (result === "ready" && env.caches) {
+    try {
+      const inUse = await dataCachesInUse(env.caches, shellManifestUrl(env.origin, env.baseUrl));
+      await deleteOtherWorldVersions(env.catalog, env.caches, inUse);
+    } catch {
+      // leftovers cost space only: the next refresh removes them
+    }
+  }
+  return result;
 }
