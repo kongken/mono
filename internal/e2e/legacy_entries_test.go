@@ -291,6 +291,7 @@ func reservedAddr(a netip.Addr) bool {
 // vendor documentation, map data and push services. None is a deployment of this project.
 var thirdParty = map[string]bool{
 	"github.com": true, "raw.githubusercontent.com": true, "ghcr.io": true, "registry.npmjs.org": true,
+	"docs.github.com": true,
 	"api.mapbox.com": true, "www.mapbox.com": true, "apps.mapbox.com": true, "docs.mapbox.com": true,
 	"www.openstreetmap.org": true, "tile.openstreetmap.org": true, "operations.osmfoundation.org": true,
 	"geo.datav.aliyun.com": true, "datav.aliyun.com": true,
