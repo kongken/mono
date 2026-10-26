@@ -11,6 +11,7 @@ import {
   overwriteAfterConflict,
   previewWorldImport,
   recoverWorld,
+  WORLD_RECOVERY_MAX_RECORDS,
   resolveUnreadable,
   WORLD_BACKUP_PREFIX,
   WORLD_KEY,
@@ -156,6 +157,49 @@ test("recovering a huge damaged text is linear and gives up at once when it cann
   assert.equal(result.recovery.document.places.length, 2500);
   assert.equal(result.recovery.discardedPlaces, 2500);
   assert.ok(ms < FAST, `${Math.round(ms)} ms`);
+});
+
+test("recovery has a total record budget: over it nothing is scanned, the text is kept and can still be replaced", () => {
+  const one = { id: "p1", name: "x", country: "JP", lat: 1, lng: 2 };
+  // One valid city plus `n` unusable trips: the scan sees 1 + n records.
+  const withTrips = (n) => damaged([{ ...one, trips: Array.from({ length: n }, () => ({})) }]);
+  const atBudget = withTrips(WORLD_RECOVERY_MAX_RECORDS - 1);
+  const { ms: budgetMs, result: kept } = timed(() => loadWorldLocal(memoryStorage({ [WORLD_KEY]: atBudget }), codes));
+  assert.ok(budgetMs < FAST, `a full budget of unusable records took ${Math.round(budgetMs)} ms`);
+  assert.equal(kept.recovery.document.places.length, 1, "exactly at the budget is still scanned");
+  assert.equal(kept.recovery.discardedTrips, WORLD_RECOVERY_MAX_RECORDS - 1);
+
+  const over = withTrips(WORLD_RECOVERY_MAX_RECORDS);
+  const storage = memoryStorage({ ...chinaKeys, [WORLD_KEY]: over });
+  const load = loadWorldLocal(storage, codes);
+  assert.equal(load.status, "unreadable");
+  assert.equal(load.recovery, null, "no truncated recovery is offered");
+  assert.equal(load.raw, over, "the text is kept byte for byte");
+  assert.deepEqual(storage.log.sets, [], "reading wrote nothing");
+
+  // The budget counts marks, cities and trips together, and is checked before anything is validated.
+  const shapes = {
+    "marks": JSON.stringify({ kind: "world", version: 1, countries: Array(WORLD_RECOVERY_MAX_RECORDS + 1).fill(1), places: [] }),
+    "cities": damaged(Array(WORLD_RECOVERY_MAX_RECORDS + 1).fill(1)),
+    "marks, cities and trips together": JSON.stringify({
+      kind: "world", version: 1, countries: Array(10_000).fill(1),
+      places: [{ ...one, trips: Array(10_000).fill({}) }, ...Array(10_000).fill(1)],
+    }),
+    "half a million tiny records": JSON.stringify({ kind: "world", version: 1, countries: Array(500_000).fill(1), places: [] }),
+  };
+  for (const [label, raw] of Object.entries(shapes)) {
+    const { ms, result } = timed(() => loadWorldLocal(memoryStorage({ [WORLD_KEY]: raw }), codes));
+    assert.equal(result.status, "unreadable", label);
+    assert.equal(result.recovery, null, label);
+    assert.equal(result.raw, raw, label);
+    assert.ok(ms < 2000, `${label}: scanning the counts took ${Math.round(ms)} ms`);
+  }
+
+  // The user can still start from empty: the oversized text is copied first.
+  const resolved = resolveUnreadable(storage, load, "empty", NOW);
+  assert.equal(resolved.status, "ok");
+  assert.equal(storage.map.get(`${WORLD_KEY}-unreadable-${NOW.getTime()}`), over);
+  assert.equal(storage.map.get(WORLD_KEY), over, "resolving alone does not replace it");
 });
 
 test("a damaged text can be recovered or replaced only after a copy of it is kept", () => {

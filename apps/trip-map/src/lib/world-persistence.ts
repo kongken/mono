@@ -71,13 +71,22 @@ export function loadWorldLocal(storage: Pick<Storage, "getItem">, codes: WorldCo
 }
 
 /**
+ * The most records (marks, cities and trips together) a recovery scans. The largest valid
+ * document has 5000 cities, 10000 trips and fewer than 250 marks, so this is about twice
+ * that; a damaged text with more is not worth scanning (each record costs microseconds,
+ * and a crafted 2 MB text of tiny records would otherwise stall the page for seconds).
+ */
+export const WORLD_RECOVERY_MAX_RECORDS = 30_000;
+
+/**
  * Salvages the recognisable records of a version 1 world document that failed strict
  * validation: valid marks, valid cities, and their valid trips. Returns null for text
  * that is not a version 1 world document at all (an unknown or newer version is never
- * salvaged), when nothing is usable, or when what is usable is over a limit (nothing is
- * truncated to fit). Nothing is repaired: invalid records are dropped and counted. The
- * work is linear in the size of the text, and stops as soon as the kept records can no
- * longer fit, so a huge damaged text does not stall the page.
+ * salvaged), when nothing is usable, when what is usable is over a limit (nothing is
+ * truncated to fit), or when the text holds more than WORLD_RECOVERY_MAX_RECORDS records
+ * (checked before any record is validated; the original text stays as it is and can be
+ * exported or replaced as for any unreadable text). Nothing is repaired: invalid records
+ * are dropped and counted. The work is linear and bounded by that budget.
  */
 export function recoverWorld(raw: string, codes: WorldCodes): WorldRecovery | null {
   let data: unknown;
@@ -89,6 +98,12 @@ export function recoverWorld(raw: string, codes: WorldCodes): WorldRecovery | nu
   const record = data as { kind?: unknown; version?: unknown; countries?: unknown; places?: unknown } | null;
   if (!record || typeof record !== "object" || record.kind !== "world" || record.version !== WORLD_VERSION) return null;
   if (!Array.isArray(record.countries) || !Array.isArray(record.places)) return null;
+  let records = record.countries.length + record.places.length;
+  for (const place of record.places as Record<string, unknown>[]) {
+    if (Array.isArray(place?.trips)) records += place.trips.length;
+    if (records > WORLD_RECOVERY_MAX_RECORDS) return null;
+  }
+  if (records > WORLD_RECOVERY_MAX_RECORDS) return null;
   /** The canonical form of one record put alone into a document, or null if it is not valid. */
   const alone = (countries: unknown[], places: unknown[]): WorldDocument | null => {
     try {
