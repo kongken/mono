@@ -57,6 +57,10 @@ var readOnlyProcedures = map[string]bool{
 	bfftripmapv1connect.RegionServiceGetRegionIndexProcedure:       true,
 	bfftripmapv1connect.RegionServicePreviewRegionUpgradeProcedure: true,
 
+	// The world document read; ReplaceWorld is not listed, so it needs Origin and CSRF like
+	// every footprint write.
+	bfftripmapv1connect.WorldServiceGetWorldProcedure: true,
+
 	bffmetrov1connect.CatalogServiceListCitiesProcedure:             true,
 	bffmetrov1connect.CatalogServiceGetCityProcedure:                true,
 	bffmetrov1connect.CatalogServiceListLinesProcedure:              true,

@@ -26,6 +26,7 @@ import (
 	"github.com/kongken/mono/internal/bff/tripmap/sharedtrip"
 	"github.com/kongken/mono/internal/bff/tripmap/snapshot"
 	"github.com/kongken/mono/internal/bff/tripmap/status"
+	"github.com/kongken/mono/internal/bff/tripmap/world"
 	"github.com/kongken/mono/pkg/proto/bff/tripmap/v1/bfftripmapv1connect"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	"google.golang.org/grpc"
@@ -67,6 +68,7 @@ func MountRPC(mux *http.ServeMux, conn *grpc.ClientConn, opts []connect.HandlerO
 	mount(bfftripmapv1connect.NewReportServiceHandler(report.New(tripmapv1.NewReportServiceClient(conn)), opts...))
 	mount(bfftripmapv1connect.NewSearchServiceHandler(search.New(tripmapv1.NewSearchServiceClient(conn)), append(opts, connect.WithReadMaxBytes(4096))...))
 	mount(bfftripmapv1connect.NewRegionServiceHandler(region.New(tripmapv1.NewRegionServiceClient(conn)), opts...))
+	mount(bfftripmapv1connect.NewWorldServiceHandler(world.New(tripmapv1.NewWorldServiceClient(conn)), opts...))
 }
 
 // MountPublicHTTP registers the credential-free HTTP paths: email unsubscribe

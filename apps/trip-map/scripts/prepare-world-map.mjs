@@ -2,6 +2,7 @@
 // pinned Natural Earth input:
 //   apps/trip-map/public/maps/world.json            country/region polygons, CN excluded
 //   packages/geo-data/data/world-catalog.json       catalog, source/licence, digests
+//   internal/tripmap/world/catalog.json             the backend's byte-identical copy of the catalog
 //   packages/geo-data/data/world-search-index.json  pinyin keys for the Chinese names
 //
 //   npm run prepare:world                 download the input, verify SHA-256, write outputs
@@ -47,6 +48,8 @@ const PRECISION = 2; // decimal degrees, about 1.1 km
 
 const GEOMETRY_FILE = new URL("../public/maps/world.json", import.meta.url);
 const CATALOG_FILE = new URL("../../../packages/geo-data/data/world-catalog.json", import.meta.url);
+// The backend's byte-identical copy of the catalog (internal/tripmap/world validates country codes with it).
+const BACKEND_CATALOG_FILE = new URL("../../../internal/tripmap/world/catalog.json", import.meta.url);
 const INDEX_FILE = new URL("../../../packages/geo-data/data/world-search-index.json", import.meta.url);
 const CHINA_FILE = new URL("../public/maps/100000.json", import.meta.url);
 
@@ -229,6 +232,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const targets = [
     [GEOMETRY_FILE, out.geometryText],
     [CATALOG_FILE, out.catalogText],
+    [BACKEND_CATALOG_FILE, out.catalogText],
     [INDEX_FILE, out.indexText],
   ];
   if (args.includes("--verify")) {

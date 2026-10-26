@@ -64,6 +64,16 @@ func TestChainBusinessWritesRequireCSRFAndOrigin(t *testing.T) {
 	_, err = u.RegionSvc.ApplyRegionUpgrade(ctx, regReq)
 	assertWriteRejected(t, err)
 
+	worldDoc := &bfftripmapv1.WorldDocument{Kind: "world", Version: 1}
+	worldReq := connect.NewRequest(&bfftripmapv1.ReplaceWorldRequest{RequestId: "csrf-w", Document: worldDoc})
+	u.writeHeaders(worldReq, "", u.Origin)
+	_, err = u.World.ReplaceWorld(ctx, worldReq)
+	assertWriteRejected(t, err)
+	worldReq = connect.NewRequest(&bfftripmapv1.ReplaceWorldRequest{RequestId: "csrf-w", Document: worldDoc})
+	u.writeHeaders(worldReq, csrf, "https://evil.example")
+	_, err = u.World.ReplaceWorld(ctx, worldReq)
+	assertWriteRejected(t, err)
+
 	delAcct := connect.NewRequest(&bffv1.DeleteAccountRequest{Confirmation: "DELETE"})
 	u.writeHeaders(delAcct, csrf, "https://evil.example")
 	_, err = u.Auth.DeleteAccount(ctx, delAcct)
@@ -87,5 +97,8 @@ func TestChainReadsWorkWithoutCSRF(t *testing.T) {
 	}
 	if _, err := u.GetFootprints(ctx); err != nil {
 		t.Fatalf("GetFootprints without csrf: %v", err)
+	}
+	if _, err := u.GetWorld(ctx); err != nil {
+		t.Fatalf("GetWorld without csrf: %v", err)
 	}
 }

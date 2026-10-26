@@ -30,6 +30,8 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
 	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/worlddocument"
+	"github.com/kongken/mono/internal/tripmap/ent/worldreceipt"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -108,6 +110,8 @@ func checkColumn(t, c string) error {
 			trip.Table:                 trip.ValidColumn,
 			tripmember.Table:           tripmember.ValidColumn,
 			user.Table:                 user.ValidColumn,
+			worlddocument.Table:        worlddocument.ValidColumn,
+			worldreceipt.Table:         worldreceipt.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

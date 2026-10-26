@@ -43,6 +43,11 @@ const sha = (value) => createHash("sha256").update(value).digest("hex");
 const catalogText = readFileSync("../../packages/geo-data/data/world-catalog.json", "utf8");
 const indexText = readFileSync("../../packages/geo-data/data/world-search-index.json", "utf8");
 
+test("a backend catalog copy that differs from the frontend's is rejected by the offline check", async () => {
+  await assert.rejects(checkWorldMap({ backendCatalogBytes: bytes(catalogText.replace('"JP"', '"JQ"')) }), /internal\/tripmap\/world\/catalog\.json differs/);
+  await assert.rejects(checkWorldMap({ backendCatalogBytes: bytes(catalogText.trimEnd()) }), /internal\/tripmap\/world\/catalog\.json differs/);
+});
+
 test("a tampered search index is rejected by the offline check", async () => {
   const wrongJp = JSON.stringify({ ...searchIndex, JP: ["zzz", "z"] }, null, 2) + "\n";
   await assert.rejects(checkWorldMap({ indexBytes: bytes(wrongJp) }), /differs from the catalog/);

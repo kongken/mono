@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package tripmap.v1;
+
+option go_package = "github.com/kongken/mono/pkg/proto/tripmap/v1;tripmapv1";
+
+// WorldService stores one world footprint document per user (the 世界视图,
+// docs/trip-map/world-spec.md section 9). The document is replaced as a whole:
+// there is no per-record merge, and a conflict is resolved by the user choosing
+// one side. All methods require a bearer session and enforce strict user
+// isolation. World data is not part of cloud snapshots, search, sharing,
+// reports, collaboration, reminders or media.
+service WorldService {
+  // GetWorld returns the caller's revision and document. A user who has never
+  // written gets an empty document and revision 0.
+  rpc GetWorld(GetWorldRequest) returns (GetWorldResponse);
+
+  // ReplaceWorld replaces the whole document under optimistic concurrency
+  // (base_revision) with idempotent replay (request_id). The server decides in
+  // a fixed order, inside one transaction:
+  //   1. validate the request (INVALID_ARGUMENT, nothing changes, no receipt);
+  //   2. replay: a receipt with the same request_id and the same digest returns
+  //      the stored result (applied and replayed true) without looking at
+  //      base_revision; the same request_id with another digest is
+  //      ALREADY_EXISTS;
+  //   3. compare and swap: base_revision equal to the current revision writes
+  //      the document (revision + 1, or no change when it already equals the
+  //      cloud) and records a receipt; otherwise nothing changes and applied is
+  //      false with the cloud's revision and document (a conflict, not an error).
+  rpc ReplaceWorld(ReplaceWorldRequest) returns (ReplaceWorldResponse);
+}
+
+// WorldCountry is one independent country/region mark the user clicked.
+message WorldCountry {
+  // ISO 3166-1 alpha-2 (or XK) from the world catalog; never CN.
+  string code = 1;
+  // One of the five footprint colors.
+  string color = 2;
+}
+
+// WorldTrip is one trip to a city.
+message WorldTrip {
+  // ^[A-Za-z0-9_-]{1,64}$, unique across the whole document.
+  string id = 1;
+  // YYYY-MM-DD (a real calendar date) or empty.
+  string date = 2;
+  // At most 1000 UTF-16 code units.
+  string note = 3;
+}
+
+// WorldPlace is one overseas city.
+message WorldPlace {
+  // ^[A-Za-z0-9_-]{1,64}$, unique among cities.
+  string id = 1;
+  // 1-60 UTF-16 code units after trimming; no control characters.
+  string name = 2;
+  // Owning country code from the catalog; never CN.
+  string country = 3;
+  // WGS-84 micro-degrees: round(degrees * 1e6). Latitude in [-90e6, 90e6].
+  int32 lat_e6 = 4;
+  // Longitude in [-180e6, 180e6].
+  int32 lng_e6 = 5;
+  repeated WorldTrip trips = 6;
+}
+
+// WorldDocument is the typed form of the world document (world-spec section 4).
+message WorldDocument {
+  // Always "world".
+  string kind = 1;
+  // Always 1.
+  int32 version = 2;
+  repeated WorldCountry countries = 3;
+  repeated WorldPlace places = 4;
+}
+
+message GetWorldRequest {}
+
+message GetWorldResponse {
+  int64 revision = 1;
+  WorldDocument document = 2;
+}
+
+message ReplaceWorldRequest {
+  // The revision the document was based on (0 for a user who has never written).
+  int64 base_revision = 1;
+  // ^[A-Za-z0-9_-]{1,64}$. The client persists it with the pending request and
+  // reuses it to replay after a lost response.
+  string request_id = 2;
+  WorldDocument document = 3;
+}
+
+message ReplaceWorldResponse {
+  // True when the request took effect (a write, an unchanged document at the
+  // right base revision, or a replay); false for a conflict.
+  bool applied = 1;
+  // True when the answer came from a receipt.
+  bool replayed = 2;
+  // The result revision: the new revision after a write, the receipt's revision
+  // after a replay, the cloud's revision after a conflict.
+  int64 revision = 3;
+  // The document that revision refers to: the request's own (canonical) document
+  // after a write or a replay, the cloud's document after a conflict.
+  WorldDocument document = 4;
+  // The latest revision on the server at the time of the answer.
+  int64 cloud_revision = 5;
+}

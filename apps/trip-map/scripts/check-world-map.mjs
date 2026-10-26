@@ -68,6 +68,10 @@ export async function checkWorldMap(override = {}) {
   assert.deepEqual(Object.keys(index).filter((c) => !codes.includes(c)), [], "search index has unknown codes");
   assert.deepEqual(codes.filter((c) => /\p{Script=Han}/u.test(catalog.countries.find((x) => x.code === c).name) && !index[c]), [], "search index misses entries");
 
+  // The backend validates country codes with its own copy of the catalog (internal/tripmap/world).
+  const backendCatalogBytes = override.backendCatalogBytes ?? (await readFile(new URL("../../../internal/tripmap/world/catalog.json", import.meta.url)));
+  assert.ok(Buffer.compare(backendCatalogBytes, catalogBytes) === 0, "internal/tripmap/world/catalog.json differs from world-catalog.json: npm run prepare:world");
+
   // Geometry: one shape per hasShape entry (CN comes from the national map), CN is the
   // 34 provinces plus the sea-boundary line, and everything renders.
   const world = JSON.parse(geometryBytes);

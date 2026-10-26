@@ -225,6 +225,30 @@ func (f UserFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error)
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserMutation", m)
 }
 
+// The WorldDocumentFunc type is an adapter to allow the use of ordinary
+// function as WorldDocument mutator.
+type WorldDocumentFunc func(context.Context, *ent.WorldDocumentMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f WorldDocumentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.WorldDocumentMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorldDocumentMutation", m)
+}
+
+// The WorldReceiptFunc type is an adapter to allow the use of ordinary
+// function as WorldReceipt mutator.
+type WorldReceiptFunc func(context.Context, *ent.WorldReceiptMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f WorldReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.WorldReceiptMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorldReceiptMutation", m)
+}
+
 // Condition is a hook condition function.
 type Condition func(context.Context, ent.Mutation) bool
 

@@ -29,6 +29,8 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
 	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/worlddocument"
+	"github.com/kongken/mono/internal/tripmap/ent/worldreceipt"
 )
 
 // UserCreate is the builder for creating a User entity.
@@ -468,6 +470,40 @@ func (_c *UserCreate) AddNotificationDeliveries(v ...*NotificationDelivery) *Use
 		ids[i] = v[i].ID
 	}
 	return _c.AddNotificationDeliveryIDs(ids...)
+}
+
+// SetWorldDocumentID sets the "world_document" edge to the WorldDocument entity by ID.
+func (_c *UserCreate) SetWorldDocumentID(id string) *UserCreate {
+	_c.mutation.SetWorldDocumentID(id)
+	return _c
+}
+
+// SetNillableWorldDocumentID sets the "world_document" edge to the WorldDocument entity by ID if the given value is not nil.
+func (_c *UserCreate) SetNillableWorldDocumentID(id *string) *UserCreate {
+	if id != nil {
+		_c = _c.SetWorldDocumentID(*id)
+	}
+	return _c
+}
+
+// SetWorldDocument sets the "world_document" edge to the WorldDocument entity.
+func (_c *UserCreate) SetWorldDocument(v *WorldDocument) *UserCreate {
+	return _c.SetWorldDocumentID(v.ID)
+}
+
+// AddWorldReceiptIDs adds the "world_receipts" edge to the WorldReceipt entity by IDs.
+func (_c *UserCreate) AddWorldReceiptIDs(ids ...string) *UserCreate {
+	_c.mutation.AddWorldReceiptIDs(ids...)
+	return _c
+}
+
+// AddWorldReceipts adds the "world_receipts" edges to the WorldReceipt entity.
+func (_c *UserCreate) AddWorldReceipts(v ...*WorldReceipt) *UserCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddWorldReceiptIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -931,6 +967,38 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(notificationdelivery.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.WorldDocumentIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   user.WorldDocumentTable,
+			Columns: []string{user.WorldDocumentColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(worlddocument.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.WorldReceiptsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.WorldReceiptsTable,
+			Columns: []string{user.WorldReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(worldreceipt.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

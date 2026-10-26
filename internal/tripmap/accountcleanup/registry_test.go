@@ -44,6 +44,9 @@ func TestUserEdgeRegistry(t *testing.T) {
 		"Share": true, "Friendship": true, "SharedTrip": true, "TripMember": true,
 		"Itinerary": true, "NotificationProfile": true, "NotificationSetting": true,
 		"PushSubscription": true, "NotificationDelivery": true,
+		// World footprints (世界视图): the document and its replay receipts; both are
+		// deleted explicitly in deleteUserRow and by ON DELETE CASCADE.
+		"WorldDocument": true, "WorldReceipt": true,
 	}
 	for _, typ := range found {
 		if !wantTypes[typ] {

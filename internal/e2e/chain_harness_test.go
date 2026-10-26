@@ -137,6 +137,7 @@ type Browser struct {
 	Report     bfftripmapv1connect.ReportServiceClient
 	Search     bfftripmapv1connect.SearchServiceClient
 	RegionSvc  bfftripmapv1connect.RegionServiceClient
+	World      bfftripmapv1connect.WorldServiceClient
 	APIURL     string
 	Origin     string
 	Region     string
@@ -535,6 +536,7 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 		Report:     bfftripmapv1connect.NewReportServiceClient(hc, api),
 		Search:     bfftripmapv1connect.NewSearchServiceClient(hc, api),
 		RegionSvc:  bfftripmapv1connect.NewRegionServiceClient(hc, api),
+		World:      bfftripmapv1connect.NewWorldServiceClient(hc, api),
 	}
 	return b
 }
@@ -632,6 +634,28 @@ func (b *Browser) DeleteItinerary(ctx context.Context, msg *bfftripmapv1.DeleteI
 	req := connect.NewRequest(msg)
 	b.writeHeaders(req, csrf, b.Origin)
 	res, err := b.Itin.DeleteItinerary(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+// GetWorld reads the signed-in user's world document.
+func (b *Browser) GetWorld(ctx context.Context) (*bfftripmapv1.GetWorldResponse, error) {
+	req := connect.NewRequest(&bfftripmapv1.GetWorldRequest{})
+	b.withTripmapHeaders(req)
+	res, err := b.World.GetWorld(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg, nil
+}
+
+// ReplaceWorld sends one ReplaceWorld with a fresh CSRF token and the page's Origin.
+func (b *Browser) ReplaceWorld(ctx context.Context, msg *bfftripmapv1.ReplaceWorldRequest) (*bfftripmapv1.ReplaceWorldResponse, error) {
+	req := connect.NewRequest(msg)
+	b.writeHeaders(req, b.refreshCSRF(ctx), b.Origin)
+	res, err := b.World.ReplaceWorld(ctx, req)
 	if err != nil {
 		return nil, err
 	}

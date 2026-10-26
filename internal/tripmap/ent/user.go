@@ -12,6 +12,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/notificationprofile"
 	"github.com/kongken/mono/internal/tripmap/ent/share"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/worlddocument"
 )
 
 // User is the model entity for the User schema.
@@ -83,9 +84,13 @@ type UserEdges struct {
 	PushSubscriptions []*PushSubscription `json:"push_subscriptions,omitempty"`
 	// NotificationDeliveries holds the value of the notification_deliveries edge.
 	NotificationDeliveries []*NotificationDelivery `json:"notification_deliveries,omitempty"`
+	// WorldDocument holds the value of the world_document edge.
+	WorldDocument *WorldDocument `json:"world_document,omitempty"`
+	// WorldReceipts holds the value of the world_receipts edge.
+	WorldReceipts []*WorldReceipt `json:"world_receipts,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [17]bool
+	loadedTypes [19]bool
 }
 
 // VisitsOrErr returns the Visits value or an error if the edge
@@ -243,6 +248,26 @@ func (e UserEdges) NotificationDeliveriesOrErr() ([]*NotificationDelivery, error
 		return e.NotificationDeliveries, nil
 	}
 	return nil, &NotLoadedError{edge: "notification_deliveries"}
+}
+
+// WorldDocumentOrErr returns the WorldDocument value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e UserEdges) WorldDocumentOrErr() (*WorldDocument, error) {
+	if e.WorldDocument != nil {
+		return e.WorldDocument, nil
+	} else if e.loadedTypes[17] {
+		return nil, &NotFoundError{label: worlddocument.Label}
+	}
+	return nil, &NotLoadedError{edge: "world_document"}
+}
+
+// WorldReceiptsOrErr returns the WorldReceipts value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) WorldReceiptsOrErr() ([]*WorldReceipt, error) {
+	if e.loadedTypes[18] {
+		return e.WorldReceipts, nil
+	}
+	return nil, &NotLoadedError{edge: "world_receipts"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -443,6 +468,16 @@ func (_m *User) QueryPushSubscriptions() *PushSubscriptionQuery {
 // QueryNotificationDeliveries queries the "notification_deliveries" edge of the User entity.
 func (_m *User) QueryNotificationDeliveries() *NotificationDeliveryQuery {
 	return NewUserClient(_m.config).QueryNotificationDeliveries(_m)
+}
+
+// QueryWorldDocument queries the "world_document" edge of the User entity.
+func (_m *User) QueryWorldDocument() *WorldDocumentQuery {
+	return NewUserClient(_m.config).QueryWorldDocument(_m)
+}
+
+// QueryWorldReceipts queries the "world_receipts" edge of the User entity.
+func (_m *User) QueryWorldReceipts() *WorldReceiptQuery {
+	return NewUserClient(_m.config).QueryWorldReceipts(_m)
 }
 
 // Update returns a builder for updating this User.

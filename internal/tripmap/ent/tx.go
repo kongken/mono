@@ -48,6 +48,10 @@ type Tx struct {
 	TripMember *TripMemberClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
+	// WorldDocument is the client for interacting with the WorldDocument builders.
+	WorldDocument *WorldDocumentClient
+	// WorldReceipt is the client for interacting with the WorldReceipt builders.
+	WorldReceipt *WorldReceiptClient
 
 	// lazily loaded.
 	client     *Client
@@ -197,6 +201,8 @@ func (tx *Tx) init() {
 	tx.Trip = NewTripClient(tx.config)
 	tx.TripMember = NewTripMemberClient(tx.config)
 	tx.User = NewUserClient(tx.config)
+	tx.WorldDocument = NewWorldDocumentClient(tx.config)
+	tx.WorldReceipt = NewWorldReceiptClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

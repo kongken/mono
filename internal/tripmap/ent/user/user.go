@@ -70,6 +70,10 @@ const (
 	EdgePushSubscriptions = "push_subscriptions"
 	// EdgeNotificationDeliveries holds the string denoting the notification_deliveries edge name in mutations.
 	EdgeNotificationDeliveries = "notification_deliveries"
+	// EdgeWorldDocument holds the string denoting the world_document edge name in mutations.
+	EdgeWorldDocument = "world_document"
+	// EdgeWorldReceipts holds the string denoting the world_receipts edge name in mutations.
+	EdgeWorldReceipts = "world_receipts"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// VisitsTable is the table that holds the visits relation/edge.
@@ -191,6 +195,20 @@ const (
 	NotificationDeliveriesInverseTable = "notification_deliveries"
 	// NotificationDeliveriesColumn is the table column denoting the notification_deliveries relation/edge.
 	NotificationDeliveriesColumn = "user_id"
+	// WorldDocumentTable is the table that holds the world_document relation/edge.
+	WorldDocumentTable = "world_documents"
+	// WorldDocumentInverseTable is the table name for the WorldDocument entity.
+	// It exists in this package in order to avoid circular dependency with the "worlddocument" package.
+	WorldDocumentInverseTable = "world_documents"
+	// WorldDocumentColumn is the table column denoting the world_document relation/edge.
+	WorldDocumentColumn = "user_id"
+	// WorldReceiptsTable is the table that holds the world_receipts relation/edge.
+	WorldReceiptsTable = "world_receipts"
+	// WorldReceiptsInverseTable is the table name for the WorldReceipt entity.
+	// It exists in this package in order to avoid circular dependency with the "worldreceipt" package.
+	WorldReceiptsInverseTable = "world_receipts"
+	// WorldReceiptsColumn is the table column denoting the world_receipts relation/edge.
+	WorldReceiptsColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -534,6 +552,27 @@ func ByNotificationDeliveries(term sql.OrderTerm, terms ...sql.OrderTerm) OrderO
 		sqlgraph.OrderByNeighborTerms(s, newNotificationDeliveriesStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByWorldDocumentField orders the results by world_document field.
+func ByWorldDocumentField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newWorldDocumentStep(), sql.OrderByField(field, opts...))
+	}
+}
+
+// ByWorldReceiptsCount orders the results by world_receipts count.
+func ByWorldReceiptsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newWorldReceiptsStep(), opts...)
+	}
+}
+
+// ByWorldReceipts orders the results by world_receipts terms.
+func ByWorldReceipts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newWorldReceiptsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newVisitsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -651,5 +690,19 @@ func newNotificationDeliveriesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(NotificationDeliveriesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, NotificationDeliveriesTable, NotificationDeliveriesColumn),
+	)
+}
+func newWorldDocumentStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(WorldDocumentInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2O, false, WorldDocumentTable, WorldDocumentColumn),
+	)
+}
+func newWorldReceiptsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(WorldReceiptsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, WorldReceiptsTable, WorldReceiptsColumn),
 	)
 }
