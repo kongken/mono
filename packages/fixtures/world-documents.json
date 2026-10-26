@@ -1,5 +1,5 @@
 {
-  "comment": "Shared by scripts/world.test.mjs and, later, the backend's world tests: the frontend and the backend must agree on every entry. `valid` documents must be accepted and yield `canonical`; each `invalid` one must be rejected with the stated `kind`. Countries are checked against the world catalog (ISO 3166-1 plus XK, without CN, HK, MO, TW; CN is rejected as a stored value). Lone surrogates are written as \\uD800-style JSON escapes: a JSON reader that replaces them with U+FFFD does not reproduce these cases.",
+  "comment": "Shared by scripts/world.test.mjs and, later, the backend's world tests: the frontend and the backend must agree on every entry whose `scope` is absent. `scope` names the entries that only apply where a JSON text is read, or that a Go test cannot reproduce: \"json-text\" = depends on the shape or types of a JSON file or on float decimals (unknown fields, wrong JSON types, more than 6 decimals); the cloud API carries typed messages and whole micro-degrees, so a Go test runs these only if it decodes JSON documents. \"utf16\" = needs a lone surrogate (written as a \\uD800-style escape), which a Go JSON reader turns into U+FFFD and a protobuf string cannot hold; Go tests skip these. `valid` documents must be accepted and yield `canonical`; each `invalid` one must be rejected with the stated `kind`. Countries are checked against the world catalog (ISO 3166-1 plus XK, without CN, HK, MO, TW; CN is rejected as a stored value).",
   "limits": {
     "maxPlaces": 5000,
     "maxTrips": 10000,
@@ -676,7 +676,8 @@
     {
       "name": "not an object",
       "kind": "format",
-      "document": []
+      "document": [],
+      "scope": "json-text"
     },
     {
       "name": "a China backup (no kind)",
@@ -734,7 +735,8 @@
         "version": "1",
         "countries": [],
         "places": []
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "no version",
@@ -754,7 +756,8 @@
         "countries": [],
         "places": [],
         "extra": 1
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "an undefined field on a mark",
@@ -770,7 +773,8 @@
           }
         ],
         "places": []
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "an undefined field on a place",
@@ -790,7 +794,8 @@
             "alt": 3
           }
         ]
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "an undefined field on a trip",
@@ -816,7 +821,8 @@
             ]
           }
         ]
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "countries is not an array",
@@ -826,7 +832,8 @@
         "version": 1,
         "countries": {},
         "places": []
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "places is not an array",
@@ -836,7 +843,8 @@
         "version": 1,
         "countries": [],
         "places": null
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "trips is not an array",
@@ -855,7 +863,8 @@
             "trips": "none"
           }
         ]
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "CN as an independent mark",
@@ -991,7 +1000,8 @@
           }
         ],
         "places": []
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "a duplicate country mark",
@@ -1426,7 +1436,8 @@
             "trips": []
           }
         ]
-      }
+      },
+      "scope": "utf16"
     },
     {
       "name": "a lone low surrogate in a name",
@@ -1445,7 +1456,8 @@
             "trips": []
           }
         ]
-      }
+      },
+      "scope": "utf16"
     },
     {
       "name": "a name that is not a string",
@@ -1464,7 +1476,8 @@
             "trips": []
           }
         ]
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "latitude as a string",
@@ -1483,7 +1496,8 @@
             "trips": []
           }
         ]
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "longitude null",
@@ -1502,7 +1516,8 @@
             "trips": []
           }
         ]
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "latitude out of range",
@@ -1597,7 +1612,8 @@
             "trips": []
           }
         ]
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "half a micro-degree",
@@ -1616,7 +1632,8 @@
             "trips": []
           }
         ]
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "a tenth of a micro-degree",
@@ -1635,7 +1652,8 @@
             "trips": []
           }
         ]
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "a missing coordinate",
@@ -1653,7 +1671,8 @@
             "trips": []
           }
         ]
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "a date that is not on the calendar",
@@ -1803,7 +1822,8 @@
             ]
           }
         ]
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "a note of 1001 code units",
@@ -1853,10 +1873,12 @@
             ]
           }
         ]
-      }
+      },
+      "scope": "json-text"
     }
   ],
   "coordinates": {
+    "scope": "json-text",
     "comment": "Coordinates (range checks are in the invalid documents): `valid` values carry at most 6 decimals and map to their whole micro-degrees; `invalid` values have more; `normalize` is what the interface writes, round(|x| * 10^6) in float64 with the sign restored (the same result in any IEEE-754 language).",
     "valid": [
       {
@@ -1912,6 +1934,34 @@
       -0.1234567,
       139.6503125
     ],
+    "tolerance": {
+      "comment": "The tolerance rule |x*1e6 - round(x*1e6)| < 1e-6 (strictly less) at its edge, in float64. `accepted` values pass it and normalise to `e6`; `rejected` ones fail it. 1e-12 sits exactly on the threshold (1e-12*1e6 is 1e-6 in IEEE-754 doubles) and is rejected. Scope json-text.",
+      "accepted": [
+        {
+          "value": 1e-13,
+          "e6": 0
+        },
+        {
+          "value": -1e-13,
+          "e6": 0
+        },
+        {
+          "value": 9.9e-13,
+          "e6": 0
+        },
+        {
+          "value": 1.0000000000001,
+          "e6": 1000000
+        }
+      ],
+      "rejected": [
+        1e-12,
+        -1e-12,
+        1.000000000002,
+        35.6762000001,
+        35.6762000005
+      ]
+    },
     "normalize": [
       {
         "input": 5e-7,

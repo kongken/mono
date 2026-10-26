@@ -125,6 +125,39 @@ test("recovery keeps only valid records, counts what it drops and never repairs"
   assert.equal(recoverWorld(JSON.stringify({ kind: "world", version: 1, countries: [{ code: "ZZ", color: "#4b937d" }], places: [] }), codes), null, "nothing usable");
 });
 
+// Recovery runs on every unreadable start. The quadratic version took about 5 s for 40 000
+// cities and grows with the square: 100 000 took about 40 s. Each case below takes about a
+// second now, so this generous bound only fails for a real regression.
+const FAST = 15_000;
+const timed = (run) => {
+  const start = performance.now();
+  const result = run();
+  return { ms: performance.now() - start, result };
+};
+const damaged = (places) => JSON.stringify({ kind: "world", version: 1, countries: [], places });
+
+test("recovering a huge damaged text is linear and gives up at once when it cannot fit", () => {
+  const city = (i, name = "x") => ({ id: `p${i}`, name, country: "JP", lat: 1, lng: 2, trips: [] });
+  const cases = {
+    "100000 valid cities (over the limit)": damaged(Array.from({ length: 100_000 }, (_, i) => city(i))),
+    "100000 invalid cities": damaged(Array.from({ length: 100_000 }, (_, i) => city(i, ""))),
+    "one city with 100000 trips (over the limit)": damaged([{ ...city(1), trips: Array.from({ length: 100_000 }, (_, i) => ({ id: `t${i}`, date: "", note: "" })) }]),
+  };
+  for (const [label, raw] of Object.entries(cases)) {
+    const { ms, result } = timed(() => loadWorldLocal(memoryStorage({ [WORLD_KEY]: raw }), codes));
+    assert.equal(result.status, "unreadable", label);
+    assert.equal(result.recovery, null, `${label}: nothing is truncated to fit, so no recovery is offered`);
+    assert.equal(result.raw, raw, `${label}: the text is kept`);
+    assert.ok(ms < FAST, `${label}: ${Math.round(ms)} ms`);
+  }
+  // Under the limit, with part of it damaged: recovered, and still fast.
+  const mixed = damaged(Array.from({ length: 5000 }, (_, i) => city(i, i % 2 ? "" : "x")));
+  const { ms, result } = timed(() => loadWorldLocal(memoryStorage({ [WORLD_KEY]: mixed }), codes));
+  assert.equal(result.recovery.document.places.length, 2500);
+  assert.equal(result.recovery.discardedPlaces, 2500);
+  assert.ok(ms < FAST, `${Math.round(ms)} ms`);
+});
+
 test("a damaged text can be recovered or replaced only after a copy of it is kept", () => {
   const raw = JSON.stringify({ ...sample(), places: [...sample().places, { id: "p9", name: "", country: "JP", lat: 1, lng: 1, trips: [] }] });
   for (const choice of ["recover", "empty"]) {

@@ -2,6 +2,8 @@ import {
   emptyWorld,
   validateWorld,
   WORLD_MAX_IMPORT_BYTES,
+  WORLD_MAX_PLACES,
+  WORLD_MAX_TRIPS,
   WORLD_VERSION,
   WorldValidationError,
   type WorldCodes,
@@ -68,21 +70,14 @@ export function loadWorldLocal(storage: Pick<Storage, "getItem">, codes: WorldCo
   }
 }
 
-const ok = (check: () => unknown): boolean => {
-  try {
-    check();
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 /**
  * Salvages the recognisable records of a version 1 world document that failed strict
  * validation: valid marks, valid cities, and their valid trips. Returns null for text
  * that is not a version 1 world document at all (an unknown or newer version is never
- * salvaged) or when nothing is usable. Nothing is repaired: invalid records are dropped
- * and counted.
+ * salvaged), when nothing is usable, or when what is usable is over a limit (nothing is
+ * truncated to fit). Nothing is repaired: invalid records are dropped and counted. The
+ * work is linear in the size of the text, and stops as soon as the kept records can no
+ * longer fit, so a huge damaged text does not stall the page.
  */
 export function recoverWorld(raw: string, codes: WorldCodes): WorldRecovery | null {
   let data: unknown;
@@ -94,56 +89,56 @@ export function recoverWorld(raw: string, codes: WorldCodes): WorldRecovery | nu
   const record = data as { kind?: unknown; version?: unknown; countries?: unknown; places?: unknown } | null;
   if (!record || typeof record !== "object" || record.kind !== "world" || record.version !== WORLD_VERSION) return null;
   if (!Array.isArray(record.countries) || !Array.isArray(record.places)) return null;
-  const shell = (countries: unknown[], places: unknown[]) => ({ kind: "world", version: WORLD_VERSION, countries, places });
+  /** The canonical form of one record put alone into a document, or null if it is not valid. */
+  const alone = (countries: unknown[], places: unknown[]): WorldDocument | null => {
+    try {
+      return validateWorld({ kind: "world", version: WORLD_VERSION, countries, places }, codes);
+    } catch {
+      return null;
+    }
+  };
 
   const countries: WorldMark[] = [];
+  const markCodes = new Set<unknown>();
   let discardedCountries = 0;
   for (const mark of record.countries) {
-    const duplicate = countries.some((m) => (mark as { code?: unknown })?.code === m.code);
-    if (!duplicate && ok(() => validateWorld(shell([mark], []), codes))) countries.push(validateWorld(shell([mark], []), codes).countries[0]);
-    else discardedCountries++;
+    const valid = alone([mark], [])?.countries[0];
+    if (valid && !markCodes.has(valid.code)) {
+      markCodes.add(valid.code);
+      countries.push(valid);
+    } else discardedCountries++;
   }
 
   const places: WorldPlace[] = [];
+  const placeIds = new Set<unknown>();
   const tripIds = new Set<string>();
   let discardedPlaces = 0;
   let discardedTrips = 0;
   for (const place of record.places as Record<string, unknown>[]) {
     const trips = Array.isArray(place?.trips) ? (place.trips as unknown[]) : [];
     const bare = place && typeof place === "object" ? { ...place, trips: [] } : place;
-    const duplicate = places.some((p) => p.id === (place as { id?: unknown })?.id);
-    if (duplicate || !ok(() => validateWorld(shell([], [bare]), codes))) {
+    const kept = alone([], [bare])?.places[0];
+    if (!kept || placeIds.has(kept.id)) {
       discardedPlaces++;
       discardedTrips += trips.length;
       continue;
     }
-    const kept: WorldTrip[] = [];
+    placeIds.add(kept.id);
+    const list: WorldTrip[] = [];
     for (const trip of trips) {
-      const id = (trip as { id?: unknown })?.id;
-      if (typeof id === "string" && tripIds.has(id)) {
-        discardedTrips++;
-        continue;
-      }
-      let valid: WorldTrip | null = null;
-      try {
-        valid = validateWorld(shell([], [{ ...bare, trips: [trip] }]), codes).places[0].trips[0];
-      } catch {
-        valid = null;
-      }
-      if (!valid) discardedTrips++;
+      const valid = alone([], [{ ...bare, trips: [trip] }])?.places[0].trips[0];
+      if (!valid || tripIds.has(valid.id)) discardedTrips++;
       else {
         tripIds.add(valid.id);
-        kept.push(valid);
+        list.push(valid);
       }
     }
-    places.push({ ...validateWorld(shell([], [bare]), codes).places[0], trips: kept });
+    places.push({ ...kept, trips: list });
+    if (places.length > WORLD_MAX_PLACES || tripIds.size > WORLD_MAX_TRIPS) return null; // can never fit
   }
   if (!countries.length && !places.length) return null;
-  try {
-    return { document: validateWorld(shell(countries, places), codes), discardedCountries, discardedPlaces, discardedTrips };
-  } catch {
-    return null; // over a limit: nothing is truncated to fit
-  }
+  const document = alone(countries, places);
+  return document && { document, discardedCountries, discardedPlaces, discardedTrips };
 }
 
 // --- Writing ---------------------------------------------------------------

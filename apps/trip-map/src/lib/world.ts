@@ -71,9 +71,20 @@ const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 // --- Names -----------------------------------------------------------------
 
-/** What the name rule strips from both ends: Unicode White_Space plus U+FEFF, never the language's default trim. */
-const NAME_EDGE = /^[\p{White_Space}\uFEFF]+|[\p{White_Space}\uFEFF]+$/gu;
-export const trimWorldName = (name: string): string => name.replace(NAME_EDGE, "");
+/** The characters the name rule strips from both ends: Unicode White_Space plus U+FEFF, never the language's default trim. */
+const NAME_EDGE_CHAR = /^[\p{White_Space}\uFEFF]$/u;
+/**
+ * Strips them with two linear scans, one from each end. (A single `^…+|…+$` regular
+ * expression backtracks quadratically on a long run of inner whitespace.) Every such
+ * character is a single UTF-16 unit, so scanning units is exact.
+ */
+export function trimWorldName(name: string): string {
+  let start = 0;
+  let end = name.length;
+  while (start < end && NAME_EDGE_CHAR.test(name[start])) start++;
+  while (end > start && NAME_EDGE_CHAR.test(name[end - 1])) end--;
+  return name.slice(start, end);
+}
 const CONTROL = /\p{Cc}/u;
 const hasLoneSurrogate = (text: string) => /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(text);
 

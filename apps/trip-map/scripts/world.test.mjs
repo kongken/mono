@@ -3,6 +3,7 @@ import { test } from "node:test";
 import catalog from "@kongken/geo-data/world-catalog.json" with { type: "json" };
 import regions from "@kongken/geo-data/regions.json" with { type: "json" };
 import fixture from "@kongken/fixtures/world-documents.json" with { type: "json" };
+import tripDates from "@kongken/fixtures/trip-dates.json" with { type: "json" };
 import { validateSaved } from "../src/lib/persistence.ts";
 import {
   addPlace,
@@ -70,6 +71,79 @@ test("the shared fixture's invalid documents are each rejected with their reason
   }
   for (const kind of ["format", "kind", "version", "field", "country", "color", "duplicate", "id", "name", "coordinate", "date", "note"]) {
     assert.ok(kinds.has(kind), `no fixture case for ${kind}`);
+  }
+});
+
+test("fixture scopes: only the cases that need a JSON text or a lone surrogate carry one, and they are the right ones", () => {
+  const loneSurrogate = (text) => /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(text);
+  const hasLone = (value) =>
+    typeof value === "string" ? loneSurrogate(value) : value && typeof value === "object" ? Object.values(value).some(hasLone) : false;
+  for (const c of fixture.invalid) {
+    assert.ok([undefined, "json-text", "utf16"].includes(c.scope), `${c.name}: unknown scope ${c.scope}`);
+    assert.equal(c.scope === "utf16", hasLone(c.document), `${c.name}: utf16 exactly for documents with a lone surrogate`);
+    if (c.scope === "json-text") assert.ok(["format", "field", "version", "country", "name", "coordinate", "date", "note"].includes(c.kind), c.name);
+  }
+  for (const c of fixture.valid) assert.equal(c.scope, undefined, `${c.name}: valid documents apply to both sides`);
+  // Every case a Go test must run (no scope) is expressible in a Go JSON reader: none has a lone surrogate.
+  assert.ok(fixture.invalid.filter((c) => !c.scope).length >= 40);
+  assert.ok(!fixture.invalid.filter((c) => !c.scope).some((c) => hasLone(c.document)));
+  assert.ok(fixture.invalid.filter((c) => c.scope === "utf16").length >= 2);
+  assert.equal(fixture.coordinates.scope, "json-text");
+});
+
+test("the 6-decimal tolerance rule at its edge: strictly below 1e-6 of a micro-degree passes", () => {
+  const { accepted, rejected } = fixture.coordinates.tolerance;
+  for (const { value, e6 } of accepted) {
+    assert.ok(hasAtMostSixDecimals(value), String(value));
+    assert.equal(toMicroDegrees(value), e6);
+    assert.equal(validateWorld(doc([], [place("p1", "JP", { lat: value > 90 ? 0 : value, lng: value })]), codes).places[0].lng, fromMicroDegrees(e6), `canonical value of ${value}`);
+  }
+  for (const value of rejected) {
+    assert.equal(hasAtMostSixDecimals(value), false, String(value));
+    rejects(doc([], [place("p1", "JP", { lat: value })]), "coordinate");
+  }
+});
+
+test("dates follow the shared trip-dates fixture, as the China footprints do", () => {
+  const world = (date) => doc([], [place("p1", "JP", { trips: [{ id: "t1", date, note: "" }] })]);
+  assert.ok(tripDates.valid.length > 5 && tripDates.invalid.length > 10);
+  for (const date of tripDates.valid) assert.equal(validateWorld(world(date), codes).places[0].trips[0].date, date, `valid ${JSON.stringify(date)}`);
+  for (const date of tripDates.invalid)
+    assert.throws(() => validateWorld(world(date), codes), (e) => e instanceof WorldValidationError && e.kind === "date", `invalid ${JSON.stringify(date)}`);
+});
+
+// A generous bound: these inputs take milliseconds, and the quadratic code they replaced
+// took tens of seconds, so a slow machine cannot turn them into false failures.
+const FAST = 5000;
+const elapsed = (run) => {
+  const start = performance.now();
+  const result = run();
+  return { ms: performance.now() - start, result };
+};
+
+test("trimming is linear: a name with a huge run of inner whitespace costs milliseconds, not hours", () => {
+  for (const [count, expected] of [[100_000, 100_002], [3_900_000, 3_900_002]]) {
+    const { ms, result } = elapsed(() => trimWorldName(`a${" ".repeat(count)}b`));
+    assert.equal(result.length, expected);
+    assert.ok(ms < FAST, `${count} inner spaces took ${Math.round(ms)} ms`);
+  }
+  const edge = elapsed(() => trimWorldName(" ".repeat(3_900_000)));
+  assert.equal(edge.result, "");
+  assert.ok(edge.ms < FAST, `all-whitespace took ${Math.round(edge.ms)} ms`);
+  // A file with one such name is refused quickly, as too long, rather than hanging the import.
+  const hostile = doc([], [place("p1", "JP", { name: `a${" ".repeat(3_900_000)}b` })]);
+  const refused = elapsed(() => assert.throws(() => validateWorld(hostile, codes), (e) => e.kind === "name"));
+  assert.ok(refused.ms < FAST, `validating took ${Math.round(refused.ms)} ms`);
+});
+
+test("trimming agrees with the original anchored-regex definition on random text", () => {
+  const reference = (name) => name.replace(/^[\p{White_Space}\uFEFF]+|[\p{White_Space}\uFEFF]+$/gu, "");
+  const alphabet = [" ", "\t", "\u0085", "\u00a0", "\u3000", "\ufeff", "\u200b", "\u180e", "a", "日", "\ud83d\ude00", "\ud800", "\udc00", "-"];
+  let seed = 12345;
+  const random = (n) => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed % n);
+  for (let i = 0; i < 3000; i++) {
+    const text = Array.from({ length: random(14) }, () => alphabet[random(alphabet.length)]).join("");
+    assert.equal(trimWorldName(text), reference(text), JSON.stringify(text));
   }
 });
 
