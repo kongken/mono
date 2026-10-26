@@ -8,17 +8,32 @@ import { gzipSync } from "node:zlib";
 import { geoArea, geoPath } from "d3-geo";
 import { buildWorldMap, createWorldProjection, hitTestWorld, MERGED_INTO_CN } from "../src/lib/world-map.ts";
 import { ISO_3166_1_ALPHA2 } from "./world-iso-codes.mjs";
+import { searchIndexText } from "./prepare-world-map.mjs";
 
 export const WORLD_BUDGET_BYTES = 600 * 1024;
+// SHA-256 of apps/trip-map/public/maps/100000.json as the world view uses it: CN is that
+// file unmodified. Changing the national map on purpose means changing this value in the
+// same commit (and re-running `npm run prepare:world`); a stray edit fails the check.
+export const CHINA_BASELINE_SHA256 = "99adfeded5223848bbe37a0a12f8023e11ee12161c7800521c27db42fdeac275";
 const root = new URL("../", import.meta.url);
 const data = new URL("../../../packages/geo-data/data/", import.meta.url);
 const sha = (buffer) => createHash("sha256").update(buffer).digest("hex");
 
-export async function checkWorldMap() {
-  const geometryBytes = await readFile(new URL("public/maps/world.json", root));
-  const chinaBytes = await readFile(new URL("public/maps/100000.json", root));
-  const catalogBytes = await readFile(new URL("world-catalog.json", data));
-  const indexBytes = await readFile(new URL("world-search-index.json", data));
+export function assertChinaBaseline(chinaBytes) {
+  assert.equal(
+    sha(chinaBytes),
+    CHINA_BASELINE_SHA256,
+    "public/maps/100000.json differs from the CN baseline of the world view (CHINA_BASELINE_SHA256 in check-world-map.mjs)",
+  );
+}
+
+/** `override` replaces files read from disk; the regression tests use it to prove that a
+ * tampered file is rejected. */
+export async function checkWorldMap(override = {}) {
+  const geometryBytes = override.geometryBytes ?? (await readFile(new URL("public/maps/world.json", root)));
+  const chinaBytes = override.chinaBytes ?? (await readFile(new URL("public/maps/100000.json", root)));
+  const catalogBytes = override.catalogBytes ?? (await readFile(new URL("world-catalog.json", data)));
+  const indexBytes = override.indexBytes ?? (await readFile(new URL("world-search-index.json", data)));
   const catalog = JSON.parse(catalogBytes);
   const index = JSON.parse(indexBytes);
   const regions = JSON.parse(await readFile(new URL("regions.json", data), "utf8"));
@@ -30,7 +45,9 @@ export async function checkWorldMap() {
   assert.ok(source.license && source.licenseUrl.startsWith("https://") && source.licenseText, "world source licence is not recorded");
   assert.equal(catalog.geometry.sha256, sha(geometryBytes), "world.json differs from the catalog: npm run prepare:world");
   assert.equal(catalog.geometry.bytes, geometryBytes.length);
+  assertChinaBaseline(chinaBytes);
   assert.equal(catalog.china.sha256, sha(chinaBytes), "100000.json changed after the world data was generated: npm run prepare:world");
+  assert.equal(catalog.searchIndex.sha256, sha(indexBytes), "world-search-index.json differs from the catalog: npm run prepare:world");
   const { version, ...body } = catalog;
   assert.equal(version, "sha256:" + sha(JSON.stringify(body)), "world catalog digest is stale: npm run prepare:world");
 
@@ -47,6 +64,7 @@ export async function checkWorldMap() {
     assert.ok(!seenNames.has(c.name), `${c.name} is duplicated`);
     seenNames.add(c.name);
   }
+  assert.equal(indexBytes.toString("utf8"), searchIndexText(catalog.countries), "world search index is stale: npm run prepare:world");
   assert.deepEqual(Object.keys(index).filter((c) => !codes.includes(c)), [], "search index has unknown codes");
   assert.deepEqual(codes.filter((c) => /\p{Script=Han}/u.test(catalog.countries.find((x) => x.code === c).name) && !index[c]), [], "search index misses entries");
 

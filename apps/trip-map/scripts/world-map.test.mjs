@@ -6,7 +6,8 @@ import catalog from "@kongken/geo-data/world-catalog.json" with { type: "json" }
 import searchIndex from "@kongken/geo-data/world-search-index.json" with { type: "json" };
 import regions from "@kongken/geo-data/regions.json" with { type: "json" };
 import { buildWorld, SOURCE, verifyInput } from "./prepare-world-map.mjs";
-import { checkWorldMap, WORLD_BUDGET_BYTES } from "./check-world-map.mjs";
+import { assertChinaBaseline, checkWorldMap, CHINA_BASELINE_SHA256, WORLD_BUDGET_BYTES } from "./check-world-map.mjs";
+import { searchIndexText } from "./prepare-world-map.mjs";
 import { searchWorldCountries, loadWorldCatalog } from "../src/lib/world-catalog.ts";
 import {
   buildWorldMap,
@@ -33,6 +34,47 @@ test("the committed world data passes the offline checks and fits the size budge
   const result = await checkWorldMap();
   assert.equal(result.countries, 247);
   assert.ok(result.gzipBytes <= WORLD_BUDGET_BYTES);
+});
+
+const bytes = (value) => Buffer.from(typeof value === "string" ? value : JSON.stringify(value));
+const sha = (value) => createHash("sha256").update(value).digest("hex");
+const catalogText = readFileSync("../../packages/geo-data/data/world-catalog.json", "utf8");
+const indexText = readFileSync("../../packages/geo-data/data/world-search-index.json", "utf8");
+
+test("a tampered search index is rejected by the offline check", async () => {
+  const wrongJp = JSON.stringify({ ...searchIndex, JP: ["zzz", "z"] }, null, 2) + "\n";
+  await assert.rejects(checkWorldMap({ indexBytes: bytes(wrongJp) }), /differs from the catalog/);
+  const missing = { ...searchIndex };
+  delete missing.JP;
+  await assert.rejects(checkWorldMap({ indexBytes: bytes(JSON.stringify(missing, null, 2) + "\n") }), /differs from the catalog|misses entries/);
+  // Forging the catalog's recorded SHA-256 as well is not enough: the content digest
+  // over the catalog breaks, and so does the offline regeneration from its names.
+  const forged = JSON.parse(catalogText);
+  forged.searchIndex.sha256 = sha(wrongJp);
+  await assert.rejects(checkWorldMap({ indexBytes: bytes(wrongJp), catalogBytes: bytes(JSON.stringify(forged)) }), /digest is stale/);
+  const { version: _version, ...body } = forged;
+  const reDigested = { version: "sha256:" + sha(JSON.stringify(body)), ...body };
+  await assert.rejects(checkWorldMap({ indexBytes: bytes(wrongJp), catalogBytes: bytes(JSON.stringify(reDigested)) }), /search index is stale/);
+});
+
+test("the search index is exactly what the catalog's names and aliases generate", () => {
+  assert.equal(indexText, searchIndexText(catalog.countries));
+  assert.equal(catalog.searchIndex.sha256, sha(indexText));
+  assert.equal(catalog.searchIndex.file, "world-search-index.json");
+});
+
+test("CN stays the unmodified national map: the baseline digest is fixed in the check", async () => {
+  const original = readFileSync("public/maps/100000.json");
+  assert.equal(sha(original), CHINA_BASELINE_SHA256);
+  assert.doesNotThrow(() => assertChinaBaseline(original));
+  assert.throws(() => assertChinaBaseline(Buffer.concat([original, Buffer.from("\n")])), /CN baseline/);
+  await assert.rejects(checkWorldMap({ chinaBytes: Buffer.concat([original, Buffer.from(" ")]) }), /CN baseline/);
+});
+
+test("a hand-edited world.json is rejected", async () => {
+  const edited = JSON.parse(readFileSync("public/maps/world.json", "utf8"));
+  edited.features[0].geometry.coordinates[0][0][0][0] += 0.01;
+  await assert.rejects(checkWorldMap({ geometryBytes: bytes(edited) }), /differs from the catalog/);
 });
 
 test("the catalog is ISO 3166-1 with HK, MO and TW merged into CN, plus XK", () => {

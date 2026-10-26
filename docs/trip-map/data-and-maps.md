@@ -174,7 +174,7 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 | `apps/trip-map/public/maps/world.json` | 233 个国家/地区的多边形（GeoJSON，`properties.code` 为 ISO 3166-1 alpha-2 或 `XK`），**不含 `CN`、`HK`、`MO`、`TW`** |
 | `apps/trip-map/public/maps/100000.json` | 世界视图里的 `CN`：直接使用这份现有文件（34 个省级区域加 `100000_JD`），不复制、不修改 |
 | `packages/geo-data/data/world-catalog.json` | 247 项目录（ISO 3166-1 去掉 `HK`、`MO`、`TW`，加 `XK`）：中文名、英文名、别名、大洲、`hasShape`、标注用代表点；同时记录来源、授权、改动、输入与输出的 SHA-256 和目录内容摘要 |
-| `packages/geo-data/data/world-search-index.json` | 中文名与别名的拼音、首字母；英文名、别名和 ISO 码在运行时直接匹配 |
+| `packages/geo-data/data/world-search-index.json` | 中文名与别名的拼音、首字母；英文名、别名和 ISO 码在运行时直接匹配。内容完全由目录的名称和别名决定，目录里记录它的 SHA-256，`check:maps` 还会离线重新生成并比对 |
 | `apps/trip-map/scripts/prepare-world-map.mjs` | 生成脚本，见下文 |
 | `apps/trip-map/scripts/world-names.mjs`、`world-iso-codes.mjs` | 手工维护的常用译名与别名、没有多边形的 13 个 ISO 条目、ISO 3166-1 代码对照表 |
 | `apps/trip-map/scripts/check-world-map.mjs` | 离线校验（由 `npm run check:maps` 调用） |
@@ -194,14 +194,14 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 - 来源里没有独立多边形的 13 个 ISO 条目（`BQ`、`BV`、`CC`、`CX`、`GF`、`GI`、`GP`、`MQ`、`RE`、`SJ`、`TK`、`UM`、`YT`）在目录里 `hasShape: false`：可搜索、可作为所属国家，但不能点击地图选中。其中 `GF`、`GP`、`MQ`、`RE`、`YT` 的陆地在来源里属于法国的多边形，`SJ` 属于挪威，`BQ` 属于荷兰，`CX`、`CC` 属于澳大利亚；点选这些位置会建议所属的宗主国，用户可在目录里改选。
 - 目录里的 `point` 只用于标注，不是任何城市的坐标。
 
-**边界争议与覆盖限制**：边界依数据源绘制，可能与任何国家或地区的官方地图不同；地图只用于个人旅行记录，不代表对任何领土主权的立场。`CN` 来自中国地图、其余国家来自 Natural Earth，两者相接处存在重叠和缝隙：重叠处以 `CN` 为准（`CN` 最后绘制，点击先判 `CN`），缝隙不填补。实测量级见 PR #98 的说明；用 `npm run report:world-overlap` 可重新计算。
+**边界争议与覆盖限制**：边界依数据源绘制，可能与任何国家或地区的官方地图不同；地图只用于个人旅行记录，不代表对任何领土主权的立场。`CN` 来自中国地图、其余国家来自 Natural Earth，两者相接处存在重叠和缝隙：重叠处以 `CN` 为准（`CN` 最后绘制，点击先判 `CN`），缝隙不填补。当前数据在 0.25° 栅格下，邻国多边形落入 `CN` 的面积约 91,211 km²（印度约 72,115，俄罗斯约 6,083，蒙古约 4,520），两个来源之间的缝隙约 24,193 km²；用 `npm run report:world-overlap` 可重新计算（耗时约 1 分钟，仅供参考，不是检查门槛）。
 
 **更新与校验**：
 
 - `npm run prepare:world` 下载固定版本的输入，先校验 SHA-256，不符则失败，再写出上述三个输出文件；`-- --input <文件>` 可改用本地副本，同样校验。输出是确定性的：同一输入逐字节得到相同文件。
 - `npm run prepare:world -- --verify` 重新生成并与已提交文件比较（需要网络），用来确认确定性与未被手改。
-- `npm run check:maps` 离线运行：目录与 ISO 3166-1 一致且没有 `HK`、`MO`、`TW`；`hasShape` 的目录项与 `world.json` 的要素一一对应；`CN` 由 `100000.json` 的 34 个省级区域和 10 个部分的 `100000_JD` 组成且与 `regions.json` 一致；摘要链（输入、`world.json`、`100000.json`、目录）完整；多边形方向、可绘制性与取整网格；新增世界资源 gzip 后合计不超过 600 KB（当前约 420 KB，不含复用的 `100000.json`）。
-- `100000.json` 的摘要记录在目录里；以后更新全国地图需要重新运行 `npm run prepare:world`，目录里的 `china.sha256` 才会更新。
+- `npm run check:maps` 离线运行：目录与 ISO 3166-1 一致且没有 `HK`、`MO`、`TW`；`hasShape` 的目录项与 `world.json` 的要素一一对应；`CN` 由 `100000.json` 的 34 个省级区域和 10 个部分的 `100000_JD` 组成且与 `regions.json` 一致；摘要链（输入、`world.json`、搜索索引、`100000.json`、目录）完整，搜索索引与目录离线重新生成的结果逐字一致；多边形方向、可绘制性与取整网格；新增世界资源 gzip 后合计不超过 600 KB（当前约 420 KB，不含复用的 `100000.json`）。
+- `CN` 的基线是未修改的 `100000.json`：它的 SHA-256 固定在 `check-world-map.mjs` 的 `CHINA_BASELINE_SHA256`，被改动时 `check:maps` 失败。有意更新全国地图时，要在同一次变更里更新这个常量并重新运行 `npm run prepare:world`（目录里的 `china.sha256` 随之更新）。
 - 世界资源由浏览器按需加载（目录与索引是单独的代码块），没有第三方请求，也不需要任何 Key。当前 Service Worker（`public/sw.js`）只处理推送，不缓存地图；世界地图的离线策略随界面一起设计。
 
 ## OSM 底图（可选）

@@ -100,6 +100,17 @@ function assertIsoCoverage(countries) {
 }
 
 // `partial` is for unit tests with a small fixture: it skips the full-catalog (ISO 3166-1) check.
+/** The search index is a pure function of the catalog's names and aliases, so it can be
+ * regenerated offline (the check does) as well as hashed into the catalog. */
+export function searchIndexText(countries) {
+  const index = {};
+  for (const c of countries) {
+    const keys = zhKeys([c.name, ...c.aliases]);
+    if (keys.length) index[c.code] = keys;
+  }
+  return JSON.stringify(index, null, 2) + "\n";
+}
+
 export function buildWorld(inputText, chinaSha256, { partial = false } = {}) {
   const source = JSON.parse(inputText);
   const groups = new Map();
@@ -169,6 +180,7 @@ export function buildWorld(inputText, chinaSha256, { partial = false } = {}) {
   if (!partial) assertIsoCoverage(countries);
 
   const geometryText = JSON.stringify({ type: "FeatureCollection", features: worldFeatures }) + "\n";
+  const indexText = searchIndexText(countries);
   const body = {
     source: { ...SOURCE },
     transform: {
@@ -185,6 +197,7 @@ export function buildWorld(inputText, chinaSha256, { partial = false } = {}) {
       bytes: Buffer.byteLength(geometryText),
       features: worldFeatures.length,
     },
+    searchIndex: { file: "world-search-index.json", sha256: sha256(indexText) },
     continents: CONTINENTS,
     countries,
   };
@@ -192,12 +205,6 @@ export function buildWorld(inputText, chinaSha256, { partial = false } = {}) {
   const head = JSON.stringify({ version, ...body, countries: undefined }, null, 2);
   // Keep the catalog diff-friendly: one entry per line.
   const catalogText = `${head.slice(0, -2)},\n  "countries": [\n${countries.map((c) => "    " + JSON.stringify(c)).join(",\n")}\n  ]\n}\n`;
-  const index = {};
-  for (const c of countries) {
-    const keys = zhKeys([c.name, ...c.aliases]);
-    if (keys.length) index[c.code] = keys;
-  }
-  const indexText = JSON.stringify(index, null, 2) + "\n";
   return { geometryText, catalogText, indexText, stats: { droppedPolygons, merged, dropped } };
 }
 

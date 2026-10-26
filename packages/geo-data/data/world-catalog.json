@@ -1,5 +1,5 @@
 {
-  "version": "sha256:60cc4b298a7f77bc5dd5acbbbd84c4dfc96a19a5891bbb3b5bfa60ec31522bed",
+  "version": "sha256:a5982646d3fde2e87644bff0287a06d3778c9283c56680083a7c466fd0272cbf",
   "source": {
     "name": "Natural Earth",
     "dataset": "Admin 0 - Countries, 1:50m",
@@ -60,6 +60,10 @@
     "sha256": "593cce4c950cc574994743c94489d51c259fc57c147fa8615ad19c108d205350",
     "bytes": 1427522,
     "features": 233
+  },
+  "searchIndex": {
+    "file": "world-search-index.json",
+    "sha256": "a3cf3594fc1cbb203b02f8c7357cc76ebd69d23f8eb35a08d1b1cdd473fc16db"
   },
   "continents": {
     "AF": "非洲",
