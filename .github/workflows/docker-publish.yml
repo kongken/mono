@@ -50,14 +50,11 @@ jobs:
             build_args: |
               VITE_API_BASE_URL=https://api.example.com/api
               VITE_OZID_ORIGIN=https://id.example.com
-          # Needs the BFF's public API base at build time (no default): pass the
-          # VITE_API_BASE_URL build arg from a private deployment pipeline; the published
-          # image is built for a reserved example address and is a build check, not a deployable.
+          # The API base defaults to "/" (the page's own origin; leave API_ORIGIN empty at run time).
+          # Pass the VITE_API_BASE_URL build arg from a private pipeline to target an API on its own host.
           - image: ozid-web
             suffix: '-ozid-web'
             dockerfile: deploy/ozid-web/Dockerfile
-            build_args: |
-              VITE_API_BASE_URL=https://api.example.com/api
           # The unified management console: the same kind of build check. It also needs the OzID
           # origin at build time, and at run time ADMIN_HOST, ADMIN_ALLOWED_CIDRS and API_ORIGIN
           # (the container refuses to start without a usable allowlist).

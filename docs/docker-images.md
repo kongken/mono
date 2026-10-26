@@ -11,7 +11,7 @@
 | `ghcr.io/kongken/mono-usersrv` | `deploy/usersrv/Dockerfile` | usersrv 账号服务，18086（HTTP，仅 `/ping`、`/readyz`）与 18087（内部 gRPC，默认 TLS）；镜像里还有运维命令 `/usersrv-admin`（用 `--entrypoint` 运行，见 [部署](deployment.md#usersrv-的部署)），运行时挂载配置、BFF 公钥和（TLS 时）证书，只在内网暴露 |
 | `ghcr.io/kongken/mono-trip-map-web` | `deploy/trip-map-web/Dockerfile` | Nginx 提供 Vite 静态文件，80 端口，只转发分享、通知、底图与探针路径（T12 起其余同源 `/api/` 与 `/auth/` 返回 404）；配置后端时需构建参数 `VITE_API_BASE_URL`（绝对地址）与 `VITE_OZID_ORIGIN`（T10），不传则为纯本地模式 |
 | `ghcr.io/kongken/mono-metro` | `deploy/metro/Dockerfile` | metro 业务服务（地铁足迹），18084（HTTP，仅 `/ping`、`/readyz`）与 18085（内部 gRPC），运行时挂载配置与 BFF 公钥，只在内网暴露 |
-| `ghcr.io/kongken/mono-ozid-web` | `deploy/ozid-web/Dockerfile` | Nginx 提供 `apps/ozid` 静态文件（OzID 用户中心），80 端口，**不转发任何请求**；构建参数 `VITE_API_BASE_URL`（BFF 的绝对 https API base，无默认值）必填，运行时 `API_ORIGIN` 必填（用于 CSP）。发布工作流只用示例地址构建，作为构建检查，不是可直接部署的镜像，见 [OzID 功能描述](ozid/features.md#构建镜像与运行) |
+| `ghcr.io/kongken/mono-ozid-web` | `deploy/ozid-web/Dockerfile` | Nginx 提供 `apps/ozid` 静态文件（OzID 用户中心），80 端口，**不转发任何请求**；构建参数 `VITE_API_BASE_URL` 默认 `/`，运行时 `API_ORIGIN` 默认留空（CSP 只允许同源连接）。发布镜像使用默认值，前置网关须把同源 BFF 路径转给 BFF；API 在独立主机时用绝对 https API base 重新构建，并设置对应 `API_ORIGIN`，见 [OzID 功能描述](ozid/features.md#构建镜像与运行) |
 | `ghcr.io/kongken/mono-admin-web` | `deploy/admin-web/Dockerfile` | Nginx 提供 `apps/admin` 静态文件（统一管理控制台），80 端口，**不转发任何请求**，页面/资源/SPA fallback 全部在来源白名单之后；构建参数 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN` 必填（无默认值），运行时 `API_ORIGIN`、`ADMIN_HOST`、`ADMIN_ALLOWED_CIDRS` 必填（空值或全开的白名单使容器拒绝启动），`ADMIN_TRUSTED_PROXIES`、`ADMIN_REAL_IP_HEADER` 可选；发布的镜像按保留示例地址构建，只是构建检查，不是可部署产物，详见 [控制台功能描述](admin/features.md) |
 | `ghcr.io/kongken/mono-metro-web` | `deploy/metro-web/Dockerfile` | Nginx 提供 `apps/metro` 静态文件，80 端口，只把 `/mcp/metro`、`/ping`、`/readyz` 转发给 BFF（T11 起没有同源 `/api/`，返回 404）；必须有构建参数 `VITE_API_BASE_URL`（BFF 的绝对公开 API 地址）与 `VITE_OZID_ORIGIN`，缺少或不合法时构建失败 |
 
@@ -78,7 +78,7 @@ docker build -f deploy/metro-web/Dockerfile -t mono-metro-web:local .
 
 `admin-web` 同样没有 `BACKEND_UPSTREAM`，并且只在来源白名单之后提供页面（见 [控制台功能描述](admin/features.md#受控入口周界)；`scripts/admin-web-smoke.sh` 实测白名单、伪造转发头、其他 Host 与拒绝启动）。
 
-`ozid-web` 没有 `BACKEND_UPSTREAM`：它是纯静态站点，浏览器直接调用 BFF 的公开 origin（`API_ORIGIN`、`VITE_API_BASE_URL`，见 [部署](deployment.md#ozid-用户中心的部署)）。
+`ozid-web` 没有 `BACKEND_UPSTREAM`：它是纯静态站点，默认 `VITE_API_BASE_URL=/`，由前置网关把页面所在 origin 的 BFF 路径转给 BFF；API 在独立主机时须用绝对 `VITE_API_BASE_URL` 重新构建，并在运行时设置对应的 `API_ORIGIN`（见 [OzID 功能描述](ozid/features.md#构建镜像与运行)）。
 
 `metro-web` 使用同一个 `BACKEND_UPSTREAM`（默认 `bff:18081`）。`/mcp/metro` 不写访问日志、`error_log` 限为 `crit`（请求头带 Bearer 令牌）；`/mcp/metro` 的请求体上限 2 MiB（目录导入文档上限 1 MiB）；同源 `/api/` 与 `/auth/` 返回 404（会话 Cookie 属于 API 主机，同源代理无法共享登录）。新邮件的链接不再指向 metro：usersrv 一律用 `auth.apps.ozid.origin`（中央 OzID）；`auth.apps.metro` 只在过渡期服务升级前发出的旧邮件，令牌过期后可从 usersrv 配置里删除。metro 的产品入口自 T11 起已切换到 OzID：`metro-web` 没有账号表单，`/account/verify-email` 与 `/account/reset-password` 只服务旧邮件。CI 的 `metro-web-image` 任务（`scripts/metro-web-smoke.sh`）以示例地址构建并运行镜像，并检查缺少地址、同源 `/api` 时构建失败。
 

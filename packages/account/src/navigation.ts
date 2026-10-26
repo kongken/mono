@@ -78,7 +78,10 @@ function parseUrl(name: string, raw: string | undefined): Parsed<URL> {
  * The BFF RPC base of a front end that has no same-origin proxy: an absolute URL, with an
  * optional path such as /api. This is a public build setting; it holds no secret.
  */
-export function parseApiBase(raw: string | undefined, name = "VITE_API_BASE_URL"): Parsed<string> {
+export function parseApiBase(raw: string | undefined, name = "VITE_API_BASE_URL", opts: { allowSameOrigin?: boolean } = {}): Parsed<string> {
+  // A front end served from the API's own origin (behind a gateway that routes the RPC paths to the BFF)
+  // may use exactly "/": requests go to the page's origin. Any other relative value stays refused.
+  if (opts.allowSameOrigin && raw?.trim() === "/") return { ok: true, value: "/" };
   const parsed = parseUrl(name, raw);
   if (!parsed.ok) return parsed;
   return { ok: true, value: parsed.value.href.replace(/\/+$/, "") };
