@@ -217,7 +217,7 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 		AdminSessionMaxAge: h.cfg.Auth.AdminSessionLimit(),
 	}
 	if r := h.resources.Load(); r != nil && usersConn != nil {
-		cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode, Secure: h.cfg.Auth.CookieSecure}
+		cookies := session.CookieConfig{Path: "/", SameSite: http.SameSiteLaxMode, Secure: h.cfg.Auth.CookieSecure, Domain: h.cfg.Auth.CookieDomain}
 		users := usersrv.New(usersConn)
 		h.usersClient.Store(users)
 		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix), users, h.cleaners(clients))

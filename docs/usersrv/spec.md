@@ -218,7 +218,7 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 
 - `LoginWithEmail(email, password)` 只接受邮箱；密码错误、邮箱不存在、账号禁用或正在注销，返回同一 `unauthenticated` 文案“邮箱或密码错误，或账号不可用”。格式错误可返回字段校验错误，不返回账号存在性。
 - usersrv 返回用户 ID、基础资料、当前角色和 `auth_version`；BFF 生成全新随机会话令牌（库中仅存摘要），写入版本和真实认证时间。不可复用登录前的 session ID，响应体不返回令牌。
-- 沿用 host-only `kongken_sid`、Path `/`、HttpOnly、SameSite=Lax，生产 Secure；固定有效期默认 7 天，不因调用 Me 自动延长。
+- `kongken_sid` 默认 host-only、Path `/`、HttpOnly、SameSite=Lax，生产 Secure；固定有效期默认 7 天，不因调用 Me 自动延长。BFF 支持显式 `auth.cookie_domain` 供全部子域均可信的部署共享作用域；会话、CSRF、注销恢复与清除一致使用配置 Domain，空值保持现状。校验、迁移与安全边界见 [BFF](../bff.md#可选共享-cookie-domain)；usersrv 本身不设置浏览器 Cookie。
 - 成功校验密码后建立 BFF 会话；登录不依赖 tripmap 或 metro 就绪。tripmap 的基础资料投影改为首次受保护业务调用前按需确保，失败只影响该产品调用，不回滚账号或阻止另一个产品使用。投影只含用户 ID、昵称和头像，不含邮箱。
 - Me 返回本人邮箱、资料、角色和会话信息；设备列表、撤销设备与退出仍由 BFF 管理。退出幂等，撤销当前会话，清除当前主机 Cookie；不删除账号或其他设备。
 - 两应用通过同一 API 主机直连且携带 credentials 时共享 Cookie；从各自域名代理 `/api` 则会话隔离，不能据此宣称跨域单点登录。沿用精确 CORS 白名单、CSRF 双提交及 `X-Kongken-User` 防跨账号缓存写入。

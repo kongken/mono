@@ -86,6 +86,9 @@ auth:
   account_cleanup: [tripmap, metro]
   csrf_token_ttl: 24h    # optional; default 24h when unset
   cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP
+  cookie_domain: ""      # default host-only; opt-in shared domain requires cookie_secure: true
+  # Shared example: example.com (no leading dot or wildcard). Every subdomain must be trusted.
+  # See docs/bff.md for origin validation and the stop-write/re-login cutover.
   # The account procedures (sign-in, registration, password reset, security settings, profile,
   # device list, closing the account) are taken from the user center's origin
   # (navigation.apps.ozid.origin) only, so a BFF that serves accounts (upstreams.usersrv) does not
@@ -114,9 +117,9 @@ cors_allowed_origins:
 # OzID (the user center) and the apps it may send the browser back to after sign-in or password
 # confirmation. A request names an app ID and a path; the server builds the address from this
 # registry and nothing the client sends can add an origin. Every origin must be in
-# cors_allowed_origins and in the same site as api_origin (the session Cookie is host-only on
-# the API, and the browser sends it to any same-site front end that CORS allows, so the exact
-# CORS list above is what keeps unlisted siblings out). Production values are https only
+# cors_allowed_origins and in the same site as api_origin. Cookies are host-only by default;
+# an explicit auth.cookie_domain must cover every registered/CORS host. Exact Origin/CORS/CSRF
+# checks remain required even with shared Cookies. Production values are https only
 # (required when auth.cookie_secure is true); the examples below use reserved names:
 #   api_origin: https://api.example.com
 #   apps:

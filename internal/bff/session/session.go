@@ -109,25 +109,41 @@ type CookieConfig struct {
 	Secure   bool
 	SameSite http.SameSite
 	Path     string
+	// Domain is an explicitly trusted shared DNS domain; empty remains host-only.
+	Domain string
 }
 
 func (c CookieConfig) session(expires time.Time) *http.Cookie {
-	return &http.Cookie{Name: CookieName, Path: c.Path, HttpOnly: true, Secure: c.Secure, SameSite: c.SameSite, Expires: expires, MaxAge: int(time.Until(expires).Seconds())}
+	return &http.Cookie{Name: CookieName, Domain: c.Domain, Path: c.Path, HttpOnly: true, Secure: c.Secure, SameSite: c.SameSite, Expires: expires, MaxAge: int(time.Until(expires).Seconds())}
 }
 
-// recovery is host-only (no Domain), HttpOnly, Secure as configured, with the session Cookie's
-// SameSite and Path: a browser sends it to the API host and to nothing else.
+// recovery has the session Cookie's scope, HttpOnly, Secure and SameSite rules.
+// Its generation-bound name/value remains immutable even when a shared domain is enabled.
 func (c CookieConfig) recovery(name string, expires time.Time) *http.Cookie {
-	return &http.Cookie{Name: name, Path: c.Path, HttpOnly: true, Secure: c.Secure, SameSite: c.SameSite, Expires: expires, MaxAge: int(time.Until(expires).Seconds())}
+	return &http.Cookie{Name: name, Domain: c.Domain, Path: c.Path, HttpOnly: true, Secure: c.Secure, SameSite: c.SameSite, Expires: expires, MaxAge: int(time.Until(expires).Seconds())}
 }
 
 func (c CookieConfig) csrf(token string, expires time.Time) *http.Cookie {
-	return &http.Cookie{Name: CSRFCookieName, Value: token, Path: c.Path, HttpOnly: false, Secure: c.Secure, SameSite: c.SameSite, Expires: expires, MaxAge: int(time.Until(expires).Seconds())}
+	return &http.Cookie{Name: CSRFCookieName, Domain: c.Domain, Value: token, Path: c.Path, HttpOnly: false, Secure: c.Secure, SameSite: c.SameSite, Expires: expires, MaxAge: int(time.Until(expires).Seconds())}
 }
 
 func SetSessionCookie(h http.Header, cfg CookieConfig, token string, expires time.Time) {
 	c := cfg.session(expires)
 	c.Value = token
+	addScopedCookie(h, c)
+}
+
+// addScopedCookie also expires a same-named host-only Cookie on this response's host.
+// Other hosts must be cleared during the documented cutover; a Domain cannot clear them.
+func addScopedCookie(h http.Header, c *http.Cookie) {
+	if c.Domain != "" {
+		hostOnly := *c
+		hostOnly.Domain = ""
+		hostOnly.Value = ""
+		hostOnly.Expires = time.Unix(0, 0)
+		hostOnly.MaxAge = -1
+		h.Add("Set-Cookie", hostOnly.String())
+	}
 	h.Add("Set-Cookie", c.String())
 }
 
@@ -140,7 +156,9 @@ func ClearSessionCookieValue(cfg CookieConfig) string {
 }
 
 func ClearSessionCookie(h http.Header, cfg CookieConfig) {
-	h.Add("Set-Cookie", ClearSessionCookieValue(cfg))
+	c := cfg.session(time.Unix(0, 0))
+	c.MaxAge = -1
+	addScopedCookie(h, c)
 }
 
 // RecoveryCookieName is the name of the recovery Cookie of the generation token belongs to.
@@ -158,7 +176,9 @@ func RecoveryCookie(cfg CookieConfig, token string, expires time.Time) string {
 
 // SetRecoveryCookie stores token as the recovery credential of its generation until expires.
 func SetRecoveryCookie(h http.Header, cfg CookieConfig, token string, expires time.Time) {
-	h.Add("Set-Cookie", RecoveryCookie(cfg, token, expires))
+	c := cfg.recovery(RecoveryCookieName(token), expires)
+	c.Value = token
+	addScopedCookie(h, c)
 }
 
 func clearedRecovery(cfg CookieConfig, name string) string {
@@ -176,27 +196,40 @@ func ClearRecoveryCookieValue(cfg CookieConfig, token string) string {
 
 // ClearRecoveryCookie removes the recovery Cookie of token's generation, and no other.
 func ClearRecoveryCookie(h http.Header, cfg CookieConfig, token string) {
-	h.Add("Set-Cookie", ClearRecoveryCookieValue(cfg, token))
+	c := cfg.recovery(RecoveryCookieName(token), time.Unix(0, 0))
+	c.MaxAge = -1
+	addScopedCookie(h, c)
 }
 
 // ClearLegacyRecoveryCookie removes the fixed-name recovery Cookie of the earlier build.
 func ClearLegacyRecoveryCookie(h http.Header, cfg CookieConfig) {
-	h.Add("Set-Cookie", clearedRecovery(cfg, LegacyRecoveryCookieName))
+	c := cfg.recovery(LegacyRecoveryCookieName, time.Unix(0, 0))
+	c.MaxAge = -1
+	addScopedCookie(h, c)
 }
 
 func SetCSRFCookie(h http.Header, cfg CookieConfig, token string, expires time.Time) {
-	h.Add("Set-Cookie", cfg.csrf(token, expires).String())
+	addScopedCookie(h, cfg.csrf(token, expires))
 }
 
 func cookieValue(h http.Header, name string) string {
-	for _, part := range strings.Split(h.Get("Cookie"), ";") {
-		part = strings.TrimSpace(part)
-		k, v, ok := strings.Cut(part, "=")
-		if ok && k == name {
-			return strings.TrimSpace(v)
+	var value string
+	found := false
+	for _, line := range h.Values("Cookie") {
+		for part := range strings.SplitSeq(line, ";") {
+			k, v, ok := strings.Cut(strings.TrimSpace(part), "=")
+			if !ok || k != name {
+				continue
+			}
+			v = strings.TrimSpace(v)
+			if found && v != value {
+				// Cookie headers omit Domain: never guess between scopes or identities.
+				return ""
+			}
+			value, found = v, true
 		}
 	}
-	return ""
+	return value
 }
 
 func TokenFromRequest(h http.Header) string {
