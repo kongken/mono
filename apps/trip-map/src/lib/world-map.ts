@@ -126,3 +126,25 @@ export function createWorldProjection(width: number, height: number) {
   );
 }
 export const worldPath = (width: number, height: number) => geoPath(createWorldProjection(width, height));
+
+/**
+ * The place under a point of the map's own box (VIEW_W x VIEW_H units, after the viewport's
+ * pan and zoom), as WGS-84 degrees rounded to 4 decimals (about 11 m). Null outside the
+ * outline of the world. The inverse of how the map is drawn, so what was clicked is what is stored.
+ */
+export function pickLocation(
+  projection: ReturnType<typeof createWorldProjection>,
+  view: { k: number; x: number; y: number },
+  boxX: number,
+  boxY: number,
+): { lat: number; lng: number } | null {
+  const at: [number, number] = [(boxX - view.x) / view.k, (boxY - view.y) / view.k];
+  const found = projection.invert?.(at);
+  if (!found || !Number.isFinite(found[0]) || !Number.isFinite(found[1])) return null;
+  const [lng, lat] = found;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  const back = projection([lng, lat]);
+  if (!back || Math.hypot(back[0] - at[0], back[1] - at[1]) > 0.5) return null;
+  const round = (n: number) => Math.round(n * 1e4) / 1e4 + 0;
+  return { lat: round(lat), lng: round(lng) };
+}

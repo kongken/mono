@@ -56,10 +56,13 @@ export type WorldErrorKind =
 export class WorldValidationError extends Error {
   readonly kind: WorldErrorKind;
   readonly path: string;
+  /** The reason alone, without the record it concerns: what a form shows next to its field. */
+  readonly detail: string;
   constructor(kind: WorldErrorKind, path: string, message: string) {
     super(path ? `${path}：${message}` : message);
     this.kind = kind;
     this.path = path;
+    this.detail = message;
   }
 }
 
@@ -256,6 +259,47 @@ export function addPlace(world: WorldDocument, input: NewPlace, codes: WorldCode
     trips: [],
   };
   return validateWorld({ ...world, places: [...world.places, place] }, codes);
+}
+
+/** What a city form holds: a new city has no ID yet, and its trips are the whole list as edited. */
+export type PlaceDraft = {
+  id?: string;
+  name: string;
+  country: string;
+  lat: number;
+  lng: number;
+  trips: WorldTrip[];
+};
+/**
+ * Adds or replaces a city together with its trips in one step, so a form saves atomically
+ * (nothing is half-applied). A draft without an ID is a new city. Country marks are untouched.
+ */
+export function savePlace(world: WorldDocument, draft: PlaceDraft, codes: WorldCodes): WorldDocument {
+  const id = draft.id ?? newPlaceId();
+  if (draft.id !== undefined && !world.places.some((p) => p.id === id))
+    throw new WorldValidationError("id", `places(${id})`, "找不到这个城市");
+  const place = {
+    id,
+    name: draft.name,
+    country: draft.country,
+    lat: Number.isFinite(draft.lat) ? normalizeCoordinate(draft.lat) : draft.lat,
+    lng: Number.isFinite(draft.lng) ? normalizeCoordinate(draft.lng) : draft.lng,
+    trips: draft.trips.map((t) => ({ id: t.id, date: t.date, note: t.note })),
+  };
+  const places = draft.id === undefined ? [...world.places, place] : world.places.map((p) => (p.id === id ? place : p));
+  return validateWorld({ ...world, places }, codes);
+}
+
+/** Reads a coordinate typed into a form: plain decimal degrees only, within range. */
+export function parseCoordinateInput(text: string, axis: "lat" | "lng"): number {
+  const limit = axis === "lat" ? 90 : 180;
+  const label = axis === "lat" ? "纬度" : "经度";
+  const value = text.trim();
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(value)) throw new WorldValidationError("coordinate", "", `${label}应为十进制数字，例如 ${axis === "lat" ? "35.6764" : "139.65"}`);
+  const number = Number(value);
+  if (!Number.isFinite(number) || Math.abs(number) > limit)
+    throw new WorldValidationError("coordinate", "", `${label}应在 -${limit} 到 ${limit} 之间`);
+  return number;
 }
 
 /** Deletes a city and its trips. Country marks are untouched. */

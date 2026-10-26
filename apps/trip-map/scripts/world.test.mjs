@@ -13,9 +13,11 @@ import {
   hasAtMostSixDecimals,
   newPlaceId,
   normalizeCoordinate,
+  parseCoordinateInput,
   removePlace,
   removeTrip,
   sameWorld,
+  savePlace,
   toggleCountry,
   toMicroDegrees,
   trimWorldName,
@@ -366,4 +368,61 @@ test("a marked country shows its mark colour; one lit only by a city or China us
 test("a world document is not a China backup, and the China validator refuses it", () => {
   assert.throws(() => validateSaved(tokyoWorld(), regions));
   assert.throws(() => validateSaved({ kind: "world", version: 1, countries: [], places: [] }, regions));
+});
+
+test("savePlace adds or replaces a city with its trips in one step, and a rejected draft changes nothing", () => {
+  const start = deepFreeze(toggleCountry(emptyWorld(), "JP", codes));
+  const trips = [
+    { id: "t2", date: "2026-03-01", note: "春" },
+    { id: "t1", date: "", note: "" },
+  ];
+  const added = savePlace(start, { name: " 东京 ", country: "JP", lat: 35.6764, lng: 139.65, trips }, codes);
+  assert.equal(added.places.length, 1);
+  assert.match(added.places[0].id, /^p[0-9a-z]+$/);
+  assert.deepEqual(added.places[0].trips.map((t) => t.id), ["t1", "t2"]);
+  assert.equal(added.places[0].name, "东京");
+  assert.deepEqual(added.countries, start.countries, "country marks are untouched");
+
+  const id = added.places[0].id;
+  const edited = savePlace(added, { id, name: "东京都", country: "JP", lat: 35.7, lng: 139.7, trips: [trips[0]] }, codes);
+  assert.equal(edited.places.length, 1);
+  assert.equal(edited.places[0].name, "东京都");
+  assert.deepEqual(edited.places[0].trips, [trips[0]]);
+
+  const frozen = deepFreeze(clone(edited));
+  for (const bad of [
+    { name: "", country: "JP", lat: 1, lng: 1, trips: [] },
+    { name: "x", country: "CN", lat: 1, lng: 1, trips: [] },
+    { name: "x", country: "JP", lat: 91, lng: 1, trips: [] },
+    { name: "x", country: "JP", lat: 1, lng: 1, trips: [{ id: "a", date: "2026-02-30", note: "" }] },
+    { id, name: "x", country: "JP", lat: 1, lng: 1, trips: [{ id: "a", date: "", note: "" }, { id: "a", date: "", note: "" }] },
+  ])
+    assert.throws(() => savePlace(frozen, bad, codes), WorldValidationError);
+  assert.throws(() => savePlace(frozen, { id: "missing", name: "x", country: "JP", lat: 1, lng: 1, trips: [] }, codes), WorldValidationError);
+  assert.ok(sameWorld(frozen, edited));
+});
+
+test("coordinates typed into a form: plain decimals in range, each rejection says what is wrong", () => {
+  assert.equal(parseCoordinateInput(" 35.6764 ", "lat"), 35.6764);
+  assert.equal(parseCoordinateInput("-139", "lng"), -139);
+  assert.equal(parseCoordinateInput("+.5", "lat"), 0.5);
+  for (const [text, axis, words] of [
+    ["", "lat", "十进制"],
+    ["35,6", "lat", "十进制"],
+    ["1e2", "lng", "十进制"],
+    ["NaN", "lat", "十进制"],
+    ["91", "lat", "-90 到 90"],
+    ["-180.5", "lng", "-180 到 180"],
+  ])
+    assert.throws(
+      () => parseCoordinateInput(text, axis),
+      (error) => error instanceof WorldValidationError && error.kind === "coordinate" && error.detail.includes(words),
+    );
+});
+
+test("an error's detail is the reason alone; its message names the record too", () => {
+  assert.throws(
+    () => validateWorld(doc([], [place("p1", "JP", { lat: 99 })]), codes),
+    (error) => error.path.includes("p1") && error.message.includes(error.detail) && !error.detail.includes("p1"),
+  );
 });

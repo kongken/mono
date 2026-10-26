@@ -13,7 +13,9 @@ import {
   buildWorldMap,
   drawOrder,
   hitTestWorld,
+  createWorldProjection,
   loadWorldMap,
+  pickLocation,
   WorldMapError,
 } from "../src/lib/world-map.ts";
 import {
@@ -248,4 +250,28 @@ test("the pinned input is verified before anything is generated", () => {
   assert.throws(() => verifyInput(Buffer.from("{}")), /refusing to generate/);
   assert.match(SOURCE.url, /f1890d9f152c896d250a77557a5751a93d494776/);
   assert.match(SOURCE.inputSha256, /^[0-9a-f]{64}$/);
+});
+
+test("picking a point on the map inverts the drawing, under any pan and zoom, and refuses the empty corners", () => {
+  const projection = createWorldProjection(1000, 500);
+  const near = (a, b, tolerance) => assert.ok(Math.abs(a - b) <= tolerance, `${a} is not within ${tolerance} of ${b}`);
+  for (const [lat, lng] of [[35.6764, 139.65], [-33.87, 151.21], [64.15, -21.94], [0, 0], [-77.85, 166.67]]) {
+    for (const view of [{ k: 1, x: 0, y: 0 }, { k: 8, x: -3000, y: -900 }, { k: 40, x: -20000, y: -9000 }]) {
+      const [x, y] = projection([lng, lat]);
+      const bx = x * view.k + view.x;
+      const by = y * view.k + view.y;
+      const picked = pickLocation(projection, view, bx, by);
+      assert.ok(picked, `${lat},${lng} at k=${view.k}`);
+      near(picked.lat, lat, 1e-4 + 0.5 / view.k / 5);
+      near(picked.lng, lng, 1e-4 + 0.5 / view.k / 5);
+      assert.equal(picked.lat, Math.round(picked.lat * 1e4) / 1e4);
+    }
+  }
+  assert.equal(pickLocation(projection, { k: 1, x: 0, y: 0 }, 2, 2), null, "the corner outside the outline");
+  assert.equal(pickLocation(projection, { k: 1, x: 0, y: 0 }, 998, 498), null);
+  assert.equal(pickLocation(projection, { k: 1, x: 0, y: 0 }, Number.NaN, 10), null);
+  // What a click stores is what the hit test then finds: a point inside Japan is Japan.
+  const [x, y] = projection([139.65, 35.68]);
+  const picked = pickLocation(projection, { k: 1, x: 0, y: 0 }, x, y);
+  assert.ok(picked && Math.abs(picked.lng - 139.65) < 0.5);
 });
