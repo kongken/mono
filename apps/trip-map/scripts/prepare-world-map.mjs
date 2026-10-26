@@ -99,7 +99,6 @@ function assertIsoCoverage(countries) {
   }
 }
 
-// `partial` is for unit tests with a small fixture: it skips the full-catalog (ISO 3166-1) check.
 /** The search index is a pure function of the catalog's names and aliases, so it can be
  * regenerated offline (the check does) as well as hashed into the catalog. */
 export function searchIndexText(countries) {
@@ -111,6 +110,7 @@ export function searchIndexText(countries) {
   return JSON.stringify(index, null, 2) + "\n";
 }
 
+// `partial` is for unit tests with a small fixture: it skips the full-catalog (ISO 3166-1) check.
 export function buildWorld(inputText, chinaSha256, { partial = false } = {}) {
   const source = JSON.parse(inputText);
   const groups = new Map();

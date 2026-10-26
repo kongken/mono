@@ -1,0 +1,1958 @@
+{
+  "comment": "Shared by scripts/world.test.mjs and, later, the backend's world tests: the frontend and the backend must agree on every entry. `valid` documents must be accepted and yield `canonical`; each `invalid` one must be rejected with the stated `kind`. Countries are checked against the world catalog (ISO 3166-1 plus XK, without CN, HK, MO, TW; CN is rejected as a stored value). Lone surrogates are written as \\uD800-style JSON escapes: a JSON reader that replaces them with U+FFFD does not reproduce these cases.",
+  "limits": {
+    "maxPlaces": 5000,
+    "maxTrips": 10000,
+    "maxStringBytes": 2500000,
+    "maxImportBytes": 4000000,
+    "nameUnits": 60,
+    "noteUnits": 1000
+  },
+  "whitespace": [
+    "U+0009",
+    "U+000A",
+    "U+000B",
+    "U+000C",
+    "U+000D",
+    "U+0020",
+    "U+0085",
+    "U+00A0",
+    "U+1680",
+    "U+2000",
+    "U+2001",
+    "U+2002",
+    "U+2003",
+    "U+2004",
+    "U+2005",
+    "U+2006",
+    "U+2007",
+    "U+2008",
+    "U+2009",
+    "U+200A",
+    "U+2028",
+    "U+2029",
+    "U+202F",
+    "U+205F",
+    "U+3000",
+    "U+FEFF"
+  ],
+  "valid": [
+    {
+      "name": "empty world",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": []
+      },
+      "canonical": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": []
+      }
+    },
+    {
+      "name": "the acceptance sample: Japan marked, Tokyo with two trips",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "JP",
+            "color": "#719fc6"
+          }
+        ],
+        "places": [
+          {
+            "id": "p0mgx3k1y8c4f2a9z",
+            "name": "东京",
+            "country": "JP",
+            "lat": 35.6762,
+            "lng": 139.6503,
+            "trips": [
+              {
+                "id": "t0mgx3k2a1b3c4d5e",
+                "date": "2026-04-01",
+                "note": "樱花季"
+              },
+              {
+                "id": "t0mgx3k2z9y8x7w6v",
+                "date": "",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      },
+      "canonical": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "JP",
+            "color": "#719fc6"
+          }
+        ],
+        "places": [
+          {
+            "id": "p0mgx3k1y8c4f2a9z",
+            "name": "东京",
+            "country": "JP",
+            "lat": 35.6762,
+            "lng": 139.6503,
+            "trips": [
+              {
+                "id": "t0mgx3k2a1b3c4d5e",
+                "date": "2026-04-01",
+                "note": "樱花季"
+              },
+              {
+                "id": "t0mgx3k2z9y8x7w6v",
+                "date": "",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "records are sorted by code and id, trips too",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "US",
+            "color": "#e2af5c"
+          },
+          {
+            "code": "JP",
+            "color": "#719fc6"
+          },
+          {
+            "code": "FR",
+            "color": "#4b937d"
+          }
+        ],
+        "places": [
+          {
+            "id": "pb",
+            "name": "B",
+            "country": "US",
+            "lat": 40,
+            "lng": -74,
+            "trips": [
+              {
+                "id": "t9",
+                "date": "",
+                "note": ""
+              },
+              {
+                "id": "t10",
+                "date": "",
+                "note": ""
+              },
+              {
+                "id": "T1",
+                "date": "",
+                "note": ""
+              }
+            ]
+          },
+          {
+            "id": "pa",
+            "name": "A",
+            "country": "FR",
+            "lat": 48.8566,
+            "lng": 2.3522,
+            "trips": []
+          }
+        ]
+      },
+      "canonical": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "FR",
+            "color": "#4b937d"
+          },
+          {
+            "code": "JP",
+            "color": "#719fc6"
+          },
+          {
+            "code": "US",
+            "color": "#e2af5c"
+          }
+        ],
+        "places": [
+          {
+            "id": "pa",
+            "name": "A",
+            "country": "FR",
+            "lat": 48.8566,
+            "lng": 2.3522,
+            "trips": []
+          },
+          {
+            "id": "pb",
+            "name": "B",
+            "country": "US",
+            "lat": 40,
+            "lng": -74,
+            "trips": [
+              {
+                "id": "T1",
+                "date": "",
+                "note": ""
+              },
+              {
+                "id": "t10",
+                "date": "",
+                "note": ""
+              },
+              {
+                "id": "t9",
+                "date": "",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a country without a mark but a city, and a mark without cities",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "XK",
+            "color": "#4b937d"
+          }
+        ],
+        "places": [
+          {
+            "id": "p1",
+            "name": "Pristina",
+            "country": "EH",
+            "lat": 42.66,
+            "lng": 21.17,
+            "trips": []
+          }
+        ]
+      },
+      "canonical": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "XK",
+            "color": "#4b937d"
+          }
+        ],
+        "places": [
+          {
+            "id": "p1",
+            "name": "Pristina",
+            "country": "EH",
+            "lat": 42.66,
+            "lng": 21.17,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a city without trips is kept",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "Reykjavik",
+            "country": "IS",
+            "lat": 64.1466,
+            "lng": -21.9426,
+            "trips": []
+          }
+        ]
+      },
+      "canonical": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "Reykjavik",
+            "country": "IS",
+            "lat": 64.1466,
+            "lng": -21.9426,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "two cities may share a name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "Springfield",
+            "country": "US",
+            "lat": 39.8,
+            "lng": -89.65,
+            "trips": []
+          },
+          {
+            "id": "p2",
+            "name": "Springfield",
+            "country": "US",
+            "lat": 42.1,
+            "lng": -72.59,
+            "trips": []
+          }
+        ]
+      },
+      "canonical": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "Springfield",
+            "country": "US",
+            "lat": 39.8,
+            "lng": -89.65,
+            "trips": []
+          },
+          {
+            "id": "p2",
+            "name": "Springfield",
+            "country": "US",
+            "lat": 42.1,
+            "lng": -72.59,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "edge whitespace is trimmed: every White_Space code point and U+FEFF",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u200a\u2028\u2029\u202f\u205f\u3000\ufeff东京\ufeff\u3000\u00a0 ",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      },
+      "canonical": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "东京",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "inner whitespace and non-White_Space look-alikes are kept",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "San\u00a0José\u200b del ᠎Cabo",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      },
+      "canonical": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "San\u00a0José\u200b del ᠎Cabo",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a name of 60 UTF-16 code units, and one with a surrogate pair",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": []
+          },
+          {
+            "id": "p2",
+            "name": "🗼aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": []
+          }
+        ]
+      },
+      "canonical": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": []
+          },
+          {
+            "id": "p2",
+            "name": "🗼aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "coordinate limits",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "a",
+            "country": "AQ",
+            "lat": -90,
+            "lng": -180,
+            "trips": []
+          },
+          {
+            "id": "p2",
+            "name": "b",
+            "country": "RU",
+            "lat": 90,
+            "lng": 180,
+            "trips": []
+          },
+          {
+            "id": "p3",
+            "name": "c",
+            "country": "GB",
+            "lat": 0,
+            "lng": 0,
+            "trips": []
+          },
+          {
+            "id": "p4",
+            "name": "d",
+            "country": "GB",
+            "lat": 0.000001,
+            "lng": -0.000001,
+            "trips": []
+          },
+          {
+            "id": "p5",
+            "name": "e",
+            "country": "FJ",
+            "lat": -17.999999,
+            "lng": 179.999999,
+            "trips": []
+          }
+        ]
+      },
+      "canonical": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "a",
+            "country": "AQ",
+            "lat": -90,
+            "lng": -180,
+            "trips": []
+          },
+          {
+            "id": "p2",
+            "name": "b",
+            "country": "RU",
+            "lat": 90,
+            "lng": 180,
+            "trips": []
+          },
+          {
+            "id": "p3",
+            "name": "c",
+            "country": "GB",
+            "lat": 0,
+            "lng": 0,
+            "trips": []
+          },
+          {
+            "id": "p4",
+            "name": "d",
+            "country": "GB",
+            "lat": 0.000001,
+            "lng": -0.000001,
+            "trips": []
+          },
+          {
+            "id": "p5",
+            "name": "e",
+            "country": "FJ",
+            "lat": -17.999999,
+            "lng": 179.999999,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "dates and notes at their limits",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "",
+                "note": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+              },
+              {
+                "id": "t2",
+                "date": "0000-02-29",
+                "note": "日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日"
+              },
+              {
+                "id": "t3",
+                "date": "9999-12-31",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      },
+      "canonical": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "",
+                "note": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+              },
+              {
+                "id": "t2",
+                "date": "0000-02-29",
+                "note": "日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日日"
+              },
+              {
+                "id": "t3",
+                "date": "9999-12-31",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a city id and a trip id may be equal: the two ID spaces are separate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "same",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      },
+      "canonical": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "same",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "not an object",
+      "kind": "format",
+      "document": []
+    },
+    {
+      "name": "a China backup (no kind)",
+      "kind": "kind",
+      "document": {
+        "version": 2,
+        "visits": [],
+        "provinces": {}
+      }
+    },
+    {
+      "name": "another kind",
+      "kind": "kind",
+      "document": {
+        "kind": "china",
+        "version": 1,
+        "countries": [],
+        "places": []
+      }
+    },
+    {
+      "name": "no kind",
+      "kind": "kind",
+      "document": {
+        "version": 1,
+        "countries": [],
+        "places": []
+      }
+    },
+    {
+      "name": "version 2",
+      "kind": "version",
+      "document": {
+        "kind": "world",
+        "version": 2,
+        "countries": [],
+        "places": []
+      }
+    },
+    {
+      "name": "a newer version",
+      "kind": "version",
+      "document": {
+        "kind": "world",
+        "version": 99,
+        "countries": [],
+        "places": []
+      }
+    },
+    {
+      "name": "version as a string",
+      "kind": "version",
+      "document": {
+        "kind": "world",
+        "version": "1",
+        "countries": [],
+        "places": []
+      }
+    },
+    {
+      "name": "no version",
+      "kind": "version",
+      "document": {
+        "kind": "world",
+        "countries": [],
+        "places": []
+      }
+    },
+    {
+      "name": "an undefined top-level field",
+      "kind": "field",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [],
+        "extra": 1
+      }
+    },
+    {
+      "name": "an undefined field on a mark",
+      "kind": "field",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "JP",
+            "color": "#719fc6",
+            "label": "x"
+          }
+        ],
+        "places": []
+      }
+    },
+    {
+      "name": "an undefined field on a place",
+      "kind": "field",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": [],
+            "alt": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "an undefined field on a trip",
+      "kind": "field",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "",
+                "note": "",
+                "mood": "ok"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "countries is not an array",
+      "kind": "format",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": {},
+        "places": []
+      }
+    },
+    {
+      "name": "places is not an array",
+      "kind": "format",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": null
+      }
+    },
+    {
+      "name": "trips is not an array",
+      "kind": "format",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": "none"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CN as an independent mark",
+      "kind": "country",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "CN",
+            "color": "#4b937d"
+          }
+        ],
+        "places": []
+      }
+    },
+    {
+      "name": "CN as a city's country",
+      "kind": "country",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "CN",
+            "lat": 30,
+            "lng": 100,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "HK is not in the catalog",
+      "kind": "country",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "HK",
+            "color": "#4b937d"
+          }
+        ],
+        "places": []
+      }
+    },
+    {
+      "name": "TW is not in the catalog",
+      "kind": "country",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "TW",
+            "lat": 25,
+            "lng": 121,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "MO is not in the catalog",
+      "kind": "country",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "MO",
+            "lat": 22,
+            "lng": 113,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "an unknown country code",
+      "kind": "country",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "ZZ",
+            "color": "#4b937d"
+          }
+        ],
+        "places": []
+      }
+    },
+    {
+      "name": "a lower-case country code",
+      "kind": "country",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "jp",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a country code that is not a string",
+      "kind": "country",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": 1,
+            "color": "#4b937d"
+          }
+        ],
+        "places": []
+      }
+    },
+    {
+      "name": "a duplicate country mark",
+      "kind": "duplicate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "JP",
+            "color": "#4b937d"
+          },
+          {
+            "code": "JP",
+            "color": "#e2af5c"
+          }
+        ],
+        "places": []
+      }
+    },
+    {
+      "name": "a colour outside the palette",
+      "kind": "color",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "JP",
+            "color": "#000000"
+          }
+        ],
+        "places": []
+      }
+    },
+    {
+      "name": "a mark without a colour",
+      "kind": "color",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [
+          {
+            "code": "JP"
+          }
+        ],
+        "places": []
+      }
+    },
+    {
+      "name": "a duplicate city id",
+      "kind": "duplicate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "a",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": []
+          },
+          {
+            "id": "p1",
+            "name": "b",
+            "country": "JP",
+            "lat": 2,
+            "lng": 2,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a duplicate trip id inside a city",
+      "kind": "duplicate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "a",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "",
+                "note": ""
+              },
+              {
+                "id": "t1",
+                "date": "",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a duplicate trip id across cities",
+      "kind": "duplicate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "a",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "",
+                "note": ""
+              }
+            ]
+          },
+          {
+            "id": "p2",
+            "name": "b",
+            "country": "JP",
+            "lat": 2,
+            "lng": 2,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a city id with a space",
+      "kind": "id",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "a b",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "an empty city id",
+      "kind": "id",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a city id of 65 characters",
+      "kind": "id",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a non-ASCII city id",
+      "kind": "id",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "东京",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a trip id with a slash",
+      "kind": "id",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": [
+              {
+                "id": "t/1",
+                "date": "",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "an empty name",
+      "kind": "name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a name of only White_Space and U+FEFF",
+      "kind": "name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "\u3000\ufeff \u00a0\u2028",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a name of 61 code units",
+      "kind": "name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a name of 31 characters outside the BMP (62 units)",
+      "kind": "name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼🗼",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a control character inside a name: tab",
+      "kind": "name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "a\tb",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a control character inside a name: NUL",
+      "kind": "name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "a\u0000b",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a control character inside a name: DEL",
+      "kind": "name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "ab",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a control character inside a name: U+009F",
+      "kind": "name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "a\u009fb",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "U+0085 inside a name is a control character",
+      "kind": "name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "a\u0085b",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a lone high surrogate in a name",
+      "kind": "name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "a\ud800b",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a lone low surrogate in a name",
+      "kind": "name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "a\udc00",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a name that is not a string",
+      "kind": "name",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": 5,
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "latitude as a string",
+      "kind": "coordinate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": "35.6",
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "longitude null",
+      "kind": "coordinate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 35,
+            "lng": null,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "latitude out of range",
+      "kind": "coordinate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 91,
+            "lng": 0,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "latitude just out of range",
+      "kind": "coordinate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 90.000001,
+            "lng": 0,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "longitude out of range",
+      "kind": "coordinate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 0,
+            "lng": 181,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "longitude just out of range",
+      "kind": "coordinate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 0,
+            "lng": -180.000001,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "7 decimals",
+      "kind": "coordinate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 35.6762001,
+            "lng": 139,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "half a micro-degree",
+      "kind": "coordinate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 5e-7,
+            "lng": 0,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a tenth of a micro-degree",
+      "kind": "coordinate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 0,
+            "lng": 1e-7,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a missing coordinate",
+      "kind": "coordinate",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "trips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a date that is not on the calendar",
+      "kind": "date",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "2026-02-30",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a date without zero padding",
+      "kind": "date",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "2026-1-1",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a date with leading whitespace",
+      "kind": "date",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": [
+              {
+                "id": "t1",
+                "date": " 2026-10-14",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a date with a time",
+      "kind": "date",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "2026-10-14T00:00:00Z",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "full-width digits in a date",
+      "kind": "date",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "２０２６-１０-１４",
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a date that is not a string",
+      "kind": "date",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "点",
+            "country": "JP",
+            "lat": 35,
+            "lng": 139,
+            "trips": [
+              {
+                "id": "t1",
+                "date": 20261014,
+                "note": ""
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a note of 1001 code units",
+      "kind": "note",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "",
+                "note": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a note that is not a string",
+      "kind": "note",
+      "document": {
+        "kind": "world",
+        "version": 1,
+        "countries": [],
+        "places": [
+          {
+            "id": "p1",
+            "name": "x",
+            "country": "JP",
+            "lat": 1,
+            "lng": 1,
+            "trips": [
+              {
+                "id": "t1",
+                "date": "",
+                "note": null
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "coordinates": {
+    "comment": "Coordinates (range checks are in the invalid documents): `valid` values carry at most 6 decimals and map to their whole micro-degrees; `invalid` values have more; `normalize` is what the interface writes, round(|x| * 10^6) in float64 with the sign restored (the same result in any IEEE-754 language).",
+    "valid": [
+      {
+        "value": 0,
+        "e6": 0
+      },
+      {
+        "value": 35.6762,
+        "e6": 35676200
+      },
+      {
+        "value": -35.6762,
+        "e6": -35676200
+      },
+      {
+        "value": 0.000001,
+        "e6": 1
+      },
+      {
+        "value": -0.000001,
+        "e6": -1
+      },
+      {
+        "value": 179.999999,
+        "e6": 179999999
+      },
+      {
+        "value": -180,
+        "e6": -180000000
+      },
+      {
+        "value": 90,
+        "e6": 90000000
+      },
+      {
+        "value": 139.650312,
+        "e6": 139650312
+      },
+      {
+        "value": 0.1,
+        "e6": 100000
+      },
+      {
+        "value": 0.3,
+        "e6": 300000
+      }
+    ],
+    "invalid": [
+      35.6762001,
+      5e-7,
+      1e-7,
+      0.1234567,
+      -0.1234567,
+      139.6503125
+    ],
+    "normalize": [
+      {
+        "input": 5e-7,
+        "e6": 1
+      },
+      {
+        "input": -5e-7,
+        "e6": -1
+      },
+      {
+        "input": 0.0000015,
+        "e6": 2
+      },
+      {
+        "input": -0.0000015,
+        "e6": -2
+      },
+      {
+        "input": 4e-7,
+        "e6": 0
+      },
+      {
+        "input": -4e-7,
+        "e6": 0
+      },
+      {
+        "input": 35.67620049,
+        "e6": 35676200
+      },
+      {
+        "input": 35.6762005,
+        "e6": 35676201
+      },
+      {
+        "input": -35.6762005,
+        "e6": -35676201
+      },
+      {
+        "input": 0.3333333333333333,
+        "e6": 333333
+      }
+    ]
+  }
+}
