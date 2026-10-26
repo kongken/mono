@@ -89,14 +89,14 @@ func TestChainLogsNeverCarryTokensPasswordsOrBodies(t *testing.T) {
 	}
 	token := func(label, tok string) { secrets[label] = tok }
 
-	h := NewChainHarness(t) // no navigation registry: a context is refused (FAILED_PRECONDITION)
+	h := NewChainHarness(t) // the harness registry knows only the user center: another application's context is refused
 	b := h.FreshBrowser()
 	email := emailFor("logcheck")
 
 	// Registration: a refused context, a request, a weak password, a bogus token, the real
 	// completion, a replay, and wrong and right sign-ins.
-	if err := b.requestRegistrationFrom(ctx, email, "metro", ctxPath); connect.CodeOf(err) != connect.CodeFailedPrecondition {
-		t.Fatalf("context without registry: %v", err)
+	if err := b.requestRegistrationFrom(ctx, email, "metro", ctxPath); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("context of an unregistered application: %v", err)
 	}
 	if err := b.requestRegistrationFrom(ctx, email, "", ""); err != nil {
 		t.Fatal(err)

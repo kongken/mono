@@ -43,6 +43,7 @@ import (
 	bffconfig "github.com/kongken/mono/internal/bff/config"
 	bffent "github.com/kongken/mono/internal/bff/ent"
 	bffsession "github.com/kongken/mono/internal/bff/ent/session"
+	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/bff/session"
 	bfftestutil "github.com/kongken/mono/internal/bff/testutil"
 	metroapp "github.com/kongken/mono/internal/metro/app"
@@ -372,6 +373,13 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	if httpOptions.Configure != nil {
 		httpOptions.Configure(bffCfg, baseURL)
 	}
+	if !bffCfg.Navigation.Enabled() {
+		// A BFF that serves accounts does not start without the user center's registered origin (there is no
+		// unrestricted mode). The harness's browser speaks from the BFF's own origin, so that is the origin
+		// registered for tests that are not about the registry; one that configures its own keeps it.
+		bffCfg.Navigation = navigation.Config{APIOrigin: baseURL, Apps: map[string]navigation.App{navigation.AppOzID: {Origin: baseURL}}}
+		bffCfg.CORSAllowedOrigins = append(bffCfg.CORSAllowedOrigins, baseURL)
+	}
 	h.BFF = bffapp.New(bffCfg)
 	h.bffCfg = bffCfg
 	h.bffRes = &bffapp.Resources{DB: bffDB, Redis: bffRedis, KeyPrefix: bffPrefix}
@@ -492,7 +500,7 @@ func (h *ChainHarness) accountOrigin(b *Browser) connect.Option {
 	}
 	return connect.WithInterceptors(connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-			if o := h.bffCfg.Navigation.Apps["ozid"].Origin; o != "" && b.Origin == h.BFFURL && !open[req.Spec().Procedure] {
+			if o := h.bffCfg.Navigation.Apps["ozid"].Origin; o != "" && b.Origin == h.BFFURL && (req.Header().Get("Origin") == "" || req.Header().Get("Origin") == h.BFFURL) && !open[req.Spec().Procedure] {
 				req.Header().Set("Origin", o)
 			}
 			return next(ctx, req)

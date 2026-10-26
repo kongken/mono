@@ -276,6 +276,11 @@ func (c *Config) ValidateInternal(grpcServices []string) error {
 	return nil
 }
 
+// AccountService is the name of the usersrv upstream: configuring it is what makes the BFF serve the
+// account procedures (sign-in, registration, password, devices, closing). A test in internal/bff/app
+// keeps it equal to usersrv.Service.
+const AccountService = "usersrv"
+
 func (c *Config) Print() {}
 
 // Validate checks the settings against the services in the route table: each
@@ -300,6 +305,15 @@ func (c *Config) Validate(services []string) error {
 	}
 	if _, err := navigation.New(c.Navigation, c.CORSAllowedOrigins, c.Auth.CookieSecure); err != nil {
 		return err
+	}
+	if slices.Contains(services, AccountService) {
+		// The account procedures are answered for the user center's registered origin only, so a BFF that
+		// serves accounts without a registry would have nobody to name: it does not start. There is no
+		// switch that lets it start unrestricted. A deployment without a BFF (a purely local front end) is
+		// not affected, and neither is one that does not serve accounts.
+		if c.Navigation.APIOrigin == "" || c.Navigation.Apps[navigation.AppOzID].Origin == "" {
+			return fmt.Errorf("upstreams.%s serves the account procedures, which only the user center's origin may call: navigation.api_origin and navigation.apps.%s.origin are required (see config.bff.example.yaml)", AccountService, navigation.AppOzID)
+		}
 	}
 	if err := c.Auth.LegacyMailTransition.validate(c.Navigation, time.Now()); err != nil {
 		return err

@@ -388,8 +388,8 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 
 ## 11. 两个应用与既有功能的调整
 
-- 邮箱登录、申请注册、验证后设置密码、忘记密码、重置、基础资料、改密、设备及注销都在 OzID；`apps/trip-map`（T10）与 `apps/metro`（T11）自此没有这些表单，只有 OzID 入口和旧邮件的落地页；两应用与 OzID 共用的客户端逻辑在 `packages/account`，应用之间不互相 import。
-- 邮件落地页固定 `/account/verify-email`、`/account/reset-password`，由各应用路由和静态站 fallback 接住，不再走 `/auth/` OAuth 代理。注册/重置成功回到该应用登录入口，不自动跳转客户端提供的外站。
+- 邮箱登录、申请注册、验证后设置密码、忘记密码、重置、基础资料、改密、设备及注销都在 OzID；`apps/trip-map`（T10）与 `apps/metro`（T11）自此没有这些表单，只有 OzID 入口和旧邮件的交接页（T12 起不渲染表单，向 OzID 的同名路径交接）；两应用与 OzID 共用的客户端逻辑在 `packages/account`，应用之间不互相 import。
+- 邮件落地页固定 `/account/verify-email`、`/account/reset-password`，由各应用路由和静态站 fallback 接住，不再走 `/auth/` OAuth 代理。注册/重置成功回到该应用登录入口，不自动跳转客户端提供的外站（T12 起产品路径只向 OzID 交接，由 OzID 完成）。
 - trip-map 继续保留本地模式；没有 `VITE_API_BASE_URL` 时不出现登录入口，也不发账号请求。账号过期/失效仍先保留未同步缓存并允许导出，不能为了更换认证删除本地足迹。
 - metro 的 `handle`、骑行者资料公开规则不变（T11 后 `/me` 里叫“骑行者资料与公开主页”，字段“主页显示名称”）；公开昵称与 usersrv 基础昵称相互独立，登录不覆盖用户已编辑的产品资料。
 - tripmap 的好友申请首版只接受唯一 `fc_` 邀请码，移除“按用户名查找”；不能改成邮箱找人以泄露登录标识。不改变已有好友/共同旅行权限规则。

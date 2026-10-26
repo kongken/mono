@@ -86,12 +86,16 @@ auth:
   account_cleanup: [tripmap, metro]
   csrf_token_ttl: 24h    # optional; default 24h when unset
   cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP
-  # With the `navigation` registry below, the account procedures (sign-in, registration, password
-  # reset, security settings, profile, device list, closing the account) are taken from the user
-  # center's origin (navigation.apps.ozid.origin) only. Me, the CSRF token, navigation and sign-out
+  # The account procedures (sign-in, registration, password reset, security settings, profile,
+  # device list, closing the account) are taken from the user center's origin
+  # (navigation.apps.ozid.origin) only, so a BFF that serves accounts (upstreams.usersrv) does not
+  # start without the `navigation` registry below and its ozid app. There is no setting that turns
+  # the rule off. Me, the CSRF token, navigation and sign-out
   # stay open to every registered application. The one exception is time-limited: mails sent before
   # the central OzID landing point to a product's own /account/verify-email or /account/reset-password
-  # page, which completes the token from the product's origin. List those product origins here for
+  # page, which hands the token over to OzID (the product pages no longer complete anything
+  # themselves) but may still be open in a browser from an older build and complete from the
+  # product's origin. List those product origins here for
   # the length of the mail tokens (usersrv registration_ttl / reset_ttl, minutes) plus the queue, and
   # remove the section afterwards. `until` is an RFC 3339 instant at most seven days ahead; once it
   # has passed the origins are refused again (the BFF still starts and logs it). Only
@@ -120,7 +124,7 @@ cors_allowed_origins:
 #     trip-map: {origin: https://trip.example.com, paths: ["/status"]}   # /status: the public status page, a page a sign-in may return to
 #     metro:    {origin: https://metro.example.com, paths: ["/me", "/cities/*", "/topics/*", "/u/*"]}   # the pages a sign-in may return to: personal page, city, topic and public profile pages
 #     admin:    {origin: https://admin.example.com, paths: ["/users", "/users/*", "/audit/users", "/metro", "/metro/*"]}
-# Omit the section to run without OzID: the navigation procedure then answers FAILED_PRECONDITION.
+# Required while upstreams.usersrv is configured (api_origin and apps.ozid); a BFF without accounts may omit it.
 navigation:
   api_origin: http://localhost:18081
   apps:

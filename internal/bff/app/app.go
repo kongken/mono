@@ -194,16 +194,14 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 	}
 	h.adminGuard.Store(guard)
 	// The account procedures take the user center's origin only (the old-mail transition aside).
-	accountOrigins, err := newAccountOriginPolicy(h.cfg)
+	accountOrigins, err := newAccountOriginPolicy(h.cfg, usersConn != nil)
 	if err != nil {
 		return nil, fmt.Errorf("account origins: %w", err)
 	}
 	switch {
-	case accountOrigins == nil:
-		slog.Warn("navigation.apps.ozid is not configured: the account procedures are not restricted to the user center's origin")
 	case accountOrigins.legacyExpired():
 		slog.Warn("auth.legacy_mail_transition has ended: its origins are no longer accepted; remove the section", "until", h.cfg.Auth.LegacyMailTransition.Until)
-	case len(accountOrigins.legacy) > 0:
+	case accountOrigins != nil && len(accountOrigins.legacy) > 0:
 		slog.Warn("auth.legacy_mail_transition is active: product origins may complete old account mails until it ends", "until", h.cfg.Auth.LegacyMailTransition.Until)
 	}
 	policy := ingress.Policy{

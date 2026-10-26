@@ -17,6 +17,7 @@
     "./close": "./src/close.tsx",
     "./latest": "./src/latest.ts",
     "./landing": "./src/landing.tsx",
+    "./handoff": "./src/handoff.tsx",
     "./vite": "./src/vite.ts",
     "./testing": "./src/testing.ts",
     "./smtp": "./src/smtp.ts",

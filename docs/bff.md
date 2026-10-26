@@ -45,7 +45,7 @@
 - 浏览器 RPC 仅 `/api/bff.*`（共用的 `bff.v1`、各产品的 `bff.<产品>.v1`）；`/api/tripmap.v1.*` 透明转发已移除。tripmap HTTP 只保留 `/ping`、`/readyz` 与可选的 `/api/tiles/…`（分享/unsubscribe 由 BFF `publichttp` 提供）。
 - 前端的业务 RPC（含分享 API）使用 `bff.tripmap.v1`；账号与会话管理使用 `bff.v1`。BFF 会话和注销工作流在 BFF 独立库；tripmap `users` 只保存用户 UUID 对应的展示投影与产品数据，好友只能凭 `fc_` 邀请码添加（没有按用户名查找）。
 - 浏览器登录、注册、找回密码与账号设置在 metro 与 OzID 实现（P5，见 [usersrv 规格](usersrv/spec.md#p5-已实现内容)；trip-map（T10）与 metro（T11）自此没有账号表单，所有账号入口都去 OzID，只保留升级前旧邮件的落地页）；发布与退役（P6）：usersrv 镜像与部署示例、Logto 运行时入口删除、手动退役文档已完成（[退役说明](usersrv/retirement.md)）；正式环境开放前仍需对真实邮件厂商做手动冒烟（[说明](usersrv/mail-smoke-test.md)，未对任何真实厂商实测）。
-- **T2 之后的区别：** trip-map 的产品入口已在 T10 切换到 OzID（账号弹窗只有 OzID 入口，无表单）；metro 的产品入口也已在 T11 切换（没有账号表单，`/login`、`/account` 只是说明页）；新邮件已集中到 OzID（链接都指向 `auth.apps.ozid`），邮件落地页与完成后的“去登录”在 OzID，产品自己的落地页只服务升级前发出的旧邮件。
+- **T2 之后的区别：** trip-map 的产品入口已在 T10 切换到 OzID（账号弹窗只有 OzID 入口，无表单）；metro 的产品入口也已在 T11 切换（没有账号表单，`/login`、`/account` 只是说明页）；新邮件已集中到 OzID（链接都指向 `auth.apps.ozid`），邮件落地页与完成后的“去登录”在 OzID，产品对升级前发出的旧邮件链接只做向 OzID 的交接（T12，没有表单、不调账号过程）。
 
 ```
 浏览器 → 前端 Nginx（BACKEND_UPSTREAM）→ BFF :18081 ─┬→ tripmap（内网）
@@ -306,8 +306,8 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 ## 集中账号的来源策略与旧邮件过渡（OzID T12）
 
-`internal/bff/app/account_origin.go` 在 Connect 拦截器里按过程名判断来源：配置了 `navigation.apps.ozid` 时，`AuthService` 与 `UserService` 除 `Me`、`IssueCSRFToken`、`ResolveNavigation`、`Logout` 外的全部过程，要求恰好一个 `Origin` 头且等于 OzID 的 origin，否则 `permission_denied`（`request rejected`）。判断按服务名进行，新增的账号过程自动被覆盖，`TestEveryBrowserServiceHasASourceRule` 要求每个浏览器服务属于账号、管理或产品三份列表之一。没有 `navigation.apps.ozid` 时策略关闭，启动写警告。
+`internal/bff/app/account_origin.go` 在 Connect 拦截器里按过程名判断来源：`AuthService` 与 `UserService` 除 `Me`、`IssueCSRFToken`、`ResolveNavigation`、`Logout` 外的全部过程，要求恰好一个 `Origin` 头且等于 OzID 的 origin，否则 `permission_denied`（`request rejected`）。判断按服务名进行，新增的账号过程自动被覆盖，`TestEveryBrowserServiceHasASourceRule` 要求每个浏览器服务属于账号、管理或产品三份列表之一。**提供账号服务（配置了 `upstreams.usersrv`）的 BFF 必须有导航注册表（`navigation.api_origin`）与 `navigation.apps.ozid.origin`，缺失则配置校验失败、拒绝启动（Secure Cookie 模式同样），没有“不受限”的绕过开关**；不提供账号服务的 BFF（纯业务上游）不需要，也没有账号过程要判断。纯本地前端不使用 BFF，不受影响。
 
-`auth.legacy_mail_transition`（`origins`、`until`）：切换前发出的邮件仍指向产品落地页，`until` 之前这些产品 origin 可以调用 `CompleteRegistration` 与 `ResetPassword`，其他账号过程仍被拒。`until` 为 RFC 3339，加载时不得晚于现在 7 天；已过期时 BFF 仍启动，拒绝这些 origin 并写警告。清单见 [整体验收](ozid/acceptance.md#旧邮件-ttl-过渡清单)。
+`auth.legacy_mail_transition`（`origins`、`until`）：产品自己的旧邮件页（T12 起）只向 OzID 交接，不调账号过程；此例外只为**升级前构建**仍在自己页面完成旧链接的产品镜像：`until` 之前这些产品 origin 可以调用 `CompleteRegistration` 与 `ResetPassword`，其他账号过程仍被拒。`until` 为 RFC 3339，加载时不得晚于现在 7 天；已过期时 BFF 仍启动，拒绝这些 origin 并写警告。清单见 [整体验收](ozid/acceptance.md#旧邮件-ttl-过渡清单)。
 
 产品镜像与示例网关不再代理同源 `/api/*`（只留分享、通知、底图与探针路径）。真实网关与浏览器的整体验收见 [整体验收](ozid/acceptance.md)。

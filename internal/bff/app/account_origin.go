@@ -71,13 +71,17 @@ type accountOriginPolicy struct {
 	now    func() time.Time
 }
 
-// newAccountOriginPolicy builds the rule from the validated configuration. It is nil (nothing
-// restricted) when no navigation registry is configured: without a registered OzID there is no
-// origin to name, and the deployment has no user center to restrict to. The caller logs that.
-func newAccountOriginPolicy(cfg *config.Config) (*accountOriginPolicy, error) {
+// newAccountOriginPolicy builds the rule from the validated configuration. accounts says whether this
+// BFF serves the account procedures at all (a usersrv upstream): when it does, the registered OzID
+// origin is mandatory and its absence is an error, never an unrestricted policy. The policy is nil
+// only when no account procedure is served, so there is nothing to restrict.
+func newAccountOriginPolicy(cfg *config.Config, accounts bool) (*accountOriginPolicy, error) {
+	if !accounts {
+		return nil, nil
+	}
 	ozid := cfg.Navigation.Apps[navigation.AppOzID].Origin
 	if ozid == "" {
-		return nil, nil
+		return nil, errors.New("navigation.apps.ozid.origin is required while the account procedures are served")
 	}
 	p := &accountOriginPolicy{ozid: ozid, now: time.Now}
 	tr := cfg.Auth.LegacyMailTransition

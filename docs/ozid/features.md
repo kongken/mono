@@ -9,7 +9,7 @@
 | `apps/ozid`（`@kongken/ozid`）：登录页、账号概览、密码重新认证页，独立构建与部署 | 产品里的注销入口照旧（T10、T11 才收敛）；产品里的资料、改密码、设备页面也不变（T10 已收敛 trip-map，T11 已收敛 metro） |
 | （T7）`/close-account`：账号注销页与进度、失败重试 | |
 | （T3）`/profile`、`/security`（改密码）、`/sessions`（设备列表、撤销指定设备、退出其他设备、退出这个浏览器）；BFF `RevokeOtherSessions` | |
-| （T2）注册、找回密码、`/account/verify-email`、`/account/reset-password` 页面；邮件链接统一落到 OzID；返回上下文随挑战保存 | 产品里的邮件落地页只服务旧邮件，过渡期（`auth.legacy_mail_transition.until`）结束后 BFF 不再接受（T12）；注册与找回密码表单已不存在 |
+| （T2）注册、找回密码、`/account/verify-email`、`/account/reset-password` 页面；邮件链接统一落到 OzID；返回上下文随挑战保存 | 产品里对旧邮件链接只有“向 OzID 交接”页，没有表单（T12）；旧 origin 的 API 兼容例外在 `auth.legacy_mail_transition.until` 后 BFF 不再接受；注册与找回密码表单已不存在 |
 | BFF `ResolveNavigation`（匿名只读）与 `navigation` 服务端注册表 | 产品登录入口改指向 OzID（`admin` 控制台已由 T4 实现，见 [控制台功能描述](../admin/features.md)） |
 | 同一 API origin、host-only Cookie、精确 CORS、CSRF 与 Origin 校验的真实浏览器验证 | 集中账号写来源收紧已在 T12 实现：除 `Me`、`IssueCSRFToken`、`ResolveNavigation`、`Logout` 外只接受 OzID 的 `Origin`；管理周界覆盖控制台、用户管理与（T8 起）metro 管理和令牌接口，见 [控制台功能描述](../admin/features.md) |
 | 镜像 `ozid-web`、CI、配置与运行示例 | |
@@ -58,7 +58,7 @@ https://id.example.com/login?app_id=metro&return_path=%2Fcity%2Fshanghai
 
 **响应头。** `deploy/ozid-web/default.conf.template` 为 `/account/verify-email`、`/account/reset-password` 单独声明 `Cache-Control: no-store`、`Referrer-Policy: no-referrer`、`script-src 'self'` 的 CSP 及其余安全头（`add_header` 不继承，所以整组重复）；Vite 开发/预览服务器由 `accountLandingHeaders()` 设置同一组。`scripts/ozid-web-smoke.sh` 在容器里对这两个路径逐项检查。
 
-**过渡期。** 升级前已发出（或已排队）的邮件指向产品自己的落地页，这些页面和令牌仍然有效：`auth.apps` 里保留的 `trip-map`、`metro` 条目只用于这些旧邮件，不会再为任何新邮件生成链接；排队中的旧任务若其来源应用已不再配置，则改用中央链接（令牌相同，OzID 可以完成）。条目可在令牌过期后（最长为 `registration_ttl` 与 `reset_ttl` 中较大者）从配置里删除。令牌从来不会被移到查询串，也没有任何“把片段改写成 query”的兼容层。
+**过渡期与交接（T12）。** 升级前已发出（或已排队）的邮件指向产品自己的路径，令牌仍然有效，但产品页不再完成它：trip-map 与 metro 在 `/account/verify-email`、`/account/reset-password` 这两个精确路径上只渲染交接页（`@kongken/account/handoff` 的 `MailHandOff`）：令牌读入内存并立即清本页地址栏（`captureLandingToken()`，`no-referrer`），再 `location.replace` 到构建参数 `VITE_OZID_ORIGIN` 的同名路径，令牌只放在 fragment 里；令牌形态不对或缺失时不带令牌，只显示“链接不可用，请重新申请”与去 OzID 的链接。页面没有表单、不发任何账号请求、不加载业务或分析脚本，目的地只来自构建配置、路径只有这两条（其他路径回到产品首页），query 与任何“返回地址”参数被忽略；没有配置 OzID origin 时只显示不可用说明。OzID 的落地页完成它，用过或过期的令牌显示“链接不可用”，用户重新申请。`auth.apps` 里保留的 `trip-map`、`metro` 条目与 BFF 的 `auth.legacy_mail_transition` 只服务**升级前构建**、仍在自己页面完成旧链接的产品镜像（此例外按 `until` 到期关闭），`auth.apps` 里保留的 `trip-map`、`metro` 条目只用于这些旧邮件，不会再为任何新邮件生成链接；排队中的旧任务若其来源应用已不再配置，则改用中央链接（令牌相同，OzID 可以完成）。条目可在令牌过期后（最长为 `registration_ttl` 与 `reset_ttl` 中较大者）从配置里删除。令牌从来不会被移到查询串，也没有任何“把片段改写成 query”的兼容层。
 
 ### 升级顺序、回滚与兼容边界（T2）
 
@@ -67,7 +67,7 @@ https://id.example.com/login?app_id=metro&return_path=%2Fcity%2Fshanghai
 升级顺序（每步确认后再进行）：
 
 1. **迁移**：先对 `usersrv` 库应用 `20261025044828_account_token_return_context.sql`。它只增加两个可空列和一个约束，对现有行没有回填、没有重写；旧版 usersrv 二进制不读写这两列，因此迁移可以早于任何二进制升级。
-2. **`ozid-web`（带落地页的版本）**：部署并确认 `/account/verify-email`、`/account/reset-password` 可从 `auth.apps.ozid.origin` 打开且响应头正确（`scripts/ozid-web-smoke.sh` 对镜像做同样的检查），并且该 origin 已在 BFF 的 `cors_allowed_origins` 与 `navigation.apps.ozid` 里。**邮件切换前这一步必须完成。**
+2. **`ozid-web`（带落地页的版本）**：部署并确认 `/account/verify-email`、`/account/reset-password` 可从 `auth.apps.ozid.origin` 打开且响应头正确（`scripts/ozid-web-smoke.sh` 对镜像做同样的检查），并且该 origin 已在 BFF 的 `cors_allowed_origins` 与 `navigation.apps.ozid` 里（T12 起这是 BFF 启动的必要条件：提供账号服务的 BFF 缺少注册表或 OzID origin 会拒绝启动）。**邮件切换前这一步必须完成。**
 3. **usersrv**（T2 配置）：加入必填的 `auth.apps.ozid`，**保留** `trip-map`、`metro` 条目直到旧邮件过期。这一步之后新邮件才指向 OzID。
 4. **BFF**（T2 版本，且配置了 `navigation`，见下）：晚于 usersrv。
 5. 产品与其他前端。
@@ -204,12 +204,12 @@ docker run --rm -p 8089:80 -e API_ORIGIN=https://api.example.com ozid-web
 3. **真实浏览器与代理链**：`OZID_BROWSER_E2E=1 go test ./internal/e2e -run TestOzidBrowserChain`。在受控 HTTPS 下用真实 BFF 与 usersrv，OzID、API、两个产品和一个未登记兄弟分处同站点的不同保留测试子域名（`*.ozid-e2e.test`，由浏览器解析到本机前置代理，使用一次性证书）；Chromium 实测登录、返回、跨应用同一身份、退出、重新认证、Cookie 属性、存储与 URL 无令牌、CSP 无违规、兄弟域名无 CORS、外来 Origin 的写被拒；T2 起还包括真实邮件回路：一个浏览器申请注册/重置，另一个只拿邮件链接的浏览器完成，不自动登录、返回到绑定的产品页，落地页响应头取自 nginx 模板的落地页 `location`，令牌没有出现在任何请求 URL 或 Referer 里；T3 的两个用例（桌面与手机）：每个浏览器上下文是一台独立设备、各有自己的 Cookie 会话，实测改昵称后各设备和产品页同时看到、列表三台设备、撤销指定设备（三台中恰好一台失效）、退出其他设备后另两台与其产品页都已退出而当前设备仍在、之后新登录的设备保持有效、退出这个浏览器后本机各产品页看到匿名而另一台设备不受影响且本源的本地存储未被清除、错误当前密码不改任何东西、改密码后所有设备（含当前）退出并只能用新密码登录，以及外来 Origin / 缺 CSRF / 匿名对 `RevokeOtherSessions` 的请求都被拒且不撤销（邮件厂商是唯一的替身：收件箱经 `mailbox` 测试主机读取；这里的前置代理只**复刻**模板里的头，nginx 本身由第 2 项的容器验收检验）。需要 Node 依赖与 Playwright Chromium，CI 的 `ozid-browser` 任务运行它。
 4. **仍须运维确认**（自动化无法覆盖）：真实 DNS、证书与 TLS 终止；反代是否按文档保留 `Host`、覆盖 `X-Real-IP`；真实域名下的 CORS/Cookie 表现；真实邮件厂商的投递与链接跟踪设置（邮件已统一指向 OzID，但至今没有对真实厂商实测，见[手动冒烟](../usersrv/mail-smoke-test.md)）；`auth.apps.ozid.origin` 与 BFF 注册表里 `ozid` 的 origin 是否一致；旧产品条目在令牌过期后的清理；镜像在私有构建参数下的构建。
 
-当前限制：trip-map（T10）与 metro（T11）的账号入口都已改指向 OzID，产品的邮件落地页只保留以服务旧邮件，metro 的管理入口仍在统一控制台；控制台应用（`admin`）自 T4 起存在，见 [控制台功能描述](../admin/features.md)；OzID 的注销页只能注销本人账号，注销前未同步的本地内容要先到各产品里导出；设备列表没有 IP、位置或设备型号（BFF 不记录这些）；OzID 无法清除其他 origin 的浏览器存储；集中账号写只接受 OzID Origin（T12 已实现，见 [整体验收](acceptance.md#最终来源策略)；只在配置了 `navigation.apps.ozid` 时生效，否则启动警告）；控制台与用户管理接口的周界属于 T4，metro 管理与令牌接口已由 T8 并入这道周界，MCP 由 T9 的独立 `mcp.allowed_cidrs` 保护，均已实现。注册与重置请求的来源应用只在 BFF 配置了导航注册表时才被接受并保存；`auth.apps.ozid` 现在是 usersrv 的必填配置，没有它 usersrv 拒绝启动。
+当前限制：trip-map（T10）与 metro（T11）的账号入口都已改指向 OzID，产品对旧邮件链接只做向 OzID 的交接，metro 的管理入口仍在统一控制台；控制台应用（`admin`）自 T4 起存在，见 [控制台功能描述](../admin/features.md)；OzID 的注销页只能注销本人账号，注销前未同步的本地内容要先到各产品里导出；设备列表没有 IP、位置或设备型号（BFF 不记录这些）；OzID 无法清除其他 origin 的浏览器存储；集中账号写只接受 OzID Origin（T12 已实现，见 [整体验收](acceptance.md#最终来源策略)；BFF 提供账号服务（配置了 usersrv 上游）时必须配置 `navigation` 注册表与 `navigation.apps.ozid`，缺失拒绝启动，没有绕过开关；不提供账号服务的 BFF 不需要）；控制台与用户管理接口的周界属于 T4，metro 管理与令牌接口已由 T8 并入这道周界，MCP 由 T9 的独立 `mcp.allowed_cidrs` 保护，均已实现。注册与重置请求的来源应用只在 BFF 配置了导航注册表时才被接受并保存；`auth.apps.ozid` 现在是 usersrv 的必填配置，没有它 usersrv 拒绝启动。
 
 ## 整体验收（T12）
 
 T12 收口旧入口并做整体验收：
 
-- **来源**：`internal/bff/app/account_origin.go` 是集中账号写的最终来源规则（`Origin` 必须恰好一个且等于注册的 OzID origin；`Me`、`IssueCSRFToken`、`ResolveNavigation`、`Logout` 对所有登记应用开放）。旧邮件过渡由 `auth.legacy_mail_transition`（`origins`、`until`，最多 7 天）限定，只接受 `CompleteRegistration` 与 `ResetPassword`。
+- **来源**：`internal/bff/app/account_origin.go` 是集中账号写的最终来源规则（`Origin` 必须恰好一个且等于注册的 OzID origin；`Me`、`IssueCSRFToken`、`ResolveNavigation`、`Logout` 对所有登记应用开放）。旧 origin 的 API 兼容例外由 `auth.legacy_mail_transition`（`origins`、`until`，最多 7 天）限定，只接受 `CompleteRegistration` 与 `ResetPassword`；新构建的产品页不使用它（只做向 OzID 的交接）。
 - **旧入口**：trip-map 与 metro 的镜像、Caddy 示例不再代理同源 `/api/*` 与 `/auth/*`（404），产品里没有账号表单和管理界面，也没有遗留的代理登录入口；`TestNoOldAccountFormsOrManagementUIInProducts`、`TestNoRetiredLoginEntryRemains`、`TestProductGatewaysDoNotProxyTheBrowserAPI` 守护。
 - **整体验收**：`TestGatewayDomainSets` 在真实 Caddy 与 Nginx 之后、真实浏览器里，对两组不同的保留域名验证登录、邮件、返回、控制台、MCP 与周界。验收项映射、最终来源与旧邮件 TTL 过渡清单、哪些已自动化、哪些要运维确认，见 [整体验收](acceptance.md)。

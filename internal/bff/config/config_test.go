@@ -302,6 +302,67 @@ func TestValidateMCPSourceIgnoresWhetherMetroIsConfigured(t *testing.T) {
 	}
 }
 
+// A BFF that serves the account procedures (the usersrv upstream) does not start without the navigation
+// registry and the OzID origin, in any cookie mode; there is no setting that allows it. A BFF without
+// accounts is unaffected.
+func TestValidateAccountsNeedTheRegistry(t *testing.T) {
+	services := []string{"usersrv", "tripmap"}
+	full := func(secure bool, scheme string) Config {
+		return Config{
+			Upstreams:          map[string]string{"usersrv": "http://usersrv:18087", "tripmap": "http://tripmap:18081"},
+			CORSAllowedOrigins: []string{scheme + "://id.example.com", scheme + "://trip.example.com"},
+			Auth:               AuthConfig{CookieSecure: secure},
+			Navigation: navigation.Config{
+				APIOrigin: scheme + "://api.example.com",
+				Apps: map[string]navigation.App{
+					"ozid":     {Origin: scheme + "://id.example.com"},
+					"trip-map": {Origin: scheme + "://trip.example.com"},
+				},
+			},
+		}
+	}
+	for _, mode := range []struct {
+		name   string
+		secure bool
+		scheme string
+	}{{"secure cookies", true, "https"}, {"plain cookies over https", false, "https"}} {
+		t.Run(mode.name, func(t *testing.T) {
+			c := full(mode.secure, mode.scheme)
+			if err := c.Validate(services); err != nil {
+				t.Fatalf("a complete configuration: %v", err)
+			}
+			for name, mutate := range map[string]func(*Config){
+				"no navigation at all":  func(c *Config) { c.Navigation = navigation.Config{} },
+				"no api origin":         func(c *Config) { c.Navigation.APIOrigin = "" },
+				"no apps":               func(c *Config) { c.Navigation.Apps = nil },
+				"apps without ozid":     func(c *Config) { delete(c.Navigation.Apps, "ozid") },
+				"ozid without a origin": func(c *Config) { c.Navigation.Apps["ozid"] = navigation.App{} },
+				"ozid not in CORS":      func(c *Config) { c.CORSAllowedOrigins = c.CORSAllowedOrigins[1:] },
+			} {
+				c := full(mode.secure, mode.scheme)
+				mutate(&c)
+				if c.Validate(services) == nil {
+					t.Errorf("%s: a BFF serving accounts started", name)
+				}
+			}
+		})
+	}
+	if c := full(true, "http"); c.Validate(services) == nil {
+		t.Error("secure cookies with http origins: accepted")
+	}
+	// The message names what to configure, so the refusal is actionable.
+	c := full(true, "https")
+	c.Navigation = navigation.Config{}
+	if err := c.Validate(services); err == nil || !strings.Contains(err.Error(), "navigation.apps.ozid.origin") {
+		t.Errorf("error = %v", err)
+	}
+	// Without the account upstream (a tripmap-only BFF) there is nothing to restrict and nothing to name.
+	c = Config{Upstreams: map[string]string{"tripmap": "http://tripmap:18081"}}
+	if err := c.Validate([]string{"tripmap"}); err != nil {
+		t.Errorf("a BFF without accounts: %v", err)
+	}
+}
+
 func TestValidateLegacyMailTransition(t *testing.T) {
 	services := []string{"tripmap"}
 	soon := time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339)

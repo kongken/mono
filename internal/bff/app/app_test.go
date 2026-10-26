@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/gateway"
 	"github.com/kongken/mono/internal/bff/metro/mcp"
+	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/platform/testkit"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -83,11 +85,27 @@ func withInternalTransport(t *testing.T, cfg *config.Config) {
 	if _, ok := cfg.Upstreams["usersrv"]; ok {
 		cfg.GRPC.Services["usersrv"] = config.GRPCService{Address: "127.0.0.1:1"}
 	}
+	withAccountRegistry(cfg)
+}
+
+// withAccountRegistry gives a configuration that serves the account procedures (a usersrv upstream) the
+// registry it must have to start: the user center's origin. The tests below are about routing, tiles and
+// status, not about who may call the account.
+func withAccountRegistry(cfg *config.Config) {
+	if _, ok := cfg.Upstreams[config.AccountService]; !ok || cfg.Navigation.Enabled() {
+		return
+	}
+	const id = "https://id.example.com"
+	cfg.Navigation = navigation.Config{APIOrigin: "https://api.example.com", Apps: map[string]navigation.App{"ozid": {Origin: id}}}
+	if !slices.Contains(cfg.CORSAllowedOrigins, id) {
+		cfg.CORSAllowedOrigins = append(cfg.CORSAllowedOrigins, id)
+	}
 }
 
 func newBFF(t *testing.T, cfg *config.Config, services []gateway.Service) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
+	withAccountRegistry(cfg)
 	if services == nil {
 		services = gateway.Services
 	}

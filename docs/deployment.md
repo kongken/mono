@@ -211,7 +211,7 @@ OzID（`apps/ozid`，镜像 `ozid-web`）是纯静态站点，没有同源 `/api
 
 ### 集中账号的来源
 
-产品页面不再有账号表单，也不能调用集中账号写。`navigation.apps.ozid` 配置后，`AuthService` 与 `UserService` 除 `Me`、`IssueCSRFToken`、`ResolveNavigation`、`Logout` 之外的全部过程（含 `ListSessions` 等读方法）只接受 OzID 的 `Origin`；`UserAdminService`、`AccessTokenService`、metro `AdminService` 只接受控制台 `Origin` 加管理周界；MCP 有自己的周界。完整表格与旧邮件过渡清单见 [整体验收](ozid/acceptance.md#最终来源策略)。没有 `navigation.apps.ozid` 时来源策略关闭，BFF 启动时写警告；生产必须配置。
+产品页面不再有账号表单，也不能调用集中账号写。`navigation.apps.ozid` 配置后，`AuthService` 与 `UserService` 除 `Me`、`IssueCSRFToken`、`ResolveNavigation`、`Logout` 之外的全部过程（含 `ListSessions` 等读方法）只接受 OzID 的 `Origin`；`UserAdminService`、`AccessTokenService`、metro `AdminService` 只接受控制台 `Origin` 加管理周界；MCP 有自己的周界。完整表格与旧邮件过渡清单见 [整体验收](ozid/acceptance.md#最终来源策略)。提供账号服务（配置了 `upstreams.usersrv`）的 BFF 必须配置 `navigation` 注册表与 `navigation.apps.ozid`，缺失则拒绝启动（没有绕过开关）；产品页对旧邮件链接只向 OzID 交接。
 
 ### 把整套系统换到另一组域名
 
@@ -219,11 +219,11 @@ OzID（`apps/ozid`，镜像 `ozid-web`）是纯静态站点，没有同源 `/api
 
 1. **前端重建**：四个前端分别带 `VITE_API_BASE_URL=https://<api 主机>/api`，OzID 之外的三个再带 `VITE_OZID_ORIGIN=https://<OzID 主机>`；OzID 与控制台运行时的 `API_ORIGIN`、控制台的 `ADMIN_HOST`、`ADMIN_ALLOWED_CIDRS`、`ADMIN_TRUSTED_PROXIES` 同步更新。构建参数缺失、同源 `/api` 或不是纯 origin 时构建失败；不要复用旧镜像。
 2. **BFF**：`navigation.api_origin`、`navigation.apps.{ozid,admin,trip-map,metro}` 的 origin、`cors_allowed_origins`（精确，不能通配）一致更新；`admin.allowed_cidrs`、`admin.trusted_proxies`、`mcp.allowed_cidrs`、`mcp.trusted_proxies` 用真实网段（私有配置）；没有配置白名单时控制台与 MCP 都是关闭的。
-3. **usersrv**：`auth.apps.ozid.origin` 改为新的 OzID origin（新邮件立即指向它）；产品的 `auth.apps.*` 条目只服务旧邮件，见过渡清单。
+3. **usersrv**：`auth.apps.ozid.origin` 改为新的 OzID origin（新邮件立即指向它）；产品的 `auth.apps.*` 条目只服务升级前构建的旧产品镜像与已排队的旧邮件，见过渡清单。
 4. **网关**：参照 `deploy/reverse-proxy/Caddyfile.example` 为每个主机配置证书与站点；API 主机只服务 `/api/*`、`/ping`、`/readyz`；产品站点不代理 `/api/*`；控制台站点保留来源规则并覆盖 `X-Forwarded-For`；网关的上游地址必须是 BFF 与 `admin-web` 受信代理名单里的网段，且不得出现在允许名单里。Caddy 对没有站点块的 Host 会返回空 200（没有内容也到不了 BFF）；需要显式拒绝时自行加兜底站点。
 5. **DNS 与 TLS**：新主机的 DNS 与证书由运维配置；旧主机下线或保留为空站点均可，旧主机收到的请求不会到达 BFF。
 6. **会话**：更换 API 主机后旧 Cookie 不会转移，所有用户需要重新登录。更换 OzID 或产品主机（API 主机不变）不影响会话，但邮件链接与返回地址要用新注册表。
-7. **旧邮件**：已发出的邮件指向旧产品主机时，按[过渡清单](ozid/acceptance.md#旧邮件-ttl-过渡清单)保留旧主机的落地页到 `until`。
-8. **配置错配检查**：启动时 BFF 校验注册表与 `api_origin` 同站点、应用 origin 都在 CORS 列表里、管理周界两份名单不重叠；`admin-web` 与 `ozid-web` 入口在缺少 `API_ORIGIN` 或名单重叠时拒绝启动。上线前再跑一遍 [整体验收](ozid/acceptance.md) 里的网关测试（用保留域名），并用真实域名做一次人工的登录、邮件、返回、控制台与 MCP 冒烟。
+7. **旧邮件**：已发出的邮件指向旧产品主机时，按[过渡清单](ozid/acceptance.md#旧邮件-ttl-过渡清单)新构建的产品页自己只向 OzID 交接（令牌留在 fragment），中央页面完成或提示重新申请，不需要保留旧表单；旧 origin 的 API 兼容例外（`auth.legacy_mail_transition`）到 `until` 关闭。
+8. **配置错配检查**：启动时 BFF 校验注册表与 `api_origin` 同站点、应用 origin 都在 CORS 列表里、管理周界两份名单不重叠；`admin-web` 与 `ozid-web` 入口在缺少 `API_ORIGIN` 或名单重叠时拒绝启动；提供账号服务的 BFF 缺少注册表或 OzID origin 同样拒绝启动。上线前再跑一遍 [整体验收](ozid/acceptance.md) 里的网关测试（用保留域名），并用真实域名做一次人工的登录、邮件、返回、控制台与 MCP 冒烟。
 
 运维仍须自行确认真实 DNS、证书、来源地址与 CDN 链路、邮件厂商；本阶段不自动部署，也不清理任何数据。

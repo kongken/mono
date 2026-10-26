@@ -166,7 +166,7 @@ test.describe("account mail", () => {
     await other.close();
   });
 
-  test("an old mail that still points at a product finishes there during the transition, then leads to the user center", async ({ page, browser }) => {
+  test("an old mail that still points at a product is handed over to the user center, which finishes it; a spent link is only unusable", async ({ page, browser }) => {
     const email = uniqueEmail("oldmail");
     await page.goto(`${stack.id}/register`);
     await page.getByLabel("邮箱").fill(email);
@@ -178,29 +178,49 @@ test.describe("account mail", () => {
     for (const [label, origin] of [["metro", stack.metro], ["trip-map", stack.trip]] as const) {
       const other = await browser.newContext({ viewport: test.info().project.use.viewport });
       const tab = await other.newPage();
-      const res = await tab.goto(`${origin}/account/verify-email`);
+      const res = await tab.goto(`${origin}/account/verify-email`, { waitUntil: "commit" });
       const headers = res!.headers();
       expect(headers["referrer-policy"], label).toBe("no-referrer");
       expect(headers["cache-control"], label).toBe("no-store");
       expect(headers["content-security-policy"], label).toContain("script-src 'self'");
       await other.close();
     }
+
     const other = await browser.newContext({ viewport: test.info().project.use.viewport });
     const tab = await other.newPage();
-    await tab.goto(`${stack.metro}/account/verify-email#token=${token}`);
+    const traffic: { url: string; origin: string | undefined; referer: string | undefined }[] = [];
+    tab.on("request", (r) => traffic.push({ url: r.url(), origin: r.headers()["origin"], referer: r.headers()["referer"] }));
+    await tab.goto(`${stack.metro}/account/verify-email#token=${token}`, { waitUntil: "commit" });
+    // The product does not finish the mail: it leaves for the user center's page of the same name, token in the
+    // fragment, and the user center completes the registration (its page clears the fragment itself).
+    await tab.waitForURL(`${stack.id}/account/verify-email`);
     await expect(tab.getByTestId("landing-verify-email")).toBeVisible();
-    expect(tab.url()).toBe(`${stack.metro}/account/verify-email`); // the token left the address bar
+    await expect(tab.getByLabel("密码", { exact: true })).toBeVisible();
+    // Nothing the product's page sent carried the token, called the API or named a different destination.
+    expect(traffic.filter((t) => t.url.includes(token) || (t.referer ?? "").includes(token))).toEqual([]);
+    expect(traffic.filter((t) => t.origin === stack.metro && !t.url.startsWith(`${stack.metro}/`))).toEqual([]);
     await tab.getByLabel("密码", { exact: true }).fill(stack.password);
     await tab.getByLabel("再次输入密码").fill(stack.password);
     await tab.getByRole("button", { name: "完成注册" }).click();
-    await expect(tab.getByTestId("landing-done")).toBeVisible();
+    await expect(tab.getByTestId("landing-done")).toContainText("账号已经创建");
     await tab.getByRole("link", { name: "去登录" }).click();
-    await expect(tab).toHaveURL(new RegExp(`^${stack.id}/login\\?app_id=metro`));
+    await expect(tab).toHaveURL(new RegExp(`^${stack.id}/login`));
     await panel(tab).getByLabel("邮箱").fill(email);
     await panel(tab).getByLabel("密码", { exact: true }).fill(stack.password);
     await panel(tab).getByRole("button", { name: "登录", exact: true }).click();
-    await tab.waitForURL(new RegExp(`^${stack.metro}/`));
+    await expect(tab).toHaveURL(new RegExp(`^(${stack.id}/|${stack.metro}/)`));
     await other.close();
+
+    // The same link again, from the other product: handed over the same way, and now it is only unusable.
+    const again = await browser.newContext({ viewport: test.info().project.use.viewport });
+    const page2 = await again.newPage();
+    await page2.goto(`${stack.trip}/account/verify-email#token=${token}`, { waitUntil: "commit" });
+    await page2.waitForURL(`${stack.id}/account/verify-email`);
+    await page2.getByLabel("密码", { exact: true }).fill(stack.password);
+    await page2.getByLabel("再次输入密码").fill(stack.password);
+    await page2.getByRole("button", { name: "完成注册" }).click();
+    await expect(page2.getByTestId("link-invalid")).toBeVisible();
+    await again.close();
   });
 });
 

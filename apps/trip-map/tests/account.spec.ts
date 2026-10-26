@@ -55,6 +55,7 @@ const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.
 const stored = (page: Page) => page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }));
 const cloudKeys = (page: Page) => page.evaluate((p) => Object.keys(localStorage).filter((k) => k.startsWith(p)), CLOUD);
 const readKey = (page: Page, key: string) => page.evaluate((k) => localStorage.getItem(k), key);
+const FORMS = "input[type=password], input[type=email], input[autocomplete=username], input[autocomplete=current-password]";
 const LOGIN_URL = `${OZID}/login?app_id=trip-map&return_path=%2F`;
 
 /** The page asks Me again when it is shown or focused again; this is that moment (the ask is rate limited). */
@@ -200,54 +201,123 @@ test.describe("old entry points", () => {
 });
 
 test.describe("mailed links from before OzID", () => {
-  const RESET = "a brand new password";
+  // The product has no form for them any more: its two landing paths hand the browser, and the one-time token,
+  // to OzID's page of the same name (which completes the mail or asks for a new one: apps/ozid). What is proved
+  // here is the hand-over: where it leads, what it carries, and that nothing else in the address can steer it.
+  const FOREIGN = /evil\.example|attacker/;
 
-  async function mailed(page: Page, ctx: { appId: string; returnPath: string } | null) {
+  async function mailed(page: Page, kind: "reset" | "registration") {
     const set = await setup(page);
-    set.accounts.handle("RequestPasswordReset", { email: EMAIL, ...(ctx ?? {}) }, {});
-    return { ...set, mail: set.accounts.lastMail("reset")! };
+    if (kind === "reset") set.accounts.handle("RequestPasswordReset", { email: EMAIL, appId: "trip-map", returnPath: "/" }, {});
+    else set.accounts.handle("RequestRegistration", { email: "new-rider@example.com", appId: "trip-map", returnPath: "/" }, {});
+    return { ...set, mail: set.accounts.lastMail(kind)! };
   }
 
-  test("the reset link clears its token, then leads to OzID's sign-in with the page it was requested from", async ({ page }) => {
-    const { accounts, mail, ozid } = await mailed(page, { appId: "trip-map", returnPath: "/" });
-    expect(mail.link).toMatch(/^\/account\/reset-password#token=[\w-]{43}$/);
+  /**
+   * What the page showed and held at the moment it left for OzID, reported by the page itself from the Navigation API's `navigate` event
+   * (a held navigation cannot be inspected: the browser blocks the page's own locators while it is pending).
+   */
+  type Departure = { url: string; stored: string; referrer: string | null; foreignScripts: string[]; forms: number; buttons: number; link: string | null; overflow: boolean; heading: string };
+  async function watchDeparture(page: Page) {
+    const seen: Departure[] = [];
+    page.on("console", (m) => {
+      if (m.text().startsWith("DEPARTURE ")) seen.push(JSON.parse(m.text().slice("DEPARTURE ".length)));
+    });
+    await page.addInitScript((forms) => {
+      // The Navigation API reports the move before it happens, while the page is still whole.
+      (window as unknown as { navigation: EventTarget }).navigation.addEventListener("navigate", (e) => {
+        if (!document.querySelector('[data-testid^="handoff-"]') || (e as unknown as { sameDocument: boolean }).sameDocument) return;
+        console.log(
+          "DEPARTURE " +
+            JSON.stringify({
+              url: location.href,
+              stored: JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }),
+              referrer: document.querySelector('meta[name="referrer"]')?.getAttribute("content") ?? null,
+              foreignScripts: [...document.scripts].map((s) => s.src).filter((s) => s && !s.startsWith(location.origin)),
+              forms: document.querySelectorAll(forms).length,
+              buttons: document.querySelectorAll("button").length,
+              link: document.querySelector('[data-testid="handoff-link"]')?.getAttribute("href") ?? null,
+              overflow: document.documentElement.scrollWidth > window.innerWidth,
+              heading: document.querySelector("h1")?.textContent ?? "",
+            }),
+        );
+      });
+    }, FORMS);
+    return seen;
+  }
+
+  for (const [kind, path] of [
+    ["registration", "/account/verify-email"],
+    ["reset", "/account/reset-password"],
+  ] as const) {
+    test(`the ${kind} link clears its token, makes no request of its own and hands over to OzID's ${path}`, async ({ page }) => {
+      const { accounts, mail } = await mailed(page, kind);
+      expect(mail.link).toMatch(new RegExp(`^${path}#token=[\\w-]{43}$`));
+      const left = await watchDeparture(page);
+      const requested: string[] = [];
+      page.on("request", (r) => requested.push(r.url()));
+      const calls = accounts.state.calls.length;
+      const res = await page.goto(mail.link, { waitUntil: "commit" });
+      expect(res!.headers()["referrer-policy"]).toBe("no-referrer");
+      expect(res!.headers()["cache-control"]).toBe("no-store");
+      await page.waitForURL(`${OZID}${path}#token=${mail.token}`);
+      // At the moment it left: no form, the token out of the address bar and out of storage, no referrer, no foreign script,
+      // and the fallback link the same fixed address (the OzID page of this kind, the token in the fragment only).
+      await expect.poll(() => left.length).toBe(1);
+      const d = left[0]!;
+      expect(new URL(d.url).hash).toBe("");
+      expect(d.url).not.toContain(mail.token);
+      expect(d.stored).not.toContain(mail.token);
+      expect(d.referrer).toBe("no-referrer");
+      expect(d.foreignScripts).toEqual([]);
+      expect(d.forms).toBe(0);
+      expect(d.buttons).toBe(0);
+      expect(d.overflow).toBe(false);
+      expect(d.link).toBe(`${OZID}${path}#token=${mail.token}`);
+      // Nothing was asked of the BFF, and no request carried the token (the fragment is never sent).
+      expect(accounts.state.calls.slice(calls)).toEqual([]);
+      expect(requested.filter((u) => u.includes(mail.token))).toEqual([]);
+    });
+  }
+
+  test("nothing in the address changes the destination: a query, other fragment parts and a foreign return are ignored", async ({ page }) => {
+    const { mail } = await mailed(page, "reset");
     const requested: string[] = [];
     page.on("request", (r) => requested.push(r.url()));
-    const res = await page.goto(mail.link);
-    expect(res!.headers()["referrer-policy"]).toBe("no-referrer");
-    expect(res!.headers()["cache-control"]).toBe("no-store");
-    expect(new URL(page.url()).hash).toBe("");
-    expect(await stored(page)).not.toContain(mail.token);
-    expect(requested.filter((u) => u.includes(mail.token))).toEqual([]);
-    await page.getByLabel("新密码", { exact: true }).fill(RESET);
-    await page.getByLabel("再次输入新密码").fill(RESET);
-    await page.getByRole("button", { name: "重置密码" }).click();
-    await expect(page.getByTestId("landing-done")).toBeVisible();
-    // Resetting does not sign in; "log in" is OzID's page.
-    expect(accounts.state.current).toBeNull();
-    expect(await noOverflow(page)).toBe(true);
-    await page.getByRole("link", { name: "去登录" }).click();
-    await expect(page).toHaveURL(LOGIN_URL);
-    expect(ozid).toEqual([LOGIN_URL]);
+    const evil = "https://evil.example/steal";
+    await page.goto(
+      `/account/reset-password?next=${encodeURIComponent(evil)}&return_path=//evil.example&app_id=attacker&redirect=${encodeURIComponent(evil)}#redirect=${encodeURIComponent(evil)}&token=${mail.token}&next=${encodeURIComponent(evil)}`,
+    );
+    await page.waitForURL(`${OZID}/account/reset-password#token=${mail.token}`);
+    expect(requested.filter((u) => FOREIGN.test(new URL(u).hostname))).toEqual([]);
+    expect(new URL(page.url()).search).toBe("");
   });
 
-  test("only a return context the BFF validated is used, and an unbound link returns to this product", async ({ page }) => {
-    const { mail, ozid } = await mailed(page, { appId: "metro", returnPath: "/me" });
-    await page.goto(mail.link);
-    await page.getByLabel("新密码", { exact: true }).fill(RESET);
-    await page.getByLabel("再次输入新密码").fill(RESET);
-    await page.getByRole("button", { name: "重置密码" }).click();
-    await page.getByRole("link", { name: "去登录" }).click();
-    await expect(page).toHaveURL(`${OZID}/login?app_id=metro&return_path=%2Fme`);
-    expect(ozid).toHaveLength(1);
+  test("a path that is not exactly one of the two landing paths is not a hand-over", async ({ page }) => {
+    const { mail, ozid } = await mailed(page, "reset");
+    for (const odd of ["/account/reset-password/extra", "/account/reset-passwords", "/account/reset-password.html", "/account/", "/account/verify-email/x/y"]) {
+      await page.goto(`${odd}#token=${mail.token}`);
+      await expect(page.getByTestId(/^handoff-/)).toHaveCount(0);
+      expect(new URL(page.url()).origin).not.toBe(OZID);
+    }
+    expect(ozid).toEqual([]);
   });
 
-  test("an unusable link is the same page for any reason and offers OzID", async ({ page }) => {
-    await setup(page);
-    await page.goto("/account/verify-email");
-    await expect(page.getByTestId("link-invalid")).toBeVisible();
-    await page.getByRole("link", { name: /返回登录/ }).click();
-    await expect(page).toHaveURL(LOGIN_URL);
+  test("an unusable link hands over without a token, so OzID shows the same unusable-link page for a missing, a short, a spent or an expired token", async ({ page }) => {
+    const { mail } = await mailed(page, "registration");
+    for (const [from, to] of [
+      ["/account/verify-email", `${OZID}/account/verify-email`],
+      ["/account/verify-email#token=short", `${OZID}/account/verify-email`],
+      [`/account/verify-email#token=${"a".repeat(600)}`, `${OZID}/account/verify-email`],
+      [`/account/reset-password#token=${mail.token}%26x`, `${OZID}/account/reset-password`],
+    ] as const) {
+      await page.goto(from);
+      await page.waitForURL(to);
+      expect(new URL(page.url()).hash).toBe("");
+    }
+    // A well-formed token is carried whether it is fresh, spent or expired: the server alone knows, and says so at OzID.
+    await page.goto(`/account/verify-email#token=${"b".repeat(43)}`);
+    await page.waitForURL(`${OZID}/account/verify-email#token=${"b".repeat(43)}`);
   });
 });
 
@@ -598,16 +668,6 @@ test.describe("the return path", () => {
     await expect(page.getByTestId("ozid-sign-in")).toHaveCount(0);
     await expect(page.getByRole("link", { name: /OzID/ })).toHaveCount(0);
     expect(ozid).toEqual([]);
-  });
-
-  test("an old mail's landing page still uses only the context the BFF validated", async ({ page }) => {
-    await setup(page);
-    await page.goto(`/account/reset-password#${SECRET}`);
-    // The token is read into memory and the fragment is gone; the link out carries no part of it.
-    await expect.poll(() => page.evaluate(() => location.hash)).toBe("");
-    const out = await page.getByRole("link").evaluateAll((links) => links.map((a) => (a as HTMLAnchorElement).href));
-    expect(out.length).toBeGreaterThan(0);
-    expect(out.join()).not.toContain(SECRET);
   });
 });
 

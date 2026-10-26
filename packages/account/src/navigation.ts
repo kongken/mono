@@ -8,6 +8,8 @@
 // URL the BFF answers with. Nothing here is a login ticket: knowing or forging these
 // parameters yields no identity.
 
+import { MAIL_TOKEN, RESET_PASSWORD_PATH, VERIFY_EMAIL_PATH, type LandingKind } from "./paths.ts";
+
 export const NAV_APP_PARAM = "app_id";
 export const NAV_PATH_PARAM = "return_path";
 
@@ -124,4 +126,16 @@ export async function confirmedReturn(
   ]);
   clearTimeout(timer);
   return answer ? wanted : start;
+}
+
+/**
+ * Where a product's old mail landing page hands the browser over: the same fixed path on the user center
+ * (`/account/verify-email` or `/account/reset-password`), with the one-time token in the fragment, as the
+ * mail itself carries it. The address is built from the build's OzID origin, the landing kind (one of two
+ * constants) and a token of the issued shape; nothing from the page's own URL (query, referrer, other
+ * fragment parts) can change where it leads, and a token that does not have the issued shape is not carried.
+ */
+export function mailHandOffUrl(ozidOrigin: string, kind: LandingKind, token: string | null): string {
+  const path = kind === "verify-email" ? VERIFY_EMAIL_PATH : RESET_PASSWORD_PATH;
+  return `${ozidOrigin.replace(/\/+$/, "")}${path}${token !== null && MAIL_TOKEN.test(token) ? `#token=${token}` : ""}`;
 }

@@ -110,6 +110,7 @@ func newStack(t *testing.T, mutate ...func(*config.Config)) *stack {
 	for _, m := range mutate {
 		m(cfg)
 	}
+	withAccountRegistry(cfg)
 	h := app.New(cfg)
 	if err := h.Bootstrap(); err != nil {
 		t.Fatal(err)

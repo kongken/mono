@@ -2,10 +2,14 @@ package e2e_test
 
 import (
 	"context"
+	"maps"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"connectrpc.com/connect"
+	bffapp "github.com/kongken/mono/internal/bff/app"
 	bffconfig "github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/navigation"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
@@ -258,5 +262,79 @@ func TestChainLegacyMailTransitionIsNarrowAndEnds(t *testing.T) {
 	}
 	if err := late.ResetPassword(ctx, "not-a-token", "A-new-pass-77!"); !rejected(err) {
 		t.Errorf("ResetPassword after the transition ended: %v", err)
+	}
+}
+
+// bootstrapWith starts another BFF over the harness's persisted state with the configuration changed by
+// mutate, and returns the start error. A BFF that did start is shut down at the end of the test.
+func (h *ChainHarness) bootstrapWith(mutate func(*bffconfig.Config)) error {
+	h.T.Helper()
+	cfg := *h.bffCfg
+	cfg.Upstreams = maps.Clone(h.bffCfg.Upstreams)
+	cfg.GRPC.Services = maps.Clone(h.bffCfg.GRPC.Services)
+	cfg.Auth.AccountCleanup = slices.Clone(h.bffCfg.Auth.AccountCleanup)
+	cfg.CORSAllowedOrigins = slices.Clone(h.bffCfg.CORSAllowedOrigins)
+	cfg.Navigation.Apps = maps.Clone(h.bffCfg.Navigation.Apps)
+	mutate(&cfg)
+	next := bffapp.New(&cfg)
+	res := *h.bffRes
+	next.SetResources(&res)
+	if err := next.Bootstrap(); err != nil {
+		return err
+	}
+	h.T.Cleanup(func() { _ = next.Shutdown() })
+	return nil
+}
+
+// A BFF that serves the account procedures (usersrv) does not start without the navigation registry
+// and the OzID origin, with plain and with secure cookies, and no setting makes it start anyway. The
+// configuration that is complete starts in both modes.
+func TestChainAccountsNeedTheRegistryToStart(t *testing.T) {
+	h := accountOriginHarness(t, bffconfig.LegacyMailTransition{})
+	secure := func(c *bffconfig.Config) {
+		c.Auth.CookieSecure = true
+		c.CORSAllowedOrigins = []string{"https://id.example.com", "https://trip.example.com"}
+		c.Navigation = navigation.Config{
+			APIOrigin: "https://api.example.com",
+			Apps: map[string]navigation.App{
+				"ozid":     {Origin: "https://id.example.com"},
+				"trip-map": {Origin: "https://trip.example.com"},
+			},
+		}
+	}
+	for _, mode := range []struct {
+		name  string
+		apply func(*bffconfig.Config)
+	}{
+		{"plain cookies", func(*bffconfig.Config) {}},
+		{"secure cookies", secure},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			if err := h.bootstrapWith(mode.apply); err != nil {
+				t.Fatalf("a complete configuration did not start: %v", err)
+			}
+			for name, drop := range map[string]func(*bffconfig.Config){
+				"no navigation":      func(c *bffconfig.Config) { c.Navigation = navigation.Config{} },
+				"no api_origin":      func(c *bffconfig.Config) { c.Navigation.APIOrigin = "" },
+				"no apps":            func(c *bffconfig.Config) { c.Navigation.Apps = nil },
+				"no ozid app":        func(c *bffconfig.Config) { delete(c.Navigation.Apps, "ozid") },
+				"ozid has no origin": func(c *bffconfig.Config) { c.Navigation.Apps["ozid"] = navigation.App{} },
+			} {
+				err := h.bootstrapWith(func(c *bffconfig.Config) { mode.apply(c); drop(c) })
+				if err == nil {
+					t.Errorf("%s: a BFF that serves accounts started without a registry", name)
+				} else if !strings.Contains(err.Error(), "navigation") {
+					t.Errorf("%s: the refusal does not name the missing setting: %v", name, err)
+				}
+			}
+		})
+	}
+	// Secure cookies need https origins: plain http registry is a start failure as well.
+	if err := h.bootstrapWith(func(c *bffconfig.Config) {
+		secure(c)
+		c.Navigation.Apps["ozid"] = navigation.App{Origin: "http://id.example.com"}
+		c.CORSAllowedOrigins = append(c.CORSAllowedOrigins, "http://id.example.com")
+	}); err == nil {
+		t.Error("secure cookies with an http OzID origin started")
 	}
 }

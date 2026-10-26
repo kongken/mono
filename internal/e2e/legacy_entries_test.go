@@ -111,7 +111,8 @@ func TestNoOldAccountFormsOrManagementUIInProducts(t *testing.T) {
 	}
 
 	// The only code that may render a password field or call an account step is the shared account package
-	// (used by OzID, and by the products' old mail landing pages) and OzID itself.
+	// and OzID itself. The products' old mail landing pages only hand the link over (MailHandOff): they never
+	// mount the page that completes it.
 	for _, f := range trackedFiles(t, root) {
 		if !strings.HasPrefix(f, "apps/trip-map/") && !strings.HasPrefix(f, "apps/metro/") && !strings.HasPrefix(f, "apps/admin/") {
 			continue
@@ -125,6 +126,9 @@ func TestNoOldAccountFormsOrManagementUIInProducts(t *testing.T) {
 		}
 		if findPasswordInput(src) {
 			t.Errorf("%s renders a password field: sign-in, registration, password change are OzID's only", f)
+		}
+		if (strings.Contains(src, "AccountLanding") || strings.Contains(src, "account/landing")) && strings.HasPrefix(f, "apps/") && !strings.HasPrefix(f, "apps/ozid/") {
+			t.Errorf("%s mounts the landing that completes a mail link: a product only hands the link over to the user center", f)
 		}
 		if findAccountCall(src) {
 			t.Errorf("%s calls an account step; a product or the console may only read Me, get a CSRF token, resolve navigation and sign out", f)

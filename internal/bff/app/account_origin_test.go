@@ -8,6 +8,7 @@ import (
 
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/navigation"
+	"github.com/kongken/mono/internal/bff/usersrv"
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
@@ -88,7 +89,7 @@ func policyFor(t *testing.T, tr config.LegacyMailTransition, now time.Time) *acc
 		},
 	}
 	cfg.Auth.LegacyMailTransition = tr
-	p, err := newAccountOriginPolicy(cfg)
+	p, err := newAccountOriginPolicy(cfg, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,14 +178,37 @@ func TestAccountOriginPolicy(t *testing.T) {
 	}
 }
 
-// Without a registered OzID there is no origin to name: nothing is restricted (and the BFF logs it).
-func TestAccountOriginPolicyIsOffWithoutARegistry(t *testing.T) {
-	p, err := newAccountOriginPolicy(&config.Config{})
+// A BFF that serves the account procedures needs the registered OzID origin: its absence is an error,
+// there is no unrestricted policy. Without account procedures there is nothing to restrict.
+func TestAccountOriginPolicyNeedsTheRegisteredOzidWhenAccountsAreServed(t *testing.T) {
+	for name, cfg := range map[string]*config.Config{
+		"no navigation": {},
+		"apps without ozid": {Navigation: navigation.Config{
+			APIOrigin: "https://api.example.com",
+			Apps:      map[string]navigation.App{"trip-map": {Origin: "https://trip.example.com"}},
+		}},
+		"ozid without an origin": {Navigation: navigation.Config{
+			APIOrigin: "https://api.example.com",
+			Apps:      map[string]navigation.App{"ozid": {}},
+		}},
+	} {
+		if p, err := newAccountOriginPolicy(cfg, true); err == nil || p != nil {
+			t.Errorf("%s: policy = %v, err = %v; want an error", name, p, err)
+		}
+	}
+	p, err := newAccountOriginPolicy(&config.Config{}, false)
 	if err != nil || p != nil {
-		t.Fatalf("policy = %v, %v", p, err)
+		t.Fatalf("no account procedures served: policy = %v, %v", p, err)
 	}
 	if err := p.Check(bffv1connect.AuthServiceChangePasswordProcedure, http.Header{}); err != nil {
-		t.Errorf("a nil policy refused: %v", err)
+		t.Errorf("a nil policy (nothing served) refused: %v", err)
+	}
+}
+
+// The config package names the account upstream by a constant of its own; it is the usersrv upstream.
+func TestAccountServiceNameIsTheUsersrvUpstream(t *testing.T) {
+	if config.AccountService != usersrv.Service {
+		t.Fatalf("config.AccountService = %q, usersrv.Service = %q", config.AccountService, usersrv.Service)
 	}
 }
 

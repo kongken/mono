@@ -20,3 +20,6 @@ export function landingKind(pathname: string, base = "/"): LandingKind | null {
   if (path === RESET_PASSWORD_PATH) return "reset-password";
   return null;
 }
+
+/** The shape of a mailed one-time token: URL-safe base64, as the server issues it. Nothing else is ever carried onward. */
+export const MAIL_TOKEN = /^[A-Za-z0-9_-]{16,512}$/;

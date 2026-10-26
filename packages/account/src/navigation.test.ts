@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isNavigableUrl, navQuery, ozidUrl, parseApiBase, parseOrigin, readNavContext } from "./navigation.ts";
+import { isNavigableUrl, mailHandOffUrl, navQuery, ozidUrl, parseApiBase, parseOrigin, readNavContext } from "./navigation.ts";
 
 test("a context needs one app and at most one path, and only plausible values", () => {
   assert.deepEqual(readNavContext(""), { kind: "none" });
@@ -57,4 +57,21 @@ test("only http(s) addresses without credentials are navigated to", () => {
   assert.equal(isNavigableUrl("https://metro.example.com/me"), true);
   assert.equal(isNavigableUrl("http://localhost:5174/"), true);
   for (const bad of ["javascript:alert(1)", "data:text/html,x", "//evil.example", "/relative", "https://u:p@x.example.com", ""]) assert.equal(isNavigableUrl(bad), false, bad);
+});
+
+const TOKEN = "A".repeat(43);
+
+test("the hand-over of an old mail leads to the fixed OzID page of its kind, the token in the fragment only", () => {
+  assert.equal(mailHandOffUrl("https://id.example.com", "verify-email", TOKEN), `https://id.example.com/account/verify-email#token=${TOKEN}`);
+  assert.equal(mailHandOffUrl("https://id.example.com/", "reset-password", TOKEN), `https://id.example.com/account/reset-password#token=${TOKEN}`);
+  // No token, or one that is not of the issued shape, is not carried: OzID answers the bare page as an unusable link.
+  assert.equal(mailHandOffUrl("https://id.example.com", "reset-password", null), "https://id.example.com/account/reset-password");
+  for (const bad of ["short", `${TOKEN}&x=1`, `${TOKEN}#y`, `${TOKEN}?q=1`, "https://evil.example/", "../..", "a b".repeat(20), ""]) {
+    assert.equal(mailHandOffUrl("https://id.example.com", "verify-email", bad), "https://id.example.com/account/verify-email", bad);
+  }
+  // The result never has a query, and the fragment holds the token alone.
+  const url = new URL(mailHandOffUrl("https://id.example.com", "verify-email", TOKEN));
+  assert.equal(url.search, "");
+  assert.equal(url.hash, `#token=${TOKEN}`);
+  assert.equal(url.origin, "https://id.example.com");
 });

@@ -31,7 +31,7 @@ packages/
   geo-data/           区域索引、坐标与地图辅助数据
   fixtures/           前后端共同验证的测试夹具
   metro-core/         metro 公开站与统一控制台共用的纯函数（线路状态、里程格式）
-  account/            trip-map、metro 与 OzID 共用的邮箱账号流程（RPC 客户端、表单、CSRF 重放与返回确认；表单只由 OzID 使用，trip-map 与 metro 只保留邮件落地页以服务旧邮件）
+  account/            trip-map、metro 与 OzID 共用的邮箱账号流程（RPC 客户端、表单、CSRF 重放与返回确认；表单只由 OzID 使用，trip-map 与 metro 对旧邮件链接只有向 OzID 的交接页，没有表单）
 cmd/
   bff/                BFF 服务入口
   tripmap/            旅行业务服务入口
