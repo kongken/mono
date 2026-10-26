@@ -33,6 +33,7 @@
     "download:maps": "npm run download:maps -w @kongken/trip-map",
     "prepare:regions": "npm run prepare:regions -w @kongken/trip-map",
     "prepare:coords": "npm run prepare:coords -w @kongken/trip-map",
+    "prepare:world": "npm run prepare:world -w @kongken/trip-map",
     "prepare:search": "npm run prepare:search -w @kongken/trip-map",
     "prepare:map-colors": "npm run prepare:map-colors -w @kongken/trip-map",
     "prepare:share-geometry": "npm run prepare:share-geometry -w @kongken/trip-map"

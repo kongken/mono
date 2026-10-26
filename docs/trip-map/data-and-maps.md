@@ -1,6 +1,6 @@
 # 数据与地图说明
 
-> **后续扩展，待实现：** 世界数据结构、存储键与边界数据要求见 [世界视图规格](world-spec.md)，尚未实现，不改变下文任何现有结构、存储键或地图数据。
+> **后续扩展，待实现：** 世界数据结构、存储键与界面见 [世界视图规格](world-spec.md)，尚未实现，不改变下文任何现有结构或存储键。世界地图的边界数据、目录和加载器已就绪，见下文“世界地图数据”；界面尚未接入。
 
 ## 足迹数据结构
 
@@ -164,6 +164,45 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 台湾县市及福建金门、马祖的补充边界来自 [ronnywang/twgeojson](https://github.com/ronnywang/twgeojson) 的 `twcounty2010.2.json`。其源数据为 2012 年县市边界；处理脚本将部分名称转换为简体，并把桃园县显示为桃园市，未据此重绘边界。下载全部省内文件后，拆分脚本将金门、马祖归入福建，从福州、泉州的 DataV 多多边形中移除对应的独立岛屿组件，避免重复点选；小组件按转换到 WGS-84 的球面中心与补充岛屿范围匹配，仅作用于这两个城市。全国地图原有福建轮廓不变。
 
 直辖市和港澳提供区县数据，而不是常规省份的地级市数据。地图用于旅行可视化，下载快照可能与最新行政区划不同。
+
+## 世界地图数据
+
+世界视图（[规格](world-spec.md) 第 3、10 节）使用的边界、国家/地区目录和搜索索引已经生成并通过检查；界面尚未接入，现有的中国视图、区域索引、存储键和 `100000.json` 都没有改动。
+
+| 文件 | 职责 |
+| --- | --- |
+| `apps/trip-map/public/maps/world.json` | 233 个国家/地区的多边形（GeoJSON，`properties.code` 为 ISO 3166-1 alpha-2 或 `XK`），**不含 `CN`、`HK`、`MO`、`TW`** |
+| `apps/trip-map/public/maps/100000.json` | 世界视图里的 `CN`：直接使用这份现有文件（34 个省级区域加 `100000_JD`），不复制、不修改 |
+| `packages/geo-data/data/world-catalog.json` | 247 项目录（ISO 3166-1 去掉 `HK`、`MO`、`TW`，加 `XK`）：中文名、英文名、别名、大洲、`hasShape`、标注用代表点；同时记录来源、授权、改动、输入与输出的 SHA-256 和目录内容摘要 |
+| `packages/geo-data/data/world-search-index.json` | 中文名与别名的拼音、首字母；英文名、别名和 ISO 码在运行时直接匹配 |
+| `apps/trip-map/scripts/prepare-world-map.mjs` | 生成脚本，见下文 |
+| `apps/trip-map/scripts/world-names.mjs`、`world-iso-codes.mjs` | 手工维护的常用译名与别名、没有多边形的 13 个 ISO 条目、ISO 3166-1 代码对照表 |
+| `apps/trip-map/scripts/check-world-map.mjs` | 离线校验（由 `npm run check:maps` 调用） |
+| `apps/trip-map/scripts/report-world-overlap.mjs` | 0.25° 栅格法的邻国与 `CN` 重叠、缝隙面积，仅供评审参考，不是检查门槛 |
+| `apps/trip-map/src/lib/world-catalog.ts` | 目录与搜索索引的按需加载；按中文名、拼音、首字母、英文名、别名和 ISO 码搜索 |
+| `apps/trip-map/src/lib/world-map.ts` | 同源静态文件加载与校验、世界投影（Natural Earth，独立于 `projection.ts` 的中国相机）、`CN` 最后绘制和“`CN` 优先”的命中判定 |
+| `apps/trip-map/src/lib/world-notice.ts` | “地图来源与限制”的文案常量 |
+
+**来源与授权**：[Natural Earth](https://www.naturalearthdata.com/) `v5.1.2`（提交 `f1890d9f152c896d250a77557a5751a93d494776`）的 1:50m 国家/地区数据 `ne_50m_admin_0_countries.geojson`，输入文件 SHA-256 为 `3e458fc036ad0a66411f2c1e6cac49c5d7bfb81cb1123bc513b22511a2b7fdeb`（3,083,490 字节）。Natural Earth 的[使用条款](https://www.naturalearthdata.com/about/terms-of-use/)写明：全部矢量与栅格地图数据属于公有领域，可以任意方式使用，包括修改、电子传播和印刷，无需许可，无需署名；本应用仍在界面里标注来源。授权原文保存在 `world-catalog.json` 的 `source.licenseText`。
+
+**改动**（逐项列入目录元数据 `transform`，并在界面的限制说明里展示）：
+
+- 来源里的 `CN`、`HK`、`MO`、`TW` 要素不使用：`CN` 改用 `100000.json`，港澳台在世界视图里归入 `CN`。
+- 没有 ISO 码的北塞浦路斯并入塞浦路斯，索马里兰并入索马里；澳大利亚的印度洋领地、阿什莫尔和卡捷群岛本来就带 `AU`，保留在 `AU` 中。这些多边形只是并入，没有求并集。
+- 没有 ISO 码且存在归属争议的锡亚琴冰川不归入任何国家，不绘制。
+- 坐标四舍五入到两位小数（约 1 公里），不做其他简化；相邻国家共享的顶点保持一致，边界不会因取整出现缝隙。
+- 来源里没有独立多边形的 13 个 ISO 条目（`BQ`、`BV`、`CC`、`CX`、`GF`、`GI`、`GP`、`MQ`、`RE`、`SJ`、`TK`、`UM`、`YT`）在目录里 `hasShape: false`：可搜索、可作为所属国家，但不能点击地图选中。其中 `GF`、`GP`、`MQ`、`RE`、`YT` 的陆地在来源里属于法国的多边形，`SJ` 属于挪威，`BQ` 属于荷兰，`CX`、`CC` 属于澳大利亚；点选这些位置会建议所属的宗主国，用户可在目录里改选。
+- 目录里的 `point` 只用于标注，不是任何城市的坐标。
+
+**边界争议与覆盖限制**：边界依数据源绘制，可能与任何国家或地区的官方地图不同；地图只用于个人旅行记录，不代表对任何领土主权的立场。`CN` 来自中国地图、其余国家来自 Natural Earth，两者相接处存在重叠和缝隙：重叠处以 `CN` 为准（`CN` 最后绘制，点击先判 `CN`），缝隙不填补。实测量级见 PR #98 的说明；用 `npm run report:world-overlap` 可重新计算。
+
+**更新与校验**：
+
+- `npm run prepare:world` 下载固定版本的输入，先校验 SHA-256，不符则失败，再写出上述三个输出文件；`-- --input <文件>` 可改用本地副本，同样校验。输出是确定性的：同一输入逐字节得到相同文件。
+- `npm run prepare:world -- --verify` 重新生成并与已提交文件比较（需要网络），用来确认确定性与未被手改。
+- `npm run check:maps` 离线运行：目录与 ISO 3166-1 一致且没有 `HK`、`MO`、`TW`；`hasShape` 的目录项与 `world.json` 的要素一一对应；`CN` 由 `100000.json` 的 34 个省级区域和 10 个部分的 `100000_JD` 组成且与 `regions.json` 一致；摘要链（输入、`world.json`、`100000.json`、目录）完整；多边形方向、可绘制性与取整网格；新增世界资源 gzip 后合计不超过 600 KB（当前约 420 KB，不含复用的 `100000.json`）。
+- `100000.json` 的摘要记录在目录里；以后更新全国地图需要重新运行 `npm run prepare:world`，目录里的 `china.sha256` 才会更新。
+- 世界资源由浏览器按需加载（目录与索引是单独的代码块），没有第三方请求，也不需要任何 Key。当前 Service Worker（`public/sw.js`）只处理推送，不缓存地图；世界地图的离线策略随界面一起设计。
 
 ## OSM 底图（可选）
 
