@@ -8,6 +8,7 @@ import MePage from "@/pages/Me";
 import NotFound from "@/pages/NotFound";
 import PublicProfilePage from "@/pages/PublicProfile";
 import TopicPage from "@/pages/Topic";
+import TopicsIndex from "@/pages/Topics";
 
 function Routes() {
   const route = useRoute();
@@ -16,6 +17,8 @@ function Routes() {
       return <Home />;
     case "city":
       return <CityPage key={route.slug} slug={route.slug} />;
+    case "topics":
+      return <TopicsIndex />;
     case "topic":
       return <TopicPage key={route.slug} slug={route.slug} />;
     case "profile":

@@ -114,7 +114,8 @@ test.describe("the entry is OzID", () => {
     await setup(page, { signedIn: true });
     await page.goto("/");
     await expect(header(page).getByText("骑行者小山")).toBeVisible();
-    await expect(header(page).getByRole("link", { name: "我的足迹" })).toBeVisible();
+    // The product's own entries sit in the header on a desktop and in the bottom bar on a phone.
+    await expect(page.getByRole("navigation").getByRole("link", { name: "我的足迹" }).locator("visible=true")).toBeVisible();
     await expect(header(page).getByRole("button", { name: "退出" })).toBeVisible();
     await expect(page.locator(FORMS)).toHaveCount(0);
     for (const gone of ["修改密码", "已登录的设备", "注销账号", "保存资料", "登录邮箱", "账号设置"]) await expect(page.getByText(gone, { exact: true })).toHaveCount(0);
