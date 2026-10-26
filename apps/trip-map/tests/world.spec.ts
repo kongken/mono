@@ -161,6 +161,80 @@ test("a real pointer click marks a country, and dragging the map pans it without
   await expect(page.locator(".world-map")).toHaveAttribute("data-zoom", "1.00");
 });
 
+/**
+ * A country whose click point is visible and well away from the middle of a zoomed map, where focusing it
+ * would bring it back to the middle (the map pans when the centre of a focused country is in the outer
+ * quarters). Found from what is drawn, so it holds at any viewport.
+ */
+const countryAwayFromMiddle = (page: Page) =>
+  page.evaluate(() => {
+    const stage = document.querySelector(".world-map-stage svg")!.getBoundingClientRect();
+    for (const el of document.querySelectorAll<SVGPathElement>("path.world-country")) {
+      const r = el.getBoundingClientRect();
+      for (const [fx, fy] of [[0.5, 0.5], [0.3, 0.3], [0.7, 0.7], [0.3, 0.7], [0.7, 0.3]]) {
+        const x = r.x + r.width * fx;
+        const y = r.y + r.height * fy;
+        const rx = (x - stage.x) / stage.width;
+        const ry = (y - stage.y) / stage.height;
+        if (rx < 0.05 || rx > 0.95 || ry < 0.05 || ry > 0.95) continue;
+        if (rx > 0.3 && rx < 0.7 && ry > 0.3 && ry < 0.7) continue;
+        if (document.elementFromPoint(x, y) === el) return { code: el.getAttribute("data-code")!, x, y };
+      }
+    }
+    return null;
+  });
+
+test("zoomed in, the first mouse click on a country away from the middle marks it and does not move the map; the keyboard still brings it into view", async ({ page }) => {
+  await installBackend(page, []);
+  await page.goto("/");
+  await openWorld(page);
+  await mapReady(page);
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "放大地图" }).click();
+  const group = page.locator(".world-map-stage svg > g");
+  const target = await countryAwayFromMiddle(page);
+  expect(target, "a country is drawn away from the middle of the zoomed map").not.toBeNull();
+  const el = country(page, target!.code);
+  const before = await group.getAttribute("transform");
+  await page.mouse.click(target!.x, target!.y);
+  await expect(el, "the first click marks the country").toHaveAttribute("aria-pressed", "true");
+  expect(await group.getAttribute("transform"), "and the map stays where it was").toBe(before);
+  expect(JSON.parse((await stored(page))!).countries.map((m: { code: string }) => m.code)).toEqual([target!.code]);
+  await page.mouse.click(target!.x, target!.y);
+  await expect(el).toHaveAttribute("aria-pressed", "false");
+
+  // The same country reached from the keyboard is brought into view: this is why the click above is a test.
+  await page.getByRole("button", { name: "复位地图" }).click();
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "放大地图" }).click();
+  const zoomed = await group.getAttribute("transform");
+  await page.keyboard.press("Shift");
+  await el.focus();
+  await expect(el).toBeFocused();
+  expect(await group.getAttribute("transform"), "keyboard focus pans to the country").not.toBe(zoomed);
+});
+
+test("zoomed in, the first touch tap on a country away from the middle marks it and does not move the map", async ({ browser }) => {
+  const context = await browser.newContext({
+    hasTouch: true,
+    viewport: test.info().project.use.viewport,
+    baseURL: test.info().project.use.baseURL,
+  });
+  const page = await context.newPage();
+  await installBackend(page, []);
+  await page.goto("/");
+  await openWorld(page);
+  await mapReady(page);
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "放大地图" }).tap();
+  const group = page.locator(".world-map-stage svg > g");
+  await page.locator(".world-map-stage").scrollIntoViewIfNeeded();
+  const target = await countryAwayFromMiddle(page);
+  expect(target).not.toBeNull();
+  const before = await group.getAttribute("transform");
+  await page.touchscreen.tap(target!.x, target!.y);
+  await expect(country(page, target!.code), "the first tap marks the country").toHaveAttribute("aria-pressed", "true");
+  expect(await group.getAttribute("transform"), "and the map stays where it was").toBe(before);
+  await context.close();
+});
+
 test("China is lit by the China footprints, the China data and backup stay byte for byte the same, and CN opens China", async ({ page }) => {
   const china = JSON.stringify({ version: 1, visits: [hangzhou], provinces: { "110000": green } });
   await seedLocalRaw(page, china);
@@ -608,7 +682,7 @@ test("keyboard: switch, focusable named countries, Enter and Space mark, arrows 
   // Tab walks through the countries in order (not stuck on one) ...
   await page.keyboard.press("Tab");
   const next = await page.evaluate(() => document.activeElement?.getAttribute("data-code"));
-  expect(next).toBeTruthy();
+  expect(next, "Tab moved to another country").toMatch(/^[A-Z]{2}$/);
   expect(next).not.toBe("JP");
 
   // ... +/- zoom and the arrows pan, from the keyboard.
@@ -633,6 +707,7 @@ test("keyboard: switch, focusable named countries, Enter and Space mark, arrows 
   await page.getByRole("button", { name: "放大地图" }).click();
   await page.getByRole("button", { name: "放大地图" }).click();
   const before = await group.getAttribute("transform");
+  await page.keyboard.press("Shift"); // the last input was a mouse click: focus from here on is the keyboard's
   await page.getByRole("button", { name: "新西兰", exact: true }).focus();
   expect(await group.getAttribute("transform")).not.toBe(before);
 

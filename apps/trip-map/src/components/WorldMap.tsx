@@ -41,6 +41,20 @@ function drawShapes(map: WorldMapData): { countries: Drawn[]; china: Drawn[]; li
   };
 }
 
+/**
+ * True when the browser draws the focus for the keyboard (Tab, or a script after a key press), false for
+ * the focus a mouse click or a touch tap gives. Panning to a focused country is for the keyboard: for a
+ * pointer it would move the map between pressing and releasing, and the click would land on nothing.
+ * A browser without `:focus-visible` is treated as keyboard, which only costs the pan on click.
+ */
+function focusedByKeyboard(element: Element): boolean {
+  try {
+    return element.matches(":focus-visible");
+  } catch {
+    return true;
+  }
+}
+
 type ShapesProps = {
   drawn: ReturnType<typeof drawShapes>;
   names: Readonly<Record<string, string>>;
@@ -49,6 +63,7 @@ type ShapesProps = {
   chinaLit: boolean;
   editable: boolean;
   onActivate: (code: string, viaKeyboard?: boolean) => void;
+  /** Keyboard focus reached the country or region whose drawing has these bounds. */
   onFocusShape: (bounds: Drawn["bounds"]) => void;
 };
 
@@ -83,7 +98,7 @@ const Shapes = memo(function Shapes({ drawn, names, lit, marked, chinaLit, edita
               aria-label={entry && !isMarked ? `${name}（${litSourceText(entry)}）` : name}
               onClick={() => onActivate(shape.code)}
               onKeyDown={onKey(shape.code)}
-              onFocus={() => onFocusShape(shape.bounds)}
+              onFocus={(event) => focusedByKeyboard(event.currentTarget) && onFocusShape(shape.bounds)}
             />
           );
         })}
@@ -99,7 +114,7 @@ const Shapes = memo(function Shapes({ drawn, names, lit, marked, chinaLit, edita
         stroke={chinaFill}
         onClick={() => onActivate("CN")}
         onKeyDown={onKey("CN")}
-        onFocus={() => onFocusShape(chinaBounds(drawn.china))}
+        onFocus={(event) => focusedByKeyboard(event.currentTarget) && onFocusShape(chinaBounds(drawn.china))}
       >
         {drawn.china.map((shape, i) => (
           <path key={i} d={shape.d} />
