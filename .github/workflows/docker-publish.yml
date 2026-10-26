@@ -2,7 +2,7 @@ name: Docker images
 
 on:
   push:
-    branches: ['**']
+    branches: [main]
     tags: ['v*.*.*']
   pull_request:
     branches: [main]
@@ -68,7 +68,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}${{ matrix.suffix }}
           tags: |
             type=ref,event=branch,enable={{is_default_branch}}
-            type=raw,value=nightly,enable=${{ github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name != github.event.repository.default_branch }}
+            type=raw,value=nightly,enable=${{ github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && github.ref_name != github.event.repository.default_branch }}
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -77,6 +77,8 @@ jobs:
 
       - name: Build and publish
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        env:
+          DOCKER_BUILD_RECORD_RETENTION_DAYS: '7'
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -85,4 +87,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          # PRs and manual branch/tag builds reuse main's cache without retaining
+          # another full set of BuildKit layers under each ref.
+          cache-to: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && format('type=gha,mode=max,scope={0}', matrix.image) || '' }}

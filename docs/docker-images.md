@@ -13,21 +13,37 @@
 | `ghcr.io/kongken/mono-metro` | `deploy/metro/Dockerfile` | metro 业务服务（地铁足迹），18084（HTTP，仅 `/ping`、`/readyz`）与 18085（内部 gRPC），运行时挂载配置与 BFF 公钥，只在内网暴露 |
 | `ghcr.io/kongken/mono-metro-web` | `deploy/metro-web/Dockerfile` | Nginx 提供 `apps/metro` 静态文件，80 端口，把 `/api/`、`/mcp/metro`、`/ping`、`/readyz` 转发给 BFF |
 
-`.github/workflows/docker-publish.yml` 使用官方 Checkout、Buildx、GHCR 登录、metadata 和 build-push actions，按已核对的 commit SHA 固定版本。构建 linux/amd64 镜像，各镜像使用独立 GitHub Actions 缓存。
+`.github/workflows/docker-publish.yml` 使用官方 Checkout、Buildx、GHCR 登录、metadata 和 build-push actions，按已核对的 commit SHA 固定版本。构建 linux/amd64 镜像，各镜像使用独立 GitHub Actions 缓存 scope。
 
 ## 触发与标签
 
 | 触发事件 | 标签 | 发布行为 |
 | --- | --- | --- |
 | 推送 main | `main`、`sha-<短提交ID>` | 发布全部镜像 |
-| 推送其他分支 | `nightly`、`sha-<短提交ID>` | 发布全部镜像，nightly 指向最后一次完成的分支构建 |
+| 推送其他分支 | 无 | 不触发；开 PR 后自动构建检查，需要发布时手动运行 |
 | 推送 `vX.Y.Z` | `X.Y.Z`、`X.Y`、`X`、`latest`、SHA 标签 | 发布全部版本镜像 |
 | 面向 main 的 PR | `pr-<编号>`、SHA 标签 | 只构建，不登录或发布到 GHCR |
-| 手动运行 | 按所选 ref 生成标签，至少包含 SHA 标签 | 发布全部镜像 |
+| 手动运行 main | `main`、SHA 标签 | 发布全部镜像 |
+| 手动运行其他分支 | `nightly`、SHA 标签 | 发布全部镜像，nightly 指向最后一次完成的手动分支构建 |
+| 手动运行版本 tag | 按所选 tag 生成版本标签，至少包含 SHA 标签 | 发布全部镜像 |
+
+CI 与 Docker images 都只在 main 推送和面向 main 的 PR 上自动运行，避免同一分支更新同时触发 push 和 PR 两套检查。未开 PR 的普通分支推送不会自动验证。版本 tag 仍会触发 Docker 发布。需要分支 nightly 时，在 Actions → Docker images → Run workflow 中选择对应分支，或运行：
+
+```bash
+gh workflow run docker-publish.yml --repo kongken/mono --ref <分支名>
+```
 
 标签生成规则由 [Docker metadata action](https://github.com/docker/metadata-action) 提供。与 neo-box 的默认构建一致，当前只发布 amd64；若需要 ARM 部署再增加平台和对应验证。
 
 发布使用 Actions 自带的 `GITHUB_TOKEN` 和 `packages: write` 权限，不需要另外配置 Docker Hub 密钥。发布完成后可在仓库 Actions 页面和 GHCR Packages 查看 digest、标签与可见性。公开仓库不代表新建 GHCR package 一定自动公开；按需要在 Package 设置中调整访问范围。
+
+## 缓存与构建记录
+
+Docker 构建继续读取每个镜像的 GHA cache；只有默认分支构建写入 `mode=max` 缓存。PR、手动非默认分支和 tag 构建不导出缓存，避免为各 ref 保留完整的 BuildKit 层副本；这些构建中新产生的层不会留给下次运行，因此部分分支构建可能变慢。GitHub 的缓存读取受 ref 隔离规则约束，PR 和其他分支可以回退读取默认分支缓存，具体见 [GitHub 缓存说明](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)。
+
+Docker action 上传的 `.dockerbuild` 构建记录保留 7 天，job summary 继续生成。构建记录是 artifact，与镜像、BuildKit cache 分开；保留期设置使用 [Docker action 的 `DOCKER_BUILD_RECORD_RETENTION_DAYS`](https://github.com/docker/build-push-action#environment-variables)。本次策略不调整浏览器测试诊断产物的保留规则。
+
+这些设置影响后续构建，不会删除已有 artifacts/cache。Actions artifacts 与 Packages 共用存储额度，cache 使用独立额度；缩短保留期也不会抵消本账期已累计的存储用量，见 [GitHub Actions 计费说明](https://docs.github.com/en/billing/concepts/product-billing/github-actions)。
 
 ## 构建检查
 
