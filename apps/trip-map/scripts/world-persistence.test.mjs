@@ -202,6 +202,37 @@ test("recovery has a total record budget: over it nothing is scanned, the text i
   assert.equal(storage.map.get(WORLD_KEY), over, "resolving alone does not replace it");
 });
 
+test("the recovered document is checked as a whole: over the byte limit it is not offered, and it comes out in canonical order", () => {
+  const one = { id: "p1", name: "x", country: "JP", lat: 1, lng: 2 };
+  // 900 usable notes of 1000 three-byte characters are 2.7 MB of strings, over the 2,500,000 limit, although
+  // there are few cities and trips and each record is valid on its own; one more city is unusable.
+  const heavy = { ...one, trips: Array.from({ length: 900 }, (_, i) => ({ id: `t${i}`, date: "", note: "日".repeat(1000) })) };
+  const raw = damaged([heavy, { ...one, id: "p2", name: "" }]);
+  const load = loadWorldLocal(memoryStorage({ [WORLD_KEY]: raw }), codes);
+  assert.equal(load.status, "unreadable");
+  assert.equal(load.recovery, null, "nothing is truncated to fit the byte limit");
+  assert.equal(load.raw, raw);
+  // The same cities with lighter notes recover fine, so it is the byte limit that refused the first.
+  const light = damaged([{ ...heavy, trips: heavy.trips.map((t) => ({ ...t, note: "n" })) }, { ...one, id: "p2", name: "" }]);
+  assert.equal(loadWorldLocal(memoryStorage({ [WORLD_KEY]: light }), codes).recovery.document.places[0].trips.length, 900);
+
+  // Records arrive in any order and leave sorted by code and id, as every other document does.
+  const scrambled = JSON.stringify({
+    kind: "world",
+    version: 1,
+    countries: [{ code: "US", color: "#e2af5c" }, { code: "JP", color: "#4b937d" }, { code: "ZZ", color: "x" }, { code: "FR", color: "#719fc6" }],
+    places: [
+      { ...one, id: "pb", trips: [{ id: "t9", date: "", note: "" }, { id: "t10", date: "", note: "" }, { id: "T1", date: "", note: "" }] },
+      { ...one, id: "pa", trips: [{ id: "t2", date: "", note: "" }, { id: "bad", date: "2026-02-30", note: "" }, { id: "t1", date: "", note: "" }] },
+      { ...one, id: "p0", name: "" },
+    ],
+  });
+  const { document } = loadWorldLocal(memoryStorage({ [WORLD_KEY]: scrambled }), codes).recovery;
+  assert.deepEqual(document.countries.map((m) => m.code), ["FR", "JP", "US"]);
+  assert.deepEqual(document.places.map((p) => [p.id, p.trips.map((t) => t.id)]), [["pa", ["t1", "t2"]], ["pb", ["T1", "t10", "t9"]]]);
+  assert.deepEqual(validateWorld(JSON.parse(JSON.stringify(document)), codes), document, "it is already canonical");
+});
+
 test("a damaged text can be recovered or replaced only after a copy of it is kept", () => {
   const raw = JSON.stringify({ ...sample(), places: [...sample().places, { id: "p9", name: "", country: "JP", lat: 1, lng: 1, trips: [] }] });
   for (const choice of ["recover", "empty"]) {
