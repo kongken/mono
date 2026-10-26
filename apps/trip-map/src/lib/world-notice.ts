@@ -1,4 +1,5 @@
 import type { WorldSource } from "./world-catalog.ts";
+import type { LitCountry, LitSource } from "./world-stats.ts";
 
 // Text for the world view's always-visible "地图来源与限制" entry
 // (docs/trip-map/world-spec.md section 10). The UI only renders these constants.
@@ -24,3 +25,12 @@ export const WORLD_NOTICE_LIMITS = [
 export function worldNoticeSource(source: WorldSource, precisionDecimals: number): string {
   return `边界数据：${source.name} ${source.version}（${source.dataset}），授权：${source.license}。已按上述规则归并，坐标精度保留 ${precisionDecimals} 位小数。`;
 }
+
+/** Why a country/region is lit, as shown in the list and read out on the map. */
+export const LIT_SOURCE_LABEL: Record<LitSource, string> = {
+  mark: "独立标记",
+  place: "因海外城市点亮",
+  china: "因中国足迹点亮",
+};
+export const litSourceText = (entry: LitCountry | undefined): string =>
+  entry ? entry.sources.map((source) => LIT_SOURCE_LABEL[source]).join(" · ") : "未点亮";

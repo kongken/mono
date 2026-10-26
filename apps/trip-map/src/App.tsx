@@ -150,6 +150,8 @@ import "./components/itinerary.css";
 
 import type { ViewBounds } from "./components/OsmProvinceMap";
 const OsmProvinceMap = lazy(() => import("./components/OsmProvinceMap"));
+// The world view brings its own map, catalog and offline cache code: fetched when it is first opened.
+const WorldView = lazy(() => import("./components/WorldView"));
 const BASEMAP_STORAGE = "shanhai-basemap-v1";
 // Taiwan (WGS-84 source), Hong Kong and Macau are not GCJ-02 shifted.
 const WGS84_PROVINCES = ["710000", "810000", "820000"];
@@ -235,6 +237,14 @@ function App() {
   const [query, setQuery] = useState("");
   const [searchMode, setSearchMode] = useState<"destinations" | "notes">("destinations");
   const [tab, setTab] = useState<"map" | "visits">("map");
+  // China is always the first view; the choice is not remembered. The world view stays mounted once
+  // opened, so what it holds in memory (an edit the browser could not store) survives a switch back.
+  const [view, setView] = useState<"china" | "world">("china");
+  const [worldOpened, setWorldOpened] = useState(false);
+  const showView = (next: "china" | "world") => {
+    if (next === "world") setWorldOpened(true);
+    setView(next);
+  };
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
   const [editor, setEditor] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -1422,17 +1432,41 @@ function App() {
             山海足迹<small>SHANHAI TRAVEL</small>
           </span>
         </a>
+        <div className="view-switch" role="group" aria-label="地图视图">
+          <button
+            type="button"
+            aria-label="中国视图"
+            aria-pressed={view === "china"}
+            onClick={() => showView("china")}
+          >
+            中国
+          </button>
+          <button
+            type="button"
+            aria-label="世界视图"
+            aria-pressed={view === "world"}
+            onClick={() => showView("world")}
+          >
+            世界
+          </button>
+        </div>
         <nav aria-label="主导航">
           <button
-            className={tab === "map" ? "nav-active" : ""}
-            onClick={() => setTab("map")}
+            className={view === "china" && tab === "map" ? "nav-active" : ""}
+            onClick={() => {
+              setTab("map");
+              setView("china");
+            }}
           >
             <MapTrifold size={18} />
             我的地图
           </button>
           <button
-            className={tab === "visits" ? "nav-active" : ""}
-            onClick={() => setTab("visits")}
+            className={view === "china" && tab === "visits" ? "nav-active" : ""}
+            onClick={() => {
+              setTab("visits");
+              setView("china");
+            }}
           >
             <MapPin size={18} />
             旅行足迹<span className="nav-count">{saved.visits.length}</span>
@@ -1536,7 +1570,7 @@ function App() {
           </div>
         </DialogContent>
       </Dialog>
-      <main>
+      <main hidden={view === "world"}>
         <section className="intro">
           <div>
             <div className="eyebrow">
@@ -2426,6 +2460,18 @@ function App() {
           </div>
         </footer>
       </main>
+      {worldOpened && (
+        <div hidden={view !== "world"}>
+          <Suspense fallback={<p className="world-loading" role="status">正在打开世界视图…</p>}>
+            <WorldView
+              saved={saved}
+              chinaUnreadable={!!unreadable || !!localClash}
+              cloudMode={cloud.mode === "cloud"}
+              onOpenChina={() => showView("china")}
+            />
+          </Suspense>
+        </div>
+      )}
       <input
         type="file"
         accept=".json,application/json"
