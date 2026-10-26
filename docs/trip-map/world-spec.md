@@ -1,10 +1,10 @@
 # 山海足迹世界视图规格
 
-> **状态：待实现。** 本文是规格，描述要做什么以及为什么这样做，**不描述当前行为**：仓库里目前没有世界地图、世界数据、世界接口或任何相关配置，用户可见行为仍以 [功能描述](features.md) 和 [数据与地图说明](data-and-maps.md) 为准。实现完成后，当前行为写入这两份文档，本文只保留决策记录。
+> **状态：分阶段实现中（W1–W5 已实现，W6、W7 待实现）。** 本文是规格，描述要做什么以及为什么这样做，**不描述当前行为**：用户可见行为以 [功能描述](features.md) 和 [数据与地图说明](data-and-maps.md) 为准，云端文档的服务端实现、数据模型与迁移见 [后端初始化](../backend.md#世界足迹云端文档bfftripmapv1worldservice--tripmapv1worldservicew5)，BFF 路由见 [BFF](../bff.md)；前端账号云同步（第 9.2 节）尚未接入。整体验收（W7）时本文的状态改为已实现，只保留决策记录。
 >
 > 需求与已确认范围：[kongken/mono#97](https://github.com/kongken/mono/issues/97)。本文把它落成可实施的约束，并给出各子任务共用的决定；实施拆分见本文第 12 节。
 >
-> 文中区分“已确认范围”（来自 #97，不可悄悄改变）与“工程决定”（本文补齐，实现前可评审调整，但必须同步修改本文与验收）。所有字段名、存储键、接口名都是拟定，不是当前可用能力。
+> 文中区分“已确认范围”（来自 #97，不可悄悄改变）与“工程决定”（本文补齐，实现前可评审调整，但必须同步修改本文与验收）。字段名、存储键、接口名以实现为准：本机存储与界面（W2–W4）和云端服务端接口（W5）已实现，账号云同步（W6）的名称仍是拟定。
 
 ## 1. 目标与范围
 
@@ -176,7 +176,7 @@
 
 整体方案不变：每用户一份世界文档，整体替换，冲突由用户整体选择；**不做逐记录合并**。本节把并发、幂等和客户端状态机写成可直接实现的规则。
 
-### 9.1 存储与接口（拟定）
+### 9.1 存储与接口
 
 每个用户至多一份世界文档，附单调的 `revision`。服务端新增 `WorldService`（浏览器契约 `bff.tripmap.v1`，内部契约 `tripmap.v1`，BFF 适配 `internal/bff/tripmap/world/`）。文档按第 4 节的结构用类型化 protobuf 消息表示（坐标为 `lat_e6` / `lng_e6`），不是 JSON 字符串。
 
@@ -200,8 +200,8 @@
 - 回执已被淘汰时，重放按第 3 步处理，得到冲突；若云端文档恰好等于待发送目标，客户端静默视为成功，否则进入冲突窗口。这是有意的安全降级：只会多问一次用户，不会重复写入，也不会丢数据。
 
 **其他要求**：
-- 所有读写以会话用户为准；写入沿用现有的 CSRF、`X-Kongken-User` 账号守卫，以及产品应用已登记的 Origin/CORS 检查（与足迹接口相同），不增加任何绕过。需要在 `internal/bff/gateway/services.go` 登记路径，携带凭据的路径填写 `Trace`。
-- 世界文档与回执是两个新的 Ent 实体（拟定为 `world_documents`、`world_receipts`），都在 `internal/tripmap/accountcleanup` 里登记（其 `registry_test.go` 要求每个实体显式登记），迁移放在 `migrations/tripmap/`，不改动既有表。
+- 所有读写以会话用户为准；写入沿用现有的 CSRF、`X-Kongken-User` 账号守卫，以及产品应用已登记的 Origin/CORS 检查（与足迹接口相同），不增加任何绕过。`WorldService` 是普通的 Connect RPC，由 `internal/bff/tripmap` 的 `MountRPC` 挂载；`GetWorld` 在 `internal/bff/ingress/write_policy.go` 登记为只读，`ReplaceWorld` 默认要求 Origin 与 CSRF。`internal/bff/gateway/services.go` 只登记上游服务与普通 HTTP 路径，Connect RPC 没有携带凭据的路径，所以不需要在那里增加路由或 `Trace`。
+- 世界文档与回执是两个新的 Ent 实体（`world_documents`、`world_receipts`），都在 `internal/tripmap/accountcleanup` 里登记（其 `registry_test.go` 要求每个实体显式登记），迁移放在 `migrations/tripmap/`，不改动既有表。
 
 ### 9.2 客户端同步
 
