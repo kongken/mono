@@ -93,9 +93,12 @@ type AuthConfig struct {
 	// their account, each named like its entry in the route table. Default: tripmap plus
 	// every deployed user-data product (Config.CleanupProducts). A product not deployed in
 	// this environment must not be listed, and a deployed one must be (Validate).
-	AccountCleanup []string      `yaml:"account_cleanup"`
-	CookieSecure   bool          `yaml:"cookie_secure"`
-	CSRFTokenTTL   time.Duration `yaml:"csrf_token_ttl"`
+	AccountCleanup []string `yaml:"account_cleanup"`
+	CookieSecure   bool     `yaml:"cookie_secure"`
+	// CookieDomain is opt-in: every subdomain must be owned and trusted by the operator.
+	// Empty preserves host-only Cookies. A value requires HTTPS and a covered navigation registry.
+	CookieDomain string        `yaml:"cookie_domain"`
+	CSRFTokenTTL time.Duration `yaml:"csrf_token_ttl"`
 	// LegacyMailTransition keeps the product pages that finish an account mail sent before the
 	// central landing working for a bounded time: see LegacyMailTransition. Omit it once those mails
 	// have expired; with it omitted the account procedures take the user center's origin only.
@@ -314,6 +317,9 @@ func (c *Config) Validate(services []string) error {
 		if c.Navigation.APIOrigin == "" || c.Navigation.Apps[navigation.AppOzID].Origin == "" {
 			return fmt.Errorf("upstreams.%s serves the account procedures, which only the user center's origin may call: navigation.api_origin and navigation.apps.%s.origin are required (see config.bff.example.yaml)", AccountService, navigation.AppOzID)
 		}
+	}
+	if err := c.validateCookieDomain(); err != nil {
+		return err
 	}
 	if err := c.Auth.LegacyMailTransition.validate(c.Navigation, time.Now()); err != nil {
 		return err

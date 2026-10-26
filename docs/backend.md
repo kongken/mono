@@ -146,6 +146,10 @@ Compose 只启动本项目的开发依赖，使用命名卷保存数据。S3 开
 
 Butterfly 从 `BUTTERFLY_CONFIG_FILE_PATH` 读取同一个 YAML，`BUTTERFLY_CONFIG_TYPE=file` 启用文件模式。与 `neo-box` 一致，YAML 中的 `${VAR}` 不会自动展开。`.env.example` 提供文件模式与端口示例；`make dev` 直接设置这些变量，无需自动加载 `.env`。
 
+### 可选共享 Cookie Domain
+
+BFF 的 `auth.cookie_domain` 默认空值（host-only）。仅在所有子域均可信时显式设置例如 `example.com`，并启用 `auth.cookie_secure: true`；启动会拒绝公共后缀、IP、通配符、非法域以及未被域覆盖的 API/导航/CORS 主机。会话、CSRF 与注销恢复 Cookie 一致使用该 Domain；不免除精确 Origin/CORS/CSRF 校验。切换需停写、完成在途注销、清理各 API 主机旧 Cookie 并重新登录，详见 [BFF 共享 Cookie 配置](bff.md#可选共享-cookie-domain)。公开示例保持空值，真实值只由部署配置提供。
+
 ### Consul 配置与路径前缀
 
 BFF 和 tripmap 均可通过 Consul KV 读取配置。下面的变量在进程启动前设置，不写入业务 YAML；`make dev` 会显式启用文件模式，使用 Consul 时直接运行已构建的服务或配置容器环境变量。

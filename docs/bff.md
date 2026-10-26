@@ -233,8 +233,26 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 ## 当前限制（多产品）
 
-- 会话与 CSRF Cookie 是 BFF 的 host-only Cookie（无 `Domain`）。同一信任范围内的 HTTPS 同站点应用可以从各自 origin 直连同一个 BFF，使用 `credentials: include` 和精确 CORS 白名单；不承诺任意跨站点或第三方 Cookie 可用。各独立前端的 `/api` 代理会把 Cookie 留在各自前端主机，不能据此宣称共享会话。
+- 会话/CSRF/注销恢复 Cookie **默认** host-only（无 `Domain`），通常所有前端直连同一个 BFF origin；显式共享 Domain 见下节。不承诺跨根域、第三方 Cookie 或 OIDC。各前端代理到同一 BFF 本身不等于共享会话。
 - `bff.tripmap.v1.StatusService` 的响应带有山海足迹专有字段（`footprint_schema`、`share_enabled`、`region_version`），是产品级状态，不是通用健康检查。
+
+### 可选共享 Cookie Domain
+
+仅当部署方信任目标域下**所有**子域时，可配置：
+
+```yaml
+auth:
+  cookie_secure: true
+  cookie_domain: example.com
+```
+
+空值保持 host-only。共享值必须是小写 DNS 域（无前导点、`*`、端口或 URL），不能是 IP、公共后缀或私有托管后缀（如 `github.io`）。BFF 启动时要求 HTTPS，并检查规范 API、每个导航应用及全部 CORS origin 的主机均被该 Domain 覆盖；不根据请求 Host/转发头推断域。会话、CSRF、按代次命名的注销恢复 Cookie 的设置、续期与清除使用同一 Domain，仍保留 HttpOnly/Secure/SameSite 规则；退出不清恢复 Cookie，迟到的完成只清自己的恢复代次。
+
+浏览器会把这些 Cookie 发送给该域及**所有子域服务器**，包括静态托管、CDN 或其他服务；HttpOnly 只限制页面脚本，不阻止服务器收到 Cookie。共享 Domain 不扩大 CORS、Origin、角色或 IP 白名单，不免除 CSRF；前端仍用 `credentials: include`。未登记兄弟 origin 即使携带正确 CSRF Cookie 也不能执行写入。
+
+**切换流程**：先停止写入并完成进行中的账号注销，再备份、部署支持此字段的 BFF，最后发布匹配配置。要求用户在所有曾使用的 API 主机清理旧 Cookie 并重新登录（各域的 host-only Cookie 不能由兄弟域删除）。同名但不同值的 Cookie 会被拒绝，不猜哪份身份或 CSRF 是正确的；相同值允许去重。新登录/CSRF/恢复设置与退出/恢复清除还会在当前响应主机过期同名 host-only Cookie，防止残留。错误响应直接携带的恢复 Cookie 也使用配置 Domain。不能依靠此清理替代多主机切换和重新登录，不自动恢复旧会话或清数据库。
+
+测试：`internal/bff/config/cookie_domain_test.go` 覆盖缺省/合法/拒绝配置；`internal/bff/session/shared_cookie_test.go` 使用标准库 Cookie jar 验证跨 HTTPS 主机的会话、CSRF、恢复续期/代次隔离/清除、退出与域外不携带，以及同名冲突 fail-closed 和未登记兄弟 Origin 拒绝。它不是实际浏览器/厂商托管链路验收；既有 host-only 测试继续保留，生产仍需验证真实浏览器。
 
 ## 验证
 
@@ -253,7 +271,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 ## 账号、会话与注销（P4）
 
-**会话**。登录（`LoginWithEmail`）成功后，BFF 生成新的随机令牌放进 host-only、HttpOnly Cookie，库里只存它的摘要；会话行记录用户 UUID、usersrv 的 `auth_version`、真实的密码验证时间（`authenticated_at`）和过期时间。每个受保护请求先用令牌摘要找到会话，再调用 usersrv `GetAuthState`：账号必须 `active` 且 `auth_version` 与会话一致，否则会话被撤销并返回 `unauthenticated`；usersrv 不可用则返回 `unavailable`，不转发。改密码或重置密码会撤销该用户的全部会话。`Reauthenticate` 用 usersrv 的 `VerifyPassword` 刷新 `authenticated_at`；管理接口（`required_role`）、创建管理令牌、注销与创建管理令牌要求最近一次验证（管理接口见 `auth.admin_session_max_age`，其余 15 分钟）；改密码要求提交当前密码，由 usersrv 校验。
+**会话**。登录（`LoginWithEmail`）成功后，BFF 生成新的随机令牌放进默认 host-only（可选显式共享 Domain）、HttpOnly Cookie，库里只存它的摘要；会话行记录用户 UUID、usersrv 的 `auth_version`、真实的密码验证时间（`authenticated_at`）和过期时间。每个受保护请求先用令牌摘要找到会话，再调用 usersrv `GetAuthState`：账号必须 `active` 且 `auth_version` 与会话一致，否则会话被撤销并返回 `unauthenticated`；usersrv 不可用则返回 `unavailable`，不转发。改密码或重置密码会撤销该用户的全部会话。`Reauthenticate` 用 usersrv 的 `VerifyPassword` 刷新 `authenticated_at`；管理接口（`required_role`）、创建管理令牌、注销与创建管理令牌要求最近一次验证（管理接口见 `auth.admin_session_max_age`，其余 15 分钟）；改密码要求提交当前密码，由 usersrv 校验。
 
 **设备会话（OzID T3）**。`ListSessions` 只返回本人未撤销且未过期的会话行里真实存在的字段（创建、最近使用、过期时间、是否当前）。`RevokeSession` 按“会话 ID + 调用者用户 ID”匹配，别人的和不存在的 ID 同为 `NOT_FOUND`（同一文案），已撤销的重复撤销成功，撤销自己的会话同时清 Cookie。`RevokeOtherSessions`（登录后，写：CSRF + Origin）用**一条** `UPDATE ... WHERE user_id = ? AND id <> 当前会话 AND NOT revoked AND expires_at > now` 撤销本人其余有效会话，返回撤销条数：幂等，并发调用合计恰好撤销每行一次，不动 `auth_version`、密码、管理令牌，之后新建的会话不受影响；按账号限流（Redis，每 15 分钟 10 次，`RESOURCE_EXHAUSTED`，Redis 故障 `UNAVAILABLE`），被拒绝的调用不撤销任何会话。改密码要求当前密码并受 usersrv 的账号级限流（默认每 15 分钟 10 次，与 `Reauthenticate` 共用），成功后撤销本账号全部会话并清当前 Cookie。
 
@@ -261,7 +279,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 **错误**。usersrv 的认证失败返回给浏览器的是 `unauthenticated` 与固定提示；BFF 自己的服务凭证被拒（签名或配置错误）是 `internal`，不会被当成“请重新登录”。其余业务错误保留 usersrv 写好的固定文案。
 
-**注销工作流**（`bff_account_deletions`，按开始注销的那个会话令牌的摘要而不是会话 ID 记录，因为 `BeginDeletion` 会递增 `auth_version`，使自己的会话立即失效）：`DeleteAccount`（确认词 `DELETE` + 幂等键）先落库，再依次执行 `begin`（usersrv `BeginDeletion`：账号变为 deleting，所有会话和 MCP 令牌失效）→ `cleanup`（工作流创建时固定的产品清单，逐个调用幂等的 `CleanupUserData`，含 S3）→ `finish`（usersrv `FinishDeletion`，留 24 小时 tombstone）→ `local`（一个事务内删除本地会话与管理令牌、记录完成与回执过期时间）。每个阶段都可重放：失败只记录次数、错误与退避时间，账号保持“删除中”，调用返回 `unavailable`；`RetryAccountDeletion`（只有发起注销的那个 Cookie 可用，仅凭工作流 ID 不行）与后台每 30 秒一次的恢复任务都能继续，数据库租约保证同一时刻只有一个执行者。回执保留 24 小时，之后被清理。清单中缺少某个产品的清理器是错误，不会跳过。注销恢复凭据是专用的、按凭据代次隔离的 `kongken_del_<令牌摘要前 16 位十六进制>` Cookie（值为开始注销的会话令牌，沿用上述摘要绑定，名字与值同生共死、永不改变；host-only、HttpOnly、生产 Secure、SameSite=Lax、30 天、读取未完成注销时同名同值续期），只有 `DeleteAccount`、`GetAccountDeletion`、`RetryAccountDeletion` 读取，不能认证、也不能访问另一个账号。读取时只接受名字与值对得上的 Cookie，去重后最多 8 个候选（最多扫描 64 个 Cookie 对）；上一版本地构建用过的固定名 `kongken_del` 只作为候选被采纳，并在对应响应里换成新代次后清掉，不再写入。不可逆工作流只在浏览器已回传本会话那一代的恢复 Cookie 之后才启动：新注销的第一个 `DeleteAccount` 只设置它并以 `FAILED_PRECONDITION`（“account deletion recovery cookie is not stored yet; repeat the request”）回答，重复调用才落库开始。状态与重试按恢复 Cookie 找工作流（没有时退回旧固定名与会话 Cookie 作候选，并补发新代次的 Cookie，过渡升级前已开始的注销），不看当前登录的是谁；多个候选时取幂等键相同的、否则最早的未完成的、再否则最近的回执；同一浏览器里不同幂等键的未完成注销拒绝开始新的（`FAILED_PRECONDITION`，“an account deletion started in this browser has not finished”）。**三个注销 RPC 的任何响应都不改写 `kongken_sid`**（读取、失败、开始、完成、回执重放都一样），依靠服务端撤销使被撤销的会话失效；`Set-Cookie` 没有按值比较的清除语义，把清 `kongken_sid` 挪到开始或完成响应里仍会被迟到的响应覆盖掉后来登录的账号。`LoginWithEmail`、`Logout`、`RevokeSession`、`ChangePassword` 与 `Me` 不改恢复 Cookie；完成（含回执重放）只清除该代次的 Cookie；找不到任何工作流的凭据（回执已过期或被清理、从未开始）的响应**不写任何 Cookie**，这样的 Cookie 是惰性的，随自己的 `Max-Age` 过期。迟到的任何响应只能作用于它自己的代次或什么都不写，不再能带走别的凭据。ingress 对已撤销会话的例外（`Policy.DeletionKnown`）没有 `X-Kongken-User` 可比较，隔离依据是 Origin/CSRF/幂等键的写入保护加上“凭据摘要命中已持久化工作流且幂等键相同”。恢复 Cookie 是单一浏览器里的凭据：清除站点 Cookie 或换浏览器就看不到进度（注销仍由后台完成）。OzID 的 `/close-account` 页面依赖这一点（见 [OzID 功能描述](ozid/features.md#账号注销t7)）。
+**注销工作流**（`bff_account_deletions`，按开始注销的那个会话令牌的摘要而不是会话 ID 记录，因为 `BeginDeletion` 会递增 `auth_version`，使自己的会话立即失效）：`DeleteAccount`（确认词 `DELETE` + 幂等键）先落库，再依次执行 `begin`（usersrv `BeginDeletion`：账号变为 deleting，所有会话和 MCP 令牌失效）→ `cleanup`（工作流创建时固定的产品清单，逐个调用幂等的 `CleanupUserData`，含 S3）→ `finish`（usersrv `FinishDeletion`，留 24 小时 tombstone）→ `local`（一个事务内删除本地会话与管理令牌、记录完成与回执过期时间）。每个阶段都可重放：失败只记录次数、错误与退避时间，账号保持“删除中”，调用返回 `unavailable`；`RetryAccountDeletion`（只有发起注销的那个 Cookie 可用，仅凭工作流 ID 不行）与后台每 30 秒一次的恢复任务都能继续，数据库租约保证同一时刻只有一个执行者。回执保留 24 小时，之后被清理。清单中缺少某个产品的清理器是错误，不会跳过。注销恢复凭据是专用的、按凭据代次隔离的 `kongken_del_<令牌摘要前 16 位十六进制>` Cookie（值为开始注销的会话令牌，沿用上述摘要绑定，名字与值同生共死、永不改变；默认 host-only、可选同会话 Domain、HttpOnly、生产 Secure、SameSite=Lax、30 天、读取未完成注销时同名同值续期），只有 `DeleteAccount`、`GetAccountDeletion`、`RetryAccountDeletion` 读取，不能认证、也不能访问另一个账号。读取时只接受名字与值对得上的 Cookie，去重后最多 8 个候选（最多扫描 64 个 Cookie 对）；上一版本地构建用过的固定名 `kongken_del` 只作为候选被采纳，并在对应响应里换成新代次后清掉，不再写入。不可逆工作流只在浏览器已回传本会话那一代的恢复 Cookie 之后才启动：新注销的第一个 `DeleteAccount` 只设置它并以 `FAILED_PRECONDITION`（“account deletion recovery cookie is not stored yet; repeat the request”）回答，重复调用才落库开始。状态与重试按恢复 Cookie 找工作流（没有时退回旧固定名与会话 Cookie 作候选，并补发新代次的 Cookie，过渡升级前已开始的注销），不看当前登录的是谁；多个候选时取幂等键相同的、否则最早的未完成的、再否则最近的回执；同一浏览器里不同幂等键的未完成注销拒绝开始新的（`FAILED_PRECONDITION`，“an account deletion started in this browser has not finished”）。**三个注销 RPC 的任何响应都不改写 `kongken_sid`**（读取、失败、开始、完成、回执重放都一样），依靠服务端撤销使被撤销的会话失效；`Set-Cookie` 没有按值比较的清除语义，把清 `kongken_sid` 挪到开始或完成响应里仍会被迟到的响应覆盖掉后来登录的账号。`LoginWithEmail`、`Logout`、`RevokeSession`、`ChangePassword` 与 `Me` 不改恢复 Cookie；完成（含回执重放）只清除该代次的 Cookie；找不到任何工作流的凭据（回执已过期或被清理、从未开始）的响应**不写任何 Cookie**，这样的 Cookie 是惰性的，随自己的 `Max-Age` 过期。迟到的任何响应只能作用于它自己的代次或什么都不写，不再能带走别的凭据。ingress 对已撤销会话的例外（`Policy.DeletionKnown`）没有 `X-Kongken-User` 可比较，隔离依据是 Origin/CSRF/幂等键的写入保护加上“凭据摘要命中已持久化工作流且幂等键相同”。恢复 Cookie 是单一浏览器里的凭据：清除站点 Cookie 或换浏览器就看不到进度（注销仍由后台完成）。OzID 的 `/close-account` 页面依赖这一点（见 [OzID 功能描述](ozid/features.md#账号注销t7)）。
 
 **重试工具**：运维没有单独的命令行；排查时可对工作流行读取 `stage`、`attempts`、`last_error`，后台任务会自动重试（间隔 30 秒起指数退避，最长 15 分钟）。
 
@@ -269,7 +287,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 ## 多 Web App 登录与跨域
 
-账号 Cookie 是 host-only，跨域只靠精确的 `cors_allowed_origins`：精确允许 Origin 的正常、错误与 OPTIONS 响应均带 Allow-Origin、Allow-Credentials 与 Vary，预检包含 Connect/CSRF/区域头及 X-Kongken-User；不允许 `*` 或任意回显。读取授权不会免除写入的 Origin/CSRF 验证。CSRF token 从 IssueCSRFToken 响应体取得，并在凭据请求中放入 X-CSRF-Token（不要求前端读取 BFF Cookie）。退出只撤销当前 BFF 会话；其他设备会话保留。新注册验证与重置邮件的链接一律指向 usersrv 的 `auth.apps.ozid.origin`（中央 OzID），不由请求决定；请求里的应用 ID 只是返回上下文。`auth.apps` 里其余条目只服务升级前签发或已排队的旧邮件（见 [OzID 功能描述](ozid/features.md#邮件流程t2)）。
+账号 Cookie 默认 host-only，可选共享 Domain 不改变精确的 `cors_allowed_origins`：精确允许 Origin 的正常、错误与 OPTIONS 响应均带 Allow-Origin、Allow-Credentials 与 Vary，预检包含 Connect/CSRF/区域头及 X-Kongken-User；不允许 `*` 或任意回显。读取授权不会免除写入的 Origin/CSRF 验证。CSRF token 从 IssueCSRFToken 响应体取得，并在凭据请求中放入 X-CSRF-Token（不要求前端读取 BFF Cookie）。退出只撤销当前 BFF 会话；其他设备会话保留。新注册验证与重置邮件的链接一律指向 usersrv 的 `auth.apps.ozid.origin`（中央 OzID），不由请求决定；请求里的应用 ID 只是返回上下文。`auth.apps` 里其余条目只服务升级前签发或已排队的旧邮件（见 [OzID 功能描述](ozid/features.md#邮件流程t2)）。
 
 注销恢复 Cookie 与 CSRF/Origin：`kongken_del_*` 不参与认证；`DeleteAccount`、`RetryAccountDeletion` 仍要求允许的 Origin 与成对 CSRF，`GetAccountDeletion` 是匿名读；`Set-Cookie` 在成功与错误响应里都由同一套精确 CORS（`Allow-Credentials`）送达。
 
@@ -279,7 +297,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 `bff.v1.AuthService/ResolveNavigation` 是匿名、只读的过程（不要求 CSRF，不读取或建立会话，不签发票据）：请求为稳定 `app_id` 与可选的 `return_path`，响应 `return_url` 由配置 `navigation.apps.<id>.origin` 加已校验的 pathname 拼成，另含 OzID 的 origin。客户端给出的绝对地址、`//`、反斜线、点段、百分号编码、query、fragment、未登记路径或未知应用都得到 `INVALID_ARGUMENT`；未配置 `navigation` 时得到 `FAILED_PRECONDITION`。
 
-配置段（`config.bff.example.yaml`）：`navigation.api_origin` 与 `navigation.apps`（`ozid` 必需；ID 取 `ozid`、`admin`、`trip-map`、`metro`；每项 `origin`、可选 `default_path` 与 `paths`）。BFF 启动时校验并在出错时拒绝启动：origin 必须精确且在 `cors_allowed_origins` 内、`auth.cookie_secure` 为 true 时必须 https、各 origin 与 `api_origin` 须在同一 schemeful site、origin 不重复。**同站点不等于授权**：未登记的兄弟子域名拿不到 CORS，写请求也过不了 Origin/CSRF 校验（`session_test`/`app_test` 与浏览器测试有覆盖）。Cookie 始终 host-only，不设置 `Domain`。
+配置段（`config.bff.example.yaml`）：`navigation.api_origin` 与 `navigation.apps`（`ozid` 必需；ID 取 `ozid`、`admin`、`trip-map`、`metro`；每项 `origin`、可选 `default_path` 与 `paths`）。BFF 启动时校验并在出错时拒绝启动：origin 必须精确且在 `cors_allowed_origins` 内、`auth.cookie_secure` 为 true 时必须 https、各 origin 与 `api_origin` 须在同一 schemeful site、origin 不重复。**同站点不等于授权**：未登记的兄弟子域名拿不到 CORS，写请求也过不了 Origin/CSRF 校验（`session_test`/`app_test` 与浏览器测试有覆盖）。Cookie 默认 host-only；只有显式配置并通过校验的 `auth.cookie_domain` 才设置 `Domain`，不因同站点自动扩大作用域。
 
 **注册与重置的返回上下文（T2）。** `RequestRegistration` / `RequestPasswordReset` 的请求可带 `app_id` 与 `return_path`：BFF 在调 usersrv 之前用注册表按 T1 的同一规则校验（不合法为 `INVALID_ARGUMENT`，不创建挑战、不发邮件；没有配置注册表时，携带非空应用 ID 或路径的申请返回 `FAILED_PRECONDITION`，同样发生在调用 usersrv 之前，无上下文的申请照常处理）；`CompleteRegistration` / `ResetPassword` 的响应带回挑战保存的上下文，BFF 出口处再校验一次，应用已下线或路径不再允许就静默丢弃。完成接口不建立会话。因为产品的账号弹窗默认带自己的应用 ID，发布 T2 时 BFF 必须配置 `navigation`。邮件链接指向 usersrv 的 `auth.apps.ozid`，与申请来自哪个应用无关。
 
