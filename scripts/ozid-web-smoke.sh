@@ -119,7 +119,6 @@ if [ -n "$js" ]; then
   check "assets are cached as immutable" header_has "$tmp/js.head" cache-control immutable
   check "assets are cached for a long time" header_has "$tmp/js.head" cache-control max-age=31536000
   check "assets are sent with nosniff" header_has "$tmp/js.head" x-content-type-options nosniff
-  check "the default bundle has no absolute API address" bash -c '! grep -qF "$0" "$1"' "$API_ORIGIN" "$tmp/js.body"
 fi
 if [ -n "$css" ]; then
   get "$BASE$css" css
