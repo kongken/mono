@@ -798,6 +798,7 @@ test("screenshots of the editing flows for the review (WORLD_SHOTS=<dir>)", asyn
   await importDialog(page).getByRole("button", { name: "取消导入" }).click();
   await importInput(page).setInputFiles(backupFile(JSON.stringify({ version: 2, visits: [], provinces: {} })));
   await expect(page.locator(".world-import-error")).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
   await shot("7-import-refused");
   // Another tab changes the data: the conflict dialog.
   const other = await context.newPage();
@@ -817,4 +818,12 @@ test("screenshots of the editing flows for the review (WORLD_SHOTS=<dir>)", asyn
   await expect(unreadableDialog(damagedPage)).toBeVisible();
   await damagedPage.waitForTimeout(500);
   await damagedPage.screenshot({ path: join(process.env.WORLD_SHOTS!, `9-unreadable-${info.project.name}.png`) });
+
+  const chinaPage = await context.newPage();
+  await installBackend(chinaPage);
+  await chinaPage.goto("/");
+  await chinaPage.locator('input[accept=".json,application/json"]').setInputFiles(backupFile(world({ places: [paris] })));
+  await expect(chinaPage.getByText("这是世界足迹备份，请在世界视图导入")).toBeVisible();
+  await chinaPage.waitForTimeout(400);
+  await chinaPage.screenshot({ path: join(process.env.WORLD_SHOTS!, `10-china-refuses-world-backup-${info.project.name}.png`) });
 });
