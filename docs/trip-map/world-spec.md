@@ -101,7 +101,7 @@
 | `trips[].date` | `YYYY-MM-DD` 的真实日历日期，或空字符串；规则与 F5 完全相同，共用 `packages/fixtures/trip-dates.json`（前端、后端同时校验） |
 | `trips[].note` | 备注，最多 1000 个 UTF-16 码元，与 F5 一致 |
 
-**规范形式**：同样的数据只有一种规范形式，由下列规则唯一确定；前端（TypeScript）与后端（Go）按同一组夹具 `packages/fixtures/world-documents.json`（有效与无效文档，含空白、控制字符、孤立代理项、坐标边界与超过 6 位小数的样例，仿 `trip-dates.json`）验证一致；夹具里带 `scope` 的用例只适用于特定场合：`json-text` 依赖 JSON 文件的形状、类型或浮点小数位（未定义字段、错误的 JSON 类型、超过 6 位小数），云端接口传带类型的消息和整数微度，所以 Go 测试只在解码 JSON 文档时才运行它们；`utf16` 需要孤立代理项，Go 的 JSON 读取器会把它换成 U+FFFD、protobuf 字符串也装不下，Go 测试跳过。没有 `scope` 的用例两端必须一致：
+**规范形式**：同样的数据只有一种规范形式，由下列规则唯一确定；前端（TypeScript）与后端（Go）按同一组夹具 `packages/fixtures/world-documents.json`（有效与无效文档，含空白、控制字符、孤立代理项、坐标边界与超过 6 位小数的样例，仿 `trip-dates.json`）验证一致；夹具里带 `scope` 的用例只适用于特定场合：`json-text` 依赖 JSON 文件的形状、类型、另一种备份类型的文件或浮点小数位（未定义字段、错误的 JSON 类型、中国备份、超过 6 位小数），云端接口传带类型的消息和整数微度，所以 Go 测试只在解码 JSON 文档时才运行它们，并且先判 `kind`、`version`，再判未知字段（与 TypeScript 校验器的顺序一致，否则严格解码会先报中国备份里的 `visits`）；`utf16` 需要孤立代理项，Go 的 JSON 读取器会把它换成 U+FFFD、protobuf 字符串也装不下，Go 测试跳过。没有 `scope` 的用例两端必须一致：
 
 - `countries` 按 `code`、`places` 与 `trips` 按 `id` 升序；`code` 与 `id` 只含 ASCII 字符，按码点（字节）比较，UTF-16 与 UTF-8 的顺序一致。
 - 字符串长度一律按 UTF-16 码元计（Go 端转换后计数），与 F5 的备注规则相同。

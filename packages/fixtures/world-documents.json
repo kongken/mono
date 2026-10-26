@@ -1,5 +1,5 @@
 {
-  "comment": "Shared by scripts/world.test.mjs and, later, the backend's world tests: the frontend and the backend must agree on every entry whose `scope` is absent. `scope` names the entries that only apply where a JSON text is read, or that a Go test cannot reproduce: \"json-text\" = depends on the shape or types of a JSON file or on float decimals (unknown fields, wrong JSON types, more than 6 decimals); the cloud API carries typed messages and whole micro-degrees, so a Go test runs these only if it decodes JSON documents. \"utf16\" = needs a lone surrogate (written as a \\uD800-style escape), which a Go JSON reader turns into U+FFFD and a protobuf string cannot hold; Go tests skip these. `valid` documents must be accepted and yield `canonical`; each `invalid` one must be rejected with the stated `kind`. Countries are checked against the world catalog (ISO 3166-1 plus XK, without CN, HK, MO, TW; CN is rejected as a stored value).",
+  "comment": "Shared by scripts/world.test.mjs and, later, the backend's world tests: the frontend and the backend must agree on every entry whose `scope` is absent. `scope` names the entries that only apply where a JSON text is read, or that a Go test cannot reproduce: \"json-text\" = depends on the shape or types of a JSON file, on a file of the other backup type, or on float decimals (unknown fields, wrong JSON types, a China backup, more than 6 decimals); the cloud API carries typed messages and whole micro-degrees, so a Go test runs these only if it decodes JSON documents, and then checks `kind` and `version` before unknown fields, as the TypeScript validator does (a typed decoder that rejects unknown fields first would report the China backup's `visits` instead of the missing `kind`). \"utf16\" = needs a lone surrogate (written as a \\uD800-style escape), which a Go JSON reader turns into U+FFFD and a protobuf string cannot hold; Go tests skip these. `valid` documents must be accepted and yield `canonical`; each `invalid` one must be rejected with the stated `kind`. Countries are checked against the world catalog (ISO 3166-1 plus XK, without CN, HK, MO, TW; CN is rejected as a stored value).",
   "limits": {
     "maxPlaces": 5000,
     "maxTrips": 10000,
@@ -686,7 +686,8 @@
         "version": 2,
         "visits": [],
         "provinces": {}
-      }
+      },
+      "scope": "json-text"
     },
     {
       "name": "another kind",

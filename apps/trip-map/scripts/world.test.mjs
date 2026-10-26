@@ -81,7 +81,7 @@ test("fixture scopes: only the cases that need a JSON text or a lone surrogate c
   for (const c of fixture.invalid) {
     assert.ok([undefined, "json-text", "utf16"].includes(c.scope), `${c.name}: unknown scope ${c.scope}`);
     assert.equal(c.scope === "utf16", hasLone(c.document), `${c.name}: utf16 exactly for documents with a lone surrogate`);
-    if (c.scope === "json-text") assert.ok(["format", "field", "version", "country", "name", "coordinate", "date", "note"].includes(c.kind), c.name);
+    if (c.scope === "json-text") assert.ok(["format", "field", "kind", "version", "country", "name", "coordinate", "date", "note"].includes(c.kind), c.name);
   }
   for (const c of fixture.valid) assert.equal(c.scope, undefined, `${c.name}: valid documents apply to both sides`);
   // Every case a Go test must run (no scope) is expressible in a Go JSON reader: none has a lone surrogate.
@@ -89,6 +89,11 @@ test("fixture scopes: only the cases that need a JSON text or a lone surrogate c
   assert.ok(!fixture.invalid.filter((c) => !c.scope).some((c) => hasLone(c.document)));
   assert.ok(fixture.invalid.filter((c) => c.scope === "utf16").length >= 2);
   assert.equal(fixture.coordinates.scope, "json-text");
+  // A file of the other backup type is a file-level case: a typed decoder rejecting unknown fields would report `visits`, not the missing kind.
+  const china = fixture.invalid.find((c) => c.name === "a China backup (no kind)");
+  assert.equal(china.scope, "json-text");
+  assert.equal(china.kind, "kind");
+  assert.ok("visits" in china.document && !("kind" in china.document));
 });
 
 test("the 6-decimal tolerance rule at its edge: strictly below 1e-6 of a micro-degree passes", () => {
