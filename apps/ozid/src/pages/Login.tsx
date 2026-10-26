@@ -102,16 +102,18 @@ export default function LoginPage() {
         <Notice kind="success">密码已修改。所有设备上的登录都已退出，请用新密码重新登录。</Notice>
       ) : null}
       <TargetNotice target={target} action="登录后将进入账号概览。" />
-      <AuthPanel
-        api={account}
-        appName="OzID"
-        onSwitchMode={(mode) => navigate(pageOf(mode, search))}
-        intro="使用邮箱和密码登录。同一个账号可在已接入的产品间通用。"
-        onSignedIn={async () => {
-          await refresh(true);
-          proceed();
-        }}
-      />
+      <div className="rounded-xl bg-card p-6 shadow-sm sm:p-8">
+        <AuthPanel
+          api={account}
+          appName="OzID"
+          onSwitchMode={(mode) => navigate(pageOf(mode, search))}
+          intro="使用邮箱和密码登录。同一个账号可在已接入的产品间通用。"
+          onSignedIn={async () => {
+            await refresh(true);
+            proceed();
+          }}
+        />
+      </div>
     </div>
   );
 }

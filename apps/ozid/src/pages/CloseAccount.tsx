@@ -49,8 +49,8 @@ export default function CloseAccountPage() {
     body = <Spinner />;
   }
   return (
-    <div className="mx-auto grid max-w-xl gap-6" data-testid="close-account-page">
-      <h1 className="text-xl font-semibold text-destructive">注销账号</h1>
+    <div className="grid max-w-2xl gap-6" data-testid="close-account-page">
+      <h1 className="text-2xl font-semibold tracking-tight text-destructive sm:text-3xl">注销账号</h1>
       {body}
     </div>
   );
