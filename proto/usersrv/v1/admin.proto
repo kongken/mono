@@ -1,0 +1,269 @@
+syntax = "proto3";
+
+package usersrv.v1;
+
+import "google/protobuf/timestamp.proto";
+import "platform/v1/options.proto";
+import "usersrv/v1/account.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/usersrv/v1;usersrvv1";
+
+// UserAdminService is the internal user management interface (BFF -> usersrv gRPC):
+// three reads (the user list, one user, the account audit) and four narrow writes. It is the only usersrv interface whose methods may
+// name an account other than the caller: the caller (the credential's sub) is the
+// administrator, and a target is a request field.
+//
+// Every method declares required_role "ozid-admin". usersrv enforces it twice and
+// independently of the BFF: from the roles carried by the verified credential
+// (rpcauth), and again against its own database (the caller must be an active
+// account that holds the role now). A caller without the role is PERMISSION_DENIED;
+// no data is read before both checks pass.
+//
+// Each call is recorded in security_audit in the transaction that reads: the
+// administrator, the action, the request ID, the result and a redacted description
+// of the query (which filters were used, never their values). Nothing is returned
+// when that record cannot be written (UNAVAILABLE). No method returns a password
+// hash, a token, a session secret or any product data, and there is no export.
+//
+// The four writes (DisableUser, EnableUser, GrantMetroAdmin, RevokeMetroAdmin) are the
+// only account changes the console may make; there is no method that sets a free role
+// name, a field list, a password or deletes, and none that touches the platform role.
+// Each runs in ONE transaction: operator re-check, target row lock (the lock the role
+// CLI and the deletion take), idempotency receipt, protection and version checks, the
+// change, auth_version advance (only when something changed), audit row and receipt.
+// usersrv enforces the target constraints itself, whatever the BFF checked:
+//
+//   - an account that holds ozid-admin is never changed here (FAILED_PRECONDITION,
+//     reason TARGET_PROTECTED), however the platform role was granted, even by a CLI
+//     call a moment ago;
+//   - a deleting account is never changed or "enabled" (FAILED_PRECONDITION,
+//     ACCOUNT_NOT_ACTIVE); metro-admin is granted only to an active, verified account;
+//   - expected_auth_version must equal the target's current auth_version, or nothing
+//     is changed (ABORTED, reason TARGET_CHANGED): read the account again;
+//   - (operator, mutation_id) names one request for 24 hours: the same request again
+//     returns the first answer (replayed = true, no second change, no second version
+//     advance; the answer is a snapshot of the first request, not the account's state
+//     now, and the replay's audit row has no before/after: the original row, found by
+//     operator and mutation_id, holds them), another request under the same key is ALREADY_EXISTS (MUTATION_REUSED).
+//     Receipts are per operator, so one administrator's key never answers another's;
+//   - reason is required: 1-200 characters, no control characters, and nothing that
+//     looks like an email address, password or token.
+//
+// Enabling an account or granting a role again does not bring back an older session or
+// access token: auth_version only moves forward.
+//
+// Errors:
+//
+//	INVALID_ARGUMENT     a malformed filter, cursor, target, reason or key (metadata "field")
+//	NOT_FOUND            no such account
+//	PERMISSION_DENIED    the caller does not hold ozid-admin (checked again in the transaction)
+//	FAILED_PRECONDITION  TARGET_PROTECTED, ACCOUNT_NOT_ACTIVE
+//	ABORTED              TARGET_CHANGED
+//	ALREADY_EXISTS       MUTATION_REUSED
+//	UNAVAILABLE          the store could not serve the call or its audit record
+service UserAdminService {
+  // ListUsers pages through accounts, newest first (created_at, then id, both
+  // descending: a stable total order, so no row repeats or is skipped while the
+  // list is not being changed). At most one of email, user_id and nickname may be set;
+  // status and role narrow the result further. An empty result is a normal answer.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // GetUser reads one account by UUID.
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // ListSecurityAudit pages through the account security and administration audit, newest
+  // first (created_at, then id, both descending). The read is itself audited
+  // (admin.audit.list, filters used and never their values) in the same transaction.
+  rpc ListSecurityAudit(ListSecurityAuditRequest) returns (ListSecurityAuditResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // DisableUser disables an active account. An already disabled account is a normal
+  // "unchanged" answer.
+  rpc DisableUser(ChangeUserRequest) returns (ChangeUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // EnableUser enables a disabled account. It never cancels a deletion.
+  rpc EnableUser(ChangeUserRequest) returns (ChangeUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // GrantMetroAdmin gives the metro-admin role to an active, verified account.
+  rpc GrantMetroAdmin(ChangeUserRequest) returns (ChangeUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+  // RevokeMetroAdmin removes the metro-admin role.
+  rpc RevokeMetroAdmin(ChangeUserRequest) returns (ChangeUserResponse) {
+    option (platform.v1.required_role) = "ozid-admin";
+  }
+}
+
+// AdminUser is the account as an administrator may see it: what is needed to
+// recognise and support the account, and nothing else.
+message AdminUser {
+  string user_id = 1;
+  // The canonical login email, verified at registration. Sensitive: only this
+  // interface and the account's owner see it.
+  string email = 2;
+  // The base nickname (not a product profile).
+  string display_name = 3;
+  AccountStatus status = 4;
+  // Current role names, sorted; empty for none.
+  repeated string roles = 5;
+  google.protobuf.Timestamp created_at = 6;
+  // The account's current auth_version: the version a write must name.
+  int64 auth_version = 7;
+}
+
+message ListUsersRequest {
+  // Exact lookup by login email; normalised like every other entry point, so
+  // "Alice@Example.COM " finds alice@example.com. Not a prefix or fuzzy search.
+  string email = 1;
+  // Exact lookup by user UUID.
+  string user_id = 2;
+  // Literal, case-insensitive substring of the nickname (1-40 characters); "%" and
+  // "_" are ordinary characters.
+  string nickname = 3;
+  // Unspecified means any status.
+  AccountStatus status = 4;
+  // A whitelisted role name; empty means any.
+  string role = 5;
+  // 0 means 50; the largest accepted value is 100.
+  int32 page_size = 6;
+  // From a previous response; empty starts at the newest account. Use it with the
+  // same filters.
+  string page_token = 7;
+}
+
+message ListUsersResponse {
+  repeated AdminUser users = 1;
+  // Empty when there is no further page.
+  string next_page_token = 2;
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  AdminUser user = 1;
+}
+
+// ChangeUserRequest names one change to one account. The operator is the credential's
+// sub, never a field. There is no role or status field: the method is the action.
+message ChangeUserRequest {
+  string user_id = 1;
+  // The target's auth_version as the administrator last read it.
+  int64 expected_auth_version = 2;
+  // Idempotency key, 1-64 characters of A-Z a-z 0-9 . _ -, new for every intended change.
+  string mutation_id = 3;
+  // Why, 1-200 characters; kept in the audit record.
+  string reason = 4;
+}
+
+// ChangeUserResponse is the target after the change; when replayed it is the stored
+// first answer, a snapshot from the time of the original request, not the current state.
+message ChangeUserResponse {
+  string user_id = 1;
+  AccountStatus status = 2;
+  repeated string roles = 3;
+  // The auth_version after the change; unchanged when changed is false.
+  int64 auth_version = 4;
+  // False when the account was already in the requested state.
+  bool changed = 5;
+  // True when this is the stored answer of an earlier identical request.
+  bool replayed = 6;
+}
+
+// AuditChannel says where the actor of an audit row came from. It is derived from stored
+// data, never from the request.
+enum AuditChannel {
+  AUDIT_CHANNEL_UNSPECIFIED = 0;
+  // An administrator in the console. operator_user_id is the real account.
+  AUDIT_CHANNEL_WEB = 1;
+  // The operator CLI. operator_label is its controlled operator name, which is not an
+  // account and never an identity of a web actor.
+  AUDIT_CHANNEL_CLI = 2;
+  // The account's own holder (sign-in, password, deletion). operator_user_id is the holder.
+  AUDIT_CHANNEL_SELF = 3;
+  // A background or anonymous flow.
+  AUDIT_CHANNEL_SYSTEM = 4;
+}
+
+// ListSecurityAuditRequest filters the account security and administration audit. Every
+// field narrows the result; none is required. Filter values are never logged or recorded
+// (only which filters were used).
+message ListSecurityAuditRequest {
+  // The account the rows are about (UUID).
+  string user_id = 1;
+  // The administrator or account holder who acted (UUID).
+  string operator_user_id = 2;
+  AuditChannel channel = 3;
+  // Exact action as stored, e.g. "admin.account.disable", "role.grant:metro-admin", "login".
+  string action = 4;
+  // Exact result as stored, e.g. "ok", "unchanged", "refused_version_conflict".
+  string result = 5;
+  // Exact idempotency key. Keys are reusable once a receipt expires and refused attempts
+  // may use any key, so this lists every row that used the key, over every use of it.
+  string mutation_id = 6;
+  // Inclusive lower and exclusive upper bound of the row's time.
+  google.protobuf.Timestamp from = 7;
+  google.protobuf.Timestamp to = 8;
+  // 0 means 50; at most 100.
+  int32 page_size = 9;
+  // From the previous response, with the same filters; empty starts at the newest row.
+  string page_token = 10;
+}
+
+// SecurityAuditEntry is one audit row as an administrator may see it: identifiers, fixed
+// classifications, the operator's reason and the status and roles before and after. It has
+// no email, password, token, session, raw request or product data.
+message SecurityAuditEntry {
+  string id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  AuditChannel channel = 3;
+  // Web: the administrator's account. Self: the holder. Empty for the CLI and the system.
+  string operator_user_id = 4;
+  // CLI: the controlled operator name ("system" for the system). Empty for web and self.
+  string operator_label = 5;
+  // The account the row is about; empty when there is none.
+  string user_id = 6;
+  string action = 7;
+  string result = 8;
+  // The operator's reason (changes) or a redacted description of a read (filters used,
+  // never their values).
+  string reason = 9;
+  string request_id = 10;
+  string mutation_id = 11;
+  // Account status ("active", "disabled", "deleting") and role names around a change;
+  // empty when the row is not a state change, and always empty on a replayed row.
+  string before_status = 12;
+  string after_status = 13;
+  repeated string before_roles = 14;
+  repeated string after_roles = 15;
+  // Only on a replayed row: the id of the row of the change whose stored answer was handed
+  // out again. This link is exact. The mutation id is not: it can be used again later.
+  // Empty if the receipt predates the link.
+  string origin_id = 16;
+  // The summary of that row, when it is still kept. A replayed row never states a state
+  // itself: the origin has the real before/after.
+  SecurityAuditOrigin origin = 17;
+}
+
+// SecurityAuditOrigin summarises the change a replayed row points at.
+message SecurityAuditOrigin {
+  string id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  string action = 3;
+  string result = 4;
+  string before_status = 5;
+  string after_status = 6;
+  repeated string before_roles = 7;
+  repeated string after_roles = 8;
+}
+
+message ListSecurityAuditResponse {
+  repeated SecurityAuditEntry entries = 1;
+  // Empty at the last page.
+  string next_page_token = 2;
+}

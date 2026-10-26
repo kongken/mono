@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/platform/rpcauth"
@@ -20,6 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Service is the upstream name in the gateway route table and BFF configuration.
@@ -40,6 +42,9 @@ const (
 	ReasonDeletionMismatch   = "DELETION_MISMATCH"
 	ReasonTokenInvalid       = "TOKEN_INVALID"
 	ReasonRegistrationClosed = "REGISTRATION_CLOSED"
+	// ReasonPlatformAdminProtected: the account holds the platform role, which
+	// forbids closing it from the web until the role is revoked by an operator.
+	ReasonPlatformAdminProtected = "PLATFORM_ADMIN_PROTECTED"
 )
 
 // LoginFailure is the one text of every failed login (spec 5.2): it does not say
@@ -95,11 +100,12 @@ var ErrNotFound = errors.New("account not found")
 // Client calls usersrv.
 type Client struct {
 	account usersrvv1.AccountServiceClient
+	admin   usersrvv1.UserAdminServiceClient
 }
 
 // New returns a client over the usersrv connection.
 func New(conn grpc.ClientConnInterface) *Client {
-	return &Client{account: usersrvv1.NewAccountServiceClient(conn)}
+	return &Client{account: usersrvv1.NewAccountServiceClient(conn), admin: usersrvv1.NewUserAdminServiceClient(conn)}
 }
 
 // anonymous describes a call without a user: the client address and request ID of
@@ -117,15 +123,27 @@ func asUser(ctx context.Context, userID string) context.Context {
 	return rpcauth.WithCall(ctx, c)
 }
 
-func (c *Client) RequestRegistration(ctx context.Context, email, appID string) error {
-	_, err := c.account.RequestRegistration(anonymous(ctx), &usersrvv1.RequestRegistrationRequest{Email: email, AppId: appID})
+// Return is the return context usersrv binds to a mail challenge: the app the user
+// came from and a pathname in it. The zero value is no context. usersrv checks only its
+// form; the BFF validates its meaning against the navigation registry on both sides.
+type Return struct {
+	AppID string
+	Path  string
+}
+
+func (c *Client) RequestRegistration(ctx context.Context, email string, ret Return) error {
+	_, err := c.account.RequestRegistration(anonymous(ctx), &usersrvv1.RequestRegistrationRequest{
+		Email: email, AppId: ret.AppID, ReturnPath: ret.Path})
 	return MapError(err)
 }
 
-func (c *Client) CompleteRegistration(ctx context.Context, token, password, displayName string) error {
-	_, err := c.account.CompleteRegistration(anonymous(ctx), &usersrvv1.CompleteRegistrationRequest{
+func (c *Client) CompleteRegistration(ctx context.Context, token, password, displayName string) (Return, error) {
+	res, err := c.account.CompleteRegistration(anonymous(ctx), &usersrvv1.CompleteRegistrationRequest{
 		Token: token, Password: password, DisplayName: displayName})
-	return MapError(err)
+	if err != nil {
+		return Return{}, MapError(err)
+	}
+	return Return{AppID: res.GetAppId(), Path: res.GetReturnPath()}, nil
 }
 
 // Authenticate checks an email and password. A failure that says the credentials
@@ -141,14 +159,18 @@ func (c *Client) Authenticate(ctx context.Context, email, password string) (Logi
 	return Login{UserID: res.GetUserId(), Profile: profile(res.GetProfile()), Roles: res.GetRoles(), AuthVersion: res.GetAuthVersion()}, nil
 }
 
-func (c *Client) RequestPasswordReset(ctx context.Context, email, appID string) error {
-	_, err := c.account.RequestPasswordReset(anonymous(ctx), &usersrvv1.RequestPasswordResetRequest{Email: email, AppId: appID})
+func (c *Client) RequestPasswordReset(ctx context.Context, email string, ret Return) error {
+	_, err := c.account.RequestPasswordReset(anonymous(ctx), &usersrvv1.RequestPasswordResetRequest{
+		Email: email, AppId: ret.AppID, ReturnPath: ret.Path})
 	return MapError(err)
 }
 
-func (c *Client) ResetPassword(ctx context.Context, token, newPassword string) error {
-	_, err := c.account.ResetPassword(anonymous(ctx), &usersrvv1.ResetPasswordRequest{Token: token, NewPassword: newPassword})
-	return MapError(err)
+func (c *Client) ResetPassword(ctx context.Context, token, newPassword string) (Return, error) {
+	res, err := c.account.ResetPassword(anonymous(ctx), &usersrvv1.ResetPasswordRequest{Token: token, NewPassword: newPassword})
+	if err != nil {
+		return Return{}, MapError(err)
+	}
+	return Return{AppID: res.GetAppId(), Path: res.GetReturnPath()}, nil
 }
 
 // AuthState reads the status, auth_version and current roles of userID. It returns
@@ -205,10 +227,28 @@ func (c *Client) UpdateProfile(ctx context.Context, userID, displayName, avatarU
 	return profile(res.GetProfile()), nil
 }
 
-// BeginDeletion idempotently moves the account to deleting under mutationID.
+// BeginDeletion idempotently moves the account to deleting under mutationID. An account
+// that holds the platform role is refused for good: the error satisfies
+// IsPlatformAdminProtected and nothing about the account has changed.
 func (c *Client) BeginDeletion(ctx context.Context, userID, mutationID string) error {
 	_, err := c.account.BeginDeletion(asUser(ctx, userID), &usersrvv1.BeginDeletionRequest{MutationId: mutationID})
+	if Reason(err) == ReasonPlatformAdminProtected {
+		return platformAdminProtected{connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("platform administrator accounts cannot be closed here; an operator must revoke the role first"))}
+	}
 	return MapError(err)
+}
+
+// platformAdminProtected marks the refusal to close a platform administrator's account. It
+// unwraps to a Connect error, so the browser sees an ordinary FAILED_PRECONDITION.
+type platformAdminProtected struct{ error }
+
+func (e platformAdminProtected) Unwrap() error { return e.error }
+
+// IsPlatformAdminProtected reports whether err is that refusal.
+func IsPlatformAdminProtected(err error) bool {
+	var p platformAdminProtected
+	return errors.As(err, &p)
 }
 
 // FinishDeletion removes the account (or confirms an earlier removal by its
@@ -295,4 +335,229 @@ func MapError(err error) error {
 	}
 	slog.Error("usersrv call failed", "code", st.Code().String(), "reason", reason)
 	return connect.NewError(connect.CodeInternal, errors.New("internal error"))
+}
+
+// AdminUser is an account as the user management section may show it.
+type AdminUser struct {
+	UserID      string
+	Email       string
+	DisplayName string
+	Status      Status
+	Roles       []string
+	CreatedAt   time.Time
+	// AuthVersion is the version a change of this account must name.
+	AuthVersion int64
+}
+
+// UserChange is what a console change carries to usersrv. The operator is not here:
+// it is the call's credential, taken from the trusted session.
+type UserChange struct {
+	UserID              string
+	ExpectedAuthVersion int64
+	MutationID          string
+	Reason              string
+}
+
+// ChangeResult is the account after a console change.
+type ChangeResult struct {
+	UserID      string
+	Status      Status
+	Roles       []string
+	AuthVersion int64
+	Changed     bool
+	Replayed    bool
+}
+
+// UserQuery narrows a user list. At most one of Email, UserID and Nickname is set.
+type UserQuery struct {
+	Email, UserID, Nickname string
+	Status                  Status
+	Role                    string
+	PageSize                int32
+	PageToken               string
+}
+
+// AuditQuery narrows the account audit list. Every field is optional; Channel is "web",
+// "cli", "self" or "system". The zero time is unbounded.
+type AuditQuery struct {
+	UserID, OperatorUserID string
+	Channel                string
+	Action, Result         string
+	MutationID             string
+	From, To               time.Time
+	PageSize               int32
+	PageToken              string
+}
+
+// AuditEntry is one audit row as the console may show it (see usersrv.v1.SecurityAuditEntry).
+type AuditEntry struct {
+	ID                        string
+	CreatedAt                 time.Time
+	Channel                   string
+	OperatorUserID            string
+	OperatorLabel             string
+	UserID                    string
+	Action, Result            string
+	Reason, RequestID         string
+	MutationID                string
+	BeforeStatus, AfterStatus string
+	BeforeRoles, AfterRoles   []string
+	OriginID                  string
+	Origin                    *AuditOrigin
+}
+
+// AuditOrigin is the change a replayed row points at.
+type AuditOrigin struct {
+	ID                        string
+	CreatedAt                 time.Time
+	Action, Result            string
+	BeforeStatus, AfterStatus string
+	BeforeRoles, AfterRoles   []string
+}
+
+// asAdmin describes a call made by the administrator userID. Unlike asUser it keeps the
+// roles the ingress verified from the session, because usersrv.v1.UserAdminService
+// declares a required role and checks it again from the credential.
+func asAdmin(ctx context.Context, userID string) context.Context {
+	c := rpcauth.CallFrom(ctx)
+	c.UserID, c.TokenID = userID, ""
+	return rpcauth.WithCall(ctx, c)
+}
+
+// ListUsers pages through accounts for the administrator operatorID.
+func (c *Client) ListUsers(ctx context.Context, operatorID string, q UserQuery) ([]AdminUser, string, error) {
+	res, err := c.admin.ListUsers(asAdmin(ctx, operatorID), &usersrvv1.ListUsersRequest{
+		Email: q.Email, UserId: q.UserID, Nickname: q.Nickname, Status: protoStatus(q.Status), Role: q.Role,
+		PageSize: q.PageSize, PageToken: q.PageToken,
+	})
+	if err != nil {
+		return nil, "", MapError(err)
+	}
+	users := make([]AdminUser, 0, len(res.GetUsers()))
+	for _, u := range res.GetUsers() {
+		users = append(users, adminUser(u))
+	}
+	return users, res.GetNextPageToken(), nil
+}
+
+// ListSecurityAudit pages through the account audit for the administrator operatorID.
+func (c *Client) ListSecurityAudit(ctx context.Context, operatorID string, q AuditQuery) ([]AuditEntry, string, error) {
+	req := &usersrvv1.ListSecurityAuditRequest{
+		UserId: q.UserID, OperatorUserId: q.OperatorUserID, Channel: auditChannelProto(q.Channel),
+		Action: q.Action, Result: q.Result, MutationId: q.MutationID, PageSize: q.PageSize, PageToken: q.PageToken,
+	}
+	if !q.From.IsZero() {
+		req.From = timestamppb.New(q.From)
+	}
+	if !q.To.IsZero() {
+		req.To = timestamppb.New(q.To)
+	}
+	res, err := c.admin.ListSecurityAudit(asAdmin(ctx, operatorID), req)
+	if err != nil {
+		return nil, "", MapError(err)
+	}
+	out := make([]AuditEntry, 0, len(res.GetEntries()))
+	for _, e := range res.GetEntries() {
+		entry := AuditEntry{
+			ID: e.GetId(), CreatedAt: e.GetCreatedAt().AsTime(), Channel: auditChannelName(e.GetChannel()),
+			OperatorUserID: e.GetOperatorUserId(), OperatorLabel: e.GetOperatorLabel(), UserID: e.GetUserId(),
+			Action: e.GetAction(), Result: e.GetResult(), Reason: e.GetReason(), RequestID: e.GetRequestId(), MutationID: e.GetMutationId(),
+			BeforeStatus: e.GetBeforeStatus(), AfterStatus: e.GetAfterStatus(), BeforeRoles: e.GetBeforeRoles(), AfterRoles: e.GetAfterRoles(),
+			OriginID: e.GetOriginId(),
+		}
+		if o := e.GetOrigin(); o != nil {
+			entry.Origin = &AuditOrigin{ID: o.GetId(), CreatedAt: o.GetCreatedAt().AsTime(), Action: o.GetAction(), Result: o.GetResult(),
+				BeforeStatus: o.GetBeforeStatus(), AfterStatus: o.GetAfterStatus(), BeforeRoles: o.GetBeforeRoles(), AfterRoles: o.GetAfterRoles()}
+		}
+		out = append(out, entry)
+	}
+	return out, res.GetNextPageToken(), nil
+}
+
+func auditChannelProto(c string) usersrvv1.AuditChannel {
+	switch c {
+	case "web":
+		return usersrvv1.AuditChannel_AUDIT_CHANNEL_WEB
+	case "cli":
+		return usersrvv1.AuditChannel_AUDIT_CHANNEL_CLI
+	case "self":
+		return usersrvv1.AuditChannel_AUDIT_CHANNEL_SELF
+	case "system":
+		return usersrvv1.AuditChannel_AUDIT_CHANNEL_SYSTEM
+	}
+	return usersrvv1.AuditChannel_AUDIT_CHANNEL_UNSPECIFIED
+}
+
+func auditChannelName(c usersrvv1.AuditChannel) string {
+	switch c {
+	case usersrvv1.AuditChannel_AUDIT_CHANNEL_WEB:
+		return "web"
+	case usersrvv1.AuditChannel_AUDIT_CHANNEL_CLI:
+		return "cli"
+	case usersrvv1.AuditChannel_AUDIT_CHANNEL_SELF:
+		return "self"
+	case usersrvv1.AuditChannel_AUDIT_CHANNEL_SYSTEM:
+		return "system"
+	}
+	return ""
+}
+
+// GetUser reads one account for the administrator operatorID; a missing account is ErrNotFound.
+func (c *Client) GetUser(ctx context.Context, operatorID, userID string) (AdminUser, error) {
+	res, err := c.admin.GetUser(asAdmin(ctx, operatorID), &usersrvv1.GetUserRequest{UserId: userID})
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return AdminUser{}, ErrNotFound
+		}
+		return AdminUser{}, MapError(err)
+	}
+	return adminUser(res.GetUser()), nil
+}
+
+func adminUser(u *usersrvv1.AdminUser) AdminUser {
+	return AdminUser{UserID: u.GetUserId(), Email: u.GetEmail(), DisplayName: u.GetDisplayName(), Status: statusOf(u.GetStatus()),
+		Roles: u.GetRoles(), CreatedAt: u.GetCreatedAt().AsTime(), AuthVersion: u.GetAuthVersion()}
+}
+
+type changeCall func(context.Context, *usersrvv1.ChangeUserRequest, ...grpc.CallOption) (*usersrvv1.ChangeUserResponse, error)
+
+func (c *Client) change(ctx context.Context, operatorID string, in UserChange, call func(usersrvv1.UserAdminServiceClient) changeCall) (ChangeResult, error) {
+	res, err := call(c.admin)(asAdmin(ctx, operatorID), &usersrvv1.ChangeUserRequest{
+		UserId: in.UserID, ExpectedAuthVersion: in.ExpectedAuthVersion, MutationId: in.MutationID, Reason: in.Reason})
+	if err != nil {
+		return ChangeResult{}, MapError(err)
+	}
+	return ChangeResult{UserID: res.GetUserId(), Status: statusOf(res.GetStatus()), Roles: res.GetRoles(), AuthVersion: res.GetAuthVersion(),
+		Changed: res.GetChanged(), Replayed: res.GetReplayed()}, nil
+}
+
+// DisableUser, EnableUser, GrantMetroAdmin and RevokeMetroAdmin are the console's four
+// account changes, made as the administrator operatorID. usersrv enforces the target
+// constraints; a refusal arrives as a browser-safe error.
+func (c *Client) DisableUser(ctx context.Context, operatorID string, in UserChange) (ChangeResult, error) {
+	return c.change(ctx, operatorID, in, func(a usersrvv1.UserAdminServiceClient) changeCall { return a.DisableUser })
+}
+
+func (c *Client) EnableUser(ctx context.Context, operatorID string, in UserChange) (ChangeResult, error) {
+	return c.change(ctx, operatorID, in, func(a usersrvv1.UserAdminServiceClient) changeCall { return a.EnableUser })
+}
+
+func (c *Client) GrantMetroAdmin(ctx context.Context, operatorID string, in UserChange) (ChangeResult, error) {
+	return c.change(ctx, operatorID, in, func(a usersrvv1.UserAdminServiceClient) changeCall { return a.GrantMetroAdmin })
+}
+
+func (c *Client) RevokeMetroAdmin(ctx context.Context, operatorID string, in UserChange) (ChangeResult, error) {
+	return c.change(ctx, operatorID, in, func(a usersrvv1.UserAdminServiceClient) changeCall { return a.RevokeMetroAdmin })
+}
+
+func protoStatus(s Status) usersrvv1.AccountStatus {
+	switch s {
+	case StatusActive:
+		return usersrvv1.AccountStatus_ACCOUNT_STATUS_ACTIVE
+	case StatusDisabled:
+		return usersrvv1.AccountStatus_ACCOUNT_STATUS_DISABLED
+	case StatusDeleting:
+		return usersrvv1.AccountStatus_ACCOUNT_STATUS_DELETING
+	}
+	return usersrvv1.AccountStatus_ACCOUNT_STATUS_UNSPECIFIED
 }

@@ -108,6 +108,9 @@ func TestVersionedMigrationsMatchEntAndEnforceInvariants(t *testing.T) {
 	if err := exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), $1, 'metro-admin', now())`, u1); err != nil {
 		t.Fatal(err)
 	}
+	if err := exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), $1, 'ozid-admin', now())`, u1); err != nil {
+		t.Fatalf("the platform role is not admitted by the migrated schema: %v", err)
+	}
 	mustFail("the same role twice", exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), $1, 'metro-admin', now())`, u1))
 	mustFail("a role for a missing user", exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), gen_random_uuid(), 'metro-admin', now())`))
 
@@ -167,4 +170,392 @@ func pending(t *testing.T, ctx context.Context, c *ent.Client) string {
 		t.Fatal(err)
 	}
 	return strings.TrimSpace(b.String())
+}
+
+const platformRoleMigration = "20261025120000_platform_admin_role.sql"
+
+// A database that is already running the previous schema, with accounts and a metro-admin role row,
+// takes the platform-role migration on its own: nothing it holds is lost, and the role constraint
+// afterwards admits exactly the two whitelisted roles. (A fresh database applying every file in a
+// row is covered above; this is the upgrade path production actually takes.)
+func TestPlatformRoleMigrationUpgradesAnExistingDatabaseInPlace(t *testing.T) {
+	scoped, _ := testutil.Schema(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	files, err := filepath.Glob(filepath.Join(migrationsDir, "*.sql"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("migrations missing: %v %v", files, err)
+	}
+	sort.Strings(files)
+	apply := func(f string) {
+		t.Helper()
+		body, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tx, err := scoped.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = tx.ExecContext(ctx, string(body)); err != nil {
+			_ = tx.Rollback()
+			t.Fatalf("%s: %v", filepath.Base(f), err)
+		}
+		if err = tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The database as it was before this migration: every earlier file, in order.
+	var platform string
+	for _, f := range files {
+		if filepath.Base(f) == platformRoleMigration {
+			platform = f
+			continue
+		}
+		if platform != "" {
+			break // later migrations are not part of this upgrade step
+		}
+		apply(f)
+	}
+	if platform == "" {
+		t.Fatalf("%s is missing", platformRoleMigration)
+	}
+	exec := func(q string, args ...any) error {
+		_, err := scoped.ExecContext(ctx, q, args...)
+		return err
+	}
+	const (
+		alice = "00000000-0000-0000-0000-0000000000a1"
+		bob   = "00000000-0000-0000-0000-0000000000b2"
+	)
+	for id, email := range map[string]string{alice: "alice@example.com", bob: "bob@example.com"} {
+		if err := exec(`INSERT INTO users (id, email_canonical, email_verified_at, password_hash, created_at, updated_at) VALUES ($1,$2,now(),'$argon2id$x',now(),now())`, id, email); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const grantedBy = "ops-1"
+	if err := exec(`INSERT INTO user_roles (id, user_id, role, granted_at, granted_by) VALUES ('00000000-0000-0000-0000-00000000c001', $1, 'metro-admin', '2026-10-01T00:00:00Z', $2)`, alice, grantedBy); err != nil {
+		t.Fatal(err)
+	}
+	// Before the migration the platform role is not admitted: the old constraint is really in force.
+	if err := exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), $1, 'ozid-admin', now())`, alice); err == nil {
+		t.Fatal("the schema before the migration already admits ozid-admin: this test would prove nothing")
+	}
+
+	apply(platform)
+
+	// What was there is still there, untouched.
+	var id, role, by string
+	var grantedAt time.Time
+	if err := scoped.QueryRowContext(ctx, `SELECT id::text, role, granted_by, granted_at FROM user_roles WHERE user_id=$1`, alice).Scan(&id, &role, &by, &grantedAt); err != nil {
+		t.Fatalf("the existing role row did not survive: %v", err)
+	}
+	if id != "00000000-0000-0000-0000-00000000c001" || role != "metro-admin" || by != grantedBy || !grantedAt.Equal(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("the existing role row changed: %s %s %s %s", id, role, by, grantedAt)
+	}
+	var users, roles int
+	if err := scoped.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM users), (SELECT count(*) FROM user_roles)`).Scan(&users, &roles); err != nil || users != 2 || roles != 1 {
+		t.Fatalf("after the migration: %d users, %d roles (%v)", users, roles, err)
+	}
+
+	// The new constraint admits the platform role next to the old one, and nothing else.
+	if err := exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), $1, 'ozid-admin', now())`, alice); err != nil {
+		t.Fatalf("the platform role is refused after the migration: %v", err)
+	}
+	if err := exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), $1, 'metro-admin', now())`, bob); err != nil {
+		t.Fatalf("metro-admin is refused after the migration: %v", err)
+	}
+	for _, bad := range []string{"root", "OZID-ADMIN", "ozid-admin ", "", "metro-admin,ozid-admin", "admin"} {
+		if err := exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), $1, $2, now())`, bob, bad); err == nil {
+			t.Errorf("the role %q is admitted by the migrated constraint", bad)
+		}
+	}
+	// One row per user and role, and the cascade, still hold.
+	if err := exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), $1, 'ozid-admin', now())`, alice); err == nil {
+		t.Error("the same platform role twice was accepted")
+	}
+	if err := exec(`DELETE FROM users WHERE id=$1`, alice); err != nil {
+		t.Fatal(err)
+	}
+	var left int
+	if err := scoped.QueryRowContext(ctx, `SELECT count(*) FROM user_roles WHERE user_id=$1`, alice).Scan(&left); err != nil || left != 0 {
+		t.Fatalf("%d role rows survive their user: %v", left, err)
+	}
+	// Exactly one check constraint on the role column, under the name the baseline gave it.
+	var checks int
+	if err := scoped.QueryRowContext(ctx, `SELECT count(*) FROM pg_constraint WHERE conrelid = 'user_roles'::regclass AND contype = 'c'`).Scan(&checks); err != nil || checks != 1 {
+		t.Fatalf("%d check constraints on user_roles after the migration (want 1): %v", checks, err)
+	}
+	var name string
+	if err := scoped.QueryRowContext(ctx, `SELECT conname FROM pg_constraint WHERE conrelid = 'user_roles'::regclass AND contype = 'c'`).Scan(&name); err != nil || name != "user_roles_role" {
+		t.Fatalf("the check constraint is %q: %v", name, err)
+	}
+
+	// The documented rollback order: the old constraint can come back only after every platform
+	// role is revoked, and existing metro-admin rows are fine with it.
+	const old = `ALTER TABLE user_roles DROP CONSTRAINT user_roles_role, ADD CONSTRAINT user_roles_role CHECK ((role)::text = 'metro-admin'::text)`
+	if err := exec(`INSERT INTO user_roles (id, user_id, role, granted_at) VALUES (gen_random_uuid(), $1, 'ozid-admin', now())`, bob); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := scoped.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tx.ExecContext(ctx, old)
+	_ = tx.Rollback()
+	if err == nil {
+		t.Fatal("the old constraint was re-added while a platform role is still held")
+	}
+	if err := exec(`DELETE FROM user_roles WHERE role='ozid-admin'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := exec(old); err != nil {
+		t.Fatalf("rollback after revoking every platform role: %v", err)
+	}
+}
+
+const adminMutationsMigration = "20261025130000_admin_mutations.sql"
+
+// A database that already holds audit rows takes the console-change migration on its own: the old rows
+// keep their text and get the empty defaults of the new columns, the new constraints refuse what they
+// are for, and one (operator, key) names one receipt.
+func TestAdminMutationsMigrationUpgradesAnExistingDatabaseInPlace(t *testing.T) {
+	scoped, _ := testutil.Schema(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	files, err := filepath.Glob(filepath.Join(migrationsDir, "*.sql"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("migrations missing: %v %v", files, err)
+	}
+	sort.Strings(files)
+	apply := func(f string) {
+		t.Helper()
+		body, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = scoped.ExecContext(ctx, string(body)); err != nil {
+			t.Fatalf("%s: %v", filepath.Base(f), err)
+		}
+	}
+	var target string
+	for _, f := range files {
+		if filepath.Base(f) == adminMutationsMigration {
+			target = f
+			break
+		}
+		apply(f)
+	}
+	if target == "" {
+		t.Fatalf("%s is missing", adminMutationsMigration)
+	}
+	exec := func(q string, args ...any) error {
+		_, err := scoped.ExecContext(ctx, q, args...)
+		return err
+	}
+	const alice = "00000000-0000-0000-0000-0000000000a1"
+	if err := exec(`INSERT INTO users (id, email_canonical, email_verified_at, password_hash, created_at, updated_at) VALUES ($1,'alice@example.com',now(),'$argon2id$x',now(),now())`, alice); err != nil {
+		t.Fatal(err)
+	}
+	if err := exec(`INSERT INTO security_audit (id, user_id, actor, action, request_id, result, reason, created_at)
+		VALUES ('00000000-0000-0000-0000-00000000d001', $1, 'ops-1', 'role.grant:metro-admin', 'cli-1', 'ok', 'ticket 42', '2026-10-01T00:00:00Z')`, alice); err != nil {
+		t.Fatal(err)
+	}
+
+	apply(target)
+
+	var actor, action, reason, channel, mutation, beforeStatus, afterRoles string
+	var actorUser *string
+	if err := scoped.QueryRowContext(ctx, `SELECT actor, action, reason, channel, mutation_id, before_status, after_roles, actor_user_id::text FROM security_audit`).
+		Scan(&actor, &action, &reason, &channel, &mutation, &beforeStatus, &afterRoles, &actorUser); err != nil {
+		t.Fatalf("the existing audit row did not survive: %v", err)
+	}
+	if actor != "ops-1" || action != "role.grant:metro-admin" || reason != "ticket 42" || channel != "" || mutation != "" || beforeStatus != "" || afterRoles != "" || actorUser != nil {
+		t.Fatalf("the existing audit row changed: %s %s %s %q %q %q %q %v", actor, action, reason, channel, mutation, beforeStatus, afterRoles, actorUser)
+	}
+	// The audit constraint bounds the new columns.
+	if err := exec(`INSERT INTO security_audit (id, actor, action, result, channel, created_at) VALUES (gen_random_uuid(), 'x', 'a', 'ok', $1, now())`, strings.Repeat("c", 17)); err == nil {
+		t.Error("a 17-character channel was accepted")
+	}
+	if err := exec(`INSERT INTO security_audit (id, actor, action, result, channel, before_roles, created_at) VALUES (gen_random_uuid(), 'x', 'a', 'ok', 'web', $1, now())`, strings.Repeat("r", 201)); err == nil {
+		t.Error("a 201-character role list was accepted")
+	}
+
+	hash := strings.Repeat("h", 32)
+	insert := func(operator, key, hashValue, status string, version int, expires string) error {
+		return exec(`INSERT INTO admin_mutations (id, operator_id, mutation_id, action, target_id, request_hash, changed, status, roles, auth_version, created_at, expires_at)
+			VALUES (gen_random_uuid(), $1, $2, 'disable', $1, $3::bytea, true, $4, '', $5, now(), now() + $6::interval)`, operator, key, hashValue, status, version, expires)
+	}
+	if err := insert(alice, "k-1", hash, "disabled", 2, "24 hours"); err != nil {
+		t.Fatal(err)
+	}
+	for name, err := range map[string]error{
+		"the same operator and key twice": insert(alice, "k-1", hash, "disabled", 2, "24 hours"),
+		"a 16-byte request hash":          insert(alice, "k-2", strings.Repeat("h", 16), "disabled", 2, "24 hours"),
+		"an unknown status":               insert(alice, "k-3", hash, "banned", 2, "24 hours"),
+		"a zero version":                  insert(alice, "k-4", hash, "disabled", 0, "24 hours"),
+		"a receipt that is already over":  insert(alice, "k-5", hash, "disabled", 2, "-1 hour"),
+		"an empty key":                    insert(alice, "", hash, "disabled", 2, "24 hours"),
+		"a 65-character key":              insert(alice, strings.Repeat("k", 65), hash, "disabled", 2, "24 hours"),
+	} {
+		if err == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+	// Another operator's receipt under the same key is a different receipt.
+	if err := insert("00000000-0000-0000-0000-0000000000b2", "k-1", hash, "disabled", 2, "24 hours"); err != nil {
+		t.Fatalf("a second operator's receipt under the same key: %v", err)
+	}
+	// The receipt table keeps no email, reason or secret column.
+	rows, err := scoped.QueryContext(ctx, `SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'admin_mutations'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var column string
+		if err := rows.Scan(&column); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(column, "email") || strings.Contains(column, "reason") || strings.Contains(column, "password") || strings.Contains(column, "token") {
+			t.Errorf("admin_mutations.%s must not exist", column)
+		}
+	}
+}
+
+const auditQueryMigration = "20261025140000_audit_query.sql"
+
+// The audit-query migration is applied to a database that already holds what the previous release wrote:
+// rows of every kind (older CLI rows and console reads with no channel, system and self-service rows,
+// a T5 console change with its operator UUID) and a receipt. Nothing is lost, every row is classified
+// by where its actor came from, and the receipt stays valid with no audit link.
+func TestAuditQueryMigrationUpgradesAnExistingDatabaseInPlace(t *testing.T) {
+	scoped, _ := testutil.Schema(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	files, err := filepath.Glob(filepath.Join(migrationsDir, "*.sql"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("migrations missing: %v %v", files, err)
+	}
+	sort.Strings(files)
+	apply := func(f string) {
+		t.Helper()
+		body, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = scoped.ExecContext(ctx, string(body)); err != nil {
+			t.Fatalf("%s: %v", filepath.Base(f), err)
+		}
+	}
+	var target string
+	for _, f := range files {
+		if filepath.Base(f) == auditQueryMigration {
+			target = f
+			break
+		}
+		apply(f)
+	}
+	if target == "" {
+		t.Fatalf("%s is missing", auditQueryMigration)
+	}
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := scoped.ExecContext(ctx, q, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const (
+		admin  = "00000000-0000-0000-0000-0000000000a1"
+		holder = "00000000-0000-0000-0000-0000000000b2"
+	)
+	exec(`INSERT INTO users (id, email_canonical, email_verified_at, password_hash, created_at, updated_at) VALUES ($1,'root@example.com',now(),'$argon2id$x',now(),now()),($2,'holder@example.com',now(),'$argon2id$x',now(),now())`, admin, holder)
+	row := func(id, user, actor, action, channel, actorUser string) {
+		var u, au any
+		if user != "" {
+			u = user
+		}
+		if actorUser != "" {
+			au = actorUser
+		}
+		exec(`INSERT INTO security_audit (id, user_id, actor, action, request_id, result, reason, created_at, channel, actor_user_id)
+			VALUES ($1, $2, $3, $4, '', 'ok', '', '2026-10-01T00:00:00Z', $5, $6)`, id, u, actor, action, channel, au)
+	}
+	row("00000000-0000-0000-0000-00000000d001", holder, "ops-old", "role.grant:metro-admin", "", "")
+	row("00000000-0000-0000-0000-00000000d002", "", "system", "password_reset.request", "", "")
+	row("00000000-0000-0000-0000-00000000d003", "", "user:"+admin, "admin.users.list", "", "")
+	row("00000000-0000-0000-0000-00000000d004", holder, "user:"+holder, "login", "", "")
+	row("00000000-0000-0000-0000-00000000d005", holder, "user:"+admin, "admin.account.disable", "web", admin)
+	row("00000000-0000-0000-0000-00000000d006", holder, "ops-new", "account.enable", "cli", "")
+	// Legal CLI operator names that look like another source, and a row no known source wrote.
+	row("00000000-0000-0000-0000-00000000d007", holder, "system", "account.disable", "", "")
+	row("00000000-0000-0000-0000-00000000d008", holder, "user:"+holder, "role.grant:metro-admin", "", "")
+	row("00000000-0000-0000-0000-00000000d009", holder, "user:"+admin, "role.revoke:metro-admin", "", "")
+	row("00000000-0000-0000-0000-00000000d00a", holder, "user:"+admin, "something.else", "", "")
+	row("00000000-0000-0000-0000-00000000d00b", holder, "user:"+holder, "deletion.begin", "", "")
+	exec(`INSERT INTO admin_mutations (id, operator_id, mutation_id, action, target_id, request_hash, changed, status, roles, auth_version, created_at, expires_at)
+		VALUES (gen_random_uuid(), $1, 'old-key', 'disable', $2, $3::bytea, true, 'disabled', '', 2, now(), now() + interval '24 hours')`, admin, holder, strings.Repeat("h", 32))
+
+	apply(target)
+
+	want := map[string][2]string{ // id suffix -> channel, actor_user_id
+		"d001": {"cli", ""}, "d002": {"system", ""}, "d003": {"web", admin}, "d004": {"self", ""}, "d005": {"web", admin}, "d006": {"cli", ""},
+		"d007": {"cli", ""}, "d008": {"cli", ""}, "d009": {"cli", ""}, "d00a": {"cli", ""}, "d00b": {"self", ""},
+	}
+	rows, err := scoped.QueryContext(ctx, `SELECT right(id::text, 4), channel, COALESCE(actor_user_id::text, ''), actor, action, origin_id IS NULL FROM security_audit ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		var suffix, channel, actorUser, actor, action string
+		var noOrigin bool
+		if err := rows.Scan(&suffix, &channel, &actorUser, &actor, &action, &noOrigin); err != nil {
+			t.Fatal(err)
+		}
+		n++
+		if w := want[suffix]; channel != w[0] || actorUser != w[1] || !noOrigin {
+			t.Errorf("row %s (%s %s): channel %q actor_user_id %q, want %v", suffix, actor, action, channel, actorUser, w)
+		}
+	}
+	if err := rows.Err(); err != nil || n != len(want) {
+		t.Fatalf("%d rows survived, want %d (%v)", n, len(want), err)
+	}
+	// The CLI's controlled operator name and the actor text of every row are untouched.
+	var label string
+	if err := scoped.QueryRowContext(ctx, `SELECT actor FROM security_audit WHERE id = '00000000-0000-0000-0000-00000000d001'`).Scan(&label); err != nil || label != "ops-old" {
+		t.Fatalf("the CLI row changed: %q %v", label, err)
+	}
+	// Only the reasons known to be safe are marked: console changes and the code's own descriptions.
+	for suffix, want := range map[string]bool{"d001": false, "d003": true, "d004": false, "d005": true, "d007": false} {
+		var checked bool
+		if err := scoped.QueryRowContext(ctx, `SELECT reason_checked FROM security_audit WHERE right(id::text, 4) = $1`, suffix).Scan(&checked); err != nil || checked != want {
+			t.Errorf("row %s: reason_checked %v, want %v (%v)", suffix, checked, want, err)
+		}
+	}
+	// The colliding operator names and the history around them are kept as written.
+	for suffix, w := range map[string][3]string{
+		"d007": {"system", "account.disable", holder},
+		"d008": {"user:" + holder, "role.grant:metro-admin", holder},
+		"d009": {"user:" + admin, "role.revoke:metro-admin", holder},
+	} {
+		var actor, action, subject string
+		if err := scoped.QueryRowContext(ctx, `SELECT actor, action, user_id::text FROM security_audit WHERE right(id::text, 4) = $1`, suffix).Scan(&actor, &action, &subject); err != nil || [3]string{actor, action, subject} != w {
+			t.Fatalf("row %s changed: %q %q %q %v", suffix, actor, action, subject, err)
+		}
+	}
+	// The receipt survives and answers as before; it has no audit link, which a replay reports as unknown.
+	var key string
+	var link *string
+	if err := scoped.QueryRowContext(ctx, `SELECT mutation_id, audit_id::text FROM admin_mutations`).Scan(&key, &link); err != nil || key != "old-key" || link != nil {
+		t.Fatalf("receipt: %q %v %v", key, link, err)
+	}
+	// The indexes the console's filters use exist.
+	for _, idx := range []string{"securityaudit_action_created_at", "securityaudit_actor_user_id_created_at"} {
+		var found bool
+		if err := scoped.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND indexname = $1)`, idx).Scan(&found); err != nil || !found {
+			t.Errorf("index %s: %v %v", idx, found, err)
+		}
+	}
 }

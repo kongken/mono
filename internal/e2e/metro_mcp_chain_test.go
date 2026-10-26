@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -133,7 +134,7 @@ func toolNames(t *testing.T, c *mcpClient) map[string]bool {
 // Acceptance 14 and 15: scopes decide the tool list, writes need metro:write, and a
 // token stops working the moment it is revoked, expired, or missing.
 func TestChainMCPTokensAndScopes(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	admin, _ := h.adminBrowser(ctx, "root")
 
@@ -251,7 +252,7 @@ func TestChainMCPTokensAndScopes(t *testing.T) {
 }
 
 func TestChainMCPTokenCap(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	admin, _ := h.adminBrowser(ctx, "root")
 	for i := 0; i < 10; i++ {
@@ -267,7 +268,7 @@ func TestChainMCPTokenCap(t *testing.T) {
 // Acceptance 14 (import preview), 16: MCP writes use the same rules as the web,
 // audit as channel mcp with the token id, and conflict with web edits.
 func TestChainMCPWritesShareTheAdminRules(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	admin, adminID := h.adminBrowser(ctx, "root")
 	secret := h.newAdminToken(ctx, admin, "agent", 30, "metro:write")
@@ -382,9 +383,7 @@ func TestChainMCPWritesShareTheAdminRules(t *testing.T) {
 }
 
 func TestChainMCPRateLimit(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{}, ChainHTTPOptions{Configure: func(cfg *bffconfig.Config, _ string) {
-		cfg.MCP.RateLimitPerMinute = 5
-	}})
+	h := adminHarness(t, loopback, ChainMetro{}, func(cfg *bffconfig.Config) { cfg.MCP.RateLimitPerMinute = 5 })
 	ctx := context.Background()
 	admin, _ := h.adminBrowser(ctx, "root")
 	c := h.mcp(h.newAdminToken(ctx, admin, "t", 1))
@@ -405,7 +404,7 @@ func TestChainMCPRateLimit(t *testing.T) {
 }
 
 func TestChainMCPProtocol(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	admin, _ := h.adminBrowser(ctx, "root")
 	c := h.mcp(h.newAdminToken(ctx, admin, "t", 1))
@@ -481,9 +480,47 @@ func mustJSON(t *testing.T, v any) []byte {
 // stops working when its owner's password changes or resets, a role is revoked (and
 // is not restored by granting it again), the account is disabled or deleting, and
 // while usersrv cannot answer nothing is run.
+//
+// The machine allowlist is explicit here (T9): the clients are reported by the loopback proxy as
+// 198.51.100.0/24 addresses, so every call first passes the source perimeter and only then meets the token
+// and account checks below. A client outside the list gets the perimeter's 403 before any of them, also for
+// a token the account checks have already ended, and a refused call never reaches metro.
 func TestChainMCPTokenIsRevalidatedOnEveryCall(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	const insider, outsider = "198.51.100.7", "203.0.113.9"
+	var reached atomic.Int64
+	h := adminHarness(t, loopback, ChainMetro{}, ChainMetroUnary{countMetroAdmin(&reached)},
+		mcpSource(bffconfig.MCPConfig{AllowedCIDRs: []string{"198.51.100.0/24"}, TrustedProxies: []string{"127.0.0.0/8"}}))
 	ctx := context.Background()
+	from := func(secret, xff string) *mcpClient {
+		c := h.mcp(secret)
+		c.extra.Set("X-Forwarded-For", xff)
+		return c
+	}
+	callBody := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": map[string]any{"name": "metro_list_cities", "arguments": map[string]any{}}}
+	// atTheDoor: from outside the list the answer is the perimeter's, whatever the state of the token or the
+	// account, and nothing ran.
+	atTheDoor := func(label, secret string) {
+		t.Helper()
+		before := reached.Load()
+		status, header, body := from(secret, outsider).post(callBody)
+		if status != http.StatusForbidden || strings.TrimSpace(string(body)) != "request rejected" || header.Get("WWW-Authenticate") != "" {
+			t.Fatalf("%s: from outside the list: HTTP %d %q %v", label, status, body, header)
+		}
+		if reached.Load() != before {
+			t.Fatalf("%s: a call from outside the list reached metro", label)
+		}
+	}
+	// stopped: from inside, a token that must no longer work is refused without reaching metro.
+	stopped := func(label string, c *mcpClient, callOK func(*mcpClient) (bool, string)) {
+		t.Helper()
+		before := reached.Load()
+		if ok, msg := callOK(c); ok || msg != "UNAUTHENTICATED" {
+			t.Fatalf("%s: the token kept working: ok=%v %s", label, ok, msg)
+		}
+		if reached.Load() != before {
+			t.Fatalf("%s: a refused call reached metro", label)
+		}
+	}
 	callOK := func(c *mcpClient) (bool, string) {
 		t.Helper()
 		st, res := c.rpc("tools/call", map[string]any{"name": "metro_list_cities", "arguments": map[string]any{}})
@@ -505,15 +542,25 @@ func TestChainMCPTokenIsRevalidatedOnEveryCall(t *testing.T) {
 
 	admin, id := h.adminBrowser(ctx, "mcp-owner")
 	secret := h.newAdminToken(ctx, admin, "t", 30)
-	c := h.mcp(secret)
+	c := from(secret, insider)
+	before := reached.Load()
 	if ok, msg := callOK(c); !ok {
 		t.Fatalf("a fresh token: %s", msg)
 	}
+	if reached.Load() == before {
+		t.Fatal("the admitted call did not reach metro, so the counter proves nothing")
+	}
+	// The same good token from outside the list is stopped by the perimeter first.
+	atTheDoor("a fresh token", secret)
 
 	// An outage refuses the call instead of running it on an old snapshot.
 	h.FailUsersrv(func(string) error { return status.Error(codes.Unavailable, "down") })
+	before = reached.Load()
 	if ok, msg := callOK(c); ok || msg != "UNAVAILABLE" {
 		t.Fatalf("during an outage: ok=%v %s", ok, msg)
+	}
+	if reached.Load() != before {
+		t.Fatal("a call during an outage reached metro")
 	}
 	h.FailUsersrv(nil)
 	if ok, _ := callOK(c); !ok {
@@ -526,15 +573,12 @@ func TestChainMCPTokenIsRevalidatedOnEveryCall(t *testing.T) {
 	if _, err := h.Accounts.RevokeRole(ctx, operator, uid, "metro-admin"); err != nil {
 		t.Fatal(err)
 	}
-	if ok, msg := callOK(c); ok || msg != "UNAUTHENTICATED" {
-		t.Fatalf("after the role was revoked: ok=%v %s", ok, msg)
-	}
+	stopped("after the role was revoked", c, callOK)
+	atTheDoor("after the role was revoked", secret)
 	if _, err := h.Accounts.GrantRole(ctx, operator, uid, "metro-admin"); err != nil {
 		t.Fatal(err)
 	}
-	if ok, _ := callOK(c); ok {
-		t.Fatal("granting the role again restored an old token")
-	}
+	stopped("after the role was granted again", c, callOK)
 
 	// A password reset or change ends tokens too, and disabling an account does.
 	for name, end := range map[string]func(sub string, id string){
@@ -564,20 +608,21 @@ func TestChainMCPTokenIsRevalidatedOnEveryCall(t *testing.T) {
 	} {
 		sub := "mcp-" + strings.ReplaceAll(name, " ", "-")
 		br, bid := h.adminBrowser(ctx, sub)
-		tc := h.mcp(h.newAdminToken(ctx, br, name, 30))
+		tokenSecret := h.newAdminToken(ctx, br, name, 30)
+		tc := from(tokenSecret, insider)
 		if ok, msg := callOK(tc); !ok {
 			t.Fatalf("%s: a fresh token: %s", name, msg)
 		}
+		atTheDoor(name+" (before)", tokenSecret)
 		end(sub, bid)
-		if ok, msg := callOK(tc); ok || msg != "UNAUTHENTICATED" {
-			t.Fatalf("%s: the token kept working: ok=%v %s", name, ok, msg)
-		}
+		stopped(name, tc, callOK)
+		atTheDoor(name+" (after)", tokenSecret)
 	}
 }
 
 // Creating a management token needs the password to have been checked recently.
 func TestChainMCPTokenCreationNeedsARecentPassword(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	admin, _ := h.adminBrowser(ctx, "mcp-fresh")
 	h.ageSession(admin, 16*time.Minute)

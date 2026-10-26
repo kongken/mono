@@ -47,3 +47,53 @@ test("no connection, an unavailable service and a lost deletion answer are diffe
   assert.match(lost.message, /重试注销/);
   assert.match(classifyAccountError(new TypeError("Failed to fetch"), "delete").message, /重试注销/);
 });
+
+test("management refusals keep their meaning: lost session, old password check, missing role, closed perimeter", () => {
+  assert.equal(classifyAccountError(err(Code.Unauthenticated, "sign in required")).kind, "not_signed_in");
+  assert.equal(classifyAccountError(err(Code.Unauthenticated, "sign in again to use this feature")).kind, "reauth_required");
+  assert.equal(classifyAccountError(err(Code.PermissionDenied, "required role missing")).kind, "forbidden");
+  assert.equal(classifyAccountError(err(Code.PermissionDenied, "permission denied")).kind, "forbidden");
+  assert.equal(classifyAccountError(err(Code.PermissionDenied, "request rejected")).kind, "not_allowed");
+  assert.equal(classifyAccountError(err(Code.PermissionDenied, "403 Forbidden")).kind, "not_allowed");
+  assert.equal(classifyAccountError(err(Code.PermissionDenied, "something else")).kind, "other");
+  assert.equal(classifyAccountError(err(Code.ResourceExhausted, "too many requests, try again later")).kind, "rate_limited");
+});
+
+test("another deletion refused because of an unfinished one says it is a different deletion; a missing recovery Cookie says nothing began", () => {
+  const f = classifyAccountError(err(Code.FailedPrecondition, "an account deletion started in this browser has not finished"), "delete");
+  assert.equal(f.kind, "deletion_pending_here");
+  assert.match(f.message, /尚未完成的账号注销/);
+  assert.match(f.message, /另一次/);
+  const c = classifyAccountError(err(Code.FailedPrecondition, "account deletion recovery cookie is not stored yet; repeat the request"), "delete");
+  assert.equal(c.kind, "recovery_cookie_blocked");
+  assert.match(c.message, /没有开始注销/);
+});
+
+test("a platform administrator is told why the web cannot close the account, and it is not a lost answer", () => {
+  const f = classifyAccountError(err(Code.FailedPrecondition, "platform administrator accounts cannot be closed here; an operator must revoke the role first"), "delete");
+  assert.equal(f.kind, "platform_admin");
+  assert.match(f.message, /平台管理员/);
+});
+
+test("an administrator's change keeps every refusal apart and never hides an unconfirmed write", () => {
+  const kind = (c: Code, m: string) => classifyAccountError(err(c, m), "admin-change").kind;
+  assert.equal(kind(Code.Aborted, "account changed since it was read"), "conflict");
+  assert.equal(kind(Code.FailedPrecondition, "platform administrators cannot be changed here"), "target_protected");
+  assert.equal(kind(Code.FailedPrecondition, "account is not active"), "target_state");
+  assert.equal(kind(Code.AlreadyExists, "mutation id used for a different request"), "mutation_reused");
+  assert.equal(kind(Code.FailedPrecondition, "enter your password again to continue"), "reauth_required");
+  assert.equal(kind(Code.Unauthenticated, "sign in again to use this feature"), "reauth_required");
+  assert.equal(kind(Code.PermissionDenied, "required role missing"), "forbidden");
+  assert.equal(kind(Code.PermissionDenied, "request rejected"), "not_allowed");
+  assert.equal(kind(Code.ResourceExhausted, "too many requests, try again later"), "rate_limited");
+  assert.equal(kind(Code.InvalidArgument, "reason: must be 1-200 characters"), "validation");
+  // Without an answer the change may have happened: the text says so and offers the same-ID retry.
+  for (const code of [Code.DeadlineExceeded, Code.Unavailable, Code.Unknown]) {
+    const f = classifyAccountError(err(code, "x"), "admin-change");
+    assert.match(f.message, /不一定已经生效/);
+    assert.match(f.message, /同一个操作编号/);
+  }
+  // The same texts mean nothing outside this action.
+  assert.notEqual(classifyAccountError(err(Code.Aborted, "account changed since it was read")).kind, "conflict");
+  assert.notEqual(classifyAccountError(err(Code.FailedPrecondition, "platform administrators cannot be changed here")).kind, "target_protected");
+});

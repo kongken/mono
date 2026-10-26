@@ -77,8 +77,10 @@ dev-metro:
 dev-usersrv:
 	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.usersrv.yaml PORT=18086 go run ./cmd/usersrv
 
-# The metro web app (Vite on 5174, proxying /api to the BFF on 18081).
-# Run it next to `make dev`.
+# The metro web app (Vite on 5174, proxying /api to the BFF on 18081 for browsing the catalogue).
+# Signing in needs apps/metro/.env.local with VITE_API_BASE_URL (the BFF's public API base, e.g.
+# http://localhost:18081/api) and VITE_OZID_ORIGIN (OzID's origin, e.g. http://localhost:5175); without
+# them the sign-in button says the account center is not configured. Run it next to `make dev`.
 dev-metro-web:
 	npm run dev:metro
 
@@ -107,7 +109,7 @@ test-integration:
 	USERSRV_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
 	USERSRV_TEST_REDIS_ADDR=127.0.0.1:16379 USERSRV_TEST_REDIS_PASSWORD=tripmap-local \
 	TRIPMAP_TEST_S3_ENDPOINT=http://127.0.0.1:19000 TRIPMAP_TEST_S3_ACCESS_KEY=tripmap-local \
-	TRIPMAP_TEST_S3_SECRET_KEY=tripmap-local-secret TRIPMAP_TEST_S3_BUCKET=tripmap \
+	TRIPMAP_TEST_S3_SECRET_KEY=tripmap-local-secret TRIPMAP_TEST_S3_BUCKET=tripmap E2E_REQUIRE_REAL_S3=1 \
 	go test -v ./internal/tripmap/integration ./internal/tripmap/application ./internal/e2e
 
 # usersrv tests against PostgreSQL and Redis: every test gets a throwaway schema and a unique

@@ -169,7 +169,8 @@ func (s *Service) advance(ctx context.Context, wf *ent.AccountDeletion) (*ent.Ac
 	defer func() {
 		release, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		if err := s.db.AccountDeletion.UpdateOneID(wf.ID).ClearLeaseUntil().Exec(release); err != nil {
+		// A workflow dropped by a permanent refusal has no lease left to release.
+		if err := s.db.AccountDeletion.UpdateOneID(wf.ID).ClearLeaseUntil().Exec(release); err != nil && !ent.IsNotFound(err) {
 			slog.Warn("release deletion lease", "workflow", wf.ID, "error", err)
 		}
 	}()
@@ -203,6 +204,17 @@ func (s *Service) advance(ctx context.Context, wf *ent.AccountDeletion) (*ent.Ac
 		switch cur.Stage {
 		case schema.DeletionStageBegin:
 			if err = s.users.BeginDeletion(callCtx, cur.UserID, cur.MutationID); err != nil {
+				if usersrv.IsPlatformAdminProtected(err) {
+					// A refusal for good, not a failure to retry: keeping the workflow would
+					// let the account be closed by itself the day the role is revoked.
+					persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+					defer cancel()
+					if _, derr := s.db.AccountDeletion.Delete().Where(accountdeletion.ID(cur.ID), accountdeletion.Stage(schema.DeletionStageBegin)).Exec(persistCtx); derr != nil {
+						slog.Error("drop refused deletion workflow", "workflow", cur.ID, "error", derr)
+					}
+					slog.Warn("account deletion refused: platform administrator", "user", cur.UserID)
+					return nil, err
+				}
 				return fail("begin:"+errClass(err), err)
 			}
 			if cur, err = persist(func(u *ent.AccountDeletionUpdateOne) { u.SetStage(schema.DeletionStageCleanup) }); err != nil {

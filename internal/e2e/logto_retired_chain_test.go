@@ -85,7 +85,7 @@ func TestChainFullAccountLifecycleWithoutLogto(t *testing.T) {
 
 	// 1. Request registration; nothing exists yet, and the answer carries no token.
 	b := h.FreshBrowser()
-	if _, err := b.RequestRegistration(ctx, email, "trip-map"); err != nil {
+	if _, err := b.RequestRegistration(ctx, email, ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := b.Me(ctx); connect.CodeOf(err) != connect.CodeUnauthenticated {
@@ -137,7 +137,7 @@ func TestChainFullAccountLifecycleWithoutLogto(t *testing.T) {
 
 	// 5. Forgot the password: reset from a mail, which ends the session and does not sign in.
 	anon := h.FreshBrowser()
-	if _, err = anon.RequestPasswordReset(ctx, email, "trip-map"); err != nil {
+	if _, err = anon.RequestPasswordReset(ctx, email, ""); err != nil {
 		t.Fatal(err)
 	}
 	h.DeliverMail()

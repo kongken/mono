@@ -37,7 +37,8 @@ service AccountService {
   // has an account and whether or not the mail limits suppressed the mail; only a
   // public limit (client address, service-wide mail cap) is RESOURCE_EXHAUSTED.
   // Only an address without any account gets a challenge and a mail. Malformed
-  // email or an unknown app_id is INVALID_ARGUMENT. No password is accepted here.
+  // email or a malformed return context is INVALID_ARGUMENT. The mail link always
+  // points at the central OzID origin (auth.apps.ozid). No password is accepted here.
   rpc RequestRegistration(RequestRegistrationRequest) returns (RequestRegistrationResponse) {
     option (platform.v1.anonymous) = true;
   }
@@ -89,7 +90,10 @@ service AccountService {
 
   // BeginDeletion idempotently moves the caller's account to deleting, bumps
   // auth_version and voids its account tokens. A second call with the same
-  // mutation_id succeeds; a different mutation_id is DELETION_MISMATCH.
+  // mutation_id succeeds; a different mutation_id is DELETION_MISMATCH. An account
+  // that holds the platform role ozid-admin is FAILED_PRECONDITION with reason
+  // PLATFORM_ADMIN_PROTECTED and nothing changes: the role has to be revoked through
+  // the operator CLI before the account can be closed.
   rpc BeginDeletion(BeginDeletionRequest) returns (BeginDeletionResponse);
   // FinishDeletion removes the account, credential, roles, tokens and profile and
   // leaves a 24 hour tombstone, so a lost response can be replayed with the same
@@ -118,8 +122,14 @@ message BaseProfile {
 
 message RequestRegistrationRequest {
   string email = 1;
-  // Must be an app configured in auth.apps; selects the link origin.
+  // Return context: the app the user came from (a stable app ID such as trip-map).
+  // Stored with the challenge and returned when it is consumed. usersrv checks the
+  // form only; the BFF validates the meaning against its navigation registry. It
+  // does not select the mail link origin. Empty means no context.
   string app_id = 2;
+  // Canonical pathname inside app_id (letters, digits and -._~/, at most 256
+  // bytes); empty means the app's default path.
+  string return_path = 3;
 }
 message RequestRegistrationResponse {}
 
@@ -128,7 +138,12 @@ message CompleteRegistrationRequest {
   string password = 2;
   string display_name = 3;
 }
-message CompleteRegistrationResponse {}
+message CompleteRegistrationResponse {
+  // The return context stored with the challenge; both empty for a challenge issued
+  // without one.
+  string app_id = 1;
+  string return_path = 2;
+}
 
 message AuthenticateWithEmailRequest {
   string email = 1;
@@ -143,7 +158,9 @@ message AuthenticateWithEmailResponse {
 
 message RequestPasswordResetRequest {
   string email = 1;
+  // Return context, as in RequestRegistrationRequest.
   string app_id = 2;
+  string return_path = 3;
 }
 message RequestPasswordResetResponse {}
 
@@ -151,7 +168,11 @@ message ResetPasswordRequest {
   string token = 1;
   string new_password = 2;
 }
-message ResetPasswordResponse {}
+message ResetPasswordResponse {
+  // The return context stored with the challenge, as in CompleteRegistrationResponse.
+  string app_id = 1;
+  string return_path = 2;
+}
 
 message GetAuthStateRequest {}
 message GetAuthStateResponse {

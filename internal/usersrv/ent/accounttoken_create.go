@@ -76,6 +76,34 @@ func (_c *AccountTokenCreate) SetAppID(v string) *AccountTokenCreate {
 	return _c
 }
 
+// SetReturnAppID sets the "return_app_id" field.
+func (_c *AccountTokenCreate) SetReturnAppID(v string) *AccountTokenCreate {
+	_c.mutation.SetReturnAppID(v)
+	return _c
+}
+
+// SetNillableReturnAppID sets the "return_app_id" field if the given value is not nil.
+func (_c *AccountTokenCreate) SetNillableReturnAppID(v *string) *AccountTokenCreate {
+	if v != nil {
+		_c.SetReturnAppID(*v)
+	}
+	return _c
+}
+
+// SetReturnPath sets the "return_path" field.
+func (_c *AccountTokenCreate) SetReturnPath(v string) *AccountTokenCreate {
+	_c.mutation.SetReturnPath(v)
+	return _c
+}
+
+// SetNillableReturnPath sets the "return_path" field if the given value is not nil.
+func (_c *AccountTokenCreate) SetNillableReturnPath(v *string) *AccountTokenCreate {
+	if v != nil {
+		_c.SetReturnPath(*v)
+	}
+	return _c
+}
+
 // SetExpiresAt sets the "expires_at" field.
 func (_c *AccountTokenCreate) SetExpiresAt(v time.Time) *AccountTokenCreate {
 	_c.mutation.SetExpiresAt(v)
@@ -264,6 +292,14 @@ func (_c *AccountTokenCreate) createSpec() (*AccountToken, *sqlgraph.CreateSpec)
 		_spec.SetField(accounttoken.FieldAppID, field.TypeString, value)
 		_node.AppID = value
 	}
+	if value, ok := _c.mutation.ReturnAppID(); ok {
+		_spec.SetField(accounttoken.FieldReturnAppID, field.TypeString, value)
+		_node.ReturnAppID = &value
+	}
+	if value, ok := _c.mutation.ReturnPath(); ok {
+		_spec.SetField(accounttoken.FieldReturnPath, field.TypeString, value)
+		_node.ReturnPath = &value
+	}
 	if value, ok := _c.mutation.ExpiresAt(); ok {
 		_spec.SetField(accounttoken.FieldExpiresAt, field.TypeTime, value)
 		_node.ExpiresAt = value
@@ -380,6 +416,12 @@ func (u *AccountTokenUpsertOne) UpdateNewValues() *AccountTokenUpsertOne {
 		}
 		if _, exists := u.create.mutation.AppID(); exists {
 			s.SetIgnore(accounttoken.FieldAppID)
+		}
+		if _, exists := u.create.mutation.ReturnAppID(); exists {
+			s.SetIgnore(accounttoken.FieldReturnAppID)
+		}
+		if _, exists := u.create.mutation.ReturnPath(); exists {
+			s.SetIgnore(accounttoken.FieldReturnPath)
 		}
 		if _, exists := u.create.mutation.ExpiresAt(); exists {
 			s.SetIgnore(accounttoken.FieldExpiresAt)
@@ -639,6 +681,12 @@ func (u *AccountTokenUpsertBulk) UpdateNewValues() *AccountTokenUpsertBulk {
 			}
 			if _, exists := b.mutation.AppID(); exists {
 				s.SetIgnore(accounttoken.FieldAppID)
+			}
+			if _, exists := b.mutation.ReturnAppID(); exists {
+				s.SetIgnore(accounttoken.FieldReturnAppID)
+			}
+			if _, exists := b.mutation.ReturnPath(); exists {
+				s.SetIgnore(accounttoken.FieldReturnPath)
 			}
 			if _, exists := b.mutation.ExpiresAt(); exists {
 				s.SetIgnore(accounttoken.FieldExpiresAt)

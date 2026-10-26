@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	AuthService_IssueCSRFToken_FullMethodName       = "/bff.v1.AuthService/IssueCSRFToken"
+	AuthService_ResolveNavigation_FullMethodName    = "/bff.v1.AuthService/ResolveNavigation"
 	AuthService_RequestRegistration_FullMethodName  = "/bff.v1.AuthService/RequestRegistration"
 	AuthService_CompleteRegistration_FullMethodName = "/bff.v1.AuthService/CompleteRegistration"
 	AuthService_LoginWithEmail_FullMethodName       = "/bff.v1.AuthService/LoginWithEmail"
@@ -29,6 +30,7 @@ const (
 	AuthService_ListSessions_FullMethodName         = "/bff.v1.AuthService/ListSessions"
 	AuthService_Logout_FullMethodName               = "/bff.v1.AuthService/Logout"
 	AuthService_RevokeSession_FullMethodName        = "/bff.v1.AuthService/RevokeSession"
+	AuthService_RevokeOtherSessions_FullMethodName  = "/bff.v1.AuthService/RevokeOtherSessions"
 	AuthService_Reauthenticate_FullMethodName       = "/bff.v1.AuthService/Reauthenticate"
 	AuthService_ChangePassword_FullMethodName       = "/bff.v1.AuthService/ChangePassword"
 	AuthService_DeleteAccount_FullMethodName        = "/bff.v1.AuthService/DeleteAccount"
@@ -61,12 +63,20 @@ const (
 type AuthServiceClient interface {
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(ctx context.Context, in *IssueCSRFTokenRequest, opts ...grpc.CallOption) (*IssueCSRFTokenResponse, error)
+	// ResolveNavigation validates a "sign in (or confirm the password) and come back"
+	// target against the server-side app registry and returns the canonical OzID and
+	// return addresses. It is anonymous and read-only: it reads no account, creates no
+	// session and is not a login ticket, so a crafted target can never yield an identity.
+	// An unknown app, a path the app does not allow, or an unconfigured registry is
+	// refused (INVALID_ARGUMENT / FAILED_PRECONDITION); the caller must not redirect then.
+	ResolveNavigation(ctx context.Context, in *ResolveNavigationRequest, opts ...grpc.CallOption) (*ResolveNavigationResponse, error)
 	// RequestRegistration asks for a verification mail. A well-formed address always
 	// gets the same answer, whether or not it can register; no user, session or token
 	// is returned and no password is accepted here.
 	RequestRegistration(ctx context.Context, in *RequestRegistrationRequest, opts ...grpc.CallOption) (*RequestRegistrationResponse, error)
 	// CompleteRegistration consumes the mailed token and creates the account with the
-	// chosen password and nickname. It signs nobody in.
+	// chosen password and nickname. It signs nobody in. The response carries the
+	// return context bound to the challenge when the registry still allows it.
 	CompleteRegistration(ctx context.Context, in *CompleteRegistrationRequest, opts ...grpc.CallOption) (*CompleteRegistrationResponse, error)
 	// LoginWithEmail checks email and password and, on success only, sets a new
 	// random session Cookie. The response carries the profile and expiry, never the token.
@@ -74,7 +84,8 @@ type AuthServiceClient interface {
 	// RequestPasswordReset always answers the same way for a well-formed address.
 	RequestPasswordReset(ctx context.Context, in *RequestPasswordResetRequest, opts ...grpc.CallOption) (*RequestPasswordResetResponse, error)
 	// ResetPassword consumes the mailed token and sets a new password. Every existing
-	// session and management token stops working; the caller is not signed in.
+	// session and management token stops working; the caller is not signed in. The
+	// response carries the bound return context like CompleteRegistration.
 	ResetPassword(ctx context.Context, in *ResetPasswordRequest, opts ...grpc.CallOption) (*ResetPasswordResponse, error)
 	// Me returns the caller's account, including the login email. The roles are the
 	// account's current roles, not a snapshot.
@@ -84,8 +95,17 @@ type AuthServiceClient interface {
 	// Logout revokes the session of the Cookie and clears it. It is idempotent: it
 	// succeeds, and clears the Cookie, even when the session is already gone.
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
-	// RevokeSession revokes one of the caller's own sessions.
+	// RevokeSession revokes one of the caller's own sessions. Repeating it for a session
+	// that is already revoked succeeds; an ID that is not the caller's (another account's
+	// or unknown) is NOT_FOUND, with the same answer for both. Revoking the session of the
+	// request itself also clears its Cookie, like Logout.
 	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*RevokeSessionResponse, error)
+	// RevokeOtherSessions revokes every live browser session of the caller except the one
+	// making the request, in a single statement, so no concurrent session can be missed.
+	// It is idempotent (a repeat revokes nothing and still succeeds) and limited to 10 calls
+	// per 15 minutes per account. It does not touch auth_version, the password or the
+	// management (MCP) tokens, and a session opened after it ran is not affected.
+	RevokeOtherSessions(ctx context.Context, in *RevokeOtherSessionsRequest, opts ...grpc.CallOption) (*RevokeOtherSessionsResponse, error)
 	// Reauthenticate re-checks the current password and, only then, records a fresh
 	// authentication time on this session. Sensitive actions (DeleteAccount, creating
 	// a management token) need it within the last 15 minutes.
@@ -119,6 +139,16 @@ func (c *authServiceClient) IssueCSRFToken(ctx context.Context, in *IssueCSRFTok
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(IssueCSRFTokenResponse)
 	err := c.cc.Invoke(ctx, AuthService_IssueCSRFToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ResolveNavigation(ctx context.Context, in *ResolveNavigationRequest, opts ...grpc.CallOption) (*ResolveNavigationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveNavigationResponse)
+	err := c.cc.Invoke(ctx, AuthService_ResolveNavigation_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -215,6 +245,16 @@ func (c *authServiceClient) RevokeSession(ctx context.Context, in *RevokeSession
 	return out, nil
 }
 
+func (c *authServiceClient) RevokeOtherSessions(ctx context.Context, in *RevokeOtherSessionsRequest, opts ...grpc.CallOption) (*RevokeOtherSessionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeOtherSessionsResponse)
+	err := c.cc.Invoke(ctx, AuthService_RevokeOtherSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) Reauthenticate(ctx context.Context, in *ReauthenticateRequest, opts ...grpc.CallOption) (*ReauthenticateResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReauthenticateResponse)
@@ -290,12 +330,20 @@ func (c *authServiceClient) RetryAccountDeletion(ctx context.Context, in *RetryA
 type AuthServiceServer interface {
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error)
+	// ResolveNavigation validates a "sign in (or confirm the password) and come back"
+	// target against the server-side app registry and returns the canonical OzID and
+	// return addresses. It is anonymous and read-only: it reads no account, creates no
+	// session and is not a login ticket, so a crafted target can never yield an identity.
+	// An unknown app, a path the app does not allow, or an unconfigured registry is
+	// refused (INVALID_ARGUMENT / FAILED_PRECONDITION); the caller must not redirect then.
+	ResolveNavigation(context.Context, *ResolveNavigationRequest) (*ResolveNavigationResponse, error)
 	// RequestRegistration asks for a verification mail. A well-formed address always
 	// gets the same answer, whether or not it can register; no user, session or token
 	// is returned and no password is accepted here.
 	RequestRegistration(context.Context, *RequestRegistrationRequest) (*RequestRegistrationResponse, error)
 	// CompleteRegistration consumes the mailed token and creates the account with the
-	// chosen password and nickname. It signs nobody in.
+	// chosen password and nickname. It signs nobody in. The response carries the
+	// return context bound to the challenge when the registry still allows it.
 	CompleteRegistration(context.Context, *CompleteRegistrationRequest) (*CompleteRegistrationResponse, error)
 	// LoginWithEmail checks email and password and, on success only, sets a new
 	// random session Cookie. The response carries the profile and expiry, never the token.
@@ -303,7 +351,8 @@ type AuthServiceServer interface {
 	// RequestPasswordReset always answers the same way for a well-formed address.
 	RequestPasswordReset(context.Context, *RequestPasswordResetRequest) (*RequestPasswordResetResponse, error)
 	// ResetPassword consumes the mailed token and sets a new password. Every existing
-	// session and management token stops working; the caller is not signed in.
+	// session and management token stops working; the caller is not signed in. The
+	// response carries the bound return context like CompleteRegistration.
 	ResetPassword(context.Context, *ResetPasswordRequest) (*ResetPasswordResponse, error)
 	// Me returns the caller's account, including the login email. The roles are the
 	// account's current roles, not a snapshot.
@@ -313,8 +362,17 @@ type AuthServiceServer interface {
 	// Logout revokes the session of the Cookie and clears it. It is idempotent: it
 	// succeeds, and clears the Cookie, even when the session is already gone.
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
-	// RevokeSession revokes one of the caller's own sessions.
+	// RevokeSession revokes one of the caller's own sessions. Repeating it for a session
+	// that is already revoked succeeds; an ID that is not the caller's (another account's
+	// or unknown) is NOT_FOUND, with the same answer for both. Revoking the session of the
+	// request itself also clears its Cookie, like Logout.
 	RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error)
+	// RevokeOtherSessions revokes every live browser session of the caller except the one
+	// making the request, in a single statement, so no concurrent session can be missed.
+	// It is idempotent (a repeat revokes nothing and still succeeds) and limited to 10 calls
+	// per 15 minutes per account. It does not touch auth_version, the password or the
+	// management (MCP) tokens, and a session opened after it ran is not affected.
+	RevokeOtherSessions(context.Context, *RevokeOtherSessionsRequest) (*RevokeOtherSessionsResponse, error)
 	// Reauthenticate re-checks the current password and, only then, records a fresh
 	// authentication time on this session. Sensitive actions (DeleteAccount, creating
 	// a management token) need it within the last 15 minutes.
@@ -347,6 +405,9 @@ type UnimplementedAuthServiceServer struct{}
 func (UnimplementedAuthServiceServer) IssueCSRFToken(context.Context, *IssueCSRFTokenRequest) (*IssueCSRFTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IssueCSRFToken not implemented")
 }
+func (UnimplementedAuthServiceServer) ResolveNavigation(context.Context, *ResolveNavigationRequest) (*ResolveNavigationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveNavigation not implemented")
+}
 func (UnimplementedAuthServiceServer) RequestRegistration(context.Context, *RequestRegistrationRequest) (*RequestRegistrationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestRegistration not implemented")
 }
@@ -373,6 +434,9 @@ func (UnimplementedAuthServiceServer) Logout(context.Context, *LogoutRequest) (*
 }
 func (UnimplementedAuthServiceServer) RevokeSession(context.Context, *RevokeSessionRequest) (*RevokeSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RevokeSession not implemented")
+}
+func (UnimplementedAuthServiceServer) RevokeOtherSessions(context.Context, *RevokeOtherSessionsRequest) (*RevokeOtherSessionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeOtherSessions not implemented")
 }
 func (UnimplementedAuthServiceServer) Reauthenticate(context.Context, *ReauthenticateRequest) (*ReauthenticateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Reauthenticate not implemented")
@@ -424,6 +488,24 @@ func _AuthService_IssueCSRFToken_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).IssueCSRFToken(ctx, req.(*IssueCSRFTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ResolveNavigation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveNavigationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ResolveNavigation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ResolveNavigation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ResolveNavigation(ctx, req.(*ResolveNavigationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -590,6 +672,24 @@ func _AuthService_RevokeSession_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_RevokeOtherSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeOtherSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).RevokeOtherSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_RevokeOtherSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).RevokeOtherSessions(ctx, req.(*RevokeOtherSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_Reauthenticate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReauthenticateRequest)
 	if err := dec(in); err != nil {
@@ -692,6 +792,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_IssueCSRFToken_Handler,
 		},
 		{
+			MethodName: "ResolveNavigation",
+			Handler:    _AuthService_ResolveNavigation_Handler,
+		},
+		{
 			MethodName: "RequestRegistration",
 			Handler:    _AuthService_RequestRegistration_Handler,
 		},
@@ -726,6 +830,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RevokeSession",
 			Handler:    _AuthService_RevokeSession_Handler,
+		},
+		{
+			MethodName: "RevokeOtherSessions",
+			Handler:    _AuthService_RevokeOtherSessions_Handler,
 		},
 		{
 			MethodName: "Reauthenticate",

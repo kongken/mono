@@ -1,6 +1,6 @@
 # usersrv 自建用户系统规格
 
-> **后续扩展，待实现：** [OzID 与统一管理控制台规格](../ozid/spec.md) 在本版 usersrv 基础上增加独立用户中心、独立统一管理前端、`ozid-admin` 与受限网页用户管理、集中邮件/导航及管理 IP 防护。本文“首版不做”的独立前端与网页管理是历史范围，不限制后续扩展；P1–P6 已实现状态保持不变。OIDC、MFA 和修改邮箱仍不在新规格首版范围内。
+> **后续扩展（部分已实现）：** [OzID 与统一管理控制台规格](../ozid/spec.md) 在本版 usersrv 基础上增加独立用户中心、独立统一管理前端、`ozid-admin` 与受限网页用户管理、集中邮件/导航及管理 IP 防护。其中 T1–T5 已实现（`ozid-admin`、`UserAdminService`、平台管理员的注销保护、管理周界、普通账号状态与 `metro-admin` 的受限修改，见[控制台功能描述](../admin/features.md)）；OzID 网页注销页、产品入口收敛与集中账号写的来源收紧（T12）也已实现，见[整体验收](../ozid/acceptance.md)。本文“首版不做”的独立前端与网页管理是历史范围，不限制后续扩展；P1–P6 已实现状态保持不变。OIDC、MFA 和修改邮箱仍不在新规格首版范围内。
 
 > **状态：P1–P6 已全部实现并在本地验证（见[验证状态](#验证状态)）；正式环境开放前仍须由运维完成真实邮件厂商的手动冒烟与按需的手动退役步骤。** BFF 已接入 `usersrv`（经内部 gRPC 完成注册、登录、改密码、注销、每请求认证状态与角色），运行时已没有 Logto/OAuth 代码；两个前端有邮箱登录、注册、找回密码与账号设置；usersrv 有镜像、CI 发布矩阵与部署示例，退役对象与手动清理步骤见 [Logto 退役与手动清理](retirement.md)。没有任何真实邮件厂商被实测，不得把 fake adapter 测试说成生产已验证。
 >
@@ -14,7 +14,7 @@
 | P2 邮件模块 | **已实现** | 见下文“P2 已实现内容”；四 adapter 通过本地假 HTTP/SMTP 服务的契约测试，真实厂商只有[手动冒烟文档](mail-smoke-test.md)，尚未对真实服务验证；邮件由 P3 的注册/找回流程签发 |
 | P3 账号流程 | **已实现** | 见下文“P3 已实现内容”；`RequestRegistration`、`CompleteRegistration`、`AuthenticateWithEmail`、`RequestPasswordReset`、`ResetPassword` 在 usersrv 内部 gRPC 上可用，真实 usersrv＋本地假邮件接收器的集成闭环通过；当时 BFF 与前端尚未接入，已由 P4、P5 接入 |
 | P4 BFF 与产品鉴权 | **已实现** | 见 [BFF](../bff.md#账号会话与注销p4)；`bff.v1` 为新契约（旧 Register/Login/OAuth RPC 已删除并 `reserved`）；会话保存 `auth_version` 与真实认证时间，每个受保护请求和 MCP 工具调用都调用 `GetAuthState`；usersrv 不可用返回 `unavailable` 且不转发；注销工作流持久化并可重试；tripmap 展示投影按需确保，好友只凭 `fc_` 邀请码；metro 管理与 MCP 角色取自 usersrv，`required_role` 两端校验；真实 BFF + usersrv + PostgreSQL/Redis + 两个产品服务的 e2e 通过（§14 场景 5–12、19–21 的后端部分） |
-| P5 前端 | **已实现** | 见下文“P5 已实现内容”；`apps/trip-map` 与 `apps/metro` 有邮箱登录、申请注册、邮件落地页（设置密码、重置密码）、找回密码、基础资料、修改密码、设备列表与撤销、注销账号入口，共用代码在 `packages/account`；两个前端不再有 `/auth/` 代理与 `VITE_OAUTH_APP_ID`；桌面与手机 Playwright（模拟 BFF）通过，真实 BFF + usersrv + 真实 SMTP 链路的可选用例（`E2E_REAL_MAIL=1`）在本地用 PostgreSQL/Redis 通过 |
+| P5 前端 | **已实现** | **现状：** 登录、注册、验证后设置密码、找回与重置、基础资料、改密码、设备列表与撤销、注销都只在 OzID（`apps/ozid`）；`apps/trip-map`（T10）与 `apps/metro`（T11）没有任何账号表单，只有前往 OzID 的入口，以及只服务升级前旧邮件的落地页；共用代码在 `packages/account`。两个产品前端没有 `/auth/` 代理与 `VITE_OAUTH_APP_ID`。**历史：** P5 当时这些表单在 `apps/metro`，T2 起新邮件统一指向 OzID，T10、T11 先后把两个产品的表单移除。桌面与手机 Playwright（模拟 BFF）通过；P5 当时用本地 SMTP 接收器验证的可选真实邮件用例（`E2E_REAL_MAIL=1`）已随 metro 的账号表单在 T11 删除，真实 BFF + usersrv 的浏览器链路现由 `TestOzidBrowserChain`、`TestTripMapBrowserChain` 与 `TestMetroBrowserChain` 覆盖 |
 | P6 发布与彻底退役 | **已实现** | 见下文“P6 已实现内容”：usersrv 镜像（`deploy/usersrv/Dockerfile`）与 CI 发布矩阵、Compose / k8s Secret / 边缘（Nginx、Caddy）示例、运行时 Logto 入口与配置全部删除（旧 `/auth/login` 与回调返回 404）、手动退役文档与脚本、文档同步、完整验证；真实邮件厂商没有实测，外部 Logto 资源与旧数据的清理由运维手动执行 |
 
 ### P6 已实现内容
@@ -24,7 +24,7 @@
 - **镜像与发布**：`deploy/usersrv/Dockerfile`（只复制 usersrv 相关目录，构建阶段跑这些包的 Go 单元测试，产出 `/usersrv` 与 `/usersrv-admin`，distroless 运行层）；`docker-publish.yml` 的矩阵加入 `usersrv`；`make test-integration` 现在同时设置 `USERSRV_TEST_*`（没有它们，真实账号链整体跳过）。
 - **部署示例**：`deploy/compose.stack.example.yaml` 增加 `usersrv` 服务与 `deploy/postgres/init-databases.sql`（三个独立库）；`deploy/k8s/secrets.layout.example.yaml` 增加 `usersrv-tls`、`usersrv-keys`、`usersrv-mail`；Nginx 模板与 Caddy 示例对 `/auth/` 返回 404。
 - **Logto 退役**：运行时没有任何 Logto/OAuth 入口、配置、依赖或废弃 RPC；`/auth/login`、`/auth/callback/*`、`/auth/logout`、`/api/auth/login` 返回 404（无重定向、无 Cookie），旧 RPC 不存在（`internal/e2e/logto_retired_chain_test.go`）。仓库里仍出现这些词的地方只有：已应用的历史迁移与 `atlas.sum`、退役文档与脚本、本规格、断言“界面没有 Logto/OAuth 文案”的负向测试，以及清除浏览器里 `shanhai-oauth-pending-v1` 旧键的一行。旧表、旧 Redis OAuth state、旧测试数据与 S3 对象的清理**全部手动**，范围写在退役文档里；没有任何自动 DROP 或清库。
-- **产品**：trip-map 全屏的“无法加载云端足迹”页在会话失效且本地没有缓存时，现在直接提供登录表单（此前只有导出与重试，没有重新登录入口）。
+- **产品**：trip-map 全屏的“无法加载云端足迹”页在会话失效且本地没有缓存时提供重新登录入口（此前只有导出与重试）；T10 起该入口是前往 OzID 的按钮，产品里不再有登录表单。
 - **文档**：§15 列出的文档已同步，旧的 Logto 当前行为改为历史说明；[邮件冒烟说明](mail-smoke-test.md)改为适用于已集成的栈。
 
 #### 验证状态
@@ -39,7 +39,7 @@
 | 无 Logto 全链：注册申请 → 邮件 → 完成注册 → 登录 → tripmap / metro 业务写入 → 邮件重置（旧会话失效）→ 重新登录 → 数据仍在 → 重新认证 → 注销 → 无法登录且数据已删（`TestChainFullAccountLifecycleWithoutLogto`） | 通过（邮件换成进程内收件箱） |
 | 带照片的账号在真实 S3 兼容服务上注销（`real_s3_deletion_chain_test.go`）：已完成照片的对象与缩略图、未完成上传的暂存对象全部删除，他人对象保留 | 通过 |
 | BFF 手动退役脚本（`retire_logto_identities.sql`）在真实 PostgreSQL 上的行为（`retire_logto_sql_test.go`）：有未完成注销时拒绝并不删表；完成后只删四个旧表、可重复执行、不影响新表 | 通过 |
-| 默认 Playwright 套件（模拟 BFF，桌面与手机）：trip-map 与 metro | 通过，含新增的“会话失效且无缓存时重新登录”用例 |
+| 默认 Playwright 套件（模拟 BFF，桌面与手机）：trip-map 与 metro | 通过；metro 的账号用例在 T11 改写为 OzID 入口、返回页名单、会话判断（临时故障不是退出）、账号守卫与 CSRF 重放用例（原表单用例随表单删除）；trip-map 的账号用例在 T10 改写为 OzID 入口、会话失效保留缓存与账号切换用例（原“会话失效且无缓存时重新登录”表单用例随表单删除，由“全屏失效页前往 OzID 重新登录”用例取代） |
 | 真实 nginx 1.26.3（Debian 构建）加载两个前端模板、真实 Caddy 2.11.7 加载 `Caddyfile.example`，用 curl 检查响应头与路由 | 通过；发现并修复了三个已有问题（见下） |
 
 验证中发现并修复的示例问题：nginx 的 `index.html` 只带 `Cache-Control`（`add_header` 不继承，安全头丢失）；`/auth/login` 经 SPA 回退得到 200；Caddy 示例的 `handle /ping /readyz` 语法无效、站点级 `try_files` 吞掉所有 `handle`、站点级 `Referrer-Policy` 覆盖落地页的 `no-referrer`。
@@ -63,7 +63,7 @@
 - **山海足迹** 保持本地模式（没有 `VITE_API_BASE_URL` 就没有任何登录入口）；账号失效或改密码时未同步的账号缓存保留并可导出，重新登录后继续同步；`X-Kongken-User` 守卫保持不变。**地铁足迹** 有 `/login` 与 `/account` 页面，匿名点击“标记坐过”会跳转到登录页并记住返回位置。
 - **清理**：删除了 `deploy/trip-map-web`、`deploy/metro-web` 的 nginx 模板和 `deploy/reverse-proxy/Caddyfile.example` 中的 `/auth/` 代理、Dockerfile 的 `VITE_OAUTH_APP_ID`。
 
-**验证。** 默认的 Playwright 套件用模拟 BFF（桌面与手机，`apps/*/tests/account.spec.ts`，假账号服务见 `@kongken/account/testing`），不依赖真实邮件。可选的真实链路用例 `apps/trip-map/tests/real-mail.spec.ts` 与 `apps/metro/tests/real-mail.spec.ts` 只在 `E2E_REAL_MAIL=1` 时运行：用例自己监听一个本地 SMTP 接收器，真实的 BFF、usersrv（`smtp` provider 指向该接收器）、tripmap、metro 由 `scripts/real-mail-stack.sh start` 启动（需要已有的 PostgreSQL、Redis、S3，`make deps-up` 提供），用例按真人流程完成：申请注册 → 打开邮件链接设置密码 → 登录 → 资料与改密码 → 找回密码并重置 → 注销。命令见脚本顶部注释。这个用例使用本地 SMTP 接收器，**不会**连真实邮件厂商；真实厂商仍只按[手动冒烟文档](mail-smoke-test.md)验证。
+**验证。** 默认的 Playwright 套件用模拟 BFF（桌面与手机，`apps/*/tests/account.spec.ts`，假账号服务见 `@kongken/account/testing`），不依赖真实邮件。原先的可选真实邮件用例（`apps/metro/tests/real-mail.spec.ts`、`apps/trip-map` 的同名用例）随各自的账号表单分别在 T11、T10 删除：产品里不再有注册、找回和改密码的表单，这些流程在 OzID，其真实浏览器链路由 `TestOzidBrowserChain`（含真实邮件 outbox 与落地页）覆盖，两个产品的入口与返回由 `TestTripMapBrowserChain`、`TestMetroBrowserChain` 覆盖。`scripts/real-mail-stack.sh start` 仍可启动真实 BFF、usersrv（`smtp` provider 指向你自己的本地 SMTP 接收器）、tripmap、metro，供手工冒烟；**不会**连真实邮件厂商，真实厂商仍只按[手动冒烟文档](mail-smoke-test.md)验证。
 
 **已知限制。** 注销账号的真实链路用例在没有真实对象存储的环境里用空的 S3 假端点运行，只覆盖没有照片的账号；前端不提供“修改登录邮箱”与账号恢复入口（规格也未要求）；落地页的 CSP 只限制脚本来源，没有对样式和连接做限制。
 
@@ -89,7 +89,7 @@
 - `internal/usersrv/mailer`：统一的 `Send(ctx, message)`；固定的中文验证/重置模板（纯文本与 HTML，参数转义，收件人和标题拒绝 CR/LF）；四个 adapter（Mailgun 与 SendGrid、SMTP2GO 用原生 HTTP API，SMTP 支持 `implicit_tls`/`starttls` 且始终校验证书）。HTTP adapter 禁止重定向、响应体限 16 KiB 并脱敏、默认 10 秒超时；错误分为 temporary/permanent/uncertain。配置校验让未知 provider、缺参数、混入其他厂商参数、非法 region/TLS 模式都在启动时失败。
 - 邮件跟踪：Mailgun 与 SendGrid 请求里显式关闭点击/打开跟踪（否则令牌会经厂商域名改写）；SMTP2GO API 没有逐封开关，需在其账户里关闭。SMTP 目前只实现 AUTH PLAIN/LOGIN，且只在 TLS 或回环地址上发送凭证。
 - 加密 outbox 表 `mail_jobs`（迁移 `migrations/usersrv/20261024153533_mail_outbox.sql`）：收件人、模板参数与明文令牌整体 AES-256-GCM 加密（带 key ID，关联数据绑定任务 ID 与用途）；状态机 `pending/sending/accepted/failed/uncertain/expired/cancelled`；密文只在 `pending/sending` 存在，数据库 `CHECK` 保证终态必须清空。同进程 worker 用数据库 lease（发送超时＋30 秒）抢占，多副本只会发一次；发送前复核挑战（存在、未消费、未过期）与账号（active、`auth_version` 一致、邮箱未被注册）。最多 3 次尝试，退避 1、5 分钟，重试用同一令牌；`uncertain` 永不自动重发；任务记录保留 7 天，每小时清理。任务固定签发时的 provider 与配置代次，不一致则取消（`config_changed`）；队列里有任务但缺少其解密 key 时启动失败。`BeginDeletion`/`FinishDeletion` 取消该用户未发的账号邮件。
-- 链接固定为 `auth.apps.<app_id>.origin` 的精确 origin 加 `/account/verify-email` 或 `/account/reset-password`，令牌放在 `#token=` 片段里；调用方不能指定 URL。
+- 链接固定为 `auth.apps.<app_id>.origin` 的精确 origin 加 `/account/verify-email` 或 `/account/reset-password`，令牌放在 `#token=` 片段里；调用方不能指定 URL。（T2 起新邮件一律用 `auth.apps.ozid`，见 [OzID 功能描述](../ozid/features.md#邮件流程t2)。）
 - 限流（Redis 原子，邮箱用独立 HMAC 摘要；Redis 不可用返回 `UNAVAILABLE`）：每客户端 IP、全服务、每邮箱 60 秒冷却、每邮箱每用途、每邮箱合计，默认值见 `config.usersrv.example.yaml`。超出邮箱维度只“抑制”（调用方仍给统一成功应答，不发信）；超出 IP/全服务维度返回 `RESOURCE_EXHAUSTED`。
 - 日志与指标：没有指标导出器，只有 `Service.Snapshot()` 计数和结构化日志（任务 ID、provider、模板、状态、错误类、次数、耗时、`alert`），不含邮箱、令牌、链接或密钥；告警事件为 `mail_vendor_auth_failed`、`mail_uncertain`、`mail_decrypt_failed`、`mail_key_missing`、`mail_backlog` 等。`/readyz` 增加 `mail_outbox`（worker 本地状态）。
 - 测试：四个 adapter 对本地 HTTP/SMTP 假服务做契约测试（Mailgun US/EU 各一例），outbox 与限流用真实 PostgreSQL/Redis。**没有、也不会在 CI 里连接真实厂商**；手动步骤见 [邮件厂商手动冒烟测试](mail-smoke-test.md)。
@@ -286,7 +286,7 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 ### 7.2 令牌、链接与待发任务
 
 - 验证/重置令牌至少 32 字节密码学随机数，URL-safe 编码。验证表只保存 SHA-256 摘要、用途、邮箱/用户绑定、签发版本、过期及消费状态，不保存明文；密码令牌不能互换用途。
-- 邮件链接只能由服务端 `auth.apps.<app_id>` 中的精确 HTTPS origin 和固定路径生成，首版为 `/account/verify-email`、`/account/reset-password`；本地开发仅允许显式 loopback HTTP。请求不能提供 origin、任意 callback 或返回地址；未知 app_id 拒绝，账号状态不改变。
+- 邮件链接只能由服务端 `auth.apps.<app_id>` 中的精确 HTTPS origin 和固定路径生成，首版为 `/account/verify-email`、`/account/reset-password`；本地开发仅允许显式 loopback HTTP。请求不能提供 origin 或任意 callback。（T2 修订：`app_id` 与 `return_path` 现在是经 BFF 导航注册表校验、随挑战保存的返回上下文，不再选择链接 origin；新邮件一律链接到必填的 `auth.apps.ozid`；形态不合法的上下文拒绝，账号状态不改变。）
 - 令牌放链接 fragment（`#token=...`），不放 query/path。验证页在加载其他资源前读取进内存并用 `history.replaceState` 清除 fragment；不保存到 localStorage/sessionStorage，不发给埋点，不加载第三方脚本；页面设置 no-referrer、no-store。清除后刷新需重新打开邮件，不能因此持久化秘密。GET 不消费令牌，提交时才随敏感 RPC body 发送。
 - usersrv 在同一数据库事务创建令牌及 `mail_jobs` outbox，接口仅等待可靠入队，不等待外部发信。worker 在同一进程后台运行，用数据库 lease 防多副本并发发送；网络调用不持有数据库事务。
 - **持久化重试与“只存摘要”的区别必须明确**：outbox 发送前需要能恢复原令牌，所以收件人、模板参数及原令牌整体用 AES-256-GCM 加密后暂存；令牌验证表仍只存摘要。加密 key 独立放 Secret（带 key ID、支持轮换），关联数据绑定任务 ID/用途；不得把 key 与密文放同一数据库。已接受、永久失败、过期或取消后立即清除密文。没有发送任务明文落库的替代路径，也不在重试时换发新的令牌。
@@ -344,7 +344,8 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 | `AuthService.RequestPasswordReset` | 匿名写 | email、app_id；统一受理提示 |
 | `AuthService.ResetPassword` | 匿名写 | token、new_password；成功不登录 |
 | `AuthService.Me` / `ListSessions` | 当前会话，只读 | 当前账号、角色；本人的设备列表 |
-| `AuthService.Logout` / `RevokeSession` | 当前会话，写 | 退出清 Cookie；撤销不能指定其他用户的会话 |
+| `AuthService.Logout` / `RevokeSession` | 当前会话，写 | 退出清 Cookie；撤销不能指定其他用户的会话（别人的与不存在的 ID 同为 `NOT_FOUND`，重复撤销成功，撤销自己清 Cookie） |
+| `AuthService.RevokeOtherSessions` | 当前会话，写 | OzID T3：一条语句撤销本人除当前外的有效会话，幂等；不改 `auth_version`、不吊销管理令牌；每账号 15 分钟 10 次 |
 | `AuthService.Reauthenticate` | 当前会话，写 | 当前密码；只刷新真实认证时间 |
 | `AuthService.ChangePassword` | 当前会话，写 | 当前密码、新密码；全部凭证失效 |
 | `UserService.UpdateMyProfile` | 当前会话，写 | 仅基础昵称/头像，返回本人资料 |
@@ -362,6 +363,7 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 - 本人方法从签名的 `sub` 取得目标用户；认证版本/密码重新校验结果与 BFF 会话版本比较。`GetAuthState` 仅在已有用户凭证上下文读取对应用户，不接受任意请求体 user ID。
 - `BeginDeletion` / `FinishDeletion` 绑定原用户 sub 和工作流 mutation ID；幂等重复完成依赖注销 tombstone/完成回执（24 小时），不能通过“用户已不存在”就允许任意状态推进。
 - usersrv 的 gRPC 拦截器不能为 `GetAuthState` 再反向依赖自身资格 RPC，避免循环；它验证 BFF 签名，资格状态由目标方法查询。产品 RPC 的鉴权继续使用平台拦截器。
+- `UserAdminService`（OzID T4 只读、T5 写、T6 审计读）：`ListUsers`、`GetUser`、`ListSecurityAudit`、`DisableUser`、`EnableUser`、`GrantMetroAdmin`、`RevokeMetroAdmin`，`required_role = "ozid-admin"`；写方法在一个事务内完成操作者校验、目标行锁（与 CLI、`BeginDeletion` 同一把锁）、平台管理员保护、版本检查、状态/角色更新、仅在变化时提升 `auth_version`、24 小时按操作者隔离的幂等回执与审计，详见 [控制台功能描述](../admin/features.md)；读取：usersrv 在读取事务里再次确认调用者是仍然正常且当前持有 `ozid-admin` 的账号，审计（`admin.users.list/get`，脱敏原因）与读取同事务；邮箱精确、昵称字面包含、状态/角色过滤、稳定分页（默认 50、上限 100），不返回密码哈希、令牌或私有业务数据。T6 的 `ListSecurityAudit` 读取 `security_audit`：渠道（`web`/`cli`/`self`/`system`）显式存储并由迁移回填（先按动作归属、再按操作者，CLI 的运维标识即使叫 `system` 或 `user:<UUID>` 也仍是 `cli`），原因文本由读取层统一判定（`reason_checked` 且仍合规才返回，否则只返回 `[hidden]`，库里原文不变），网页操作者只来自 `actor_user_id`，CLI 的运维标识只是名字；筛选（账号、操作者、渠道、动作、结果、变更 ID、时间）与（时间、ID）全序的键集分页（不是快照：并发提交的更早时间行可能被正在进行的翻页错过；令牌不绑定筛选，换筛选须重置游标）；重放行用 `origin_id` 精确指向它答复的原始审计行（变更 ID 过期后可复用，所以不按（操作者，变更 ID）推断）；读取本身写一行 `admin.audit.list`，原因只记筛选种类。`BeginDeletion` 拒绝持有 `ozid-admin` 的账号（`PLATFORM_ADMIN_PROTECTED`）。详见 [控制台功能描述](../admin/features.md)。
 - `SystemService.GetStatus`：内部匿名状态，仅有依赖与 worker 就绪信息。CLI 的角色/禁用操作不公开为匿名 RPC，也不给普通用户配置一个任意 user ID 的管理方法。
 
 ## 10. 滥用防护与链接安全
@@ -386,10 +388,10 @@ MCP 客户端 ─ Bearer 管理令牌 → BFF → metro
 
 ## 11. 两个应用与既有功能的调整
 
-- `apps/trip-map` 和 `apps/metro` 都提供邮箱登录、申请注册、验证后设置密码、忘记密码、重置、基础资料、改密及注销入口；复用 `packages/ui`，两应用共同的账号表单/客户端逻辑在第二个使用方出现时抽到 `packages/`，应用之间不互相 import。
-- 邮件落地页固定 `/account/verify-email`、`/account/reset-password`，由各应用路由和静态站 fallback 接住，不再走 `/auth/` OAuth 代理。注册/重置成功回到该应用登录入口，不自动跳转客户端提供的外站。
+- 邮箱登录、申请注册、验证后设置密码、忘记密码、重置、基础资料、改密、设备及注销都在 OzID；`apps/trip-map`（T10）与 `apps/metro`（T11）自此没有这些表单，只有 OzID 入口和旧邮件的交接页（T12 起不渲染表单，向 OzID 的同名路径交接）；两应用与 OzID 共用的客户端逻辑在 `packages/account`，应用之间不互相 import。
+- 邮件落地页固定 `/account/verify-email`、`/account/reset-password`，由各应用路由和静态站 fallback 接住，不再走 `/auth/` OAuth 代理。注册/重置成功回到该应用登录入口，不自动跳转客户端提供的外站（T12 起产品路径只向 OzID 交接，由 OzID 完成）。
 - trip-map 继续保留本地模式；没有 `VITE_API_BASE_URL` 时不出现登录入口，也不发账号请求。账号过期/失效仍先保留未同步缓存并允许导出，不能为了更换认证删除本地足迹。
-- metro 的 `handle`、骑行者资料公开规则不变；公开昵称与 usersrv 基础昵称相互独立，登录不覆盖用户已编辑的产品资料。
+- metro 的 `handle`、骑行者资料公开规则不变（T11 后 `/me` 里叫“骑行者资料与公开主页”，字段“主页显示名称”）；公开昵称与 usersrv 基础昵称相互独立，登录不覆盖用户已编辑的产品资料。
 - tripmap 的好友申请首版只接受唯一 `fc_` 邀请码，移除“按用户名查找”；不能改成邮箱找人以泄露登录标识。不改变已有好友/共同旅行权限规则。
 - 两应用共享一个 BFF 主机时，退出/改密/角色撤销在下次请求被另一应用观察到；沿用 `X-Kongken-User`，不能把账号 A 的待同步内容写进 B。
 - 提供桌面与手机布局、键盘操作、字段错误、发送中/已申请/链接失效/限流/网络失败状态；公共响应不显示“这个邮箱已注册”等枚举提示。

@@ -90,6 +90,51 @@ func CreatedAt(v time.Time) predicate.SecurityAudit {
 	return predicate.SecurityAudit(sql.FieldEQ(FieldCreatedAt, v))
 }
 
+// Channel applies equality check predicate on the "channel" field. It's identical to ChannelEQ.
+func Channel(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldChannel, v))
+}
+
+// ActorUserID applies equality check predicate on the "actor_user_id" field. It's identical to ActorUserIDEQ.
+func ActorUserID(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldActorUserID, v))
+}
+
+// MutationID applies equality check predicate on the "mutation_id" field. It's identical to MutationIDEQ.
+func MutationID(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldMutationID, v))
+}
+
+// BeforeStatus applies equality check predicate on the "before_status" field. It's identical to BeforeStatusEQ.
+func BeforeStatus(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldBeforeStatus, v))
+}
+
+// AfterStatus applies equality check predicate on the "after_status" field. It's identical to AfterStatusEQ.
+func AfterStatus(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldAfterStatus, v))
+}
+
+// BeforeRoles applies equality check predicate on the "before_roles" field. It's identical to BeforeRolesEQ.
+func BeforeRoles(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldBeforeRoles, v))
+}
+
+// AfterRoles applies equality check predicate on the "after_roles" field. It's identical to AfterRolesEQ.
+func AfterRoles(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldAfterRoles, v))
+}
+
+// OriginID applies equality check predicate on the "origin_id" field. It's identical to OriginIDEQ.
+func OriginID(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldOriginID, v))
+}
+
+// ReasonChecked applies equality check predicate on the "reason_checked" field. It's identical to ReasonCheckedEQ.
+func ReasonChecked(v bool) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldReasonChecked, v))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v uuid.UUID) predicate.SecurityAudit {
 	return predicate.SecurityAudit(sql.FieldEQ(FieldUserID, v))
@@ -503,6 +548,506 @@ func CreatedAtLT(v time.Time) predicate.SecurityAudit {
 // CreatedAtLTE applies the LTE predicate on the "created_at" field.
 func CreatedAtLTE(v time.Time) predicate.SecurityAudit {
 	return predicate.SecurityAudit(sql.FieldLTE(FieldCreatedAt, v))
+}
+
+// ChannelEQ applies the EQ predicate on the "channel" field.
+func ChannelEQ(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldChannel, v))
+}
+
+// ChannelNEQ applies the NEQ predicate on the "channel" field.
+func ChannelNEQ(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNEQ(FieldChannel, v))
+}
+
+// ChannelIn applies the In predicate on the "channel" field.
+func ChannelIn(vs ...string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldIn(FieldChannel, vs...))
+}
+
+// ChannelNotIn applies the NotIn predicate on the "channel" field.
+func ChannelNotIn(vs ...string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNotIn(FieldChannel, vs...))
+}
+
+// ChannelGT applies the GT predicate on the "channel" field.
+func ChannelGT(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGT(FieldChannel, v))
+}
+
+// ChannelGTE applies the GTE predicate on the "channel" field.
+func ChannelGTE(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGTE(FieldChannel, v))
+}
+
+// ChannelLT applies the LT predicate on the "channel" field.
+func ChannelLT(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLT(FieldChannel, v))
+}
+
+// ChannelLTE applies the LTE predicate on the "channel" field.
+func ChannelLTE(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLTE(FieldChannel, v))
+}
+
+// ChannelContains applies the Contains predicate on the "channel" field.
+func ChannelContains(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldContains(FieldChannel, v))
+}
+
+// ChannelHasPrefix applies the HasPrefix predicate on the "channel" field.
+func ChannelHasPrefix(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldHasPrefix(FieldChannel, v))
+}
+
+// ChannelHasSuffix applies the HasSuffix predicate on the "channel" field.
+func ChannelHasSuffix(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldHasSuffix(FieldChannel, v))
+}
+
+// ChannelEqualFold applies the EqualFold predicate on the "channel" field.
+func ChannelEqualFold(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEqualFold(FieldChannel, v))
+}
+
+// ChannelContainsFold applies the ContainsFold predicate on the "channel" field.
+func ChannelContainsFold(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldContainsFold(FieldChannel, v))
+}
+
+// ActorUserIDEQ applies the EQ predicate on the "actor_user_id" field.
+func ActorUserIDEQ(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldActorUserID, v))
+}
+
+// ActorUserIDNEQ applies the NEQ predicate on the "actor_user_id" field.
+func ActorUserIDNEQ(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNEQ(FieldActorUserID, v))
+}
+
+// ActorUserIDIn applies the In predicate on the "actor_user_id" field.
+func ActorUserIDIn(vs ...uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldIn(FieldActorUserID, vs...))
+}
+
+// ActorUserIDNotIn applies the NotIn predicate on the "actor_user_id" field.
+func ActorUserIDNotIn(vs ...uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNotIn(FieldActorUserID, vs...))
+}
+
+// ActorUserIDGT applies the GT predicate on the "actor_user_id" field.
+func ActorUserIDGT(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGT(FieldActorUserID, v))
+}
+
+// ActorUserIDGTE applies the GTE predicate on the "actor_user_id" field.
+func ActorUserIDGTE(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGTE(FieldActorUserID, v))
+}
+
+// ActorUserIDLT applies the LT predicate on the "actor_user_id" field.
+func ActorUserIDLT(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLT(FieldActorUserID, v))
+}
+
+// ActorUserIDLTE applies the LTE predicate on the "actor_user_id" field.
+func ActorUserIDLTE(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLTE(FieldActorUserID, v))
+}
+
+// ActorUserIDIsNil applies the IsNil predicate on the "actor_user_id" field.
+func ActorUserIDIsNil() predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldIsNull(FieldActorUserID))
+}
+
+// ActorUserIDNotNil applies the NotNil predicate on the "actor_user_id" field.
+func ActorUserIDNotNil() predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNotNull(FieldActorUserID))
+}
+
+// MutationIDEQ applies the EQ predicate on the "mutation_id" field.
+func MutationIDEQ(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldMutationID, v))
+}
+
+// MutationIDNEQ applies the NEQ predicate on the "mutation_id" field.
+func MutationIDNEQ(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNEQ(FieldMutationID, v))
+}
+
+// MutationIDIn applies the In predicate on the "mutation_id" field.
+func MutationIDIn(vs ...string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldIn(FieldMutationID, vs...))
+}
+
+// MutationIDNotIn applies the NotIn predicate on the "mutation_id" field.
+func MutationIDNotIn(vs ...string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNotIn(FieldMutationID, vs...))
+}
+
+// MutationIDGT applies the GT predicate on the "mutation_id" field.
+func MutationIDGT(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGT(FieldMutationID, v))
+}
+
+// MutationIDGTE applies the GTE predicate on the "mutation_id" field.
+func MutationIDGTE(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGTE(FieldMutationID, v))
+}
+
+// MutationIDLT applies the LT predicate on the "mutation_id" field.
+func MutationIDLT(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLT(FieldMutationID, v))
+}
+
+// MutationIDLTE applies the LTE predicate on the "mutation_id" field.
+func MutationIDLTE(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLTE(FieldMutationID, v))
+}
+
+// MutationIDContains applies the Contains predicate on the "mutation_id" field.
+func MutationIDContains(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldContains(FieldMutationID, v))
+}
+
+// MutationIDHasPrefix applies the HasPrefix predicate on the "mutation_id" field.
+func MutationIDHasPrefix(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldHasPrefix(FieldMutationID, v))
+}
+
+// MutationIDHasSuffix applies the HasSuffix predicate on the "mutation_id" field.
+func MutationIDHasSuffix(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldHasSuffix(FieldMutationID, v))
+}
+
+// MutationIDEqualFold applies the EqualFold predicate on the "mutation_id" field.
+func MutationIDEqualFold(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEqualFold(FieldMutationID, v))
+}
+
+// MutationIDContainsFold applies the ContainsFold predicate on the "mutation_id" field.
+func MutationIDContainsFold(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldContainsFold(FieldMutationID, v))
+}
+
+// BeforeStatusEQ applies the EQ predicate on the "before_status" field.
+func BeforeStatusEQ(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldBeforeStatus, v))
+}
+
+// BeforeStatusNEQ applies the NEQ predicate on the "before_status" field.
+func BeforeStatusNEQ(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNEQ(FieldBeforeStatus, v))
+}
+
+// BeforeStatusIn applies the In predicate on the "before_status" field.
+func BeforeStatusIn(vs ...string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldIn(FieldBeforeStatus, vs...))
+}
+
+// BeforeStatusNotIn applies the NotIn predicate on the "before_status" field.
+func BeforeStatusNotIn(vs ...string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNotIn(FieldBeforeStatus, vs...))
+}
+
+// BeforeStatusGT applies the GT predicate on the "before_status" field.
+func BeforeStatusGT(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGT(FieldBeforeStatus, v))
+}
+
+// BeforeStatusGTE applies the GTE predicate on the "before_status" field.
+func BeforeStatusGTE(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGTE(FieldBeforeStatus, v))
+}
+
+// BeforeStatusLT applies the LT predicate on the "before_status" field.
+func BeforeStatusLT(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLT(FieldBeforeStatus, v))
+}
+
+// BeforeStatusLTE applies the LTE predicate on the "before_status" field.
+func BeforeStatusLTE(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLTE(FieldBeforeStatus, v))
+}
+
+// BeforeStatusContains applies the Contains predicate on the "before_status" field.
+func BeforeStatusContains(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldContains(FieldBeforeStatus, v))
+}
+
+// BeforeStatusHasPrefix applies the HasPrefix predicate on the "before_status" field.
+func BeforeStatusHasPrefix(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldHasPrefix(FieldBeforeStatus, v))
+}
+
+// BeforeStatusHasSuffix applies the HasSuffix predicate on the "before_status" field.
+func BeforeStatusHasSuffix(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldHasSuffix(FieldBeforeStatus, v))
+}
+
+// BeforeStatusEqualFold applies the EqualFold predicate on the "before_status" field.
+func BeforeStatusEqualFold(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEqualFold(FieldBeforeStatus, v))
+}
+
+// BeforeStatusContainsFold applies the ContainsFold predicate on the "before_status" field.
+func BeforeStatusContainsFold(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldContainsFold(FieldBeforeStatus, v))
+}
+
+// AfterStatusEQ applies the EQ predicate on the "after_status" field.
+func AfterStatusEQ(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldAfterStatus, v))
+}
+
+// AfterStatusNEQ applies the NEQ predicate on the "after_status" field.
+func AfterStatusNEQ(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNEQ(FieldAfterStatus, v))
+}
+
+// AfterStatusIn applies the In predicate on the "after_status" field.
+func AfterStatusIn(vs ...string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldIn(FieldAfterStatus, vs...))
+}
+
+// AfterStatusNotIn applies the NotIn predicate on the "after_status" field.
+func AfterStatusNotIn(vs ...string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNotIn(FieldAfterStatus, vs...))
+}
+
+// AfterStatusGT applies the GT predicate on the "after_status" field.
+func AfterStatusGT(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGT(FieldAfterStatus, v))
+}
+
+// AfterStatusGTE applies the GTE predicate on the "after_status" field.
+func AfterStatusGTE(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGTE(FieldAfterStatus, v))
+}
+
+// AfterStatusLT applies the LT predicate on the "after_status" field.
+func AfterStatusLT(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLT(FieldAfterStatus, v))
+}
+
+// AfterStatusLTE applies the LTE predicate on the "after_status" field.
+func AfterStatusLTE(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLTE(FieldAfterStatus, v))
+}
+
+// AfterStatusContains applies the Contains predicate on the "after_status" field.
+func AfterStatusContains(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldContains(FieldAfterStatus, v))
+}
+
+// AfterStatusHasPrefix applies the HasPrefix predicate on the "after_status" field.
+func AfterStatusHasPrefix(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldHasPrefix(FieldAfterStatus, v))
+}
+
+// AfterStatusHasSuffix applies the HasSuffix predicate on the "after_status" field.
+func AfterStatusHasSuffix(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldHasSuffix(FieldAfterStatus, v))
+}
+
+// AfterStatusEqualFold applies the EqualFold predicate on the "after_status" field.
+func AfterStatusEqualFold(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEqualFold(FieldAfterStatus, v))
+}
+
+// AfterStatusContainsFold applies the ContainsFold predicate on the "after_status" field.
+func AfterStatusContainsFold(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldContainsFold(FieldAfterStatus, v))
+}
+
+// BeforeRolesEQ applies the EQ predicate on the "before_roles" field.
+func BeforeRolesEQ(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldBeforeRoles, v))
+}
+
+// BeforeRolesNEQ applies the NEQ predicate on the "before_roles" field.
+func BeforeRolesNEQ(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNEQ(FieldBeforeRoles, v))
+}
+
+// BeforeRolesIn applies the In predicate on the "before_roles" field.
+func BeforeRolesIn(vs ...string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldIn(FieldBeforeRoles, vs...))
+}
+
+// BeforeRolesNotIn applies the NotIn predicate on the "before_roles" field.
+func BeforeRolesNotIn(vs ...string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNotIn(FieldBeforeRoles, vs...))
+}
+
+// BeforeRolesGT applies the GT predicate on the "before_roles" field.
+func BeforeRolesGT(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGT(FieldBeforeRoles, v))
+}
+
+// BeforeRolesGTE applies the GTE predicate on the "before_roles" field.
+func BeforeRolesGTE(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGTE(FieldBeforeRoles, v))
+}
+
+// BeforeRolesLT applies the LT predicate on the "before_roles" field.
+func BeforeRolesLT(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLT(FieldBeforeRoles, v))
+}
+
+// BeforeRolesLTE applies the LTE predicate on the "before_roles" field.
+func BeforeRolesLTE(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLTE(FieldBeforeRoles, v))
+}
+
+// BeforeRolesContains applies the Contains predicate on the "before_roles" field.
+func BeforeRolesContains(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldContains(FieldBeforeRoles, v))
+}
+
+// BeforeRolesHasPrefix applies the HasPrefix predicate on the "before_roles" field.
+func BeforeRolesHasPrefix(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldHasPrefix(FieldBeforeRoles, v))
+}
+
+// BeforeRolesHasSuffix applies the HasSuffix predicate on the "before_roles" field.
+func BeforeRolesHasSuffix(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldHasSuffix(FieldBeforeRoles, v))
+}
+
+// BeforeRolesEqualFold applies the EqualFold predicate on the "before_roles" field.
+func BeforeRolesEqualFold(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEqualFold(FieldBeforeRoles, v))
+}
+
+// BeforeRolesContainsFold applies the ContainsFold predicate on the "before_roles" field.
+func BeforeRolesContainsFold(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldContainsFold(FieldBeforeRoles, v))
+}
+
+// AfterRolesEQ applies the EQ predicate on the "after_roles" field.
+func AfterRolesEQ(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldAfterRoles, v))
+}
+
+// AfterRolesNEQ applies the NEQ predicate on the "after_roles" field.
+func AfterRolesNEQ(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNEQ(FieldAfterRoles, v))
+}
+
+// AfterRolesIn applies the In predicate on the "after_roles" field.
+func AfterRolesIn(vs ...string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldIn(FieldAfterRoles, vs...))
+}
+
+// AfterRolesNotIn applies the NotIn predicate on the "after_roles" field.
+func AfterRolesNotIn(vs ...string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNotIn(FieldAfterRoles, vs...))
+}
+
+// AfterRolesGT applies the GT predicate on the "after_roles" field.
+func AfterRolesGT(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGT(FieldAfterRoles, v))
+}
+
+// AfterRolesGTE applies the GTE predicate on the "after_roles" field.
+func AfterRolesGTE(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGTE(FieldAfterRoles, v))
+}
+
+// AfterRolesLT applies the LT predicate on the "after_roles" field.
+func AfterRolesLT(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLT(FieldAfterRoles, v))
+}
+
+// AfterRolesLTE applies the LTE predicate on the "after_roles" field.
+func AfterRolesLTE(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLTE(FieldAfterRoles, v))
+}
+
+// AfterRolesContains applies the Contains predicate on the "after_roles" field.
+func AfterRolesContains(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldContains(FieldAfterRoles, v))
+}
+
+// AfterRolesHasPrefix applies the HasPrefix predicate on the "after_roles" field.
+func AfterRolesHasPrefix(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldHasPrefix(FieldAfterRoles, v))
+}
+
+// AfterRolesHasSuffix applies the HasSuffix predicate on the "after_roles" field.
+func AfterRolesHasSuffix(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldHasSuffix(FieldAfterRoles, v))
+}
+
+// AfterRolesEqualFold applies the EqualFold predicate on the "after_roles" field.
+func AfterRolesEqualFold(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEqualFold(FieldAfterRoles, v))
+}
+
+// AfterRolesContainsFold applies the ContainsFold predicate on the "after_roles" field.
+func AfterRolesContainsFold(v string) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldContainsFold(FieldAfterRoles, v))
+}
+
+// OriginIDEQ applies the EQ predicate on the "origin_id" field.
+func OriginIDEQ(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldOriginID, v))
+}
+
+// OriginIDNEQ applies the NEQ predicate on the "origin_id" field.
+func OriginIDNEQ(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNEQ(FieldOriginID, v))
+}
+
+// OriginIDIn applies the In predicate on the "origin_id" field.
+func OriginIDIn(vs ...uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldIn(FieldOriginID, vs...))
+}
+
+// OriginIDNotIn applies the NotIn predicate on the "origin_id" field.
+func OriginIDNotIn(vs ...uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNotIn(FieldOriginID, vs...))
+}
+
+// OriginIDGT applies the GT predicate on the "origin_id" field.
+func OriginIDGT(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGT(FieldOriginID, v))
+}
+
+// OriginIDGTE applies the GTE predicate on the "origin_id" field.
+func OriginIDGTE(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldGTE(FieldOriginID, v))
+}
+
+// OriginIDLT applies the LT predicate on the "origin_id" field.
+func OriginIDLT(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLT(FieldOriginID, v))
+}
+
+// OriginIDLTE applies the LTE predicate on the "origin_id" field.
+func OriginIDLTE(v uuid.UUID) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldLTE(FieldOriginID, v))
+}
+
+// OriginIDIsNil applies the IsNil predicate on the "origin_id" field.
+func OriginIDIsNil() predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldIsNull(FieldOriginID))
+}
+
+// OriginIDNotNil applies the NotNil predicate on the "origin_id" field.
+func OriginIDNotNil() predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNotNull(FieldOriginID))
+}
+
+// ReasonCheckedEQ applies the EQ predicate on the "reason_checked" field.
+func ReasonCheckedEQ(v bool) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldEQ(FieldReasonChecked, v))
+}
+
+// ReasonCheckedNEQ applies the NEQ predicate on the "reason_checked" field.
+func ReasonCheckedNEQ(v bool) predicate.SecurityAudit {
+	return predicate.SecurityAudit(sql.FieldNEQ(FieldReasonChecked, v))
 }
 
 // And groups predicates with the AND operator between them.

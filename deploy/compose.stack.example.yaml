@@ -2,7 +2,7 @@
 # usersrv is the account service and is required: the BFF has no other way to sign anyone in.
 # metro (the second product) and metro-web are optional: delete both services, the
 # `metro` upstream and grpc service in config.bff.yaml, the metro entries of
-# auth.account_cleanup and of auth.apps in config.usersrv.yaml to run without it.
+# auth.account_cleanup (and, during the transition, auth.apps.metro in config.usersrv.yaml) to run without it.
 # Copy configs from config.usersrv.example.yaml / config.tripmap.example.yaml /
 # config.bff.example.yaml; run `make dev-secrets` for signing keys, or configure inline PEM keys.
 # Local configs use h2c (no TLS files). usersrv receives passwords from the BFF: in production
@@ -121,6 +121,13 @@ services:
       postgres: { condition: service_healthy }
     networks: [internal]
 
+  # The published image is the standalone, local-only build. To connect it to the account center, rebuild it for
+  # your own addresses (reserved examples here); the build fails without either one:
+  #   docker build -f deploy/trip-map-web/Dockerfile \
+  #     --build-arg VITE_API_BASE_URL=https://api.example.com/api \
+  #     --build-arg VITE_OZID_ORIGIN=https://id.example.com .
+  # Sign-in, registration, password and devices are OzID pages; the product calls the BFF at the canonical API origin
+  # (an entry of the BFF's cors_allowed_origins and navigation.apps.trip-map), not a same-origin /api.
   trip-map-web:
     image: ghcr.io/kongken/mono-trip-map-web:main
     ports: ["443:443", "80:80"]
@@ -129,15 +136,54 @@ services:
     depends_on: [bff]
     networks: [internal, edge]
 
-  # Serve it on its own host name (usersrv's auth.apps.metro.origin and an entry of the BFF's
-  # cors_allowed_origins when the API is on another host) from the edge proxy, or publish a
-  # port here. It proxies /api and /mcp/metro to the BFF.
+  # Serve it on its own host name (an entry of the BFF's cors_allowed_origins and navigation.apps.metro)
+  # from the edge proxy, or publish a port here. Build it with the BFF's canonical public address and
+  # OzID's origin (no defaults; the session Cookie belongs to the API host and every account page is OzID's):
+  #   docker build -f deploy/metro-web/Dockerfile --build-arg VITE_API_BASE_URL=https://api.example.com/api \
+  #     --build-arg VITE_OZID_ORIGIN=https://id.example.com .
+  # It no longer proxies /api (answered 404); /mcp/metro and the health probes still go to the BFF.
   metro-web:
     image: ghcr.io/kongken/mono-metro-web:main
     environment:
       BACKEND_UPSTREAM: bff:18081
     depends_on: [bff]
     networks: [internal, edge]
+
+  # OzID (the user center) is static and has no same-origin /api: its bundle calls the BFF at the
+  # canonical public API origin, which is a build argument (no default) and also API_ORIGIN here
+  # (the origin of that address, for the page's Content-Security-Policy; the container refuses to
+  # start without it). Build it with
+  #   docker build -f deploy/ozid-web/Dockerfile --build-arg VITE_API_BASE_URL=https://api.example.com/api .
+  # Serve it on its own host (see deploy/reverse-proxy/Caddyfile.example). The BFF needs the
+  # `navigation` registry and the OzID origin in cors_allowed_origins (config.bff.example.yaml).
+  # Every address in this file is a reserved example name: use your own in a private copy.
+  ozid-web:
+    image: ghcr.io/kongken/mono-ozid-web:main   # replace with an image built for your API base
+    environment:
+      API_ORIGIN: https://api.example.com
+    networks: [edge]
+
+  # The unified management console (apps/admin; docs/admin/features.md) is static too and sits behind
+  # a source allowlist: the container REFUSES TO START without ADMIN_ALLOWED_CIDRS (an empty or fully
+  # open list is a refusal, never "open"), and every response of it (the page, the assets, the
+  # single-page fallback) is limited to those networks. The BFF checks its own `admin.allowed_cidrs`
+  # again on every user-management call, so the two lists belong together. Build it with
+  #   docker build -f deploy/admin-web/Dockerfile \
+  #     --build-arg VITE_API_BASE_URL=https://api.example.com/api \
+  #     --build-arg VITE_OZID_ORIGIN=https://id.example.com .
+  # ADMIN_TRUSTED_PROXIES is the edge proxy's network on `edge`: only then is the forwarded header
+  # (which that proxy sets from the real peer) believed. Publish it only through that proxy, on its own
+  # host (deploy/reverse-proxy/Caddyfile.example); never map its port to the internet. The proxy's
+  # network must stay OUT of ADMIN_ALLOWED_CIDRS (overlap is refused at start).
+  # Reserved example addresses: replace them in a private copy, and do not commit real ones.
+  admin-web:
+    image: ghcr.io/kongken/mono-admin-web:main   # replace with an image built for your API base and OzID origin
+    environment:
+      API_ORIGIN: https://api.example.com
+      ADMIN_HOST: admin.example.com
+      ADMIN_ALLOWED_CIDRS: 203.0.113.0/24
+      ADMIN_TRUSTED_PROXIES: 172.16.0.0/12
+    networks: [edge]
 
 networks:
   internal:

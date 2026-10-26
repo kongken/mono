@@ -23,13 +23,16 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"database/sql"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -40,6 +43,7 @@ import (
 	bffconfig "github.com/kongken/mono/internal/bff/config"
 	bffent "github.com/kongken/mono/internal/bff/ent"
 	bffsession "github.com/kongken/mono/internal/bff/ent/session"
+	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/bff/session"
 	bfftestutil "github.com/kongken/mono/internal/bff/testutil"
 	metroapp "github.com/kongken/mono/internal/metro/app"
@@ -88,8 +92,10 @@ type ChainHarness struct {
 
 	// Usersrv is the real account service; Accounts is its account core, for the
 	// operator actions that have no browser path (granting a role).
-	Usersrv      *usersrvapp.Handlers
-	UsersrvDB    *usersrvent.Client
+	Usersrv   *usersrvapp.Handlers
+	UsersrvDB *usersrvent.Client
+	// UsersrvSQL is the connection under UsersrvDB, for row states no code path produces.
+	UsersrvSQL   *sql.DB
 	UsersrvRes   *usersrvapp.Resources
 	Accounts     *usersrvaccount.Service
 	Inbox        *Inbox
@@ -98,6 +104,10 @@ type ChainHarness struct {
 	// Metro and MetroDB are set when the harness was built with ChainMetro.
 	Metro   *metroapp.Handlers
 	MetroDB *metroent.Client
+
+	// bffCfg and bffRes are what BFF was built from; RestartBFF builds another one from them.
+	bffCfg *bffconfig.Config
+	bffRes *bffapp.Resources
 
 	regionVersion string
 	// transport is the internal gRPC transport in use: "tls" or "h2c".
@@ -138,6 +148,9 @@ type ChainHTTPOptions struct {
 	Observe   func(*http.Request, http.Header, int)
 	TLS       bool
 	Configure func(*bffconfig.Config, string)
+	// MailOzidOrigin is the central OzID origin that account mail links to (usersrv's
+	// auth.apps.ozid); the default is a reserved example name nothing resolves.
+	MailOzidOrigin string
 }
 
 // ChainMetro adds the metro service (with an isolated database of its own) to the
@@ -251,7 +264,7 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	// harness delivers it on demand (DeliverMail).
 	h.Inbox = &Inbox{}
 	h.usersrvFault = &usersrvFault{}
-	usersrvDB := usersrvtestutil.DB(t)
+	usersrvDB, usersrvSQL := usersrvtestutil.DBWithSQL(t)
 	usersrvRedis, usersrvPrefix := usersrvtestutil.Redis(t)
 	usersrvGRPC := grpcx.ServerConfig{Transport: transport, Listen: "127.0.0.1:0"}
 	if transport == "tls" {
@@ -267,7 +280,11 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	links, err := usersrvmailer.NewLinks(map[string]string{"trip-map": "https://map.example.com", "metro": "https://metro.example.com"}, false)
+	mailOzid := "https://id.example.com"
+	if httpOptions.MailOzidOrigin != "" {
+		mailOzid = httpOptions.MailOzidOrigin
+	}
+	links, err := usersrvmailer.NewLinks(map[string]string{"ozid": mailOzid, "trip-map": "https://map.example.com", "metro": "https://metro.example.com"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +298,7 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 		t.Fatal(err)
 	}
 	h.Usersrv.SetResources(usersrvRes)
-	h.UsersrvDB, h.UsersrvRes, h.Accounts = usersrvDB, usersrvRes, usersrvRes.Accounts
+	h.UsersrvDB, h.UsersrvSQL, h.UsersrvRes, h.Accounts = usersrvDB, usersrvSQL, usersrvRes, usersrvRes.Accounts
 	// The workers run as in production (readiness reports them); DeliverMail
 	// additionally runs the outbox by hand so a scenario does not wait for a tick.
 	for _, w := range usersrvRes.Workers {
@@ -356,8 +373,17 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	if httpOptions.Configure != nil {
 		httpOptions.Configure(bffCfg, baseURL)
 	}
+	if !bffCfg.Navigation.Enabled() {
+		// A BFF that serves accounts does not start without the user center's registered origin (there is no
+		// unrestricted mode). The harness's browser speaks from the BFF's own origin, so that is the origin
+		// registered for tests that are not about the registry; one that configures its own keeps it.
+		bffCfg.Navigation = navigation.Config{APIOrigin: baseURL, Apps: map[string]navigation.App{navigation.AppOzID: {Origin: baseURL}}}
+		bffCfg.CORSAllowedOrigins = append(bffCfg.CORSAllowedOrigins, baseURL)
+	}
 	h.BFF = bffapp.New(bffCfg)
-	h.BFF.SetResources(&bffapp.Resources{DB: bffDB, Redis: bffRedis, KeyPrefix: bffPrefix})
+	h.bffCfg = bffCfg
+	h.bffRes = &bffapp.Resources{DB: bffDB, Redis: bffRedis, KeyPrefix: bffPrefix}
+	h.BFF.SetResources(h.bffRes)
 	if err := h.BFF.Bootstrap(); err != nil {
 		t.Fatal(err)
 	}
@@ -375,6 +401,31 @@ func NewChainHarness(t *testing.T, extras ...any) *ChainHarness {
 	t.Cleanup(bffSrv.Close)
 	h.BFFURL = baseURL
 	return h
+}
+
+// RestartBFF builds another BFF over the same persisted state (database, Redis), as a
+// restarted process would: new upstream connections, no in-memory state, and the
+// configuration of the moment, which `mutate` may change on a copy (the products enabled,
+// the upstreams). Its HTTP routes are not served; it is for the background deletion runner
+// and for checking what a restart with a changed configuration does. The database client
+// is shared, so closing either BFF at the end of the test is the only close that matters.
+func (h *ChainHarness) RestartBFF(mutate func(*bffconfig.Config)) *bffapp.Handlers {
+	h.T.Helper()
+	cfg := *h.bffCfg
+	cfg.Upstreams = maps.Clone(h.bffCfg.Upstreams)
+	cfg.GRPC.Services = maps.Clone(h.bffCfg.GRPC.Services)
+	cfg.Auth.AccountCleanup = slices.Clone(h.bffCfg.Auth.AccountCleanup)
+	if mutate != nil {
+		mutate(&cfg)
+	}
+	next := bffapp.New(&cfg)
+	res := *h.bffRes
+	next.SetResources(&res)
+	if err := next.Bootstrap(); err != nil {
+		h.T.Fatal(err)
+	}
+	h.T.Cleanup(func() { _ = next.Shutdown() })
+	return next
 }
 
 func (h *ChainHarness) DirectTripmapGRPC() *grpc.ClientConn {
@@ -426,6 +477,37 @@ func (h *ChainHarness) DirectMetroGRPC() *grpc.ClientConn {
 	return conn
 }
 
+// consoleOrigin makes the management clients (metro catalogue administration and the management
+// tokens) speak as the unified console does: they are only answered for its exact Origin, whatever
+// the test-wide browser Origin is. A test about the perimeter itself builds its own client.
+var consoleOrigin = connect.WithInterceptors(connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+		req.Header().Set("Origin", adminOrigin)
+		return next(ctx, req)
+	}
+}))
+
+// accountOrigin makes the account clients (AuthService and UserService) speak as the user center does.
+// The BFF takes the account procedures from the registered OzID origin only (the final source rule),
+// except Me, the CSRF token, navigation and sign-out, which every registered application keeps. A test
+// that leaves the browser's Origin at the harness default is a test about the account, not about who
+// may call it, so its calls go out with the OzID origin of the harness's registry (when it has one);
+// a test that sets b.Origin itself (a product, an unregistered sibling) speaks as that and meets the rule.
+func (h *ChainHarness) accountOrigin(b *Browser) connect.Option {
+	open := map[string]bool{
+		bffv1connect.AuthServiceMeProcedure: true, bffv1connect.AuthServiceIssueCSRFTokenProcedure: true,
+		bffv1connect.AuthServiceResolveNavigationProcedure: true, bffv1connect.AuthServiceLogoutProcedure: true,
+	}
+	return connect.WithInterceptors(connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			if o := h.bffCfg.Navigation.Apps["ozid"].Origin; o != "" && b.Origin == h.BFFURL && (req.Header().Get("Origin") == "" || req.Header().Get("Origin") == h.BFFURL) && !open[req.Spec().Procedure] {
+				req.Header().Set("Origin", o)
+			}
+			return next(ctx, req)
+		}
+	}))
+}
+
 // FreshBrowser returns a new isolated cookie jar for another user/session.
 func (h *ChainHarness) FreshBrowser() *Browser {
 	h.T.Helper()
@@ -435,13 +517,14 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 	}
 	hc := &http.Client{Jar: jar}
 	api := h.BFFURL + "/api"
-	return &Browser{
+	b := new(Browser) // the account clients look at its Origin when a call goes out
+	*b = Browser{
 		t: h.T, h: h, HTTP: hc, APIURL: api, Origin: h.BFFURL, Region: h.regionVersion,
-		Auth:       bffv1connect.NewAuthServiceClient(hc, api),
-		Users:      bffv1connect.NewUserServiceClient(hc, api),
-		Tokens:     bffv1connect.NewAccessTokenServiceClient(hc, api),
+		Auth:       bffv1connect.NewAuthServiceClient(hc, api, h.accountOrigin(b)),
+		Users:      bffv1connect.NewUserServiceClient(hc, api, h.accountOrigin(b)),
+		Tokens:     bffv1connect.NewAccessTokenServiceClient(hc, api, consoleOrigin),
 		Catalog:    bffmetrov1connect.NewCatalogServiceClient(hc, api),
-		MetroAdmin: bffmetrov1connect.NewAdminServiceClient(hc, api),
+		MetroAdmin: bffmetrov1connect.NewAdminServiceClient(hc, api, consoleOrigin),
 		MetroRider: bffmetrov1connect.NewRiderServiceClient(hc, api),
 		Foot:       bfftripmapv1connect.NewFootprintServiceClient(hc, api),
 		Snap:       bfftripmapv1connect.NewSnapshotServiceClient(hc, api),
@@ -453,6 +536,7 @@ func (h *ChainHarness) FreshBrowser() *Browser {
 		Search:     bfftripmapv1connect.NewSearchServiceClient(hc, api),
 		RegionSvc:  bfftripmapv1connect.NewRegionServiceClient(hc, api),
 	}
+	return b
 }
 
 func (b *Browser) Media() bfftripmapv1connect.MediaServiceClient { return b.media }
@@ -616,7 +700,7 @@ func (b *Browser) LoginWithEmail(ctx context.Context, email, password string) (*
 // the account exists; it does not sign in.
 func (b *Browser) register(ctx context.Context, h *ChainHarness, subject, display string) error {
 	email := emailFor(subject)
-	if _, err := b.RequestRegistration(ctx, email, "trip-map"); err != nil {
+	if _, err := b.RequestRegistration(ctx, email, ""); err != nil {
 		return err
 	}
 	h.DeliverMail()
@@ -677,7 +761,7 @@ func (b *Browser) LoginWithRoles(ctx context.Context, subject string, roles ...s
 		return err
 	}
 	for _, role := range roles {
-		if role != "metro-admin" {
+		if role != "metro-admin" && role != "ozid-admin" {
 			continue
 		}
 		if _, err := b.h.Accounts.GrantRole(ctx, usersrvaccount.Operator{Name: "e2e", Reason: "test"}, id, role); err != nil {
@@ -747,6 +831,9 @@ func (b *Browser) MeFull(ctx context.Context) (*bffv1.MeResponse, error) {
 // GetAccountDeletion reads the deletion the session cookie started.
 func (b *Browser) GetAccountDeletion(ctx context.Context) (*bffv1.AccountDeletion, error) {
 	req := connect.NewRequest(&bffv1.GetAccountDeletionRequest{})
+	if b.Origin != "" {
+		req.Header().Set("Origin", b.Origin) // a browser's cross-origin POST always carries it
+	}
 	res, err := b.Auth.GetAccountDeletion(ctx, req)
 	if err != nil {
 		return nil, err

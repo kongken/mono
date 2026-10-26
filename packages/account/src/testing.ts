@@ -7,7 +7,7 @@
  * CSRF header check on state-changing calls.
  *
  * It is a UI fixture only. The real chain (usersrv, BFF, mail) is covered by
- * `internal/e2e` and, from the browser, by the real-mail specs of the apps.
+ * `internal/e2e` and, from the browser, by the TestTripMapBrowserChain and TestMetroBrowserChain suites.
  */
 import type { Page, Route } from "@playwright/test";
 
@@ -15,7 +15,10 @@ export type FakeFailure = { status: number; code: string; message: string };
 
 type FakeAccount = { id: string; email: string; password: string; displayName: string; avatarUrl: string; roles: string[] };
 
-export type FakeMail = { kind: "registration" | "reset"; email: string; token: string; link: string };
+/** The return context bound to a mailed token: what the BFF validated when the mail was requested. */
+export type FakeReturn = { appId: string; returnPath: string };
+
+export type FakeMail = { kind: "registration" | "reset"; email: string; token: string; link: string; bound: FakeReturn | null };
 
 type Body = Record<string, any>;
 type Reply = { status?: number; body: unknown };
@@ -28,13 +31,36 @@ export const FAILURES = {
 } satisfies Record<string, FakeFailure>;
 
 const b64url = (n: number) => Buffer.from(Array.from({ length: n }, () => Math.floor(Math.random() * 256))).toString("base64url");
-const READ_ONLY = new Set(["Me", "ListSessions", "IssueCSRFToken", "GetAccountDeletion"]);
+const READ_ONLY = new Set(["Me", "ListSessions", "IssueCSRFToken", "GetAccountDeletion", "ResolveNavigation"]);
 const PRODUCTS = ["tripmap", "metro"];
+
+/** A registered app of the fake BFF's navigation registry; the same rules as internal/bff/navigation. */
+export type FakeNavApp = { origin: string; defaultPath?: string; paths?: string[] };
+
+/** The canonical return pathname rule of the BFF: ASCII letters, digits and -._~/, no //, no dot segments. */
+function canonicalPath(p: string) {
+  return p.length > 0 && p.length <= 256 && /^\/[A-Za-z0-9._~/-]*$/.test(p) && !p.includes("//") && !p.split("/").some((seg) => seg === "." || seg === "..");
+}
+
+function pathAllowed(app: FakeNavApp, p: string) {
+  if (!canonicalPath(p)) return false;
+  if (p === (app.defaultPath ?? "/")) return true;
+  return (app.paths ?? []).some((rule) => {
+    if (rule === "/*") return true;
+    if (rule.endsWith("/*")) {
+      const base = rule.slice(0, -2);
+      return p === base || p.startsWith(`${base}/`);
+    }
+    return p === rule;
+  });
+}
 
 export function createFakeAccounts(
   options: {
     /** Told whenever the signed-in account changes (sign-in, sign-out, deletion), so an app's fake can follow. */
     onSession?: (account: { id: string; displayName: string; roles: string[] } | null) => void;
+    /** The fake's app registry for ResolveNavigation; without it every target is refused. */
+    navigation?: Record<string, FakeNavApp>;
   } = {},
 ) {
   const state = {
@@ -44,7 +70,7 @@ export function createFakeAccounts(
     otherSessions: 0,
     mails: [] as FakeMail[],
     /** Mailed tokens: kind, mailbox and whether they were used. */
-    tokens: new Map<string, { kind: "registration" | "reset"; email: string; used: boolean }>(),
+    tokens: new Map<string, { kind: "registration" | "reset"; email: string; used: boolean; expired: boolean; bound: FakeReturn | null }>(),
     csrfIssued: 0,
     calls: [] as string[],
     /** Bodies of the calls, by method, to assert what was (not) sent. */
@@ -52,12 +78,22 @@ export function createFakeAccounts(
     writesWithoutCsrf: [] as string[],
     /** One-shot failures per method, taken in order. */
     failures: new Map<string, FakeFailure[]>(),
+    /** Held calls per method, taken in order: the reply is decided on arrival and delivered on release. */
+    holds: new Map<string, Array<{ arrive: () => void; released: Promise<void> }>>(),
+    /** Calls whose reply is dropped on the way back: the server did the work, the browser sees a network failure. */
+    lostReplies: new Map<string, number>(),
     /** The mail send requests are refused with this until cleared (rate limit, closed sign-ups ...). */
     mailRefusal: null as FakeFailure | null,
     registrationOpen: true,
     /** How many DeleteAccount / RetryAccountDeletion calls still fail with `unavailable` after the account closed. */
     deletionFailures: 0,
+    /** How many starts of a deletion are first answered "recovery Cookie not stored yet; repeat" (the BFF's confirm-before-start step). */
+    recoveryCookieRepeats: 0,
     deletion: null as null | { mutationId: string; account: FakeAccount },
+    /** The products whose data a failed (unfinished) deletion has already removed; a retry resumes after them. */
+    deletionDone: [] as string[],
+    /** The finished deletion, replayable by the same Cookie (the BFF keeps the receipt for 24 hours). */
+    receipt: null as null | { mutationId: string },
     csrfRequired: true,
     nextId: 1,
   };
@@ -73,36 +109,90 @@ export function createFakeAccounts(
   const iso = (ms: number) => new Date(ms).toISOString();
   const completed = (mutationId: string) => ({ deletion: { state: "ACCOUNT_DELETION_STATE_COMPLETED", mutationId, products: PRODUCTS, completedProducts: PRODUCTS } });
 
-  const mail = (kind: FakeMail["kind"], email: string): FakeMail => {
+  const mail = (kind: FakeMail["kind"], email: string, bound: FakeReturn | null): FakeMail => {
     const token = b64url(32);
-    state.tokens.set(token, { kind, email, used: false });
+    state.tokens.set(token, { kind, email, used: false, expired: false, bound });
     const path = kind === "registration" ? "/account/verify-email" : "/account/reset-password";
-    const m = { kind, email, token, link: `${path}#token=${token}` };
+    // The link never carries the context: it travels with the challenge, server side.
+    const m = { kind, email, token, link: `${path}#token=${token}`, bound };
     state.mails.push(m);
     return m;
+  };
+  /**
+   * The BFF's rule for a mail request: no context, a registered one, or a refusal: "unconfigured"
+   * (FAILED_PRECONDITION: a context reached a BFF without a registry) or "refused" (INVALID_ARGUMENT).
+   */
+  const bind = (b: Body): FakeReturn | null | "unconfigured" | "refused" => {
+    const appId = b.appId ?? "";
+    const returnPath = b.returnPath ?? "";
+    if (!appId && !returnPath) return null;
+    const registry = options.navigation;
+    if (!registry) return "unconfigured";
+    const app = registry[appId];
+    const path = returnPath || app?.defaultPath || "/";
+    if (!appId || !app || !pathAllowed(app, path)) return "refused";
+    return { appId, returnPath: path };
+  };
+  const refusal = (ctx: ReturnType<typeof bind>) =>
+    ctx === "unconfigured"
+      ? failure(400, "failed_precondition", "navigation is not configured")
+      : ctx === "refused"
+        ? failure(400, "invalid_argument", "navigation target not allowed")
+        : null;
+  /** The BFF's rule on the way out: re-validated now, dropped (never an error) when no longer allowed. */
+  const bound = (t: { bound: FakeReturn | null }) => {
+    const registry = options.navigation;
+    const ctx = t.bound;
+    const app = ctx && registry?.[ctx.appId];
+    return ctx && app && pathAllowed(app, ctx.returnPath) ? { appId: ctx.appId, returnPath: ctx.returnPath } : {};
   };
   const findAccount = (email: string) => state.accounts.find((a) => a.email === email.trim().toLowerCase());
   const consumeToken = (token: string, kind: FakeMail["kind"]) => {
     const t = state.tokens.get(token);
-    if (!t || t.used || t.kind !== kind) return null;
+    if (!t || t.used || t.expired || t.kind !== kind) return null;
     return t;
   };
+
+  /** One failed pass: the first product that is not done yet is cleaned, then the next one fails. */
+  const failDeletionPass = () => {
+    state.deletionFailures -= 1;
+    const next = PRODUCTS.find((p) => !state.deletionDone.includes(p));
+    if (next && state.deletionDone.length < PRODUCTS.length - 1) state.deletionDone.push(next);
+    return failure(503, "unavailable", "cleanup incomplete");
+  };
+  const pendingDeletion = (d: NonNullable<typeof state.deletion>) => ({
+    deletion: { state: "ACCOUNT_DELETION_STATE_PENDING", mutationId: d.mutationId, products: PRODUCTS, completedProducts: [...state.deletionDone] },
+  });
 
   const finishDeletion = (d: NonNullable<typeof state.deletion>) => {
     state.accounts = state.accounts.filter((a) => a !== d.account);
     state.deletion = null;
+    state.deletionDone = [];
+    state.receipt = { mutationId: d.mutationId };
     return { body: completed(d.mutationId) };
   };
 
   const handlers: Record<string, (b: Body) => Reply> = {
     IssueCSRFToken: () => ({ body: { token: `csrf-${++state.csrfIssued}` } }),
 
+    ResolveNavigation: (b) => {
+      const registry = options.navigation;
+      if (!registry) return failure(400, "failed_precondition", "navigation is not configured");
+      const app = registry[b.appId ?? ""];
+      const path = b.returnPath || app?.defaultPath || "/";
+      if (!app || !pathAllowed(app, path)) return failure(400, "invalid_argument", "navigation target not allowed");
+      const ozid = registry["ozid"];
+      return { body: { appId: b.appId, returnPath: path, returnUrl: app.origin + path, ozidOrigin: ozid?.origin ?? "" } };
+    },
+
     RequestRegistration: (b) => {
       if (!state.registrationOpen) return failure(400, "failed_precondition", "registration is closed");
       if (state.mailRefusal) return { status: state.mailRefusal.status, body: state.mailRefusal };
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.email ?? "")) return failure(400, "invalid_argument", "email: invalid format");
       // The same answer whether or not the address can register; mail goes out only when it can.
-      if (!findAccount(b.email)) mail("registration", b.email.trim().toLowerCase());
+      const ctx = bind(b);
+      if (typeof ctx === "string") return refusal(ctx)!;
+      if (!findAccount(b.email)) mail("registration", b.email.trim().toLowerCase(), ctx);
       return { body: { message: "ok" } };
     },
     CompleteRegistration: (b) => {
@@ -113,7 +203,8 @@ export function createFakeAccounts(
       if (!t || findAccount(t.email)) return failure(400, "failed_precondition", "link is not usable");
       t.used = true;
       state.accounts.push({ id: `user-${state.nextId++}`, email: t.email, password: b.password, displayName: (b.displayName ?? "").trim() || "旅行者", avatarUrl: "", roles: [] });
-      return { body: {} };
+      // Signs nobody in and leaves the browser's own session alone; only the bound context comes back.
+      return { body: bound(t) };
     },
     LoginWithEmail: (b) => {
       const a = findAccount(b.email ?? "");
@@ -125,7 +216,9 @@ export function createFakeAccounts(
     RequestPasswordReset: (b) => {
       if (state.mailRefusal) return { status: state.mailRefusal.status, body: state.mailRefusal };
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.email ?? "")) return failure(400, "invalid_argument", "email: invalid format");
-      if (findAccount(b.email)) mail("reset", b.email.trim().toLowerCase());
+      const ctx = bind(b);
+      if (typeof ctx === "string") return refusal(ctx)!;
+      if (findAccount(b.email)) mail("reset", b.email.trim().toLowerCase(), ctx);
       return { body: { message: "ok" } };
     },
     ResetPassword: (b) => {
@@ -137,7 +230,7 @@ export function createFakeAccounts(
       t.used = true;
       a.password = b.newPassword;
       if (state.current === a) set(null);
-      return { body: {} };
+      return { body: bound(t) };
     },
 
     Me: () =>
@@ -165,6 +258,14 @@ export function createFakeAccounts(
       if (denied) return denied;
       if (String(b.id).startsWith("s-other-") && state.otherSessions > 0) state.otherSessions -= 1;
       return { body: {} };
+    },
+    // Atomic and idempotent like the BFF: ends every other session, keeps this one, repeats as 0.
+    RevokeOtherSessions: () => {
+      const denied = needUser();
+      if (denied) return denied;
+      const revoked = state.otherSessions;
+      state.otherSessions = 0;
+      return { body: { revoked } };
     },
     Reauthenticate: (b) => {
       const denied = needUser();
@@ -196,6 +297,7 @@ export function createFakeAccounts(
     },
 
     DeleteAccount: (b) => {
+      if (state.receipt && state.receipt.mutationId === b.mutationId) return { body: completed(b.mutationId) };
       const resuming = state.deletion && state.deletion.mutationId === b.mutationId;
       if (!resuming) {
         const denied = needUser();
@@ -203,25 +305,27 @@ export function createFakeAccounts(
         if (b.confirmation !== "DELETE") return failure(400, "invalid_argument", "explicit DELETE confirmation is required");
         if (!/^[A-Za-z0-9._-]{1,64}$/.test(b.mutationId ?? "")) return failure(400, "invalid_argument", "mutation_id must be 1-64 characters of A-Z a-z 0-9 . _ -");
         if (Date.now() - state.authenticatedAt > 15 * 60_000) return failure(400, "failed_precondition", "enter your password again to continue");
+        if (state.current!.roles.includes("ozid-admin")) return failure(400, "failed_precondition", "platform administrator accounts cannot be closed here; an operator must revoke the role first");
+        // The recovery Cookie must be in the browser before anything irreversible begins.
+        if (state.deletion) return failure(400, "failed_precondition", "an account deletion started in this browser has not finished");
+        if (state.recoveryCookieRepeats > 0) {
+          state.recoveryCookieRepeats -= 1;
+          return failure(400, "failed_precondition", "account deletion recovery cookie is not stored yet; repeat the request");
+        }
+        state.deletionDone = [];
         state.deletion = { mutationId: b.mutationId, account: state.current! };
         set(null);
       }
-      if (state.deletionFailures > 0) {
-        state.deletionFailures -= 1;
-        return failure(503, "unavailable", "cleanup incomplete");
-      }
+      if (state.deletionFailures > 0) return failDeletionPass();
       return finishDeletion(state.deletion!);
     },
+    // Only the Cookie that started a deletion can read or continue it: anything else is "not signed in".
     GetAccountDeletion: () =>
-      state.deletion
-        ? { body: { deletion: { state: "ACCOUNT_DELETION_STATE_PENDING", mutationId: state.deletion.mutationId, products: PRODUCTS, completedProducts: [] } } }
-        : failure(404, "not_found", "deletion not found"),
+      state.deletion ? { body: pendingDeletion(state.deletion) } : state.receipt ? { body: completed(state.receipt.mutationId) } : failure(401, "unauthenticated", "sign in required"),
     RetryAccountDeletion: () => {
-      if (!state.deletion) return failure(404, "not_found", "deletion not found");
-      if (state.deletionFailures > 0) {
-        state.deletionFailures -= 1;
-        return failure(503, "unavailable", "cleanup incomplete");
-      }
+      if (!state.deletion && state.receipt) return { body: completed(state.receipt.mutationId) };
+      if (!state.deletion) return failure(401, "unauthenticated", "sign in required");
+      if (state.deletionFailures > 0) return failDeletionPass();
       return finishDeletion(state.deletion);
     },
   };
@@ -233,6 +337,9 @@ export function createFakeAccounts(
     state.calls.push(method);
     state.bodies.set(method, [...(state.bodies.get(method) ?? []), body]);
     if (!READ_ONLY.has(method) && state.csrfRequired && !headers["x-csrf-token"]) state.writesWithoutCsrf.push(method);
+    // The expected-account header only narrows the Cookie's identity, as the BFF's ingress does.
+    const expected = headers["x-kongken-user"];
+    if (expected && state.current && state.current.id !== expected && (method === "Reauthenticate" || method === "DeleteAccount")) return failure(401, "unauthenticated", "sign in required");
     const queued = state.failures.get(method)?.shift();
     if (queued) return { status: queued.status, body: { code: queued.code, message: queued.message } };
     return run(body);
@@ -257,8 +364,36 @@ export function createFakeAccounts(
     failNext(method: string, f: FakeFailure, times = 1) {
       state.failures.set(method, [...(state.failures.get(method) ?? []), ...Array.from({ length: times }, () => f)]);
     },
+    /**
+     * Holds the reply of the next call of `method`: the fake decides the answer when the call
+     * arrives (from the state at that moment) and sends it only on `release()`. This is how a
+     * spec makes a response late, overtaken or stale. `arrived` resolves once the call is in.
+     */
+    holdNext(method: string) {
+      let release!: () => void;
+      let arrive!: () => void;
+      const released = new Promise<void>((r) => (release = r));
+      const arrived = new Promise<void>((r) => (arrive = r));
+      state.holds.set(method, [...(state.holds.get(method) ?? []), { arrive, released }]);
+      return { arrived, release };
+    },
+    /** The server handles the next call of `method` and its answer never reaches the browser. */
+    loseNextResponse(method: string, times = 1) {
+      state.lostReplies.set(method, (state.lostReplies.get(method) ?? 0) + times);
+    },
+    takeLostReply(method: string) {
+      const n = state.lostReplies.get(method) ?? 0;
+      if (n > 0) state.lostReplies.set(method, n - 1);
+      return n > 0;
+    },
+    takeHold: (method: string) => state.holds.get(method)?.shift(),
     /** Pretends the last password check on this session is older than 15 minutes. */
     ageAuthentication: () => void (state.authenticatedAt = Date.now() - 16 * 60_000),
+    /** The mailed link is past its lifetime. */
+    expireToken(token: string) {
+      const t = state.tokens.get(token);
+      if (t) t.expired = true;
+    },
     lastMail: (kind?: FakeMail["kind"]) => [...state.mails].reverse().find((m) => !kind || m.kind === kind),
   };
 }
@@ -275,6 +410,12 @@ export async function installFakeAccounts(page: Page, fake: FakeAccounts) {
     const method = req.url().split("/").pop()!;
     const raw = req.postData();
     const reply = fake.handle(method, raw ? (JSON.parse(raw) as Body) : {}, req.headers());
+    const hold = fake.takeHold(method);
+    if (hold) {
+      hold.arrive();
+      await hold.released;
+    }
+    if (reply && fake.takeLostReply(method)) return route.abort("connectionreset");
     if (!reply) return route.fulfill({ status: 501, contentType: "application/json", body: JSON.stringify({ code: "unimplemented", message: method }) });
     return route.fulfill({ status: reply.status ?? 200, contentType: "application/json", body: JSON.stringify(reply.body) });
   };

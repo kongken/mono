@@ -44,14 +44,22 @@ auth:
   # Set false to refuse new sign-ups (requests and completions are refused); login and reset are unaffected.
   registration_enabled: true
   # Mail links are built only from these exact origins and fixed paths.
-  # Both entries are required and must match the BFF's allowed origins.
   # http is accepted for loopback only, and only with allow_loopback_http.
   allow_loopback_http: true
   apps:
-    trip-map:
-      origin: http://localhost:5173
-    metro:
-      origin: http://localhost:5174
+    # Required. Every registration and password-reset mail lands here, whichever app the
+    # request came from (the source app is only a validated return context bound to the
+    # challenge). It must be the OzID origin registered in the BFF's navigation.apps.ozid
+    # and cors_allowed_origins.
+    ozid:
+      origin: http://localhost:5175
+    # Optional, transition only: product origins for mails that were issued (or queued)
+    # before the central landing existed. No new mail is ever linked here. Remove them
+    # once those mails have expired (at most the longer of registration_ttl and reset_ttl).
+    # trip-map:
+    #   origin: http://localhost:5173
+    # metro:
+    #   origin: http://localhost:5174
   registration_ttl: 30m
   reset_ttl: 15m
   # Argon2id budget. Defaults: 64 MiB, 3 iterations, 1 lane, 2 hashes at once. Measured cost

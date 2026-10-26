@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -62,7 +63,17 @@ func TestAuthenticateRejectsEveryUnusableToken(t *testing.T) {
 	if err != nil || p.TokenID != row.ID || p.UserID != owner.UserID || p.AuthVersion != owner.AuthVersion || !p.Allows("metro:read") || !p.Allows("metro:write") || !slices.Equal(p.Roles, owner.Roles) {
 		t.Fatalf("principal: %+v %v", p, err)
 	}
-	for name, bad := range map[string]string{"empty": "", "short": "mcp_abc", "wrong prefix": "xyz_" + secret[4:], "unknown": "mcp_" + secret[4:len(secret)-1] + "0"} {
+	// A well-formed token that is not the stored one: the last digit is changed, to a digit that
+	// is never the real one (a fixed replacement equals the secret one time in sixteen).
+	other := "0"
+	if strings.HasSuffix(secret, "0") {
+		other = "1"
+	}
+	unknown := "mcp_" + secret[4:len(secret)-1] + other
+	if unknown == secret {
+		t.Fatal("the constructed unknown token equals the real one")
+	}
+	for name, bad := range map[string]string{"empty": "", "short": "mcp_abc", "wrong prefix": "xyz_" + secret[4:], "unknown": unknown} {
 		if _, err := svc.Authenticate(ctx, bad, "metro"); !errors.Is(err, accesstoken.ErrInvalidToken) {
 			t.Errorf("%s: %v", name, err)
 		}

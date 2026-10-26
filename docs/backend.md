@@ -1,6 +1,6 @@
 # 后端初始化
 
-> **后续扩展，待实现：** [OzID 与统一管理控制台规格](ozid/spec.md) 在现有 usersrv 上规划平台管理员角色、受限用户管理与审计，并复用现有 BFF 会话承载两个独立前端。本次只有规格；本文的当前接口、模型、配置和命令尚未随之改变。
+> **后续扩展，待实现：** [OzID 与统一管理控制台规格](ozid/spec.md) 在现有 usersrv 上规划平台管理员角色、受限用户管理与审计，并复用现有 BFF 会话承载两个独立前端。平台管理员角色 `ozid-admin`、用户查询（`usersrv.v1.UserAdminService`）与注销保护已由 T4 实现，普通账号状态与 `metro-admin` 的受限修改由 T5 实现，见 [控制台功能描述](admin/features.md)；审计页等其余部分仍只有规格，本文的接口、模型、配置和命令以代码为准。
 
 ## 当前状态与技术栈
 
@@ -95,9 +95,9 @@ CI 增加真实 S3 签名 PUT→校验/缩略图→私有读取→删除链路�
 后端是可选的。前端通过构建时环境变量 `VITE_API_BASE_URL` 决定是否连接后端：
 
 - 未设置、为空或格式无效：纯本地模式，不创建 API 客户端，不向 `/api`、`/ping`、`/readyz` 发请求；全部功能使用浏览器本地存储。当前所有用户可见功能都属于这种情况，`npm run dev:trip-map`、`npm run build` 以及任意静态托管（含前端镜像默认构建）都无需后端。
-- `/api` 这类同源路径，或 `https://api.example.com` 这类绝对 http(s) 地址：启用后端能力。`/api` 配合 Vite 开发代理或前端镜像的 Nginx 转发使用。
+- `/api` 这类同源路径，或 `https://api.example.com` 这类绝对 http(s) 地址：启用后端能力。**山海足迹自 T10 起要求绝对地址**（会话 Cookie 属于 API 主机，同源代理无法共享），并同时要求 `VITE_OZID_ORIGIN`（例如 `https://id.example.com`，只含 origin）；二者缺失或不合法时构建失败，不会产出一个没有登录入口的“半配置”页面（`apps/trip-map/vite.config.ts` 的构建门禁，规则见 `apps/trip-map/src/lib/ozid.ts`）。开发时 `/api` 可配合 Vite 开发代理，仅用于未配置账号入口的本地调试。
 
-变量在构建时写入，修改后需重新构建；前端镜像通过 `--build-arg VITE_API_BASE_URL=/api` 传入，镜像发布工作流未传递，因此发布的前端镜像默认纯本地模式；CI 界面测试构建单独传入 /api。解析逻辑见 `apps/trip-map/src/lib/backend.ts`，传输层见 `apps/trip-map/src/api/transport.ts`（未启用时不创建，登录入口也不渲染），业务客户端见 `apps/trip-map/src/api/`。登录与云同步必须通过该开关判断；后端不可用时，未登录用户不受影响，有有效账号缓存的已登录用户可保留离线修改并重试同步；云端数据删除待完成或缓存异常时暂停编辑，也可退出登录回到本地模式，不会阻塞本地足迹的读写。前端同步与会话逻辑在 `apps/trip-map/src/lib/sync.ts`、`session.ts` 和 `apps/trip-map/src/hooks/useCloud.ts`。
+变量在构建时写入，修改后需重新构建；前端镜像通过 `--build-arg VITE_API_BASE_URL=https://api.example.com/api --build-arg VITE_OZID_ORIGIN=https://id.example.com` 传入（真实地址由私有部署配置提供），镜像发布工作流未传递，因此发布的前端镜像默认纯本地模式；CI 界面测试构建单独传入保留示例地址的绝对值。解析逻辑见 `apps/trip-map/src/lib/backend.ts`，传输层见 `apps/trip-map/src/api/transport.ts`（未启用时不创建，登录入口也不渲染），业务客户端见 `apps/trip-map/src/api/`。登录与云同步必须通过该开关判断；后端不可用时，未登录用户不受影响，有有效账号缓存的已登录用户可保留离线修改并重试同步；云端数据删除待完成或缓存异常时暂停编辑，也可退出登录回到本地模式，不会阻塞本地足迹的读写。前端同步与会话逻辑在 `apps/trip-map/src/lib/sync.ts`、`session.ts` 和 `apps/trip-map/src/hooks/useCloud.ts`。
 
 前端是 npm workspaces（`apps/trip-map` 加 `packages/*`，见 [前后端 monorepo 布局](monorepo.md)），后端 Go module 位于仓库根目录；前后端分别构建，共用 `proto/` 契约、区域索引和测试夹具。
 
@@ -463,7 +463,7 @@ curl --fail http://127.0.0.1:18081/api/bff.tripmap.v1.StatusService/GetStatus \
 | `users` | BFF 身份映射 ID、`schema_version`（足迹结构，默认 1，F5 升级后为 2）、可空且可重复的登录名、展示名/头像缓存、`friend_code`（F7 好友邀请码）、`friend_show_cities/dates/notes`（F7 对好友公开范围）、足迹 `revision`、创建/更新时间；不保存认证凭据 |
 | `auth_identities`（遗留） | 旧的外部身份 `(issuer, sub)` 映射；不再被运行时读写，由 `retire_logto_identities.sql` 手动清理（范围见 [Logto 退役](usersrv/retirement.md)） |
 | `auth_browser_sessions` | BFF 浏览器会话：令牌摘要、用户 UUID、`auth_version`、`authenticated_at`（真实的密码验证时间）、创建/过期/最近使用时间与撤销标记 |
-| `bff_account_deletions` | 注销工作流（按 Cookie 摘要，一个用户一行）：阶段 `begin/cleanup/finish/local/done`、固定的产品清单与已完成产品、次数/最后错误/下次重试时间、租约、回执过期时间 |
+| `bff_account_deletions` | 注销工作流（按开始注销的会话令牌摘要，一个用户一行；恢复凭据是按代次命名的 `kongken_del_*` Cookie）：阶段 `begin/cleanup/finish/local/done`、固定的产品清单与已完成产品、次数/最后错误/下次重试时间、租约、回执过期时间 |
 | `city_visits` | 所属用户、区域 ID/名称、所属省份、颜色、日期字符串、备注；`user_id + region_code` 唯一。F5 起日期与备注列是版本 1 的冻结副本，不再更新 |
 | `city_trips` | F5：所属用户、所属城市行（外键，级联删除）、旅行 ID（`user_id + trip_id` 唯一）、区域 ID、日期字符串、备注、创建/更新时间 |
 | `province_marks` | 所属用户、省份 ID、颜色；`user_id + province_code` 唯一 |
@@ -589,7 +589,7 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 | --- | --- |
 | `users` | UUID 主键、`email_canonical`（唯一）、`email_verified_at`、`password_hash`（Sensitive，PHC 字符串）、`status`、`auth_version`（≥1）、`display_name`、`avatar_url`、`profile_version`、注销标记（`deletion_started_at`、`deletion_mutation_id`）、时间戳 |
 | `user_roles` | `(user_id, role)` 唯一，外键 `ON DELETE CASCADE`；目前只有 `metro-admin` |
-| `account_tokens` | 唯一的 32 字节 `token_hash`（只存哈希）、用途（注册/重置）及与用途绑定的约束、过期与使用时间；由 P2 的 outbox 签发，P3 的注册/重置流程消费 |
+| `account_tokens` | 唯一的 32 字节 `token_hash`（只存哈希）、用途（注册/重置）及与用途绑定的约束、过期与使用时间、可空的返回上下文 `return_app_id`/`return_path`（成对出现）；由 P2 的 outbox 签发，P3 的注册/重置流程消费 |
 | `security_audit` | 用户 ID（可空）、操作者、动作、结果、请求 ID，以及 CLI 的 `reason`；只增不改，不含邮箱 |
 | `deletion_tombstones` | 用户 UUID、工作流 ID、完成与过期时间；不含邮箱 |
 
@@ -623,7 +623,7 @@ bin/usersrv-admin -config config.usersrv.yaml disable -user-id <uuid> -operator 
 - 任务固定签发时的 provider 与 `mail.generation`，与当前不一致则取消（`config_changed`）。切换厂商：先排空队列、递增 `generation`、换 provider，之后用户重新申请。轮换加密 key：新增 key，设为 `active_key_id`，旧 key 保留到不再有用它加密的任务；队列里任务缺少解密 key 时 usersrv 拒绝启动（`mail_key_missing`），不会悄悄丢弃。
 - 记录保留 7 天，janitor 每小时清理过期记录；`BeginDeletion`/`FinishDeletion` 取消该用户未发的账号邮件。
 
-**固定链接**：`auth.apps.<app_id>.origin` 的精确 origin（必须 HTTPS；仅在 `auth.allow_loopback_http` 开启时回环主机可用 HTTP）加固定路径 `/account/verify-email` 或 `/account/reset-password`，令牌放在 `#token=` 片段里，不进入服务端日志。收件人不能指定任何 URL 或应用。Mailgun 与 SendGrid 请求关闭点击/打开跟踪（否则令牌会经厂商域名）；SMTP2GO 需在账户里关闭。
+**固定链接**：`auth.apps.ozid.origin`（必填，中央 OzID 来源）的精确 origin（必须 HTTPS；仅在 `auth.allow_loopback_http` 开启时回环主机可用 HTTP）加固定路径 `/account/verify-email` 或 `/account/reset-password`，令牌放在 `#token=` 片段里，不进入服务端日志。所有新邮件都链接到这里，与申请来自哪个应用无关；收件人和请求都不能指定任何 URL、origin 或链接用的应用。`auth.apps` 里其他条目（`trip-map`、`metro`）只在过渡期服务升级前签发或已排队的旧邮件（见 [OzID 功能描述](ozid/features.md#邮件流程t2)）。Mailgun 与 SendGrid 请求关闭点击/打开跟踪（否则令牌会经厂商域名）；SMTP2GO 需在账户里关闭。
 
 **限流**（`outbox.Guard`，Redis 原子，邮箱按独立 HMAC 摘要作 key，Redis 不可用时返回 `UNAVAILABLE`）：顺序为每客户端 IP、全服务、每邮箱 60 秒冷却、每邮箱每用途、每邮箱合计。邮箱维度超限为“抑制”（调用方仍应给统一的中性成功应答，不发信，避免泄露邮箱是否存在）；IP 与全服务超限返回 `RESOURCE_EXHAUSTED`。默认值见示例配置的 `rate_limit`。
 
@@ -637,16 +637,16 @@ bin/usersrv-admin -config config.usersrv.yaml disable -user-id <uuid> -operator 
 
 **注册验证**（先验证邮箱再设置密码，不自动登录）：
 
-- `RequestRegistration(email, app_id)`：邮箱语法错误或 `app_id` 不在 `auth.apps` 是 `INVALID_ARGUMENT`（字段名）；语法正确时**一律返回空成功**。只有该邮箱没有任何账号（含禁用、注销中）时，才在同一事务里写 `registration` 令牌与加密的 `mail_jobs`；已有账号的地址只写一行不带邮箱的 `ignored` 审计。邮箱维度限流（冷却、每小时上限、合计）只抑制不发信、仍返回成功；IP 与全服务限流返回 `RESOURCE_EXHAUSTED`；Redis 不可用返回 `UNAVAILABLE` 且不入队。不接受密码，不创建用户。重发不作废尚未过期的旧链接。
-- `CompleteRegistration(token, password, display_name)`：先校验密码与昵称策略（与令牌无关，失败不消费令牌），再读令牌，最后在一个事务里：按邮箱锁定该地址全部注册令牌（固定顺序，同邮箱完成串行）、确认本令牌存在且未消费未过期、地址仍无账号，创建已验证的 `active` 账号（新 UUID，`auth_version=1`），消费该地址的全部注册令牌并取消它们尚未发出的邮件，审计 `account.create` 同事务。令牌格式错误、不存在、用途不符（如重置令牌）、过期、已消费、邮箱已被注册或并发落败，**全部是同一个** `FAILED_PRECONDITION`/`TOKEN_INVALID`；邮箱唯一索引冲突同样按落败处理。验证成功不返回会话，也不返回任何数据。
+- `RequestRegistration(email, app_id, return_path)`：邮箱语法错误或返回上下文形态不合法（`app_id` 不是稳定应用 ID、`return_path` 不是规范 pathname）是 `INVALID_ARGUMENT`（字段名）；`app_id`/`return_path` 只是返回上下文，不选择链接 origin，随挑战存入 `account_tokens.return_app_id/return_path`（两个可空列；应用与路径是否被允许由 BFF 导航注册表在入口与出口各校验一次，usersrv 只查形态）；没有配置 `auth.apps.ozid` 时返回 `UNAVAILABLE`；语法正确时**一律返回空成功**。只有该邮箱没有任何账号（含禁用、注销中）时，才在同一事务里写 `registration` 令牌与加密的 `mail_jobs`；已有账号的地址只写一行不带邮箱的 `ignored` 审计。邮箱维度限流（冷却、每小时上限、合计）只抑制不发信、仍返回成功；IP 与全服务限流返回 `RESOURCE_EXHAUSTED`；Redis 不可用返回 `UNAVAILABLE` 且不入队。不接受密码，不创建用户。重发不作废尚未过期的旧链接。
+- `CompleteRegistration(token, password, display_name)`：先校验密码与昵称策略（与令牌无关，失败不消费令牌），再读令牌，最后在一个事务里：按邮箱锁定该地址全部注册令牌（固定顺序，同邮箱完成串行）、确认本令牌存在且未消费未过期、地址仍无账号，创建已验证的 `active` 账号（新 UUID，`auth_version=1`），消费该地址的全部注册令牌并取消它们尚未发出的邮件，审计 `account.create` 同事务。令牌格式错误、不存在、用途不符（如重置令牌）、过期、已消费、邮箱已被注册或并发落败，**全部是同一个** `FAILED_PRECONDITION`/`TOKEN_INVALID`；邮箱唯一索引冲突同样按落败处理。验证成功不返回会话，只回传挑战保存的返回上下文（`app_id`、`return_path`，旧挑战为空）。
 - `auth.registration_enabled: false` 时，请求与完成都返回 `FAILED_PRECONDITION`/`REGISTRATION_CLOSED`（对所有人相同），不影响登录与找回密码；重新开启后尚未过期的链接仍可用。
 
 **登录**（`AuthenticateWithEmail`）：只接受邮箱＋密码。邮箱格式错误是字段错误；未知邮箱（做等成本虚拟校验）、错误密码、禁用、注销中**都返回同一个** `UNAUTHENTICATED`/`INVALID_CREDENTIALS`（文案 `invalid credentials`）。先按规范邮箱（10 次/15 分钟）和客户端 IP（40 次/15 分钟）计数，每次尝试都计，不论邮箱是否存在，超限在做哈希之前就返回 `RESOURCE_EXHAUSTED`。成功返回用户 ID、基础资料、角色与 `auth_version`，供 BFF 建立会话；usersrv 自己不建立会话。对已存在账号的每次尝试写一行 `login` 审计（`ok`/`wrong_password`/`inactive`），不含邮箱与密码。
 
 **找回密码**：
 
-- `RequestPasswordReset(email, app_id)`：与注册申请同样“一律成功”；只有 `active` 账号才在同一事务里（先锁用户行）签发绑定该用户与当时 `auth_version` 的 `password_reset` 令牌与邮件任务。申请本身不改密码、不改版本、不撤销任何会话。
-- `ResetPassword(token, new_password)`：目标用户取自令牌，请求里没有用户 ID。事务里先锁账号再锁令牌（与注销、角色变更的加锁顺序一致，避免死锁），要求令牌未消费未过期、账号仍 `active` 且 `auth_version` 与签发时一致，然后写入新哈希、`auth_version`＋1、消费该账号全部重置令牌并取消其未发邮件，审计 `password.reset` 同事务。过期、已消费、用途错误、账号被禁用/注销、版本变化（改密、授予/撤销角色、禁用再启用等）一律是同一个 `TOKEN_INVALID`；并发提交（同一令牌或同账号的两个令牌）只有一个成功。成功后不自动登录；旧会话与管理令牌在下一次 `GetAuthState` 复核时因版本不符而失效。
+- `RequestPasswordReset(email, app_id, return_path)`：与注册申请同样“一律成功”（返回上下文规则相同）；只有 `active` 账号才在同一事务里（先锁用户行）签发绑定该用户与当时 `auth_version` 的 `password_reset` 令牌与邮件任务。申请本身不改密码、不改版本、不撤销任何会话。
+- `ResetPassword(token, new_password)`：目标用户取自令牌，请求里没有用户 ID。事务里先锁账号再锁令牌（与注销、角色变更的加锁顺序一致，避免死锁），要求令牌未消费未过期、账号仍 `active` 且 `auth_version` 与签发时一致，然后写入新哈希、`auth_version`＋1、消费该账号全部重置令牌并取消其未发邮件，审计 `password.reset` 同事务。过期、已消费、用途错误、账号被禁用/注销、版本变化（改密、授予/撤销角色、禁用再启用等）一律是同一个 `TOKEN_INVALID`；并发提交（同一令牌或同账号的两个令牌）只有一个成功。成功后不自动登录，只回传保存的返回上下文；旧会话与管理令牌在下一次 `GetAuthState` 复核时因版本不符而失效。
 
 **限流**（§10，Redis 原子，Redis 不可用时返回 `UNAVAILABLE`）：令牌提交（注册完成与重置共用计数）每 IP 30 次/15 分钟、每令牌摘要 5 次/15 分钟，成功与失败都计，令牌只以 SHA-256 摘要进入计数 key（再经 HMAC），不论格式或是否存在；`rate_limit.token_submit_per_ip`、`token_submit_per_token` 可配。登录使用既有的 `password_per_account`（按规范邮箱）与 `password_per_ip`。邮件申请限流见[邮件模块](#usersrv-邮件模块p2)。
 
@@ -676,7 +676,7 @@ npm run build
 make test-integration
 ```
 
-该命令使用 Compose 示例的本地地址和开发凭据，运行 `internal/tripmap/integration`、`internal/tripmap/application` 与 `internal/e2e`；同时设置 `USERSRV_TEST_POSTGRES_DSN`、`USERSRV_TEST_REDIS_ADDR`、`USERSRV_TEST_REDIS_PASSWORD`，因为 `internal/e2e` 的真实账号链需要 usersrv——**没有这些变量时账号链的测试会整体跳过（不算通过）**。使用其他测试环境时，设置 `TRIPMAP_TEST_POSTGRES_DSN`、`TRIPMAP_TEST_REDIS_ADDR`、`TRIPMAP_TEST_REDIS_PASSWORD`、`TRIPMAP_TEST_S3_ENDPOINT`、`TRIPMAP_TEST_S3_ACCESS_KEY`、`TRIPMAP_TEST_S3_SECRET_KEY`、`TRIPMAP_TEST_S3_BUCKET` 与上述 `USERSRV_TEST_*`，运行 `go test -v ./internal/tripmap/integration ./internal/tripmap/application ./internal/e2e`。**Redis 必须是真实的 Redis**：限流窗口过期（`ratelimit.TestWindowExpires`）依赖真实的 TTL，用内存模拟的 Redis 会让它失败；PostgreSQL 与 S3 也用与 CI 相同的版本（PostgreSQL 17、`rustfs/rustfs:1.0.1`）验证过。`internal/e2e` 另有真实 S3 的注销清理测试（`real_s3_deletion_chain_test.go`，设置 `TRIPMAP_TEST_S3_*` 时运行，带照片与未完成上传的账号注销后对象全部删除、他人对象保留）。
+该命令使用 Compose 示例的本地地址和开发凭据，运行 `internal/tripmap/integration`、`internal/tripmap/application` 与 `internal/e2e`；同时设置 `USERSRV_TEST_POSTGRES_DSN`、`USERSRV_TEST_REDIS_ADDR`、`USERSRV_TEST_REDIS_PASSWORD`，因为 `internal/e2e` 的真实账号链需要 usersrv——**没有这些变量时账号链的测试会整体跳过（不算通过）**。使用其他测试环境时，设置 `TRIPMAP_TEST_POSTGRES_DSN`、`TRIPMAP_TEST_REDIS_ADDR`、`TRIPMAP_TEST_REDIS_PASSWORD`、`TRIPMAP_TEST_S3_ENDPOINT`、`TRIPMAP_TEST_S3_ACCESS_KEY`、`TRIPMAP_TEST_S3_SECRET_KEY`、`TRIPMAP_TEST_S3_BUCKET` 与上述 `USERSRV_TEST_*`，运行 `go test -v ./internal/tripmap/integration ./internal/tripmap/application ./internal/e2e`。**Redis 必须是真实的 Redis**：限流窗口过期（`ratelimit.TestWindowExpires`）依赖真实的 TTL，用内存模拟的 Redis 会让它失败；PostgreSQL 与 S3 也用与 CI 相同的版本（PostgreSQL 17、`rustfs/rustfs:1.0.1`）验证过。`internal/e2e` 另有真实 S3 的注销清理测试（`real_s3_deletion_chain_test.go`，设置 `TRIPMAP_TEST_S3_*` 时运行，带照片与未完成上传的账号注销后对象全部删除、他人对象保留）。设置 `E2E_REQUIRE_REAL_S3=1`（`make test-integration` 与 CI 的 Backend 任务已设置）后，这个测试与 `TestChainCloseAccountRecoversFromAnObjectStoreOutage` 在缺少任何 `TRIPMAP_TEST_S3_*` 变量时直接失败，而不是跳过或回退到内存存储；不设置时本地保持默认（内存存储 / 跳过）。
 
 PostgreSQL 测试创建独立随机 schema 并清理，Redis 测试使用随机 key 和 TTL，S3 测试仅操作随机测试对象并删除。测试覆盖城市唯一约束、非法日期/颜色、省份标记独立性、用户级联、Redis 读写和 S3 上传下载删除，以及版本化迁移的升级校验（见上文“版本化数据库迁移”）。
 

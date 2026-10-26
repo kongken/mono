@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
+	"github.com/kongken/mono/internal/usersrv/ent/adminmutation"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
 	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
@@ -79,6 +80,7 @@ func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			accounttoken.Table:      accounttoken.ValidColumn,
+			adminmutation.Table:     adminmutation.ValidColumn,
 			deletiontombstone.Table: deletiontombstone.ValidColumn,
 			mailjob.Table:           mailjob.ValidColumn,
 			securityaudit.Table:     securityaudit.ValidColumn,

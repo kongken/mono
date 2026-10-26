@@ -101,7 +101,7 @@ func TestDeleteAccountPassesForACookieThatStartedADeletion(t *testing.T) {
 		Authenticate: func(context.Context, http.Header) (session.BrowserSession, error) {
 			return session.BrowserSession{}, refused
 		},
-		DeletionKnown: func(context.Context, string) bool { return known.Load() },
+		DeletionKnown: func(context.Context, http.Header) bool { return known.Load() },
 	}
 	c := authClient(t, policy, probe)
 	del := func() error {

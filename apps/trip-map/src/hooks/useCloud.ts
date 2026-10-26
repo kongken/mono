@@ -70,6 +70,10 @@ type Options = {
 };
 
 const REFRESH_MIN_MS = 15_000;
+/** Me is asked at most this often by focus and visibility events (the start always asks). */
+const ME_MIN_MS = 5_000;
+const SESSION_EXPIRED_NOTICE =
+  "登录已失效。请前往 OzID 重新登录；未同步修改仍保留在本机，也可先导出备份";
 const SERVER_DATA_ERROR = "云端数据格式无法识别";
 const emptySaved: Saved = { version: 2, visits: [], provinces: {} };
 
@@ -89,7 +93,12 @@ export function useCloud(options: Options) {
   );
   // The session cookie no longer works (expired, revoked, password changed). The cache and
   // its unsynced edits stay; only signing in again (or exporting them) goes on from here.
-  const [sessionExpired, setSessionExpired] = useState(false);
+  const [sessionExpired, setSessionExpiredState] = useState(false);
+  const sessionExpiredRef = useRef(false);
+  const setSessionExpired = (expired: boolean) => {
+    sessionExpiredRef.current = expired;
+    setSessionExpiredState(expired);
+  };
   const [loaded, setLoaded] = useState<"pending" | "ok" | "failed">("pending");
   const [loadError, setLoadError] = useState(options.boot.error ?? "");
   const protectedCache = useRef(!!options.boot.error);
@@ -186,6 +195,8 @@ export function useCloud(options: Options) {
           setConflictRecords(engineRef.current?.conflicts ?? []);
           setPending(engineRef.current?.pending ?? false);
           if (status === "idle") {
+            // A completed sync proves the session works again.
+            setSessionExpired(false);
             setLoaded("ok");
             setLoadError("");
           }
@@ -216,9 +227,7 @@ export function useCloud(options: Options) {
           if (isUnauthenticated(error)) {
             // Do not clear unsent edits automatically when a session expires.
             setSessionExpired(true);
-            setLoadError(
-              "登录已失效，未同步修改仍保留在本机。请在账号窗口重新登录后继续同步，或先导出备份",
-            );
+            setLoadError(SESSION_EXPIRED_NOTICE);
           } else {
             setLoadError(describeApiError(error));
           }
@@ -241,7 +250,7 @@ export function useCloud(options: Options) {
     if (!s) return;
     if (s.user.deletionPending) {
       setLoaded("failed");
-      setLoadError("云端数据删除未完成，请打开账号设置重试删除");
+      setLoadError("云端数据删除未完成，请前往 OzID 重试注销");
       return;
     }
     if (protectedCache.current) {
@@ -264,7 +273,7 @@ export function useCloud(options: Options) {
       if (sessionRef.current?.user.id !== s.user.id) return;
       if (isUnauthenticated(error)) {
         setSessionExpired(true);
-        setLoadError("登录已失效。请在账号窗口重新登录；未同步修改仍保留在本机，也可先导出备份");
+        setLoadError(SESSION_EXPIRED_NOTICE);
         setLoaded("failed");
         return;
       }
@@ -327,7 +336,7 @@ export function useCloud(options: Options) {
       setHasData(true);
       opts.current.onAccountChange(emptySaved);
       setLoaded("failed");
-      setLoadError("云端数据删除未完成，请重试删除");
+      setLoadError("云端数据删除未完成，请前往 OzID 重试注销");
       return;
     }
     setLoaded("pending");
@@ -358,7 +367,7 @@ export function useCloud(options: Options) {
     if (s?.user.deletionPending) {
       setHasData(true);
       setLoaded("failed");
-      setLoadError("云端数据删除未完成，请重试删除");
+      setLoadError("云端数据删除未完成，请前往 OzID 重试注销");
       return;
     }
     if (s && cache) {
@@ -420,19 +429,89 @@ export function useCloud(options: Options) {
     };
   }, [session, refresh]);
 
-  // Restore the session from Me: the HttpOnly session cookie is authoritative.
+  // Ask Me who is signed in: the HttpOnly session Cookie is authoritative, never a stored name or an URL. At
+  // start, when the page becomes visible or focused again and when the network is back, so that a sign-in,
+  // sign-out, password change or account switch made in OzID (another origin, no shared events) is noticed.
+  // Repeated asks are coalesced. Only a real "not signed in" answer ends the session; a network or server
+  // failure is not a sign-out and changes nothing. In every case the cache stays: a different account's
+  // sign-in switches to that account's own cache, and the previous one's unsent edits are kept for it.
+  const meInFlight = useRef<Promise<void> | null>(null);
+  const lastMe = useRef(0);
+  const verifySession = useCallback((force = false): Promise<void> => {
+    if (!backendEnabled) return Promise.resolve();
+    if (meInFlight.current) return meInFlight.current;
+    if (!force && Date.now() - lastMe.current < ME_MIN_MS) return Promise.resolve();
+    lastMe.current = Date.now();
+    const startedAs = sessionRef.current?.user.id;
+    const run = requireAccount()
+      .me()
+      .then(({ user }) => {
+        // A late answer must not act on a session that changed meanwhile (sign-out here, another switch).
+        if (sessionRef.current?.user.id !== startedAs) return;
+        const current = sessionRef.current;
+        if (!current || current.user.id !== user.id) {
+          if (current) {
+            opts.current.notify(
+              `账号已切换为“${user.displayName}”；上一个账号未同步的修改仍保留在本机，重新登录该账号后继续同步`,
+            );
+          }
+          enter({ user });
+          return;
+        }
+        // The same account: pick up a profile edited in OzID, and resume if the session had been lost.
+        if (current.user.displayName !== user.displayName || current.user.avatarUrl !== user.avatarUrl) {
+          const next = { ...current, user: { ...current.user, displayName: user.displayName, avatarUrl: user.avatarUrl } };
+          saveSession(localStorage, next);
+          setSession(next);
+        }
+        if (sessionExpiredRef.current) {
+          setSessionExpired(false);
+          setLoadError("");
+          void refresh(true);
+        }
+      })
+      .catch((error) => {
+        if (sessionRef.current?.user.id !== startedAs) return;
+        if (isUnauthenticated(error)) {
+          if (sessionRef.current?.user.deletionPending) {
+            // The closure that was left half done in OzID has finished: the account no longer exists.
+            leaveAccount("账号已注销，账号和所有产品的数据都已删除；登录前的本机足迹保留", true);
+          } else if (sessionRef.current) {
+            setSessionExpired(true);
+            setLoadError(SESSION_EXPIRED_NOTICE);
+            setLoaded("failed");
+          }
+          return;
+        }
+        // Not a sign-out: nothing is cleared. Only the first look tells the person.
+        if (force && !sessionRef.current) opts.current.notify(describeApiError(error));
+      })
+      .finally(() => {
+        meInFlight.current = null;
+      });
+    meInFlight.current = run;
+    return run;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!backendEnabled || restoreStarted.current) return;
     restoreStarted.current = true;
     // Discard material left by a pre-migration SPA.
     sessionStorage.removeItem("shanhai-oauth-pending-v1");
     setBusy("正在恢复登录…");
-    requireAccount().me().then(({ user }) => {
-      if (sessionRef.current?.user.id !== user.id) enter({ user });
-    }).catch((error) => {
-      if (!isUnauthenticated(error) && !sessionRef.current)
-        opts.current.notify(describeApiError(error));
-    }).finally(() => setBusy(""));
+    void verifySession(true).finally(() => setBusy(""));
+    const check = () => void verifySession();
+    const onVisibleAgain = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    document.addEventListener("visibilitychange", onVisibleAgain);
+    window.addEventListener("focus", check);
+    window.addEventListener("online", check);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibleAgain);
+      window.removeEventListener("focus", check);
+      window.removeEventListener("online", check);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Server-confirmed revision of the loaded data, or null before it is loaded. */
@@ -551,66 +630,21 @@ export function useCloud(options: Options) {
       return true;
     },
     sessionExpired,
-    /** A fresh sign-in from the account window: the cookie was just set by the login response. */
-    signIn: (user: StoredSession["user"], expiresAt?: Date | null) => {
-      enter({
-        user: { id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl },
-        ...(expiresAt ? { expiresAt: expiresAt.getTime() } : {}),
-      });
-    },
-    /** The profile was edited in the account window. */
-    updateUser: (user: Pick<StoredSession["user"], "displayName" | "avatarUrl">) => {
+    /**
+     * Called right before the browser leaves for OzID (sign in again). The account cache is written on every
+     * change, so there is normally nothing left to save; what must not happen is leaving while the last write
+     * failed. "unsafe" means the edits held by this page are not on this device, so the caller must offer the
+     * export (or staying) instead of going. A cache that another page changed is never overwritten here.
+     */
+    prepareLeave: (): "ok" | "unsafe" => {
       const s = sessionRef.current;
-      if (!s) return;
-      const next = { ...s, user: { ...s.user, ...user } };
-      saveSession(localStorage, next);
-      setSession(next);
-    },
-    /**
-     * The password was changed: the server ended every session, this one included. With
-     * nothing unsynced the account is left like a sign-out; otherwise the cache and its
-     * edits stay and the window asks for a new sign-in, from which syncing continues.
-     */
-    passwordChanged: async () => {
       const engine = engineRef.current;
-      await engine?.drain();
-      if (engine?.pending || protectedCache.current) {
-        setSessionExpired(true);
-        setLoadError("密码已修改，所有设备都已退出。未同步修改仍保留在本机，请重新登录后继续同步，或先导出备份");
-        setLoaded("failed");
-        opts.current.notify("密码已修改，请使用新密码重新登录；未同步修改仍保留在本机");
-        return "kept" as const;
-      }
-      leaveAccount("密码已修改，所有设备都已退出，请使用新密码重新登录");
-      return "left" as const;
-    },
-    /**
-     * Hooks for closing the account (`DeleteAccountPanel`): sync stops once the password was
-     * accepted, resumes when the server refused before starting, and a deletion the server
-     * could not finish is remembered so a reload offers only the retry.
-     */
-    deletion: {
-      prepare: async () => {
-        const engine = engineRef.current;
-        await engine?.drain();
-        engine?.stop();
-        setDeletionBlocked(true);
-      },
-      notStarted: () => {
-        if (sessionRef.current?.user.deletionPending) return;
-        setDeletionBlocked(false);
-        engineRef.current?.resume();
-      },
-      pending: () => {
-        const s = sessionRef.current;
-        if (!s) return;
-        const pendingSession = { ...s, user: { ...s.user, deletionPending: true } };
-        saveSession(localStorage, pendingSession);
-        setSession(pendingSession);
-        setDeletionBlocked(true);
-        setLoadError("注销尚未确认完成，云端编辑已暂停；请打开账号设置重试注销");
-      },
-      done: () => leaveAccount("账号已注销，账号和所有产品的数据都已删除；登录前的本机足迹保留", true),
+      if (!s || !engine) return "ok";
+      if (!cacheFailed && !lockedCache) return "ok";
+      if (lockedCache) return "unsafe";
+      const saved = saveCloudCache(localStorage, s.user.id, engine.cache, legacyDigest.current);
+      setCacheFailed(!saved);
+      return saved ? "ok" : "unsafe";
     },
     logout: async (discardPending = false) => {
       const s = sessionRef.current;
@@ -635,7 +669,7 @@ export function useCloud(options: Options) {
       leaveAccount(
         revoked
           ? "已退出登录，本机的账号缓存已清除"
-          : "已退出登录并清除本机缓存；未能通知服务器撤销此次登录，可在其他设备的会话列表中手动撤销",
+          : "已退出登录并清除本机缓存；未能通知服务器撤销此次登录，可在 OzID 的登录设备中手动撤销",
       );
     },
   };

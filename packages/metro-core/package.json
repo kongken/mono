@@ -1,0 +1,17 @@
+{
+  "name": "@kongken/metro-core",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "metro 公开站与统一管理控制台共用的纯函数：线路状态文案与里程格式。两个应用只依赖它，不互相 import。",
+  "scripts": {
+    "test": "node --test --experimental-strip-types src/*.test.ts"
+  },
+  "exports": {
+    "./format": "./src/format.ts",
+    "./status": "./src/status.ts"
+  },
+  "dependencies": {
+    "@kongken/api-client": "*"
+  }
+}

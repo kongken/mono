@@ -1,0 +1,2 @@
+-- Modify "account_tokens" table
+ALTER TABLE "account_tokens" ADD CONSTRAINT "account_tokens_return" CHECK (((return_app_id IS NULL) AND (return_path IS NULL)) OR ((return_app_id IS NOT NULL) AND ((char_length((return_app_id)::text) >= 1) AND (char_length((return_app_id)::text) <= 64)) AND ((return_path IS NULL) OR ((char_length((return_path)::text) >= 1) AND (char_length((return_path)::text) <= 256))))), ADD COLUMN "return_app_id" character varying NULL, ADD COLUMN "return_path" character varying NULL;

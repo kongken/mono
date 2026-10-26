@@ -22,6 +22,10 @@ const (
 // Valid reports whether k is a known template type.
 func (k Kind) Valid() bool { return k == KindVerifyEmail || k == KindResetPassword }
 
+// CentralApp is the app ID whose origin every new account mail links to: the OzID
+// user center. The source app of a request never selects the link origin.
+const CentralApp = "ozid"
+
 // Fixed paths of the landing pages in each app. The token goes into the URL
 // fragment, so it never reaches a server log, a Referer header or a proxy.
 const (
@@ -72,8 +76,9 @@ func IsLoopbackHost(host string) bool {
 }
 
 // Links builds the verification links. A link is the exact configured origin of
-// the app, one of two fixed paths and the token in the fragment: a request can
-// influence none of it except by naming one of the configured app IDs.
+// the app, one of two fixed paths and the token in the fragment. New mails are always
+// built for CentralApp; other configured origins only serve the mails that were
+// issued (and queued) before the central landing existed.
 type Links struct {
 	origins map[string]string
 }

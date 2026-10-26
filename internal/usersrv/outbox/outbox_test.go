@@ -122,7 +122,7 @@ func newServiceCfg(t *testing.T, e *env, sender mailer.Sender, keys *Keyring, cf
 	if err != nil {
 		t.Fatal(err)
 	}
-	links, err := mailer.NewLinks(map[string]string{"trip-map": "https://map.example.com", "metro": "https://metro.example.com"}, false)
+	links, err := mailer.NewLinks(map[string]string{"ozid": "https://id.example.com", "trip-map": "https://map.example.com", "metro": "https://metro.example.com"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func newServiceCfg(t *testing.T, e *env, sender mailer.Sender, keys *Keyring, cf
 
 func issueReg(t *testing.T, s *Service, email string) Issued {
 	t.Helper()
-	out, err := s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: email, AppID: "trip-map"})
+	out, err := s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: email})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func makeUser(t *testing.T, e *env, email string) (uuid.UUID, int64) {
 
 func issueReset(t *testing.T, s *Service, id uuid.UUID, version int64) Issued {
 	t.Helper()
-	out, err := s.IssueStandalone(ctx, IssueInput{Purpose: PurposePasswordReset, Email: "bob@example.com", UserID: &id, AuthVersion: &version, AppID: "metro"})
+	out, err := s.IssueStandalone(ctx, IssueInput{Purpose: PurposePasswordReset, Email: "bob@example.com", UserID: &id, AuthVersion: &version})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +202,7 @@ func TestIssueIsAtomicAndStoresNoPlaintext(t *testing.T) {
 
 	// Rolled back: neither the challenge nor the job exists.
 	tx, _ := e.db.Tx(ctx)
-	if _, err := s.Issue(ctx, tx, IssueInput{Purpose: PurposeRegistration, Email: "alice@example.com", AppID: "trip-map"}); err != nil {
+	if _, err := s.Issue(ctx, tx, IssueInput{Purpose: PurposeRegistration, Email: "alice@example.com"}); err != nil {
 		t.Fatal(err)
 	}
 	_ = tx.Rollback()
@@ -214,7 +214,7 @@ func TestIssueIsAtomicAndStoresNoPlaintext(t *testing.T) {
 	}
 
 	tx, _ = e.db.Tx(ctx)
-	out, err := s.Issue(ctx, tx, IssueInput{Purpose: PurposeRegistration, Email: "alice@example.com", AppID: "trip-map"})
+	out, err := s.Issue(ctx, tx, IssueInput{Purpose: PurposeRegistration, Email: "alice@example.com"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +224,7 @@ func TestIssueIsAtomicAndStoresNoPlaintext(t *testing.T) {
 	j := job(t, e, out.JobID)
 	tok := e.db.AccountToken.GetX(ctx, out.ChallengeID)
 	pl, token := tokenOf(t, s, j)
-	if pl.To != "alice@example.com" || pl.AppID != "trip-map" || len(token) != 43 {
+	if pl.To != "alice@example.com" || pl.AppID != mailer.CentralApp || len(token) != 43 {
 		t.Fatalf("payload %+v", pl)
 	}
 	digest := sha256.Sum256([]byte(token))
@@ -264,28 +264,26 @@ func TestIssueValidation(t *testing.T) {
 	id, v := uuid.New(), int64(1)
 	zero := int64(0)
 	cases := map[string]IssueInput{
-		"unknown app":         {Purpose: PurposeRegistration, Email: "a@example.com", AppID: "evil"},
-		"unknown purpose":     {Purpose: "invite", Email: "a@example.com", AppID: "metro"},
-		"bad email":           {Purpose: PurposeRegistration, Email: "a@example.com\r\nBcc: x@example.com", AppID: "metro"},
-		"registration + user": {Purpose: PurposeRegistration, Email: "a@example.com", AppID: "metro", UserID: &id},
-		"registration + ver":  {Purpose: PurposeRegistration, Email: "a@example.com", AppID: "metro", AuthVersion: &v},
-		"reset without user":  {Purpose: PurposePasswordReset, Email: "a@example.com", AppID: "metro", AuthVersion: &v},
-		"reset without ver":   {Purpose: PurposePasswordReset, Email: "a@example.com", AppID: "metro", UserID: &id},
-		"reset version zero":  {Purpose: PurposePasswordReset, Email: "a@example.com", AppID: "metro", UserID: &id, AuthVersion: &zero},
+		"return path is a URL": {Purpose: PurposeRegistration, Email: "a@example.com", ReturnAppID: "metro", ReturnPath: "https://evil.example.com/"},
+		"return path alone":    {Purpose: PurposeRegistration, Email: "a@example.com", ReturnPath: "/x"},
+		"unknown purpose":      {Purpose: "invite", Email: "a@example.com"},
+		"bad email":            {Purpose: PurposeRegistration, Email: "a@example.com\r\nBcc: x@example.com"},
+		"registration + user":  {Purpose: PurposeRegistration, Email: "a@example.com", UserID: &id},
+		"registration + ver":   {Purpose: PurposeRegistration, Email: "a@example.com", AuthVersion: &v},
+		"reset without user":   {Purpose: PurposePasswordReset, Email: "a@example.com", AuthVersion: &v},
+		"reset without ver":    {Purpose: PurposePasswordReset, Email: "a@example.com", UserID: &id},
+		"reset version zero":   {Purpose: PurposePasswordReset, Email: "a@example.com", UserID: &id, AuthVersion: &zero},
 	}
 	for name, in := range cases {
 		if _, err := s.IssueStandalone(ctx, in); err == nil {
 			t.Errorf("%s accepted", name)
 		}
 	}
-	if !errors.Is(func() error { _, err := s.IssueStandalone(ctx, cases["unknown app"]); return err }(), ErrUnknownApp) {
-		t.Fatal("unknown app must be ErrUnknownApp")
-	}
 	if n, _ := e.db.MailJob.Query().Count(ctx); n != 0 {
 		t.Fatalf("%d jobs from invalid input", n)
 	}
 	// The address is normalized to its canonical form, so limits and lookups share one key.
-	out, err := s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: " Alice+Tag@Example.COM ", AppID: "metro"})
+	out, err := s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: " Alice+Tag@Example.COM "})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,8 +382,8 @@ func TestDeliveryAcceptsAndErasesTheSecrets(t *testing.T) {
 		t.Fatalf("%d messages", len(msgs))
 	}
 	m := msgs[0]
-	wantLink := "https://map.example.com/account/verify-email#token=" + token
-	if m.To != "alice@example.com" || m.ID != out.JobID.String() || !strings.Contains(m.Subject, "山海足迹") ||
+	wantLink := "https://id.example.com/account/verify-email#token=" + token
+	if m.To != "alice@example.com" || m.ID != out.JobID.String() || !strings.Contains(m.Subject, "OzID") ||
 		!strings.Contains(m.Text, wantLink) || !strings.Contains(m.HTML, wantLink) || !strings.Contains(m.Text, "30 分钟") {
 		t.Fatalf("message %+v", m)
 	}
@@ -406,7 +404,7 @@ func TestDeliveryAcceptsAndErasesTheSecrets(t *testing.T) {
 	}
 }
 
-func TestResetMailUsesTheResetLinkOfTheApp(t *testing.T) {
+func TestResetMailLandsAtTheCentralOzidOrigin(t *testing.T) {
 	e := newEnv(t)
 	sender := &fakeSender{}
 	s := newService(t, e, sender, testKeys(t, "k1", "k1"))
@@ -417,7 +415,7 @@ func TestResetMailUsesTheResetLinkOfTheApp(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := sender.messages()[0]
-	if !strings.Contains(m.Text, "https://metro.example.com/account/reset-password#token="+token) || !strings.Contains(m.Subject, "重置密码") ||
+	if !strings.Contains(m.Text, "https://id.example.com/account/reset-password#token="+token) || !strings.Contains(m.Subject, "重置密码") ||
 		!strings.Contains(m.Text, "15 分钟") {
 		t.Fatalf("%+v", m)
 	}
@@ -492,13 +490,13 @@ func TestRetryStopsAtTheTokenDeadline(t *testing.T) {
 		return &mailer.Error{Class: mailer.ClassTemporary, Provider: "sendgrid", Code: "network"}
 	}}
 	m, _ := mailer.NewWithSender(mailCfg("sendgrid", 1), sender)
-	links, _ := mailer.NewLinks(map[string]string{"metro": "https://metro.example.com"}, false)
+	links, _ := mailer.NewLinks(map[string]string{"ozid": "https://id.example.com"}, false)
 	s, err := New(e.db, testKeys(t, "k1", "k1"), links, m, Settings{RegistrationTTL: 2 * time.Minute, ResetTTL: 2 * time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
 	s.SetClock(e.clock)
-	out, err := s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: "a@example.com", AppID: "metro"})
+	out, err := s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: "a@example.com"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -861,12 +859,12 @@ func TestEndToEndThroughARealAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	links, _ := mailer.NewLinks(map[string]string{"trip-map": "https://map.example.com"}, false)
+	links, _ := mailer.NewLinks(map[string]string{"ozid": "https://id.example.com"}, false)
 	s, err := New(e.db, testKeys(t, "k1", "k1"), links, m, Settings{RegistrationTTL: 30 * time.Minute, ResetTTL: 15 * time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: "alice@example.com", AppID: "trip-map"})
+	out, err := s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: "alice@example.com"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -876,7 +874,7 @@ func TestEndToEndThroughARealAdapter(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(bodies) != 1 || !strings.Contains(bodies[0], "https://map.example.com/account/verify-email#token="+token) || !strings.Contains(bodies[0], "alice@example.com") {
+	if len(bodies) != 1 || !strings.Contains(bodies[0], "https://id.example.com/account/verify-email#token="+token) || !strings.Contains(bodies[0], "alice@example.com") {
 		t.Fatalf("vendor saw %v", bodies)
 	}
 	assertFinal(t, job(t, e, out.JobID), mailjob.StatusAccepted, ResultOK)
@@ -962,4 +960,103 @@ func TestLogsNeverContainAddressesTokensLinksOrKeys(t *testing.T) {
 		}
 	}
 	_ = ids
+}
+
+// ---- central landing and return context -----------------------------------------
+
+func TestReturnContextIsBoundButNeverChoosesTheLink(t *testing.T) {
+	e := newEnv(t)
+	sender := &fakeSender{}
+	s := newService(t, e, sender, testKeys(t, "k1", "k1"))
+	out, err := s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: "alice@example.com", ReturnAppID: "metro", ReturnPath: "/stations/42"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok := e.db.AccountToken.GetX(ctx, out.ChallengeID)
+	if tok.ReturnAppID == nil || *tok.ReturnAppID != "metro" || tok.ReturnPath == nil || *tok.ReturnPath != "/stations/42" || tok.AppID != mailer.CentralApp {
+		t.Fatalf("challenge %+v", tok)
+	}
+	_, token := tokenOf(t, s, job(t, e, out.JobID))
+	if _, err = s.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	m := sender.messages()[0]
+	if !strings.Contains(m.Text, "https://id.example.com/account/verify-email#token="+token) || strings.Contains(m.Text, "metro.example.com") ||
+		strings.Contains(m.Text, "stations") || strings.Contains(m.Text, "?") {
+		t.Fatalf("link must be the central one, with the token only in the fragment:\n%s", m.Text)
+	}
+
+	// Without a context the columns stay NULL.
+	out, err = s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: "bob@example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok = e.db.AccountToken.GetX(ctx, out.ChallengeID); tok.ReturnAppID != nil || tok.ReturnPath != nil {
+		t.Fatalf("challenge %+v", tok)
+	}
+	// An app without a path binds the app only: the default path applies on the way out.
+	out, err = s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: "carol@example.com", ReturnAppID: "trip-map"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok = e.db.AccountToken.GetX(ctx, out.ChallengeID); tok.ReturnAppID == nil || *tok.ReturnAppID != "trip-map" || tok.ReturnPath != nil {
+		t.Fatalf("challenge %+v", tok)
+	}
+}
+
+func TestMailNeedsTheCentralOrigin(t *testing.T) {
+	e := newEnv(t)
+	m, err := mailer.NewWithSender(mailCfg("sendgrid", 1), &fakeSender{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	links, _ := mailer.NewLinks(map[string]string{"trip-map": "https://map.example.com"}, false)
+	s, err := New(e.db, testKeys(t, "k1", "k1"), links, m, Settings{RegistrationTTL: 30 * time.Minute, ResetTTL: 15 * time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Central() {
+		t.Fatal("no central origin was configured")
+	}
+	if _, err = s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: "a@example.com", ReturnAppID: "trip-map"}); !errors.Is(err, ErrUnknownApp) {
+		t.Fatalf("a product origin must never stand in for the central one: %v", err)
+	}
+}
+
+// A job queued before the central landing existed names a product app in its sealed
+// payload. It keeps its product link for the rest of its short life; when that origin
+// is no longer configured it lands at OzID, which takes the same token.
+func TestJobsQueuedBeforeTheCentralLandingStillDeliver(t *testing.T) {
+	for name, tc := range map[string]struct{ app, want string }{
+		"product origin still configured": {"trip-map", "https://map.example.com/account/verify-email#token="},
+		"product origin removed":          {"retired-app", "https://id.example.com/account/verify-email#token="},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newEnv(t)
+			sender := &fakeSender{}
+			s := newService(t, e, sender, testKeys(t, "k1", "k1"))
+			out, err := s.IssueStandalone(ctx, IssueInput{Purpose: PurposeRegistration, Email: "old@example.com"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			j := job(t, e, out.JobID)
+			pl, token := tokenOf(t, s, j)
+			pl.AppID = tc.app
+			plain, _ := json.Marshal(pl)
+			ct, keyID, err := s.keys.seal(j.ID.String(), j.Template, plain)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = e.db.MailJob.UpdateOneID(j.ID).SetCiphertext(ct).SetKeyID(keyID).Exec(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = s.RunOnce(ctx); err != nil {
+				t.Fatal(err)
+			}
+			msgs := sender.messages()
+			if len(msgs) != 1 || !strings.Contains(msgs[0].Text, tc.want+token) {
+				t.Fatalf("messages %+v", msgs)
+			}
+		})
+	}
 }

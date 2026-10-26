@@ -44,6 +44,9 @@ jobs:
       TRIPMAP_TEST_S3_ACCESS_KEY: tripmap-ci
       TRIPMAP_TEST_S3_SECRET_KEY: tripmap-ci-secret
       TRIPMAP_TEST_S3_BUCKET: tripmap
+      # The S3 scenarios of internal/e2e fail, rather than skip or fall back to the in-memory store,
+      # when the S3 service above is not configured.
+      E2E_REQUIRE_REAL_S3: "1"
       TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
       TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
       # usersrv tests use throwaway schemas and unique Redis key prefixes on the same servers.
@@ -72,6 +75,48 @@ jobs:
       # skipped when the TRIPMAP_TEST_* variables are absent.
       - name: Test
         run: go test -race ./...
+      # The account-deletion media scenarios against the real S3 service above, on their own. With
+      # E2E_REQUIRE_REAL_S3=1 (job env) they fail by themselves when S3 is not configured, so this
+      # step's result does not rest on another test's PASS line. The log checks below are a second
+      # line: each test must have reported PASS, and the outage test must have said it ran on S3.
+      # (An explicit bash shell, so a failing `go test` is not hidden by the pipe into tee.)
+      - name: Account deletion against real S3 (required, never skipped)
+        shell: bash
+        run: |
+          go test ./internal/e2e -count=1 -v \
+            -run 'TestChainAccountDeletionRemovesPhotosFromRealS3|TestChainCloseAccountRecoversFromAnObjectStoreOutage' | tee /tmp/s3-deletion.log
+          for t in TestChainAccountDeletionRemovesPhotosFromRealS3 TestChainCloseAccountRecoversFromAnObjectStoreOutage; do
+            grep -q -- "--- PASS: $t " /tmp/s3-deletion.log || { echo "$t did not run and pass against S3"; exit 1; }
+          done
+          [ "$(grep -c 'object store: real S3' /tmp/s3-deletion.log)" -ge 2 ] || { echo "a scenario did not run on the real S3"; exit 1; }
+          ! grep -q -- '--- SKIP' /tmp/s3-deletion.log || { echo "an S3 scenario was skipped"; exit 1; }
+      # The MCP source-perimeter scenarios (T9), on their own and verbosely, so that the log itself shows each of
+      # them ran and passed: the plain `go test -race ./...` above prints no test names, and the PostgreSQL/Redis
+      # backed chains skip when their variables are missing. This job already provides those variables. Required:
+      # the independent allowlist, the empty allowlist (closes MCP only), the protocol refusals before any
+      # parsing or business, the independence from the browser allowlist, the token and scope checks after an
+      # allowed source, and the account lifecycle (password change, disable, role change, deletion) behind it.
+      - name: MCP source perimeter (required, never skipped)
+        shell: bash
+        run: |
+          set -o pipefail
+          unit='TestEveryRequestFromOutsideTheAllowlistIsRefusedBeforeAnythingRuns TestAnEmptyOrMissingAllowlistRefusesEveryone TestFromInsideTheAllowlistTheTokenChecksStillApply'
+          chain='TestChainMCPSourceAllowlist TestChainMCPEmptyAllowlistRefusesEveryoneAndNobodyElse TestChainMCPAndBrowserAllowlistsAreIndependent TestChainMCPAllowedAddressStillNeedsAValidTokenAndScope TestChainMCPTokenIsRevalidatedOnEveryCall'
+          subtests='TestChainMCPSourceAllowlist/an_allowed_client_reaches_every_part_of_the_protocol TestChainMCPSourceAllowlist/a_client_outside_the_list_is_refused_on_every_request_kind_and_nothing_runs TestChainMCPSourceAllowlist/refused_requests_do_not_use_up_the_token'
+          alt() { local IFS='|'; echo "^($*)\$"; }
+          go test ./internal/bff/metro/mcp -count=1 -v -run "$(alt $unit)" | tee /tmp/mcp-unit.log
+          go test ./internal/e2e -count=1 -v -run "$(alt $chain)" | tee /tmp/mcp-chain.log
+          for t in $unit; do
+            grep -q -- "^--- PASS: $t " /tmp/mcp-unit.log || { echo "$t did not run and pass"; exit 1; }
+          done
+          for t in $chain; do
+            grep -q -- "^--- PASS: $t " /tmp/mcp-chain.log || { echo "$t did not run and pass"; exit 1; }
+          done
+          for t in $subtests; do
+            grep -qF -- "--- PASS: $t" /tmp/mcp-chain.log || { echo "$t did not run and pass"; exit 1; }
+          done
+          ! grep -q -- '--- SKIP' /tmp/mcp-unit.log /tmp/mcp-chain.log || { echo "an MCP perimeter scenario was skipped"; exit 1; }
+          ! grep -q -- '--- FAIL' /tmp/mcp-unit.log /tmp/mcp-chain.log || { echo "an MCP perimeter scenario failed"; exit 1; }
 
   frontend:
     name: Frontend tests
@@ -89,12 +134,440 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run check:maps
-      - run: npm run build
+      # metro (like trip-map) calls the BFF at its canonical public origin and sends every account page to
+      # OzID, so the build needs both addresses and has no same-origin /api proxy (reserved example names).
+      - run: npm run build:metro
         env:
-          VITE_API_BASE_URL: /api
+          VITE_API_BASE_URL: https://api.example.com/api
+          VITE_OZID_ORIGIN: https://id.example.com
+      # trip-map calls the BFF at its canonical public origin (a same-origin /api proxy cannot share the
+      # session Cookie, which belongs to the API host) and sends every account page to OzID, so the build
+      # needs both addresses (reserved example names: nothing is deployed from CI).
+      - run: npm run build:trip-map
+        env:
+          VITE_API_BASE_URL: https://api.example.com/api
+          VITE_OZID_ORIGIN: https://id.example.com
+      # OzID calls the BFF at its own public origin (absolute https only, no default). The
+      # address is a reserved example name: nothing is deployed from CI.
+      - run: npm run build:ozid
+        env:
+          VITE_API_BASE_URL: https://api.example.com/api
+      # The console needs two public addresses and has no defaults (reserved example names).
+      - run: npm run build:admin
+        env:
+          VITE_API_BASE_URL: https://api.example.com/api
+          VITE_OZID_ORIGIN: https://id.example.com
       - name: Browser acceptance (mocked BFF, no real mail)
         run: |
           npx playwright install --with-deps chromium
           npm run test:e2e:trip-map
       - name: Browser acceptance for metro (mocked BFF, no real mail)
         run: npm run test:e2e:metro
+      - name: Browser acceptance for OzID (mocked BFF)
+        run: npm run test:e2e:ozid
+      - name: Browser acceptance for the admin console (mocked BFF)
+        run: npm run test:e2e:admin
+
+  # OzID in a real browser against the real BFF and usersrv: HTTPS, sibling sub-domains of a
+  # reserved test site, the host-only Cookie, exact CORS/CSRF/Origin checks. It builds the OzID
+  # bundle for the addresses of the scenario itself (see internal/e2e/ozid_browser_test.go).
+  ozid-browser:
+    name: OzID real-browser acceptance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tripmap
+          POSTGRES_PASSWORD: tripmap-ci
+          POSTGRES_DB: tripmap
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tripmap" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      OZID_BROWSER_E2E: "1"
+      TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
+      USERSRV_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      USERSRV_TEST_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: OzID sign-in, return and reauthentication in Chromium
+        run: go test ./internal/e2e -run TestOzidBrowserChain -count=1 -v
+
+  # The admin console in a real browser against the real BFF and usersrv: HTTPS, sibling
+  # sub-domains of a reserved test site, the host-only Cookie, the four-role matrix, the source
+  # allowlist in front of the console and again at the BFF, real user queries. It builds the OzID and
+  # console bundles for the addresses of the scenario itself (see internal/e2e/admin_browser_test.go).
+  admin-browser:
+    name: Admin console real-browser acceptance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tripmap
+          POSTGRES_PASSWORD: tripmap-ci
+          POSTGRES_DB: tripmap
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tripmap" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ADMIN_BROWSER_E2E: "1"
+      TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
+      USERSRV_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      USERSRV_TEST_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # A failure must be diagnosable from the run alone, not by running it again: the Go test's full log, the
+      # browser run's own log and JSON report, and the traces, screenshots and videos of every failed test are
+      # kept as one artifact (also when the job is cancelled or times out). Rerunning is not evidence either way.
+      - name: Console sign-in, role gate, perimeter and user queries in Chromium
+        shell: bash
+        env:
+          ADMIN_BROWSER_ARTIFACTS: ${{ github.workspace }}/admin-browser-artifacts
+        run: |
+          mkdir -p "$ADMIN_BROWSER_ARTIFACTS"
+          go test ./internal/e2e -run TestAdminBrowserChain -count=1 -v 2>&1 | tee "$ADMIN_BROWSER_ARTIFACTS/go-test.log"
+      - name: Keep the traces and logs of the real-browser run
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: admin-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: admin-browser-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # The trip-map product and OzID in a real browser against the real BFF, usersrv and tripmap: HTTPS, sibling
+  # sub-domains of a reserved test site, the host-only Cookie, exact CORS/CSRF/X-Kongken-User checks. The
+  # product has no account forms: it sends the browser to OzID and gets it back across origins, restores the
+  # account under the UUID Me names, keeps unsent edits (original mutation ID, replayed once) across the trip,
+  # and never writes into the other account of an A/B switch. It builds both bundles for the addresses of the
+  # scenario itself (see internal/e2e/tripmap_browser_test.go) and uses seeded accounts of its own.
+  tripmap-browser:
+    name: trip-map account entry real-browser acceptance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tripmap
+          POSTGRES_PASSWORD: tripmap-ci
+          POSTGRES_DB: tripmap
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tripmap" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TRIPMAP_BROWSER_E2E: "1"
+      TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
+      USERSRV_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      USERSRV_TEST_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # The evidence is the run itself: -v, the test must report PASS and none may be skipped (a skipped
+      # browser scenario is not a passed one). The full log, the browser's traces and its failure
+      # screenshots are kept as one artifact, also when the job is cancelled or times out.
+      - name: Sign-in through OzID, cache survival, A/B switching and session loss in Chromium
+        shell: bash
+        env:
+          TRIPMAP_BROWSER_ARTIFACTS: ${{ github.workspace }}/tripmap-browser-artifacts
+        run: |
+          set -o pipefail
+          mkdir -p "$TRIPMAP_BROWSER_ARTIFACTS"
+          go test ./internal/e2e -run '^TestTripMapBrowserChain$' -count=1 -v 2>&1 | tee "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"
+          grep -q -- "--- PASS: TestTripMapBrowserChain " "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"
+          if grep -q -- "--- SKIP" "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"; then echo "a skipped scenario is not evidence"; exit 1; fi
+          # Every scenario ran in both viewports (11 scenarios x desktop and mobile), and the report has
+          # no failed, skipped, flaky or interrupted line (a retried pass is not a pass either).
+          grep -Eq "22 passed" "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"
+          if grep -Eq "[0-9]+ (failed|skipped|flaky|interrupted|did not run)" "$TRIPMAP_BROWSER_ARTIFACTS/go-test.log"; then echo "the browser report is not all green"; exit 1; fi
+      - name: Keep the traces and logs of the real-browser run
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tripmap-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            tripmap-browser-artifacts/
+            apps/trip-map/test-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  metro-browser:
+    name: metro account entry real-browser acceptance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tripmap
+          POSTGRES_PASSWORD: tripmap-ci
+          POSTGRES_DB: tripmap
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tripmap" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      METRO_BROWSER_E2E: "1"
+      TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
+      USERSRV_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      USERSRV_TEST_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # The evidence is the run itself: -v, the test must report PASS and none may be skipped (a skipped
+      # browser scenario is not a passed one). The full log, the browser's traces and its failure
+      # screenshots are kept as one artifact, also when the job is cancelled or times out.
+      - name: Sign-in through OzID, return, CSRF replay, A/B switching and session loss in Chromium
+        shell: bash
+        env:
+          METRO_BROWSER_ARTIFACTS: ${{ github.workspace }}/metro-browser-artifacts
+        run: |
+          set -o pipefail
+          mkdir -p "$METRO_BROWSER_ARTIFACTS"
+          go test ./internal/e2e -run '^TestMetroBrowserChain$' -count=1 -v 2>&1 | tee "$METRO_BROWSER_ARTIFACTS/go-test.log"
+          grep -q -- "--- PASS: TestMetroBrowserChain " "$METRO_BROWSER_ARTIFACTS/go-test.log"
+          if grep -q -- "--- SKIP" "$METRO_BROWSER_ARTIFACTS/go-test.log"; then echo "a skipped scenario is not evidence"; exit 1; fi
+          # Every scenario ran in both viewports (10 scenarios x desktop and mobile), and the report has
+          # no failed, skipped, flaky or interrupted line (a retried pass is not a pass either).
+          grep -Eq "20 passed" "$METRO_BROWSER_ARTIFACTS/go-test.log"
+          if grep -Eq "[0-9]+ (failed|skipped|flaky|interrupted|did not run)" "$METRO_BROWSER_ARTIFACTS/go-test.log"; then echo "the browser report is not all green"; exit 1; fi
+      - name: Keep the traces and logs of the real-browser run
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: metro-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            metro-browser-artifacts/
+            apps/metro/test-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # The overall domain acceptance (T12): the whole stack behind the REAL gateways on two completely different
+  # sets of reserved same-site names, driven by a real browser. Caddy runs deploy/reverse-proxy/Caddyfile.example
+  # (adapted by text substitution only, each substitution failing the test if its target is gone) and Nginx runs
+  # the ozid-web and admin-web templates with the images' own entrypoint scripts and envsubst filter; the BFF,
+  # usersrv, metro, tripmap, PostgreSQL and Redis are the real ones. It covers what the Docker-based image jobs
+  # below cannot (they build and smoke the images; this runs the gateway configuration and the browser): sign-in
+  # and return, mail, the old-mail transition, the console inside and outside its allowlist at the gateway, the
+  # container and the BFF, the machine MCP perimeter, forged forwarding headers, other hosts, bare ports and
+  # preflights, and the session of the previous domain set. Nothing here is skipped on purpose: the gate below
+  # rejects any skip, a missing prerequisite is a failure (GATEWAY_E2E=1), and the report must say exactly the
+  # number of scenarios that ran, twice (once per set).
+  gateway-browser:
+    name: Two-domain-set real-gateway and real-browser acceptance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tripmap
+          POSTGRES_PASSWORD: tripmap-ci
+          POSTGRES_DB: tripmap
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tripmap" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      GATEWAY_E2E: "1"
+      TRIPMAP_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      TRIPMAP_TEST_REDIS_ADDR: 127.0.0.1:6379
+      USERSRV_TEST_POSTGRES_DSN: postgres://tripmap:tripmap-ci@127.0.0.1:5432/tripmap?sslmode=disable
+      USERSRV_TEST_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      # The gateways: Nginx (the packaged one; the test runs it as its own unprivileged process with a private
+      # configuration, never the system service) and envsubst from the packages, and the Caddy release the
+      # example was written against (pinned; fetched through the Go checksum database).
+      - name: Install the gateways
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends nginx gettext-base
+          sudo systemctl stop nginx || true
+          GOBIN="$RUNNER_TEMP/gateway-bin" go install github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.7
+          echo "GATEWAY_CADDY=$RUNNER_TEMP/gateway-bin/caddy" >> "$GITHUB_ENV"
+          echo "GATEWAY_NGINX=$(command -v nginx || echo /usr/sbin/nginx)" >> "$GITHUB_ENV"
+          nginx -V 2>&1 | grep -q http_realip_module # the console container's source rule needs it
+          "$RUNNER_TEMP/gateway-bin/caddy" version
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Both domain sets through the real gateways, probes and Chromium
+        shell: bash
+        env:
+          GATEWAY_BROWSER_ARTIFACTS: ${{ github.workspace }}/gateway-browser-artifacts
+        run: |
+          set -o pipefail
+          mkdir -p "$GATEWAY_BROWSER_ARTIFACTS"
+          log="$GATEWAY_BROWSER_ARTIFACTS/go-test.log"
+          go test ./internal/e2e -run '^TestGatewayDomainSets$' -count=1 -v -timeout 40m 2>&1 | tee "$log"
+          grep -q -- "--- PASS: TestGatewayDomainSets " "$log"
+          for set in set-a set-b; do
+            for part in "" /perimeter /mcp /products; do
+              grep -q -- "--- PASS: TestGatewayDomainSets/$set$part " "$log" || { echo "missing PASS: $set$part"; exit 1; }
+            done
+          done
+          if grep -q -- "--- SKIP" "$log"; then echo "a skipped scenario is not evidence"; exit 1; fi
+          # 25 browser scenarios per set (11 per inside viewport x2, 3 outside), for each of the two sets, and no
+          # failed, skipped, flaky or interrupted line (a retried pass is not a pass either).
+          test "$(grep -Ec '^ +25 passed' "$log")" -eq 2
+          if grep -Eq "[0-9]+ (failed|skipped|flaky|interrupted|did not run)" "$log"; then echo "the browser report is not all green"; exit 1; fi
+      - name: Keep the logs, traces, screenshots and reports of the run
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gateway-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: gateway-browser-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # The metro-web image: it has no local-only mode, so the build needs both public example addresses and
+  # must fail without them or with a same-origin /api; the bundle carries exactly those addresses, the
+  # return pages are served, and the retired /api and /auth routes stay 404 (scripts/metro-web-smoke.sh).
+  # Reserved example addresses only. Nothing is published.
+  metro-web-image:
+    name: metro-web image, addresses and failing half configurations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build, break and run the image
+        run: scripts/metro-web-smoke.sh
+
+  # The trip-map-web image in both build modes: local (no build args, no account center, no backend
+  # address in the bundle) and backend (the example API and OzID addresses a deployment passes, both in
+  # the bundle), plus the failing half configurations. Reserved example addresses only
+  # (scripts/trip-map-web-smoke.sh). Nothing is published.
+  trip-map-web-image:
+    name: trip-map-web image, local and backend modes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build both modes and run the acceptance checks
+        run: scripts/trip-map-web-smoke.sh
+
+  # The ozid-web image as a running container: /healthz, the page and its assets, the CSP and
+  # X-Frame-Options the real Nginx sends, and that a missing or illegal API_ORIGIN keeps it from
+  # starting. Reserved example addresses only (scripts/ozid-web-smoke.sh). Nothing is published.
+  ozid-web-image:
+    name: ozid-web container acceptance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build the image and run the acceptance checks
+        run: scripts/ozid-web-smoke.sh
+
+  # The admin-web image as a running container: the source allowlist over the page, the assets and
+  # the single-page fallback, forged forwarded headers, other Host values, the headers real Nginx
+  # sends, and that a missing, empty or fully open setting keeps it from starting. Reserved example
+  # addresses only (scripts/admin-web-smoke.sh). Nothing is published.
+  admin-web-image:
+    name: admin-web container acceptance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build the image and run the acceptance checks
+        run: scripts/admin-web-smoke.sh

@@ -103,13 +103,13 @@ func TestChainCSRFAndOriginRejected(t *testing.T) {
 	// Registration and reset requests are writes too.
 	for name, call := range map[string]func(*Browser) error{
 		"request registration": func(b *Browser) error {
-			req := connect.NewRequest(&bffv1.RequestRegistrationRequest{Email: "x@example.com", AppId: "trip-map"})
+			req := connect.NewRequest(&bffv1.RequestRegistrationRequest{Email: "x@example.com", AppId: ""})
 			b.writeHeaders(req, "", "")
 			_, err := b.Auth.RequestRegistration(ctx, req)
 			return err
 		},
 		"request reset": func(b *Browser) error {
-			req := connect.NewRequest(&bffv1.RequestPasswordResetRequest{Email: "x@example.com", AppId: "trip-map"})
+			req := connect.NewRequest(&bffv1.RequestPasswordResetRequest{Email: "x@example.com", AppId: ""})
 			b.writeHeaders(req, "", "")
 			_, err := b.Auth.RequestPasswordReset(ctx, req)
 			return err
@@ -301,18 +301,18 @@ func TestChainRegistrationAnswersAreNeutral(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := h.FreshBrowser()
-	fresh, err := b.RequestRegistration(ctx, "newcomer@example.com", "trip-map")
+	fresh, err := b.RequestRegistration(ctx, "newcomer@example.com", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	existing, err := b.RequestRegistration(ctx, "known@example.com", "trip-map")
+	existing, err := b.RequestRegistration(ctx, "known@example.com", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if fresh.GetMessage() == "" || fresh.GetMessage() != existing.GetMessage() {
 		t.Fatalf("answers differ: %q vs %q", fresh.GetMessage(), existing.GetMessage())
 	}
-	reset, err := b.RequestPasswordReset(ctx, "nobody-at-all@example.com", "trip-map")
+	reset, err := b.RequestPasswordReset(ctx, "nobody-at-all@example.com", "")
 	if err != nil || reset.GetMessage() == "" {
 		t.Fatalf("reset answer: %v %v", reset, err)
 	}
@@ -357,7 +357,7 @@ func TestChainPasswordResetEndsEverySession(t *testing.T) {
 	}
 
 	anon := h.FreshBrowser()
-	if _, err := anon.RequestPasswordReset(ctx, "reset-me@example.com", "metro"); err != nil {
+	if _, err := anon.RequestPasswordReset(ctx, "reset-me@example.com", ""); err != nil {
 		t.Fatal(err)
 	}
 	h.DeliverMail()
@@ -535,7 +535,7 @@ func TestChainUsersrvOutageRefusesProtectedCalls(t *testing.T) {
 
 // A product that is paused does not block sign-in or another product.
 func TestChainPausedTripmapDoesNotBlockSignInOrMetro(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	b := h.FreshBrowser()
 	if _, err := b.Register(ctx, "paused", "", "P"); err != nil {
@@ -559,7 +559,7 @@ func TestChainPausedTripmapDoesNotBlockSignInOrMetro(t *testing.T) {
 // Spec §14 scenario 9: roles come only from the operator; registration yields
 // none; every change makes the older sessions fail.
 func TestChainRolesComeOnlyFromTheOperatorAndExpireSessions(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	b := h.FreshBrowser()
 	id, err := b.Register(ctx, "rolecheck", "", "R")
@@ -599,7 +599,7 @@ func TestChainRolesComeOnlyFromTheOperatorAndExpireSessions(t *testing.T) {
 // without the email, and tripmap data is not moved by it; friends are found by
 // invite code only.
 func TestChainProfileProjectionAndFriendCodes(t *testing.T) {
-	h := NewChainHarness(t, ChainMetro{})
+	h := adminHarness(t, loopback, ChainMetro{})
 	ctx := context.Background()
 	a, b := h.FreshBrowser(), h.FreshBrowser()
 	aID, err := a.Register(ctx, "proj-a", "", "Alice")

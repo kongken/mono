@@ -38,6 +38,9 @@ const (
 	// AuthServiceIssueCSRFTokenProcedure is the fully-qualified name of the AuthService's
 	// IssueCSRFToken RPC.
 	AuthServiceIssueCSRFTokenProcedure = "/bff.v1.AuthService/IssueCSRFToken"
+	// AuthServiceResolveNavigationProcedure is the fully-qualified name of the AuthService's
+	// ResolveNavigation RPC.
+	AuthServiceResolveNavigationProcedure = "/bff.v1.AuthService/ResolveNavigation"
 	// AuthServiceRequestRegistrationProcedure is the fully-qualified name of the AuthService's
 	// RequestRegistration RPC.
 	AuthServiceRequestRegistrationProcedure = "/bff.v1.AuthService/RequestRegistration"
@@ -63,6 +66,9 @@ const (
 	// AuthServiceRevokeSessionProcedure is the fully-qualified name of the AuthService's RevokeSession
 	// RPC.
 	AuthServiceRevokeSessionProcedure = "/bff.v1.AuthService/RevokeSession"
+	// AuthServiceRevokeOtherSessionsProcedure is the fully-qualified name of the AuthService's
+	// RevokeOtherSessions RPC.
+	AuthServiceRevokeOtherSessionsProcedure = "/bff.v1.AuthService/RevokeOtherSessions"
 	// AuthServiceReauthenticateProcedure is the fully-qualified name of the AuthService's
 	// Reauthenticate RPC.
 	AuthServiceReauthenticateProcedure = "/bff.v1.AuthService/Reauthenticate"
@@ -87,12 +93,20 @@ const (
 type AuthServiceClient interface {
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
+	// ResolveNavigation validates a "sign in (or confirm the password) and come back"
+	// target against the server-side app registry and returns the canonical OzID and
+	// return addresses. It is anonymous and read-only: it reads no account, creates no
+	// session and is not a login ticket, so a crafted target can never yield an identity.
+	// An unknown app, a path the app does not allow, or an unconfigured registry is
+	// refused (INVALID_ARGUMENT / FAILED_PRECONDITION); the caller must not redirect then.
+	ResolveNavigation(context.Context, *connect.Request[v1.ResolveNavigationRequest]) (*connect.Response[v1.ResolveNavigationResponse], error)
 	// RequestRegistration asks for a verification mail. A well-formed address always
 	// gets the same answer, whether or not it can register; no user, session or token
 	// is returned and no password is accepted here.
 	RequestRegistration(context.Context, *connect.Request[v1.RequestRegistrationRequest]) (*connect.Response[v1.RequestRegistrationResponse], error)
 	// CompleteRegistration consumes the mailed token and creates the account with the
-	// chosen password and nickname. It signs nobody in.
+	// chosen password and nickname. It signs nobody in. The response carries the
+	// return context bound to the challenge when the registry still allows it.
 	CompleteRegistration(context.Context, *connect.Request[v1.CompleteRegistrationRequest]) (*connect.Response[v1.CompleteRegistrationResponse], error)
 	// LoginWithEmail checks email and password and, on success only, sets a new
 	// random session Cookie. The response carries the profile and expiry, never the token.
@@ -100,7 +114,8 @@ type AuthServiceClient interface {
 	// RequestPasswordReset always answers the same way for a well-formed address.
 	RequestPasswordReset(context.Context, *connect.Request[v1.RequestPasswordResetRequest]) (*connect.Response[v1.RequestPasswordResetResponse], error)
 	// ResetPassword consumes the mailed token and sets a new password. Every existing
-	// session and management token stops working; the caller is not signed in.
+	// session and management token stops working; the caller is not signed in. The
+	// response carries the bound return context like CompleteRegistration.
 	ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error)
 	// Me returns the caller's account, including the login email. The roles are the
 	// account's current roles, not a snapshot.
@@ -110,8 +125,17 @@ type AuthServiceClient interface {
 	// Logout revokes the session of the Cookie and clears it. It is idempotent: it
 	// succeeds, and clears the Cookie, even when the session is already gone.
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
-	// RevokeSession revokes one of the caller's own sessions.
+	// RevokeSession revokes one of the caller's own sessions. Repeating it for a session
+	// that is already revoked succeeds; an ID that is not the caller's (another account's
+	// or unknown) is NOT_FOUND, with the same answer for both. Revoking the session of the
+	// request itself also clears its Cookie, like Logout.
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
+	// RevokeOtherSessions revokes every live browser session of the caller except the one
+	// making the request, in a single statement, so no concurrent session can be missed.
+	// It is idempotent (a repeat revokes nothing and still succeeds) and limited to 10 calls
+	// per 15 minutes per account. It does not touch auth_version, the password or the
+	// management (MCP) tokens, and a session opened after it ran is not affected.
+	RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error)
 	// Reauthenticate re-checks the current password and, only then, records a fresh
 	// authentication time on this session. Sensitive actions (DeleteAccount, creating
 	// a management token) need it within the last 15 minutes.
@@ -148,6 +172,12 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			httpClient,
 			baseURL+AuthServiceIssueCSRFTokenProcedure,
 			connect.WithSchema(authServiceMethods.ByName("IssueCSRFToken")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveNavigation: connect.NewClient[v1.ResolveNavigationRequest, v1.ResolveNavigationResponse](
+			httpClient,
+			baseURL+AuthServiceResolveNavigationProcedure,
+			connect.WithSchema(authServiceMethods.ByName("ResolveNavigation")),
 			connect.WithClientOptions(opts...),
 		),
 		requestRegistration: connect.NewClient[v1.RequestRegistrationRequest, v1.RequestRegistrationResponse](
@@ -204,6 +234,12 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("RevokeSession")),
 			connect.WithClientOptions(opts...),
 		),
+		revokeOtherSessions: connect.NewClient[v1.RevokeOtherSessionsRequest, v1.RevokeOtherSessionsResponse](
+			httpClient,
+			baseURL+AuthServiceRevokeOtherSessionsProcedure,
+			connect.WithSchema(authServiceMethods.ByName("RevokeOtherSessions")),
+			connect.WithClientOptions(opts...),
+		),
 		reauthenticate: connect.NewClient[v1.ReauthenticateRequest, v1.ReauthenticateResponse](
 			httpClient,
 			baseURL+AuthServiceReauthenticateProcedure,
@@ -240,6 +276,7 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 // authServiceClient implements AuthServiceClient.
 type authServiceClient struct {
 	issueCSRFToken       *connect.Client[v1.IssueCSRFTokenRequest, v1.IssueCSRFTokenResponse]
+	resolveNavigation    *connect.Client[v1.ResolveNavigationRequest, v1.ResolveNavigationResponse]
 	requestRegistration  *connect.Client[v1.RequestRegistrationRequest, v1.RequestRegistrationResponse]
 	completeRegistration *connect.Client[v1.CompleteRegistrationRequest, v1.CompleteRegistrationResponse]
 	loginWithEmail       *connect.Client[v1.LoginWithEmailRequest, v1.LoginWithEmailResponse]
@@ -249,6 +286,7 @@ type authServiceClient struct {
 	listSessions         *connect.Client[v1.ListSessionsRequest, v1.ListSessionsResponse]
 	logout               *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
 	revokeSession        *connect.Client[v1.RevokeSessionRequest, v1.RevokeSessionResponse]
+	revokeOtherSessions  *connect.Client[v1.RevokeOtherSessionsRequest, v1.RevokeOtherSessionsResponse]
 	reauthenticate       *connect.Client[v1.ReauthenticateRequest, v1.ReauthenticateResponse]
 	changePassword       *connect.Client[v1.ChangePasswordRequest, v1.ChangePasswordResponse]
 	deleteAccount        *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
@@ -259,6 +297,11 @@ type authServiceClient struct {
 // IssueCSRFToken calls bff.v1.AuthService.IssueCSRFToken.
 func (c *authServiceClient) IssueCSRFToken(ctx context.Context, req *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {
 	return c.issueCSRFToken.CallUnary(ctx, req)
+}
+
+// ResolveNavigation calls bff.v1.AuthService.ResolveNavigation.
+func (c *authServiceClient) ResolveNavigation(ctx context.Context, req *connect.Request[v1.ResolveNavigationRequest]) (*connect.Response[v1.ResolveNavigationResponse], error) {
+	return c.resolveNavigation.CallUnary(ctx, req)
 }
 
 // RequestRegistration calls bff.v1.AuthService.RequestRegistration.
@@ -306,6 +349,11 @@ func (c *authServiceClient) RevokeSession(ctx context.Context, req *connect.Requ
 	return c.revokeSession.CallUnary(ctx, req)
 }
 
+// RevokeOtherSessions calls bff.v1.AuthService.RevokeOtherSessions.
+func (c *authServiceClient) RevokeOtherSessions(ctx context.Context, req *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error) {
+	return c.revokeOtherSessions.CallUnary(ctx, req)
+}
+
 // Reauthenticate calls bff.v1.AuthService.Reauthenticate.
 func (c *authServiceClient) Reauthenticate(ctx context.Context, req *connect.Request[v1.ReauthenticateRequest]) (*connect.Response[v1.ReauthenticateResponse], error) {
 	return c.reauthenticate.CallUnary(ctx, req)
@@ -335,12 +383,20 @@ func (c *authServiceClient) RetryAccountDeletion(ctx context.Context, req *conne
 type AuthServiceHandler interface {
 	// IssueCSRFToken sets the CSRF cookie and returns the token for double-submit checks.
 	IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error)
+	// ResolveNavigation validates a "sign in (or confirm the password) and come back"
+	// target against the server-side app registry and returns the canonical OzID and
+	// return addresses. It is anonymous and read-only: it reads no account, creates no
+	// session and is not a login ticket, so a crafted target can never yield an identity.
+	// An unknown app, a path the app does not allow, or an unconfigured registry is
+	// refused (INVALID_ARGUMENT / FAILED_PRECONDITION); the caller must not redirect then.
+	ResolveNavigation(context.Context, *connect.Request[v1.ResolveNavigationRequest]) (*connect.Response[v1.ResolveNavigationResponse], error)
 	// RequestRegistration asks for a verification mail. A well-formed address always
 	// gets the same answer, whether or not it can register; no user, session or token
 	// is returned and no password is accepted here.
 	RequestRegistration(context.Context, *connect.Request[v1.RequestRegistrationRequest]) (*connect.Response[v1.RequestRegistrationResponse], error)
 	// CompleteRegistration consumes the mailed token and creates the account with the
-	// chosen password and nickname. It signs nobody in.
+	// chosen password and nickname. It signs nobody in. The response carries the
+	// return context bound to the challenge when the registry still allows it.
 	CompleteRegistration(context.Context, *connect.Request[v1.CompleteRegistrationRequest]) (*connect.Response[v1.CompleteRegistrationResponse], error)
 	// LoginWithEmail checks email and password and, on success only, sets a new
 	// random session Cookie. The response carries the profile and expiry, never the token.
@@ -348,7 +404,8 @@ type AuthServiceHandler interface {
 	// RequestPasswordReset always answers the same way for a well-formed address.
 	RequestPasswordReset(context.Context, *connect.Request[v1.RequestPasswordResetRequest]) (*connect.Response[v1.RequestPasswordResetResponse], error)
 	// ResetPassword consumes the mailed token and sets a new password. Every existing
-	// session and management token stops working; the caller is not signed in.
+	// session and management token stops working; the caller is not signed in. The
+	// response carries the bound return context like CompleteRegistration.
 	ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error)
 	// Me returns the caller's account, including the login email. The roles are the
 	// account's current roles, not a snapshot.
@@ -358,8 +415,17 @@ type AuthServiceHandler interface {
 	// Logout revokes the session of the Cookie and clears it. It is idempotent: it
 	// succeeds, and clears the Cookie, even when the session is already gone.
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
-	// RevokeSession revokes one of the caller's own sessions.
+	// RevokeSession revokes one of the caller's own sessions. Repeating it for a session
+	// that is already revoked succeeds; an ID that is not the caller's (another account's
+	// or unknown) is NOT_FOUND, with the same answer for both. Revoking the session of the
+	// request itself also clears its Cookie, like Logout.
 	RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error)
+	// RevokeOtherSessions revokes every live browser session of the caller except the one
+	// making the request, in a single statement, so no concurrent session can be missed.
+	// It is idempotent (a repeat revokes nothing and still succeeds) and limited to 10 calls
+	// per 15 minutes per account. It does not touch auth_version, the password or the
+	// management (MCP) tokens, and a session opened after it ran is not affected.
+	RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error)
 	// Reauthenticate re-checks the current password and, only then, records a fresh
 	// authentication time on this session. Sensitive actions (DeleteAccount, creating
 	// a management token) need it within the last 15 minutes.
@@ -392,6 +458,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		AuthServiceIssueCSRFTokenProcedure,
 		svc.IssueCSRFToken,
 		connect.WithSchema(authServiceMethods.ByName("IssueCSRFToken")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceResolveNavigationHandler := connect.NewUnaryHandler(
+		AuthServiceResolveNavigationProcedure,
+		svc.ResolveNavigation,
+		connect.WithSchema(authServiceMethods.ByName("ResolveNavigation")),
 		connect.WithHandlerOptions(opts...),
 	)
 	authServiceRequestRegistrationHandler := connect.NewUnaryHandler(
@@ -448,6 +520,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("RevokeSession")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceRevokeOtherSessionsHandler := connect.NewUnaryHandler(
+		AuthServiceRevokeOtherSessionsProcedure,
+		svc.RevokeOtherSessions,
+		connect.WithSchema(authServiceMethods.ByName("RevokeOtherSessions")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceReauthenticateHandler := connect.NewUnaryHandler(
 		AuthServiceReauthenticateProcedure,
 		svc.Reauthenticate,
@@ -482,6 +560,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		switch r.URL.Path {
 		case AuthServiceIssueCSRFTokenProcedure:
 			authServiceIssueCSRFTokenHandler.ServeHTTP(w, r)
+		case AuthServiceResolveNavigationProcedure:
+			authServiceResolveNavigationHandler.ServeHTTP(w, r)
 		case AuthServiceRequestRegistrationProcedure:
 			authServiceRequestRegistrationHandler.ServeHTTP(w, r)
 		case AuthServiceCompleteRegistrationProcedure:
@@ -500,6 +580,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceLogoutHandler.ServeHTTP(w, r)
 		case AuthServiceRevokeSessionProcedure:
 			authServiceRevokeSessionHandler.ServeHTTP(w, r)
+		case AuthServiceRevokeOtherSessionsProcedure:
+			authServiceRevokeOtherSessionsHandler.ServeHTTP(w, r)
 		case AuthServiceReauthenticateProcedure:
 			authServiceReauthenticateHandler.ServeHTTP(w, r)
 		case AuthServiceChangePasswordProcedure:
@@ -521,6 +603,10 @@ type UnimplementedAuthServiceHandler struct{}
 
 func (UnimplementedAuthServiceHandler) IssueCSRFToken(context.Context, *connect.Request[v1.IssueCSRFTokenRequest]) (*connect.Response[v1.IssueCSRFTokenResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.IssueCSRFToken is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) ResolveNavigation(context.Context, *connect.Request[v1.ResolveNavigationRequest]) (*connect.Response[v1.ResolveNavigationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.ResolveNavigation is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) RequestRegistration(context.Context, *connect.Request[v1.RequestRegistrationRequest]) (*connect.Response[v1.RequestRegistrationResponse], error) {
@@ -557,6 +643,10 @@ func (UnimplementedAuthServiceHandler) Logout(context.Context, *connect.Request[
 
 func (UnimplementedAuthServiceHandler) RevokeSession(context.Context, *connect.Request[v1.RevokeSessionRequest]) (*connect.Response[v1.RevokeSessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.RevokeSession is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) RevokeOtherSessions(context.Context, *connect.Request[v1.RevokeOtherSessionsRequest]) (*connect.Response[v1.RevokeOtherSessionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.v1.AuthService.RevokeOtherSessions is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) Reauthenticate(context.Context, *connect.Request[v1.ReauthenticateRequest]) (*connect.Response[v1.ReauthenticateResponse], error) {

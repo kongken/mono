@@ -1,8 +1,13 @@
 package config
 
 import (
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/kongken/mono/internal/bff/adminguard"
+	"github.com/kongken/mono/internal/bff/navigation"
+	"gopkg.in/yaml.v3"
 )
 
 func TestValidate(t *testing.T) {
@@ -21,6 +26,46 @@ func TestValidate(t *testing.T) {
 		"URL with query":      func(c *Config) { c.Upstreams["tripmap"] = "http://tripmap:18081?x=1" },
 		"URL with password":   func(c *Config) { c.Upstreams["tripmap"] = "http://u:p@tripmap:18081" },
 		"origin with a slash": func(c *Config) { c.CORSAllowedOrigins = []string{"https://trip.example.com/"} },
+	} {
+		c := ok()
+		mutate(&c)
+		if c.Validate(services) == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestValidateNavigation(t *testing.T) {
+	services := []string{"tripmap"}
+	ok := func() Config {
+		return Config{
+			Upstreams:          map[string]string{"tripmap": "http://tripmap:18081"},
+			CORSAllowedOrigins: []string{"https://id.example.com", "https://trip.example.com"},
+			Auth:               AuthConfig{CookieSecure: true},
+			Navigation: navigation.Config{
+				APIOrigin: "https://api.example.com",
+				Apps: map[string]navigation.App{
+					"ozid":     {Origin: "https://id.example.com"},
+					"trip-map": {Origin: "https://trip.example.com"},
+				},
+			},
+		}
+	}
+	if c := ok(); c.Validate(services) != nil {
+		t.Fatal(c.Validate(services))
+	}
+	if c := (Config{Upstreams: ok().Upstreams}); c.Validate(services) != nil {
+		t.Fatal("navigation is optional")
+	}
+	for name, mutate := range map[string]func(*Config){
+		"app origin not in CORS": func(c *Config) { c.CORSAllowedOrigins = c.CORSAllowedOrigins[:1] },
+		"no ozid":                func(c *Config) { delete(c.Navigation.Apps, "ozid") },
+		"no api origin":          func(c *Config) { c.Navigation.APIOrigin = "" },
+		"cross-site app": func(c *Config) {
+			c.Navigation.Apps["trip-map"] = navigation.App{Origin: "https://trip.other.test"}
+			c.CORSAllowedOrigins = append(c.CORSAllowedOrigins, "https://trip.other.test")
+		},
+		"http with secure cookies": func(c *Config) { c.Navigation.APIOrigin = "http://api.example.com" },
 	} {
 		c := ok()
 		mutate(&c)
@@ -109,7 +154,7 @@ func TestAuthAdminSessionAndAccountCleanup(t *testing.T) {
 	if a.AdminSessionLimit() != time.Hour {
 		t.Fatalf("configured admin session limit: %v", a.AdminSessionLimit())
 	}
-	if got := a.CleanupProducts(); len(got) != 1 || got[0] != "tripmap" {
+	if got := (&Config{}).CleanupProducts(); len(got) != 1 || got[0] != "tripmap" {
 		t.Fatalf("default cleanup products: %v", got)
 	}
 
@@ -121,6 +166,19 @@ func TestAuthAdminSessionAndAccountCleanup(t *testing.T) {
 	ok.Auth.AccountCleanup = []string{"tripmap", "metro"}
 	if err := ok.Validate(services); err != nil {
 		t.Fatal(err)
+	}
+	// By default every deployed user-data product is cleaned; the list may not leave one out.
+	deployed := base()
+	if got := deployed.CleanupProducts(); len(got) != 2 || got[0] != "tripmap" || got[1] != "metro" {
+		t.Fatalf("default cleanup products with metro deployed: %v", got)
+	}
+	if err := deployed.Validate(services); err != nil {
+		t.Fatal(err)
+	}
+	leftOut := base()
+	leftOut.Auth.AccountCleanup = []string{"tripmap"}
+	if err := leftOut.Validate(services); err == nil || !strings.Contains(err.Error(), "metro") {
+		t.Fatalf("a deployed metro left out of auth.account_cleanup was accepted: %v", err)
 	}
 	for name, mutate := range map[string]func(*Config){
 		"unknown product":    func(c *Config) { c.Auth.AccountCleanup = []string{"tripmap", "railmap"} },
@@ -139,5 +197,245 @@ func TestAuthAdminSessionAndAccountCleanup(t *testing.T) {
 		if c.Validate(services) == nil {
 			t.Errorf("%s: accepted", name)
 		}
+	}
+}
+
+func TestValidateAdminPerimeter(t *testing.T) {
+	services := []string{"tripmap"}
+	ok := func() Config {
+		return Config{
+			Upstreams:          map[string]string{"tripmap": "http://tripmap:18081"},
+			CORSAllowedOrigins: []string{"https://id.example.com", "https://admin.example.com"},
+			Auth:               AuthConfig{CookieSecure: true},
+			Navigation: navigation.Config{
+				APIOrigin: "https://api.example.com",
+				Apps: map[string]navigation.App{
+					"ozid":  {Origin: "https://id.example.com"},
+					"admin": {Origin: "https://admin.example.com"},
+				},
+			},
+			Admin: adminguard.Config{AllowedCIDRs: []string{"192.0.2.0/24"}, TrustedProxies: []string{"10.0.0.0/8"}},
+		}
+	}
+	if c := ok(); c.Validate(services) != nil {
+		t.Fatal(c.Validate(services))
+	}
+	// Leaving the section out is valid and closes the console.
+	if c := ok(); true {
+		c.Admin = adminguard.Config{}
+		if c.Validate(services) != nil {
+			t.Fatal("an empty admin section must be valid")
+		}
+	}
+	for name, mutate := range map[string]func(*Config){
+		"open to everyone":                       func(c *Config) { c.Admin.AllowedCIDRs = []string{"0.0.0.0/0"} },
+		"open to everyone (v6)":                  func(c *Config) { c.Admin.AllowedCIDRs = []string{"::/0"} },
+		"open in two halves":                     func(c *Config) { c.Admin.AllowedCIDRs = []string{"0.0.0.0/1", "128.0.0.0/1"} },
+		"every proxy trusted":                    func(c *Config) { c.Admin.TrustedProxies = []string{"0.0.0.0/0"} },
+		"not a network":                          func(c *Config) { c.Admin.AllowedCIDRs = []string{"office"} },
+		"allowlist without a registered console": func(c *Config) { delete(c.Navigation.Apps, "admin") },
+	} {
+		c := ok()
+		mutate(&c)
+		if c.Validate(services) == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	// The machine perimeter (mcp.*) is validated by the same rules and is its own section.
+	if c := ok(); true {
+		c.MCP = MCPConfig{AllowedCIDRs: []string{"198.51.100.0/24"}, TrustedProxies: []string{"10.0.0.0/8"}}
+		if err := c.Validate(services); err != nil {
+			t.Fatal(err)
+		}
+		// Leaving it out is valid: the endpoint is then closed, not open.
+		c.MCP = MCPConfig{}
+		if err := c.Validate(services); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, mutate := range map[string]func(*Config){
+		"mcp open to everyone":      func(c *Config) { c.MCP.AllowedCIDRs = []string{"0.0.0.0/0"} },
+		"mcp open to everyone (v6)": func(c *Config) { c.MCP.AllowedCIDRs = []string{"::/0"} },
+		"mcp open in two halves":    func(c *Config) { c.MCP.AllowedCIDRs = []string{"0.0.0.0/1", "128.0.0.0/1"} },
+		"mcp mapped network":        func(c *Config) { c.MCP.AllowedCIDRs = []string{"::ffff:198.51.100.0/120"} },
+		"mcp host bits":             func(c *Config) { c.MCP.AllowedCIDRs = []string{"198.51.100.7/24"} },
+		"mcp every proxy trusted": func(c *Config) {
+			c.MCP.AllowedCIDRs = []string{"198.51.100.0/24"}
+			c.MCP.TrustedProxies = []string{"0.0.0.0/0"}
+		},
+		"mcp not a network": func(c *Config) { c.MCP.AllowedCIDRs = []string{"ci-runner"} },
+		"mcp proxy inside the list": func(c *Config) {
+			c.MCP.AllowedCIDRs = []string{"10.0.0.0/8"}
+			c.MCP.TrustedProxies = []string{"10.1.0.0/16"}
+		},
+		"mcp lower-case header": func(c *Config) { c.MCP.ForwardedHeader = "x-forwarded-for" },
+		"mcp negative rate":     func(c *Config) { c.MCP.RateLimitPerMinute = -1 },
+	} {
+		c := ok()
+		mutate(&c)
+		if err := c.Validate(services); err == nil {
+			t.Errorf("%s: accepted", name)
+		} else if !strings.Contains(err.Error(), "mcp.") {
+			t.Errorf("%s: the error does not name the mcp section: %v", name, err)
+		}
+	}
+}
+
+// The mcp section is validated whether or not metro is configured: without upstreams.metro the endpoint is
+// never mounted, but a malformed list is still a startup failure rather than a silently ignored setting.
+func TestValidateMCPSourceIgnoresWhetherMetroIsConfigured(t *testing.T) {
+	services := []string{"tripmap"}
+	c := Config{
+		Upstreams:          map[string]string{"tripmap": "http://tripmap:18081"},
+		CORSAllowedOrigins: []string{"https://trip.example.com"},
+	}
+	if _, ok := c.Upstreams["metro"]; ok {
+		t.Fatal("the premise of this test is a configuration without a metro upstream")
+	}
+	if err := c.Validate(services); err != nil {
+		t.Fatalf("no metro and no mcp section must be valid: %v", err)
+	}
+	c.MCP.AllowedCIDRs = []string{"0.0.0.0/0"}
+	err := c.Validate(services)
+	if err == nil || !strings.Contains(err.Error(), "mcp.allowed_cidrs") {
+		t.Fatalf("an open mcp allowlist without metro must still fail, naming the section: %v", err)
+	}
+}
+
+// A BFF that serves the account procedures (the usersrv upstream) does not start without the navigation
+// registry and the OzID origin, in any cookie mode; there is no setting that allows it. A BFF without
+// accounts is unaffected.
+func TestValidateAccountsNeedTheRegistry(t *testing.T) {
+	services := []string{"usersrv", "tripmap"}
+	full := func(secure bool, scheme string) Config {
+		return Config{
+			Upstreams:          map[string]string{"usersrv": "http://usersrv:18087", "tripmap": "http://tripmap:18081"},
+			CORSAllowedOrigins: []string{scheme + "://id.example.com", scheme + "://trip.example.com"},
+			Auth:               AuthConfig{CookieSecure: secure},
+			Navigation: navigation.Config{
+				APIOrigin: scheme + "://api.example.com",
+				Apps: map[string]navigation.App{
+					"ozid":     {Origin: scheme + "://id.example.com"},
+					"trip-map": {Origin: scheme + "://trip.example.com"},
+				},
+			},
+		}
+	}
+	for _, mode := range []struct {
+		name   string
+		secure bool
+		scheme string
+	}{{"secure cookies", true, "https"}, {"plain cookies over https", false, "https"}} {
+		t.Run(mode.name, func(t *testing.T) {
+			c := full(mode.secure, mode.scheme)
+			if err := c.Validate(services); err != nil {
+				t.Fatalf("a complete configuration: %v", err)
+			}
+			for name, mutate := range map[string]func(*Config){
+				"no navigation at all":  func(c *Config) { c.Navigation = navigation.Config{} },
+				"no api origin":         func(c *Config) { c.Navigation.APIOrigin = "" },
+				"no apps":               func(c *Config) { c.Navigation.Apps = nil },
+				"apps without ozid":     func(c *Config) { delete(c.Navigation.Apps, "ozid") },
+				"ozid without a origin": func(c *Config) { c.Navigation.Apps["ozid"] = navigation.App{} },
+				"ozid not in CORS":      func(c *Config) { c.CORSAllowedOrigins = c.CORSAllowedOrigins[1:] },
+			} {
+				c := full(mode.secure, mode.scheme)
+				mutate(&c)
+				if c.Validate(services) == nil {
+					t.Errorf("%s: a BFF serving accounts started", name)
+				}
+			}
+		})
+	}
+	if c := full(true, "http"); c.Validate(services) == nil {
+		t.Error("secure cookies with http origins: accepted")
+	}
+	// The message names what to configure, so the refusal is actionable.
+	c := full(true, "https")
+	c.Navigation = navigation.Config{}
+	if err := c.Validate(services); err == nil || !strings.Contains(err.Error(), "navigation.apps.ozid.origin") {
+		t.Errorf("error = %v", err)
+	}
+	// Without the account upstream (a tripmap-only BFF) there is nothing to restrict and nothing to name.
+	c = Config{Upstreams: map[string]string{"tripmap": "http://tripmap:18081"}}
+	if err := c.Validate([]string{"tripmap"}); err != nil {
+		t.Errorf("a BFF without accounts: %v", err)
+	}
+}
+
+func TestValidateLegacyMailTransition(t *testing.T) {
+	services := []string{"tripmap"}
+	soon := time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339)
+	ok := func() Config {
+		return Config{
+			Upstreams:          map[string]string{"tripmap": "http://tripmap:18081"},
+			CORSAllowedOrigins: []string{"https://id.example.com", "https://trip.example.com", "https://metro.example.com", "https://admin.example.com"},
+			Auth:               AuthConfig{CookieSecure: true},
+			Navigation: navigation.Config{
+				APIOrigin: "https://api.example.com",
+				Apps: map[string]navigation.App{
+					"ozid":     {Origin: "https://id.example.com"},
+					"admin":    {Origin: "https://admin.example.com"},
+					"trip-map": {Origin: "https://trip.example.com"},
+					"metro":    {Origin: "https://metro.example.com"},
+				},
+			},
+		}
+	}
+	good := func(c *Config) {
+		c.Auth.LegacyMailTransition = LegacyMailTransition{Origins: []string{"https://trip.example.com", "https://metro.example.com"}, Until: soon}
+	}
+	if c := ok(); c.Validate(services) != nil {
+		t.Fatal(c.Validate(services))
+	}
+	c := ok()
+	good(&c)
+	if err := c.Validate(services); err != nil {
+		t.Fatalf("a valid transition: %v", err)
+	}
+	// A transition that already ended is not a start error: a restart after the end must not take the
+	// service down (the BFF logs it and refuses the origins).
+	c = ok()
+	c.Auth.LegacyMailTransition = LegacyMailTransition{Origins: []string{"https://trip.example.com"}, Until: time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)}
+	if err := c.Validate(services); err != nil {
+		t.Fatalf("an ended transition must still load: %v", err)
+	}
+	for name, mutate := range map[string]func(*Config){
+		"no until":           func(c *Config) { c.Auth.LegacyMailTransition.Until = "" },
+		"until not RFC 3339": func(c *Config) { c.Auth.LegacyMailTransition.Until = "next week" },
+		"until too far": func(c *Config) {
+			c.Auth.LegacyMailTransition.Until = time.Now().Add(MaxLegacyMailTransition + time.Hour).UTC().Format(time.RFC3339)
+		},
+		"until without origins":  func(c *Config) { c.Auth.LegacyMailTransition.Origins = nil },
+		"ozid is not a product":  func(c *Config) { c.Auth.LegacyMailTransition.Origins = []string{"https://id.example.com"} },
+		"the console is not one": func(c *Config) { c.Auth.LegacyMailTransition.Origins = []string{"https://admin.example.com"} },
+		"unregistered origin":    func(c *Config) { c.Auth.LegacyMailTransition.Origins = []string{"https://sibling.example.com"} },
+		"origin with a path":     func(c *Config) { c.Auth.LegacyMailTransition.Origins = []string{"https://trip.example.com/"} },
+		"duplicate origin": func(c *Config) {
+			c.Auth.LegacyMailTransition.Origins = []string{"https://trip.example.com", "https://trip.example.com"}
+		},
+		"no registry for the exception": func(c *Config) {
+			c.Navigation = navigation.Config{}
+		},
+	} {
+		c := ok()
+		good(&c)
+		mutate(&c)
+		if c.Validate(services) == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+// The YAML a deployment writes: an unquoted timestamp is still the RFC 3339 text.
+func TestLegacyMailTransitionYAML(t *testing.T) {
+	var c Config
+	raw := "auth:\n  legacy_mail_transition:\n    origins: [https://trip.example.com]\n    until: 2026-12-01T00:00:00Z\n"
+	if err := yaml.Unmarshal([]byte(raw), &c); err != nil {
+		t.Fatal(err)
+	}
+	at, err := c.Auth.LegacyMailTransition.UntilTime()
+	if err != nil || !at.Equal(time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("until = %v, %v (%q)", at, err, c.Auth.LegacyMailTransition.Until)
 	}
 }

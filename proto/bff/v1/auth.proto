@@ -31,6 +31,16 @@ service AuthService {
     option (platform.v1.anonymous) = true;
   }
 
+  // ResolveNavigation validates a "sign in (or confirm the password) and come back"
+  // target against the server-side app registry and returns the canonical OzID and
+  // return addresses. It is anonymous and read-only: it reads no account, creates no
+  // session and is not a login ticket, so a crafted target can never yield an identity.
+  // An unknown app, a path the app does not allow, or an unconfigured registry is
+  // refused (INVALID_ARGUMENT / FAILED_PRECONDITION); the caller must not redirect then.
+  rpc ResolveNavigation(ResolveNavigationRequest) returns (ResolveNavigationResponse) {
+    option (platform.v1.anonymous) = true;
+  }
+
   // RequestRegistration asks for a verification mail. A well-formed address always
   // gets the same answer, whether or not it can register; no user, session or token
   // is returned and no password is accepted here.
@@ -38,7 +48,8 @@ service AuthService {
     option (platform.v1.anonymous) = true;
   }
   // CompleteRegistration consumes the mailed token and creates the account with the
-  // chosen password and nickname. It signs nobody in.
+  // chosen password and nickname. It signs nobody in. The response carries the
+  // return context bound to the challenge when the registry still allows it.
   rpc CompleteRegistration(CompleteRegistrationRequest) returns (CompleteRegistrationResponse) {
     option (platform.v1.anonymous) = true;
   }
@@ -52,7 +63,8 @@ service AuthService {
     option (platform.v1.anonymous) = true;
   }
   // ResetPassword consumes the mailed token and sets a new password. Every existing
-  // session and management token stops working; the caller is not signed in.
+  // session and management token stops working; the caller is not signed in. The
+  // response carries the bound return context like CompleteRegistration.
   rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse) {
     option (platform.v1.anonymous) = true;
   }
@@ -67,8 +79,17 @@ service AuthService {
   rpc Logout(LogoutRequest) returns (LogoutResponse) {
     option (platform.v1.anonymous) = true;
   }
-  // RevokeSession revokes one of the caller's own sessions.
+  // RevokeSession revokes one of the caller's own sessions. Repeating it for a session
+  // that is already revoked succeeds; an ID that is not the caller's (another account's
+  // or unknown) is NOT_FOUND, with the same answer for both. Revoking the session of the
+  // request itself also clears its Cookie, like Logout.
   rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+  // RevokeOtherSessions revokes every live browser session of the caller except the one
+  // making the request, in a single statement, so no concurrent session can be missed.
+  // It is idempotent (a repeat revokes nothing and still succeeds) and limited to 10 calls
+  // per 15 minutes per account. It does not touch auth_version, the password or the
+  // management (MCP) tokens, and a session opened after it ran is not affected.
+  rpc RevokeOtherSessions(RevokeOtherSessionsRequest) returns (RevokeOtherSessionsResponse);
   // Reauthenticate re-checks the current password and, only then, records a fresh
   // authentication time on this session. Sensitive actions (DeleteAccount, creating
   // a management token) need it within the last 15 minutes.
@@ -123,10 +144,38 @@ message User {
   reserved "created_at", "deletion_pending";
 }
 
+message ResolveNavigationRequest {
+  // A stable app ID of the registry: ozid, admin, trip-map or metro. Never a hostname or URL.
+  string app_id = 1;
+  // The canonical pathname to come back to: "/" first, no "//", backslash, "." or ".."
+  // segment, percent-encoding, query, fragment or control character. Empty means the
+  // app's default path.
+  string return_path = 2;
+}
+
+message ResolveNavigationResponse {
+  string app_id = 1;
+  // The accepted pathname; the app's default path when the request gave none.
+  string return_path = 2;
+  // The registered origin of the app plus return_path: the only address a client may
+  // send the browser to after the account step.
+  string return_url = 3;
+  // The registered origin of the OzID user center, for the sign-in and
+  // reauthentication pages.
+  string ozid_origin = 4;
+}
+
 message RequestRegistrationRequest {
   string email = 1;
-  // An app configured in usersrv (trip-map, metro); it picks the link origin.
+  // Optional return context: the app the user came from and a pathname in it. It is
+  // checked against the navigation registry (an unknown app or path is
+  // INVALID_ARGUMENT; without a configured registry any non-empty context is
+  // FAILED_PRECONDITION, before usersrv is called) and bound
+  // to the challenge. It never picks the mail link: that always points at the
+  // central OzID origin.
   string app_id = 2;
+  // Pathname inside app_id; empty means the app's default path.
+  string return_path = 3;
 }
 
 message RequestRegistrationResponse {
@@ -140,7 +189,13 @@ message CompleteRegistrationRequest {
   string display_name = 3;
 }
 
-message CompleteRegistrationResponse {}
+message CompleteRegistrationResponse {
+  // The return context bound to the challenge, re-validated against the registry
+  // now. Both are empty when none was bound or the target is no longer allowed; the
+  // account exists either way.
+  string app_id = 1;
+  string return_path = 2;
+}
 
 message LoginWithEmailRequest {
   string email = 1;
@@ -154,7 +209,9 @@ message LoginWithEmailResponse {
 
 message RequestPasswordResetRequest {
   string email = 1;
+  // Return context, as in RequestRegistrationRequest.
   string app_id = 2;
+  string return_path = 3;
 }
 
 message RequestPasswordResetResponse {
@@ -166,7 +223,11 @@ message ResetPasswordRequest {
   string new_password = 2;
 }
 
-message ResetPasswordResponse {}
+message ResetPasswordResponse {
+  // The bound return context, as in CompleteRegistrationResponse.
+  string app_id = 1;
+  string return_path = 2;
+}
 
 message LogoutRequest {}
 
@@ -197,6 +258,13 @@ message RevokeSessionRequest {
 }
 
 message RevokeSessionResponse {}
+
+message RevokeOtherSessionsRequest {}
+
+message RevokeOtherSessionsResponse {
+  // How many sessions this call revoked; 0 on a repeat or when there were no others.
+  int32 revoked = 1;
+}
 
 message ReauthenticateRequest {
   string password = 1;

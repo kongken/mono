@@ -17,6 +17,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
+	"github.com/kongken/mono/internal/usersrv/ent/adminmutation"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
 	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
@@ -31,6 +32,8 @@ type Client struct {
 	Schema *migrate.Schema
 	// AccountToken is the client for interacting with the AccountToken builders.
 	AccountToken *AccountTokenClient
+	// AdminMutation is the client for interacting with the AdminMutation builders.
+	AdminMutation *AdminMutationClient
 	// DeletionTombstone is the client for interacting with the DeletionTombstone builders.
 	DeletionTombstone *DeletionTombstoneClient
 	// MailJob is the client for interacting with the MailJob builders.
@@ -53,6 +56,7 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.AccountToken = NewAccountTokenClient(c.config)
+	c.AdminMutation = NewAdminMutationClient(c.config)
 	c.DeletionTombstone = NewDeletionTombstoneClient(c.config)
 	c.MailJob = NewMailJobClient(c.config)
 	c.SecurityAudit = NewSecurityAuditClient(c.config)
@@ -151,6 +155,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ctx:               ctx,
 		config:            cfg,
 		AccountToken:      NewAccountTokenClient(cfg),
+		AdminMutation:     NewAdminMutationClient(cfg),
 		DeletionTombstone: NewDeletionTombstoneClient(cfg),
 		MailJob:           NewMailJobClient(cfg),
 		SecurityAudit:     NewSecurityAuditClient(cfg),
@@ -176,6 +181,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ctx:               ctx,
 		config:            cfg,
 		AccountToken:      NewAccountTokenClient(cfg),
+		AdminMutation:     NewAdminMutationClient(cfg),
 		DeletionTombstone: NewDeletionTombstoneClient(cfg),
 		MailJob:           NewMailJobClient(cfg),
 		SecurityAudit:     NewSecurityAuditClient(cfg),
@@ -210,8 +216,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AccountToken, c.DeletionTombstone, c.MailJob, c.SecurityAudit, c.User,
-		c.UserRole,
+		c.AccountToken, c.AdminMutation, c.DeletionTombstone, c.MailJob,
+		c.SecurityAudit, c.User, c.UserRole,
 	} {
 		n.Use(hooks...)
 	}
@@ -221,8 +227,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AccountToken, c.DeletionTombstone, c.MailJob, c.SecurityAudit, c.User,
-		c.UserRole,
+		c.AccountToken, c.AdminMutation, c.DeletionTombstone, c.MailJob,
+		c.SecurityAudit, c.User, c.UserRole,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -233,6 +239,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *AccountTokenMutation:
 		return c.AccountToken.mutate(ctx, m)
+	case *AdminMutationMutation:
+		return c.AdminMutation.mutate(ctx, m)
 	case *DeletionTombstoneMutation:
 		return c.DeletionTombstone.mutate(ctx, m)
 	case *MailJobMutation:
@@ -378,6 +386,139 @@ func (c *AccountTokenClient) mutate(ctx context.Context, m *AccountTokenMutation
 		return (&AccountTokenDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown AccountToken mutation op: %q", m.Op())
+	}
+}
+
+// AdminMutationClient is a client for the AdminMutation schema.
+type AdminMutationClient struct {
+	config
+}
+
+// NewAdminMutationClient returns a client for the AdminMutation from the given config.
+func NewAdminMutationClient(c config) *AdminMutationClient {
+	return &AdminMutationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `adminmutation.Hooks(f(g(h())))`.
+func (c *AdminMutationClient) Use(hooks ...Hook) {
+	c.hooks.AdminMutation = append(c.hooks.AdminMutation, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `adminmutation.Intercept(f(g(h())))`.
+func (c *AdminMutationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AdminMutation = append(c.inters.AdminMutation, interceptors...)
+}
+
+// Create returns a builder for creating a AdminMutation entity.
+func (c *AdminMutationClient) Create() *AdminMutationCreate {
+	mutation := newAdminMutationMutation(c.config, OpCreate)
+	return &AdminMutationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AdminMutation entities.
+func (c *AdminMutationClient) CreateBulk(builders ...*AdminMutationCreate) *AdminMutationCreateBulk {
+	return &AdminMutationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AdminMutationClient) MapCreateBulk(slice any, setFunc func(*AdminMutationCreate, int)) *AdminMutationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AdminMutationCreateBulk{err: fmt.Errorf("calling to AdminMutationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AdminMutationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AdminMutationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AdminMutation.
+func (c *AdminMutationClient) Update() *AdminMutationUpdate {
+	mutation := newAdminMutationMutation(c.config, OpUpdate)
+	return &AdminMutationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AdminMutationClient) UpdateOne(_m *AdminMutation) *AdminMutationUpdateOne {
+	mutation := newAdminMutationMutation(c.config, OpUpdateOne, withAdminMutation(_m))
+	return &AdminMutationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AdminMutationClient) UpdateOneID(id uuid.UUID) *AdminMutationUpdateOne {
+	mutation := newAdminMutationMutation(c.config, OpUpdateOne, withAdminMutationID(id))
+	return &AdminMutationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AdminMutation.
+func (c *AdminMutationClient) Delete() *AdminMutationDelete {
+	mutation := newAdminMutationMutation(c.config, OpDelete)
+	return &AdminMutationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AdminMutationClient) DeleteOne(_m *AdminMutation) *AdminMutationDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AdminMutationClient) DeleteOneID(id uuid.UUID) *AdminMutationDeleteOne {
+	builder := c.Delete().Where(adminmutation.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AdminMutationDeleteOne{builder}
+}
+
+// Query returns a query builder for AdminMutation.
+func (c *AdminMutationClient) Query() *AdminMutationQuery {
+	return &AdminMutationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAdminMutation},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AdminMutation entity by its id.
+func (c *AdminMutationClient) Get(ctx context.Context, id uuid.UUID) (*AdminMutation, error) {
+	return c.Query().Where(adminmutation.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AdminMutationClient) GetX(ctx context.Context, id uuid.UUID) *AdminMutation {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *AdminMutationClient) Hooks() []Hook {
+	return c.hooks.AdminMutation
+}
+
+// Interceptors returns the client interceptors.
+func (c *AdminMutationClient) Interceptors() []Interceptor {
+	return c.inters.AdminMutation
+}
+
+func (c *AdminMutationClient) mutate(ctx context.Context, m *AdminMutationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AdminMutationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AdminMutationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AdminMutationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AdminMutationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AdminMutation mutation op: %q", m.Op())
 	}
 }
 
@@ -1081,11 +1222,11 @@ func (c *UserRoleClient) mutate(ctx context.Context, m *UserRoleMutation) (Value
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AccountToken, DeletionTombstone, MailJob, SecurityAudit, User,
+		AccountToken, AdminMutation, DeletionTombstone, MailJob, SecurityAudit, User,
 		UserRole []ent.Hook
 	}
 	inters struct {
-		AccountToken, DeletionTombstone, MailJob, SecurityAudit, User,
+		AccountToken, AdminMutation, DeletionTombstone, MailJob, SecurityAudit, User,
 		UserRole []ent.Interceptor
 	}
 )

@@ -116,7 +116,7 @@ func (s *AccountService) allowToken(ctx context.Context, token string) error {
 // RequestRegistration always answers the same for a well-formed address.
 func (s *AccountService) RequestRegistration(ctx context.Context, req *usersrvv1.RequestRegistrationRequest) (*usersrvv1.RequestRegistrationResponse, error) {
 	ip, requestID := callMeta(ctx)
-	if err := s.accounts.RequestRegistration(ctx, req.GetEmail(), req.GetAppId(), ip, requestID); err != nil {
+	if err := s.accounts.RequestRegistration(ctx, req.GetEmail(), account.ReturnContext{AppID: req.GetAppId(), Path: req.GetReturnPath()}, ip, requestID); err != nil {
 		return nil, toStatus("request_registration", err)
 	}
 	return &usersrvv1.RequestRegistrationResponse{}, nil
@@ -127,10 +127,11 @@ func (s *AccountService) CompleteRegistration(ctx context.Context, req *usersrvv
 		return nil, err
 	}
 	_, requestID := callMeta(ctx)
-	if _, err := s.accounts.CompleteRegistration(ctx, req.GetToken(), req.GetPassword(), req.GetDisplayName(), requestID); err != nil {
+	_, ret, err := s.accounts.CompleteRegistration(ctx, req.GetToken(), req.GetPassword(), req.GetDisplayName(), requestID)
+	if err != nil {
 		return nil, toStatus("complete_registration", err)
 	}
-	return &usersrvv1.CompleteRegistrationResponse{}, nil
+	return &usersrvv1.CompleteRegistrationResponse{AppId: ret.AppID, ReturnPath: ret.Path}, nil
 }
 
 // AuthenticateWithEmail counts the attempt per mailbox and per client address
@@ -158,7 +159,7 @@ func (s *AccountService) AuthenticateWithEmail(ctx context.Context, req *usersrv
 
 func (s *AccountService) RequestPasswordReset(ctx context.Context, req *usersrvv1.RequestPasswordResetRequest) (*usersrvv1.RequestPasswordResetResponse, error) {
 	ip, requestID := callMeta(ctx)
-	if err := s.accounts.RequestPasswordReset(ctx, req.GetEmail(), req.GetAppId(), ip, requestID); err != nil {
+	if err := s.accounts.RequestPasswordReset(ctx, req.GetEmail(), account.ReturnContext{AppID: req.GetAppId(), Path: req.GetReturnPath()}, ip, requestID); err != nil {
 		return nil, toStatus("request_password_reset", err)
 	}
 	return &usersrvv1.RequestPasswordResetResponse{}, nil
@@ -169,10 +170,11 @@ func (s *AccountService) ResetPassword(ctx context.Context, req *usersrvv1.Reset
 		return nil, err
 	}
 	_, requestID := callMeta(ctx)
-	if err := s.accounts.ResetPassword(ctx, req.GetToken(), req.GetNewPassword(), requestID); err != nil {
+	ret, err := s.accounts.ResetPassword(ctx, req.GetToken(), req.GetNewPassword(), requestID)
+	if err != nil {
 		return nil, toStatus("reset_password", err)
 	}
-	return &usersrvv1.ResetPasswordResponse{}, nil
+	return &usersrvv1.ResetPasswordResponse{AppId: ret.AppID, ReturnPath: ret.Path}, nil
 }
 
 func (s *AccountService) GetAuthState(ctx context.Context, _ *usersrvv1.GetAuthStateRequest) (*usersrvv1.GetAuthStateResponse, error) {

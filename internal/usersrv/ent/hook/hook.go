@@ -21,6 +21,18 @@ func (f AccountTokenFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AccountTokenMutation", m)
 }
 
+// The AdminMutationFunc type is an adapter to allow the use of ordinary
+// function as AdminMutation mutator.
+type AdminMutationFunc func(context.Context, *ent.AdminMutationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AdminMutationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AdminMutationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AdminMutationMutation", m)
+}
+
 // The DeletionTombstoneFunc type is an adapter to allow the use of ordinary
 // function as DeletionTombstone mutator.
 type DeletionTombstoneFunc func(context.Context, *ent.DeletionTombstoneMutation) (ent.Value, error)

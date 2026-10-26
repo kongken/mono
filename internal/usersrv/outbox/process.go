@@ -160,7 +160,14 @@ func (s *Service) process(ctx context.Context, id uuid.UUID) bool {
 	}
 
 	kind := mailer.Kind(job.Template)
-	link, err := s.links.Build(kind, pl.AppID, pl.Token)
+	// New mails carry the central app. A job queued before the central landing existed
+	// names a product origin; it keeps that link for its short life, and one whose
+	// origin is no longer configured lands at OzID, which accepts the same token.
+	linkApp := pl.AppID
+	if !s.links.Has(linkApp) {
+		linkApp = mailer.CentralApp
+	}
+	link, err := s.links.Build(kind, linkApp, pl.Token)
 	if err != nil {
 		s.finish(write, job, mailjob.StatusCancelled, "link_unavailable")
 		s.record(job, "cancelled", "link_unavailable", "", started, "")
@@ -171,7 +178,7 @@ func (s *Service) process(ctx context.Context, id uuid.UUID) bool {
 		s.release(write, job)
 		return true
 	}
-	content, err := mailer.Render(kind, mailer.TemplateData{AppName: mailer.AppName(pl.AppID), Link: link, ExpiresIn: tok.ExpiresAt.Sub(tok.CreatedAt)})
+	content, err := mailer.Render(kind, mailer.TemplateData{AppName: mailer.AppName(linkApp), Link: link, ExpiresIn: tok.ExpiresAt.Sub(tok.CreatedAt)})
 	if err != nil {
 		s.finish(write, job, mailjob.StatusFailed, "render_failed")
 		s.record(job, "failed", "render_failed", "", started, "mail_render_failed")

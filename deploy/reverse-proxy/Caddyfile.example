@@ -59,17 +59,20 @@ example.com {
 		respond 404
 	}
 
-	# BFF Connect, health and probes (do not strip Connect or CSRF headers).
-	handle /api/* {
-		request_body {
-			max_size 20MB
-		}
+	# Map tiles: a public, anonymous GET (no session), so the product's own origin may serve them.
+	handle /api/tiles/* {
 		reverse_proxy bff:18081 {
 			header_up Host {host}
 			header_up X-Real-IP {remote_host}
 			header_up X-Forwarded-For {remote_host}
 			header_up X-Forwarded-Proto {scheme}
 		}
+	}
+	# Nothing else of the BFF's browser API is reachable through this host: the session Cookie belongs
+	# to the API host and OzID, the console and the products call that origin directly, so a same-origin
+	# proxy here would be a second, unguarded door to the account and management procedures.
+	handle /api/* {
+		respond 404
 	}
 	@probes path /ping /readyz
 	handle @probes {
@@ -81,7 +84,11 @@ example.com {
 		}
 	}
 
-	# SPA static files (build with --build-arg VITE_API_BASE_URL=/api). This must be its own
+	# SPA static files of trip-map. With a backend, build them with the canonical BFF address and
+	# OzID's origin (--build-arg VITE_API_BASE_URL=https://api.example.com/api
+	# --build-arg VITE_OZID_ORIGIN=https://id.example.com): the session Cookie belongs to the API
+	# host, so the product no longer uses this same-origin /api for its session, and every account
+	# page is OzID's. This must be its own
 	# last `handle`: a site-level try_files runs before every handle and would rewrite /api,
 	# /ping and the paths above to /index.html before they are matched.
 	handle {
@@ -122,6 +129,9 @@ metro.example.com {
 		respond 404
 	}
 
+	# BFF `mcp.allowed_cidrs` decides who may call this endpoint (empty = nobody). This proxy overwrites
+	# X-Forwarded-For with the peer address, so its network must be listed in BFF `mcp.trusted_proxies`
+	# (and must not overlap `mcp.allowed_cidrs`); every further proxy or CDN in front belongs there too.
 	handle /mcp/metro {
 		log_skip
 		request_body {
@@ -134,9 +144,46 @@ metro.example.com {
 			header_up X-Forwarded-Proto {scheme}
 		}
 	}
+	# No /api here on purpose: the product calls the BFF's canonical public address (the session Cookie belongs
+	# to that host and is shared with OzID), never a same-origin proxy of this site.
 	handle /api/* {
+		respond 404
+	}
+	@probes path /ping /readyz
+	handle @probes {
+		reverse_proxy bff:18081
+	}
+
+	# SPA static files (build with --build-arg VITE_API_BASE_URL=https://api.example.com/api and
+	# --build-arg VITE_OZID_ORIGIN=https://id.example.com). This must be its own
+	# last `handle`: a site-level try_files runs before every handle and would rewrite /api,
+	# /ping and the paths above to /index.html before they are matched.
+	handle {
+		root * /srv/metro
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# OzID (user center) on the three sibling hosts of one site. The session Cookie is host-only on
+# the API host: it is never given a Domain, and the browser sends it only to api.example.com.
+# id.example.com and the product hosts call that API origin with credentials (the BFF's exact
+# CORS list and Origin/CSRF checks are what keep an unlisted sibling out; see docs/bff.md).
+# Build every front end for it: OzID with
+#   --build-arg VITE_API_BASE_URL=https://api.example.com/api
+# and set the BFF's navigation registry to the same origins (config.bff.example.yaml).
+api.example.com {
+	encode gzip zstd
+
+	header {
+		X-Content-Type-Options nosniff
+		-Server
+	}
+
+	@bff path /api/* /ping /readyz
+	handle @bff {
 		request_body {
-			max_size 2MB
+			max_size 20MB
 		}
 		reverse_proxy bff:18081 {
 			header_up Host {host}
@@ -145,17 +192,39 @@ metro.example.com {
 			header_up X-Forwarded-Proto {scheme}
 		}
 	}
-	@probes path /ping /readyz
-	handle @probes {
-		reverse_proxy bff:18081
-	}
-
-	# SPA static files (build with --build-arg VITE_API_BASE_URL=/api). This must be its own
-	# last `handle`: a site-level try_files runs before every handle and would rewrite /api,
-	# /ping and the paths above to /index.html before they are matched.
 	handle {
-		root * /srv/metro
-		try_files {path} /index.html
-		file_server
+		respond 404
+	}
+}
+
+# The static OzID container (deploy/ozid-web); it sets its own security headers and CSP.
+id.example.com {
+	encode gzip zstd
+	header -Server
+	reverse_proxy ozid-web:80
+}
+
+# The management console (deploy/admin-web): the same site as the API, behind a source allowlist.
+# Three independent layers say the same thing: this proxy (optional but cheap), the admin-web
+# container (every page, asset and fallback) and the BFF (`admin.allowed_cidrs`, every console management
+# call: user management and, since T8, the metro catalogue administration and the management tokens; the
+# MCP endpoint /mcp/metro is not one of them). Edit them together. This proxy is the FIRST hop that sees the real client address, so it sets
+# X-Forwarded-For from the TCP peer (a value the client sent is replaced, never passed on), and the
+# other two list this proxy's network as a trusted proxy (ADMIN_TRUSTED_PROXIES / admin.trusted_proxies),
+# a network that must NOT overlap the allowlist (both layers refuse to start otherwise).
+# If a CDN or load balancer sits in front of this proxy, its address ranges become part of that
+# trusted chain and Caddy's `trusted_proxies` global option must name them; otherwise leave it out.
+# A source outside the list gets a bare 403 and no body; other Host names and ports get nothing here.
+admin.example.com {
+	encode gzip zstd
+	header -Server
+
+	@outside not remote_ip 203.0.113.0/24
+	respond @outside 403
+
+	reverse_proxy admin-web:80 {
+		header_up Host {host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
 	}
 }

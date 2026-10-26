@@ -1,3 +1,7 @@
-h1:RdFh2gzEZx0JjV4PHD9OEyVb9Z4O5fIUPZONyngcdMY=
+h1:fTA+dXXoP0jZ91iXAqEzR7ADptkTiu8B685SNt2SLf4=
 20261024150906_baseline.sql h1:Q/xzg9cSLl/guh5+ctw95/X/Rcnuq/C19J2YELi03+8=
 20261024153533_mail_outbox.sql h1:NNLWRlbMdDSC+eYMLclHWwRsQgXxtQNuDAZASILFNTs=
+20261025044828_account_token_return_context.sql h1:Fjy7WZ6WMOoo7ZEzwIPqNfYWdPevc+ywIJOcjHgzoic=
+20261025120000_platform_admin_role.sql h1:kW9tIJWCQL8jx7tc7G2XWeswhyAfIUiSz63RgcOniCk=
+20261025130000_admin_mutations.sql h1:9VJLDg9cYmLVUlF+gnq5XHhG8tm6NnRacP54NbScrnE=
+20261025140000_audit_query.sql h1:UQ0VlZsf4W0J47J3+YP+7+XCa1IZ5dp15mdA+L5Z0q4=

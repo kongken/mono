@@ -49,7 +49,29 @@ internal_auth:
 
 # The metro MCP endpoint (POST /mcp/metro, Bearer management token). Served only
 # when upstreams.metro is configured.
+#
+# It has its OWN source allowlist, separate from the browser console's `admin` list below: an address in one
+# is not admitted by the other, and neither the console's Origin nor a session Cookie plays any part here.
+# Every request kind (initialize, tools/list, tool calls, batches, notifications, GET/DELETE/OPTIONS) is
+# checked first, before the token is looked at.
+# The section is validated even when upstreams.metro is not configured (the endpoint is then not mounted): a
+# malformed list is a startup failure, never silently ignored.
+#   allowed_cidrs   networks the MCP clients call from. EMPTY REFUSES EVERY MCP REQUEST (the endpoint is
+#                   closed, the rest of the product is not). Same rules as admin.allowed_cidrs: a prefix
+#                   and no host bits; IPv4 wider than /8, IPv6 wider than /16 and IPv4-mapped IPv6
+#                   networks are refused at startup. IPv4-mapped CLIENT addresses are matched as IPv4.
+#   trusted_proxies networks of the reverse proxies that connect to the BFF directly; only then is
+#                   forwarded_header read (right to left, skipping these hops). Empty = the TCP peer is the
+#                   client and no header is believed. Must not overlap allowed_cidrs.
+# Production example (reserved addresses; the real list is injected privately, never committed):
+#   mcp:
+#     allowed_cidrs: ["198.51.100.0/24", "2001:db8:200::/48"]
+#     trusted_proxies: ["192.0.2.0/24"]
+#     forwarded_header: X-Forwarded-For
+#     rate_limit_per_minute: 60
+# This development file only admits the machine itself.
 mcp:
+  allowed_cidrs: ["127.0.0.0/8", "::1/128"]
   rate_limit_per_minute: 60
 
 auth:
@@ -59,15 +81,84 @@ auth:
   # itself is read from usersrv on every request. Default 12h.
   admin_session_max_age: 12h
   # Products whose data account deletion removes; each needs its upstream.
-  # Default: tripmap only.
+  # Default when unset: tripmap, plus metro when upstreams.metro is configured. A configured
+  # tripmap or metro upstream missing from this list makes the BFF refuse to start.
   account_cleanup: [tripmap, metro]
   csrf_token_ttl: 24h    # optional; default 24h when unset
   cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP
+  # The account procedures (sign-in, registration, password reset, security settings, profile,
+  # device list, closing the account) are taken from the user center's origin
+  # (navigation.apps.ozid.origin) only, so a BFF that serves accounts (upstreams.usersrv) does not
+  # start without the `navigation` registry below and its ozid app. There is no setting that turns
+  # the rule off. Me, the CSRF token, navigation and sign-out
+  # stay open to every registered application. The one exception is time-limited: mails sent before
+  # the central OzID landing point to a product's own /account/verify-email or /account/reset-password
+  # page, which hands the token over to OzID (the product pages no longer complete anything
+  # themselves) but may still be open in a browser from an older build and complete from the
+  # product's origin. List those product origins here for
+  # the length of the mail tokens (usersrv registration_ttl / reset_ttl, minutes) plus the queue, and
+  # remove the section afterwards. `until` is an RFC 3339 instant at most seven days ahead; once it
+  # has passed the origins are refused again (the BFF still starts and logs it). Only
+  # CompleteRegistration and ResetPassword are taken from them. Reserved example names:
+  # legacy_mail_transition:
+  #   origins: [https://trip.example.com, https://metro.example.com]
+  #   until: 2026-12-01T00:00:00Z
 
 # Exact origins for direct BFF access. Same-origin /api proxy needs none.
 cors_allowed_origins:
   - http://localhost:5173
   - http://localhost:5174
+  - http://localhost:5175   # OzID
+  - http://localhost:5176   # admin console
+
+# OzID (the user center) and the apps it may send the browser back to after sign-in or password
+# confirmation. A request names an app ID and a path; the server builds the address from this
+# registry and nothing the client sends can add an origin. Every origin must be in
+# cors_allowed_origins and in the same site as api_origin (the session Cookie is host-only on
+# the API, and the browser sends it to any same-site front end that CORS allows, so the exact
+# CORS list above is what keeps unlisted siblings out). Production values are https only
+# (required when auth.cookie_secure is true); the examples below use reserved names:
+#   api_origin: https://api.example.com
+#   apps:
+#     ozid:     {origin: https://id.example.com, paths: ["/security"]}
+#     trip-map: {origin: https://trip.example.com, paths: ["/status"]}   # /status: the public status page, a page a sign-in may return to
+#     metro:    {origin: https://metro.example.com, paths: ["/me", "/cities/*", "/topics/*", "/u/*"]}   # the pages a sign-in may return to: personal page, city, topic and public profile pages
+#     admin:    {origin: https://admin.example.com, paths: ["/users", "/users/*", "/audit/users", "/metro", "/metro/*"]}
+# Required while upstreams.usersrv is configured (api_origin and apps.ozid); a BFF without accounts may omit it.
+navigation:
+  api_origin: http://localhost:18081
+  apps:
+    ozid:     {origin: http://localhost:5175, paths: ["/security"]}
+    trip-map: {origin: http://localhost:5173, paths: ["/status"]}
+    metro:    {origin: http://localhost:5174, paths: ["/me", "/cities/*", "/topics/*", "/u/*"]}
+    admin:    {origin: http://localhost:5176, paths: ["/users", "/users/*", "/audit/users", "/metro", "/metro/*"]}
+
+# The unified management console's perimeter (apps/admin, deploy/admin-web, docs/admin/features.md).
+# It guards every browser management API (user administration, the metro catalogue administration
+# and the management tokens; the MCP endpoint is a machine protocol with its own `mcp` list above and is not inside it) and, with the
+# console gateway, the console's pages and assets: source network, the console's Origin (navigation.apps.admin.origin, one value), a valid
+# session and the platform role are all checked here, on every call, independently of the gateway.
+#   allowed_cidrs   networks that may use the console. EMPTY DENIES EVERYTHING. Entries need a
+#                   prefix and no host bits; IPv4 wider than /8, IPv6 wider than /16 and
+#                   IPv4-mapped IPv6 are refused at startup (a fully open list is never valid).
+#   trusted_proxies networks of the reverse proxies that connect to the BFF directly. Only then is
+#                   forwarded_header read (right to left, skipping these hops); empty = the TCP
+#                   peer is the client and no header is believed. The proxy must APPEND to the
+#                   header, never pass a client's value through. It must not overlap allowed_cidrs
+#                   (either direction): a proxy inside the allowlist would open the console to
+#                   everyone behind it, so that combination is refused at startup.
+# Production example (reserved addresses; never commit real ones):
+#   admin:
+#     allowed_cidrs: ["203.0.113.0/24", "2001:db8:100::/48"]
+#     trusted_proxies: ["198.51.100.0/24"]
+#     forwarded_header: X-Forwarded-For
+#     rate_limit_per_minute: 120        # reads (users, one user, the account audit), per operator
+#     write_rate_limit_per_minute: 30   # account changes (state, metro-admin), per operator
+# This development file only admits the machine itself.
+admin:
+  allowed_cidrs: ["127.0.0.0/8", "::1/128"]
+  rate_limit_per_minute: 120
+  write_rate_limit_per_minute: 30
 
 client_ip_header: X-Real-IP
 

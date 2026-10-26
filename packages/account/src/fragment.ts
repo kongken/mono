@@ -5,7 +5,7 @@
  * never written to localStorage or sessionStorage.
  */
 
-import { landingKind, type LandingKind } from "./paths.ts";
+import { landingKind, MAIL_TOKEN, type LandingKind } from "./paths.ts";
 
 export { landingKind, RESET_PASSWORD_PATH, VERIFY_EMAIL_PATH, type LandingKind } from "./paths.ts";
 
@@ -16,7 +16,7 @@ export function parseFragmentToken(hash: string): string | null {
     const eq = pair.indexOf("=");
     if (eq < 0 || pair.slice(0, eq) !== "token") continue;
     const value = pair.slice(eq + 1);
-    return /^[A-Za-z0-9_-]{16,512}$/.test(value) ? value : null;
+    return MAIL_TOKEN.test(value) ? value : null;
   }
   return null;
 }

@@ -68,7 +68,8 @@ type AccountServiceClient interface {
 	// has an account and whether or not the mail limits suppressed the mail; only a
 	// public limit (client address, service-wide mail cap) is RESOURCE_EXHAUSTED.
 	// Only an address without any account gets a challenge and a mail. Malformed
-	// email or an unknown app_id is INVALID_ARGUMENT. No password is accepted here.
+	// email or a malformed return context is INVALID_ARGUMENT. The mail link always
+	// points at the central OzID origin (auth.apps.ozid). No password is accepted here.
 	RequestRegistration(ctx context.Context, in *RequestRegistrationRequest, opts ...grpc.CallOption) (*RequestRegistrationResponse, error)
 	// CompleteRegistration consumes a registration token and creates the active
 	// account with the given password and nickname for the address the token was
@@ -108,7 +109,10 @@ type AccountServiceClient interface {
 	UpdateMyProfile(ctx context.Context, in *UpdateMyProfileRequest, opts ...grpc.CallOption) (*UpdateMyProfileResponse, error)
 	// BeginDeletion idempotently moves the caller's account to deleting, bumps
 	// auth_version and voids its account tokens. A second call with the same
-	// mutation_id succeeds; a different mutation_id is DELETION_MISMATCH.
+	// mutation_id succeeds; a different mutation_id is DELETION_MISMATCH. An account
+	// that holds the platform role ozid-admin is FAILED_PRECONDITION with reason
+	// PLATFORM_ADMIN_PROTECTED and nothing changes: the role has to be revoked through
+	// the operator CLI before the account can be closed.
 	BeginDeletion(ctx context.Context, in *BeginDeletionRequest, opts ...grpc.CallOption) (*BeginDeletionResponse, error)
 	// FinishDeletion removes the account, credential, roles, tokens and profile and
 	// leaves a 24 hour tombstone, so a lost response can be replayed with the same
@@ -280,7 +284,8 @@ type AccountServiceServer interface {
 	// has an account and whether or not the mail limits suppressed the mail; only a
 	// public limit (client address, service-wide mail cap) is RESOURCE_EXHAUSTED.
 	// Only an address without any account gets a challenge and a mail. Malformed
-	// email or an unknown app_id is INVALID_ARGUMENT. No password is accepted here.
+	// email or a malformed return context is INVALID_ARGUMENT. The mail link always
+	// points at the central OzID origin (auth.apps.ozid). No password is accepted here.
 	RequestRegistration(context.Context, *RequestRegistrationRequest) (*RequestRegistrationResponse, error)
 	// CompleteRegistration consumes a registration token and creates the active
 	// account with the given password and nickname for the address the token was
@@ -320,7 +325,10 @@ type AccountServiceServer interface {
 	UpdateMyProfile(context.Context, *UpdateMyProfileRequest) (*UpdateMyProfileResponse, error)
 	// BeginDeletion idempotently moves the caller's account to deleting, bumps
 	// auth_version and voids its account tokens. A second call with the same
-	// mutation_id succeeds; a different mutation_id is DELETION_MISMATCH.
+	// mutation_id succeeds; a different mutation_id is DELETION_MISMATCH. An account
+	// that holds the platform role ozid-admin is FAILED_PRECONDITION with reason
+	// PLATFORM_ADMIN_PROTECTED and nothing changes: the role has to be revoked through
+	// the operator CLI before the account can be closed.
 	BeginDeletion(context.Context, *BeginDeletionRequest) (*BeginDeletionResponse, error)
 	// FinishDeletion removes the account, credential, roles, tokens and profile and
 	// leaves a 24 hour tombstone, so a lost response can be replayed with the same

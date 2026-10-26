@@ -17,8 +17,3 @@ export async function loadTopics(): Promise<RollingStockTopic[]> {
   const res = await catalog.listRollingStockTopics({});
   return res.topics;
 }
-
-/** Forget what is cached, after an administrator changed the catalogue. */
-export function invalidateCatalog() {
-  cities = undefined;
-}

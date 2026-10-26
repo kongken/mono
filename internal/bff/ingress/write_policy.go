@@ -16,9 +16,17 @@ var readOnlyProcedures = map[string]bool{
 	bffv1connect.AuthServiceMeProcedure:                 true,
 	bffv1connect.AuthServiceListSessionsProcedure:       true,
 	bffv1connect.AuthServiceIssueCSRFTokenProcedure:     true,
+	bffv1connect.AuthServiceResolveNavigationProcedure:  true,
 	bffv1connect.AuthServiceGetAccountDeletionProcedure: true,
 
 	bffv1connect.AccessTokenServiceListAccessTokensProcedure: true,
+
+	// User management reads: nothing is changed, so no CSRF token is needed. They are
+	// not exempt from the admin perimeter, which demands the console's exact Origin.
+	bffv1connect.UserAdminServiceListUsersProcedure: true,
+	bffv1connect.UserAdminServiceGetUserProcedure:   true,
+	// The account audit is a read too: same perimeter, session age and role, no CSRF.
+	bffv1connect.UserAdminServiceListSecurityAuditProcedure: true,
 
 	bfftripmapv1connect.FootprintServiceGetChangesProcedure:    true,
 	bfftripmapv1connect.FootprintServiceGetFootprintsProcedure: true,

@@ -41,9 +41,32 @@ jobs:
           - image: metro
             suffix: '-metro'
             dockerfile: deploy/metro/Dockerfile
+          # Like ozid-web: the browser calls the BFF's canonical address and sends account steps to OzID,
+          # so the build needs both (no defaults). The published image is built for reserved example
+          # addresses and is a build check, not a deployable.
           - image: metro-web
             suffix: '-metro-web'
             dockerfile: deploy/metro-web/Dockerfile
+            build_args: |
+              VITE_API_BASE_URL=https://api.example.com/api
+              VITE_OZID_ORIGIN=https://id.example.com
+          # Needs the BFF's public API base at build time (no default): pass the
+          # VITE_API_BASE_URL build arg from a private deployment pipeline; the published
+          # image is built for a reserved example address and is a build check, not a deployable.
+          - image: ozid-web
+            suffix: '-ozid-web'
+            dockerfile: deploy/ozid-web/Dockerfile
+            build_args: |
+              VITE_API_BASE_URL=https://api.example.com/api
+          # The unified management console: the same kind of build check. It also needs the OzID
+          # origin at build time, and at run time ADMIN_HOST, ADMIN_ALLOWED_CIDRS and API_ORIGIN
+          # (the container refuses to start without a usable allowlist).
+          - image: admin-web
+            suffix: '-admin-web'
+            dockerfile: deploy/admin-web/Dockerfile
+            build_args: |
+              VITE_API_BASE_URL=https://api.example.com/api
+              VITE_OZID_ORIGIN=https://id.example.com
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -83,6 +106,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
+          build-args: ${{ matrix.build_args }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

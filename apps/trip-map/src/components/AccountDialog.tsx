@@ -1,17 +1,13 @@
 import { useEffect, useState } from "react";
 import {
-  ArrowLeft,
   BellRinging,
   ClockCounterClockwise,
   CloudCheck,
   ShareNetwork,
-  Gear,
   SignOut,
   UserCircle,
   Users,
 } from "@phosphor-icons/react";
-import { AuthPanel, ChangePasswordForm, DeleteAccountPanel, ProfileForm, SessionsList } from "@kongken/account/forms";
-import { requireAccount } from "@/api/auth";
 import { getBackendStatus } from "@/api/system";
 import { Button } from "@kongken/ui/button";
 import {
@@ -23,6 +19,7 @@ import {
 } from "@kongken/ui/dialog";
 import { describeApiError } from "@/lib/errors";
 import type { Cloud } from "@/hooks/useCloud";
+import { OzidLink, OzidSignIn } from "./OzidEntry";
 
 type Props = {
   open: boolean;
@@ -37,8 +34,8 @@ type Props = {
   onOpenShare: () => void;
   onOpenCollaboration: () => void;
   onOpenNotifications: () => void;
-  /** Which form the signed-out window opens on. */
-  initialMode?: "login" | "register" | "forgot";
+  /** Leave for OzID to sign in (again). The caller saves local edits first and may refuse to go. */
+  onSignIn: () => void;
 };
 
 export default function AccountDialog({
@@ -53,19 +50,17 @@ export default function AccountDialog({
   onOpenShare,
   onOpenCollaboration,
   onOpenNotifications,
-  initialMode = "login",
+  onSignIn,
 }: Props) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [view, setView] = useState<"main" | "settings">("main");
   const signedIn = !!cloud.user;
 
   useEffect(() => {
     if (!open) return;
     setError("");
     setConfirmLogout(false);
-    setView("main");
   }, [open]);
 
   // Sharing appears only when the server advertises it (share.public_base_url is set).
@@ -101,13 +96,7 @@ export default function AccountDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        {cloud.user && view === "settings" ? (
-          <SettingsView
-            cloud={cloud}
-            onBack={() => setView("main")}
-            onClosed={() => onOpenChange(false)}
-          />
-        ) : cloud.user ? (
+        {cloud.user ? (
           <>
             <DialogHeader>
               <span className="dialog-icon">
@@ -135,25 +124,24 @@ export default function AccountDialog({
                         : "已同步"}
             </p>
             {cloud.deletionBlocked && (
-              <p role="alert" className="unreadable-note">
-                账号注销尚未完成，已暂停云端编辑。请打开“账号设置”重试注销。
-              </p>
+              <div role="alert" className="unreadable-note grid gap-3" data-testid="deletion-pending">
+                <p>账号注销尚未完成，已暂停云端编辑。请前往 OzID 重试注销。</p>
+                <div>
+                  <OzidLink to="closeAccount">前往 OzID 重试注销</OzidLink>
+                </div>
+              </div>
             )}
             {cloud.sessionExpired && !cloud.user.deletionPending && (
               <section className="unreadable-note grid gap-3" data-testid="session-expired" aria-label="重新登录">
                 <p role="alert">
-                  登录已失效。未同步的修改仍保留在本机；重新登录后会继续同步，也可以先导出备份。
+                  登录已失效（可能在其他应用退出、修改了密码或登录已过期）。未同步的修改仍保留在本机；重新登录后会继续同步，也可以先导出备份。
                 </p>
                 <div>
                   <Button variant="outline" size="sm" onClick={() => cloud.exportRawCache()}>
                     导出账号缓存
                   </Button>
                 </div>
-                <AuthPanel
-                  api={requireAccount()}
-                  appName="山海足迹"
-                  onSignedIn={({ user, expiresAt }) => cloud.signIn(user, expiresAt)}
-                />
+                <OzidSignIn onSignIn={onSignIn} label="前往 OzID 重新登录" testId="ozid-relogin" />
               </section>
             )}
             {local.status === "unreadable" && (
@@ -235,10 +223,7 @@ export default function AccountDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 关闭
               </Button>
-              <Button variant="outline" disabled={pending} onClick={() => setView("settings")}>
-                <Gear size={16} />
-                账号设置
-              </Button>
+              {!cloud.deletionBlocked && <OzidLink to="home">管理 OzID 账号</OzidLink>}
               <Button
                 variant={confirmLogout ? "destructive" : "outline"}
                 disabled={pending}
@@ -261,19 +246,11 @@ export default function AccountDialog({
               <span className="dialog-icon"><UserCircle size={22} /></span>
               <DialogTitle>登录山海足迹</DialogTitle>
               <DialogDescription>
-                登录后可以在不同设备同步足迹；不登录也能继续在本机记录。
+                账号由 OzID 统一管理，与地铁足迹共用。登录后可以在不同设备同步足迹；不登录也能继续在本机记录。
               </DialogDescription>
             </DialogHeader>
             {error && <p className="unreadable-note unreadable-error" role="alert">{error}</p>}
-            <AuthPanel
-              api={requireAccount()}
-              appName="山海足迹"
-              initialMode={initialMode}
-              onSignedIn={({ user, expiresAt }) => {
-                cloud.signIn(user, expiresAt);
-                onOpenChange(false);
-              }}
-            />
+            <OzidSignIn onSignIn={onSignIn} />
             <div className="dialog-actions">
               <Button variant="outline" onClick={() => onOpenChange(false)}>暂不登录</Button>
             </div>
@@ -281,80 +258,5 @@ export default function AccountDialog({
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-/** Profile, password, devices and closing the shared account. */
-function SettingsView({ cloud, onBack, onClosed }: { cloud: Cloud; onBack: () => void; onClosed: () => void }) {
-  const api = requireAccount();
-  const user = cloud.user!;
-  const [email, setEmail] = useState<string | null>(null);
-  const [failed, setFailed] = useState("");
-  useEffect(() => {
-    // A closed account has no session left to read the email with.
-    if (user.deletionPending) return;
-    let alive = true;
-    api
-      .me()
-      .then((me) => alive && setEmail(me.email))
-      .catch((e) => alive && setFailed(describeApiError(e)));
-    return () => {
-      alive = false;
-    };
-  }, [api, user.deletionPending]);
-
-  return (
-    <>
-      <DialogHeader>
-        <span className="dialog-icon">
-          <Gear size={22} />
-        </span>
-        <DialogTitle>账号设置</DialogTitle>
-        <DialogDescription>同一个账号也用于地铁足迹。</DialogDescription>
-      </DialogHeader>
-      <div>
-        <Button variant="outline" size="sm" onClick={onBack}>
-          <ArrowLeft size={16} />
-          返回
-        </Button>
-      </div>
-      {failed && (
-        <p className="unreadable-note unreadable-error" role="alert">
-          {failed}
-        </p>
-      )}
-      {email !== null && !user.deletionPending && (
-        <>
-          <ProfileForm
-            api={api}
-            user={{ id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl }}
-            email={email}
-            onUpdated={(u) => cloud.updateUser({ displayName: u.displayName, avatarUrl: u.avatarUrl })}
-          />
-          <ChangePasswordForm api={api} email={email} onChanged={async () => {
-            if ((await cloud.passwordChanged()) === "left") onClosed();
-            else onBack();
-          }} />
-          <SessionsList api={api} />
-        </>
-      )}
-      <DeleteAccountPanel
-        api={api}
-        appName="山海足迹"
-        resumePending={!!user.deletionPending}
-        warning={
-          <p className="text-muted-foreground">
-            尚未同步的修改也会丢弃，请先在主页导出足迹备份。
-          </p>
-        }
-        prepare={cloud.deletion.prepare}
-        onNotStarted={cloud.deletion.notStarted}
-        onPending={cloud.deletion.pending}
-        onDeleted={() => {
-          cloud.deletion.done();
-          onClosed();
-        }}
-      />
-    </>
   );
 }

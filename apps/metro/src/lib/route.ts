@@ -7,11 +7,7 @@ export type Route =
   | { name: "me" }
   | { name: "login" }
   | { name: "account" }
-  | { name: "admin"; section: string }
   | { name: "notfound" };
-
-export const adminSections = ["cities", "lines", "rolling-stocks", "topics", "import", "export", "audit", "tokens"] as const;
-export type AdminSection = (typeof adminSections)[number];
 
 export function matchRoute(pathname: string): Route {
   const parts = pathname.split("/").filter(Boolean).map((p) => {
@@ -23,17 +19,13 @@ export function matchRoute(pathname: string): Route {
   });
   if (parts.some((p) => p === "")) return parts.length === 0 ? { name: "home" } : { name: "notfound" };
   if (parts.length === 0) return { name: "home" };
-  const [a, b, c] = parts;
+  const [a, b] = parts;
   if (parts.length === 2 && a === "cities") return { name: "city", slug: b };
   if (parts.length === 2 && a === "topics") return { name: "topic", slug: b };
   if (parts.length === 2 && a === "u") return { name: "profile", handle: b };
   if (parts.length === 1 && a === "me") return { name: "me" };
   if (parts.length === 1 && a === "login") return { name: "login" };
   if (parts.length === 1 && a === "account") return { name: "account" };
-  if (a === "admin" && parts.length <= 2 && c === undefined) {
-    if (b === undefined) return { name: "admin", section: "cities" };
-    if ((adminSections as readonly string[]).includes(b)) return { name: "admin", section: b };
-  }
   return { name: "notfound" };
 }
 

@@ -12,3 +12,4 @@
 .status-bad { color: #b4532f; font-weight: 600; }
 .status-muted { color: #72816c; }
 .status-back { font-size: 13px; color: #3f6048; text-decoration: underline; }
+.status-links { display: flex; flex-wrap: wrap; gap: 8px 20px; }

@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"regexp"
 
 	"github.com/google/uuid"
+	"github.com/kongken/mono/internal/platform/navpath"
 	"github.com/kongken/mono/internal/usersrv/ent"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
 	"github.com/kongken/mono/internal/usersrv/ent/user"
@@ -41,7 +43,51 @@ type MailRequest struct {
 	Email       string
 	UserID      *uuid.UUID
 	AuthVersion *int64
-	AppID       string
+	Return      ReturnContext
+}
+
+// ReturnContext is where the user came from: a stable app ID and a canonical pathname
+// in it (empty meaning the app's default path). It is bound to the challenge and
+// handed back when the token is consumed, so another browser can finish the flow and
+// still find its way back. usersrv checks the form only; the meaning (is this app
+// registered, is the path allowed) belongs to the BFF navigation registry, which
+// validates it on the way in and again on the way out. The zero value is no context.
+type ReturnContext struct {
+	AppID string
+	Path  string
+}
+
+var appIDPattern = regexp.MustCompile(`^[a-z0-9-]{1,64}$`)
+
+// Validate checks the form of c.
+func (c ReturnContext) Validate() error {
+	if c.AppID == "" && c.Path == "" {
+		return nil
+	}
+	if !appIDPattern.MatchString(c.AppID) {
+		return &identity.ValidationError{Field: "app_id", Reason: "must be a stable app ID"}
+	}
+	if c.Path != "" {
+		if err := navpath.Check(c.Path); err != nil {
+			return &identity.ValidationError{Field: "return_path", Reason: err.Error()}
+		}
+	}
+	return nil
+}
+
+// returnOf reads the context stored on a challenge; a row without one gives the zero value.
+func returnOf(t *ent.AccountToken) ReturnContext {
+	var c ReturnContext
+	if t.ReturnAppID != nil {
+		c.AppID = *t.ReturnAppID
+	}
+	if t.ReturnPath != nil {
+		c.Path = *t.ReturnPath
+	}
+	if c.Validate() != nil {
+		return ReturnContext{}
+	}
+	return c
 }
 
 // Mail creates the challenge and its encrypted outbox job inside tx. The
@@ -49,7 +95,9 @@ type MailRequest struct {
 // the outbox (which also keeps this package free of an import cycle with it).
 type Mail interface {
 	Issue(ctx context.Context, tx *ent.Tx, in MailRequest) error
-	HasApp(appID string) bool
+	// Central reports whether the central OzID landing origin is configured, which
+	// every mail link needs.
+	Central() bool
 }
 
 // MailVerdict is the outcome of the mail limits for one request.
@@ -82,20 +130,15 @@ func (s *Service) SetRegistrationOpen(open bool) { s.registrationClosed = !open 
 
 // mailReady returns ErrUnavailable until SetMail was called.
 func (s *Service) mailReady() error {
-	if s.mail == nil || s.guard == nil {
+	if s.mail == nil || s.guard == nil || !s.mail.Central() {
 		return errors.Join(ErrUnavailable, errors.New("account mail is not configured"))
 	}
 	return nil
 }
 
-// checkApp refuses an app ID that is not in the link allow list. Nothing has
-// been counted or written yet, so an unknown app changes no state.
-func (s *Service) checkApp(appID string) error {
-	if !s.mail.HasApp(appID) {
-		return &identity.ValidationError{Field: "app_id", Reason: "not a configured app"}
-	}
-	return nil
-}
+// checkReturn refuses a malformed return context. Nothing has been counted or
+// written yet, so a refused context changes no state.
+func (s *Service) checkReturn(c ReturnContext) error { return c.Validate() }
 
 // admit runs the mail limits for one request. It reports proceed=false when an
 // account-level limit suppresses the mail (the caller still answers success).
@@ -120,7 +163,7 @@ func (s *Service) admit(ctx context.Context, purpose MailPurpose, email, clientI
 // and the mail limits may silently suppress it. Nothing about the account, the
 // limits or the mail is revealed. The password is not part of this step, no
 // user is created and no session exists.
-func (s *Service) RequestRegistration(ctx context.Context, email, appID, clientIP, requestID string) error {
+func (s *Service) RequestRegistration(ctx context.Context, email string, ret ReturnContext, clientIP, requestID string) error {
 	if err := s.mailReady(); err != nil {
 		return err
 	}
@@ -131,7 +174,7 @@ func (s *Service) RequestRegistration(ctx context.Context, email, appID, clientI
 	if err != nil {
 		return err
 	}
-	if err = s.checkApp(appID); err != nil {
+	if err = s.checkReturn(ret); err != nil {
 		return err
 	}
 	const action = "registration.request"
@@ -147,7 +190,7 @@ func (s *Service) RequestRegistration(ctx context.Context, email, appID, clientI
 		if taken {
 			return s.audit(ctx, tx, auditEntry{actor: "system", action: action, requestID: requestID, result: "ignored"})
 		}
-		if err = s.mail.Issue(ctx, tx, MailRequest{Purpose: PurposeRegistration, Email: canonical, AppID: appID}); err != nil {
+		if err = s.mail.Issue(ctx, tx, MailRequest{Purpose: PurposeRegistration, Email: canonical, Return: ret}); err != nil {
 			return err
 		}
 		return s.audit(ctx, tx, auditEntry{actor: "system", action: action, requestID: requestID, result: "issued"})
@@ -165,45 +208,46 @@ func (s *Service) RequestRegistration(ctx context.Context, email, appID, clientI
 // registration tokens of the address, cancelling their unsent mails. A unique
 // violation on the email is treated like any other lost race. It does not
 // sign anybody in.
-func (s *Service) CompleteRegistration(ctx context.Context, token, password, displayName, requestID string) (uuid.UUID, error) {
+func (s *Service) CompleteRegistration(ctx context.Context, token, password, displayName, requestID string) (uuid.UUID, ReturnContext, error) {
 	if s.registrationClosed {
-		return uuid.Nil, ErrRegistrationClosed
+		return uuid.Nil, ReturnContext{}, ErrRegistrationClosed
 	}
 	// Policy checks do not depend on the token, so they reveal nothing about it.
 	if err := identity.ValidatePassword("password", password); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, ReturnContext{}, err
 	}
 	name, err := identity.NormalizeDisplayName(displayName, true)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, ReturnContext{}, err
 	}
 	digest, ok := identity.TokenDigest(token)
 	if !ok {
-		return uuid.Nil, ErrTokenInvalid
+		return uuid.Nil, ReturnContext{}, ErrTokenInvalid
 	}
 	// Cheap read before the expensive hash: junk and stale tokens cost nothing.
 	tok, err := s.db.AccountToken.Query().Where(accounttoken.TokenHash(digest), accounttoken.PurposeEQ(accounttoken.PurposeRegistration)).Only(ctx)
 	if ent.IsNotFound(err) {
-		return uuid.Nil, ErrTokenInvalid
+		return uuid.Nil, ReturnContext{}, ErrTokenInvalid
 	}
 	if err != nil {
-		return uuid.Nil, mapStoreError(err)
+		return uuid.Nil, ReturnContext{}, mapStoreError(err)
 	}
 	now := s.now()
 	if tok.ConsumedAt != nil || !tok.ExpiresAt.After(now) {
-		return uuid.Nil, ErrTokenInvalid
+		return uuid.Nil, ReturnContext{}, ErrTokenInvalid
 	}
 	if taken, err := s.db.User.Query().Where(user.EmailCanonical(tok.EmailCanonical)).Exist(ctx); err != nil {
-		return uuid.Nil, mapStoreError(err)
+		return uuid.Nil, ReturnContext{}, mapStoreError(err)
 	} else if taken {
-		return uuid.Nil, ErrTokenInvalid
+		return uuid.Nil, ReturnContext{}, ErrTokenInvalid
 	}
 	hash, err := s.hasher.Hash(ctx, password)
 	if err != nil {
-		return uuid.Nil, mapStoreError(err)
+		return uuid.Nil, ReturnContext{}, mapStoreError(err)
 	}
 
 	id := uuid.New()
+	var ret ReturnContext
 	err = s.inTx(ctx, func(tx *ent.Tx) error {
 		now := s.now()
 		rows, err := tx.AccountToken.Query().
@@ -228,6 +272,7 @@ func (s *Service) CompleteRegistration(ctx context.Context, token, password, dis
 		} else if taken {
 			return ErrTokenInvalid
 		}
+		ret = returnOf(own)
 		if err = tx.User.Create().SetID(id).SetEmailCanonical(own.EmailCanonical).SetEmailVerifiedAt(now).
 			SetPasswordHash(hash).SetDisplayName(name).Exec(ctx); err != nil {
 			return err
@@ -243,18 +288,18 @@ func (s *Service) CompleteRegistration(ctx context.Context, token, password, dis
 	})
 	if err != nil {
 		if isUniqueViolation(err, "users_email_canonical_key") {
-			return uuid.Nil, ErrTokenInvalid
+			return uuid.Nil, ReturnContext{}, ErrTokenInvalid
 		}
-		return uuid.Nil, mapStoreError(err)
+		return uuid.Nil, ReturnContext{}, mapStoreError(err)
 	}
-	return id, nil
+	return id, ret, nil
 }
 
 // RequestPasswordReset is RequestRegistration for the reset flow: nil for every
 // well-formed address, a challenge and mail only for an active account, bound
 // to the account and the auth_version it has at issue time. Asking for a reset
 // changes nothing about the account, its password or its sessions.
-func (s *Service) RequestPasswordReset(ctx context.Context, email, appID, clientIP, requestID string) error {
+func (s *Service) RequestPasswordReset(ctx context.Context, email string, ret ReturnContext, clientIP, requestID string) error {
 	if err := s.mailReady(); err != nil {
 		return err
 	}
@@ -262,7 +307,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, appID, client
 	if err != nil {
 		return err
 	}
-	if err = s.checkApp(appID); err != nil {
+	if err = s.checkReturn(ret); err != nil {
 		return err
 	}
 	const action = "password_reset.request"
@@ -281,7 +326,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, appID, client
 		}
 		version := u.AuthVersion
 		if err = s.mail.Issue(ctx, tx, MailRequest{Purpose: PurposePasswordReset, Email: canonical,
-			UserID: &u.ID, AuthVersion: &version, AppID: appID}); err != nil {
+			UserID: &u.ID, AuthVersion: &version, Return: ret}); err != nil {
 			return err
 		}
 		return s.audit(ctx, tx, auditEntry{userID: &u.ID, actor: "system", action: action, requestID: requestID, result: "issued"})
@@ -298,39 +343,40 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, appID, client
 // and consumes every reset token of the account, cancelling their unsent mails.
 // A second submission of the same token, or of a sibling token, finds the
 // version moved on and changes nothing. It does not sign anybody in.
-func (s *Service) ResetPassword(ctx context.Context, token, newPassword, requestID string) error {
+func (s *Service) ResetPassword(ctx context.Context, token, newPassword, requestID string) (ReturnContext, error) {
 	if err := identity.ValidatePassword("new_password", newPassword); err != nil {
-		return err
+		return ReturnContext{}, err
 	}
 	digest, ok := identity.TokenDigest(token)
 	if !ok {
-		return ErrTokenInvalid
+		return ReturnContext{}, ErrTokenInvalid
 	}
 	// Unlocked read: cheap rejection before the hash, and the account to lock first.
 	tok, err := s.db.AccountToken.Query().Where(accounttoken.TokenHash(digest), accounttoken.PurposeEQ(accounttoken.PurposePasswordReset)).Only(ctx)
 	if ent.IsNotFound(err) {
-		return ErrTokenInvalid
+		return ReturnContext{}, ErrTokenInvalid
 	}
 	if err != nil {
-		return mapStoreError(err)
+		return ReturnContext{}, mapStoreError(err)
 	}
 	if tok.UserID == nil || tok.IssuedAuthVersion == nil || tok.ConsumedAt != nil || !tok.ExpiresAt.After(s.now()) {
-		return ErrTokenInvalid
+		return ReturnContext{}, ErrTokenInvalid
 	}
 	userID, issued := *tok.UserID, *tok.IssuedAuthVersion
 	if u, err := s.db.User.Get(ctx, userID); err != nil {
 		if ent.IsNotFound(err) {
-			return ErrTokenInvalid
+			return ReturnContext{}, ErrTokenInvalid
 		}
-		return mapStoreError(err)
+		return ReturnContext{}, mapStoreError(err)
 	} else if Status(u.Status) != StatusActive || u.AuthVersion != issued {
-		return ErrTokenInvalid
+		return ReturnContext{}, ErrTokenInvalid
 	}
 	hash, err := s.hasher.Hash(ctx, newPassword)
 	if err != nil {
-		return mapStoreError(err)
+		return ReturnContext{}, mapStoreError(err)
 	}
 
+	var ret ReturnContext
 	err = s.inTx(ctx, func(tx *ent.Tx) error {
 		now := s.now()
 		// Lock order is account, then tokens, like the deletion and admin paths.
@@ -352,6 +398,7 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword, request
 		if t.ConsumedAt != nil || !t.ExpiresAt.After(now) || Status(u.Status) != StatusActive || u.AuthVersion != issued {
 			return ErrTokenInvalid
 		}
+		ret = returnOf(t)
 		if _, err = tx.User.UpdateOneID(userID).Where(user.AuthVersion(issued), user.StatusEQ(user.StatusActive)).
 			SetPasswordHash(hash).AddAuthVersion(1).Save(ctx); err != nil {
 			if ent.IsNotFound(err) {
@@ -376,7 +423,7 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword, request
 		if errors.Is(err, ErrTokenInvalid) {
 			slog.Debug("usersrv password reset refused", "user_id", userID)
 		}
-		return mapStoreError(err)
+		return ReturnContext{}, mapStoreError(err)
 	}
-	return nil
+	return ret, nil
 }

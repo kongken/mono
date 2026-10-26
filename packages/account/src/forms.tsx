@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@kongken/ui/button";
-import type { AccountApi, AccountUser, SessionInfo } from "./api.ts";
+import type { AccountApi, AccountUser, ReturnFrom, SessionInfo } from "./api.ts";
 import { classifyAccountError, type AccountField, type AccountFailure } from "./errors.ts";
 import { ACCOUNT_PRODUCT_SCOPE, ACCOUNT_SHARED_SCOPE, DELETE_CONFIRM_WORD } from "./scope.ts";
 import {
@@ -13,6 +13,7 @@ import {
   newMutationId,
   trimEmail,
 } from "./validate.ts";
+import { createEpoch } from "./latest.ts";
 import { FORM_CLASS, LinkButton, Notice, PasswordField, TextField, useCooldown, useFocusFirstInvalid, useRunner } from "./ui.tsx";
 
 /** The resend cooldown of mail requests; usersrv enforces its own, this only explains the wait. */
@@ -40,6 +41,24 @@ type AuthPanelProps = {
   /** Called after the Cookie session exists. The panel keeps no credentials afterwards. */
   onSignedIn: (result: SignedIn) => void | Promise<void>;
   initialMode?: AuthMode;
+  /**
+   * Whether to offer registration and password reset (the two mail-based entrances).
+   * Default true. A front end that does not host them yet shows the sign-in form alone.
+   */
+  allowMail?: boolean;
+  /** The sentence under the title; the default names the two products. */
+  intro?: ReactNode;
+  /**
+   * The return context mail requests bind to their challenge (default: the app of `api`;
+   * null: none). The BFF validates it; it never decides where the mail links to.
+   */
+  from?: ReturnFrom | null;
+  /**
+   * Called instead of switching inside the panel when the user picks registration or
+   * password reset (or goes back to sign-in). A front end that routes those forms as pages
+   * of their own navigates here; without it the panel switches by itself.
+   */
+  onSwitchMode?: (mode: AuthMode) => void;
 };
 
 /**
@@ -47,17 +66,17 @@ type AuthPanelProps = {
  * sent, the password is chosen after the address is verified) and password reset. The
  * texts never say whether an address is registered.
  */
-export function AuthPanel({ api, appName, onSignedIn, initialMode = "login" }: AuthPanelProps) {
-  const [mode, setMode] = useState<AuthMode>(initialMode);
+export function AuthPanel({ api, appName, onSignedIn, initialMode = "login", allowMail = true, intro, from, onSwitchMode }: AuthPanelProps) {
+  const [mode, setMode] = useState<AuthMode>(allowMail ? initialMode : "login");
   const [email, setEmail] = useState("");
   // Switching forms drops what the previous one showed, but keeps the address typed.
-  const switchTo = (next: AuthMode) => setMode(next);
+  const switchTo = (next: AuthMode) => (onSwitchMode ? onSwitchMode(next) : setMode(next));
   return (
     <div data-testid="auth-panel" className="grid gap-4">
       {mode === "login" ? (
-        <LoginForm api={api} appName={appName} email={email} setEmail={setEmail} onSignedIn={onSignedIn} onSwitch={switchTo} />
+        <LoginForm api={api} appName={appName} email={email} setEmail={setEmail} onSignedIn={onSignedIn} onSwitch={switchTo} allowMail={allowMail} intro={intro} />
       ) : (
-        <MailRequestForm key={mode} api={api} appName={appName} mode={mode} email={email} setEmail={setEmail} onSwitch={switchTo} />
+        <MailRequestForm key={mode} api={api} appName={appName} mode={mode} email={email} setEmail={setEmail} onSwitch={switchTo} from={from} />
       )}
     </div>
   );
@@ -70,7 +89,9 @@ function LoginForm({
   setEmail,
   onSignedIn,
   onSwitch,
-}: Pick<AuthPanelProps, "api" | "appName" | "onSignedIn"> & { email: string; setEmail: (v: string) => void; onSwitch: (m: AuthMode) => void }) {
+  allowMail,
+  intro,
+}: Pick<AuthPanelProps, "api" | "appName" | "onSignedIn" | "intro"> & { email: string; setEmail: (v: string) => void; onSwitch: (m: AuthMode) => void; allowMail: boolean }) {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [notice, setNotice] = useState("");
@@ -109,7 +130,7 @@ function LoginForm({
     <form ref={form} noValidate onSubmit={(e) => void submit(e)} className={FORM_CLASS} aria-labelledby="account-login-title">
       <div>
         <h2 id="account-login-title" className="text-lg font-semibold">登录{appName}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">使用邮箱和密码登录；同一个账号可在山海足迹和地铁足迹通用。</p>
+        <p className="mt-1 text-sm text-muted-foreground">{intro ?? "使用邮箱和密码登录；同一个账号可在山海足迹和地铁足迹通用。"}</p>
       </div>
       <TextField
         label="邮箱"
@@ -136,11 +157,36 @@ function LoginForm({
       <Button type="submit" disabled={pending}>
         {pending ? "登录中…" : "登录"}
       </Button>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <LinkButton onClick={() => onSwitch("forgot")}>忘记密码？</LinkButton>
-        <LinkButton onClick={() => onSwitch("register")}>没有账号？申请注册</LinkButton>
-      </div>
+      {allowMail ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <LinkButton onClick={() => onSwitch("forgot")}>忘记密码？</LinkButton>
+          <LinkButton onClick={() => onSwitch("register")}>没有账号？申请注册</LinkButton>
+        </div>
+      ) : null}
     </form>
+  );
+}
+
+type MailPanelProps = {
+  api: AccountApi;
+  appName: string;
+  mode: "register" | "forgot";
+  /** Where "back to sign in" and the switch to the other mail form lead (a page of their own, or a mode switch). */
+  onSwitch: (m: AuthMode) => void;
+  from?: ReturnFrom | null;
+};
+
+/**
+ * One mail request form as a page of its own (registration or password reset), for a front
+ * end that routes them instead of switching inside {@link AuthPanel}. Same states: sending,
+ * the resend cooldown, rate limiting, closed registration, network failure.
+ */
+export function MailRequestPanel({ api, appName, mode, onSwitch, from }: MailPanelProps) {
+  const [email, setEmail] = useState("");
+  return (
+    <div data-testid={`mail-panel-${mode}`} className="grid gap-4">
+      <MailRequestForm api={api} appName={appName} mode={mode} email={email} setEmail={setEmail} onSwitch={onSwitch} from={from} />
+    </div>
   );
 }
 
@@ -151,7 +197,8 @@ function MailRequestForm({
   email,
   setEmail,
   onSwitch,
-}: Pick<AuthPanelProps, "api" | "appName"> & { mode: "register" | "forgot"; email: string; setEmail: (v: string) => void; onSwitch: (m: AuthMode) => void }) {
+  from,
+}: Pick<AuthPanelProps, "api" | "appName" | "from"> & { mode: "register" | "forgot"; email: string; setEmail: (v: string) => void; onSwitch: (m: AuthMode) => void }) {
   const register = mode === "register";
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
@@ -170,8 +217,8 @@ function MailRequestForm({
     const address = trimEmail(email);
     await run(async () => {
       try {
-        if (register) await api.requestRegistration(address);
-        else await api.requestPasswordReset(address);
+        if (register) await api.requestRegistration(address, from);
+        else await api.requestPasswordReset(address, from);
         setSentTo(address);
         cooldown.start(RESEND_SECONDS);
       } catch (error) {
@@ -255,6 +302,84 @@ function MailRequestForm({
 }
 
 // ---------------------------------------------------------------------------------------
+// Password confirmation (reauthentication)
+// ---------------------------------------------------------------------------------------
+
+type ReauthenticateFormProps = {
+  api: AccountApi;
+  /** Called once the BFF recorded a fresh password check on this session. */
+  onConfirmed: () => void | Promise<void>;
+  /**
+   * Called when the server says there is no valid session any more (expired, signed out
+   * elsewhere, password or roles changed). A session like that cannot be upgraded by
+   * entering the password; the page must send the user to sign in again.
+   */
+  onSessionInvalid: () => void | Promise<void>;
+  /** What the confirmation is for, shown under the title. */
+  intro?: ReactNode;
+  submitLabel?: string;
+};
+
+/**
+ * Asks for the current password and has the BFF check it against the account of this
+ * session (never an identity, time or user ID the page supplies). It records nothing in
+ * the browser and replays nothing: whatever the user was doing before is not retried.
+ */
+export function ReauthenticateForm({ api, onConfirmed, onSessionInvalid, intro, submitLabel = "确认密码" }: ReauthenticateFormProps) {
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<Errors>({});
+  const [notice, setNotice] = useState("");
+  const [tick, setTick] = useState(0);
+  const form = useRef<HTMLFormElement>(null);
+  const { pending, run } = useRunner();
+  useFocusFirstInvalid(form, tick);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const passwordError = checkExistingPassword(password);
+    setErrors(passwordError ? { password: passwordError } : {});
+    setNotice("");
+    if (passwordError) return setTick((t) => t + 1);
+    await run(async () => {
+      try {
+        await api.reauthenticate(password);
+      } catch (error) {
+        const failure = classifyAccountError(error, "reauthenticate");
+        setPassword("");
+        if (failure.kind === "not_signed_in") return await onSessionInvalid();
+        if (failure.kind === "wrong_password") setErrors({ password: failure.message });
+        else setNotice(failure.message);
+        setTick((t) => t + 1);
+        return;
+      }
+      setPassword("");
+      await onConfirmed();
+    });
+  };
+
+  return (
+    <form ref={form} noValidate onSubmit={(e) => void submit(e)} className={FORM_CLASS} aria-labelledby="account-reauth-title" data-testid="reauthenticate">
+      <div>
+        <h2 id="account-reauth-title" className="text-lg font-semibold">确认密码</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{intro ?? "为了账号安全，请再次输入当前密码。"}</p>
+      </div>
+      <PasswordField
+        label="当前密码"
+        name="password"
+        autoComplete="current-password"
+        value={password}
+        error={errors.password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      {notice ? <Notice kind="error">{notice}</Notice> : null}
+      <Button type="submit" disabled={pending}>
+        {pending ? "确认中…" : submitLabel}
+      </Button>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
 // Signed in: profile, password, devices
 // ---------------------------------------------------------------------------------------
 
@@ -263,11 +388,14 @@ export function ProfileForm({
   user,
   email,
   onUpdated,
+  onSessionInvalid,
 }: {
   api: AccountApi;
   user: AccountUser;
   email: string;
   onUpdated: (user: AccountUser) => void;
+  /** The server says there is no valid session any more; the page should look again and ask for a sign-in. */
+  onSessionInvalid?: () => void;
 }) {
   const [displayName, setDisplayName] = useState(user.displayName);
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl);
@@ -298,6 +426,7 @@ export function ProfileForm({
         onUpdated(updated);
       } catch (error) {
         const failure = classifyAccountError(error, "profile");
+        if (failure.kind === "not_signed_in") onSessionInvalid?.();
         if (failure.field) setErrors({ [failure.field]: failure.message });
         else setNotice({ kind: "error", text: failure.message });
         setTick((t) => t + 1);
@@ -345,12 +474,15 @@ export function ChangePasswordForm({
   api,
   email,
   onChanged,
+  onSessionInvalid,
 }: {
   api: AccountApi;
   /** Lets a password manager tie the new password to the right login. */
   email?: string;
   /** Every session of the account, this one too, stopped working: the app must sign the user out here. */
   onChanged: () => void | Promise<void>;
+  /** The server says there is no valid session any more (not a wrong password); the page should ask for a sign-in. */
+  onSessionInvalid?: () => void;
 }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -379,6 +511,7 @@ export function ChangePasswordForm({
         await api.changePassword(current, next);
       } catch (error) {
         const failure = classifyAccountError(error, "change-password");
+        if (failure.kind === "not_signed_in") onSessionInvalid?.();
         if (failure.kind === "wrong_password") setErrors({ password: failure.message });
         else if (failure.field) setErrors({ [failure.field]: failure.message });
         else setNotice(failure.message);
@@ -420,47 +553,114 @@ export function ChangePasswordForm({
 
 const when = (date: Date | null) => (date ? date.toLocaleString("zh-CN", { hour12: false }) : "—");
 
-export function SessionsList({ api, onSignedOutHere }: { api: AccountApi; onSignedOutHere?: () => void }) {
+type SessionsListProps = {
+  api: AccountApi;
+  /**
+   * The signed-in account's id. A different id drops the list on screen at once and discards
+   * every answer still on its way, so one account's devices are never shown (or acted on)
+   * under another. Every caller must pass it.
+   */
+  identity: string;
+  /** The server says this very session is gone (signed out elsewhere, password changed): the app must ask for a new sign-in. */
+  onSignedOutHere?: () => void;
+  /**
+   * Offers "sign out other devices" (one atomic call that keeps this device). Off for the
+   * products, which only show the list; OzID turns it on.
+   */
+  revokeOthers?: boolean;
+};
+
+/**
+ * The account's live browser sessions: only what the BFF really stores (when each was opened,
+ * last used and expires), never an invented device name, address or place. A failed read is
+ * shown as a failure to read, and only the server's "not signed in" is treated as a sign-out.
+ */
+export function SessionsList(props: SessionsListProps) {
+  return <SessionsListOf key={props.identity} {...props} />;
+}
+
+function SessionsListOf({ api, onSignedOutHere, revokeOthers = false }: SessionsListProps) {
   const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [signedOut, setSignedOut] = useState(false);
+  const [notice, setNotice] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const { pending, run } = useRunner();
+  const signedOutHere = useRef(onSignedOutHere);
+  signedOutHere.current = onSignedOutHere;
+  // Reads of the list: only the newest one still counts, and none counts after this list is gone.
+  const [reads] = useState(createEpoch);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const failed = useCallback((error: unknown) => {
+    const failure = classifyAccountError(error, "other");
+    if (failure.kind === "not_signed_in" && mounted.current) {
+      setSignedOut(true);
+      signedOutHere.current?.();
+    }
+    return failure;
+  }, []);
 
   const load = useCallback(async () => {
+    const current = reads.begin();
     try {
-      setSessions(await api.listSessions());
+      const rows = await api.listSessions();
+      if (!current()) return;
+      setSessions(rows);
       setLoadFailed(false);
-    } catch {
-      setLoadFailed(true);
+    } catch (error) {
+      if (!current()) return;
+      setLoadFailed(failed(error).kind !== "not_signed_in");
     }
-  }, [api]);
+  }, [api, failed, reads]);
   useEffect(() => {
     void load();
-  }, [load]);
+    return () => reads.invalidate();
+  }, [load, reads]);
 
   const revoke = (id: string) =>
     run(async () => {
-      setNotice("");
+      setNotice(null);
       try {
         await api.revokeSession(id);
         await load();
       } catch (error) {
-        const failure = classifyAccountError(error, "other");
-        if (failure.kind === "not_signed_in") onSignedOutHere?.();
-        setNotice(failure.message);
+        const failure = failed(error);
+        if (mounted.current) setNotice({ kind: "error", text: failure.message });
       }
     });
+
+  const signOutOthers = () =>
+    run(async () => {
+      setNotice(null);
+      try {
+        const n = await api.revokeOtherSessions();
+        if (mounted.current) setNotice({ kind: "success", text: n > 0 ? `已退出其他 ${n} 台设备，本设备保持登录。` : "没有其他设备需要退出，本设备保持登录。" });
+        await load();
+      } catch (error) {
+        const failure = failed(error);
+        if (mounted.current) setNotice({ kind: "error", text: failure.message });
+      }
+    });
+
+  const others = sessions?.filter((s) => !s.current).length ?? 0;
 
   return (
     <section className="account-sessions grid gap-2" aria-labelledby="account-sessions-title" data-testid="sessions">
       <h3 id="account-sessions-title" className="text-base font-semibold">已登录的设备</h3>
-      {sessions === null && !loadFailed ? <p role="status" className="text-sm text-muted-foreground">正在读取…</p> : null}
+      {sessions === null && !loadFailed && !signedOut ? <p role="status" className="text-sm text-muted-foreground">正在读取…</p> : null}
+      {signedOut ? <Notice kind="error">登录已失效，请重新登录。</Notice> : null}
       {loadFailed ? (
         <Notice kind="error">
-          暂时无法读取设备列表。 <LinkButton onClick={() => void load()}>重试</LinkButton>
+          暂时无法读取设备列表，这不代表你已退出登录。 <LinkButton onClick={() => void load()}>重试</LinkButton>
         </Notice>
       ) : null}
-      {notice ? <Notice kind="error">{notice}</Notice> : null}
+      {notice ? <Notice kind={notice.kind}>{notice.text}</Notice> : null}
       {sessions && sessions.length > 0 ? (
         <ul className="m-0 grid list-none gap-0 p-0">
           {sessions.map((s) => (
@@ -468,6 +668,7 @@ export function SessionsList({ api, onSignedOutHere }: { api: AccountApi; onSign
               <span className="min-w-0">
                 {s.current ? "当前设备" : "其他设备"}
                 <small className="mt-0.5 block text-xs text-muted-foreground">最近使用 {when(s.lastUsedAt)}</small>
+                <small className="block text-xs text-muted-foreground">登录于 {when(s.createdAt)}，有效期至 {when(s.expiresAt)}</small>
               </span>
               {!s.current ? (
                 <Button variant="outline" size="sm" disabled={pending} aria-label={`退出其他设备（最近使用 ${when(s.lastUsedAt)}）`} onClick={() => void revoke(s.id)}>
@@ -477,6 +678,18 @@ export function SessionsList({ api, onSignedOutHere }: { api: AccountApi; onSign
             </li>
           ))}
         </ul>
+      ) : null}
+      {revokeOthers && sessions ? (
+        <div className="grid gap-2 border-t pt-3" data-testid="sign-out-others">
+          <p className="text-sm text-muted-foreground">
+            “退出其他设备”会让除这台设备以外的所有登录失效，不影响本设备，也不会修改密码或已创建的管理令牌；之后再登录的设备不受影响。
+          </p>
+          <div>
+            <Button variant="outline" disabled={pending || others === 0} onClick={() => void signOutOthers()}>
+              {pending ? "处理中…" : others > 0 ? `退出其他 ${others} 台设备` : "没有其他设备"}
+            </Button>
+          </div>
+        </div>
       ) : null}
     </section>
   );

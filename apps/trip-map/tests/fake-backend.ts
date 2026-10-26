@@ -307,9 +307,10 @@ export function fakeBackend(
             state.authenticated = false;
             return send(bffAuth.LogoutResponseSchema, {});
           case "Me": {
-            if (state.authenticated === undefined)
-              state.authenticated = !!(await page.evaluate(() => localStorage.getItem("shanhai-session-v1")));
-            if (!state.authenticated) return route.fulfill(failure("unauthenticated", "sign-in required", 401));
+            // Unless a test or a logout decided, the stored session stands for the cookie (read each time:
+            // the page asks Me again when it is shown, and `login` stores its session after the first load).
+            const authed = state.authenticated ?? !!(await page.evaluate(() => localStorage.getItem("shanhai-session-v1")));
+            if (!authed) return route.fulfill(failure("unauthenticated", "sign-in required", 401));
             return send(bffAuth.MeResponseSchema, { user: bffUser() });
           }
           case "ListSessions":

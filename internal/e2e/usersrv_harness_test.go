@@ -31,11 +31,25 @@ const E2EPassword = "correct horse battery"
 type Inbox struct {
 	mu   sync.Mutex
 	msgs []mailer.Message
+	fail func(mailer.Message) error
+}
+
+// FailWith makes the vendor refuse every message for which fn returns an error (nil
+// restores delivery). The refused message is not recorded.
+func (i *Inbox) FailWith(fn func(mailer.Message) error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.fail = fn
 }
 
 func (i *Inbox) Send(_ context.Context, msg mailer.Message) (mailer.Result, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	if i.fail != nil {
+		if err := i.fail(msg); err != nil {
+			return mailer.Result{}, err
+		}
+	}
 	i.msgs = append(i.msgs, msg)
 	return mailer.Result{}, nil
 }

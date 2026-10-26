@@ -30,6 +30,10 @@ type AccountToken struct {
 	IssuedAuthVersion *int64 `json:"issued_auth_version,omitempty"`
 	// AppID holds the value of the "app_id" field.
 	AppID string `json:"app_id,omitempty"`
+	// ReturnAppID holds the value of the "return_app_id" field.
+	ReturnAppID *string `json:"return_app_id,omitempty"`
+	// ReturnPath holds the value of the "return_path" field.
+	ReturnPath *string `json:"return_path,omitempty"`
 	// ExpiresAt holds the value of the "expires_at" field.
 	ExpiresAt time.Time `json:"expires_at,omitempty"`
 	// ConsumedAt holds the value of the "consumed_at" field.
@@ -50,7 +54,7 @@ func (*AccountToken) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case accounttoken.FieldIssuedAuthVersion:
 			values[i] = new(sql.NullInt64)
-		case accounttoken.FieldPurpose, accounttoken.FieldEmailCanonical, accounttoken.FieldAppID:
+		case accounttoken.FieldPurpose, accounttoken.FieldEmailCanonical, accounttoken.FieldAppID, accounttoken.FieldReturnAppID, accounttoken.FieldReturnPath:
 			values[i] = new(sql.NullString)
 		case accounttoken.FieldExpiresAt, accounttoken.FieldConsumedAt, accounttoken.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -114,6 +118,20 @@ func (_m *AccountToken) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field app_id", values[i])
 			} else if value.Valid {
 				_m.AppID = value.String
+			}
+		case accounttoken.FieldReturnAppID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field return_app_id", values[i])
+			} else if value.Valid {
+				_m.ReturnAppID = new(string)
+				*_m.ReturnAppID = value.String
+			}
+		case accounttoken.FieldReturnPath:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field return_path", values[i])
+			} else if value.Valid {
+				_m.ReturnPath = new(string)
+				*_m.ReturnPath = value.String
 			}
 		case accounttoken.FieldExpiresAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -190,6 +208,16 @@ func (_m *AccountToken) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("app_id=")
 	builder.WriteString(_m.AppID)
+	builder.WriteString(", ")
+	if v := _m.ReturnAppID; v != nil {
+		builder.WriteString("return_app_id=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.ReturnPath; v != nil {
+		builder.WriteString("return_path=")
+		builder.WriteString(*v)
+	}
 	builder.WriteString(", ")
 	builder.WriteString("expires_at=")
 	builder.WriteString(_m.ExpiresAt.Format(time.ANSIC))

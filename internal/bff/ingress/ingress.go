@@ -60,6 +60,12 @@ type Policy struct {
 	// AdminSessionMaxAge is how old (since the password was last checked) a session may be when it calls
 	// a procedure that declares required_role. Zero disables the check.
 	AdminSessionMaxAge time.Duration
+	// Perimeter runs first for every procedure, before the write protection and any
+	// session lookup, with the request headers and the TCP peer address. A non-nil
+	// error refuses the call with the same "request rejected" whatever failed. It is
+	// how the admin console's source policy (network and Origin) reaches the procedures
+	// that need it; nil admits every procedure.
+	Perimeter func(procedure string, header http.Header, remoteAddr string) error
 	// Now defaults to time.Now; tests set it.
 	Now func() time.Time
 	// Authenticate resolves the browser session cookie for protected procedures and
@@ -68,10 +74,11 @@ type Policy struct {
 	// INTERNAL when the check itself could not be made; the latter are passed on to
 	// the caller and nothing is forwarded.
 	Authenticate func(ctx context.Context, header http.Header) (session.BrowserSession, error)
-	// DeletionKnown reports whether the session cookie started an account deletion.
-	// DeleteAccount is admitted for such a cookie even though its session no longer
-	// passes the account check (a deleting account has a new auth_version).
-	DeletionKnown func(ctx context.Context, sessionToken string) bool
+	// DeletionKnown reports whether the browser's cookies (the deletion recovery cookie, or the
+	// session cookie of a deletion that began before that existed) opened an account deletion.
+	// DeleteAccount is admitted for such a browser even though its session no longer passes the
+	// account check (a deleting account has a new auth_version).
+	DeletionKnown func(ctx context.Context, header http.Header) bool
 	// Projection runs after the session is verified and before the call is
 	// forwarded, so a product that keeps a display projection of the account can
 	// ensure it exists. It decides by procedure whether it applies; a failure is
@@ -85,6 +92,27 @@ var (
 	errSessionTooOld   = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in again to use this feature"))
 	errWriteRejected   = connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
 )
+
+// RejectionHeader names the response header that tells a browser client why a write was
+// refused before it ran, when the reason is one it can repair and repeat. Today that is a
+// single value, RejectionCSRF: the double-submit token did not match the Cookie, which
+// happens when another tab or application replaced the shared token. It carries no value
+// from the request, the session or the account. Origin, perimeter, role, session and
+// business refusals never carry it, so a client that retries only on this marker repeats
+// nothing else.
+const (
+	RejectionHeader = "X-Bff-Rejection"
+	RejectionCSRF   = "csrf"
+)
+
+// csrfRejected is the "request rejected" answer for a CSRF mismatch, with the marker. It is
+// built per call: the shared errWriteRejected must never carry the marker, because the
+// request ID is set on whichever error value is returned.
+func csrfRejected() error {
+	err := connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
+	err.Meta().Set(RejectionHeader, RejectionCSRF)
+	return err
+}
 
 func (p Policy) now() time.Time {
 	if p.Now != nil {
@@ -110,8 +138,16 @@ func Interceptor(p Policy) connect.Interceptor {
 				}
 				return err
 			}
+			if p.Perimeter != nil {
+				if err := p.Perimeter(procedure, req.Header(), req.Peer().Addr); err != nil {
+					return nil, withID(errWriteRejected)
+				}
+			}
 			if RequiresWriteProtection(procedure) {
 				if err := session.CheckWrite(req.Header(), p.AllowedOrigins, req.Header().Get("Host")); err != nil {
+					if errors.Is(err, session.ErrCSRF) {
+						return nil, withID(csrfRejected())
+					}
 					return nil, withID(errWriteRejected)
 				}
 			}
@@ -138,7 +174,7 @@ func Interceptor(p Policy) connect.Interceptor {
 						return nil, withID(err)
 					}
 					if procedure != bffv1connect.AuthServiceDeleteAccountProcedure ||
-						p.DeletionKnown == nil || !p.DeletionKnown(ctx, session.TokenFromRequest(req.Header())) {
+						p.DeletionKnown == nil || !p.DeletionKnown(ctx, req.Header()) {
 						return nil, withID(errUnauthenticated)
 					}
 				}

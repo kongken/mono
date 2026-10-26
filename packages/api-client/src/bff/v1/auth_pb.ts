@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file bff/v1/auth.proto.
  */
 export const file_bff_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChFiZmYvdjEvYXV0aC5wcm90bxIGYmZmLnYxIrgBCgdTZXNzaW9uEgoKAmlkGAEgASgJEi4KCmNyZWF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3RfdXNlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHY3VycmVudBgFIAEoCCJ2CgRVc2VyEgoKAmlkGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRISCgphdmF0YXJfdXJsGAQgASgJSgQIAhADSgQIBRAGSgQIBhAHUgh1c2VybmFtZVIKY3JlYXRlZF9hdFIQZGVsZXRpb25fcGVuZGluZyI7ChpSZXF1ZXN0UmVnaXN0cmF0aW9uUmVxdWVzdBINCgVlbWFpbBgBIAEoCRIOCgZhcHBfaWQYAiABKAkiLgobUmVxdWVzdFJlZ2lzdHJhdGlvblJlc3BvbnNlEg8KB21lc3NhZ2UYASABKAkiVAobQ29tcGxldGVSZWdpc3RyYXRpb25SZXF1ZXN0Eg0KBXRva2VuGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCSIeChxDb21wbGV0ZVJlZ2lzdHJhdGlvblJlc3BvbnNlIjgKFUxvZ2luV2l0aEVtYWlsUmVxdWVzdBINCgVlbWFpbBgBIAEoCRIQCghwYXNzd29yZBgCIAEoCSJkChZMb2dpbldpdGhFbWFpbFJlc3BvbnNlEhoKBHVzZXIYASABKAsyDC5iZmYudjEuVXNlchIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCI8ChtSZXF1ZXN0UGFzc3dvcmRSZXNldFJlcXVlc3QSDQoFZW1haWwYASABKAkSDgoGYXBwX2lkGAIgASgJIi8KHFJlcXVlc3RQYXNzd29yZFJlc2V0UmVzcG9uc2USDwoHbWVzc2FnZRgBIAEoCSI7ChRSZXNldFBhc3N3b3JkUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIUCgxuZXdfcGFzc3dvcmQYAiABKAkiFwoVUmVzZXRQYXNzd29yZFJlc3BvbnNlIg8KDUxvZ291dFJlcXVlc3QiEAoOTG9nb3V0UmVzcG9uc2UiCwoJTWVSZXF1ZXN0IrQBCgpNZVJlc3BvbnNlEhoKBHVzZXIYASABKAsyDC5iZmYudjEuVXNlchINCgVyb2xlcxgCIAMoCRINCgVlbWFpbBgDIAEoCRI0ChBhdXRoZW50aWNhdGVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBI2ChJzZXNzaW9uX2V4cGlyZXNfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIhUKE0xpc3RTZXNzaW9uc1JlcXVlc3QiOQoUTGlzdFNlc3Npb25zUmVzcG9uc2USIQoIc2Vzc2lvbnMYASADKAsyDy5iZmYudjEuU2Vzc2lvbiIiChRSZXZva2VTZXNzaW9uUmVxdWVzdBIKCgJpZBgBIAEoCSIXChVSZXZva2VTZXNzaW9uUmVzcG9uc2UiKQoVUmVhdXRoZW50aWNhdGVSZXF1ZXN0EhAKCHBhc3N3b3JkGAEgASgJIk4KFlJlYXV0aGVudGljYXRlUmVzcG9uc2USNAoQYXV0aGVudGljYXRlZF9hdBgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiRwoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EhgKEGN1cnJlbnRfcGFzc3dvcmQYASABKAkSFAoMbmV3X3Bhc3N3b3JkGAIgASgJIhgKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2UiQgoWVXBkYXRlTXlQcm9maWxlUmVxdWVzdBIUCgxkaXNwbGF5X25hbWUYASABKAkSEgoKYXZhdGFyX3VybBgCIAEoCSI1ChdVcGRhdGVNeVByb2ZpbGVSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXIiUQoURGVsZXRlQWNjb3VudFJlcXVlc3QSFAoMY29uZmlybWF0aW9uGAEgASgJEhMKC211dGF0aW9uX2lkGAMgASgJSgQIAhADUghwYXNzd29yZCJCChVEZWxldGVBY2NvdW50UmVzcG9uc2USKQoIZGVsZXRpb24YASABKAsyFy5iZmYudjEuQWNjb3VudERlbGV0aW9uIrkBCg9BY2NvdW50RGVsZXRpb24SKwoFc3RhdGUYASABKA4yHC5iZmYudjEuQWNjb3VudERlbGV0aW9uU3RhdGUSEwoLbXV0YXRpb25faWQYAiABKAkSEAoIcHJvZHVjdHMYAyADKAkSGgoSY29tcGxldGVkX3Byb2R1Y3RzGAQgAygJEjYKEnJlY2VpcHRfZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiGwoZR2V0QWNjb3VudERlbGV0aW9uUmVxdWVzdCJHChpHZXRBY2NvdW50RGVsZXRpb25SZXNwb25zZRIpCghkZWxldGlvbhgBIAEoCzIXLmJmZi52MS5BY2NvdW50RGVsZXRpb24iHQobUmV0cnlBY2NvdW50RGVsZXRpb25SZXF1ZXN0IkkKHFJldHJ5QWNjb3VudERlbGV0aW9uUmVzcG9uc2USKQoIZGVsZXRpb24YASABKAsyFy5iZmYudjEuQWNjb3VudERlbGV0aW9uIhcKFUlzc3VlQ1NSRlRva2VuUmVxdWVzdCInChZJc3N1ZUNTUkZUb2tlblJlc3BvbnNlEg0KBXRva2VuGAEgASgJKogBChRBY2NvdW50RGVsZXRpb25TdGF0ZRImCiJBQ0NPVU5UX0RFTEVUSU9OX1NUQVRFX1VOU1BFQ0lGSUVEEAASIgoeQUNDT1VOVF9ERUxFVElPTl9TVEFURV9QRU5ESU5HEAESJAogQUNDT1VOVF9ERUxFVElPTl9TVEFURV9DT01QTEVURUQQAjKICgoLQXV0aFNlcnZpY2USVQoOSXNzdWVDU1JGVG9rZW4SHS5iZmYudjEuSXNzdWVDU1JGVG9rZW5SZXF1ZXN0Gh4uYmZmLnYxLklzc3VlQ1NSRlRva2VuUmVzcG9uc2UiBKC7GAESZAoTUmVxdWVzdFJlZ2lzdHJhdGlvbhIiLmJmZi52MS5SZXF1ZXN0UmVnaXN0cmF0aW9uUmVxdWVzdBojLmJmZi52MS5SZXF1ZXN0UmVnaXN0cmF0aW9uUmVzcG9uc2UiBKC7GAESZwoUQ29tcGxldGVSZWdpc3RyYXRpb24SIy5iZmYudjEuQ29tcGxldGVSZWdpc3RyYXRpb25SZXF1ZXN0GiQuYmZmLnYxLkNvbXBsZXRlUmVnaXN0cmF0aW9uUmVzcG9uc2UiBKC7GAESVQoOTG9naW5XaXRoRW1haWwSHS5iZmYudjEuTG9naW5XaXRoRW1haWxSZXF1ZXN0Gh4uYmZmLnYxLkxvZ2luV2l0aEVtYWlsUmVzcG9uc2UiBKC7GAESZwoUUmVxdWVzdFBhc3N3b3JkUmVzZXQSIy5iZmYudjEuUmVxdWVzdFBhc3N3b3JkUmVzZXRSZXF1ZXN0GiQuYmZmLnYxLlJlcXVlc3RQYXNzd29yZFJlc2V0UmVzcG9uc2UiBKC7GAESUgoNUmVzZXRQYXNzd29yZBIcLmJmZi52MS5SZXNldFBhc3N3b3JkUmVxdWVzdBodLmJmZi52MS5SZXNldFBhc3N3b3JkUmVzcG9uc2UiBKC7GAESKwoCTWUSES5iZmYudjEuTWVSZXF1ZXN0GhIuYmZmLnYxLk1lUmVzcG9uc2USSQoMTGlzdFNlc3Npb25zEhsuYmZmLnYxLkxpc3RTZXNzaW9uc1JlcXVlc3QaHC5iZmYudjEuTGlzdFNlc3Npb25zUmVzcG9uc2USPQoGTG9nb3V0EhUuYmZmLnYxLkxvZ291dFJlcXVlc3QaFi5iZmYudjEuTG9nb3V0UmVzcG9uc2UiBKC7GAESTAoNUmV2b2tlU2Vzc2lvbhIcLmJmZi52MS5SZXZva2VTZXNzaW9uUmVxdWVzdBodLmJmZi52MS5SZXZva2VTZXNzaW9uUmVzcG9uc2USTwoOUmVhdXRoZW50aWNhdGUSHS5iZmYudjEuUmVhdXRoZW50aWNhdGVSZXF1ZXN0Gh4uYmZmLnYxLlJlYXV0aGVudGljYXRlUmVzcG9uc2USTwoOQ2hhbmdlUGFzc3dvcmQSHS5iZmYudjEuQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0Gh4uYmZmLnYxLkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USTAoNRGVsZXRlQWNjb3VudBIcLmJmZi52MS5EZWxldGVBY2NvdW50UmVxdWVzdBodLmJmZi52MS5EZWxldGVBY2NvdW50UmVzcG9uc2USYQoSR2V0QWNjb3VudERlbGV0aW9uEiEuYmZmLnYxLkdldEFjY291bnREZWxldGlvblJlcXVlc3QaIi5iZmYudjEuR2V0QWNjb3VudERlbGV0aW9uUmVzcG9uc2UiBKC7GAESZwoUUmV0cnlBY2NvdW50RGVsZXRpb24SIy5iZmYudjEuUmV0cnlBY2NvdW50RGVsZXRpb25SZXF1ZXN0GiQuYmZmLnYxLlJldHJ5QWNjb3VudERlbGV0aW9uUmVzcG9uc2UiBKC7GAEyYQoLVXNlclNlcnZpY2USUgoPVXBkYXRlTXlQcm9maWxlEh4uYmZmLnYxLlVwZGF0ZU15UHJvZmlsZVJlcXVlc3QaHy5iZmYudjEuVXBkYXRlTXlQcm9maWxlUmVzcG9uc2VCMFouZ2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL2JmZi92MTtiZmZ2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_platform_v1_options]);
+  fileDesc("ChFiZmYvdjEvYXV0aC5wcm90bxIGYmZmLnYxIrgBCgdTZXNzaW9uEgoKAmlkGAEgASgJEi4KCmNyZWF0ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3RfdXNlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHY3VycmVudBgFIAEoCCJ2CgRVc2VyEgoKAmlkGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgDIAEoCRISCgphdmF0YXJfdXJsGAQgASgJSgQIAhADSgQIBRAGSgQIBhAHUgh1c2VybmFtZVIKY3JlYXRlZF9hdFIQZGVsZXRpb25fcGVuZGluZyI/ChhSZXNvbHZlTmF2aWdhdGlvblJlcXVlc3QSDgoGYXBwX2lkGAEgASgJEhMKC3JldHVybl9wYXRoGAIgASgJImkKGVJlc29sdmVOYXZpZ2F0aW9uUmVzcG9uc2USDgoGYXBwX2lkGAEgASgJEhMKC3JldHVybl9wYXRoGAIgASgJEhIKCnJldHVybl91cmwYAyABKAkSEwoLb3ppZF9vcmlnaW4YBCABKAkiUAoaUmVxdWVzdFJlZ2lzdHJhdGlvblJlcXVlc3QSDQoFZW1haWwYASABKAkSDgoGYXBwX2lkGAIgASgJEhMKC3JldHVybl9wYXRoGAMgASgJIi4KG1JlcXVlc3RSZWdpc3RyYXRpb25SZXNwb25zZRIPCgdtZXNzYWdlGAEgASgJIlQKG0NvbXBsZXRlUmVnaXN0cmF0aW9uUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkiQwocQ29tcGxldGVSZWdpc3RyYXRpb25SZXNwb25zZRIOCgZhcHBfaWQYASABKAkSEwoLcmV0dXJuX3BhdGgYAiABKAkiOAoVTG9naW5XaXRoRW1haWxSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJImQKFkxvZ2luV2l0aEVtYWlsUmVzcG9uc2USGgoEdXNlchgBIAEoCzIMLmJmZi52MS5Vc2VyEi4KCmV4cGlyZXNfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIlEKG1JlcXVlc3RQYXNzd29yZFJlc2V0UmVxdWVzdBINCgVlbWFpbBgBIAEoCRIOCgZhcHBfaWQYAiABKAkSEwoLcmV0dXJuX3BhdGgYAyABKAkiLwocUmVxdWVzdFBhc3N3b3JkUmVzZXRSZXNwb25zZRIPCgdtZXNzYWdlGAEgASgJIjsKFFJlc2V0UGFzc3dvcmRSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEhQKDG5ld19wYXNzd29yZBgCIAEoCSI8ChVSZXNldFBhc3N3b3JkUmVzcG9uc2USDgoGYXBwX2lkGAEgASgJEhMKC3JldHVybl9wYXRoGAIgASgJIg8KDUxvZ291dFJlcXVlc3QiEAoOTG9nb3V0UmVzcG9uc2UiCwoJTWVSZXF1ZXN0IrQBCgpNZVJlc3BvbnNlEhoKBHVzZXIYASABKAsyDC5iZmYudjEuVXNlchINCgVyb2xlcxgCIAMoCRINCgVlbWFpbBgDIAEoCRI0ChBhdXRoZW50aWNhdGVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBI2ChJzZXNzaW9uX2V4cGlyZXNfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIhUKE0xpc3RTZXNzaW9uc1JlcXVlc3QiOQoUTGlzdFNlc3Npb25zUmVzcG9uc2USIQoIc2Vzc2lvbnMYASADKAsyDy5iZmYudjEuU2Vzc2lvbiIiChRSZXZva2VTZXNzaW9uUmVxdWVzdBIKCgJpZBgBIAEoCSIXChVSZXZva2VTZXNzaW9uUmVzcG9uc2UiHAoaUmV2b2tlT3RoZXJTZXNzaW9uc1JlcXVlc3QiLgobUmV2b2tlT3RoZXJTZXNzaW9uc1Jlc3BvbnNlEg8KB3Jldm9rZWQYASABKAUiKQoVUmVhdXRoZW50aWNhdGVSZXF1ZXN0EhAKCHBhc3N3b3JkGAEgASgJIk4KFlJlYXV0aGVudGljYXRlUmVzcG9uc2USNAoQYXV0aGVudGljYXRlZF9hdBgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiRwoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EhgKEGN1cnJlbnRfcGFzc3dvcmQYASABKAkSFAoMbmV3X3Bhc3N3b3JkGAIgASgJIhgKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2UiQgoWVXBkYXRlTXlQcm9maWxlUmVxdWVzdBIUCgxkaXNwbGF5X25hbWUYASABKAkSEgoKYXZhdGFyX3VybBgCIAEoCSI1ChdVcGRhdGVNeVByb2ZpbGVSZXNwb25zZRIaCgR1c2VyGAEgASgLMgwuYmZmLnYxLlVzZXIiUQoURGVsZXRlQWNjb3VudFJlcXVlc3QSFAoMY29uZmlybWF0aW9uGAEgASgJEhMKC211dGF0aW9uX2lkGAMgASgJSgQIAhADUghwYXNzd29yZCJCChVEZWxldGVBY2NvdW50UmVzcG9uc2USKQoIZGVsZXRpb24YASABKAsyFy5iZmYudjEuQWNjb3VudERlbGV0aW9uIrkBCg9BY2NvdW50RGVsZXRpb24SKwoFc3RhdGUYASABKA4yHC5iZmYudjEuQWNjb3VudERlbGV0aW9uU3RhdGUSEwoLbXV0YXRpb25faWQYAiABKAkSEAoIcHJvZHVjdHMYAyADKAkSGgoSY29tcGxldGVkX3Byb2R1Y3RzGAQgAygJEjYKEnJlY2VpcHRfZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiGwoZR2V0QWNjb3VudERlbGV0aW9uUmVxdWVzdCJHChpHZXRBY2NvdW50RGVsZXRpb25SZXNwb25zZRIpCghkZWxldGlvbhgBIAEoCzIXLmJmZi52MS5BY2NvdW50RGVsZXRpb24iHQobUmV0cnlBY2NvdW50RGVsZXRpb25SZXF1ZXN0IkkKHFJldHJ5QWNjb3VudERlbGV0aW9uUmVzcG9uc2USKQoIZGVsZXRpb24YASABKAsyFy5iZmYudjEuQWNjb3VudERlbGV0aW9uIhcKFUlzc3VlQ1NSRlRva2VuUmVxdWVzdCInChZJc3N1ZUNTUkZUb2tlblJlc3BvbnNlEg0KBXRva2VuGAEgASgJKogBChRBY2NvdW50RGVsZXRpb25TdGF0ZRImCiJBQ0NPVU5UX0RFTEVUSU9OX1NUQVRFX1VOU1BFQ0lGSUVEEAASIgoeQUNDT1VOVF9ERUxFVElPTl9TVEFURV9QRU5ESU5HEAESJAogQUNDT1VOVF9ERUxFVElPTl9TVEFURV9DT01QTEVURUQQAjLICwoLQXV0aFNlcnZpY2USVQoOSXNzdWVDU1JGVG9rZW4SHS5iZmYudjEuSXNzdWVDU1JGVG9rZW5SZXF1ZXN0Gh4uYmZmLnYxLklzc3VlQ1NSRlRva2VuUmVzcG9uc2UiBKC7GAESXgoRUmVzb2x2ZU5hdmlnYXRpb24SIC5iZmYudjEuUmVzb2x2ZU5hdmlnYXRpb25SZXF1ZXN0GiEuYmZmLnYxLlJlc29sdmVOYXZpZ2F0aW9uUmVzcG9uc2UiBKC7GAESZAoTUmVxdWVzdFJlZ2lzdHJhdGlvbhIiLmJmZi52MS5SZXF1ZXN0UmVnaXN0cmF0aW9uUmVxdWVzdBojLmJmZi52MS5SZXF1ZXN0UmVnaXN0cmF0aW9uUmVzcG9uc2UiBKC7GAESZwoUQ29tcGxldGVSZWdpc3RyYXRpb24SIy5iZmYudjEuQ29tcGxldGVSZWdpc3RyYXRpb25SZXF1ZXN0GiQuYmZmLnYxLkNvbXBsZXRlUmVnaXN0cmF0aW9uUmVzcG9uc2UiBKC7GAESVQoOTG9naW5XaXRoRW1haWwSHS5iZmYudjEuTG9naW5XaXRoRW1haWxSZXF1ZXN0Gh4uYmZmLnYxLkxvZ2luV2l0aEVtYWlsUmVzcG9uc2UiBKC7GAESZwoUUmVxdWVzdFBhc3N3b3JkUmVzZXQSIy5iZmYudjEuUmVxdWVzdFBhc3N3b3JkUmVzZXRSZXF1ZXN0GiQuYmZmLnYxLlJlcXVlc3RQYXNzd29yZFJlc2V0UmVzcG9uc2UiBKC7GAESUgoNUmVzZXRQYXNzd29yZBIcLmJmZi52MS5SZXNldFBhc3N3b3JkUmVxdWVzdBodLmJmZi52MS5SZXNldFBhc3N3b3JkUmVzcG9uc2UiBKC7GAESKwoCTWUSES5iZmYudjEuTWVSZXF1ZXN0GhIuYmZmLnYxLk1lUmVzcG9uc2USSQoMTGlzdFNlc3Npb25zEhsuYmZmLnYxLkxpc3RTZXNzaW9uc1JlcXVlc3QaHC5iZmYudjEuTGlzdFNlc3Npb25zUmVzcG9uc2USPQoGTG9nb3V0EhUuYmZmLnYxLkxvZ291dFJlcXVlc3QaFi5iZmYudjEuTG9nb3V0UmVzcG9uc2UiBKC7GAESTAoNUmV2b2tlU2Vzc2lvbhIcLmJmZi52MS5SZXZva2VTZXNzaW9uUmVxdWVzdBodLmJmZi52MS5SZXZva2VTZXNzaW9uUmVzcG9uc2USXgoTUmV2b2tlT3RoZXJTZXNzaW9ucxIiLmJmZi52MS5SZXZva2VPdGhlclNlc3Npb25zUmVxdWVzdBojLmJmZi52MS5SZXZva2VPdGhlclNlc3Npb25zUmVzcG9uc2USTwoOUmVhdXRoZW50aWNhdGUSHS5iZmYudjEuUmVhdXRoZW50aWNhdGVSZXF1ZXN0Gh4uYmZmLnYxLlJlYXV0aGVudGljYXRlUmVzcG9uc2USTwoOQ2hhbmdlUGFzc3dvcmQSHS5iZmYudjEuQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0Gh4uYmZmLnYxLkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USTAoNRGVsZXRlQWNjb3VudBIcLmJmZi52MS5EZWxldGVBY2NvdW50UmVxdWVzdBodLmJmZi52MS5EZWxldGVBY2NvdW50UmVzcG9uc2USYQoSR2V0QWNjb3VudERlbGV0aW9uEiEuYmZmLnYxLkdldEFjY291bnREZWxldGlvblJlcXVlc3QaIi5iZmYudjEuR2V0QWNjb3VudERlbGV0aW9uUmVzcG9uc2UiBKC7GAESZwoUUmV0cnlBY2NvdW50RGVsZXRpb24SIy5iZmYudjEuUmV0cnlBY2NvdW50RGVsZXRpb25SZXF1ZXN0GiQuYmZmLnYxLlJldHJ5QWNjb3VudERlbGV0aW9uUmVzcG9uc2UiBKC7GAEyYQoLVXNlclNlcnZpY2USUgoPVXBkYXRlTXlQcm9maWxlEh4uYmZmLnYxLlVwZGF0ZU15UHJvZmlsZVJlcXVlc3QaHy5iZmYudjEuVXBkYXRlTXlQcm9maWxlUmVzcG9uc2VCMFouZ2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL2JmZi92MTtiZmZ2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_platform_v1_options]);
 
 /**
  * @generated from message bff.v1.Session
@@ -84,6 +84,74 @@ export const UserSchema: GenMessage<User> = /*@__PURE__*/
   messageDesc(file_bff_v1_auth, 1);
 
 /**
+ * @generated from message bff.v1.ResolveNavigationRequest
+ */
+export type ResolveNavigationRequest = Message<"bff.v1.ResolveNavigationRequest"> & {
+  /**
+   * A stable app ID of the registry: ozid, admin, trip-map or metro. Never a hostname or URL.
+   *
+   * @generated from field: string app_id = 1;
+   */
+  appId: string;
+
+  /**
+   * The canonical pathname to come back to: "/" first, no "//", backslash, "." or ".."
+   * segment, percent-encoding, query, fragment or control character. Empty means the
+   * app's default path.
+   *
+   * @generated from field: string return_path = 2;
+   */
+  returnPath: string;
+};
+
+/**
+ * Describes the message bff.v1.ResolveNavigationRequest.
+ * Use `create(ResolveNavigationRequestSchema)` to create a new message.
+ */
+export const ResolveNavigationRequestSchema: GenMessage<ResolveNavigationRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 2);
+
+/**
+ * @generated from message bff.v1.ResolveNavigationResponse
+ */
+export type ResolveNavigationResponse = Message<"bff.v1.ResolveNavigationResponse"> & {
+  /**
+   * @generated from field: string app_id = 1;
+   */
+  appId: string;
+
+  /**
+   * The accepted pathname; the app's default path when the request gave none.
+   *
+   * @generated from field: string return_path = 2;
+   */
+  returnPath: string;
+
+  /**
+   * The registered origin of the app plus return_path: the only address a client may
+   * send the browser to after the account step.
+   *
+   * @generated from field: string return_url = 3;
+   */
+  returnUrl: string;
+
+  /**
+   * The registered origin of the OzID user center, for the sign-in and
+   * reauthentication pages.
+   *
+   * @generated from field: string ozid_origin = 4;
+   */
+  ozidOrigin: string;
+};
+
+/**
+ * Describes the message bff.v1.ResolveNavigationResponse.
+ * Use `create(ResolveNavigationResponseSchema)` to create a new message.
+ */
+export const ResolveNavigationResponseSchema: GenMessage<ResolveNavigationResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 3);
+
+/**
  * @generated from message bff.v1.RequestRegistrationRequest
  */
 export type RequestRegistrationRequest = Message<"bff.v1.RequestRegistrationRequest"> & {
@@ -93,11 +161,23 @@ export type RequestRegistrationRequest = Message<"bff.v1.RequestRegistrationRequ
   email: string;
 
   /**
-   * An app configured in usersrv (trip-map, metro); it picks the link origin.
+   * Optional return context: the app the user came from and a pathname in it. It is
+   * checked against the navigation registry (an unknown app or path is
+   * INVALID_ARGUMENT; without a configured registry any non-empty context is
+   * FAILED_PRECONDITION, before usersrv is called) and bound
+   * to the challenge. It never picks the mail link: that always points at the
+   * central OzID origin.
    *
    * @generated from field: string app_id = 2;
    */
   appId: string;
+
+  /**
+   * Pathname inside app_id; empty means the app's default path.
+   *
+   * @generated from field: string return_path = 3;
+   */
+  returnPath: string;
 };
 
 /**
@@ -105,7 +185,7 @@ export type RequestRegistrationRequest = Message<"bff.v1.RequestRegistrationRequ
  * Use `create(RequestRegistrationRequestSchema)` to create a new message.
  */
 export const RequestRegistrationRequestSchema: GenMessage<RequestRegistrationRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 2);
+  messageDesc(file_bff_v1_auth, 4);
 
 /**
  * @generated from message bff.v1.RequestRegistrationResponse
@@ -124,7 +204,7 @@ export type RequestRegistrationResponse = Message<"bff.v1.RequestRegistrationRes
  * Use `create(RequestRegistrationResponseSchema)` to create a new message.
  */
 export const RequestRegistrationResponseSchema: GenMessage<RequestRegistrationResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 3);
+  messageDesc(file_bff_v1_auth, 5);
 
 /**
  * @generated from message bff.v1.CompleteRegistrationRequest
@@ -151,12 +231,25 @@ export type CompleteRegistrationRequest = Message<"bff.v1.CompleteRegistrationRe
  * Use `create(CompleteRegistrationRequestSchema)` to create a new message.
  */
 export const CompleteRegistrationRequestSchema: GenMessage<CompleteRegistrationRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 4);
+  messageDesc(file_bff_v1_auth, 6);
 
 /**
  * @generated from message bff.v1.CompleteRegistrationResponse
  */
 export type CompleteRegistrationResponse = Message<"bff.v1.CompleteRegistrationResponse"> & {
+  /**
+   * The return context bound to the challenge, re-validated against the registry
+   * now. Both are empty when none was bound or the target is no longer allowed; the
+   * account exists either way.
+   *
+   * @generated from field: string app_id = 1;
+   */
+  appId: string;
+
+  /**
+   * @generated from field: string return_path = 2;
+   */
+  returnPath: string;
 };
 
 /**
@@ -164,7 +257,7 @@ export type CompleteRegistrationResponse = Message<"bff.v1.CompleteRegistrationR
  * Use `create(CompleteRegistrationResponseSchema)` to create a new message.
  */
 export const CompleteRegistrationResponseSchema: GenMessage<CompleteRegistrationResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 5);
+  messageDesc(file_bff_v1_auth, 7);
 
 /**
  * @generated from message bff.v1.LoginWithEmailRequest
@@ -186,7 +279,7 @@ export type LoginWithEmailRequest = Message<"bff.v1.LoginWithEmailRequest"> & {
  * Use `create(LoginWithEmailRequestSchema)` to create a new message.
  */
 export const LoginWithEmailRequestSchema: GenMessage<LoginWithEmailRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 6);
+  messageDesc(file_bff_v1_auth, 8);
 
 /**
  * @generated from message bff.v1.LoginWithEmailResponse
@@ -208,7 +301,7 @@ export type LoginWithEmailResponse = Message<"bff.v1.LoginWithEmailResponse"> & 
  * Use `create(LoginWithEmailResponseSchema)` to create a new message.
  */
 export const LoginWithEmailResponseSchema: GenMessage<LoginWithEmailResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 7);
+  messageDesc(file_bff_v1_auth, 9);
 
 /**
  * @generated from message bff.v1.RequestPasswordResetRequest
@@ -220,9 +313,16 @@ export type RequestPasswordResetRequest = Message<"bff.v1.RequestPasswordResetRe
   email: string;
 
   /**
+   * Return context, as in RequestRegistrationRequest.
+   *
    * @generated from field: string app_id = 2;
    */
   appId: string;
+
+  /**
+   * @generated from field: string return_path = 3;
+   */
+  returnPath: string;
 };
 
 /**
@@ -230,7 +330,7 @@ export type RequestPasswordResetRequest = Message<"bff.v1.RequestPasswordResetRe
  * Use `create(RequestPasswordResetRequestSchema)` to create a new message.
  */
 export const RequestPasswordResetRequestSchema: GenMessage<RequestPasswordResetRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 8);
+  messageDesc(file_bff_v1_auth, 10);
 
 /**
  * @generated from message bff.v1.RequestPasswordResetResponse
@@ -247,7 +347,7 @@ export type RequestPasswordResetResponse = Message<"bff.v1.RequestPasswordResetR
  * Use `create(RequestPasswordResetResponseSchema)` to create a new message.
  */
 export const RequestPasswordResetResponseSchema: GenMessage<RequestPasswordResetResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 9);
+  messageDesc(file_bff_v1_auth, 11);
 
 /**
  * @generated from message bff.v1.ResetPasswordRequest
@@ -269,12 +369,23 @@ export type ResetPasswordRequest = Message<"bff.v1.ResetPasswordRequest"> & {
  * Use `create(ResetPasswordRequestSchema)` to create a new message.
  */
 export const ResetPasswordRequestSchema: GenMessage<ResetPasswordRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 10);
+  messageDesc(file_bff_v1_auth, 12);
 
 /**
  * @generated from message bff.v1.ResetPasswordResponse
  */
 export type ResetPasswordResponse = Message<"bff.v1.ResetPasswordResponse"> & {
+  /**
+   * The bound return context, as in CompleteRegistrationResponse.
+   *
+   * @generated from field: string app_id = 1;
+   */
+  appId: string;
+
+  /**
+   * @generated from field: string return_path = 2;
+   */
+  returnPath: string;
 };
 
 /**
@@ -282,7 +393,7 @@ export type ResetPasswordResponse = Message<"bff.v1.ResetPasswordResponse"> & {
  * Use `create(ResetPasswordResponseSchema)` to create a new message.
  */
 export const ResetPasswordResponseSchema: GenMessage<ResetPasswordResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 11);
+  messageDesc(file_bff_v1_auth, 13);
 
 /**
  * @generated from message bff.v1.LogoutRequest
@@ -295,7 +406,7 @@ export type LogoutRequest = Message<"bff.v1.LogoutRequest"> & {
  * Use `create(LogoutRequestSchema)` to create a new message.
  */
 export const LogoutRequestSchema: GenMessage<LogoutRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 12);
+  messageDesc(file_bff_v1_auth, 14);
 
 /**
  * @generated from message bff.v1.LogoutResponse
@@ -308,7 +419,7 @@ export type LogoutResponse = Message<"bff.v1.LogoutResponse"> & {
  * Use `create(LogoutResponseSchema)` to create a new message.
  */
 export const LogoutResponseSchema: GenMessage<LogoutResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 13);
+  messageDesc(file_bff_v1_auth, 15);
 
 /**
  * @generated from message bff.v1.MeRequest
@@ -321,7 +432,7 @@ export type MeRequest = Message<"bff.v1.MeRequest"> & {
  * Use `create(MeRequestSchema)` to create a new message.
  */
 export const MeRequestSchema: GenMessage<MeRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 14);
+  messageDesc(file_bff_v1_auth, 16);
 
 /**
  * @generated from message bff.v1.MeResponse
@@ -365,7 +476,7 @@ export type MeResponse = Message<"bff.v1.MeResponse"> & {
  * Use `create(MeResponseSchema)` to create a new message.
  */
 export const MeResponseSchema: GenMessage<MeResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 15);
+  messageDesc(file_bff_v1_auth, 17);
 
 /**
  * @generated from message bff.v1.ListSessionsRequest
@@ -378,7 +489,7 @@ export type ListSessionsRequest = Message<"bff.v1.ListSessionsRequest"> & {
  * Use `create(ListSessionsRequestSchema)` to create a new message.
  */
 export const ListSessionsRequestSchema: GenMessage<ListSessionsRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 16);
+  messageDesc(file_bff_v1_auth, 18);
 
 /**
  * @generated from message bff.v1.ListSessionsResponse
@@ -395,7 +506,7 @@ export type ListSessionsResponse = Message<"bff.v1.ListSessionsResponse"> & {
  * Use `create(ListSessionsResponseSchema)` to create a new message.
  */
 export const ListSessionsResponseSchema: GenMessage<ListSessionsResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 17);
+  messageDesc(file_bff_v1_auth, 19);
 
 /**
  * @generated from message bff.v1.RevokeSessionRequest
@@ -412,7 +523,7 @@ export type RevokeSessionRequest = Message<"bff.v1.RevokeSessionRequest"> & {
  * Use `create(RevokeSessionRequestSchema)` to create a new message.
  */
 export const RevokeSessionRequestSchema: GenMessage<RevokeSessionRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 18);
+  messageDesc(file_bff_v1_auth, 20);
 
 /**
  * @generated from message bff.v1.RevokeSessionResponse
@@ -425,7 +536,39 @@ export type RevokeSessionResponse = Message<"bff.v1.RevokeSessionResponse"> & {
  * Use `create(RevokeSessionResponseSchema)` to create a new message.
  */
 export const RevokeSessionResponseSchema: GenMessage<RevokeSessionResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 19);
+  messageDesc(file_bff_v1_auth, 21);
+
+/**
+ * @generated from message bff.v1.RevokeOtherSessionsRequest
+ */
+export type RevokeOtherSessionsRequest = Message<"bff.v1.RevokeOtherSessionsRequest"> & {
+};
+
+/**
+ * Describes the message bff.v1.RevokeOtherSessionsRequest.
+ * Use `create(RevokeOtherSessionsRequestSchema)` to create a new message.
+ */
+export const RevokeOtherSessionsRequestSchema: GenMessage<RevokeOtherSessionsRequest> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 22);
+
+/**
+ * @generated from message bff.v1.RevokeOtherSessionsResponse
+ */
+export type RevokeOtherSessionsResponse = Message<"bff.v1.RevokeOtherSessionsResponse"> & {
+  /**
+   * How many sessions this call revoked; 0 on a repeat or when there were no others.
+   *
+   * @generated from field: int32 revoked = 1;
+   */
+  revoked: number;
+};
+
+/**
+ * Describes the message bff.v1.RevokeOtherSessionsResponse.
+ * Use `create(RevokeOtherSessionsResponseSchema)` to create a new message.
+ */
+export const RevokeOtherSessionsResponseSchema: GenMessage<RevokeOtherSessionsResponse> = /*@__PURE__*/
+  messageDesc(file_bff_v1_auth, 23);
 
 /**
  * @generated from message bff.v1.ReauthenticateRequest
@@ -442,7 +585,7 @@ export type ReauthenticateRequest = Message<"bff.v1.ReauthenticateRequest"> & {
  * Use `create(ReauthenticateRequestSchema)` to create a new message.
  */
 export const ReauthenticateRequestSchema: GenMessage<ReauthenticateRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 20);
+  messageDesc(file_bff_v1_auth, 24);
 
 /**
  * @generated from message bff.v1.ReauthenticateResponse
@@ -459,7 +602,7 @@ export type ReauthenticateResponse = Message<"bff.v1.ReauthenticateResponse"> & 
  * Use `create(ReauthenticateResponseSchema)` to create a new message.
  */
 export const ReauthenticateResponseSchema: GenMessage<ReauthenticateResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 21);
+  messageDesc(file_bff_v1_auth, 25);
 
 /**
  * @generated from message bff.v1.ChangePasswordRequest
@@ -481,7 +624,7 @@ export type ChangePasswordRequest = Message<"bff.v1.ChangePasswordRequest"> & {
  * Use `create(ChangePasswordRequestSchema)` to create a new message.
  */
 export const ChangePasswordRequestSchema: GenMessage<ChangePasswordRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 22);
+  messageDesc(file_bff_v1_auth, 26);
 
 /**
  * @generated from message bff.v1.ChangePasswordResponse
@@ -494,7 +637,7 @@ export type ChangePasswordResponse = Message<"bff.v1.ChangePasswordResponse"> & 
  * Use `create(ChangePasswordResponseSchema)` to create a new message.
  */
 export const ChangePasswordResponseSchema: GenMessage<ChangePasswordResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 23);
+  messageDesc(file_bff_v1_auth, 27);
 
 /**
  * @generated from message bff.v1.UpdateMyProfileRequest
@@ -516,7 +659,7 @@ export type UpdateMyProfileRequest = Message<"bff.v1.UpdateMyProfileRequest"> & 
  * Use `create(UpdateMyProfileRequestSchema)` to create a new message.
  */
 export const UpdateMyProfileRequestSchema: GenMessage<UpdateMyProfileRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 24);
+  messageDesc(file_bff_v1_auth, 28);
 
 /**
  * @generated from message bff.v1.UpdateMyProfileResponse
@@ -533,7 +676,7 @@ export type UpdateMyProfileResponse = Message<"bff.v1.UpdateMyProfileResponse"> 
  * Use `create(UpdateMyProfileResponseSchema)` to create a new message.
  */
 export const UpdateMyProfileResponseSchema: GenMessage<UpdateMyProfileResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 25);
+  messageDesc(file_bff_v1_auth, 29);
 
 /**
  * @generated from message bff.v1.DeleteAccountRequest
@@ -560,7 +703,7 @@ export type DeleteAccountRequest = Message<"bff.v1.DeleteAccountRequest"> & {
  * Use `create(DeleteAccountRequestSchema)` to create a new message.
  */
 export const DeleteAccountRequestSchema: GenMessage<DeleteAccountRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 26);
+  messageDesc(file_bff_v1_auth, 30);
 
 /**
  * @generated from message bff.v1.DeleteAccountResponse
@@ -577,7 +720,7 @@ export type DeleteAccountResponse = Message<"bff.v1.DeleteAccountResponse"> & {
  * Use `create(DeleteAccountResponseSchema)` to create a new message.
  */
 export const DeleteAccountResponseSchema: GenMessage<DeleteAccountResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 27);
+  messageDesc(file_bff_v1_auth, 31);
 
 /**
  * @generated from message bff.v1.AccountDeletion
@@ -620,7 +763,7 @@ export type AccountDeletion = Message<"bff.v1.AccountDeletion"> & {
  * Use `create(AccountDeletionSchema)` to create a new message.
  */
 export const AccountDeletionSchema: GenMessage<AccountDeletion> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 28);
+  messageDesc(file_bff_v1_auth, 32);
 
 /**
  * @generated from message bff.v1.GetAccountDeletionRequest
@@ -633,7 +776,7 @@ export type GetAccountDeletionRequest = Message<"bff.v1.GetAccountDeletionReques
  * Use `create(GetAccountDeletionRequestSchema)` to create a new message.
  */
 export const GetAccountDeletionRequestSchema: GenMessage<GetAccountDeletionRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 29);
+  messageDesc(file_bff_v1_auth, 33);
 
 /**
  * @generated from message bff.v1.GetAccountDeletionResponse
@@ -650,7 +793,7 @@ export type GetAccountDeletionResponse = Message<"bff.v1.GetAccountDeletionRespo
  * Use `create(GetAccountDeletionResponseSchema)` to create a new message.
  */
 export const GetAccountDeletionResponseSchema: GenMessage<GetAccountDeletionResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 30);
+  messageDesc(file_bff_v1_auth, 34);
 
 /**
  * @generated from message bff.v1.RetryAccountDeletionRequest
@@ -663,7 +806,7 @@ export type RetryAccountDeletionRequest = Message<"bff.v1.RetryAccountDeletionRe
  * Use `create(RetryAccountDeletionRequestSchema)` to create a new message.
  */
 export const RetryAccountDeletionRequestSchema: GenMessage<RetryAccountDeletionRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 31);
+  messageDesc(file_bff_v1_auth, 35);
 
 /**
  * @generated from message bff.v1.RetryAccountDeletionResponse
@@ -680,7 +823,7 @@ export type RetryAccountDeletionResponse = Message<"bff.v1.RetryAccountDeletionR
  * Use `create(RetryAccountDeletionResponseSchema)` to create a new message.
  */
 export const RetryAccountDeletionResponseSchema: GenMessage<RetryAccountDeletionResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 32);
+  messageDesc(file_bff_v1_auth, 36);
 
 /**
  * @generated from message bff.v1.IssueCSRFTokenRequest
@@ -693,7 +836,7 @@ export type IssueCSRFTokenRequest = Message<"bff.v1.IssueCSRFTokenRequest"> & {
  * Use `create(IssueCSRFTokenRequestSchema)` to create a new message.
  */
 export const IssueCSRFTokenRequestSchema: GenMessage<IssueCSRFTokenRequest> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 33);
+  messageDesc(file_bff_v1_auth, 37);
 
 /**
  * @generated from message bff.v1.IssueCSRFTokenResponse
@@ -710,7 +853,7 @@ export type IssueCSRFTokenResponse = Message<"bff.v1.IssueCSRFTokenResponse"> & 
  * Use `create(IssueCSRFTokenResponseSchema)` to create a new message.
  */
 export const IssueCSRFTokenResponseSchema: GenMessage<IssueCSRFTokenResponse> = /*@__PURE__*/
-  messageDesc(file_bff_v1_auth, 34);
+  messageDesc(file_bff_v1_auth, 38);
 
 /**
  * @generated from enum bff.v1.AccountDeletionState
@@ -777,6 +920,21 @@ export const AuthService: GenService<{
     output: typeof IssueCSRFTokenResponseSchema;
   },
   /**
+   * ResolveNavigation validates a "sign in (or confirm the password) and come back"
+   * target against the server-side app registry and returns the canonical OzID and
+   * return addresses. It is anonymous and read-only: it reads no account, creates no
+   * session and is not a login ticket, so a crafted target can never yield an identity.
+   * An unknown app, a path the app does not allow, or an unconfigured registry is
+   * refused (INVALID_ARGUMENT / FAILED_PRECONDITION); the caller must not redirect then.
+   *
+   * @generated from rpc bff.v1.AuthService.ResolveNavigation
+   */
+  resolveNavigation: {
+    methodKind: "unary";
+    input: typeof ResolveNavigationRequestSchema;
+    output: typeof ResolveNavigationResponseSchema;
+  },
+  /**
    * RequestRegistration asks for a verification mail. A well-formed address always
    * gets the same answer, whether or not it can register; no user, session or token
    * is returned and no password is accepted here.
@@ -790,7 +948,8 @@ export const AuthService: GenService<{
   },
   /**
    * CompleteRegistration consumes the mailed token and creates the account with the
-   * chosen password and nickname. It signs nobody in.
+   * chosen password and nickname. It signs nobody in. The response carries the
+   * return context bound to the challenge when the registry still allows it.
    *
    * @generated from rpc bff.v1.AuthService.CompleteRegistration
    */
@@ -822,7 +981,8 @@ export const AuthService: GenService<{
   },
   /**
    * ResetPassword consumes the mailed token and sets a new password. Every existing
-   * session and management token stops working; the caller is not signed in.
+   * session and management token stops working; the caller is not signed in. The
+   * response carries the bound return context like CompleteRegistration.
    *
    * @generated from rpc bff.v1.AuthService.ResetPassword
    */
@@ -864,7 +1024,10 @@ export const AuthService: GenService<{
     output: typeof LogoutResponseSchema;
   },
   /**
-   * RevokeSession revokes one of the caller's own sessions.
+   * RevokeSession revokes one of the caller's own sessions. Repeating it for a session
+   * that is already revoked succeeds; an ID that is not the caller's (another account's
+   * or unknown) is NOT_FOUND, with the same answer for both. Revoking the session of the
+   * request itself also clears its Cookie, like Logout.
    *
    * @generated from rpc bff.v1.AuthService.RevokeSession
    */
@@ -872,6 +1035,20 @@ export const AuthService: GenService<{
     methodKind: "unary";
     input: typeof RevokeSessionRequestSchema;
     output: typeof RevokeSessionResponseSchema;
+  },
+  /**
+   * RevokeOtherSessions revokes every live browser session of the caller except the one
+   * making the request, in a single statement, so no concurrent session can be missed.
+   * It is idempotent (a repeat revokes nothing and still succeeds) and limited to 10 calls
+   * per 15 minutes per account. It does not touch auth_version, the password or the
+   * management (MCP) tokens, and a session opened after it ran is not affected.
+   *
+   * @generated from rpc bff.v1.AuthService.RevokeOtherSessions
+   */
+  revokeOtherSessions: {
+    methodKind: "unary";
+    input: typeof RevokeOtherSessionsRequestSchema;
+    output: typeof RevokeOtherSessionsResponseSchema;
   },
   /**
    * Reauthenticate re-checks the current password and, only then, records a fresh

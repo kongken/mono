@@ -1,8 +1,12 @@
 # 地铁足迹（metro）产品规格
 
-> **后续管理入口迁移，待实现：** [OzID 与统一管理控制台规格](../ozid/spec.md) 定义把已有 metro 管理页面迁到独立控制台，账号入口迁到 OzID，并为浏览器管理面与 MCP 分别增加来源 IP 白名单。本文已实现的地铁领域规则保持不变；当前页面与部署尚未切换。
+> **管理页面已迁入统一控制台（T8，[#86](https://github.com/kongken/mono/issues/86)）：** 下文第 10.2 节等对管理后台的描述保留为设计记录；现在这些页面位于 `apps/admin` 的“地铁目录”分区，本站 `/admin` 已退役，浏览器管理接口与管理令牌接口在管理周界之内（见 [控制台功能描述](../admin/features.md#metro-目录管理t8)）。MCP 的独立来源白名单已由 T9（[#87](https://github.com/kongken/mono/issues/87)）实现，见下一段与 [BFF 文档](../bff.md)。
 
 > **状态：P0–P7 已实现。** 本文是规格，描述要做什么以及为什么这样做；落地后的当前行为以 [功能描述](features.md)、[后端初始化](../backend.md#metro-服务地铁足迹) 和 [BFF](../bff.md) 为准，与下表的偏差和补充决定记在下面。
+>
+> **MCP 来源白名单（T9，[#87](https://github.com/kongken/mono/issues/87)）：** `POST /mcp/metro` 在 Bearer 令牌之前先要求来源在 BFF 的 `mcp.allowed_cidrs`（独立于浏览器控制台的 `admin.allowed_cidrs`；空 = 拒绝全部）内，令牌、scope、账号状态与角色的检查不变，详见 [BFF 文档](../bff.md)。
+>
+> **账号入口已收敛到 OzID（T11，[#89](https://github.com/kongken/mono/issues/89)）：** 本规格里 metro 前端自己的登录、注册、账号设置等页面是 P5 当时的设计，现在这些入口都在 [OzID](../ozid/features.md)，地铁足迹只有“前往 OzID 登录 / 账号”的入口并在成功后回到原页面；公开目录、公开主页、乘坐记录和骑行者资料的规则不变。用户可见规则与验收见[功能描述](features.md#登录)。
 >
 > **账号与角色部分已被 [usersrv 规格](../usersrv/spec.md) 取代。** 下文凡提到 Logto、OAuth、`oauth_apps`、Logto 角色、`roles` scope 与 userinfo 的地方，都是**当时的设计与决策记录，不再是当前行为**：账号是 usersrv 的邮箱＋密码账号，`metro-admin` 是 usersrv 的角色（只能由运维命令 `usersrv-admin` 授予或撤销），BFF 每个请求与每个 MCP 工具调用都向 usersrv 复核账号状态、认证版本与角色，没有 `roles` 快照随会话保存，也没有 `oauth_apps`。目录、业务规则、接口、管理后台与 MCP 令牌的设计仍然有效。当前行为见 [BFF](../bff.md) 与 [功能描述](features.md)。
 

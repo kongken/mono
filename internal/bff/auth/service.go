@@ -27,15 +27,18 @@ const (
 	// deletionWindow is the window of the per-account limit on account deletion starts and retries.
 	deletionWindow = 15 * time.Minute
 	deletionLimit  = 10
+	// revokeOthersWindow is the window of the per-account limit on "sign out other devices".
+	revokeOthersWindow = 15 * time.Minute
+	revokeOthersLimit  = 10
 )
 
 // Users is the part of usersrv the account layer needs; *usersrv.Client implements it.
 type Users interface {
-	RequestRegistration(ctx context.Context, email, appID string) error
-	CompleteRegistration(ctx context.Context, token, password, displayName string) error
+	RequestRegistration(ctx context.Context, email string, ret usersrv.Return) error
+	CompleteRegistration(ctx context.Context, token, password, displayName string) (usersrv.Return, error)
 	Authenticate(ctx context.Context, email, password string) (usersrv.Login, error)
-	RequestPasswordReset(ctx context.Context, email, appID string) error
-	ResetPassword(ctx context.Context, token, newPassword string) error
+	RequestPasswordReset(ctx context.Context, email string, ret usersrv.Return) error
+	ResetPassword(ctx context.Context, token, newPassword string) (usersrv.Return, error)
 	AuthState(ctx context.Context, userID string) (usersrv.AuthState, error)
 	Account(ctx context.Context, userID string) (usersrv.Account, error)
 	VerifyPassword(ctx context.Context, userID, password string) (int64, error)
@@ -217,6 +220,9 @@ func (s *Service) ListSessions(ctx context.Context, userID, currentSessionID str
 	return out, nil
 }
 
+// RevokeSession revokes one session of the caller. The row is matched on both the ID and the
+// caller's user ID, so another account's session and an unknown ID give the same NOT_FOUND;
+// a session that is already revoked is matched too, which makes a repeat succeed.
 func (s *Service) RevokeSession(ctx context.Context, userID, sessionID string) error {
 	n, err := s.db.Session.Update().
 		Where(entsession.ID(sessionID), entsession.UserID(userID)).SetRevoked(true).Save(ctx)
@@ -227,6 +233,27 @@ func (s *Service) RevokeSession(ctx context.Context, userID, sessionID string) e
 		return connect.NewError(connect.CodeNotFound, errors.New("session not found"))
 	}
 	return nil
+}
+
+// RevokeOtherSessions revokes every live session of the caller except the current one in one
+// UPDATE. The guarantee is about the sessions that already exist when the statement starts
+// (under READ COMMITTED, the rows it can see): each of them, other than the current one, is
+// revoked, and two concurrent calls revoke each such row exactly once between them. A login
+// that commits after the statement started is not part of that set and stays valid; the next
+// call would revoke it. It reads and writes nothing but the BFF's session table: the
+// account's auth_version, its password and its management tokens are untouched. It returns
+// how many sessions this call revoked.
+func (s *Service) RevokeOtherSessions(ctx context.Context, bs session.BrowserSession) (int, error) {
+	if err := s.allow(ctx, "revoke-others:"+bs.UserID, revokeOthersLimit, revokeOthersWindow); err != nil {
+		return 0, err
+	}
+	n, err := s.db.Session.Update().
+		Where(entsession.UserID(bs.UserID), entsession.IDNEQ(bs.SessionID), entsession.Revoked(false), entsession.ExpiresAtGT(s.now())).
+		SetRevoked(true).Save(ctx)
+	if err != nil {
+		return 0, internal(err)
+	}
+	return n, nil
 }
 
 func (s *Service) IssueCSRF() (string, error) { return session.NewCSRF() }
@@ -315,6 +342,11 @@ func (s *Service) RequireRecentPassword(bs session.BrowserSession) error {
 var ErrReauthRequired = connect.NewError(connect.CodeFailedPrecondition, errors.New("enter your password again to continue"))
 
 var errUnauth = connect.NewError(connect.CodeUnauthenticated, errors.New("sign in required"))
+
+// errDeletionPendingHere refuses to begin another deletion in a browser whose recovery Cookie
+// opens an unfinished one (replacing the Cookie would lose that deletion's only credential); the
+// web clients match this text to explain what to do.
+var errDeletionPendingHere = connect.NewError(connect.CodeFailedPrecondition, errors.New("an account deletion started in this browser has not finished"))
 
 func internal(err error) error {
 	slog.Error("internal", "error", err)

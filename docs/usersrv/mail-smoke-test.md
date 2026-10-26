@@ -14,12 +14,12 @@ usersrv 的四个邮件 adapter（Mailgun、SendGrid、SMTP、SMTP2GO）只对**
 
 1. 启动 usersrv 并确认 `/readyz` 的 `mail_outbox` 为 ready。
 2. 触发一封邮件，二选一（都在**隔离的测试环境**里，不要在正式库里操作）：
-   - **经完整的栈**（推荐，同时验证 BFF → usersrv → 厂商）：把 BFF、usersrv 与前端按[部署说明](../deployment.md#usersrv-的部署)起好，在登录页对测试邮箱“申请注册”（或对已有测试账号“找回密码”）；usersrv 的注册申请对任何邮箱都返回中性成功，是否真的发信以收信为准。
+   - **经完整的栈**（推荐，同时验证 BFF → usersrv → 厂商）：把 BFF、usersrv 与 OzID 按[部署说明](../deployment.md#usersrv-的部署)起好，在 OzID 的注册页对测试邮箱“申请注册”（或对已有测试账号“找回密码”；两个产品都没有自己的账号表单，从产品点“登录”也只会来到 OzID）；usersrv 的注册申请对任何邮箱都返回中性成功，是否真的发信以收信为准。
    - **只测 usersrv 与厂商**：在隔离环境用一个临时 Go 测试或小程序调用 `outbox.Service.IssueStandalone`（`internal/usersrv/outbox`），向测试邮箱签发一封 `verify_email` 邮件。
-   注意 `scripts/real-mail-stack.sh` 与 `E2E_REAL_MAIL=1` 的 Playwright 用例只连本地的 SMTP 接收器，**不是**厂商实测。
+   注意 `scripts/real-mail-stack.sh` 只在本机起一套真实的 BFF、usersrv、tripmap、metro，并连你自己的本地 SMTP 接收器，**不是**厂商实测；它生成的配置让所有新邮件都指向中央 OzID（`OZID_WEB`，由 `internal/e2e` 的 `TestRealMailStackConfigsAgree` 检查与 BFF 的 `navigation.apps.ozid`、`cors_allowed_origins` 一致），它不启动任何前端，要打开邮件里的链接需自己在该地址提供 OzID。原先配套的 `E2E_REAL_MAIL=1` Playwright 用例已随产品里的账号表单删除（trip-map 在 T10，metro 在 T11）。
 3. 在 3 分钟内（worker 轮询间隔 3 秒）检查：
    - 测试邮箱收到中文标题和正文，纯文本与 HTML 两部分都正常，发件人、回复地址（若配置了 `reply_to`）正确；
-   - 邮件里的链接形如 `https://<auth.apps.<app_id>.origin>/account/verify-email#token=…`，令牌在 `#` 之后；
+   - 邮件里的链接形如 `https://<auth.apps.ozid.origin>/account/verify-email#token=…`（T2 起所有新邮件都链接到中央 OzID），令牌在 `#` 之后；
    - Mailgun 与 SendGrid 的控制台里**关闭了点击跟踪**（usersrv 已在请求里关闭；若账户级设置强制开启，链接会经厂商域名改写，令牌会暴露给厂商，必须关掉）；
    - SMTP2GO 的 API 没有逐封关闭跟踪的开关，需在账户设置里关闭点击/打开跟踪；
    - `mail_jobs` 中该任务为 `accepted`，`ciphertext` 与 `key_id` 已清空；

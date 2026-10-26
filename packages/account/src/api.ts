@@ -1,4 +1,4 @@
-import { createClient, type Transport } from "@connectrpc/connect";
+import { Code, ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import {
   AccountDeletionState,
@@ -36,10 +36,35 @@ export type DeletionStatus = {
   completedProducts: string[];
 };
 
+/** A navigation target the BFF accepted: the only address a page may send the browser to. */
+export type NavigationTarget = {
+  appId: string;
+  returnPath: string;
+  /** The registered origin of the app plus the path. */
+  returnUrl: string;
+  ozidOrigin: string;
+};
+
+/**
+ * Where a mail request came from, so the user can find the way back after finishing the
+ * flow in another browser. The BFF validates it against the navigation registry and binds
+ * it to the challenge; it never decides which site the mail links to (always OzID).
+ */
+export type ReturnFrom = { appId: string; returnPath?: string };
+
+/** The validated context a finished mail flow hands back. The BFF has re-checked it just now. */
+export type ReturnContext = { appId: string; returnPath: string };
+
+const returnOf = (res: { appId: string; returnPath: string }): ReturnContext | null =>
+  res.appId ? { appId: res.appId, returnPath: res.returnPath } : null;
+
 export type AccountApiOptions = {
   /** The browser transport of this app: cookies included, CSRF header added by its interceptors. */
   transport: Transport;
-  /** The configured app id of usersrv (`trip-map`, `metro`); picks the origin of the mailed links. */
+  /**
+   * The app this client belongs to (`trip-map`, `metro`, `ozid`). Mail requests name it as
+   * their return context unless the caller passes another one (or null for none).
+   */
   appId: string;
   /** Fetches a fresh CSRF token before a state-changing call; each app owns where the token is kept. */
   ensureCsrf: () => Promise<void>;
@@ -51,6 +76,15 @@ export function toAccountUser(u: User | undefined): AccountUser {
   if (!u?.id) throw new Error("incomplete user");
   return { id: u.id, displayName: u.displayName, avatarUrl: u.avatarUrl };
 }
+
+/** The BFF compares this header with the Cookie's account in the same request; it never selects an account. */
+const expectedHeaders = (userId?: string) => (userId ? { headers: { "X-Kongken-User": userId } } : undefined);
+
+/** The BFF's answer that a deletion has not begun because the recovery Cookie was not yet sent back. */
+const isRecoveryCookiePending = (error: unknown) => {
+  const e = ConnectError.from(error);
+  return e.code === Code.FailedPrecondition && e.rawMessage.startsWith("account deletion recovery cookie");
+};
 
 function toDeletion(d: AccountDeletion | undefined): DeletionStatus {
   return {
@@ -76,17 +110,36 @@ export function createAccountApi({ transport, appId, ensureCsrf }: AccountApiOpt
 
   return {
     appId,
-    requestRegistration: (email: string) => write(() => auth.requestRegistration({ email, appId })).then(() => undefined),
-    completeRegistration: (token: string, password: string, displayName: string) =>
-      write(() => auth.completeRegistration({ token, password, displayName })).then(() => undefined),
+    /** `from`: the return context to bind (default: this app itself; null: none). */
+    requestRegistration: (email: string, from?: ReturnFrom | null) => {
+      const ctx = from === undefined ? { appId } : from;
+      return write(() => auth.requestRegistration({ email, appId: ctx?.appId ?? "", returnPath: ctx?.returnPath ?? "" })).then(() => undefined);
+    },
+    /** Resolves with the return context bound to the link, or null when there is none (or it is no longer allowed). */
+    completeRegistration: async (token: string, password: string, displayName: string): Promise<ReturnContext | null> =>
+      returnOf(await write(() => auth.completeRegistration({ token, password, displayName }))),
     /** Sets the session Cookie; the response carries the profile and expiry, never a token. */
     login: async (email: string, password: string) => {
       const res = await write(() => auth.loginWithEmail({ email, password }));
       return { user: toAccountUser(res.user), expiresAt: date(res.expiresAt) };
     },
-    requestPasswordReset: (email: string) => write(() => auth.requestPasswordReset({ email, appId })).then(() => undefined),
-    resetPassword: (token: string, newPassword: string) =>
-      write(() => auth.resetPassword({ token, newPassword })).then(() => undefined),
+    requestPasswordReset: (email: string, from?: ReturnFrom | null) => {
+      const ctx = from === undefined ? { appId } : from;
+      return write(() => auth.requestPasswordReset({ email, appId: ctx?.appId ?? "", returnPath: ctx?.returnPath ?? "" })).then(() => undefined);
+    },
+    resetPassword: async (token: string, newPassword: string): Promise<ReturnContext | null> =>
+      returnOf(await write(() => auth.resetPassword({ token, newPassword }))),
+
+    /**
+     * Asks the BFF whether an app ID and return path are registered. Anonymous and
+     * read-only: it needs no session or CSRF token and establishes nothing. A refusal
+     * (unknown app, path not allowed, registry not configured) throws; the caller must
+     * then not navigate anywhere but stay in OzID.
+     */
+    resolveNavigation: async (targetAppId: string, returnPath: string): Promise<NavigationTarget> => {
+      const res = await auth.resolveNavigation({ appId: targetAppId, returnPath });
+      return { appId: res.appId, returnPath: res.returnPath, returnUrl: res.returnUrl, ozidOrigin: res.ozidOrigin };
+    },
 
     me: async (): Promise<AccountProfile> => {
       const res = await auth.me({});
@@ -107,8 +160,16 @@ export function createAccountApi({ transport, appId, ensureCsrf }: AccountApiOpt
         expiresAt: date(s.expiresAt),
       })),
     revokeSession: (id: string) => write(() => auth.revokeSession({ id })).then(() => undefined),
+    /**
+     * Signs out every other device in one atomic, idempotent step and keeps this session. It
+     * neither changes the password nor ends management tokens. Resolves with how many sessions
+     * this call ended (0 on a repeat).
+     */
+    revokeOtherSessions: async (): Promise<number> => (await write(() => auth.revokeOtherSessions({}))).revoked,
     logout: () => write(() => auth.logout({})).then(() => undefined),
-    reauthenticate: (password: string) => write(() => auth.reauthenticate({ password })).then(() => undefined),
+    /** `expectedUserId`: the account the page shows; a Cookie that now belongs to another one is refused (UNAUTHENTICATED). */
+    reauthenticate: (password: string, expectedUserId?: string) =>
+      write(() => auth.reauthenticate({ password }, expectedHeaders(expectedUserId))).then(() => undefined),
     changePassword: (currentPassword: string, newPassword: string) =>
       write(() => auth.changePassword({ currentPassword, newPassword })).then(() => undefined),
     updateProfile: async (displayName: string, avatarUrl: string) => {
@@ -117,8 +178,17 @@ export function createAccountApi({ transport, appId, ensureCsrf }: AccountApiOpt
     },
 
     /** Starts (or, with the same mutation ID, continues) closing the shared account. Needs a password check within 15 minutes. */
-    deleteAccount: async (mutationId: string) =>
-      toDeletion((await write(() => auth.deleteAccount({ confirmation: "DELETE", mutationId }))).deletion),
+    deleteAccount: async (mutationId: string, expectedUserId?: string) => {
+      const call = () => write(() => auth.deleteAccount({ confirmation: "DELETE", mutationId }, expectedHeaders(expectedUserId)));
+      try {
+        return toDeletion((await call()).deletion);
+      } catch (error) {
+        // Before it begins the BFF has the browser store the recovery Cookie. Its first answer to a new
+        // deletion only sets it; repeating the same call (once) is how the BFF learns the browser has it.
+        if (!isRecoveryCookiePending(error)) throw error;
+        return toDeletion((await call()).deletion);
+      }
+    },
     getDeletion: async () => toDeletion((await auth.getAccountDeletion({})).deletion),
     retryDeletion: async () => toDeletion((await write(() => auth.retryAccountDeletion({}))).deletion),
   };

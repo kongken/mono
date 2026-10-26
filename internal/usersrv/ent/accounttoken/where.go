@@ -80,6 +80,16 @@ func AppID(v string) predicate.AccountToken {
 	return predicate.AccountToken(sql.FieldEQ(FieldAppID, v))
 }
 
+// ReturnAppID applies equality check predicate on the "return_app_id" field. It's identical to ReturnAppIDEQ.
+func ReturnAppID(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldEQ(FieldReturnAppID, v))
+}
+
+// ReturnPath applies equality check predicate on the "return_path" field. It's identical to ReturnPathEQ.
+func ReturnPath(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldEQ(FieldReturnPath, v))
+}
+
 // ExpiresAt applies equality check predicate on the "expires_at" field. It's identical to ExpiresAtEQ.
 func ExpiresAt(v time.Time) predicate.AccountToken {
 	return predicate.AccountToken(sql.FieldEQ(FieldExpiresAt, v))
@@ -383,6 +393,156 @@ func AppIDEqualFold(v string) predicate.AccountToken {
 // AppIDContainsFold applies the ContainsFold predicate on the "app_id" field.
 func AppIDContainsFold(v string) predicate.AccountToken {
 	return predicate.AccountToken(sql.FieldContainsFold(FieldAppID, v))
+}
+
+// ReturnAppIDEQ applies the EQ predicate on the "return_app_id" field.
+func ReturnAppIDEQ(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldEQ(FieldReturnAppID, v))
+}
+
+// ReturnAppIDNEQ applies the NEQ predicate on the "return_app_id" field.
+func ReturnAppIDNEQ(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldNEQ(FieldReturnAppID, v))
+}
+
+// ReturnAppIDIn applies the In predicate on the "return_app_id" field.
+func ReturnAppIDIn(vs ...string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldIn(FieldReturnAppID, vs...))
+}
+
+// ReturnAppIDNotIn applies the NotIn predicate on the "return_app_id" field.
+func ReturnAppIDNotIn(vs ...string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldNotIn(FieldReturnAppID, vs...))
+}
+
+// ReturnAppIDGT applies the GT predicate on the "return_app_id" field.
+func ReturnAppIDGT(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldGT(FieldReturnAppID, v))
+}
+
+// ReturnAppIDGTE applies the GTE predicate on the "return_app_id" field.
+func ReturnAppIDGTE(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldGTE(FieldReturnAppID, v))
+}
+
+// ReturnAppIDLT applies the LT predicate on the "return_app_id" field.
+func ReturnAppIDLT(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldLT(FieldReturnAppID, v))
+}
+
+// ReturnAppIDLTE applies the LTE predicate on the "return_app_id" field.
+func ReturnAppIDLTE(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldLTE(FieldReturnAppID, v))
+}
+
+// ReturnAppIDContains applies the Contains predicate on the "return_app_id" field.
+func ReturnAppIDContains(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldContains(FieldReturnAppID, v))
+}
+
+// ReturnAppIDHasPrefix applies the HasPrefix predicate on the "return_app_id" field.
+func ReturnAppIDHasPrefix(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldHasPrefix(FieldReturnAppID, v))
+}
+
+// ReturnAppIDHasSuffix applies the HasSuffix predicate on the "return_app_id" field.
+func ReturnAppIDHasSuffix(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldHasSuffix(FieldReturnAppID, v))
+}
+
+// ReturnAppIDIsNil applies the IsNil predicate on the "return_app_id" field.
+func ReturnAppIDIsNil() predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldIsNull(FieldReturnAppID))
+}
+
+// ReturnAppIDNotNil applies the NotNil predicate on the "return_app_id" field.
+func ReturnAppIDNotNil() predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldNotNull(FieldReturnAppID))
+}
+
+// ReturnAppIDEqualFold applies the EqualFold predicate on the "return_app_id" field.
+func ReturnAppIDEqualFold(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldEqualFold(FieldReturnAppID, v))
+}
+
+// ReturnAppIDContainsFold applies the ContainsFold predicate on the "return_app_id" field.
+func ReturnAppIDContainsFold(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldContainsFold(FieldReturnAppID, v))
+}
+
+// ReturnPathEQ applies the EQ predicate on the "return_path" field.
+func ReturnPathEQ(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldEQ(FieldReturnPath, v))
+}
+
+// ReturnPathNEQ applies the NEQ predicate on the "return_path" field.
+func ReturnPathNEQ(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldNEQ(FieldReturnPath, v))
+}
+
+// ReturnPathIn applies the In predicate on the "return_path" field.
+func ReturnPathIn(vs ...string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldIn(FieldReturnPath, vs...))
+}
+
+// ReturnPathNotIn applies the NotIn predicate on the "return_path" field.
+func ReturnPathNotIn(vs ...string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldNotIn(FieldReturnPath, vs...))
+}
+
+// ReturnPathGT applies the GT predicate on the "return_path" field.
+func ReturnPathGT(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldGT(FieldReturnPath, v))
+}
+
+// ReturnPathGTE applies the GTE predicate on the "return_path" field.
+func ReturnPathGTE(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldGTE(FieldReturnPath, v))
+}
+
+// ReturnPathLT applies the LT predicate on the "return_path" field.
+func ReturnPathLT(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldLT(FieldReturnPath, v))
+}
+
+// ReturnPathLTE applies the LTE predicate on the "return_path" field.
+func ReturnPathLTE(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldLTE(FieldReturnPath, v))
+}
+
+// ReturnPathContains applies the Contains predicate on the "return_path" field.
+func ReturnPathContains(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldContains(FieldReturnPath, v))
+}
+
+// ReturnPathHasPrefix applies the HasPrefix predicate on the "return_path" field.
+func ReturnPathHasPrefix(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldHasPrefix(FieldReturnPath, v))
+}
+
+// ReturnPathHasSuffix applies the HasSuffix predicate on the "return_path" field.
+func ReturnPathHasSuffix(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldHasSuffix(FieldReturnPath, v))
+}
+
+// ReturnPathIsNil applies the IsNil predicate on the "return_path" field.
+func ReturnPathIsNil() predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldIsNull(FieldReturnPath))
+}
+
+// ReturnPathNotNil applies the NotNil predicate on the "return_path" field.
+func ReturnPathNotNil() predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldNotNull(FieldReturnPath))
+}
+
+// ReturnPathEqualFold applies the EqualFold predicate on the "return_path" field.
+func ReturnPathEqualFold(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldEqualFold(FieldReturnPath, v))
+}
+
+// ReturnPathContainsFold applies the ContainsFold predicate on the "return_path" field.
+func ReturnPathContainsFold(v string) predicate.AccountToken {
+	return predicate.AccountToken(sql.FieldContainsFold(FieldReturnPath, v))
 }
 
 // ExpiresAtEQ applies the EQ predicate on the "expires_at" field.

@@ -1,6 +1,6 @@
 # 项目协作说明
 
-本仓库（`kongken/mono`）是多产品 monorepo：每个产品有自己的前端应用 `apps/<产品>`、业务服务 `internal/<产品>`、浏览器契约 `proto/bff/<产品>/v1` 与产品文档 `docs/<产品>/`；账号、会话与公网入口（BFF）由各产品共用。当前只有一个产品「山海足迹」（目录名 `trip-map`，后端业务服务名 `tripmap`）。
+本仓库（`kongken/mono`）是多产品 monorepo：每个产品有自己的前端应用 `apps/<产品>`、业务服务 `internal/<产品>`、浏览器契约 `proto/bff/<产品>/v1` 与产品文档 `docs/<产品>/`；账号、会话与公网入口（BFF）由各产品共用。当前有两个产品：「山海足迹」（目录名 `trip-map`，后端业务服务名 `tripmap`）和「地铁足迹」（`metro`，可选）；另有跨产品的用户中心 OzID（`apps/ozid`，没有自己的业务服务，只调用 BFF，见 [OzID 功能描述](docs/ozid/features.md)）和统一管理控制台（`apps/admin`，只调用 BFF，只在来源白名单内提供页面，见 [控制台功能描述](docs/admin/features.md)）。
 
 山海足迹是中国旅行地图 WebApp，前端使用 React、Vite、TypeScript 和 shadcn/ui；后端沿用 neo-box 的 Go、Butterfly、Gin、ConnectRPC、Ent，基础设施使用 PostgreSQL、Redis 和 S3。保持中文旅行手账风格，以省份探索和城市足迹记录为核心。
 
@@ -19,7 +19,7 @@
 - 地图使用随项目分发的 GeoJSON；默认保持运行时无需第三方地图请求或 API Key。联网底图是显式启用的可选能力（OSM 或服务端代理的 Mapbox，见 [数据与地图说明](docs/trip-map/data-and-maps.md)），Mapbox token 只留在 tripmap 配置，不进入前端。
 - 更改存储结构或区域索引时，处理已有足迹的兼容或迁移，避免将旧数据直接当作空数据覆盖。
 
-- 前端是 npm workspaces monorepo，细节见 [前后端 monorepo 布局](docs/monorepo.md)：`apps/<应用>` 是可独立构建部署的前端应用（当前只有 `apps/trip-map`，包名 `@kongken/trip-map`），`packages/` 放跨应用或前后端共用的代码和数据（`ui`、`api-client`、`geo-data`、`fixtures`、`account`）。应用之间不互相 import，共用部分抽到 `packages/`；只被一个应用使用的代码留在该应用内，出现第二个使用方时再抽出。
+- 前端是 npm workspaces monorepo，细节见 [前后端 monorepo 布局](docs/monorepo.md)：`apps/<应用>` 是可独立构建部署的前端应用（当前有 `apps/trip-map`、`apps/metro`、`apps/ozid` 与 `apps/admin`，包名 `@kongken/trip-map`、`@kongken/metro`、`@kongken/ozid`、`@kongken/admin`），`packages/` 放跨应用或前后端共用的代码和数据（`ui`、`api-client`、`geo-data`、`fixtures`、`account`、`metro-core`）。应用之间不互相 import，共用部分抽到 `packages/`；只被一个应用使用的代码留在该应用内，出现第二个使用方时再抽出。
 - `packages/api-client/src/` 是 `make buf` 的生成目录，`packages/geo-data/data/` 的区域索引与 `internal/tripmap/regions/`、`internal/tripmap/itinerary/` 里的后端副本必须一致，`packages/fixtures/` 是前后端共同验证的夹具；它们的更新方式见 [数据与地图说明](docs/trip-map/data-and-maps.md)。
 
 ## 后端约定
@@ -30,11 +30,11 @@
 - 修改 `proto/` 后运行 `make buf`，修改 `internal/<业务>/ent/schema/` 后运行 `make ent`，将生成的 Go / TypeScript / Ent 文件一起提交；生成文件只通过生成器更新。版本化迁移按业务放在 `migrations/<业务>/`。
 - 私有业务接口先实现认证与用户隔离，当前公共接口除健康状态外，只有可选的匿名瓦片代理 `GET /api/tiles/{z}/{x}/{y}.png`（默认关闭，见 [后端初始化](docs/backend.md)）；城市区域 ID 规则与前端一致。
 - 配置示例使用本地开发值，真实凭据放在忽略的 `config.tripmap.yaml` 或挂载 Secret 中。
-- `usersrv`（自建用户系统，阶段状态见 [规格](docs/usersrv/spec.md)）是内部账号服务：`internal/usersrv` 不 import 其他业务，BFF 不 import `internal/usersrv`，只经 `usersrv.v1` 内部 gRPC 调用（`internal/bff/usersrv` 只放错误映射）；目前实现 P1（账号核心）、P2（邮件 adapter 与加密 outbox）、P3（注册验证、邮箱密码登录、找回密码）、P4（BFF 会话、每请求 `GetAuthState`、注销工作流、产品鉴权）P5（两个前端的登录、注册、找回密码、账号设置和邮件落地页，共用代码在 `packages/account`）与 P6（镜像、部署示例与 Logto 退役文档，见 [退役说明](docs/usersrv/retirement.md)）。BFF 不保存密码，运行时没有 Logto 或 OAuth 代码。邮件的真实厂商只做手动冒烟验证（至今没有对任何真实厂商实测），自动化测试只连本地假服务。跑 `make test-integration` 需要真实 Redis 并设置 `USERSRV_TEST_*`，否则账号链整体跳过。修改其 Ent schema 用 `make ent-usersrv`，迁移用 `make usersrv-migration`，测试用 `make test-integration-usersrv`。
+- `usersrv`（自建用户系统，阶段状态见 [规格](docs/usersrv/spec.md)）是内部账号服务：`internal/usersrv` 不 import 其他业务，BFF 不 import `internal/usersrv`，只经 `usersrv.v1` 内部 gRPC 调用（`internal/bff/usersrv` 只放错误映射）；目前实现 P1（账号核心）、P2（邮件 adapter 与加密 outbox）、P3（注册验证、邮箱密码登录、找回密码）、P4（BFF 会话、每请求 `GetAuthState`、注销工作流、产品鉴权）P5（trip-map 与 metro 的登录、注册、找回密码、账号设置和邮件落地页，共用代码在 `packages/account`；OzID 复用其中的表单、邮件落地页与 API 客户端：T2 起注册、找回密码和邮件落地页集中在 OzID，新邮件的链接都指向 `auth.apps.ozid`（必填），申请时校验过的来源应用与路径随挑战保存，旧产品落地页只服务升级前发出的邮件，见 [OzID 功能描述](docs/ozid/features.md)）与 P6（镜像、部署示例与 Logto 退役文档，见 [退役说明](docs/usersrv/retirement.md)）。BFF 不保存密码，运行时没有 Logto 或 OAuth 代码。邮件的真实厂商只做手动冒烟验证（至今没有对任何真实厂商实测），自动化测试只连本地假服务。跑 `make test-integration` 需要真实 Redis 并设置 `USERSRV_TEST_*`，否则账号链整体跳过。修改其 Ent schema 用 `make ent-usersrv`，迁移用 `make usersrv-migration`，测试用 `make test-integration-usersrv`。
 
 ## 文档同步
 
-- 新增、调整或删除用户可见行为时，在同一次变更中更新 `docs/trip-map/features.md` 的对应功能规则和验收场景。
+- 新增、调整或删除用户可见行为时，在同一次变更中更新所属产品的功能描述的对应规则和验收场景：山海足迹是 `docs/trip-map/features.md`，地铁足迹是 `docs/metro/features.md`（目录与业务规则见 `docs/metro/spec.md`），OzID 与统一管理控制台分别是 `docs/ozid/features.md`、`docs/admin/features.md`；账号入口、返回页或会话行为改变时，同时检查产品之间共用的 `docs/ozid/features.md` 与 `docs/usersrv/spec.md`。
 - 更改数据字段、版本、备份校验、地图来源或区域映射时，同步更新 `docs/trip-map/data-and-maps.md`。
 - 后端配置、模型或接口改变时同步更新 `docs/backend.md`，BFF 路由、配置或部署拓扑改变时同步更新 `docs/bff.md`；业务功能实际实现后更新功能描述及调研状态。
 - 新建专题文档后，在 `docs/README.md` 增加入口；启动或常用命令改变时，更新根目录 `README.md`。
@@ -43,7 +43,8 @@
 
 ## 按变更验证
 
-- 应用代码或构建配置改变后运行 `npm run build`；标记或自动配色逻辑改变后另运行 `npm test`。
+- 应用代码或构建配置改变后运行 `npm run build`（只构建 trip-map；metro、OzID 与控制台没有本地模式，改动后用示例地址单独运行 `npm run build:metro` 等，并运行对应的 `npm run test:e2e:<应用>`）；标记或自动配色逻辑改变后另运行 `npm test`。
+- 改动网关示例（`deploy/reverse-proxy/Caddyfile.example`）、Nginx 模板、来源策略或管理/MCP 周界后，运行 `GATEWAY_E2E=1 GATEWAY_NGINX=… GATEWAY_CADDY=… go test ./internal/e2e -run TestGatewayDomainSets -v`（需要 Postgres/Redis、nginx、caddy 与 Chromium；CI 的 `gateway-browser` 任务不允许跳过），见 [整体验收](docs/ozid/acceptance.md)。
 - 后端改变后运行 `make test` 和 `make build`；存储连接、模型或对象操作改变后，另在独立开发环境运行 `make test-integration`；契约变化后检查 `buf lint` 和前端构建。
 - 地图数据、区域索引、投影或归一化逻辑改变后，另运行 `npm run check:maps`；数据更新涉及的文件一起提交。
 - 用户交互改变后，在浏览器验证对应功能场景；布局改变后检查桌面及手机尺寸，清理自行创建的测试足迹。

@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,22 +17,72 @@ import (
 // auditEntry is one security_audit row. It never carries an email, a password
 // or a token; the actor is "user:<uuid>", "system" or the CLI operator name.
 type auditEntry struct {
+	// id is the row's ID; the zero value lets the store pick one. A change fixes it up front
+	// so its receipt can point at the row.
+	id        uuid.UUID
 	userID    *uuid.UUID
 	actor     string
 	action    string
 	requestID string
 	result    string
 	reason    string
+	// The fields of an administrator change; empty for other events.
+	channel                   string
+	actorUser                 *uuid.UUID
+	mutationID                string
+	beforeStatus, afterStatus Status
+	beforeRoles, afterRoles   []string
+	// originID is set on a replay: the audit row of the change whose answer was handed out again.
+	originID *uuid.UUID
+}
+
+// The channels of an audit row: where the actor came from.
+const (
+	ChannelWeb    = "web"    // an administrator in the console; actor_user_id is the real operator
+	ChannelCLI    = "cli"    // the operator CLI; actor is its controlled operator name
+	ChannelSelf   = "self"   // the account's own holder (sign-in, password, deletion)
+	ChannelSystem = "system" // a background or anonymous flow
+)
+
+// channelOf is the channel of a row that did not name one. Only code that is not the CLI or the console
+// leaves it out: the system flows, and the account holder's own flows, which name the very account they
+// are about. The CLI and the console always name theirs, because their actor text is free-form or an identity.
+func (e auditEntry) channelOf() string {
+	switch {
+	case e.channel != "":
+		return e.channel
+	case e.actor == "system":
+		return ChannelSystem
+	case e.userID != nil && e.actor == userActor(*e.userID):
+		// Only the account's own flows name the account they are about as their actor.
+		return ChannelSelf
+	}
+	return ChannelCLI
+}
+
+func (e auditEntry) create(c *ent.SecurityAuditCreate, at time.Time) *ent.SecurityAuditCreate {
+	c.SetActor(e.actor).SetAction(e.action).SetRequestID(e.requestID).SetResult(e.result).SetReason(e.reason).SetReasonChecked(true).SetCreatedAt(at).
+		SetChannel(e.channelOf()).SetMutationID(e.mutationID).
+		SetBeforeStatus(string(e.beforeStatus)).SetAfterStatus(string(e.afterStatus)).
+		SetBeforeRoles(strings.Join(e.beforeRoles, ",")).SetAfterRoles(strings.Join(e.afterRoles, ","))
+	if e.userID != nil {
+		c.SetUserID(*e.userID)
+	}
+	if e.actorUser != nil {
+		c.SetActorUserID(*e.actorUser)
+	}
+	if e.id != uuid.Nil {
+		c.SetID(e.id)
+	}
+	if e.originID != nil {
+		c.SetOriginID(*e.originID)
+	}
+	return c
 }
 
 // audit writes the row inside the transaction of the change it describes.
 func (s *Service) audit(ctx context.Context, tx *ent.Tx, e auditEntry) error {
-	c := tx.SecurityAudit.Create().SetActor(e.actor).SetAction(e.action).SetRequestID(e.requestID).SetResult(e.result).SetReason(e.reason).
-		SetCreatedAt(s.now())
-	if e.userID != nil {
-		c.SetUserID(*e.userID)
-	}
-	return c.Exec(ctx)
+	return e.create(tx.SecurityAudit.Create(), s.now()).Exec(ctx)
 }
 
 // auditAlone records an event that changes nothing else (a failed password
@@ -39,12 +90,7 @@ func (s *Service) audit(ctx context.Context, tx *ent.Tx, e auditEntry) error {
 func (s *Service) auditAlone(ctx context.Context, e auditEntry) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 	defer cancel()
-	c := s.db.SecurityAudit.Create().SetActor(e.actor).SetAction(e.action).SetRequestID(e.requestID).SetResult(e.result).SetReason(e.reason).
-		SetCreatedAt(s.now())
-	if e.userID != nil {
-		c.SetUserID(*e.userID)
-	}
-	if err := c.Exec(ctx); err != nil {
+	if err := e.create(s.db.SecurityAudit.Create(), s.now()).Exec(ctx); err != nil {
 		slog.Error("usersrv audit write failed", "action", e.action, "error", err)
 	}
 }

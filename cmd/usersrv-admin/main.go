@@ -1,12 +1,12 @@
 // Command usersrv-admin is the operator tool for account roles and status. It is
-// the only way to grant or revoke metro-admin and to disable or enable an
+// the only way to grant or revoke metro-admin or ozid-admin and to disable or enable an
 // account: there is no browser or RPC path to these operations, and no user
 // becomes an administrator because of who registered first.
 //
 //	usersrv-admin [-config config.usersrv.yaml] <command> [flags]
 //
-//	grant-role   -email E|-user-id U -role metro-admin -operator NAME -reason TEXT
-//	revoke-role  -email E|-user-id U -role metro-admin -operator NAME -reason TEXT
+//	grant-role   -email E|-user-id U -role metro-admin|ozid-admin -operator NAME -reason TEXT
+//	revoke-role  -email E|-user-id U -role metro-admin|ozid-admin -operator NAME -reason TEXT
 //	disable      -email E|-user-id U -operator NAME -reason TEXT
 //	enable       -email E|-user-id U -operator NAME -reason TEXT
 //	show         -email E|-user-id U
@@ -54,8 +54,8 @@ func main() {
 const usage = `usage: usersrv-admin [-config file] <command> [flags]
 
 commands:
-  grant-role   -email E|-user-id U -role metro-admin -operator NAME -reason TEXT
-  revoke-role  -email E|-user-id U -role metro-admin -operator NAME -reason TEXT
+  grant-role   -email E|-user-id U -role metro-admin|ozid-admin -operator NAME -reason TEXT
+  revoke-role  -email E|-user-id U -role metro-admin|ozid-admin -operator NAME -reason TEXT
   disable      -email E|-user-id U -operator NAME -reason TEXT
   enable       -email E|-user-id U -operator NAME -reason TEXT
   show         -email E|-user-id U
@@ -89,7 +89,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, getenv fu
 	fs.SetOutput(stderr)
 	email := fs.String("email", "", "login email of the account")
 	userID := fs.String("user-id", "", "user UUID of the account")
-	role := fs.String("role", "", "role name (metro-admin)")
+	role := fs.String("role", "", "role name (metro-admin or ozid-admin)")
 	operator := fs.String("operator", "", "who runs this change (name or ticket)")
 	reason := fs.String("reason", "", "why (no email addresses)")
 	if err := fs.Parse(rest); err != nil {

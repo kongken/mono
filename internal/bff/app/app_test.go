@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/gateway"
 	"github.com/kongken/mono/internal/bff/metro/mcp"
+	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/platform/testkit"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -83,11 +85,27 @@ func withInternalTransport(t *testing.T, cfg *config.Config) {
 	if _, ok := cfg.Upstreams["usersrv"]; ok {
 		cfg.GRPC.Services["usersrv"] = config.GRPCService{Address: "127.0.0.1:1"}
 	}
+	withAccountRegistry(cfg)
+}
+
+// withAccountRegistry gives a configuration that serves the account procedures (a usersrv upstream) the
+// registry it must have to start: the user center's origin. The tests below are about routing, tiles and
+// status, not about who may call the account.
+func withAccountRegistry(cfg *config.Config) {
+	if _, ok := cfg.Upstreams[config.AccountService]; !ok || cfg.Navigation.Enabled() {
+		return
+	}
+	const id = "https://id.example.com"
+	cfg.Navigation = navigation.Config{APIOrigin: "https://api.example.com", Apps: map[string]navigation.App{"ozid": {Origin: id}}}
+	if !slices.Contains(cfg.CORSAllowedOrigins, id) {
+		cfg.CORSAllowedOrigins = append(cfg.CORSAllowedOrigins, id)
+	}
 }
 
 func newBFF(t *testing.T, cfg *config.Config, services []gateway.Service) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
+	withAccountRegistry(cfg)
 	if services == nil {
 		services = gateway.Services
 	}
@@ -217,6 +235,12 @@ func TestExampleConfigCoversTheRouteTable(t *testing.T) {
 	if err := cfg.ValidateInternal(gateway.GRPCNames(active)); err != nil {
 		t.Fatal(err)
 	}
+	if len(cfg.MCP.AllowedCIDRs) == 0 {
+		t.Fatal("the example must admit the local machine to the MCP endpoint, which refuses everyone otherwise")
+	}
+	if _, ok := cfg.Navigation.Apps["ozid"]; !ok {
+		t.Fatal("the example must register OzID so that the sign-in return flow works locally")
+	}
 	if cfg.GRPC.CAFile != "" || cfg.GRPC.Services["usersrv"].Transport != "h2c" || cfg.GRPC.Services["tripmap"].Transport != "h2c" || cfg.GRPC.Services["metro"].Transport != "h2c" {
 		t.Fatal("local example must use explicit h2c without a CA")
 	}
@@ -275,4 +299,30 @@ func TestMCPRouteIsRegisteredAsBFFOwned(t *testing.T) {
 		}
 	}
 	t.Fatalf("%s is not in gateway.BFFOwnedRoutes as a POST route", mcp.Path)
+}
+
+// Only exact origins get CORS. A same-site sibling of an allowed origin (it may send the
+// host-only Cookie) gets none, and neither does any variation of an allowed origin.
+func TestCORSIsExactForSameSiteSiblings(t *testing.T) {
+	trip := newFake(t, "tripmap")
+	r := newBFF(t, &config.Config{Upstreams: map[string]string{"tripmap": trip.URL, "other": "http://127.0.0.1:1"}, CORSAllowedOrigins: []string{"https://id.example.com"}}, testServices)
+	for _, origin := range []string{"https://evil.example.com", "https://id.example.com.evil.test", "http://id.example.com", "https://id.example.com:8443", "null"} {
+		for _, method := range []string{http.MethodOptions, http.MethodPost} {
+			req := httptest.NewRequest(method, "/api/bff.tripmap.v1.FootprintService/GetFootprints", nil)
+			req.Header.Set("Origin", origin)
+			got := serve(r, req)
+			if got.Header().Get("Access-Control-Allow-Origin") != "" || got.Header().Get("Access-Control-Allow-Credentials") != "" {
+				t.Errorf("%s from %q was given CORS: %v", method, origin, got.Header())
+			}
+		}
+	}
+	req := httptest.NewRequest(http.MethodOptions, "/api/bff.tripmap.v1.FootprintService/GetFootprints", nil)
+	req.Header.Set("Origin", "https://id.example.com")
+	got := serve(r, req)
+	if got.Header().Get("Access-Control-Allow-Origin") != "https://id.example.com" || got.Header().Get("Access-Control-Allow-Credentials") != "true" {
+		t.Fatalf("the registered origin was refused: %v", got.Header())
+	}
+	if h := got.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(h, "X-CSRF-Token") {
+		t.Fatalf("preflight does not allow the CSRF header: %q", h)
+	}
 }

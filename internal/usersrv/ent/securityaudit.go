@@ -31,8 +31,26 @@ type SecurityAudit struct {
 	// Reason holds the value of the "reason" field.
 	Reason string `json:"reason,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
-	CreatedAt    time.Time `json:"created_at,omitempty"`
-	selectValues sql.SelectValues
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	// Channel holds the value of the "channel" field.
+	Channel string `json:"channel,omitempty"`
+	// ActorUserID holds the value of the "actor_user_id" field.
+	ActorUserID *uuid.UUID `json:"actor_user_id,omitempty"`
+	// MutationID holds the value of the "mutation_id" field.
+	MutationID string `json:"mutation_id,omitempty"`
+	// BeforeStatus holds the value of the "before_status" field.
+	BeforeStatus string `json:"before_status,omitempty"`
+	// AfterStatus holds the value of the "after_status" field.
+	AfterStatus string `json:"after_status,omitempty"`
+	// BeforeRoles holds the value of the "before_roles" field.
+	BeforeRoles string `json:"before_roles,omitempty"`
+	// AfterRoles holds the value of the "after_roles" field.
+	AfterRoles string `json:"after_roles,omitempty"`
+	// OriginID holds the value of the "origin_id" field.
+	OriginID *uuid.UUID `json:"origin_id,omitempty"`
+	// ReasonChecked holds the value of the "reason_checked" field.
+	ReasonChecked bool `json:"reason_checked,omitempty"`
+	selectValues  sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -40,9 +58,11 @@ func (*SecurityAudit) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case securityaudit.FieldUserID:
+		case securityaudit.FieldUserID, securityaudit.FieldActorUserID, securityaudit.FieldOriginID:
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
-		case securityaudit.FieldActor, securityaudit.FieldAction, securityaudit.FieldRequestID, securityaudit.FieldResult, securityaudit.FieldReason:
+		case securityaudit.FieldReasonChecked:
+			values[i] = new(sql.NullBool)
+		case securityaudit.FieldActor, securityaudit.FieldAction, securityaudit.FieldRequestID, securityaudit.FieldResult, securityaudit.FieldReason, securityaudit.FieldChannel, securityaudit.FieldMutationID, securityaudit.FieldBeforeStatus, securityaudit.FieldAfterStatus, securityaudit.FieldBeforeRoles, securityaudit.FieldAfterRoles:
 			values[i] = new(sql.NullString)
 		case securityaudit.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -112,6 +132,62 @@ func (_m *SecurityAudit) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.CreatedAt = value.Time
 			}
+		case securityaudit.FieldChannel:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field channel", values[i])
+			} else if value.Valid {
+				_m.Channel = value.String
+			}
+		case securityaudit.FieldActorUserID:
+			if value, ok := values[i].(*sql.NullScanner); !ok {
+				return fmt.Errorf("unexpected type %T for field actor_user_id", values[i])
+			} else if value.Valid {
+				_m.ActorUserID = new(uuid.UUID)
+				*_m.ActorUserID = *value.S.(*uuid.UUID)
+			}
+		case securityaudit.FieldMutationID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field mutation_id", values[i])
+			} else if value.Valid {
+				_m.MutationID = value.String
+			}
+		case securityaudit.FieldBeforeStatus:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field before_status", values[i])
+			} else if value.Valid {
+				_m.BeforeStatus = value.String
+			}
+		case securityaudit.FieldAfterStatus:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field after_status", values[i])
+			} else if value.Valid {
+				_m.AfterStatus = value.String
+			}
+		case securityaudit.FieldBeforeRoles:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field before_roles", values[i])
+			} else if value.Valid {
+				_m.BeforeRoles = value.String
+			}
+		case securityaudit.FieldAfterRoles:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field after_roles", values[i])
+			} else if value.Valid {
+				_m.AfterRoles = value.String
+			}
+		case securityaudit.FieldOriginID:
+			if value, ok := values[i].(*sql.NullScanner); !ok {
+				return fmt.Errorf("unexpected type %T for field origin_id", values[i])
+			} else if value.Valid {
+				_m.OriginID = new(uuid.UUID)
+				*_m.OriginID = *value.S.(*uuid.UUID)
+			}
+		case securityaudit.FieldReasonChecked:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field reason_checked", values[i])
+			} else if value.Valid {
+				_m.ReasonChecked = value.Bool
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -170,6 +246,37 @@ func (_m *SecurityAudit) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("channel=")
+	builder.WriteString(_m.Channel)
+	builder.WriteString(", ")
+	if v := _m.ActorUserID; v != nil {
+		builder.WriteString("actor_user_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("mutation_id=")
+	builder.WriteString(_m.MutationID)
+	builder.WriteString(", ")
+	builder.WriteString("before_status=")
+	builder.WriteString(_m.BeforeStatus)
+	builder.WriteString(", ")
+	builder.WriteString("after_status=")
+	builder.WriteString(_m.AfterStatus)
+	builder.WriteString(", ")
+	builder.WriteString("before_roles=")
+	builder.WriteString(_m.BeforeRoles)
+	builder.WriteString(", ")
+	builder.WriteString("after_roles=")
+	builder.WriteString(_m.AfterRoles)
+	builder.WriteString(", ")
+	if v := _m.OriginID; v != nil {
+		builder.WriteString("origin_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("reason_checked=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ReasonChecked))
 	builder.WriteByte(')')
 	return builder.String()
 }

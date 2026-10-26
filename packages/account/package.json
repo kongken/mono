@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "两个前端共用的邮箱账号流程：RPC 客户端、错误文案、表单与邮件落地页。",
+  "description": "trip-map、metro 与 OzID 共用的邮箱账号流程：RPC 客户端、错误文案、表单与邮件落地页。",
   "scripts": {
     "test": "node --test --experimental-strip-types src/*.test.ts"
   },
@@ -14,10 +14,16 @@
     "./fragment": "./src/fragment.ts",
     "./scope": "./src/scope.ts",
     "./forms": "./src/forms.tsx",
+    "./close": "./src/close.tsx",
+    "./latest": "./src/latest.ts",
     "./landing": "./src/landing.tsx",
+    "./handoff": "./src/handoff.tsx",
     "./vite": "./src/vite.ts",
     "./testing": "./src/testing.ts",
-    "./smtp": "./src/smtp.ts"
+    "./smtp": "./src/smtp.ts",
+    "./navigation": "./src/navigation.ts",
+    "./csrf-retry": "./src/csrf-retry.ts",
+    "./ui": "./src/ui.tsx"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.16.0",

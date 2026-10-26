@@ -22,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	bffapp "github.com/kongken/mono/internal/bff/app"
 	bffconfig "github.com/kongken/mono/internal/bff/config"
+	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
 	"github.com/kongken/mono/internal/platform/servicetoken"
@@ -131,8 +132,12 @@ func newStack(t *testing.T, mutate ...func(*options, *stack)) *stack {
 	}
 	usersrvAddr, usersrvHTTP := startUsersrvStub(t)
 	bffCfg := &bffconfig.Config{
-		Upstreams:    map[string]string{"usersrv": usersrvHTTP, "tripmap": tripmapHTTP.URL},
-		InternalAuth: bffconfig.InternalAuth{Issuer: issuer, KID: kid, PrivateKeyFile: signing.PrivateFile},
+		Upstreams: map[string]string{"usersrv": usersrvHTTP, "tripmap": tripmapHTTP.URL},
+		// A BFF that serves accounts does not start without the user center's registered origin; these tests are
+		// about the internal transport, so any registered pair will do.
+		Navigation:         navigation.Config{APIOrigin: "https://api.example.com", Apps: map[string]navigation.App{navigation.AppOzID: {Origin: "https://id.example.com"}}},
+		CORSAllowedOrigins: []string{"https://id.example.com"},
+		InternalAuth:       bffconfig.InternalAuth{Issuer: issuer, KID: kid, PrivateKeyFile: signing.PrivateFile},
 		GRPC: bffconfig.GRPCConfig{CAFile: s.ca.CAFile, Services: map[string]bffconfig.GRPCService{
 			"usersrv": {Address: usersrvAddr, Transport: "h2c"},
 			"tripmap": {Address: s.tripmap.GRPCAddr(), ServerName: "tripmap.internal"},

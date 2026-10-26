@@ -14,6 +14,8 @@ type Tx struct {
 	config
 	// AccountToken is the client for interacting with the AccountToken builders.
 	AccountToken *AccountTokenClient
+	// AdminMutation is the client for interacting with the AdminMutation builders.
+	AdminMutation *AdminMutationClient
 	// DeletionTombstone is the client for interacting with the DeletionTombstone builders.
 	DeletionTombstone *DeletionTombstoneClient
 	// MailJob is the client for interacting with the MailJob builders.
@@ -156,6 +158,7 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.AccountToken = NewAccountTokenClient(tx.config)
+	tx.AdminMutation = NewAdminMutationClient(tx.config)
 	tx.DeletionTombstone = NewDeletionTombstoneClient(tx.config)
 	tx.MailJob = NewMailJobClient(tx.config)
 	tx.SecurityAudit = NewSecurityAuditClient(tx.config)

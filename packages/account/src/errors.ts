@@ -11,6 +11,8 @@ export type AccountAction =
   | "change-password"
   | "profile"
   | "delete"
+  /** An administrator's change of another account in the admin console. */
+  | "admin-change"
   | "other";
 
 export type AccountErrorKind =
@@ -28,6 +30,24 @@ export type AccountErrorKind =
   | "reauth_required"
   | "not_signed_in"
   | "deletion_in_progress"
+  /** Another deletion cannot begin: this browser holds the recovery Cookie of one that has not finished. */
+  | "deletion_pending_here"
+  /** The browser did not keep the recovery Cookie the deletion needs; nothing was begun. */
+  | "recovery_cookie_blocked"
+  /** The account holds the platform role, which keeps it from the web self-service deletion. */
+  | "platform_admin"
+  /** An administrator change was refused because the account changed after it was read; nothing was done. */
+  | "conflict"
+  /** The target of an administrator change holds the platform role; the console never changes it. */
+  | "target_protected"
+  /** The target cannot be changed in its state (closing, or not active for a role grant). */
+  | "target_state"
+  /** The operation ID of an administrator change belongs to a different request. */
+  | "mutation_reused"
+  /** Signed in, but the account does not hold the role the management call needs. */
+  | "forbidden"
+  /** The management call came from a network or origin the perimeter does not admit; it never says which. */
+  | "not_allowed"
   | "validation"
   | "other";
 
@@ -68,6 +88,23 @@ export function classifyAccountError(error: unknown, action: AccountAction = "ot
 function classify(error: unknown, action: AccountAction): AccountFailure {
   const err = ConnectError.from(error);
   const raw = err.rawMessage;
+  if (action === "admin-change") {
+    // The administrator's changes have refusals of their own; usersrv's texts are fixed and matched by prefix.
+    if (err.code === Code.Aborted && raw.startsWith("account changed since it was read"))
+      return { kind: "conflict", message: "这个账号在你查看之后发生了变化，没有做任何修改。请刷新账号信息，确认后再操作" };
+    if (err.code === Code.FailedPrecondition && raw.startsWith("platform administrators cannot be changed here"))
+      return { kind: "target_protected", message: "这是平台管理员账号，网页上不能修改它的状态或角色。请联系运维使用命令行处理" };
+    if (err.code === Code.FailedPrecondition && raw.startsWith("account is not active"))
+      return { kind: "target_state", message: "账号当前的状态不允许这个操作（注销中的账号不能修改；授予角色需要账号处于正常状态）。没有做任何修改" };
+    if (err.code === Code.AlreadyExists && raw.startsWith("mutation id used for a different request"))
+      return { kind: "mutation_reused", message: "这个操作编号已被另一个操作使用。请关闭窗口后重新发起" };
+    if (err.code === Code.NotFound) return { kind: "other", message: "没有找到这个账号，它可能已经注销" };
+    if (err.code === Code.InvalidArgument && raw.startsWith("reason:"))
+      return { kind: "validation", message: "原因需要 1 到 200 个字符，不含控制字符，也不要写邮箱、密码或令牌" };
+    // No answer: the change may or may not have been made. Retrying with the same operation ID is safe.
+    if ([Code.DeadlineExceeded, Code.Unavailable, Code.Unknown, Code.Canceled, Code.Internal].includes(err.code))
+      return { kind: err.code === Code.Unavailable || err.code === Code.Internal ? "unavailable" : "network", message: "没有收到服务器的确认，这次修改不一定已经生效。可以用同一个操作编号重试：已经生效的修改不会被重复执行" };
+  }
   switch (err.code) {
     case Code.ResourceExhausted:
       return { kind: "rate_limited", message: "操作太频繁，请过几分钟再试" };
@@ -75,12 +112,21 @@ function classify(error: unknown, action: AccountAction): AccountFailure {
       if (action === "login") return { kind: "credentials", message: LOGIN_FAILURE };
       if (raw.startsWith("current password is incorrect") && (action === "reauthenticate" || action === "change-password" || action === "delete"))
         return { kind: "wrong_password", message: "当前密码不正确" };
+      // The management calls ask for a recent password check; the session itself is still valid.
+      if (raw.startsWith("sign in again to use this feature")) return { kind: "reauth_required", message: "为了安全，请先重新验证密码再继续" };
       return { kind: "not_signed_in", message: "登录已失效，请重新登录" };
     case Code.FailedPrecondition:
       if (raw.startsWith("link is not usable")) return { kind: "link_invalid", message: LINK_INVALID };
       if (raw.startsWith("registration is closed")) return { kind: "registration_closed", message: "目前暂未开放新用户注册" };
+      if (raw.startsWith("navigation is not configured")) return { kind: "other", message: "账号入口尚未配置完整，暂时无法申请，请联系管理员" };
       if (raw.startsWith("enter your password again")) return { kind: "reauth_required", message: "为了安全，请先输入当前密码再继续" };
+      if (raw.startsWith("an account deletion started in this browser"))
+        return { kind: "deletion_pending_here", message: "这个浏览器里有一次尚未完成的账号注销，完成之前不能开始另一次。请先在“注销账号”页查看进度并重试，直到它完成；登录和退出不受影响" };
+      if (raw.startsWith("account deletion recovery cookie"))
+        return { kind: "recovery_cookie_blocked", message: "浏览器没有保存注销所需的凭据（Cookie），没有开始注销，账号仍然有效。请确认没有禁用或拦截本站 Cookie，然后重试" };
       if (raw.startsWith("another account deletion")) return { kind: "deletion_in_progress", message: "这个账号已有一次注销正在进行，请等待它完成" };
+      if (raw.startsWith("platform administrator accounts cannot be closed"))
+        return { kind: "platform_admin", message: "这个账号是平台管理员，不能在网页上注销。请联系运维先回收管理员角色，再重新注销" };
       if (action === "register-complete" || action === "reset-complete") return { kind: "link_invalid", message: LINK_INVALID };
       return { kind: "other", message: "现在无法执行此操作" };
     case Code.AlreadyExists:
@@ -96,6 +142,11 @@ function classify(error: unknown, action: AccountAction): AccountFailure {
       return { kind: "validation", message: "提交的内容不符合要求，请检查后再试" };
     }
     case Code.PermissionDenied:
+      if (raw.startsWith("required role missing") || raw.startsWith("permission denied"))
+        return { kind: "forbidden", message: "当前账号没有使用这个功能的权限" };
+      // The perimeter's answer is the same whatever it checked (network, origin); so is this text.
+      if (raw.startsWith("request rejected") || raw.startsWith("403"))
+        return { kind: "not_allowed", message: "当前网络或访问来源不允许使用管理功能" };
       return { kind: "other", message: "当前无法执行此操作" };
     case Code.NotFound:
       return { kind: "other", message: "没有找到对应的内容，可能已经处理完成" };

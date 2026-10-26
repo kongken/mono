@@ -14,6 +14,7 @@ import (
 // appNames are the product names shown in mails, keyed by app ID. An app ID
 // outside the table gets a neutral name; the app ID itself is never printed.
 var appNames = map[string]string{
+	CentralApp: "OzID",
 	"trip-map": "山海足迹",
 	"metro":    "地铁足迹",
 }

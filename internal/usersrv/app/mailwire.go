@@ -17,11 +17,12 @@ func AccountMail(svc *outbox.Service, guard *outbox.Guard) (account.Mail, accoun
 
 type outboxMail struct{ svc *outbox.Service }
 
-func (m outboxMail) HasApp(appID string) bool { return m.svc.HasApp(appID) }
+func (m outboxMail) Central() bool { return m.svc.Central() }
 
 func (m outboxMail) Issue(ctx context.Context, tx *ent.Tx, in account.MailRequest) error {
 	_, err := m.svc.Issue(ctx, tx, outbox.IssueInput{
-		Purpose: string(in.Purpose), Email: in.Email, UserID: in.UserID, AuthVersion: in.AuthVersion, AppID: in.AppID,
+		Purpose: string(in.Purpose), Email: in.Email, UserID: in.UserID, AuthVersion: in.AuthVersion,
+		ReturnAppID: in.Return.AppID, ReturnPath: in.Return.Path,
 	})
 	return err
 }

@@ -1,54 +1,39 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@kongken/ui/button";
 import { Link, usePath } from "@/lib/router";
 import { useSession } from "@/lib/session";
+import { ozid } from "@/lib/account-center";
 import { cn } from "@kongken/ui/utils";
-import { describeAccountError } from "@kongken/account/errors";
 import { Train } from "@phosphor-icons/react";
-import { account } from "@/lib/rpc";
-import { navigate } from "@/lib/router";
 import { Alert } from "@/components/extras";
 
 /**
- * A deletion started here that the server has not confirmed finished: the account is
- * already closed, the data cleanup continues, and this offers to push it along.
+ * A deletion started in this product before OzID took over, never confirmed finished (the flag it left in this
+ * browser): the account is already closed and the cleanup continues. Retrying is OzID's now; this only says where.
  */
 function PendingDeletion() {
-  const { setDeletionPending } = useSession();
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const retry = async () => {
-    setBusy(true);
-    setMessage("");
-    try {
-      const status = await account.retryDeletion();
-      if (status.completed) {
-        setDeletionPending(false);
-        navigate("/login?deleted=1", true);
-      } else {
-        setMessage("注销仍在进行，部分数据还在清理，请稍后再试。");
-      }
-    } catch (e) {
-      setMessage(describeAccountError(e, "delete"));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { dismissDeletionPending } = useSession();
   return (
-    <div className="mx-auto mt-4 w-full max-w-5xl px-4">
+    <div className="mx-auto mt-4 w-full max-w-5xl px-4" data-testid="deletion-pending">
       <Alert kind="error">
         <p>账号注销尚未完成：账号已关闭，数据清理需要重试，进度不会丢失。</p>
-        {message ? <p className="mt-1">{message}</p> : null}
-        <Button size="sm" variant="destructive" className="mt-2" disabled={busy} onClick={() => void retry()}>
-          {busy ? "重试中…" : "重试注销"}
-        </Button>
+        <p className="mt-2 flex flex-wrap items-center gap-3">
+          {ozid.enabled ? (
+            <a href={ozid.closeAccount} target="_blank" rel="noopener noreferrer" className="text-primary underline" data-testid="ozid-close-account">
+              前往 OzID 重试注销
+            </a>
+          ) : null}
+          <Button size="sm" variant="outline" onClick={dismissDeletionPending}>
+            已经完成，不再提示
+          </Button>
+        </p>
       </Alert>
     </div>
   );
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { session, isAdmin, signIn, signOut, deletionPending } = useSession();
+  const { session, signIn, signingIn, signOut, refresh, notice, dismissNotice, deletionPending } = useSession();
   const path = usePath();
   const nav = (to: string, label: string, active: boolean) => (
     <Link
@@ -69,8 +54,17 @@ export function Layout({ children }: { children: ReactNode }) {
           <nav aria-label="主导航" className="flex flex-1 flex-wrap items-center gap-1">
             {nav("/", "城市", path === "/" || path.startsWith("/cities") || path.startsWith("/topics"))}
             {session.status === "signed-in" && nav("/me", "我的足迹", path === "/me")}
-            {session.status === "signed-in" && nav("/account", "账号", path === "/account")}
-            {isAdmin && nav("/admin", "管理", path.startsWith("/admin"))}
+            {session.status === "signed-in" && ozid.enabled ? (
+              <a
+                href={ozid.home}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="ozid-link-home"
+                className="rounded-md px-3 py-1.5 text-sm hover:bg-accent"
+              >
+                账号
+              </a>
+            ) : null}
           </nav>
           <div className="flex items-center gap-2">
             {session.status === "signed-in" ? (
@@ -81,14 +75,38 @@ export function Layout({ children }: { children: ReactNode }) {
                 </Button>
               </>
             ) : session.status === "anonymous" ? (
-              <Button size="sm" onClick={signIn}>
+              <Button size="sm" disabled={signingIn} onClick={signIn}>
                 登录
+              </Button>
+            ) : session.status === "unavailable" ? (
+              <Button size="sm" variant="outline" onClick={() => void refresh()}>
+                重新检查
               </Button>
             ) : null}
           </div>
         </div>
       </header>
       {deletionPending && session.status !== "signed-in" ? <PendingDeletion /> : null}
+      {session.status === "unavailable" || (session.status === "signed-in" && session.unverified) ? (
+        <div className="mx-auto mt-4 w-full max-w-5xl px-4" data-testid="session-unverified">
+          <Alert kind="info">
+            暂时无法确认登录状态{session.status === "signed-in" ? "，先按已登录的账号显示" : ""}。这不代表已退出，可以稍后重新检查。
+            <Button size="sm" variant="outline" className="ml-3" onClick={() => void refresh()}>
+              重新检查
+            </Button>
+          </Alert>
+        </div>
+      ) : null}
+      {notice ? (
+        <div className="mx-auto mt-4 w-full max-w-5xl px-4" data-testid="session-notice">
+          <Alert kind={notice.kind}>
+            {notice.text}
+            <Button size="sm" variant="ghost" className="ml-3" onClick={dismissNotice}>
+              知道了
+            </Button>
+          </Alert>
+        </div>
+      ) : null}
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
       <footer className="border-t py-4 text-center text-xs text-muted-foreground">线路数据由管理员维护，仅供参考。</footer>
     </div>

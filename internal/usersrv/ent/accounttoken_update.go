@@ -95,6 +95,12 @@ func (_u *AccountTokenUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if _u.mutation.IssuedAuthVersionCleared() {
 		_spec.ClearField(accounttoken.FieldIssuedAuthVersion, field.TypeInt64)
 	}
+	if _u.mutation.ReturnAppIDCleared() {
+		_spec.ClearField(accounttoken.FieldReturnAppID, field.TypeString)
+	}
+	if _u.mutation.ReturnPathCleared() {
+		_spec.ClearField(accounttoken.FieldReturnPath, field.TypeString)
+	}
 	if value, ok := _u.mutation.ConsumedAt(); ok {
 		_spec.SetField(accounttoken.FieldConsumedAt, field.TypeTime, value)
 	}
@@ -217,6 +223,12 @@ func (_u *AccountTokenUpdateOne) sqlSave(ctx context.Context) (_node *AccountTok
 	}
 	if _u.mutation.IssuedAuthVersionCleared() {
 		_spec.ClearField(accounttoken.FieldIssuedAuthVersion, field.TypeInt64)
+	}
+	if _u.mutation.ReturnAppIDCleared() {
+		_spec.ClearField(accounttoken.FieldReturnAppID, field.TypeString)
+	}
+	if _u.mutation.ReturnPathCleared() {
+		_spec.ClearField(accounttoken.FieldReturnPath, field.TypeString)
 	}
 	if value, ok := _u.mutation.ConsumedAt(); ok {
 		_spec.SetField(accounttoken.FieldConsumedAt, field.TypeTime, value)

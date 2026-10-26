@@ -1,6 +1,8 @@
 # OzID 用户中心与统一管理控制台规格
 
-> **状态：访谈范围已确认，待实现。** 基线为 `104a712`（PR #76）：usersrv 第一版已完成。本规格不是再次替换账号后端，而是在现有账号体系上交付 OzID 用户中心、独立管理控制台和入口收敛。本次只创建规格，不改变当前接口、配置或部署。
+> **状态：访谈范围已确认；T1（[#79](https://github.com/kongken/mono/issues/79)：统一登录、重新认证与安全返回）与 T2（[#80](https://github.com/kongken/mono/issues/80)：统一注册验证与密码重置邮件流程）与 T3（[#81](https://github.com/kongken/mono/issues/81)：账号资料、密码与设备会话管理）已实现并记录在 [OzID 功能描述](features.md)；T4（[#82](https://github.com/kongken/mono/issues/82)：受控统一管理控制台与用户查询）、T5、T6、T8（[#86](https://github.com/kongken/mono/issues/86)：metro 管理功能迁入控制台）与 T9（[#87](https://github.com/kongken/mono/issues/87)：MCP 独立来源 IP 防护，见 [BFF 文档](../bff.md)）已实现并记录在 [控制台功能描述](../admin/features.md)，T7（账号注销与失败恢复）已记录在 [OzID 功能描述](features.md)，其余阶段待实现。** 基线为 `104a712`（PR #76）：usersrv 第一版已完成。本规格不是再次替换账号后端，而是在现有账号体系上交付 OzID 用户中心、独立管理控制台和入口收敛。已实现阶段之外的内容仍只是规格，不改变当前接口、配置或部署。
+>
+> **T12（[#90](https://github.com/kongken/mono/issues/90)：旧入口收口与可配置部署验收）已实现：** 集中账号写只接受 OzID 来源、产品的旧邮件落地页只向中央 OzID 交接（不再有产品自己的表单）、旧 origin 的 API 例外按 `until` 到期、BFF 提供账号服务时必须有导航注册表与 OzID origin（缺失拒绝启动）、产品网关不再代理同源 `/api/`，并在真实网关与浏览器中对两组保留域名做整体验收；映射与结果见 [整体验收](acceptance.md)。
 >
 > 规格与评审：[GitHub Issue #77](https://github.com/kongken/mono/issues/77)。本文为仓库副本，评审变更同步到该 Issue；不因文档 PR 合并就关闭实施规格。
 >
@@ -30,13 +32,13 @@
 
 ## 2. 当前事实、增量与非目标
 
-### 当前已实现（基线）
+### 当前已实现（基线，T1 之前的状态；T1、T2、T3 的现状见 [功能描述](features.md)，T4 见 [控制台功能描述](../admin/features.md)）
 
 - `usersrv` 是唯一账号来源：邮箱规范化、Argon2id、注册验证、登录、改密/重置、资料、认证版本、角色 CLI、四种邮件 adapter 与加密 outbox。
 - BFF 持有 HttpOnly Cookie 会话和注销工作流；每个受保护请求以及 MCP 工具调用复核 usersrv 的状态、`auth_version`、角色；产品服务只认内部凭证。
-- `packages/account` 已包含账号客户端、表单、校验、错误处理和邮件落地页。trip-map 使用 `AccountDialog`，metro 有 `/login`、`/account`；各自也接收邮件链接。
-- metro 已有城市、线路、车型、专题、导入/导出、目录审计和管理令牌页面（`apps/metro/src/pages/admin/`）；其业务接口和 MCP 已实现。
-- usersrv 当前角色白名单只有 `metro-admin`，角色/账号状态只可通过 CLI 管理。当前没有 OzID 独立前端、统一控制台、网页用户管理接口或管理 IP 白名单。
+- `packages/account` 已包含账号客户端、表单、校验、错误处理和邮件落地页。trip-map 的 `AccountDialog` 自 T10 起只有 OzID 入口（无表单）；metro 的 `/login`、`/account` 只是说明页；两个产品对升级前的邮件链接（`/account/verify-email`、`/account/reset-password`）只做向 OzID 的交接（T12），不再渲染表单。
+- （基线描述；T8 起这些页面已迁入统一控制台，`apps/metro/src/pages/admin/` 已删除，旧 `/admin` 路由退役，见 [控制台功能描述](../admin/features.md#metro-目录管理t8)）metro 当时已有城市、线路、车型、专题、导入/导出、目录审计和管理令牌页面（`apps/metro/src/pages/admin/`）；其业务接口和 MCP 已实现。
+- （基线描述；T4 起角色白名单为 `metro-admin` 与 `ozid-admin`，并有控制台、用户查询和管理周界，见 [控制台功能描述](../admin/features.md)）usersrv 当时的角色白名单只有 `metro-admin`，角色/账号状态只可通过 CLI 管理。当前没有 OzID 独立前端、统一控制台、网页用户管理接口或管理 IP 白名单。
 
 ### 本次交付增量
 
@@ -108,7 +110,7 @@ MCP 客户端 ─ 机器 IP 白名单 + Bearer → BFF /mcp/metro    └─ metr
 
 部署步骤要同时列明前端重建、服务端 registry/CORS/邮件地址、DNS/TLS/路由及可信代理检查；不同层不允许静默使用旧默认域名。更换 API 主机后旧 Cookie 不会自动转移，应预告重新登录。
 
-已发邮件中的旧 origin 不会自动改写：保留受控旧落地入口至少覆盖尚有效的注册/重置令牌期限，或明确要求用户重新申请；不新增泄露 fragment 的通用重定向器。切换前后都要验证 IP 防护和拒绝旧来源，不能为过渡使用通配 CORS。本次不触碰现有账号 UUID 或业务数据。
+已发邮件中的旧 origin 不会自动改写：产品里只保留两个精确路径的交接页：令牌留在 fragment、先清本页地址栏，再向构建配置里固定的 OzID origin 的同名路径交接，由中央页面完成或提示重新申请；不接受任意目的 URL，不是通用重定向器，不把令牌放进 query、日志或存储。切换前后都要验证 IP 防护和拒绝旧来源，不能为过渡使用通配 CORS。本次不触碰现有账号 UUID 或业务数据。
 
 ## 5. 页面与信息架构
 
@@ -175,7 +177,7 @@ MCP 客户端 ─ 机器 IP 白名单 + Bearer → BFF /mcp/metro    └─ metr
 - 新申请的所有账号邮件统一以配置的 OzID origin 为落地地址；来源产品上下文只控制后续返回，不能控制邮件 origin。扩展当前 `auth.apps` 校验及 `app_id` 含义时必须同步用户端、BFF、usersrv，不能只给旧 map 添加一项就声称完成集中化。
 - 需要跨“申请→邮件→设置密码→再次登录”保留的应用 ID/path，应经 BFF 校验后绑定挑战/邮件流程，允许在另一浏览器打开邮件；完成注册/重置后可返回该合法上下文。只保存导航信息，绝不把用户尚未设置的密码写队列。
 - 如果链接没有来源上下文或其目标已退役，完成操作后停留 OzID 并提供安全的登录入口；不能让令牌消费后的返回错误变成“账号没有创建”。
-- 注册/重置完成不自动登录，不因浏览器已有另一个账号的 Cookie 而把新账号数据写入旧账号。旧产品邮件页过渡必须保持 token 在内存/fragment，不经 query 或日志转发；最终不长期运行两套表单。
+- 注册/重置完成不自动登录，不因浏览器已有另一个账号的 Cookie 而把新账号数据写入旧账号。旧产品邮件页只交接、不渲染表单，token 只在内存与 fragment，不经 query 或日志转发。
 
 ## 7. 账号设置、会话与数据保护
 
@@ -282,7 +284,7 @@ BFF 不直写 usersrv 的 Ent 表；新内部方法有独立服务端角色检�
 - 自助“退出其他设备”可直接使用 BFF 当前会话表，不新增用户状态或改变认证版本；管理收据不存密码/完整邮箱。
 - 不改变 tripmap/metro 的业务 schema、revision、媒体 key、公开主页 handle 或备份格式；本次只是入口和管理面迁移。若实现确实影响账号缓存字段，必须同次更新兼容和数据文档，不能按空缓存覆盖。
 - 契约/Ent 只通过生成器更新，随代码提交迁移与 Go/TypeScript 生成物。新迁移以已有库为基线做增量；usersrv 第一版“不迁移旧 Logto 数据”不是删除现有 usersrv 数据的许可。
-- 老产品 `/login`、`/account`、`/?signin=1` 和 `/admin/...` 可做明确的允许映射兼容跳转；不接受任意 `next`/URL，也不保留可继续输入密码或管理数据的另一套页面。已有邮件页只做覆盖 TTL 的受控过渡，之后退役。
+- 老产品 `/login`、`/account`、`/?signin=1` 和 `/admin/...` 可做明确的允许映射兼容跳转；不接受任意 `next`/URL，也不保留可继续输入密码或管理数据的另一套页面。已有邮件页只做向 OzID 的交接，没有表单，因此不需要日后再发一次镜像来删除旧表单；旧 origin 的 API 兼容例外按 `until` 到期关闭。
 
 ## 12. 产品收敛与 metro 迁移
 

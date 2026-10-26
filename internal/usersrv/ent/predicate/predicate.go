@@ -9,6 +9,9 @@ import (
 // AccountToken is the predicate function for accounttoken builders.
 type AccountToken func(*sql.Selector)
 
+// AdminMutation is the predicate function for adminmutation builders.
+type AdminMutation func(*sql.Selector)
+
 // DeletionTombstone is the predicate function for deletiontombstone builders.
 type DeletionTombstone func(*sql.Selector)
 

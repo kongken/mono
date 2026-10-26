@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/kongken/mono/internal/bff/accesstoken"
+	"github.com/kongken/mono/internal/bff/adminguard"
 	bffauth "github.com/kongken/mono/internal/bff/auth"
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/ent"
@@ -27,10 +28,12 @@ import (
 	"github.com/kongken/mono/internal/bff/ingress"
 	bffmetro "github.com/kongken/mono/internal/bff/metro"
 	"github.com/kongken/mono/internal/bff/metro/mcp"
+	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/bff/ratelimit"
 	"github.com/kongken/mono/internal/bff/session"
 	bfftripmap "github.com/kongken/mono/internal/bff/tripmap"
 	"github.com/kongken/mono/internal/bff/upstream"
+	"github.com/kongken/mono/internal/bff/useradmin"
 	"github.com/kongken/mono/internal/bff/usersrv"
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
@@ -62,6 +65,7 @@ type Handlers struct {
 	auth        atomic.Pointer[bffauth.Handler]
 	authSvc     atomic.Pointer[bffauth.Service]
 	usersClient atomic.Pointer[usersrv.Client]
+	adminGuard  atomic.Pointer[adminguard.Guard]
 	stopRunner  atomic.Pointer[context.CancelFunc]
 }
 
@@ -101,7 +105,10 @@ func (h *Handlers) Bootstrap() error {
 		h.upstreams.Store(clients)
 	}
 	if clients != nil {
-		public := h.publicAPI(clients)
+		public, err := h.publicAPI(clients)
+		if err != nil {
+			return err
+		}
 		h.public.Store(&public)
 		h.startDeletionRunner()
 	}
@@ -173,10 +180,37 @@ func heavyProcedures() map[string]bool {
 	return heavy
 }
 
-func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
+// publicAPI builds the public Connect handler. It fails when the account wiring cannot be built
+// (an unusable navigation registry): the caller must then not serve, instead of serving an
+// API whose sign-in return flow silently refuses everything.
+func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 	conn := clients.Conn(bfftripmap.Service)
 	usersConn := clients.Conn(usersrv.Service)
+	// The admin perimeter exists even when nothing is configured: an empty allowlist
+	// (or no registered console) refuses every management procedure.
+	guard, err := adminguard.New(h.cfg.Admin, h.cfg.Navigation.Apps[navigation.AppAdmin].Origin)
+	if err != nil {
+		return nil, fmt.Errorf("admin: %w", err)
+	}
+	h.adminGuard.Store(guard)
+	// The account procedures take the user center's origin only (the old-mail transition aside).
+	accountOrigins, err := newAccountOriginPolicy(h.cfg, usersConn != nil)
+	if err != nil {
+		return nil, fmt.Errorf("account origins: %w", err)
+	}
+	switch {
+	case accountOrigins.legacyExpired():
+		slog.Warn("auth.legacy_mail_transition has ended: its origins are no longer accepted; remove the section", "until", h.cfg.Auth.LegacyMailTransition.Until)
+	case accountOrigins != nil && len(accountOrigins.legacy) > 0:
+		slog.Warn("auth.legacy_mail_transition is active: product origins may complete old account mails until it ends", "until", h.cfg.Auth.LegacyMailTransition.Until)
+	}
 	policy := ingress.Policy{
+		Perimeter: func(procedure string, header http.Header, remoteAddr string) error {
+			if isAdminProcedure(procedure) {
+				return guard.Check(header, remoteAddr)
+			}
+			return accountOrigins.Check(procedure, header)
+		},
 		ClientIPHeader:     h.cfg.ClientIPHeader,
 		AllowedOrigins:     h.cfg.CORSAllowedOrigins,
 		Heavy:              heavyProcedures(),
@@ -188,7 +222,13 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 		h.usersClient.Store(users)
 		svc := bffauth.NewService(&h.cfg.Auth, cookies, r.DB, ratelimit.New(r.Redis, r.KeyPrefix), users, h.cleaners(clients))
 		h.authSvc.Store(svc)
-		authHandler := bffauth.NewHandler(svc, h.cfg.Auth.CSRFTokenTTL)
+		// config.Validate has already checked this; failing here too keeps the wiring from
+		// ever serving without the registry it was configured with.
+		registry, err := navigation.New(h.cfg.Navigation, h.cfg.CORSAllowedOrigins, h.cfg.Auth.CookieSecure)
+		if err != nil {
+			return nil, fmt.Errorf("navigation: %w", err)
+		}
+		authHandler := bffauth.NewHandler(svc, h.cfg.Auth.CSRFTokenTTL).WithNavigation(registry)
 		h.auth.Store(authHandler)
 		policy.Authenticate = authHandler.Authenticate
 		policy.DeletionKnown = authHandler.DeletionKnown
@@ -218,6 +258,11 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 		if r := h.resources.Load(); r != nil {
 			route, handler = bffv1connect.NewAccessTokenServiceHandler(accesstoken.NewHandler(accesstoken.New(r.DB)), authOpts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
+			if users := h.usersClient.Load(); users != nil {
+				adminHandler := useradmin.New(users, ratelimit.New(r.Redis, r.KeyPrefix), h.cfg.Admin.Limit(), h.cfg.Admin.WriteLimit())
+				route, handler = bffv1connect.NewUserAdminServiceHandler(adminHandler, authOpts...)
+				mux.Handle(route, ingress.ConnectOnly(handler))
+			}
 		}
 		if conn != nil {
 			bfftripmap.MountRPC(mux, conn, opts)
@@ -226,14 +271,14 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) http.Handler {
 			bffmetro.MountRPC(mux, metroConn, opts)
 		}
 	}
-	return http.StripPrefix("/api", mux)
+	return http.StripPrefix("/api", mux), nil
 }
 
 // cleaners builds the account-deletion cleaners of the products enabled by
 // auth.account_cleanup.
 func (h *Handlers) cleaners(clients *upstream.Clients) []bffauth.UserDataCleaner {
 	var out []bffauth.UserDataCleaner
-	for _, name := range h.cfg.Auth.CleanupProducts() {
+	for _, name := range h.cfg.CleanupProducts() {
 		conn := clients.Conn(name)
 		if conn == nil {
 			continue
@@ -295,9 +340,23 @@ func (h *Handlers) mountMCP(r *gin.Engine) {
 	if users == nil {
 		return
 	}
+	// The machine perimeter is its own list (mcp.*), never the browser console's (admin.*). If it cannot be
+	// built the handler is mounted closed: a missing perimeter admits nobody.
+	var perimeter mcp.Perimeter
+	if src, err := adminguard.NewSource("mcp", h.cfg.MCP.Source()); err != nil {
+		slog.Error("mcp source perimeter is invalid; every MCP request is refused", "error", err)
+	} else {
+		if !src.Open() {
+			slog.Warn("mcp.allowed_cidrs is empty: every MCP request is refused until a machine allowlist is configured")
+		}
+		perimeter = src
+	}
 	handler := bffmetro.NewMCP(conn, accesstoken.New(res.DB), users, ratelimit.New(res.Redis, res.KeyPrefix),
-		h.cfg.MCP.RateLimit(), h.cfg.ClientIPHeader)
+		h.cfg.MCP.RateLimit(), perimeter)
+	// The trailing-slash spelling is served by the same handler, so the source perimeter answers it too: left
+	// to the router it would be an unauthenticated 307 that tells a caller outside the allowlist the route exists.
 	r.Any(mcp.Path, gin.WrapH(handler))
+	r.Any(mcp.Path+"/", gin.WrapH(handler))
 }
 
 func (h *Handlers) mountPublicHTTP(r *gin.Engine) {
@@ -377,6 +436,14 @@ func (h *Handlers) servePublic(gw *gateway.Gateway, c *gin.Context) {
 	if public == nil || path.Clean(p) != p {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
+	}
+	// The admin perimeter comes before CORS: a request from outside the allowlist, a
+	// preflight included, gets no CORS grant and no hint that the procedure exists.
+	if isAdminPath(p) {
+		if h.adminGuard.Load().Check(c.Request.Header, c.Request.RemoteAddr) != nil {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
 	}
 	if gw.CORS()(c); c.IsAborted() {
 		return
