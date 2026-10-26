@@ -10,9 +10,11 @@ import {
   emptyForm,
   formFromPlace,
   formLocation,
+  MAP_NOT_READY_MESSAGE,
   readForm,
   type FormError,
   type PlaceForm,
+  type Whereabouts,
 } from "../lib/world-form.ts";
 import { hitTestWorld } from "../lib/world-map.ts";
 import { searchWorldCountries, type WorldCatalog, type WorldCountry, type WorldSearchIndex } from "../lib/world-catalog.ts";
@@ -217,10 +219,14 @@ function WorldLocal({
     if (!form || (!form.lat.trim() && !form.lng.trim())) return { state: "none" };
     const at = formLocation(form);
     if (!at) return { state: "unreadable" };
-    if (!mapData) return { state: "unchecked" };
+    if (!mapData) return { state: "unchecked", failed: assets.map.status === "failed" };
     const code = hitTestWorld(mapData, at.lng, at.lat);
     return code === "CN" ? { state: "china" } : code ? { state: "country", code } : { state: "nothing" };
-  }, [form, mapData]);
+  }, [form, mapData, assets.map.status]);
+  // The refusal for a missing map goes away on its own once the map is there.
+  useEffect(() => {
+    if (mapData) setFormError((error) => (error?.message === MAP_NOT_READY_MESSAGE ? null : error));
+  }, [mapData]);
   const defaultCountry = (next: PlaceForm): string => {
     const at = formLocation(next);
     const code = at ? countryAt(at.lat, at.lng) : null;
@@ -262,9 +268,11 @@ function WorldLocal({
   const save = () => {
     if (!form) return;
     // The location is held against the map here (the data layer has no geometry): typed, picked and
-    // edited coordinates alike, whatever country the list says. Without the map nothing can be checked.
+    // edited coordinates alike, whatever country the list says. Without the map (loading, or failed) it
+    // cannot be told that the place is not in China, so nothing is saved and the draft stays.
     const at = formLocation(form);
-    const read = readForm(form, codes, !!at && countryAt(at.lat, at.lng) === "CN");
+    const where: Whereabouts = !at ? "elsewhere" : !mapData ? "unknown" : countryAt(at.lat, at.lng) === "CN" ? "china" : "elsewhere";
+    const read = readForm(form, codes, where);
     if ("error" in read) {
       setFormError(read.error);
       return;
@@ -324,6 +332,13 @@ function WorldLocal({
     if (!doomed) return;
     local.edit((world) => removePlace(world, doomed.id, codes), `已删除城市${doomed.name}及其 ${doomed.trips.length} 次旅行`);
     setDeleting(null);
+    closeForm();
+  };
+  // Asked from inside the city form: keeping the city brings the form back with the draft as it was
+  // (a new dialog, like after picking, so that its overlay is not left above its content).
+  const keepCity = () => {
+    setDeleting(null);
+    if (form) setFormKey((n) => n + 1);
   };
 
   // --- Backup ------------------------------------------------------------------------------------
@@ -607,7 +622,7 @@ function WorldLocal({
       {shownForm.current && (
         <WorldPlaceDialog
           key={formKey}
-          open={form !== null && !picking}
+          open={form !== null && !picking && deleting === null}
           form={shownForm.current}
           error={formError}
           located={located}
@@ -622,11 +637,8 @@ function WorldLocal({
           onPickOnMap={startPick}
           onSave={save}
           onCancel={closeForm}
-          onDelete={() => {
-            const id = form?.id;
-            closeForm();
-            if (id) setDeleting(id);
-          }}
+          onDelete={() => form?.id && setDeleting(form.id)}
+          onRetryMap={assets.retryMap}
         />
       )}
       <DeletePlaceDialog
@@ -634,7 +646,7 @@ function WorldLocal({
         countryName={doomed ? nameOf(doomed.country) : ""}
         darkens={darkens}
         onConfirm={confirmDelete}
-        onCancel={() => setDeleting(null)}
+        onCancel={keepCity}
       />
       <ImportDialog
         preview={importing?.preview ?? null}

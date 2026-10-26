@@ -61,17 +61,24 @@ export const coordinateText = (degrees: number): string => String(Math.round(deg
 /** The refusal for a location inside China, here and in the hint under the coordinates. */
 export const CHINA_LOCATION_MESSAGE = "这个位置在中国。中国的城市请在中国视图记录，世界视图只记录海外城市。";
 
+/** The refusal while the world map is not there to say whether a location is in China. */
+export const MAP_NOT_READY_MESSAGE = "世界地图还没有载入（载入中或载入失败），暂时无法确认这个位置不在中国，所以不能保存。草稿已保留：等地图载入，或点“重试加载地图”后再保存。";
+
+/**
+ * Where the coordinates fall on the map the page has drawn: inside China, elsewhere, or "unknown" while
+ * that map is not there (still loading, or failed). The data layer has no geometry (a stored or imported
+ * city is checked only for its country code, which is never `CN`), so the form is where a location is held
+ * against the map: the caller works it out with `hitTestWorld`, for typed, picked and edited coordinates
+ * alike. An unknown location is never saved: it could be in China.
+ */
+export type Whereabouts = "china" | "elsewhere" | "unknown";
+
 /**
  * Reads the form strictly, field by field in the order the user sees them. The first problem
  * is returned with the field it belongs to; a form that passes can still be refused by
  * `savePlace` (the limits of the whole document), which reports in the same way.
- *
- * `inChina` says whether the coordinates fall inside China on the map the page has drawn. The data
- * layer has no geometry (a stored or imported city is checked only for its country code, which is
- * never `CN`), so the form is where a location is held against the map: the caller works it out
- * with `hitTestWorld` and passes it in, for typed, picked and edited coordinates alike.
  */
-export function readForm(form: PlaceForm, codes: WorldCodes, inChina = false): { draft: PlaceDraft } | { error: FormError } {
+export function readForm(form: PlaceForm, codes: WorldCodes, where: Whereabouts = "elsewhere"): { draft: PlaceDraft } | { error: FormError } {
   const name = trimWorldName(form.name);
   if (!name) return { error: { field: "name", message: "请填写城市名称" } };
   if (name.length > WORLD_NAME_LIMIT) return { error: { field: "name", message: `城市名称最多 ${WORLD_NAME_LIMIT} 个字符` } };
@@ -87,7 +94,8 @@ export function readForm(form: PlaceForm, codes: WorldCodes, inChina = false): {
   } catch (error) {
     return { error: { field: "lng", message: error instanceof WorldValidationError ? error.detail : "经度无法识别" } };
   }
-  if (inChina) return { error: { field: "lat", message: CHINA_LOCATION_MESSAGE } };
+  if (where === "china") return { error: { field: "lat", message: CHINA_LOCATION_MESSAGE } };
+  if (where === "unknown") return { error: { message: MAP_NOT_READY_MESSAGE } };
   if (!form.country) return { error: { field: "country", message: "请选择城市所在的国家或地区" } };
   if (form.country === "CN") return { error: { field: "country", message: "中国的城市请在中国视图记录，世界视图只记录海外城市" } };
   if (!codes.has(form.country)) return { error: { field: "country", message: "所选国家或地区不在目录中" } };

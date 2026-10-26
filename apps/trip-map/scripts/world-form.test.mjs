@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import catalog from "@kongken/geo-data/world-catalog.json" with { type: "json" };
-import { CHINA_LOCATION_MESSAGE, coordinateText, emptyForm, formFromPlace, formLocation, newTrip, readForm } from "../src/lib/world-form.ts";
+import { CHINA_LOCATION_MESSAGE, MAP_NOT_READY_MESSAGE, coordinateText, emptyForm, formFromPlace, formLocation, newTrip, readForm } from "../src/lib/world-form.ts";
 import { savePlace, worldCodeSet, emptyWorld } from "../src/lib/world.ts";
 
 const codes = worldCodeSet(catalog);
 const filled = (extra = {}) => ({ ...emptyForm(), name: "东京", country: "JP", lat: "35.6764", lng: "139.65", ...extra });
-const error = (form, inChina = false) => {
-  const read = readForm(form, codes, inChina);
+const error = (form, where = "elsewhere") => {
+  const read = readForm(form, codes, where);
   assert.ok("error" in read, "the form should be refused");
   return read.error;
 };
@@ -45,13 +45,27 @@ test("each field is refused in the order the user sees it, with its own message"
 
 test("coordinates inside China are refused whatever country is chosen, on the latitude, ahead of the country", () => {
   // The caller says where the coordinates fall (the data layer has no geometry): Hangzhou with Japan chosen...
-  assert.deepEqual(error(filled({ lat: "30.25", lng: "120.17" }), true), { field: "lat", message: CHINA_LOCATION_MESSAGE });
+  assert.deepEqual(error(filled({ lat: "30.25", lng: "120.17" }), "china"), { field: "lat", message: CHINA_LOCATION_MESSAGE });
   // ...and with no country chosen, the problem is the location, not the missing country.
-  assert.equal(error(filled({ lat: "30.25", lng: "120.17", country: "" }), true).field, "lat");
+  assert.equal(error(filled({ lat: "30.25", lng: "120.17", country: "" }), "china").field, "lat");
   // Unreadable coordinates are still reported as such, and a location outside China passes.
-  assert.equal(error(filled({ lat: "x" }), true).field, "lat");
-  assert.match(error(filled({ lat: "x" }), true).message, /十进制/);
-  assert.ok("draft" in readForm(filled(), codes, false));
+  assert.equal(error(filled({ lat: "x" }), "china").field, "lat");
+  assert.match(error(filled({ lat: "x" }), "china").message, /十进制/);
+  assert.ok("draft" in readForm(filled(), codes, "elsewhere"));
+  assert.ok("draft" in readForm(filled(), codes), "elsewhere is the default for a caller that has no map to ask");
+});
+
+test("while the map is not there the location is unknown and nothing is saved, whatever it is", () => {
+  // Hangzhou and Tokyo alike: without the map it cannot be told that the place is not in China.
+  for (const [lat, lng] of [["30.25", "120.17"], ["35.6764", "139.65"]]) {
+    const refused = error(filled({ lat, lng }), "unknown");
+    assert.deepEqual(refused, { message: MAP_NOT_READY_MESSAGE }, "no field: the form stays as it is, the message says why");
+  }
+  // Problems the form can see for itself are still reported first, on their own fields.
+  assert.equal(error(filled({ name: "" }), "unknown").field, "name");
+  assert.equal(error(filled({ lat: "x" }), "unknown").field, "lat");
+  assert.equal(error(filled({ lng: "999" }), "unknown").field, "lng");
+  assert.match(MAP_NOT_READY_MESSAGE, /草稿已保留/);
 });
 
 test("a trip with an impossible date or a long note is refused, naming which trip", () => {

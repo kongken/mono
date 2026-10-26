@@ -444,22 +444,227 @@ test("the reason an unreadable world gives is the reason alone, not the internal
   await expect(page.locator(".world-protect")).not.toContainText("countries[");
 });
 
-test("without the map a typed location cannot be checked against China: the form says so and still works from the list", async ({ page }) => {
+// Without the map nothing says whether a location is in China, so nothing is saved (world-spec.md section 10):
+// the form keeps its draft, says why, offers to load the map again, and saves once the map is there.
+const MAP_NOT_READY = /世界地图还没有载入.*草稿已保留/;
+const openWorldWithoutMap = async (page: Page, raw?: string) => {
   await installBackend(page, []);
+  if (raw !== undefined)
+    await page.addInitScript(
+      ([key, text]) => {
+        if (localStorage.getItem(key) === null) localStorage.setItem(key, text);
+      },
+      [WORLD_KEY, raw] as const,
+    );
+};
+const showWorld = (page: Page) => page.getByRole("group", { name: "地图视图" }).getByRole("button", { name: "世界视图", exact: true }).click();
+
+test("a failed map: adding a city is refused, the draft stays, and after the map is retried the city can be saved (China still refused)", async ({ page }) => {
+  await openWorldWithoutMap(page);
   await page.route("**/maps/**", (route) => route.abort());
   await page.goto("/");
-  await page.getByRole("group", { name: "地图视图" }).getByRole("button", { name: "世界视图", exact: true }).click();
+  await showWorld(page);
   await expect(page.getByText("世界地图暂不可用")).toBeVisible();
+
   const dialog = await addCity(page);
   await expect(dialog.getByRole("button", { name: "在地图上选点" })).toBeDisabled();
   await nameField(dialog).fill("东京");
   await latField(dialog).fill("35.6764");
   await lngField(dialog).fill("139.65");
-  await expect(dialog.locator(".world-located")).toContainText("地图没有载入，无法检查这个位置是否在中国");
   await countrySelect(dialog).selectOption("JP");
+  await dialog.getByRole("button", { name: "添加一次旅行" }).click();
+  await dialog.getByLabel(/旅行记忆/).last().fill("樱花");
+  await expect(dialog.locator(".world-located")).toContainText("世界地图没有载入");
+  // Hangzhou with Japan chosen would otherwise get through: nothing is saved without the map.
+  const save = dialog.getByRole("button", { name: "添加城市" });
+  await save.click();
+  await expect(dialog.getByRole("alert")).toContainText(MAP_NOT_READY);
+  await expect(dialog).toBeVisible();
+  expect(await stored(page), "nothing was written").toBeNull();
+  await latField(dialog).fill("30.25");
+  await lngField(dialog).fill("120.17");
+  await save.click();
+  await expect(dialog.getByRole("alert")).toContainText(MAP_NOT_READY);
+  expect(await stored(page), "a location in China is not saved either").toBeNull();
+  // The draft is all still there.
+  await latField(dialog).fill("35.6764");
+  await lngField(dialog).fill("139.65");
+  await expect(nameField(dialog)).toHaveValue("东京");
+  await expect(dialog.getByLabel(/旅行记忆/)).toHaveValue("樱花");
+  await save.click();
+  await expect(dialog.getByRole("alert")).toContainText(MAP_NOT_READY);
+
+  // The map comes back through the dialog's own retry: the refusal goes away by itself and the hint is the real one.
+  await page.unroute("**/maps/**");
+  await dialog.getByRole("button", { name: "重试加载地图" }).click();
+  await expect(dialog.locator(".world-located")).toHaveText("这个位置在日本。", { timeout: 20000 });
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "在地图上选点" })).toBeEnabled();
+  expect(await stored(page)).toBeNull();
+  // With the map, the China rule is the usual one...
+  await latField(dialog).fill("30.25");
+  await lngField(dialog).fill("120.17");
+  await save.click();
+  await expect(dialog.getByRole("alert")).toHaveText(CHINA_REFUSAL);
+  // ...and a city abroad is saved with its trip.
+  await latField(dialog).fill("35.6764");
+  await lngField(dialog).fill("139.65");
+  await save.click();
+  await expect(dialog).toBeHidden();
+  expect((await storedWorld(page)).places[0]).toMatchObject({ name: "东京", country: "JP", trips: [{ note: "樱花" }] });
+});
+
+test("a failed map: editing a city is refused too, and after the retry the edit is saved (a location in China still refused)", async ({ page }) => {
+  const inChina = { id: "p9", name: "杭州", country: "JP", lat: 30.25, lng: 120.17, trips: [] };
+  await openWorldWithoutMap(page, world({ places: [paris, inChina] }));
+  await page.route("**/maps/**", (route) => route.abort());
+  await page.goto("/");
+  await showWorld(page);
+  await expect(page.getByText("世界地图暂不可用")).toBeVisible();
+  const before = await stored(page);
+
+  // Not even a change of name goes through: the stored coordinates cannot be held against the map either.
+  await cityRow(page, "巴黎").getByRole("button", { name: /编辑/ }).click();
+  const dialog = placeDialog(page);
+  await nameField(dialog).fill("巴黎市");
+  const save = dialog.getByRole("button", { name: "保存修改" });
+  await save.click();
+  await expect(dialog.getByRole("alert")).toContainText(MAP_NOT_READY);
+  expect(await stored(page)).toBe(before);
+  await expect(nameField(dialog)).toHaveValue("巴黎市");
+
+  await page.unroute("**/maps/**");
+  await dialog.getByRole("button", { name: "重试加载地图" }).click();
+  await expect(dialog.getByRole("alert")).toHaveCount(0, { timeout: 20000 });
+  await save.click();
+  await expect(dialog).toBeHidden();
+  expect((await storedWorld(page)).places.map((p: { name: string }) => p.name).sort()).toEqual(["巴黎市", "杭州"]);
+
+  // A stored city whose coordinates are in China (an imported file may have one) cannot be saved as it is.
+  await cityRow(page, "杭州").getByRole("button", { name: /编辑/ }).click();
+  const edit = placeDialog(page);
+  await nameField(edit).fill("杭州市");
+  await edit.getByRole("button", { name: "保存修改" }).click();
+  await expect(edit.getByRole("alert")).toHaveText(CHINA_REFUSAL);
+  await latField(edit).fill("35.6764");
+  await lngField(edit).fill("139.65");
+  await edit.getByRole("button", { name: "保存修改" }).click();
+  await expect(edit).toBeHidden();
+  expect((await storedWorld(page)).places.find((p: { id: string }) => p.id === "p9")).toMatchObject({ name: "杭州市", lat: 35.6764 });
+});
+
+test("a map still loading: nothing is saved yet, the draft stays, and the same form saves as soon as the map is there", async ({ page }) => {
+  await openWorldWithoutMap(page, world({ places: [paris] }));
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/maps/world.json", async (route) => {
+    await gate;
+    await route.continue();
+  });
+  await page.goto("/");
+  await showWorld(page);
+  await expect(page.getByText("正在载入世界地图")).toBeVisible();
+
+  const dialog = await addCity(page);
+  await expect(dialog.getByRole("button", { name: "在地图上选点" })).toBeDisabled();
+  await nameField(dialog).fill("东京");
+  await latField(dialog).fill("35.6764");
+  await lngField(dialog).fill("139.65");
+  await countrySelect(dialog).selectOption("JP");
+  await expect(dialog.locator(".world-located")).toContainText("世界地图正在载入");
+  await expect(dialog.getByRole("button", { name: "重试加载地图" }), "nothing to retry while it loads").toHaveCount(0);
+  const before = await stored(page);
+  await dialog.getByRole("button", { name: "添加城市" }).click();
+  await expect(dialog.getByRole("alert")).toContainText(MAP_NOT_READY);
+  await expect(dialog).toBeVisible();
+  expect(await stored(page)).toBe(before);
+
+  release();
+  await expect(country(page, "JP")).toBeAttached({ timeout: 20000 });
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await expect(dialog.locator(".world-located")).toHaveText("这个位置在日本。");
+  await expect(nameField(dialog)).toHaveValue("东京");
   await dialog.getByRole("button", { name: "添加城市" }).click();
   await expect(dialog).toBeHidden();
-  expect((await storedWorld(page)).places[0]).toMatchObject({ name: "东京", country: "JP" });
+  expect((await storedWorld(page)).places.map((p: { name: string }) => p.name).sort()).toEqual(["东京", "巴黎"]);
+});
+
+test("a map still loading: editing a stored city is refused until the map is there, then saved", async ({ page }) => {
+  await openWorldWithoutMap(page, world({ places: [paris] }));
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/maps/world.json", async (route) => {
+    await gate;
+    await route.continue();
+  });
+  await page.goto("/");
+  await showWorld(page);
+  await expect(page.getByText("正在载入世界地图")).toBeVisible();
+  const before = await stored(page);
+  await cityRow(page, "巴黎").getByRole("button", { name: /编辑/ }).click();
+  const dialog = placeDialog(page);
+  await nameField(dialog).fill("巴黎市");
+  await dialog.getByRole("button", { name: "保存修改" }).click();
+  await expect(dialog.getByRole("alert")).toContainText(MAP_NOT_READY);
+  expect(await stored(page)).toBe(before);
+  release();
+  await expect(country(page, "JP")).toBeAttached({ timeout: 20000 });
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "保存修改" }).click();
+  await expect(dialog).toBeHidden();
+  expect((await storedWorld(page)).places[0].name).toBe("巴黎市");
+});
+
+test("deleting from inside the city form keeps the draft when the city is kept, and closes the form when it is deleted", async ({ page }) => {
+  await start(page, world({ places: [paris] }));
+  await cityRow(page, "巴黎").getByRole("button", { name: /编辑/ }).click();
+  let dialog = placeDialog(page);
+  await nameField(dialog).fill("巴黎市");
+  await dialog.getByRole("button", { name: "添加一次旅行" }).click();
+  await dialog.getByLabel(/旅行记忆/).last().fill("新的一次");
+  await dialog.getByRole("button", { name: "删除这座城市" }).click();
+  const question = page.getByRole("dialog", { name: /删除/ });
+  await expect(question).toBeVisible();
+  await question.getByRole("button", { name: "保留城市" }).click();
+  // The form is back with what was typed (it asked nothing about discarding: nothing was closed).
+  dialog = placeDialog(page);
+  await expect(dialog).toBeVisible();
+  await expect(nameField(dialog)).toHaveValue("巴黎市");
+  await expect(dialog.getByLabel(/旅行记忆/).last()).toHaveValue("新的一次");
+  await expect(dialog.getByRole("alertdialog")).toHaveCount(0);
+  expect((await storedWorld(page)).places[0]).toMatchObject({ name: "巴黎", trips: [{ id: "t1" }] });
+  // It still asks before it is closed, and deleting for real removes the city and closes the form.
+  await page.keyboard.press("Escape");
+  await expect(dialog.getByRole("alertdialog")).toBeVisible();
+  await dialog.getByRole("button", { name: "继续编辑" }).click();
+  await dialog.getByRole("button", { name: "删除这座城市" }).click();
+  await page.getByRole("dialog", { name: /删除/ }).getByRole("button", { name: "确认删除" }).click();
+  await expect(dialog).toBeHidden();
+  expect((await storedWorld(page)).places).toEqual([]);
+  await expect(stat(page, "海外城市")).toHaveText("0");
+});
+
+test("choosing to keep editing puts focus back on the control the user was in, not on the dialog", async ({ page }) => {
+  await start(page, world({ places: [paris] }));
+  const dialog = await addCity(page);
+  await nameField(dialog).fill("东京");
+  await latField(dialog).focus();
+  await page.keyboard.press("Escape");
+  await expect(dialog.getByRole("button", { name: "继续编辑" })).toBeFocused();
+  await dialog.getByRole("button", { name: "继续编辑" }).click();
+  await expect(latField(dialog)).toBeFocused();
+  // Esc again from the question goes back to the same place.
+  await page.keyboard.press("Escape");
+  await expect(dialog.getByRole("button", { name: "继续编辑" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(latField(dialog)).toBeFocused();
+  // Cancel (a button the question replaces) leads back to the name field.
+  await dialog.getByRole("button", { name: "取消" }).click();
+  await dialog.getByRole("button", { name: "继续编辑" }).click();
+  await expect(nameField(dialog)).toBeFocused();
+  // Keyboard only: Tab goes on from there, inside the form.
+  await page.keyboard.press("Tab");
+  expect(await dialog.evaluate((el) => el.contains(document.activeElement) && document.activeElement !== el)).toBe(true);
 });
 
 test("a form that cannot be saved says what is wrong and takes the user to the field; nothing is written", async ({ page }) => {
@@ -959,6 +1164,10 @@ test("every dialog fits the screen without horizontal overflow, and its buttons 
   await placeDialog(page).getByRole("button", { name: "删除这座城市" }).click();
   await fits(page.getByRole("dialog", { name: "确定删除城市“东京”？" }));
   await page.getByRole("button", { name: "保留城市" }).click();
+  // Keeping the city brings the city form back (nothing in it was changed, so Esc closes it at once).
+  await expect(placeDialog(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(placeDialog(page)).toBeHidden();
   await importInput(page).setInputFiles(backupFile(world({ places: [paris] })));
   await fits(importDialog(page));
   await expect(importDialog(page).getByRole("button", { name: "确认导入" })).toBeInViewport();

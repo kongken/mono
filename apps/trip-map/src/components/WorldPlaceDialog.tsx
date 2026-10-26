@@ -13,8 +13,8 @@ export type Located =
   /** The inputs are not (both) readable yet. */
   | { state: "unreadable" }
   | { state: "china" }
-  /** The coordinates read, but the map is not there to say where they fall. */
-  | { state: "unchecked" }
+  /** The coordinates read, but the map is not there to say where they fall (`failed`: it did not load, else it is still loading). */
+  | { state: "unchecked"; failed: boolean }
   /** Open sea, or a place too small to have a polygon of its own: the country is chosen from the list. */
   | { state: "nothing" }
   | { state: "country"; code: string };
@@ -36,6 +36,8 @@ type Props = {
   onChange: (patch: Partial<PlaceForm>) => void;
   onChooseCountry: (code: string) => void;
   onPickOnMap: () => void;
+  /** Loads the world map again after it failed. */
+  onRetryMap: () => void;
   onSave: () => void;
   onCancel: () => void;
   onDelete: () => void;
@@ -58,7 +60,9 @@ function locatedText(located: Located, names: Readonly<Record<string, string>>):
     case "china":
       return CHINA_LOCATION_MESSAGE;
     case "unchecked":
-      return "地图没有载入，无法检查这个位置是否在中国，也不能判定所在国家或地区：请自行确认，并在下方列表中选择。";
+      return located.failed
+        ? "世界地图没有载入，暂时无法确认这个位置是否在中国，保存会被拒绝。草稿已保留，可以重试加载地图。"
+        : "世界地图正在载入。载入之前无法确认这个位置是否在中国，暂时不能保存，草稿会保留。";
     case "nothing":
       return "这个位置没有对应的国家或地区（海上，或区域过小），请在下方列表中选择所在国家或地区。";
     case "country":
@@ -80,6 +84,7 @@ export default function WorldPlaceDialog({
   onChange,
   onChooseCountry,
   onPickOnMap,
+  onRetryMap,
   onSave,
   onCancel,
   onDelete,
@@ -88,6 +93,7 @@ export default function WorldPlaceDialog({
   // Asked once the user tries to close a form with changes (the button, the cross, Esc, a click outside).
   const [asking, setAsking] = useState(false);
   const keepEditing = useRef<HTMLButtonElement>(null);
+  const returnTo = useRef<HTMLElement | null>(null);
   const focusTrip = useRef<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const isNew = form.id === undefined;
@@ -115,11 +121,21 @@ export default function WorldPlaceDialog({
   // Esc or a click outside while asking is a way back to the form, never a way to lose it.
   const requestClose = () => {
     if (asking) setAsking(false);
-    else if (dirty) setAsking(true);
-    else onCancel();
+    else if (dirty) {
+      // Where the user was, so that "keep editing" puts them back there (a button of the footer is replaced by the question).
+      const active = document.activeElement;
+      returnTo.current = active instanceof HTMLElement && body.current?.contains(active) ? active : null;
+      setAsking(true);
+    } else onCancel();
   };
+  const wasAsking = useRef(false);
   useEffect(() => {
     if (asking) keepEditing.current?.focus();
+    else if (wasAsking.current) {
+      const back = returnTo.current?.isConnected ? returnTo.current : body.current?.querySelector<HTMLElement>('[data-field="name"]');
+      back?.focus();
+    }
+    wasAsking.current = asking;
   }, [asking]);
 
   const changeTrip = (id: string, patch: Partial<WorldTrip>) =>
@@ -172,7 +188,7 @@ export default function WorldPlaceDialog({
                 <CrosshairSimple size={17} />
                 在地图上选点
               </Button>
-              {!canPick && <p className="world-hint">世界地图暂不可用，请直接输入经纬度。</p>}
+              {!canPick && <p className="world-hint">世界地图还没有载入，暂时不能在地图上选点。</p>}
               <div className="world-coordinates">
                 <label className="field-label">
                   纬度（-90 到 90）
@@ -200,6 +216,11 @@ export default function WorldPlaceDialog({
               <p className="world-located" role="status" data-located={located.state}>
                 {locatedText(located, names)}
               </p>
+              {located.state === "unchecked" && located.failed && (
+                <Button type="button" variant="outline" size="sm" onClick={onRetryMap}>
+                  重试加载地图
+                </Button>
+              )}
             </fieldset>
 
             <div className="world-country-field">
