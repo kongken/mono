@@ -9,7 +9,7 @@ import { fakeBackend, green, login, seedLocalRaw, type V } from "./fake-backend"
 // layout. Everything runs against the built site, the way it is served.
 
 const WORLD_KEY = "shanhai-world-v1";
-const SHELL_CACHE = "shanhai-world-shell";
+const SHELL_CACHE = /^shanhai-world-shell-[0-9a-f]{16}$/;
 const DATA_CACHE = `shanhai-world-data-${catalog.version}`;
 const hangzhou: V = { code: "330100", name: "杭州市", province: "330000", color: green, date: "2026-10-01", note: "西湖" };
 const gold = "#e2af5c";
@@ -528,10 +528,10 @@ test("after one online visit the world view reloads offline: map, catalog, list,
   await offlineReady(page);
   await country(page, "JP").dispatchEvent("click");
   const marks = await stored(page);
-  expect(
-    await page.evaluate(() => caches.keys()).then((k) => k.sort()),
-    "one shell cache and one data cache named after the catalog version",
-  ).toEqual([DATA_CACHE, SHELL_CACHE].sort());
+  const names = await page.evaluate(() => caches.keys()).then((k) => k.sort());
+  expect(names.length, "one shell cache (one build) and one data cache named after the catalog version").toBe(2);
+  expect(names.filter((n) => n === DATA_CACHE)).toHaveLength(1);
+  expect(names.filter((n) => SHELL_CACHE.test(n))).toHaveLength(1);
 
   await context.setOffline(true);
   const offlineFrom = urls.length;
@@ -561,6 +561,67 @@ test("after one online visit the world view reloads offline: map, catalog, list,
   expect(sameOrigin(urls.slice(offlineFrom), page)).toEqual([]);
 
   await page.getByRole("group", { name: "地图视图" }).getByRole("button", { name: "中国视图", exact: true }).click();
+  await context.setOffline(false);
+});
+
+/** Every shell and data cache with the URLs in it: equal values are an unchanged offline copy. */
+const worldCaches = (page: Page) =>
+  page.evaluate(async () => {
+    const out: Record<string, string[]> = {};
+    for (const name of (await caches.keys()).sort())
+      if (name.startsWith("shanhai-world-")) out[name] = (await (await caches.open(name)).keys()).map((r) => new URL(r.url).pathname).sort();
+    return out;
+  });
+
+test("a shell refresh that fails keeps the earlier offline copy whole: the page still starts offline", async ({ page, context }) => {
+  test.setTimeout(90000);
+  await installBackend(page, []);
+  await page.goto("/");
+  await openWorld(page);
+  await mapReady(page);
+  await offlineReady(page);
+  const earlier = await worldCaches(page);
+  const shellName = Object.keys(earlier).find((n) => SHELL_CACHE.test(n))!;
+  expect(earlier[shellName].some((u) => u.endsWith("/shell-manifest.json")), "complete: its manifest is in").toBe(true);
+
+  // After the page has loaded, the server answers the refresh's download of the page with an index.html that
+  // names a file this page never loaded, as after a deployment in between: it must not be stored.
+  let changed = false;
+  await context.route("**/", async (route) => {
+    if (!changed) return route.continue();
+    const response = await route.fetch();
+    await route.fulfill({ response, body: (await response.text()).replace("</head>", '<link rel="modulepreload" href="/assets/not-loaded-ffffffff.js"></head>') });
+  });
+  await page.reload();
+  changed = true; // the page itself has loaded; the world view, and with it the refresh, has not started
+  await openWorld(page);
+  await mapReady(page);
+  await expect(page.locator(".world-view")).toHaveAttribute("data-offline", "failed", { timeout: 20000 });
+  await context.unroute("**/");
+  expect(await worldCaches(page), "the earlier shell and data caches are exactly as they were").toEqual(earlier);
+
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.locator(".intro"), "index.html and its files come from the earlier, complete copy").toBeVisible();
+  await openWorld(page);
+  await mapReady(page);
+  await context.setOffline(false);
+});
+
+test("offline, a national map whose bytes are not the catalog's is not served to the China view", async ({ page, context }) => {
+  test.setTimeout(90000);
+  await installBackend(page, []);
+  await page.goto("/");
+  await openWorld(page);
+  await mapReady(page);
+  await offlineReady(page);
+  await context.setOffline(true);
+  const status = () => page.evaluate(() => fetch("/maps/100000.json").then((r) => r.status, () => "network error"));
+  expect(await status(), "the map the manifest vouches for").toBe(200);
+  await page.evaluate(async (name) => {
+    await (await caches.open(name)).put("/maps/100000.json", new Response('{"type":"FeatureCollection","features":[]}'));
+  }, DATA_CACHE);
+  expect(await status(), "a cached copy of other bytes is refused").toBe("network error");
   await context.setOffline(false);
 });
 

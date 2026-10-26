@@ -12,7 +12,9 @@ import {
   shellResources,
   worldDataCacheName,
   WORLD_DATA_CACHE_PREFIX,
-  WORLD_SHELL_CACHE,
+  WORLD_SHELL_PREFIX,
+  indexAssets,
+  shellManifestUrl,
 } from "../src/lib/world-offline.ts";
 import { loadWorldMap, WorldMapError } from "../src/lib/world-map.ts";
 
@@ -24,15 +26,19 @@ const china = readFileSync("public/maps/100000.json");
 const bytes = (file) => file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
 
 /** An in-memory CacheStorage: enough of Cache and CacheStorage for the offline module. */
-function memoryCaches(initial = {}) {
+function memoryCaches(initial = {}, fail = {}) {
   const stores = new Map(Object.entries(initial).map(([name, entries]) => [name, new Map(Object.entries(entries))]));
-  const cache = (entries) => ({
+  const puts = [];
+  const cache = (entries, cacheName) => ({
     async match(url) {
       const hit = entries.get(typeof url === "string" ? url : url.url);
       return hit ? new Response(hit.slice(0)) : undefined;
     },
     async put(url, response) {
-      entries.set(typeof url === "string" ? url : url.url, await response.arrayBuffer());
+      const key = typeof url === "string" ? url : url.url;
+      puts.push([cacheName, key]);
+      if (fail.put?.(cacheName, key)) throw new DOMException("quota", "QuotaExceededError");
+      entries.set(key, await response.arrayBuffer());
     },
     async delete(url) {
       return entries.delete(typeof url === "string" ? url : url.url);
@@ -43,14 +49,16 @@ function memoryCaches(initial = {}) {
   });
   return {
     stores,
+    puts,
     async open(name) {
       if (!stores.has(name)) stores.set(name, new Map());
-      return cache(stores.get(name));
+      return cache(stores.get(name), name);
     },
     async keys() {
       return [...stores.keys()];
     },
     async delete(name) {
+      if (fail.delete?.(name)) throw new Error("delete failed");
       return stores.delete(name);
     },
   };
@@ -134,12 +142,12 @@ test("another catalog version never reads this version's cache; old versions are
   const other = memoryCaches({
     [mine]: { a: new ArrayBuffer(1) },
     [worldDataCacheName(next)]: { a: new ArrayBuffer(1) },
-    [WORLD_SHELL_CACHE]: { a: new ArrayBuffer(1) },
+    [`${WORLD_SHELL_PREFIX}abc`]: { a: new ArrayBuffer(1) },
     "shanhai-travel-v2": { a: new ArrayBuffer(1) },
     unrelated: { a: new ArrayBuffer(1) },
   });
   assert.deepEqual(await deleteOtherWorldVersions(next, other), [mine]);
-  assert.deepEqual([...other.stores.keys()].sort(), [worldDataCacheName(next), WORLD_SHELL_CACHE, "shanhai-travel-v2", "unrelated"].sort());
+  assert.deepEqual([...other.stores.keys()].sort(), [worldDataCacheName(next), `${WORLD_SHELL_PREFIX}abc`, "shanhai-travel-v2", "unrelated"].sort());
   assert.ok(mine.startsWith(WORLD_DATA_CACHE_PREFIX));
 });
 
@@ -183,26 +191,116 @@ test("the shell lists the page and the hashed files it loaded, same origin only"
   ]);
 });
 
-test("preparing the offline cache registers the worker, fills the shell and drops what the page no longer uses", async () => {
-  const origin = "https://trip.example";
-  const files = {
-    "https://trip.example/": new TextEncoder().encode("<html></html>").buffer,
-    "https://trip.example/assets/a.js": new ArrayBuffer(3),
-  };
+const origin = "https://trip.example";
+const html = (...assets) => new TextEncoder().encode(`<!doctype html><script type="module" src="/assets/${assets[0]}"></script><link rel="stylesheet" href="/assets/${assets[1]}">`).buffer;
+const build = (tag) => ({
+  "https://trip.example/": html(`${tag}.js`, `${tag}.css`),
+  [`https://trip.example/assets/${tag}.js`]: new TextEncoder().encode(`js ${tag}`).buffer,
+  [`https://trip.example/assets/${tag}.css`]: new TextEncoder().encode(`css ${tag}`).buffer,
+});
+const loadedOf = (files) => Object.keys(files).filter((url) => url !== "https://trip.example/").concat("https://cdn.example/x.js");
+const worker = () => ({ registered: [], register(url) { this.registered.push(url); return Promise.resolve(); }, ready: Promise.resolve({}) });
+const prepare = (files, caches, extra = {}) => {
+  const sw = worker();
   const net = network(files);
-  const caches = memoryCaches({ [WORLD_SHELL_CACHE]: { "https://trip.example/assets/old.js": new ArrayBuffer(1) } });
-  const registered = [];
-  const serviceWorker = { register: async (url) => registered.push(url), ready: Promise.resolve({}) };
-  const env = { baseUrl: "/", origin, loaded: ["https://trip.example/assets/a.js", "https://cdn.example/x.js"], caches, serviceWorker, fetchImpl: net.fetchImpl };
-  assert.equal(await prepareWorldOffline(env), "ready");
-  assert.deepEqual(registered, ["/sw.js"]);
-  assert.deepEqual([...caches.stores.get(WORLD_SHELL_CACHE).keys()].sort(), Object.keys(files).sort());
+  return prepareWorldOffline({ baseUrl: "/", origin, loaded: loadedOf(files), catalog, caches, serviceWorker: sw, fetchImpl: net.fetchImpl, ...extra }).then((result) => ({ result, sw, net }));
+};
+const text = (buffer) => new TextDecoder().decode(buffer);
+/** Every cache with every entry's text: two equal snapshots are two equal CacheStorages. */
+const snapshot = (caches, only = () => true) =>
+  JSON.stringify([...caches.stores].filter(([name]) => only(name)).map(([name, entries]) => [name, [...entries].map(([url, body]) => [url, text(body)])]));
+const shellNames = (caches) => [...caches.stores.keys()].filter((name) => name.startsWith(WORLD_SHELL_PREFIX));
+
+test("preparing the offline cache registers the worker and writes one complete shell cache, same-origin files only", async () => {
+  const caches = memoryCaches({ unrelated: { a: new ArrayBuffer(1) }, [worldDataCacheName(catalog)]: { [chinaUrl]: bytes(china) } });
+  const notShell = (name) => !name.startsWith(WORLD_SHELL_PREFIX);
+  const before = snapshot(caches, notShell);
+  const files = build("a");
+  const { result, sw, net } = await prepare(files, caches);
+  assert.equal(result, "ready");
+  assert.deepEqual(sw.registered, ["/sw.js"]);
   assert.deepEqual(net.calls.sort(), Object.keys(files).sort(), "only same-origin files were requested");
+  const [name, ...rest] = shellNames(caches);
+  assert.equal(rest.length, 0, "one shell cache");
+  assert.match(name, /^shanhai-world-shell-[0-9a-f]{16}$/);
+  const shell = caches.stores.get(name);
+  const manifestUrl = shellManifestUrl(origin, "/");
+  assert.deepEqual([...shell.keys()].sort(), [...Object.keys(files), manifestUrl].sort());
+  assert.deepEqual(JSON.parse(text(shell.get(manifestUrl))), {
+    files: Object.keys(files).sort(),
+    dataCache: worldDataCacheName(catalog),
+    chinaSha256: catalog.china.sha256,
+  });
+  assert.equal([...caches.puts].at(-1)[1], manifestUrl, "the manifest is written last");
+  assert.equal(snapshot(caches, notShell), before, "no other cache was touched");
   // No Cache Storage or no worker support: nothing is attempted, and it is reported.
-  assert.equal(await prepareWorldOffline({ ...env, caches: undefined }), "unsupported");
-  assert.equal(await prepareWorldOffline({ ...env, serviceWorker: undefined }), "unsupported");
-  // A file that cannot be fetched fails the whole preparation, and the old shell is kept as it was.
-  const half = memoryCaches({ [WORLD_SHELL_CACHE]: { "https://trip.example/assets/old.js": new ArrayBuffer(1) } });
-  assert.equal(await prepareWorldOffline({ ...env, caches: half, fetchImpl: network({ "https://trip.example/": files["https://trip.example/"] }).fetchImpl }), "failed");
-  assert.deepEqual([...half.stores.get(WORLD_SHELL_CACHE).keys()].includes("https://trip.example/assets/old.js"), true);
+  assert.equal((await prepare(files, undefined)).result, "unsupported");
+  assert.equal((await prepare(files, caches, { serviceWorker: undefined })).result, "unsupported");
+});
+
+test("preparing again for the same build writes nothing; a new build replaces the old shell, and nothing else", async () => {
+  const caches = memoryCaches({ unrelated: { a: new ArrayBuffer(1) }, "shanhai-world-shell": { "https://trip.example/": new ArrayBuffer(1) } });
+  assert.equal((await prepare(build("a"), caches)).result, "ready");
+  const [first] = shellNames(caches);
+  assert.equal("shanhai-world-shell" in Object.fromEntries(caches.stores), false, "the earlier single-cache shell is removed");
+  const putsAfterFirst = caches.puts.length;
+  assert.equal((await prepare(build("a"), caches)).result, "ready");
+  assert.equal(caches.puts.length, putsAfterFirst, "an identical build is not rewritten");
+  assert.equal((await prepare(build("b"), caches)).result, "ready");
+  const names = shellNames(caches);
+  assert.equal(names.length, 1);
+  assert.notEqual(names[0], first, "the shell of the new build");
+  assert.ok(caches.stores.has("unrelated"));
+  assert.deepEqual([...caches.stores.get(names[0]).keys()].filter((u) => u.includes("/assets/")).sort(), ["https://trip.example/assets/b.css", "https://trip.example/assets/b.js"]);
+});
+
+test("a download or cache write that fails leaves the previous shell, index.html and files, exactly as it was", async () => {
+  const fresh = async () => {
+    const caches = memoryCaches();
+    assert.equal((await prepare(build("a"), caches)).result, "ready");
+    return caches;
+  };
+  const b = build("b");
+  const scenarios = {
+    "a file answers 404": { files: { ...b, "https://trip.example/assets/b.js": undefined } },
+    "the page itself cannot be fetched": { fetchImpl: async (url) => (url === "https://trip.example/" ? Promise.reject(new TypeError("Failed to fetch")) : new Response("x")) },
+    "the second file cannot be written": { fail: { put: (_, url) => url.endsWith("/assets/b.css") } },
+    "the first file cannot be written (quota)": { fail: { put: (_, url) => url === "https://trip.example/" } },
+    "the manifest cannot be written": { fail: { put: (_, url) => url.endsWith("shell-manifest.json") } },
+    "a new deployment's page names files this page never loaded": {
+      files: { ...b, "https://trip.example/": html("b.js", "c.css") },
+    },
+  };
+  for (const [label, { files = b, fetchImpl, fail }] of Object.entries(scenarios)) {
+    const caches = await fresh();
+    const [old] = shellNames(caches);
+    const was = snapshot(caches);
+    const faulty = fail ? memoryCaches(Object.fromEntries([...caches.stores].map(([n, e]) => [n, Object.fromEntries(e)])), fail) : caches;
+    const { result } = await prepare(files, faulty, fetchImpl ? { fetchImpl } : {});
+    assert.equal(result, "failed", label);
+    assert.equal(snapshot(faulty), was, `${label}: the earlier shell and nothing else is there`);
+    assert.deepEqual(shellNames(faulty), [old], label);
+  }
+});
+
+test("a failed first preparation leaves no shell cache that could be served, and a retry succeeds", async () => {
+  const caches = memoryCaches({}, { put: (_, url) => url.endsWith("/assets/a.css") });
+  assert.equal((await prepare(build("a"), caches)).result, "failed");
+  assert.deepEqual(shellNames(caches), []);
+  assert.equal((await prepare(build("a"), memoryCaches())).result, "ready");
+});
+
+test("failing to remove the old shell afterwards is not a failure: the new shell is complete", async () => {
+  const caches = memoryCaches();
+  assert.equal((await prepare(build("a"), caches)).result, "ready");
+  const [old] = shellNames(caches);
+  const stubborn = memoryCaches(Object.fromEntries([...caches.stores].map(([n, e]) => [n, Object.fromEntries(e)])), { delete: (name) => name === old });
+  assert.equal((await prepare(build("b"), stubborn)).result, "ready");
+  assert.equal(shellNames(stubborn).length, 2, "both stay, the newer one is created last");
+});
+
+test("the files an index.html points at are those under assets/ on this origin", () => {
+  const page = '<script type="module" crossorigin src="/assets/index-a.js?x=1"></script><link rel=stylesheet href=\'/assets/a.css\'><link href="https://cdn.example/assets/evil.js"><link href="/favicon.svg"><a href="/assets/../etc">x</a>';
+  assert.deepEqual(indexAssets(page, origin, "/"), ["https://trip.example/assets/a.css", "https://trip.example/assets/index-a.js"]);
+  assert.deepEqual(indexAssets('<script src="/app/assets/z.js"></script><script src="/assets/y.js"></script>', origin, "/app/"), ["https://trip.example/app/assets/z.js"]);
 });

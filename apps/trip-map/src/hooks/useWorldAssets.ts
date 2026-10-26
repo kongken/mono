@@ -56,6 +56,7 @@ export function useWorldAssets(active: boolean) {
           const result = await prepareWorldOffline({
             baseUrl,
             origin: location.origin,
+            catalog: ready,
             loaded: performance.getEntriesByType("resource").map((entry) => entry.name),
             caches,
             serviceWorker: "serviceWorker" in navigator ? navigator.serviceWorker : undefined,

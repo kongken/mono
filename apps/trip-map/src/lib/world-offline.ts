@@ -13,12 +13,25 @@ import type { WorldCatalog } from "./world-catalog.ts";
 //   version has another cache name, so it is never read, and it is deleted once this version
 //   has loaded.
 // - The page shell (index.html and the hashed scripts, styles and chunks it uses, among them
-//   the on-demand world catalog) lives in `shanhai-world-shell`. Only public/sw.js reads it,
-//   and only when the network cannot answer. It is filled once the world view has loaded
-//   online, because a service worker only sees the requests made after it took control.
+//   the on-demand world catalog) lives in `shanhai-world-shell-<id>`, where the id is the
+//   SHA-256 of that index.html: one cache is one build, complete or not at all. Only
+//   public/sw.js reads it, and only when the network cannot answer. It is filled once the
+//   world view has loaded online, because a service worker only sees the requests made after
+//   it took control. Everything is downloaded first and written into a cache of its own; a
+//   manifest naming the files, the data cache and the China map's SHA-256 is written last, and
+//   only a cache with a manifest is ever served. So a download or a write that fails leaves
+//   the previous complete shell exactly as it was, and an offline start never mixes the
+//   index.html of one build with the files of another. Older shell caches are removed after
+//   the new one is complete.
 
 export const WORLD_DATA_CACHE_PREFIX = "shanhai-world-data-";
-export const WORLD_SHELL_CACHE = "shanhai-world-shell";
+export const WORLD_SHELL_PREFIX = "shanhai-world-shell-";
+/** The shell cache of an earlier build of this feature: a single cache that was rewritten in place. */
+const LEGACY_SHELL_CACHE = "shanhai-world-shell";
+export const shellManifestUrl = (origin: string, baseUrl: string) => new URL(`${baseUrl}shell-manifest.json`, origin).href;
+
+/** What marks a shell cache as complete, and ties it to the map data of the same build. */
+export type ShellManifest = { files: string[]; dataCache: string; chinaSha256: string };
 export const worldDataCacheName = (catalog: Pick<WorldCatalog, "version">) => `${WORLD_DATA_CACHE_PREFIX}${catalog.version}`;
 
 export type CacheStore = Pick<CacheStorage, "open" | "keys" | "delete">;
@@ -115,6 +128,7 @@ export type OfflineEnv = {
   origin: string;
   /** `performance.getEntriesByType("resource")` names. */
   loaded: readonly string[];
+  catalog: Wanted;
   caches?: CacheStore;
   serviceWorker?: Pick<ServiceWorkerContainer, "register" | "ready">;
   fetchImpl?: typeof fetch;
@@ -122,13 +136,44 @@ export type OfflineEnv = {
 const READY_TIMEOUT_MS = 10_000;
 export type OfflineResult = "ready" | "unsupported" | "failed";
 
+/** The hashed files an index.html points at (`src` and `href`), as absolute same-origin URLs without query. */
+export function indexAssets(html: string, origin: string, baseUrl: string): string[] {
+  const found = new Set<string>();
+  for (const match of html.matchAll(/\b(?:src|href)\s*=\s*["']([^"']+)["']/g)) {
+    let url: URL;
+    try {
+      url = new URL(match[1], new URL(baseUrl, origin));
+    } catch {
+      continue;
+    }
+    if (url.origin !== origin || !url.pathname.startsWith(`${baseUrl}assets/`)) continue;
+    url.search = "";
+    url.hash = "";
+    found.add(url.href);
+  }
+  return [...found].sort();
+}
+
+type Downloaded = { url: string; bytes: ArrayBuffer; type: string | null };
+const asResponse = ({ bytes, type }: Downloaded) =>
+  new Response(bytes.slice(0), { status: 200, headers: type ? { "content-type": type } : undefined });
+
+async function isComplete(caches: CacheStore, name: string, manifestUrl: string, manifest: string): Promise<boolean> {
+  if (!(await caches.keys()).includes(name)) return false;
+  const hit = await (await caches.open(name)).match(manifestUrl);
+  return !!hit && (await hit.text()) === manifest;
+}
+
 /**
- * Registers the service worker and (re)fills the shell cache with what this page loaded.
- * Best effort: the world view works online without it, so a failure is reported, not thrown.
+ * Registers the service worker and keeps the shell cache current with what this page loaded.
+ * Best effort: the world view works online without it, so a failure is reported, not thrown, and
+ * leaves the shell that was complete before as it was.
  */
 export async function prepareWorldOffline(env: OfflineEnv): Promise<OfflineResult> {
   if (!env.caches || !env.serviceWorker) return "unsupported";
+  const caches = env.caches;
   const get = env.fetchImpl ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
+  let writing: string | undefined;
   try {
     await env.serviceWorker.register(`${env.baseUrl}sw.js`);
     // `ready` never settles where the worker cannot start (blocked, private mode): do not wait for it forever.
@@ -141,20 +186,47 @@ export async function prepareWorldOffline(env: OfflineEnv): Promise<OfflineResul
     ]);
     clearTimeout(timer);
     if (!started) return "failed";
+
+    // 1. Download everything before writing anything.
     const wanted = shellResources(env.loaded, env.origin, env.baseUrl);
-    const shell = await env.caches.open(WORLD_SHELL_CACHE);
-    const fresh = await Promise.all(
+    const files: Downloaded[] = await Promise.all(
       wanted.map(async (url) => {
-        const response = await get(url, { credentials: "same-origin" });
+        const response = await get(url, { credentials: "same-origin", cache: "reload" });
         if (!response.ok) throw new Error(`${url}: ${response.status}`);
-        await shell.put(url, response);
-        return url;
+        return { url, bytes: await response.arrayBuffer(), type: response.headers.get("content-type") };
       }),
     );
-    const keep = new Set(fresh);
-    for (const request of await shell.keys()) if (!keep.has(request.url)) await shell.delete(request);
+    // 2. The index.html downloaded now must be the one that goes with the files this page loaded: a
+    //    deployment in between would pair a new index.html with the old build's files.
+    const indexUrl = new URL(env.baseUrl, env.origin).href;
+    const index = files.find((file) => file.url === indexUrl)!;
+    const have = new Set(files.map((file) => file.url));
+    if (indexAssets(new TextDecoder().decode(index.bytes), env.origin, env.baseUrl).some((url) => !have.has(url))) return "failed";
+
+    // 3. One cache per build; the manifest, written last, is what makes it complete.
+    const manifest: ShellManifest = {
+      files: files.map((file) => file.url).sort(),
+      dataCache: worldDataCacheName(env.catalog),
+      chinaSha256: env.catalog.china.sha256,
+    };
+    const manifestText = JSON.stringify(manifest);
+    const manifestUrl = shellManifestUrl(env.origin, env.baseUrl);
+    const name = `${WORLD_SHELL_PREFIX}${(await sha256Hex(index.bytes)).slice(0, 16)}`;
+    if (!(await isComplete(caches, name, manifestUrl, manifestText))) {
+      writing = name;
+      await caches.delete(name);
+      const shell = await caches.open(name);
+      for (const file of files) await shell.put(file.url, asResponse(file));
+      await shell.put(manifestUrl, new Response(manifestText, { status: 200, headers: { "content-type": "application/json" } }));
+    }
+    // 4. Only now is anything older removed (a failure here only leaves more than needed).
+    for (const other of await caches.keys()) {
+      if (other !== name && (other.startsWith(WORLD_SHELL_PREFIX) || other === LEGACY_SHELL_CACHE)) await caches.delete(other).catch(() => false);
+    }
     return "ready";
   } catch {
+    // Whatever this run had begun to write is not a complete shell: drop it, the earlier one stays.
+    if (writing) await caches.delete(writing).catch(() => false);
     return "failed";
   }
 }
