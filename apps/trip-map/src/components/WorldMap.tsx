@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { ArrowCounterClockwise, Minus, Plus } from "@phosphor-icons/react";
-import { worldPath, type WorldMap as WorldMapData } from "../lib/world-map.ts";
+import { createWorldProjection, pickLocation, worldPath, type WorldMap as WorldMapData } from "../lib/world-map.ts";
+import type { WorldPlace } from "../lib/world.ts";
 import { litSourceText } from "../lib/world-notice.ts";
 import { DERIVED_COLOR, type LitCountry } from "../lib/world-stats.ts";
 import {
@@ -129,6 +130,53 @@ const Shapes = memo(function Shapes({ drawn, names, lit, marked, chinaLit, edita
   );
 });
 
+
+type PlacesProps = {
+  places: readonly WorldPlace[];
+  names: Readonly<Record<string, string>>;
+  project: (lng: number, lat: number) => [number, number];
+  k: number;
+  /** Undefined while a point is being picked: the cities then only mark the map. */
+  onOpen?: (id: string) => void;
+  onFocusPoint: (point: [number, number]) => void;
+};
+
+/** The overseas cities as points: each one is a button of its own, drawn at a size that stays the same on screen. */
+const Places = memo(function Places({ places, names, project, k, onOpen, onFocusPoint }: PlacesProps) {
+  return (
+    <g className="world-places">
+      {places.map((place) => {
+        const [x, y] = project(place.lng, place.lat);
+        const label = `${place.name}（${names[place.country] ?? place.country}），${place.trips.length} 次旅行`;
+        return (
+          <g
+            key={place.id}
+            className="world-place"
+            data-place={place.id}
+            role="button"
+            tabIndex={onOpen ? 0 : -1}
+            aria-label={label}
+            aria-disabled={!onOpen || undefined}
+            onClick={onOpen && (() => onOpen(place.id))}
+            onKeyDown={(event) => {
+              if (onOpen && (event.key === "Enter" || event.key === " ")) {
+                event.preventDefault();
+                event.stopPropagation();
+                onOpen(place.id);
+              }
+            }}
+            onFocus={(event) => focusedByKeyboard(event.currentTarget) && onFocusPoint([x, y])}
+          >
+            <title>{label}</title>
+            <circle className="world-place-hit" cx={x} cy={y} r={14 / k} />
+            <circle className="world-place-dot" cx={x} cy={y} r={6 / k} strokeWidth={1.6 / k} />
+          </g>
+        );
+      })}
+    </g>
+  );
+});
+
 function chinaBounds(china: Drawn[]): Drawn["bounds"] {
   const box: Drawn["bounds"] = [
     [Infinity, Infinity],
@@ -153,10 +201,36 @@ export type WorldMapProps = {
   editable: boolean;
   onToggle: (code: string) => void;
   onOpenChina: () => void;
+  /** The overseas cities drawn as points. */
+  places?: readonly WorldPlace[];
+  onOpenPlace?: (id: string) => void;
+  /** While true a click or tap on the map picks a location instead of marking a country. */
+  picking?: boolean;
+  onPick?: (location: { lat: number; lng: number }) => void;
+  /** A location not saved yet (the one being edited or just picked), drawn as a ring. */
+  pending?: { lat: number; lng: number } | null;
 };
 
-export default function WorldMap({ map, names, lit, marked, chinaLit, editable, onToggle, onOpenChina }: WorldMapProps) {
+const NO_PLACES: readonly WorldPlace[] = [];
+
+export default function WorldMap({
+  map,
+  names,
+  lit,
+  marked,
+  chinaLit,
+  editable,
+  onToggle,
+  onOpenChina,
+  places = NO_PLACES,
+  onOpenPlace,
+  picking = false,
+  onPick,
+  pending = null,
+}: WorldMapProps) {
   const drawn = useMemo(() => drawShapes(map), [map]);
+  const projection = useMemo(() => createWorldProjection(VIEW_W, VIEW_H), []);
+  const project = useCallback((lng: number, lat: number) => projection([lng, lat]) ?? [0, 0], [projection]);
   const [view, setView] = useState<Viewport>(HOME);
   const svg = useRef<SVGSVGElement>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -258,16 +332,33 @@ export default function WorldMap({ map, names, lit, marked, chinaLit, editable, 
         suppressClick.current = false;
         return;
       }
+      if (picking) return;
       if (code === "CN") onOpenChina();
       else if (editable) onToggle(code);
     },
-    [editable, onOpenChina, onToggle],
+    [editable, onOpenChina, onToggle, picking],
   );
   const reveal = useCallback((bounds: Drawn["bounds"]) => setView((v) => revealCentre(v, bounds)), []);
+  const revealPoint = useCallback((point: [number, number]) => reveal([point, point]), [reveal]);
+
+  // While picking, the click is taken before any country or city sees it.
+  const pickAt = (event: React.MouseEvent<SVGSVGElement>) => {
+    if (!picking) return;
+    event.stopPropagation();
+    event.preventDefault();
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
+    const [bx, by] = box(event.clientX, event.clientY);
+    const found = pickLocation(projection, clampViewport(view), bx, by);
+    if (found) onPick?.(found);
+  };
 
   const shown = clampViewport(view);
+  const pendingAt = pending && Number.isFinite(pending.lat) && Number.isFinite(pending.lng) ? project(pending.lng, pending.lat) : null;
   return (
-    <div className="world-map" data-zoom={shown.k.toFixed(2)}>
+    <div className="world-map" data-zoom={shown.k.toFixed(2)} data-picking={picking ? "true" : undefined}>
       <div className="world-map-tools" role="group" aria-label="地图缩放">
         <button type="button" onClick={() => zoomBy(ZOOM_STEP)} aria-label="放大地图">
           <Plus size={16} />
@@ -282,7 +373,7 @@ export default function WorldMap({ map, names, lit, marked, chinaLit, editable, 
       <div
         className="world-map-stage"
         role="group"
-        aria-label="世界地图。Tab 在国家和地区间移动，Enter 或空格标记，方向键平移，加号减号缩放"
+        aria-label={picking ? "世界地图，正在选择城市位置。点击地图选点，方向键平移，加号减号缩放，Esc 取消" : "世界地图。Tab 在国家和地区间移动，Enter 或空格标记，方向键平移，加号减号缩放"}
         onKeyDown={onKeyDown}
       >
         <svg
@@ -293,6 +384,7 @@ export default function WorldMap({ map, names, lit, marked, chinaLit, editable, 
           onPointerMove={onPointerMove}
           onPointerUp={onPointerEnd}
           onPointerCancel={onPointerEnd}
+          onClickCapture={pickAt}
         >
           <g transform={`translate(${shown.x} ${shown.y}) scale(${shown.k})`}>
             <Shapes
@@ -305,6 +397,20 @@ export default function WorldMap({ map, names, lit, marked, chinaLit, editable, 
               onActivate={activate}
               onFocusShape={reveal}
             />
+            <Places
+              places={places}
+              names={names}
+              project={project}
+              k={shown.k}
+              onOpen={picking ? undefined : onOpenPlace}
+              onFocusPoint={revealPoint}
+            />
+            {pendingAt && (
+              <g className="world-pending" aria-hidden="true">
+                <circle cx={pendingAt[0]} cy={pendingAt[1]} r={9 / shown.k} strokeWidth={2 / shown.k} />
+                <circle cx={pendingAt[0]} cy={pendingAt[1]} r={2.5 / shown.k} />
+              </g>
+            )}
           </g>
         </svg>
       </div>

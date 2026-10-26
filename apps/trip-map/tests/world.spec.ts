@@ -430,6 +430,8 @@ test("unreadable world data is kept as it is: no write, no copy, nothing marked 
     await openWorld(fresh);
     await mapReady(fresh);
     await expect(fresh.locator(".world-protect"), label).toContainText("无法读取");
+    // The dialog that offers recovery is open at first; the choices themselves are tested in world-edit.spec.ts.
+    await fresh.getByRole("dialog", { name: "世界足迹无法读取" }).getByRole("button", { name: "稍后处理" }).click();
     await expect(fresh.locator(".world-stats dd").first(), label).toHaveText("—");
     await country(fresh, "JP").dispatchEvent("click");
     await fresh.getByRole("searchbox", { name: "搜索国家或地区" }).fill("日本");
@@ -457,10 +459,12 @@ test("another tab's change pauses saving instead of being overwritten, and a ful
   await other.evaluate(([key, text]) => localStorage.setItem(key, text), [WORLD_KEY, theirs] as const);
   await other.close();
   await country(page, "FR").dispatchEvent("click");
+  await page.getByRole("dialog", { name: "其他标签页修改了世界足迹" }).getByRole("button", { name: "稍后处理" }).click();
   await expect(page.locator(".world-protect")).toContainText("其他标签页修改了世界足迹");
   expect(await stored(page), "their text is untouched").toBe(theirs);
   expect((await storedKeys(page)).filter((k) => k.includes("-conflict-"))).toEqual([]);
-  await expect(page.getByRole("button", { name: "法国", exact: true })).toHaveAttribute("aria-pressed", "false");
+  // The edit that met the conflict stays on the page (so that it can be exported), unsaved.
+  await expect(page.getByRole("button", { name: "法国", exact: true })).toHaveAttribute("aria-pressed", "true");
   await country(page, "DE").dispatchEvent("click");
   await expect(page.getByRole("button", { name: "德国", exact: true })).toHaveAttribute("aria-pressed", "false");
   expect(await stored(page)).toBe(theirs);

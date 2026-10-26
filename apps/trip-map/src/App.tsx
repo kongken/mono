@@ -1280,6 +1280,10 @@ function App() {
       if (file.size > MAX_BACKUP_BYTES)
         throw new Error("文件过大，请选择足迹备份文件");
       const data = JSON.parse(await file.text());
+      // A world backup is recognised before the China rules look at it, so the reason is a
+      // useful one; the China backup format and its validation are not touched.
+      if (data && typeof data === "object" && (data as { kind?: unknown }).kind === "world")
+        throw new Error("这是世界足迹备份，请在世界视图导入");
       const backupItineraries =
         data && typeof data === "object" && "itineraries" in data
           ? parseBackupItineraries((data as { itineraries?: unknown }).itineraries)
