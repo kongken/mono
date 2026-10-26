@@ -173,7 +173,7 @@ navigation:
 
 - 所有前端（OzID、产品）直接调用**同一个** API origin，带 `credentials: include`。`kongken_sid` 为 host-only（无 `Domain`）、HttpOnly、Secure（生产）、SameSite=Lax、Path `/`；会话令牌不在 URL，也不进任何浏览器存储。OzID 不读取 API 主机的 Cookie：CSRF 令牌取自 `IssueCSRFToken` 的响应体并放进 `X-CSRF-Token`。
 - CORS 是精确 origin（协议、主机、端口），不用 `*`、不回显任意 Origin；预检和错误响应与正常响应一致。同站点 Cookie 被附带不等于通过 Origin/CSRF：写请求仍须 Origin 在允许列表且 CSRF 成对。
-- OzID 没有同源 `/api` 代理：构建时 `VITE_API_BASE_URL` 必须是绝对 `https://` 地址（带路径，如 `https://api.example.com/api`；仅本机回环开发地址允许 `http`）。缺失或不合法时**构建失败**；运行时遇到非法值也显示明确的配置错误页，而不是发出请求。
+- OzID 自带的 Nginx 不代理任何请求。构建时 `VITE_API_BASE_URL` 只能是 `/`（页面所在 origin，镜像默认值，由前置网关把 BFF 路径转给 BFF）或绝对 `https://` 地址（带路径，如 `https://api.example.com/api`；仅本机回环开发地址允许 `http`）。其他相对值（如 `/api`）或不合法的值**构建失败**；运行时遇到非法值也显示明确的配置错误页，而不是发出请求。跨主机部署（Cookie 属于独立的 API 主机）仍须使用绝对地址。
 
 ## 构建、镜像与运行
 
@@ -181,17 +181,21 @@ navigation:
 # 本机开发：Vite 5175，API base 默认为 .env.development 的回环示例 http://localhost:18081/api
 npm run dev:ozid
 
-# 构建：必须给出 BFF 的公开 API base
+# 构建：本机必须给出 API base（`/` 或 BFF 的公开绝对地址）
 VITE_API_BASE_URL=https://api.example.com/api npm run build:ozid
 
-# 镜像（Nginx，只提供静态文件，不转发任何请求）
+# 镜像（Nginx，只提供静态文件，不转发任何请求）。默认 API base 为 `/`，无需任何参数
+docker build -f deploy/ozid-web/Dockerfile -t ozid-web .
+docker run --rm -p 8089:80 ozid-web
+
+# API 在独立主机时：绝对地址 + 对应的 API_ORIGIN
 docker build -f deploy/ozid-web/Dockerfile \
   --build-arg VITE_API_BASE_URL=https://api.example.com/api -t ozid-web .
 docker run --rm -p 8089:80 -e API_ORIGIN=https://api.example.com ozid-web
 ```
 
-- 镜像没有默认 API 地址：没传 `VITE_API_BASE_URL` 时构建失败。`API_ORIGIN`（运行时环境变量）是该地址的 origin，用于页面的 Content-Security-Policy（`connect-src 'self' <API_ORIGIN>`）；缺失、非 https、含路径或通配符时容器拒绝启动。响应头还有 `X-Frame-Options: DENY`、`frame-ancestors 'none'`、`Referrer-Policy: no-referrer`，外壳 `index.html` 不缓存。
-- CI 用保留示例地址构建 OzID 以验证构建配方；发布工作流同样用示例地址构建 `ghcr.io/kongken/mono-ozid-web`，它只是构建检查，**不是可直接部署的镜像**：部署方用自己的私有构建参数构建。真实域名、IP 白名单和凭据不进入公开仓库。
+- 镜像的默认 API 地址是 `/`（`ARG VITE_API_BASE_URL=/`）。`API_ORIGIN`（运行时环境变量）是绝对 API 地址的 origin，用于页面的 Content-Security-Policy（`connect-src 'self' <API_ORIGIN>`）；默认的 `/` 下留空即可（只允许 `'self'`）；设置了但非 https、含路径或通配符时容器拒绝启动。响应头还有 `X-Frame-Options: DENY`、`frame-ancestors 'none'`、`Referrer-Policy: no-referrer`，外壳 `index.html` 不缓存。
+- CI 用保留示例地址构建 OzID 以验证构建配方；发布工作流不传构建参数，`ghcr.io/kongken/mono-ozid-web` 使用默认的 `/`：把它放在 BFF 路径同源可达的网关后即可使用；API 在独立主机时用自己的私有构建参数（绝对地址）重新构建。真实域名、IP 白名单和凭据不进入公开仓库。
 - 运行示例见 `deploy/compose.stack.example.yaml`（`ozid-web`）和 `deploy/reverse-proxy/Caddyfile.example`（`api.`、`id.` 两个示例站点）。
 - 镜像发布和 CI 都不会自动部署，不会清理数据库、对象存储或浏览器存储。
 

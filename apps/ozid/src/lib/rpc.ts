@@ -7,12 +7,12 @@ import { AuthService } from "@kongken/api-client/bff/v1/auth_pb";
 /** The stable app ID of the user center in the BFF's navigation registry. Not a host name. */
 export const APP_ID = "ozid";
 
-const parsed = parseApiBase(import.meta.env.VITE_API_BASE_URL as string | undefined);
+const parsed = parseApiBase(import.meta.env.VITE_API_BASE_URL as string | undefined, "VITE_API_BASE_URL", { allowSameOrigin: true });
 
 /** Set when the public build setting is missing or malformed; the app then renders only this. */
 export const configError = parsed.ok ? null : parsed.error;
 
-/** The BFF's canonical public RPC base. OzID never talks to its own origin for the API. */
+/** The BFF's public RPC base: an absolute URL, or "/" when the gateway serves the BFF on this page's origin. */
 export const apiBase = parsed.ok ? parsed.value : "https://invalid.invalid";
 
 let csrf: string | undefined;

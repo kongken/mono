@@ -12,8 +12,8 @@ import { defineConfig, loadEnv } from "vite";
 export default defineConfig(({ command, mode }) => {
   if (command === "build") {
     const env = loadEnv(mode, process.cwd(), "VITE_");
-    const api = parseApiBase(env.VITE_API_BASE_URL);
-    if (!api.ok) throw new Error(`@kongken/ozid cannot be built: ${api.error}. Set it to the BFF's public API base (example: https://api.example.com/api).`);
+    const api = parseApiBase(env.VITE_API_BASE_URL, "VITE_API_BASE_URL", { allowSameOrigin: true });
+    if (!api.ok) throw new Error(`@kongken/ozid cannot be built: ${api.error}. Set it to the BFF's public API base (example: https://api.example.com/api) or "/" for the page's own origin.`);
   }
   // The port matches the OzID origin in the BFF's navigation registry (config.bff.example.yaml).
   return {

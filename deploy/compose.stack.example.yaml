@@ -149,10 +149,10 @@ services:
     depends_on: [bff]
     networks: [internal, edge]
 
-  # OzID (the user center) is static and has no same-origin /api: its bundle calls the BFF at the
-  # canonical public API origin, which is a build argument (no default) and also API_ORIGIN here
-  # (the origin of that address, for the page's Content-Security-Policy; the container refuses to
-  # start without it). Build it with
+  # OzID (the user center) is static. The image's default API base is "/" (this page's own origin;
+  # leave API_ORIGIN empty). With the BFF on its own host, build the bundle for that canonical public
+  # API address and set API_ORIGIN here to its origin (for the page's Content-Security-Policy; the
+  # container refuses to start with an invalid one). Build it with
   #   docker build -f deploy/ozid-web/Dockerfile --build-arg VITE_API_BASE_URL=https://api.example.com/api .
   # Serve it on its own host (see deploy/reverse-proxy/Caddyfile.example). The BFF needs the
   # `navigation` registry and the OzID origin in cors_allowed_origins (config.bff.example.yaml).

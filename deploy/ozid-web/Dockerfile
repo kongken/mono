@@ -19,16 +19,19 @@ COPY packages packages
 COPY apps/ozid/index.html apps/ozid/vite.config.ts apps/ozid/tsconfig.json apps/ozid/tsconfig.app.json apps/ozid/tsconfig.node.json apps/ozid/
 COPY apps/ozid/src apps/ozid/src
 COPY apps/ozid/public apps/ozid/public
-# The BFF's canonical public API base, an absolute https URL such as https://api.example.com/api.
-# OzID has no same-origin proxy (the session Cookie belongs to the API host), so there is no
-# default: the build fails without it, and so does a relative or non-https value.
-ARG VITE_API_BASE_URL
+# The BFF's public API base. The default "/" sends the RPC calls to the origin that serves this page,
+# so a gateway in front of the container must route the BFF's paths there. For an API on its own host
+# pass an absolute https URL such as https://api.example.com/api (the session Cookie then belongs to
+# that host) together with the matching API_ORIGIN at run time. Any other relative value, or a
+# non-https one, fails the build.
+ARG VITE_API_BASE_URL=/
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN npm run test -w @kongken/ozid && npm run build -w @kongken/ozid
 
 FROM nginx:stable-alpine
-# API_ORIGIN is the origin of VITE_API_BASE_URL (scheme, host, port): the only address the page's
-# Content-Security-Policy lets scripts connect to besides this site.
+# API_ORIGIN is the origin of an absolute VITE_API_BASE_URL (scheme, host, port): the only address the
+# page's Content-Security-Policy lets scripts connect to besides this site. Leave it empty for the
+# default same-origin base "/".
 ENV API_ORIGIN= NGINX_ENVSUBST_FILTER=API_ORIGIN
 COPY deploy/ozid-web/default.conf.template /etc/nginx/templates/default.conf.template
 COPY deploy/ozid-web/19-require-api-origin.sh /docker-entrypoint.d/19-require-api-origin.sh

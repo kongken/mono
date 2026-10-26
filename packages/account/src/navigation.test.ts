@@ -46,6 +46,15 @@ test("the API base must be an absolute https URL (http only on localhost)", () =
   assert.ok(!missing.ok && missing.error.includes("VITE_API_BASE_URL is required"));
 });
 
+test("the same-origin API base \"/\" is accepted only when the front end opts in", () => {
+  assert.deepEqual(parseApiBase("/", "VITE_API_BASE_URL", { allowSameOrigin: true }), { ok: true, value: "/" });
+  assert.deepEqual(parseApiBase(" / ", "VITE_API_BASE_URL", { allowSameOrigin: true }), { ok: true, value: "/" });
+  assert.equal(parseApiBase("/").ok, false);
+  for (const bad of ["/api", "//evil.example", "", "api.example.com"]) {
+    assert.equal(parseApiBase(bad, "VITE_API_BASE_URL", { allowSameOrigin: true }).ok, false, bad);
+  }
+});
+
 test("an origin setting has no path", () => {
   assert.deepEqual(parseOrigin("https://id.example.com", "VITE_OZID_BASE_URL"), { ok: true, value: "https://id.example.com" });
   assert.deepEqual(parseOrigin("https://id.example.com/", "X"), { ok: true, value: "https://id.example.com" });

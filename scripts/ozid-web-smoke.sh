@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Container acceptance for the ozid-web image (deploy/ozid-web): builds it for a reserved example
-# API base, starts it, and checks what the real Nginx answers: /healthz, the page and its static
-# assets, the Content-Security-Policy and X-Frame-Options it sends, and that a missing or illegal
-# API_ORIGIN keeps the container from starting. Only reserved example addresses are used.
+# Container acceptance for the ozid-web image (deploy/ozid-web): builds it with its default API base
+# ("/", the page's own origin), starts it, and checks what the real Nginx answers: /healthz, the page
+# and its static assets, the Content-Security-Policy and X-Frame-Options it sends, and that an illegal
+# API_ORIGIN keeps the container from starting. A second build for a reserved example absolute API
+# base covers the cross-host setup. Only reserved example addresses are used.
 #
 #   scripts/ozid-web-smoke.sh            # needs a working `docker` and curl; run by CI (ozid-web-image)
 #   IMAGE=ozid-web:dev SKIP_BUILD=1 scripts/ozid-web-smoke.sh   # test an image that is already built
@@ -33,19 +34,27 @@ check() { # check <description> <command...>
 
 # --- build ---------------------------------------------------------------------------------
 if [ "${SKIP_BUILD:-}" != "1" ]; then
-  docker build -f deploy/ozid-web/Dockerfile --build-arg "VITE_API_BASE_URL=$API_BASE" -t "$IMAGE" .
+  # No build argument: the image's default API base is "/".
+  docker build -f deploy/ozid-web/Dockerfile -t "$IMAGE" .
 fi
-# The image has no default API address: a build without one, or with a same-origin /api, must fail.
+# Only "/" or an absolute https URL is a valid API base: another relative value must fail, and an
+# absolute one must still build (the cross-host setup).
 if [ "${SKIP_BUILD:-}" != "1" ] && [ "${NEGATIVE_BUILDS:-1}" = "1" ]; then
-  if docker build -q -f deploy/ozid-web/Dockerfile -t "$IMAGE-nobase" . >"$tmp/nobase.log" 2>&1; then
-    fail "a build without VITE_API_BASE_URL must fail"
-  else
-    pass "a build without VITE_API_BASE_URL fails"
-  fi
   if docker build -q -f deploy/ozid-web/Dockerfile --build-arg VITE_API_BASE_URL=/api -t "$IMAGE-relative" . >"$tmp/relative.log" 2>&1; then
-    fail "a build with a relative VITE_API_BASE_URL must fail"
+    fail "a build with a relative VITE_API_BASE_URL other than / must fail"
   else
-    pass "a build with a relative VITE_API_BASE_URL fails"
+    pass "a build with a relative VITE_API_BASE_URL other than / fails"
+  fi
+  if docker build -f deploy/ozid-web/Dockerfile --build-arg "VITE_API_BASE_URL=$API_BASE" -t "$IMAGE-absolute" . >"$tmp/absolute.log" 2>&1; then
+    pass "a build with an absolute VITE_API_BASE_URL succeeds"
+    abs_cid="$(docker create "$IMAGE-absolute")"
+    containers+=("$abs_cid")
+    mkdir "$tmp/absolute"
+    docker cp "$abs_cid:/usr/share/nginx/html/assets" "$tmp/absolute/" >/dev/null
+    check "the absolute build carries its API base" grep -rqF "$API_BASE" "$tmp/absolute/assets"
+    docker rmi "$IMAGE-absolute" >/dev/null 2>&1 || true
+  else
+    fail "a build with an absolute VITE_API_BASE_URL must succeed"
   fi
 fi
 
@@ -80,9 +89,10 @@ get() { # get <url> <name>: writes $tmp/<name>.head and $tmp/<name>.body
   curl -sS -D "$tmp/$2.head" -o "$tmp/$2.body" "$1"
 }
 
-start "$API_ORIGIN"
+# The default image talks to its own origin: API_ORIGIN is empty and the CSP only has 'self'.
+start ""
 BASE="$START_URL"
-echo "ozid-web is up at $BASE for API_ORIGIN=$API_ORIGIN"
+echo "ozid-web is up at $BASE with an empty API_ORIGIN"
 
 # healthz
 get "$BASE/healthz" health
@@ -109,7 +119,7 @@ if [ -n "$js" ]; then
   check "assets are cached as immutable" header_has "$tmp/js.head" cache-control immutable
   check "assets are cached for a long time" header_has "$tmp/js.head" cache-control max-age=31536000
   check "assets are sent with nosniff" header_has "$tmp/js.head" x-content-type-options nosniff
-  check "the bundle carries the API base it was built for" grep -qF "$API_BASE" "$tmp/js.body"
+  check "the default bundle has no absolute API address" bash -c '! grep -qF "$0" "$1"' "$API_ORIGIN" "$tmp/js.body"
 fi
 if [ -n "$css" ]; then
   get "$BASE$css" css
@@ -126,7 +136,7 @@ expect_headers() { # expect_headers <name> <origin>
   local f="$tmp/$1.head" origin="$2" csp
   csp="$(header "$f" content-security-policy)"
   check "$1: X-Frame-Options is DENY" header_is "$f" x-frame-options DENY
-  check "$1: CSP lets the page connect to itself and $origin" contains "$csp" "connect-src 'self' $origin;"
+  check "$1: CSP lets the page connect to itself and ${origin:-nothing else}" contains "$csp" "connect-src 'self' $origin;"
   check "$1: CSP script-src is 'self'" contains "$csp" "script-src 'self';"
   check "$1: CSP forbids framing" contains "$csp" "frame-ancestors 'none'"
   check "$1: CSP forbids objects" contains "$csp" "object-src 'none'"
@@ -135,12 +145,12 @@ expect_headers() { # expect_headers <name> <origin>
   check "$1: Referrer-Policy is no-referrer" header_is "$f" referrer-policy no-referrer
   check "$1: nosniff" header_is "$f" x-content-type-options nosniff
 }
-expect_headers index "$API_ORIGIN"
+expect_headers index ""
 for route in /login /security /profile /sessions /close-account /index.html; do
   name="route$(printf '%s' "$route" | tr -c 'a-z' '_')"
   get "$BASE$route?app_id=metro&return_path=%2Fcity%2Fshanghai" "$name"
   check "$route answers 200 (single-page fallback)" status_is "$tmp/$name.head" 200
-  expect_headers "$name" "$API_ORIGIN"
+  expect_headers "$name" ""
 done
 # The mail landing pages (#80): the token lives in the fragment, so these pages must never be
 # cached, must not leak a Referer, and may only run same-origin scripts. They are served by the
@@ -151,7 +161,7 @@ for route in /account/verify-email /account/reset-password /account/verify-email
   check "$route answers 200 with the shell" status_is "$tmp/$name.head" 200
   check "$route is the OzID shell" grep -q 'id="root"' "$tmp/$name.body"
   check "$route is never cached" header_is "$tmp/$name.head" cache-control no-store
-  expect_headers "$name" "$API_ORIGIN"
+  expect_headers "$name" ""
 done
 # A fragment never reaches the server, but a token that was put in the query by mistake must not
 # be cached or leak either (and is not special-cased: same page, same headers).
@@ -163,6 +173,9 @@ get "$BASE/api/bff.v1.AuthService/Me" api
 check "no /api proxy: the path gets the page, not a backend answer" grep -q 'id="root"' "$tmp/api.body"
 
 # --- one image, other configuration --------------------------------------------------------
+start "$API_ORIGIN"
+get "$START_URL/" configured
+expect_headers configured "$API_ORIGIN"
 start "$OTHER_ORIGIN"
 get "$START_URL/" other
 expect_headers other "$OTHER_ORIGIN"
@@ -170,7 +183,7 @@ get "$START_URL/account/verify-email" other_landing
 expect_headers other_landing "$OTHER_ORIGIN"
 check "other_landing: never cached" header_is "$tmp/other_landing.head" cache-control no-store
 
-# --- a missing or illegal API_ORIGIN keeps the container from starting -----------------------
+# --- an illegal API_ORIGIN keeps the container from starting --------------------------------
 expect_refused() { # expect_refused <description> [API_ORIGIN value; omit the variable when unset]
   local what="$1" cid state code logs
   if [ "$#" -ge 2 ]; then
@@ -194,8 +207,6 @@ expect_refused() { # expect_refused <description> [API_ORIGIN value; omit the va
   fi
   docker rm -f "$cid" >/dev/null 2>&1 || true
 }
-expect_refused "API_ORIGIN is not set"
-expect_refused "API_ORIGIN is empty" ""
 expect_refused "API_ORIGIN is plain http" "http://api.example.com"
 expect_refused "API_ORIGIN has no scheme" "api.example.com"
 expect_refused "API_ORIGIN carries a path" "https://api.example.com/api"
@@ -203,6 +214,17 @@ expect_refused "API_ORIGIN has a trailing slash" "https://api.example.com/"
 expect_refused "API_ORIGIN is a wildcard" "https://*.example.com"
 expect_refused "API_ORIGIN smuggles a second CSP directive" "https://api.example.com;script-src *"
 expect_refused "API_ORIGIN contains a space" "https://api.example.com evil.example.org"
+
+# A container with no API_ORIGIN variable at all starts too (the same-origin default).
+cid="$(docker run -d -p 127.0.0.1::80 "$IMAGE")"
+containers+=("$cid")
+port="$(docker port "$cid" 80/tcp | head -n1 | sed 's/.*://')"
+ready=0
+for _ in $(seq 1 60); do
+  if curl -fsS "http://127.0.0.1:$port/healthz" >/dev/null 2>&1; then ready=1; break; fi
+  sleep 0.5
+done
+check "starts without an API_ORIGIN variable" test "$ready" = 1
 
 if [ "$failures" -ne 0 ]; then
   echo "$failures check(s) failed" >&2
