@@ -41,6 +41,8 @@ export type WorldLoad =
 
 function reasonOf(error: unknown): string {
   if (error instanceof SyntaxError) return "内容不是有效的 JSON，可能已损坏或被截断";
+  // The reason alone: the user is told what is wrong, not the internal path of the record (`countries[1].code`).
+  if (error instanceof WorldValidationError) return error.detail;
   return error instanceof Error ? error.message : "无法识别的数据";
 }
 

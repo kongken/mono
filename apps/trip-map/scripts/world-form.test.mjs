@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import catalog from "@kongken/geo-data/world-catalog.json" with { type: "json" };
-import { coordinateText, emptyForm, formFromPlace, formLocation, newTrip, readForm } from "../src/lib/world-form.ts";
+import { CHINA_LOCATION_MESSAGE, coordinateText, emptyForm, formFromPlace, formLocation, newTrip, readForm } from "../src/lib/world-form.ts";
 import { savePlace, worldCodeSet, emptyWorld } from "../src/lib/world.ts";
 
 const codes = worldCodeSet(catalog);
 const filled = (extra = {}) => ({ ...emptyForm(), name: "东京", country: "JP", lat: "35.6764", lng: "139.65", ...extra });
-const error = (form) => {
-  const read = readForm(form, codes);
+const error = (form, inChina = false) => {
+  const read = readForm(form, codes, inChina);
   assert.ok("error" in read, "the form should be refused");
   return read.error;
 };
@@ -31,15 +31,27 @@ test("each field is refused in the order the user sees it, with its own message"
   assert.deepEqual(error(filled({ name: "" })), { field: "name", message: "请填写城市名称" });
   assert.equal(error(filled({ name: "\u00a0 \ufeff" })).field, "name");
   assert.match(error(filled({ name: "x".repeat(61) })).message, /最多 60 个字符/);
-  assert.deepEqual(error(filled({ country: "" })), { field: "country", message: "请选择城市所在的国家或地区" });
-  assert.match(error(filled({ country: "CN" })).message, /中国视图/);
-  assert.match(error(filled({ country: "ZZ" })).message, /不在目录中/);
   assert.equal(error(filled({ lat: "" })).field, "lat");
   assert.match(error(filled({ lat: "91" })).message, /-90 到 90/);
   assert.equal(error(filled({ lng: "1e3" })).field, "lng");
   assert.match(error(filled({ lng: "-181" })).message, /-180 到 180/);
-  // The first problem wins: a bad name hides a bad coordinate.
+  assert.deepEqual(error(filled({ country: "" })), { field: "country", message: "请选择城市所在的国家或地区" });
+  assert.match(error(filled({ country: "CN" })).message, /中国视图/);
+  assert.match(error(filled({ country: "ZZ" })).message, /不在目录中/);
+  // The first problem wins: a bad name hides a bad coordinate, a bad coordinate a missing country.
   assert.equal(error(filled({ name: "", lat: "x" })).field, "name");
+  assert.equal(error(filled({ country: "", lat: "x" })).field, "lat");
+});
+
+test("coordinates inside China are refused whatever country is chosen, on the latitude, ahead of the country", () => {
+  // The caller says where the coordinates fall (the data layer has no geometry): Hangzhou with Japan chosen...
+  assert.deepEqual(error(filled({ lat: "30.25", lng: "120.17" }), true), { field: "lat", message: CHINA_LOCATION_MESSAGE });
+  // ...and with no country chosen, the problem is the location, not the missing country.
+  assert.equal(error(filled({ lat: "30.25", lng: "120.17", country: "" }), true).field, "lat");
+  // Unreadable coordinates are still reported as such, and a location outside China passes.
+  assert.equal(error(filled({ lat: "x" }), true).field, "lat");
+  assert.match(error(filled({ lat: "x" }), true).message, /十进制/);
+  assert.ok("draft" in readForm(filled(), codes, false));
 });
 
 test("a trip with an impossible date or a long note is refused, naming which trip", () => {

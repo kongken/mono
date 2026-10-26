@@ -181,6 +181,8 @@ function WorldLocal({
   const [form, setForm] = useState<PlaceForm | null>(null);
   // The form stays mounted (closed) after it is dismissed, so that the dialog can hand focus back.
   const shownForm = useRef<PlaceForm>(emptyForm());
+  /** The form as it was when it opened: closing it asks first once it differs. */
+  const baseline = useRef(JSON.stringify(shownForm.current));
   if (form) shownForm.current = form;
   const [formKey, setFormKey] = useState(0);
   const [formError, setFormError] = useState<FormError | null>(null);
@@ -214,7 +216,8 @@ function WorldLocal({
   const located = useMemo<Located>(() => {
     if (!form || (!form.lat.trim() && !form.lng.trim())) return { state: "none" };
     const at = formLocation(form);
-    if (!at || !mapData) return { state: "unreadable" };
+    if (!at) return { state: "unreadable" };
+    if (!mapData) return { state: "unchecked" };
     const code = hitTestWorld(mapData, at.lng, at.lat);
     return code === "CN" ? { state: "china" } : code ? { state: "country", code } : { state: "nothing" };
   }, [form, mapData]);
@@ -229,19 +232,17 @@ function WorldLocal({
     const active = document.activeElement;
     opener.current = active instanceof HTMLElement || active instanceof SVGElement ? active : null;
   };
-  const openNew = () => {
+  const openForm = (next: PlaceForm) => {
     remember();
     setFormError(null);
     setFormKey((n) => n + 1);
-    setForm(emptyForm());
+    baseline.current = JSON.stringify(next);
+    setForm(next);
   };
+  const openNew = () => openForm(emptyForm());
   const openEdit = (id: string) => {
     const place = local.world.places.find((p) => p.id === id);
-    if (!place) return;
-    remember();
-    setFormError(null);
-    setFormKey((n) => n + 1);
-    setForm(formFromPlace(place));
+    if (place) openForm(formFromPlace(place));
   };
   const closeForm = () => {
     setForm(null);
@@ -260,7 +261,10 @@ function WorldLocal({
   const chooseCountry = (code: string) => change({ country: code, countryChosen: code !== "" });
   const save = () => {
     if (!form) return;
-    const read = readForm(form, codes);
+    // The location is held against the map here (the data layer has no geometry): typed, picked and
+    // edited coordinates alike, whatever country the list says. Without the map nothing can be checked.
+    const at = formLocation(form);
+    const read = readForm(form, codes, !!at && countryAt(at.lat, at.lng) === "CN");
     if ("error" in read) {
       setFormError(read.error);
       return;
@@ -607,6 +611,7 @@ function WorldLocal({
           form={shownForm.current}
           error={formError}
           located={located}
+          dirty={form !== null && JSON.stringify(form) !== baseline.current}
           countries={catalog.countries}
           index={index}
           names={assets.names}

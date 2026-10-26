@@ -25,6 +25,10 @@ const UNLIT = "#d8e1cf";
 const KEY_STEP = 90;
 const ZOOM_STEP = 1.6;
 const DRAG_PX = 5;
+/** A city is a button of at least this diameter on screen, in every viewport and at every zoom (touch targets). */
+const PLACE_HIT_PX = 44;
+const PLACE_DOT_PX = 5;
+const PLACE_RING_PX = 1.6;
 
 type Drawn = { code: string; d: string; bounds: [[number, number], [number, number]] };
 
@@ -135,14 +139,15 @@ type PlacesProps = {
   places: readonly WorldPlace[];
   names: Readonly<Record<string, string>>;
   project: (lng: number, lat: number) => [number, number];
-  k: number;
+  /** Map units that make one screen pixel at the current zoom and size of the map. */
+  unit: number;
   /** Undefined while a point is being picked: the cities then only mark the map. */
   onOpen?: (id: string) => void;
   onFocusPoint: (point: [number, number]) => void;
 };
 
 /** The overseas cities as points: each one is a button of its own, drawn at a size that stays the same on screen. */
-const Places = memo(function Places({ places, names, project, k, onOpen, onFocusPoint }: PlacesProps) {
+const Places = memo(function Places({ places, names, project, unit, onOpen, onFocusPoint }: PlacesProps) {
   return (
     <g className="world-places">
       {places.map((place) => {
@@ -168,8 +173,8 @@ const Places = memo(function Places({ places, names, project, k, onOpen, onFocus
             onFocus={(event) => focusedByKeyboard(event.currentTarget) && onFocusPoint([x, y])}
           >
             <title>{label}</title>
-            <circle className="world-place-hit" cx={x} cy={y} r={14 / k} />
-            <circle className="world-place-dot" cx={x} cy={y} r={6 / k} strokeWidth={1.6 / k} />
+            <circle className="world-place-hit" cx={x} cy={y} r={(PLACE_HIT_PX / 2) * unit} />
+            <circle className="world-place-dot" cx={x} cy={y} r={PLACE_DOT_PX * unit} strokeWidth={PLACE_RING_PX * unit} />
           </g>
         );
       })}
@@ -236,6 +241,21 @@ export default function WorldMap({
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const dragging = useRef({ moved: false, start: { x: 0, y: 0 } });
   const suppressClick = useRef(false);
+  // Screen pixels per map unit before the zoom (the svg is scaled to fit its box), so that points keep their size on screen.
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const element = svg.current;
+    if (!element) return;
+    const measure = () => {
+      const width = element.getBoundingClientRect().width;
+      if (width > 0) setScale(Math.round((width / VIEW_W) * 1000) / 1000);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   const box = useCallback((clientX: number, clientY: number): [number, number] => {
     const rect = svg.current?.getBoundingClientRect();
@@ -356,6 +376,7 @@ export default function WorldMap({
   };
 
   const shown = clampViewport(view);
+  const unit = 1 / (shown.k * scale);
   const pendingAt = pending && Number.isFinite(pending.lat) && Number.isFinite(pending.lng) ? project(pending.lng, pending.lat) : null;
   return (
     <div className="world-map" data-zoom={shown.k.toFixed(2)} data-picking={picking ? "true" : undefined}>
@@ -401,14 +422,14 @@ export default function WorldMap({
               places={places}
               names={names}
               project={project}
-              k={shown.k}
+              unit={unit}
               onOpen={picking ? undefined : onOpenPlace}
               onFocusPoint={revealPoint}
             />
             {pendingAt && (
               <g className="world-pending" aria-hidden="true">
-                <circle cx={pendingAt[0]} cy={pendingAt[1]} r={9 / shown.k} strokeWidth={2 / shown.k} />
-                <circle cx={pendingAt[0]} cy={pendingAt[1]} r={2.5 / shown.k} />
+                <circle cx={pendingAt[0]} cy={pendingAt[1]} r={9 * unit} strokeWidth={2 * unit} />
+                <circle cx={pendingAt[0]} cy={pendingAt[1]} r={2.5 * unit} />
               </g>
             )}
           </g>

@@ -558,6 +558,20 @@
 .world-form-actions .delete-button {
   margin-right: auto;
 }
+.world-discard {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff7ec;
+  border: 1px solid #e3c08e;
+  color: #6b4313;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.world-discard p {
+  margin: 0;
+}
 .world-protect-dialog {
   max-height: min(92dvh, 760px);
   overflow-y: auto;

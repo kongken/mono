@@ -96,6 +96,15 @@ test("load: unreadable text is kept as is and never becomes an empty document", 
   }
 });
 
+test("load: the reason an unreadable text gives is the reason alone, without the path of the record", () => {
+  const raw = JSON.stringify({ ...sample(), countries: [{ code: "JP", color: "#4b937d" }, { code: "ZZ", color: "#4b937d" }] });
+  const load = loadWorldLocal(memoryStorage({ [WORLD_KEY]: raw }), codes);
+  assert.equal(load.status, "unreadable");
+  assert.match(load.reason, /不在目录中/);
+  assert.doesNotMatch(load.reason, /countries|\[\d+\]|\.code/);
+  assert.match(loadWorldLocal(memoryStorage({ [WORLD_KEY]: "{not json" }), codes).reason, /JSON/);
+});
+
 test("recovery keeps only valid records, counts what it drops and never repairs", () => {
   const raw = JSON.stringify({
     kind: "world",

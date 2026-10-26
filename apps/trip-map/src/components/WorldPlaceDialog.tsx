@@ -4,7 +4,7 @@ import { Button } from "@kongken/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@kongken/ui/dialog";
 import { Input } from "@kongken/ui/input";
 import { searchWorldCountries, type WorldCountry, type WorldSearchIndex } from "../lib/world-catalog.ts";
-import { newTrip, type FormError, type PlaceForm } from "../lib/world-form.ts";
+import { CHINA_LOCATION_MESSAGE, newTrip, type FormError, type PlaceForm } from "../lib/world-form.ts";
 import { WORLD_NAME_LIMIT, WORLD_NOTE_LIMIT, type WorldTrip } from "../lib/world.ts";
 
 /** What the typed or picked coordinates fall on, for the hint under them. */
@@ -13,6 +13,8 @@ export type Located =
   /** The inputs are not (both) readable yet. */
   | { state: "unreadable" }
   | { state: "china" }
+  /** The coordinates read, but the map is not there to say where they fall. */
+  | { state: "unchecked" }
   /** Open sea, or a place too small to have a polygon of its own: the country is chosen from the list. */
   | { state: "nothing" }
   | { state: "country"; code: string };
@@ -22,6 +24,8 @@ type Props = {
   form: PlaceForm;
   error: FormError | null;
   located: Located;
+  /** The form differs from what it opened with: closing it asks before the changes are given up. */
+  dirty: boolean;
   countries: readonly WorldCountry[];
   index: WorldSearchIndex;
   names: Readonly<Record<string, string>>;
@@ -52,7 +56,9 @@ function locatedText(located: Located, names: Readonly<Record<string, string>>):
     case "unreadable":
       return "";
     case "china":
-      return "这个位置在中国。中国的城市请在中国视图记录，世界视图只记录海外城市。";
+      return CHINA_LOCATION_MESSAGE;
+    case "unchecked":
+      return "地图没有载入，无法检查这个位置是否在中国，也不能判定所在国家或地区：请自行确认，并在下方列表中选择。";
     case "nothing":
       return "这个位置没有对应的国家或地区（海上，或区域过小），请在下方列表中选择所在国家或地区。";
     case "country":
@@ -65,6 +71,7 @@ export default function WorldPlaceDialog({
   form,
   error,
   located,
+  dirty,
   countries,
   index,
   names,
@@ -78,6 +85,9 @@ export default function WorldPlaceDialog({
   onDelete,
 }: Props) {
   const [query, setQuery] = useState("");
+  // Asked once the user tries to close a form with changes (the button, the cross, Esc, a click outside).
+  const [asking, setAsking] = useState(false);
+  const keepEditing = useRef<HTMLButtonElement>(null);
   const focusTrip = useRef<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const isNew = form.id === undefined;
@@ -102,13 +112,23 @@ export default function WorldPlaceDialog({
     body.current?.querySelector<HTMLElement>(selector)?.focus();
   }, [error, open]);
 
+  // Esc or a click outside while asking is a way back to the form, never a way to lose it.
+  const requestClose = () => {
+    if (asking) setAsking(false);
+    else if (dirty) setAsking(true);
+    else onCancel();
+  };
+  useEffect(() => {
+    if (asking) keepEditing.current?.focus();
+  }, [asking]);
+
   const changeTrip = (id: string, patch: Partial<WorldTrip>) =>
     onChange({ trips: form.trips.map((trip) => (trip.id === id ? { ...trip, ...patch } : trip)) });
   const chosenName = form.country ? (names[form.country] ?? form.country) : "";
   const differs = located.state === "country" && form.country && located.code !== form.country;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+    <Dialog open={open} onOpenChange={(next) => !next && requestClose()}>
       <DialogContent
         className="world-place-dialog"
         onCloseAutoFocus={(event) => {
@@ -283,18 +303,37 @@ export default function WorldPlaceDialog({
               {error.message}
             </p>
           )}
-          <div className="dialog-actions world-form-actions">
-            {!isNew && (
-              <Button type="button" variant="ghost" className="delete-button" onClick={onDelete}>
-                <Trash size={16} />
-                删除这座城市
+          {asking ? (
+            <div className="world-discard" role="alertdialog" aria-labelledby="world-discard-title" aria-describedby="world-discard-text">
+              <p id="world-discard-title">
+                <strong>放弃未保存的修改？</strong>
+              </p>
+              <p id="world-discard-text">
+                {isNew ? "这座城市还没有保存，" : "这座城市的修改还没有保存，"}关闭后已填写的内容（包括旅行记录）不会保留。
+              </p>
+              <div className="dialog-actions world-form-actions">
+                <Button type="button" variant="outline" ref={keepEditing} onClick={() => setAsking(false)}>
+                  继续编辑
+                </Button>
+                <Button type="button" variant="destructive" onClick={onCancel}>
+                  放弃修改
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="dialog-actions world-form-actions">
+              {!isNew && (
+                <Button type="button" variant="ghost" className="delete-button" onClick={onDelete}>
+                  <Trash size={16} />
+                  删除这座城市
+                </Button>
+              )}
+              <Button type="button" variant="outline" onClick={requestClose}>
+                取消
               </Button>
-            )}
-            <Button type="button" variant="outline" onClick={onCancel}>
-              取消
-            </Button>
-            <Button type="submit">{isNew ? "添加城市" : "保存修改"}</Button>
-          </div>
+              <Button type="submit">{isNew ? "添加城市" : "保存修改"}</Button>
+            </div>
+          )}
         </form>
       </DialogContent>
     </Dialog>
