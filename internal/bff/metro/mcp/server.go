@@ -8,9 +8,11 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -47,8 +49,9 @@ const (
 var supportedVersions = []string{"2025-06-18", "2025-03-26", "2024-11-05"}
 
 type requestAuth struct {
-	principal accesstoken.Principal
-	clientIP  string
+	principal   accesstoken.Principal
+	clientIP    string
+	forcedTools map[string]bool
 }
 
 type requestAuthKey struct{}
@@ -111,9 +114,10 @@ func New(cfg Config) *Server {
 		}
 		return s.sdkServer(auth)
 	}, &sdkmcp.StreamableHTTPOptions{
-		Stateless:           true,
-		JSONResponse:        true,
-		MaxRequestBodyBytes: maxBodyBytes,
+		Stateless:                  true,
+		JSONResponse:               true,
+		MaxRequestBodyBytes:        maxBodyBytes,
+		DisableLocalhostProtection: true,
 	})
 	return s
 }
@@ -156,7 +160,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
 		return
 	}
-	ctx = context.WithValue(ctx, requestAuthKey{}, requestAuth{principal: principal, clientIP: clientIP})
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	if err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(w, "bad request", http.StatusBadRequest)
+		}
+		return
+	}
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	ctx = context.WithValue(ctx, requestAuthKey{}, requestAuth{principal: principal, clientIP: clientIP, forcedTools: requestedTools(body)})
 	// The SDK's Streamable HTTP transport requires both response media types in
 	// Accept, while the previous endpoint accepted an omitted or JSON-only
 	// header. Supply the SDK-compatible value for legacy MCP clients.
@@ -174,7 +189,7 @@ func (s *Server) sdkServer(auth requestAuth) *sdkmcp.Server {
 		SupportedProtocolVersions: supportedVersions,
 	})
 	for _, t := range s.tools {
-		if !t.allowedFor(auth.principal) {
+		if !t.allowedFor(auth.principal) && !auth.forcedTools[t.name] {
 			continue
 		}
 		toolDef := &sdkmcp.Tool{
@@ -192,6 +207,9 @@ func boolPtr(v bool) *bool { return &v }
 
 func (s *Server) sdkToolHandler(t *tool, auth requestAuth) sdkmcp.ToolHandler {
 	return func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+		if !t.allowedFor(auth.principal) {
+			return textResult((&toolError{Code: "PERMISSION_DENIED", Message: "this token does not have the " + t.scope + " scope"}).text(), true), nil
+		}
 		roles, terr := s.effectiveRoles(ctx, auth.principal)
 		if terr != nil {
 			return textResult(terr.text(), true), nil
@@ -223,7 +241,34 @@ func textResult(text string, isError bool) *sdkmcp.CallToolResult {
 	return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: text}}, IsError: isError}
 }
 
-// authenticate resolves the Bearer token; a non-zero status is the HTTP rejection.
+func requestedTools(body []byte) map[string]bool {
+	var raw []json.RawMessage
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		return nil
+	}
+	if trimmed[0] == '[' {
+		if json.Unmarshal(trimmed, &raw) != nil {
+			return nil
+		}
+	} else {
+		raw = []json.RawMessage{json.RawMessage(trimmed)}
+	}
+	forced := map[string]bool{}
+	for _, item := range raw {
+		var req struct {
+			Method string `json:"method"`
+			Params struct {
+				Name string `json:"name"`
+			} `json:"params"`
+		}
+		if json.Unmarshal(item, &req) == nil && req.Method == "tools/call" && req.Params.Name != "" {
+			forced[req.Params.Name] = true
+		}
+	}
+	return forced
+}
+
 func (s *Server) authenticate(ctx context.Context, r *http.Request, clientIP string) (accesstoken.Principal, int) {
 	secret := bearer(r.Header.Get("Authorization"))
 	if secret != "" {
