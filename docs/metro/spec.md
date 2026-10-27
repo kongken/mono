@@ -25,7 +25,7 @@
 
 **P4–P7 的补充决定与偏差**：
 
-- **MCP 库（待决问题 7）**：不引入 Go MCP 库，手写无状态 JSON-RPC（`initialize`、`ping`、`tools/list`、`tools/call`，批量，通知返回 202）。理由见 [BFF](../bff.md)。
+- **MCP 库（待决问题 7）**：使用官方 `modelcontextprotocol/go-sdk` 的无状态 Streamable HTTP handler 和 `Server.AddTool`；BFF 外层保留来源周界、Bearer 认证与限流，工具仍调用内部 `AdminService`。
 - **工具名与字段**：20 个工具（读 7、写 13）；输入字段使用 camelCase（与浏览器契约的 JSON 形式一致），`metro_get_entity` 以 `entityType` 与 `key` 定位实体。JSON Schema 由 proto 描述符生成。
 - **令牌审计（偏差）**：令牌的创建与吊销写 BFF 的 `slog`（令牌 ID、用户、名称、作用域），不写 metro 的 `admin_audit`——审计表属于 metro，BFF 不直接写它。MCP 调用造成的目录写入仍按 8.3 记 `channel=mcp` 与令牌 ID。
 - **失败认证限流**：除按令牌限流外，按客户端地址限制失败认证（每分钟 30 次），防止猜测令牌。
@@ -357,7 +357,7 @@ v1 不提供 MCP resources 和 prompts，也不提供面向普通用户的工具
 
 ### 8.4 实现依赖
 
-需选择 Go 的 MCP 实现库（官方 `modelcontextprotocol/go-sdk` 或社区库），在实现时按维护状态、Streamable HTTP 无状态支持评估后决定，作为 `internal/bff/metro/mcp` 的内部依赖，不泄漏到其他包。
+MCP 协议层使用官方 Go SDK `github.com/modelcontextprotocol/go-sdk`。`internal/bff/metro/mcp` 通过 `mcp.NewStreamableHTTPHandler` 配置无状态、JSON 响应模式，并用 `Server.AddTool` 注册现有 20 个目录工具；BFF 外层继续负责 `mcp.allowed_cidrs` 来源周界、Bearer 管理令牌、scope/账号状态/角色校验与 Redis 限流。工具处理器仍调用同一个内部 `metro.v1.AdminService`，因此网页管理接口与 MCP 共享校验、并发控制和审计行为。SDK 只作为 BFF 内部依赖，不泄漏到其他包。
 
 ## 9. 共用层需要的改动
 
@@ -486,7 +486,7 @@ MCP：
 4. **角色粒度。** 本文只有一个 `metro-admin`。是否需要“只读运维”或“编辑但不能删除/导入”等细分角色？`required_role` 机制支持以后增加。
 5. **Logto 角色声明（技术核实）。** 需要在实际使用的 Logto 租户确认：请求 `roles` scope 后，userinfo 是否返回 `roles`，以及角色名是否就是 `metro-admin`。若不返回，则退回到登录时调用 Logto 管理 API 查询，P0 需要相应增加管理 API 凭据配置。
 6. **产品命名与视觉。** 产品对外名称、域名、主题色和图标尚未确定；本文中的 `metro` 是工程内部名称。
-7. **MCP 库选型。**（已决定）手写，见文首“补充决定”；需要 resources 或服务端推送时再评估官方 SDK。
+7. **MCP 库选型。**（已决定）使用官方 `modelcontextprotocol/go-sdk`，配置无状态 Streamable HTTP 和 JSON 响应；认证、授权、来源周界、限流与业务工具适配仍由 BFF 负责。
 8. **已有线路的批量下线。** 当前没有批量改状态的接口，可通过导入 JSON（同 `code`、新 `status`）完成；是否需要专门的批量接口？
 
 ## 15. 完成时的文档同步清单

@@ -1,19 +1,14 @@
 // Package mcp serves the metro management tools over MCP (Model Context
 // Protocol, Streamable HTTP, stateless) at POST /mcp/metro.
 //
-// It is a thin adapter. A caller proves itself with a management token
-// (Authorization: Bearer mcp_...), never with a Cookie; each tool call is
-// translated into the internal metro AdminService method the web admin also uses,
-// with a credential naming the token's owner, the owner's role snapshot and the
-// mcp channel. Validation, optimistic concurrency and audit are therefore the
-// same as on the web.
-//
-// The protocol subset is small (initialize, ping, tools/list, tools/call, no
-// resources, prompts or sessions), so it is implemented here instead of pulling a
-// protocol SDK into the BFF; see docs/metro/spec.md section 8.4.
+// Authentication and the machine source perimeter remain BFF concerns. Once a
+// request is admitted, the official modelcontextprotocol/go-sdk owns the MCP
+// JSON-RPC and Streamable HTTP protocol, while each SDK tool handler delegates
+// to the same metro AdminService method used by the web admin.
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -30,6 +25,7 @@ import (
 	"github.com/kongken/mono/internal/bff/usersrv"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	metrov1 "github.com/kongken/mono/pkg/proto/metro/v1"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -49,8 +45,16 @@ const (
 	heavyCallTimeout    = 25 * time.Second
 )
 
-// supportedVersions are the protocol revisions the server speaks, newest first.
+// SDK protocol versions retained by the endpoint's existing contract.
 var supportedVersions = []string{"2025-06-18", "2025-03-26", "2024-11-05"}
+
+type requestAuth struct {
+	principal   accesstoken.Principal
+	clientIP    string
+	forcedTools map[string]bool
+}
+
+type requestAuthKey struct{}
 
 // Authenticator verifies a presented token.
 type Authenticator interface {
@@ -72,8 +76,8 @@ type Limiter interface {
 }
 
 // Perimeter decides, from the request alone, whether the caller's network may use the endpoint. Allowed
-// returns the resolved client address when it may. It is the machine allowlist: it has nothing to do with
-// the browser console's.
+// returns the resolved client address when it may. It is the machine allowlist: it has nothing to do
+// with the browser console's.
 type Perimeter interface {
 	Allowed(h http.Header, remoteAddr string) (netip.Addr, bool)
 }
@@ -90,11 +94,11 @@ type Config struct {
 	Perimeter Perimeter
 }
 
-// Server is the MCP endpoint handler.
+// Server is the authenticated BFF wrapper around the SDK's stateless MCP handler.
 type Server struct {
-	cfg    Config
-	tools  []*tool
-	byName map[string]*tool
+	cfg     Config
+	tools   []*tool
+	handler http.Handler
 }
 
 // New returns the endpoint handler.
@@ -102,19 +106,25 @@ func New(cfg Config) *Server {
 	if cfg.RatePerMinute <= 0 {
 		cfg.RatePerMinute = DefaultRatePerMinute
 	}
-	s := &Server{cfg: cfg, tools: tools(), byName: map[string]*tool{}}
-	for _, t := range s.tools {
-		s.byName[t.name] = t
-	}
+	s := &Server{cfg: cfg, tools: tools()}
+	s.handler = sdkmcp.NewStreamableHTTPHandler(func(r *http.Request) *sdkmcp.Server {
+		auth, ok := r.Context().Value(requestAuthKey{}).(requestAuth)
+		if !ok {
+			return nil
+		}
+		return s.sdkServer(auth)
+	}, &sdkmcp.StreamableHTTPOptions{
+		Stateless:                  true,
+		JSONResponse:               true,
+		MaxRequestBodyBytes:        maxBodyBytes,
+		DisableLocalhostProtection: true,
+	})
 	return s
 }
 
-// ServeHTTP implements http.Handler. Cookies are never read, and no CORS headers
-// are ever set: the endpoint is for programs, not for pages in a browser.
-//
-// The source perimeter comes before everything else: before the method, the token, the rate limiter and the
-// body, so a caller outside the allowlist, a preflight or a malformed request included, reaches no token
-// table, no counter and no business method, and learns nothing but a bare 403.
+// ServeHTTP authenticates and rate-limits the machine caller, then delegates
+// MCP protocol parsing, negotiation, batching and notifications to the SDK.
+// Cookies are never read and no CORS headers are set.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	var ip netip.Addr
@@ -127,16 +137,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method != http.MethodPost {
-		// A stateless server offers no SSE stream (GET) and has no session to end (DELETE).
 		w.Header().Set("Allow", http.MethodPost)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	ctx := r.Context()
-	// The address the perimeter resolved (trusted proxies only) is the one used for the failed-attempt
-	// throttle and the audit trail, not whatever a header says.
 	clientIP := ip.String()
-
 	principal, status := s.authenticate(ctx, r, clientIP)
 	if status != 0 {
 		s.reject(w, status)
@@ -150,7 +156,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.reject(w, http.StatusTooManyRequests)
 		return
 	}
-
 	if media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || media != "application/json" {
 		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
 		return
@@ -165,12 +170,142 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	s.serveJSONRPC(ctx, w, body, principal, clientIP)
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	if serveParseError(w, body) || serveUnsupportedMethod(w, body) {
+		return
+	}
+	ctx = context.WithValue(ctx, requestAuthKey{}, requestAuth{principal: principal, clientIP: clientIP, forcedTools: requestedTools(body)})
+	// The SDK's Streamable HTTP transport requires both response media types in
+	// Accept, while the previous endpoint accepted an omitted or JSON-only
+	// header. Supply the SDK-compatible value for legacy MCP clients.
+	accept := r.Header.Get("Accept")
+	if !strings.Contains(accept, "text/event-stream") {
+		r.Header.Set("Accept", "application/json, text/event-stream")
+	}
+	s.handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// authenticate resolves the Bearer token; a non-zero status is the HTTP
-// rejection. Failed attempts are counted per client address so a guesser is
-// throttled before it can load the token table.
+func (s *Server) sdkServer(auth requestAuth) *sdkmcp.Server {
+	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "kongken-metro", Version: "1"}, &sdkmcp.ServerOptions{
+		Instructions:              "Manage the metro catalogue (cities, lines, rolling stock, topics). Read an entity before changing it and pass its revision as expectedRevision. metro_import_catalog only previews unless dryRun is explicitly false.",
+		Capabilities:              &sdkmcp.ServerCapabilities{Tools: &sdkmcp.ToolCapabilities{ListChanged: false}},
+		SupportedProtocolVersions: supportedVersions,
+	})
+	for _, t := range s.tools {
+		if !t.allowedFor(auth.principal) && !auth.forcedTools[t.name] {
+			continue
+		}
+		toolDef := &sdkmcp.Tool{
+			Name:        t.name,
+			Description: t.description,
+			InputSchema: t.schema(),
+			Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: t.readOnly, DestructiveHint: boolPtr(t.destructive)},
+		}
+		server.AddTool(toolDef, s.sdkToolHandler(t, auth))
+	}
+	return server
+}
+
+func boolPtr(v bool) *bool { return &v }
+
+func (s *Server) sdkToolHandler(t *tool, auth requestAuth) sdkmcp.ToolHandler {
+	return func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+		if !t.allowedFor(auth.principal) {
+			return textResult((&toolError{Code: "PERMISSION_DENIED", Message: "this token does not have the " + t.scope + " scope"}).text(), true), nil
+		}
+		roles, terr := s.effectiveRoles(ctx, auth.principal)
+		if terr != nil {
+			return textResult(terr.text(), true), nil
+		}
+		limit := callTimeout
+		if t.heavy {
+			limit = heavyCallTimeout
+		}
+		ctx, cancel := context.WithTimeout(ctx, limit)
+		defer cancel()
+		ctx = rpcauth.WithCall(ctx, rpcauth.Call{
+			UserID: auth.principal.UserID, Roles: roles, Channel: rpcauth.ChannelMCP,
+			TokenID: auth.principal.TokenID, RequestID: rpcauth.NewRequestID(), ClientIP: auth.clientIP,
+		})
+		args := req.Params.Arguments
+		if len(args) == 0 {
+			args = json.RawMessage("{}")
+		}
+		out, terr := s.run(ctx, t, args)
+		slog.Info("mcp tool call", "tool", t.name, "token_id", auth.principal.TokenID, "user_id", auth.principal.UserID, "error", terr != nil)
+		if terr != nil {
+			return textResult(terr.text(), true), nil
+		}
+		return textResult(out, false), nil
+	}
+}
+
+func textResult(text string, isError bool) *sdkmcp.CallToolResult {
+	return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: text}}, IsError: isError}
+}
+
+func serveParseError(w http.ResponseWriter, body []byte) bool {
+	if json.Valid(bytes.TrimSpace(body)) {
+		return false
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      nil,
+		"error":   map[string]any{"code": -32700, "message": "parse error"},
+	})
+	return true
+}
+
+func serveUnsupportedMethod(w http.ResponseWriter, body []byte) bool {
+	var req struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      json.RawMessage `json:"id"`
+		Method  string          `json:"method"`
+	}
+	if json.Unmarshal(bytes.TrimSpace(body), &req) != nil {
+		return false
+	}
+	if req.Method != "resources/list" && req.Method != "resources/templates/list" && req.Method != "prompts/list" && req.Method != "prompts/get" {
+		return false
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      req.ID,
+		"error":   map[string]any{"code": -32601, "message": "method not found"},
+	})
+	return true
+}
+
+func requestedTools(body []byte) map[string]bool {
+	var raw []json.RawMessage
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		return nil
+	}
+	if trimmed[0] == '[' {
+		if json.Unmarshal(trimmed, &raw) != nil {
+			return nil
+		}
+	} else {
+		raw = []json.RawMessage{json.RawMessage(trimmed)}
+	}
+	forced := map[string]bool{}
+	for _, item := range raw {
+		var req struct {
+			Method string `json:"method"`
+			Params struct {
+				Name string `json:"name"`
+			} `json:"params"`
+		}
+		if json.Unmarshal(item, &req) == nil && req.Method == "tools/call" && req.Params.Name != "" {
+			forced[req.Params.Name] = true
+		}
+	}
+	return forced
+}
+
 func (s *Server) authenticate(ctx context.Context, r *http.Request, clientIP string) (accesstoken.Principal, int) {
 	secret := bearer(r.Header.Get("Authorization"))
 	if secret != "" {
@@ -210,208 +345,7 @@ func bearer(header string) string {
 	return strings.TrimSpace(token)
 }
 
-// ---- JSON-RPC ----
-
-type rpcRequest struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id,omitempty"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
-}
-
-type rpcResponse struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id"`
-	Result  any             `json:"result,omitempty"`
-	Error   *rpcError       `json:"error,omitempty"`
-}
-
-type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-const (
-	codeParse          = -32700
-	codeInvalidRequest = -32600
-	codeMethodNotFound = -32601
-	codeInvalidParams  = -32602
-)
-
-func (s *Server) serveJSONRPC(ctx context.Context, w http.ResponseWriter, body []byte, p accesstoken.Principal, clientIP string) {
-	body = []byte(strings.TrimSpace(string(body)))
-	if len(body) == 0 {
-		writeJSON(w, rpcResponse{JSONRPC: "2.0", ID: json.RawMessage("null"), Error: &rpcError{codeParse, "empty body"}})
-		return
-	}
-	if body[0] == '[' {
-		var batch []json.RawMessage
-		if err := json.Unmarshal(body, &batch); err != nil || len(batch) == 0 {
-			writeJSON(w, rpcResponse{JSONRPC: "2.0", ID: json.RawMessage("null"), Error: &rpcError{codeInvalidRequest, "invalid batch"}})
-			return
-		}
-		var out []rpcResponse
-		for _, item := range batch {
-			if res := s.handleOne(ctx, item, p, clientIP); res != nil {
-				out = append(out, *res)
-			}
-		}
-		if len(out) == 0 {
-			w.WriteHeader(http.StatusAccepted)
-			return
-		}
-		writeJSON(w, out)
-		return
-	}
-	res := s.handleOne(ctx, body, p, clientIP)
-	if res == nil {
-		w.WriteHeader(http.StatusAccepted)
-		return
-	}
-	writeJSON(w, res)
-}
-
-func writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-// handleOne answers one message, or returns nil for a notification or a client
-// response that needs no reply.
-func (s *Server) handleOne(ctx context.Context, raw json.RawMessage, p accesstoken.Principal, clientIP string) *rpcResponse {
-	var req rpcRequest
-	if err := json.Unmarshal(raw, &req); err != nil {
-		return &rpcResponse{JSONRPC: "2.0", ID: json.RawMessage("null"), Error: &rpcError{codeParse, "parse error"}}
-	}
-	if req.Method == "" {
-		// A response to something the server never asked.
-		return nil
-	}
-	notification := len(req.ID) == 0
-	if req.JSONRPC != "2.0" {
-		if notification {
-			return nil
-		}
-		return &rpcResponse{JSONRPC: "2.0", ID: req.ID, Error: &rpcError{codeInvalidRequest, "jsonrpc must be 2.0"}}
-	}
-	result, rerr := s.dispatch(ctx, req, p, clientIP)
-	if notification {
-		return nil
-	}
-	if rerr != nil {
-		return &rpcResponse{JSONRPC: "2.0", ID: req.ID, Error: rerr}
-	}
-	return &rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: result}
-}
-
-func (s *Server) dispatch(ctx context.Context, req rpcRequest, p accesstoken.Principal, clientIP string) (any, *rpcError) {
-	switch {
-	case req.Method == "initialize":
-		return s.initialize(req.Params), nil
-	case req.Method == "ping":
-		return map[string]any{}, nil
-	case req.Method == "tools/list":
-		return s.listTools(p), nil
-	case req.Method == "tools/call":
-		return s.callTool(ctx, req.Params, p, clientIP)
-	case strings.HasPrefix(req.Method, "notifications/"):
-		return nil, nil
-	}
-	return nil, &rpcError{codeMethodNotFound, "method not found"}
-}
-
-func (s *Server) initialize(params json.RawMessage) any {
-	var in struct {
-		ProtocolVersion string `json:"protocolVersion"`
-	}
-	_ = json.Unmarshal(params, &in)
-	version := supportedVersions[0]
-	if slices.Contains(supportedVersions, in.ProtocolVersion) {
-		version = in.ProtocolVersion
-	}
-	return map[string]any{
-		"protocolVersion": version,
-		"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
-		"serverInfo":      map[string]any{"name": "kongken-metro", "version": "1"},
-		"instructions": "Manage the metro catalogue (cities, lines, rolling stock, topics). " +
-			"Read an entity before changing it and pass its revision as expectedRevision. " +
-			"metro_import_catalog only previews unless dryRun is explicitly false.",
-	}
-}
-
-func (s *Server) listTools(p accesstoken.Principal) any {
-	out := make([]map[string]any, 0, len(s.tools))
-	for _, t := range s.tools {
-		if !t.allowedFor(p) {
-			continue
-		}
-		annotations := map[string]any{"readOnlyHint": t.readOnly}
-		if !t.readOnly {
-			annotations["destructiveHint"] = t.destructive
-		}
-		out = append(out, map[string]any{
-			"name": t.name, "description": t.description,
-			"inputSchema": t.schema(), "annotations": annotations,
-		})
-	}
-	return map[string]any{"tools": out}
-}
-
-// ---- tool calls ----
-
-type toolResult struct {
-	Content []map[string]string `json:"content"`
-	IsError bool                `json:"isError,omitempty"`
-}
-
-func textResult(text string, isError bool) toolResult {
-	return toolResult{Content: []map[string]string{{"type": "text", "text": text}}, IsError: isError}
-}
-
-func (s *Server) callTool(ctx context.Context, params json.RawMessage, p accesstoken.Principal, clientIP string) (any, *rpcError) {
-	var in struct {
-		Name      string          `json:"name"`
-		Arguments json.RawMessage `json:"arguments"`
-	}
-	if err := json.Unmarshal(params, &in); err != nil || in.Name == "" {
-		return nil, &rpcError{codeInvalidParams, "name is required"}
-	}
-	t := s.byName[in.Name]
-	if t == nil {
-		return nil, &rpcError{codeInvalidParams, "unknown tool " + in.Name}
-	}
-	if !t.allowedFor(p) {
-		return textResult((&toolError{Code: "PERMISSION_DENIED",
-			Message: "this token does not have the " + t.scope + " scope"}).text(), true), nil
-	}
-	roles, terr := s.effectiveRoles(ctx, p)
-	if terr != nil {
-		return textResult(terr.text(), true), nil
-	}
-	limit := callTimeout
-	if t.heavy {
-		limit = heavyCallTimeout
-	}
-	ctx, cancel := context.WithTimeout(ctx, limit)
-	defer cancel()
-	// The credential the metro service verifies: the token's owner and role
-	// snapshot, on the mcp channel, tagged with the token for the audit trail.
-	ctx = rpcauth.WithCall(ctx, rpcauth.Call{
-		UserID: p.UserID, Roles: roles, Channel: rpcauth.ChannelMCP, TokenID: p.TokenID,
-		RequestID: rpcauth.NewRequestID(), ClientIP: clientIP,
-	})
-	out, terr := s.run(ctx, t, in.Arguments)
-	slog.Info("mcp tool call", "tool", t.name, "token_id", p.TokenID, "user_id", p.UserID, "error", terr != nil)
-	if terr != nil {
-		return textResult(terr.text(), true), nil
-	}
-	return textResult(out, false), nil
-}
-
-// effectiveRoles asks usersrv about the token's owner for this very call. The
-// account must be active at the auth_version the token was created at, and the
-// roles are the token's snapshot narrowed to what the account holds now. When
-// usersrv cannot answer, the call fails and nothing is forwarded.
+// effectiveRoles asks usersrv about the token's owner for this very call.
 func (s *Server) effectiveRoles(ctx context.Context, p accesstoken.Principal) ([]string, *toolError) {
 	state, err := s.cfg.Accounts.AuthState(ctx, p.UserID)
 	if err != nil {
