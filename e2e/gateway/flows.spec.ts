@@ -14,7 +14,7 @@ const header = (page: Page) => page.getByRole("banner");
 const metroSignIn = (page: Page) => header(page).getByRole("button", { name: "登录", exact: true });
 const line = (page: Page, code: string) => page.getByTestId(`line-${code}`);
 const mark = (page: Page, code: string) => line(page, code).getByRole("button", { name: "标记坐过" });
-const marked = (page: Page, code: string) => line(page, code).getByRole("button", { name: "坐过", exact: true });
+const marked = (page: Page, code: string) => line(page, code).getByRole("button", { name: "编辑足迹", exact: true });
 const tripAccount = (page: Page) => page.getByRole("button", { name: "账号", exact: true });
 const tripSignIn = (page: Page) => page.getByRole("button", { name: "登录", exact: true });
 const tripDialog = (page: Page) => page.getByRole("dialog");
