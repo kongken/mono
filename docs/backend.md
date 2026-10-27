@@ -411,9 +411,9 @@ curl --fail http://127.0.0.1:18081/api/bff.tripmap.v1.StatusService/GetStatus \
 
 **验证与限制。** `internal/tripmap/notification` 的测试覆盖文案、令牌、SMTP（本地假服务器）、Web Push（本地 TLS 假推送服务和 SSRF 拒绝）；`internal/tripmap/application` 的集成测试（需要 PostgreSQL 与 Redis）覆盖设置、邮箱验证、订阅转移、发送时区与幂等、重试、退订、用户隔离和云端数据清理；前端有单元测试与桌面/手机 Playwright 验收。没有对真实 SMTP 服务商和真实浏览器推送服务做验证；投递语义为最多一次，没有送达回执；每小时一次的检查使实际发送可能晚最多约 1 小时。
 
-## 世界足迹云端文档（`bff.tripmap.v1.WorldService` → `tripmap.v1.WorldService`，W5）
+## 世界足迹云端文档与账号同步（`bff.tripmap.v1.WorldService` → `tripmap.v1.WorldService`，W5–W6）
 
-规则与客户端状态机见 [世界视图规格](trip-map/world-spec.md) 第 9 节；这里记录服务端实现、数据模型、迁移与限制。登录用户的世界视图只有一份**整体替换**的云端文档，不做逐记录合并；冲突由客户端按整份文档选择（客户端同步引擎属于 W6，本节只含服务端）。
+规则与客户端状态机见 [世界视图规格](trip-map/world-spec.md) 第 9 节；这里记录服务端实现、前端同步、数据模型、迁移与限制。登录用户的世界视图只有一份**整体替换**的云端文档，不做逐记录合并；冲突由客户端按整份文档选择。
 
 浏览器经 BFF 调用 `proto/bff/tripmap/v1/world.proto`；BFF 适配器 `internal/bff/tripmap/world/` 转调 tripmap 内部 gRPC（`proto/tripmap/v1/world.proto`，业务实现 `internal/tripmap/application/world_service.go` / `world_grpc.go`）。校验、规范形式、请求摘要与存储编码在不依赖数据库的 `internal/tripmap/world`。文档是**类型化 protobuf**（`WorldDocument`：`kind`、`version`、`countries`、`places`，坐标为整数微度 `lat_e6` / `lng_e6`），不是 JSON 字符串。所有方法须认证，只读写会话用户自己的文档；世界数据不进入足迹、云端快照、搜索、分享、报告、共同旅行、提醒与媒体。
 
@@ -447,7 +447,7 @@ curl --fail http://127.0.0.1:18081/api/bff.tripmap.v1.StatusService/GetStatus \
 
 **测试。** `internal/tripmap/world` 用共享夹具 `packages/fixtures/world-documents.json` 验证（不带 `scope` 的 54 条用例与前端一致，含规范形式、`kind` 与白名单；`json-text`（20 条，依赖 JSON 形状/类型/小数位）与 `utf16`（2 条，孤立代理项）按夹具约定跳过，孤立代理项用无效 UTF-8 单独覆盖），另测 `trip-dates.json`、空白集合（逐码点对照 `unicode.White_Space` 全集）、上限边界（恰好 2,500,000 字节通过、多 1 字节拒绝）、摘要与存储编码；`internal/tripmap/application/world_test.go` 测未知用户、与足迹数据互不相干、回执保留 32 份与顺序、创建竞争重试、损坏载荷、注销与限流；`internal/e2e/world_chain_test.go` 经真实 BFF（Cookie + CSRF + Origin）→ tripmap → PostgreSQL 覆盖规范形式、隔离与写入守卫、非法文档、最大文档、冲突、重放与 `ALREADY_EXISTS`、回执淘汰、并发写入与注销（规格第 13 节场景 D、E、F、K）。
 
-**限制。** 没有逐记录合并或增量同步；文档整体读写，最大约 2.5 MB 文字；回执只保留 32 份，更早的重放会退化为冲突；`GetWorld` 不做条件请求。前端同步引擎、冲突对话框和账号缓存是后续阶段（W6）。
+**限制。** 没有逐记录合并或增量同步；文档整体读写，最大约 2.5 MB 文字；回执只保留 32 份，更早的重放会退化为冲突；`GetWorld` 不做条件请求。海外城市列表没有搜索；两个标签页同时刷新离线副本的并发情形尚未单独验证。
 
 ## Mapbox 瓦片代理（可选）
 
