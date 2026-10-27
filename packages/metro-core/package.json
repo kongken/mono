@@ -8,6 +8,7 @@
     "test": "node --test --experimental-strip-types src/*.test.ts"
   },
   "exports": {
+    "./catalog": "./src/catalog.ts",
     "./format": "./src/format.ts",
     "./status": "./src/status.ts"
   },

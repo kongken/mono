@@ -2,6 +2,7 @@ import { LineStatus } from "@kongken/api-client/bff/metro/v1/catalog_pb";
 import type { LineInput } from "@kongken/api-client/bff/metro/v1/admin_pb";
 import { formatKm, lines } from "@kongken/metro-core/format";
 import { statusLabel } from "@kongken/metro-core/status";
+import { regions, vehicleTypes } from "@kongken/metro-core/catalog";
 import { metroAdmin as admin, write } from "@/lib/rpc";
 import type { FieldDef, Form } from "@/lib/metro-form";
 
@@ -45,6 +46,7 @@ export const cities: Entity = {
   fields: [
     { key: "slug", label: "标识 slug", kind: "text", hint: "小写字母、数字、连字符，最多 32 位，用于网址" },
     { key: "name", label: "名称", kind: "text" },
+    { key: "region", label: "区域", kind: "select", options: [{ value: "", label: "未分类" }, ...regions] },
     { key: "headerImages", label: "头图（每行一个 https 地址，最多 8 个）", kind: "textarea" },
     { key: "mapSvgUrl", label: "线路图 SVG 地址（https）", kind: "text", hint: "只会作为图片显示" },
     { key: "sortOrder", label: "排序", kind: "number" },
@@ -55,18 +57,18 @@ export const cities: Entity = {
       rows: r.cities.map((c) => ({
         id: c.id, revision: c.revision, key: c.city?.slug ?? "",
         cells: [c.city?.slug ?? "", c.city?.name ?? "", String(c.city?.sortOrder ?? 0)],
-        form: { slug: c.city?.slug ?? "", name: c.city?.name ?? "", headerImages: (c.city?.headerImages ?? []).join("\n"), mapSvgUrl: c.city?.mapSvgUrl ?? "", sortOrder: String(c.city?.sortOrder ?? 0) },
+        form: { slug: c.city?.slug ?? "", name: c.city?.name ?? "", region: c.city?.region ?? "", headerImages: (c.city?.headerImages ?? []).join("\n"), mapSvgUrl: c.city?.mapSvgUrl ?? "", sortOrder: String(c.city?.sortOrder ?? 0) },
       })),
       next: r.nextPageToken,
       total: r.total,
     };
   },
-  emptyForm: () => ({ slug: "", name: "", headerImages: "", mapSvgUrl: "", sortOrder: "0" }),
+  emptyForm: () => ({ slug: "", name: "", region: "", headerImages: "", mapSvgUrl: "", sortOrder: "0" }),
   create: (f) => write(() => admin.createCity({ city: cityInput(f) })).then(() => undefined),
   update: (id, rev, f) => write(() => admin.updateCity({ id, expectedRevision: rev, city: cityInput(f) })).then(() => undefined),
   remove: (id, rev) => write(() => admin.deleteCity({ id, expectedRevision: rev })).then(() => undefined),
 };
-const cityInput = (f: Form) => ({ slug: str(f, "slug"), name: str(f, "name"), headerImages: lines(str(f, "headerImages")), mapSvgUrl: str(f, "mapSvgUrl"), sortOrder: int(f, "sortOrder") });
+const cityInput = (f: Form) => ({ slug: str(f, "slug"), name: str(f, "name"), region: str(f, "region"), headerImages: lines(str(f, "headerImages")), mapSvgUrl: str(f, "mapSvgUrl"), sortOrder: int(f, "sortOrder") });
 
 export const rollingStocks: Entity = {
   id: "rolling-stocks",
@@ -109,9 +111,11 @@ export const linesEntity: Entity = {
     { key: "number", label: "序号（0 = 未编号，排在最后）", kind: "number" },
     { key: "status", label: "状态", kind: "select", options: statusOptions },
     { key: "rollingStockCode", label: "车型代码（可空）", kind: "text", serverKey: "rolling_stock" },
+    { key: "vehicleType", label: "车型分类", kind: "select", options: [{ value: "", label: "未分类" }, ...vehicleTypes] },
     { key: "cars", label: "编组（节）", kind: "number" },
     { key: "carsAddition", label: "加开节数", kind: "number" },
     { key: "stations", label: "站数", kind: "number" },
+    { key: "stationNames", label: "站名（每行一站，按起点到终点排序）", kind: "textarea", hint: "可留空；填写时须与站数一致。首末站用于展示起终点，全部站名可供搜索。" },
     { key: "lengthKm", label: "里程（km，最多两位小数）", kind: "decimal" },
     { key: "color", label: "颜色", kind: "text", hint: "#RRGGBB" },
     { key: "commencedOn", label: "开通日期（YYYY-MM-DD，可空）", kind: "text" },
@@ -131,7 +135,7 @@ export const linesEntity: Entity = {
   },
   emptyForm: () => ({
     code: "", citySlug: "", name: "", number: "0", status: String(LineStatus.OPERATING), rollingStockCode: "", cars: "6", carsAddition: "0",
-    stations: "0", lengthKm: "0", color: "#", commencedOn: "", extendedOn: "", isLoop: false,
+    stations: "0", stationNames: "", vehicleType: "", lengthKm: "0", color: "#", commencedOn: "", extendedOn: "", isLoop: false,
   }),
   create: (f) => write(() => admin.createLine({ line: lineInput(f) })).then(() => undefined),
   update: (id, rev, f) => write(() => admin.updateLine({ id, expectedRevision: rev, line: lineInput(f) })).then(() => undefined),
@@ -141,11 +145,13 @@ const lineForm = (x?: LineInput): Form => ({
   code: x?.code ?? "", citySlug: x?.citySlug ?? "", name: x?.name ?? "", number: String(x?.number ?? 0), status: String(x?.status ?? LineStatus.OPERATING),
   rollingStockCode: x?.rollingStockCode ?? "", cars: String(x?.cars ?? 0), carsAddition: String(x?.carsAddition ?? 0), stations: String(x?.stations ?? 0),
   lengthKm: String(x?.lengthKm ?? 0), color: x?.color ?? "", commencedOn: x?.commencedOn ?? "", extendedOn: x?.extendedOn ?? "", isLoop: x?.isLoop ?? false,
+  vehicleType: x?.vehicleType ?? "", stationNames: (x?.stationNames ?? []).join("\n"),
 });
 const lineInput = (f: Form) => ({
   code: str(f, "code"), citySlug: str(f, "citySlug"), name: str(f, "name"), number: int(f, "number"), status: Number(str(f, "status")) as LineStatus,
   rollingStockCode: str(f, "rollingStockCode"), cars: int(f, "cars"), carsAddition: int(f, "carsAddition"), stations: int(f, "stations"),
   lengthKm: dec(f, "lengthKm"), color: str(f, "color"), commencedOn: str(f, "commencedOn"), extendedOn: str(f, "extendedOn"), isLoop: bool(f, "isLoop"),
+  vehicleType: str(f, "vehicleType"), stationNames: lines(str(f, "stationNames")),
 });
 
 export const topics: Entity = {

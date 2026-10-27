@@ -559,6 +559,7 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 ## metro 服务（地铁足迹）
 
+目录探索字段由 `migrations/metro/20261027001759_catalog_discovery.sql` 新增：城市 `region`、线路 `vehicle_type` 和 `station_names`。先应用迁移，再部署 metro/BFF，最后部署 metro-web 与控制台；同时在 `navigation.apps.metro.paths` 增加精确路径 `/topics`（`/topics/*` 不包含总览页）。新增字段默认未分类/空列表，迁移保留已有城市、线路与乘坐年份；填充数据后可在公开站按区域/编组筛选及按站名搜索。管理员 CRUD、JSON 导入导出、MCP、目录审计和两层目录契约均包含字段，限制见 [地铁目录规则](metro/features.md#目录数据规则)。
 规格与决策见 [metro 规格](metro/spec.md)。已实现：共用的角色层、服务骨架与目录读取、管理接口、骑行者资料与乘坐记录、账号清理（P0–P3，本节）；管理令牌与 MCP 端点在 BFF（P4，见 [BFF](bff.md)）；前端 `apps/metro`（P5–P6，见 [功能描述](metro/features.md)）；镜像与部署清单（P7，见 [Docker 镜像](docker-images.md)）。metro 服务本身不感知 MCP 和令牌，它只看到内部凭证里的角色与 `x-bff-channel`、`x-bff-token-id`。
 
 **接口**（内部 gRPC，经 BFF 暴露，见 [BFF](bff.md)）：

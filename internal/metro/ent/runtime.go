@@ -102,16 +102,20 @@ func init() {
 	cityDescName := cityFields[5].Descriptor()
 	// city.NameValidator is a validator for the "name" field. It is called by the builders before save.
 	city.NameValidator = cityDescName.Validators[0].(func(string) error)
+	// cityDescRegion is the schema descriptor for region field.
+	cityDescRegion := cityFields[6].Descriptor()
+	// city.DefaultRegion holds the default value on creation for the region field.
+	city.DefaultRegion = cityDescRegion.Default.(string)
 	// cityDescHeaderImages is the schema descriptor for header_images field.
-	cityDescHeaderImages := cityFields[6].Descriptor()
+	cityDescHeaderImages := cityFields[7].Descriptor()
 	// city.DefaultHeaderImages holds the default value on creation for the header_images field.
 	city.DefaultHeaderImages = cityDescHeaderImages.Default.([]string)
 	// cityDescMapSvgURL is the schema descriptor for map_svg_url field.
-	cityDescMapSvgURL := cityFields[7].Descriptor()
+	cityDescMapSvgURL := cityFields[8].Descriptor()
 	// city.DefaultMapSvgURL holds the default value on creation for the map_svg_url field.
 	city.DefaultMapSvgURL = cityDescMapSvgURL.Default.(string)
 	// cityDescSortOrder is the schema descriptor for sort_order field.
-	cityDescSortOrder := cityFields[8].Descriptor()
+	cityDescSortOrder := cityFields[9].Descriptor()
 	// city.DefaultSortOrder holds the default value on creation for the sort_order field.
 	city.DefaultSortOrder = cityDescSortOrder.Default.(int)
 	// cityDescID is the schema descriptor for id field.
@@ -168,6 +172,14 @@ func init() {
 	lineDescIsLoop := lineFields[17].Descriptor()
 	// line.DefaultIsLoop holds the default value on creation for the is_loop field.
 	line.DefaultIsLoop = lineDescIsLoop.Default.(bool)
+	// lineDescVehicleType is the schema descriptor for vehicle_type field.
+	lineDescVehicleType := lineFields[18].Descriptor()
+	// line.DefaultVehicleType holds the default value on creation for the vehicle_type field.
+	line.DefaultVehicleType = lineDescVehicleType.Default.(string)
+	// lineDescStationNames is the schema descriptor for station_names field.
+	lineDescStationNames := lineFields[19].Descriptor()
+	// line.DefaultStationNames holds the default value on creation for the station_names field.
+	line.DefaultStationNames = lineDescStationNames.Default.([]string)
 	// lineDescID is the schema descriptor for id field.
 	lineDescID := lineFields[0].Descriptor()
 	// line.DefaultID holds the default value on creation for the id field.

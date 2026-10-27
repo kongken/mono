@@ -23,13 +23,15 @@ export default function MailRequestPage({ mode }: { mode: "register" | "forgot" 
   return (
     <div className="mx-auto grid max-w-md gap-4">
       <TargetNotice target={target} action="完成后将进入 OzID 的登录页。" />
-      <MailRequestPanel
-        api={account}
-        appName="OzID"
-        mode={mode}
-        from={fromTarget(target)}
-        onSwitch={(next) => navigate(pageOf(next, search))}
-      />
+      <div className="rounded-xl bg-card p-6 shadow-sm sm:p-8">
+        <MailRequestPanel
+          api={account}
+          appName="OzID"
+          mode={mode}
+          from={fromTarget(target)}
+          onSwitch={(next) => navigate(pageOf(next, search))}
+        />
+      </div>
     </div>
   );
 }

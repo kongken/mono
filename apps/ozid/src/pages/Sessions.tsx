@@ -6,6 +6,7 @@ import { account } from "@/lib/rpc";
 import { navigate } from "@/lib/router";
 import { useSession } from "@/lib/session";
 import { RequireSession } from "@/components/RequireSession";
+import { PageHeader } from "@/components/Layout";
 
 /**
  * The live browser sessions of the account and the two kinds of sign-out: other devices
@@ -38,13 +39,14 @@ export default function SessionsPage() {
   return (
     <RequireSession>
       {({ user }) => (
-        <div className="mx-auto grid max-w-md gap-8" data-testid="sessions-page">
-          <div>
-            <h1 className="text-xl font-semibold">设备与登录</h1>
-            <p className="mt-1 text-sm text-muted-foreground">只显示服务器实际记录的登录时间、最近使用时间和有效期，不记录设备型号或所在位置。</p>
+        <div className="grid max-w-2xl gap-8" data-testid="sessions-page">
+          <PageHeader eyebrow="OzID 统一身份管理" title="设备与登录">
+            只显示服务器实际记录的登录时间、最近使用时间和有效期，不记录设备型号或所在位置。
+          </PageHeader>
+          <div className="rounded-xl bg-card p-6 shadow-sm sm:p-8">
+            <SessionsList api={account} identity={user.id} revokeOthers onSignedOutHere={() => void refresh(true)} />
           </div>
-          <SessionsList api={account} identity={user.id} revokeOthers onSignedOutHere={() => void refresh(true)} />
-          <section aria-labelledby="sign-out-here-title" className="grid gap-3 rounded-lg border bg-card p-4" data-testid="sign-out-here">
+          <section aria-labelledby="sign-out-here-title" className="grid gap-3 rounded-xl bg-card p-6 shadow-sm sm:p-8" data-testid="sign-out-here">
             <h2 id="sign-out-here-title" className="text-base font-semibold">退出这个浏览器</h2>
             <p className="text-sm text-muted-foreground">
               会结束这个浏览器上共用的登录：已接入的应用（山海足迹、地铁足迹等）在下一次检查登录状态时都会发现已退出。其他设备保持登录。

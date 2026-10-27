@@ -1,6 +1,8 @@
 import type { City, RollingStockTopic } from "@kongken/api-client/bff/metro/v1/catalog_pb";
 import { catalog } from "./rpc";
 
+export const loadLines = async () => (await catalog.listLines({})).lines;
+
 // The public catalogue rarely changes, so the city list is kept in memory and
 // revalidated with the catalogue version: an unchanged version comes back as
 // not_modified without the payload. Nothing is persisted.

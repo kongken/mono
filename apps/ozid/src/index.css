@@ -22,35 +22,44 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-signal: var(--signal);
+  --color-sidebar: var(--sidebar);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 }
 :root {
-  font-family: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: Manrope, system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --radius: 0.625rem;
-  --background: #fafbfd;
-  --foreground: #1b2330;
+  --radius: 0.75rem;
+  /* Palette of the Stitch design "OzID User Center Web UI": deep pine green on a mint-tinted surface. */
+  --background: #f7faf5;
+  --foreground: #191d1a;
   --card: #ffffff;
-  --card-foreground: #1b2330;
+  --card-foreground: #191d1a;
   --popover: #ffffff;
-  --popover-foreground: #1b2330;
-  --primary: #2f6b5a;
+  --popover-foreground: #191d1a;
+  --primary: #0b3122;
   --primary-foreground: #ffffff;
-  --secondary: #e7f2ee;
-  --secondary-foreground: #1d4b3e;
-  --muted: #f0f3f8;
-  --muted-foreground: #5b6779;
-  --accent: #e3f0eb;
-  --accent-foreground: #173f33;
-  --destructive: #b3372b;
-  --border: #dbe2ec;
-  --input: #cdd6e3;
-  --ring: #4f9a84;
+  --secondary: #bbead0;
+  --secondary-foreground: #244f3b;
+  --muted: #f1f4ef;
+  --muted-foreground: #414844;
+  --accent: #e6e9e4;
+  --accent-foreground: #0b3122;
+  --destructive: #ba1a1a;
+  --border: #dfe3dd;
+  --input: #c1c8c2;
+  --ring: #3c6752;
+  --brand: #244837;
+  --brand-foreground: #c3ecd4;
+  --signal: #3c6752;
+  --sidebar: #f1f4ef;
 }
 * { box-sizing: border-box; }
 body {
@@ -59,5 +68,7 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
-a { color: inherit; }
+@layer base {
+  a { color: inherit; }
+}
 img { max-width: 100%; }

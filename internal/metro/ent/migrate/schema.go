@@ -66,6 +66,7 @@ var (
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "slug", Type: field.TypeString, Unique: true},
 		{Name: "name", Type: field.TypeString},
+		{Name: "region", Type: field.TypeString, Default: ""},
 		{Name: "header_images", Type: field.TypeJSON},
 		{Name: "map_svg_url", Type: field.TypeString, Default: ""},
 		{Name: "sort_order", Type: field.TypeInt, Default: 0},
@@ -79,7 +80,7 @@ var (
 			{
 				Name:    "city_sort_order_slug",
 				Unique:  false,
-				Columns: []*schema.Column{CitiesColumns[8], CitiesColumns[4]},
+				Columns: []*schema.Column{CitiesColumns[9], CitiesColumns[4]},
 			},
 		},
 	}
@@ -101,6 +102,8 @@ var (
 		{Name: "commenced_on", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "date"}},
 		{Name: "extended_on", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "date"}},
 		{Name: "is_loop", Type: field.TypeBool, Default: false},
+		{Name: "vehicle_type", Type: field.TypeString, Default: ""},
+		{Name: "station_names", Type: field.TypeJSON, Default: "[]"},
 		{Name: "city_id", Type: field.TypeString},
 		{Name: "rolling_stock_id", Type: field.TypeString, Nullable: true},
 	}
@@ -112,13 +115,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "lines_cities_lines",
-				Columns:    []*schema.Column{LinesColumns[16]},
+				Columns:    []*schema.Column{LinesColumns[18]},
 				RefColumns: []*schema.Column{CitiesColumns[0]},
 				OnDelete:   schema.Restrict,
 			},
 			{
 				Symbol:     "lines_rolling_stocks_lines",
-				Columns:    []*schema.Column{LinesColumns[17]},
+				Columns:    []*schema.Column{LinesColumns[19]},
 				RefColumns: []*schema.Column{RollingStocksColumns[0]},
 				OnDelete:   schema.Restrict,
 			},
@@ -127,7 +130,7 @@ var (
 			{
 				Name:    "line_city_id_number_code",
 				Unique:  false,
-				Columns: []*schema.Column{LinesColumns[16], LinesColumns[6], LinesColumns[4]},
+				Columns: []*schema.Column{LinesColumns[18], LinesColumns[6], LinesColumns[4]},
 			},
 			{
 				Name:    "line_status",
@@ -258,6 +261,7 @@ func init() {
 	CitiesTable.Annotation.Checks = map[string]string{
 		"cities_images_limit": "jsonb_array_length(header_images) <= 8",
 		"cities_name_length":  "char_length(name) BETWEEN 1 AND 32",
+		"cities_region":       "region IN ('', 'east', 'north', 'south', 'southwest', 'central', 'northeast', 'northwest')",
 		"cities_slug_format":  "slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'",
 		"cities_slug_length":  "char_length(slug) <= 32",
 	}
@@ -267,10 +271,12 @@ func init() {
 		Table: "lines",
 	}
 	LinesTable.Annotation.Checks = map[string]string{
-		"lines_code_format":  "code ~ '^[a-z0-9][a-z0-9-]{1,31}$'",
-		"lines_color_format": "color ~ '^#[0-9A-Fa-f]{6}$'",
-		"lines_counts":       "number >= 0 AND cars >= 0 AND cars_addition >= 0 AND stations >= 0 AND length_km >= 0",
-		"lines_name_length":  "char_length(name) BETWEEN 1 AND 32",
+		"lines_code_format":   "code ~ '^[a-z0-9][a-z0-9-]{1,31}$'",
+		"lines_color_format":  "color ~ '^#[0-9A-Fa-f]{6}$'",
+		"lines_counts":        "number >= 0 AND cars >= 0 AND cars_addition >= 0 AND stations >= 0 AND length_km >= 0",
+		"lines_name_length":   "char_length(name) BETWEEN 1 AND 32",
+		"lines_station_names": "jsonb_array_length(station_names) = 0 OR jsonb_array_length(station_names) = stations",
+		"lines_vehicle_type":  "vehicle_type IN ('', 'a', 'b', 'l', 'rubber', 'other')",
 	}
 	RiderLinesTable.ForeignKeys[0].RefTable = LinesTable
 	RiderLinesTable.Annotation = &entsql.Annotation{

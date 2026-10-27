@@ -30,6 +30,16 @@
 | `/account/verify-email`、`/account/reset-password` | 邮件里的链接落地页（见下一节）。 |
 | 其他路径 | “页面不存在”，不回退到别的页面。 |
 
+**版面与视觉。** 版面按 Stitch 设计稿“OzID User Center Web UI”（账号概览、个人资料）重构：松绿色调的浅色主题；已登录时桌面宽度（≥1024px）左侧固定侧栏（品牌、概览/资料/安全/设备，底部“注销账号”），顶栏显示当前昵称与“退出登录”；手机宽度侧栏收起，导航改为顶栏下的横向可滚动条。概览页包含当前账号卡片、修改资料/管理密码快捷操作、接入产品入口、三张账号管理入口卡片、退出会话说明与独立的注销入口。登录的匿名、已登录、切换账号及服务故障状态，以及注销页，均使用统一卡片样式。资料页有“共用范围说明”、文字头像与昵称实时预览、字数计数、恢复默认头像和取消修改，以及独立的保存状态/操作栏。头像使用昵称末两字，不加载外部图片（CSP 为同源图片与 data:），字体使用系统字体栈，不请求第三方字体。设计稿的“切换模拟应用来源”“认证流预览”“模拟网络异常”等演示控件不在正式页面提供，也不显示没有真实数据的产品连接/同步状态、应用数量或短账号编号。
+
+**概览产品入口。** 为山海足迹、地铁足迹分别调用现有 `ResolveNavigation(app_id, "")` 获取已登记的默认页面，只有 BFF 返回可导航的 http(s) 地址后才显示原生链接，支持键盘与在新标签页打开；未登记时显示当前未提供入口，请求失败时可单独重试。页面不拼接业务域名、不宣称用户已连接/同步，也不会自动跳转或改变会话。
+
+界面验收：
+
+1. 修改昵称时预览与字数计数同步变化；恢复默认头像后取消修改，昵称和头像地址都回到最近一次保存值，未发出资料写请求。保存清空后的头像地址，再刷新仍为空。
+2. 保存过程中不能编辑或取消；失败时草稿保留，可重试或取消。保存成功、账号信息尚在刷新时再次编辑并取消，仍恢复最新保存值；错误昵称先聚焦字段，取消后错误清除。
+3. 产品入口使用服务端返回的默认地址；未登记的产品或非 http(s) 应答不出现链接，读取故障可重试且不退出会话。长昵称在 320px 手机与桌面下不造成页面横向溢出，主要操作可用键盘完成。
+
 表单支持键盘完成（字段顺序、Enter 提交、错误先说明字段），桌面与手机宽度均无横向滚动。登录失败只给一句中性文案；网络或服务故障与“已退出”分开，提供重试，不会清掉已有的会话显示。
 
 ## 导航上下文与安全返回
@@ -86,7 +96,7 @@ https://id.example.com/login?app_id=metro&return_path=%2Fcity%2Fshanghai
 
 三个页面都要有效会话：无会话（从未登录、已退出、过期、被撤销、改过密码）转到登录；而检查登录状态本身失败（BFF、usersrv 或 Redis 暂时不可用）显示“这不代表你已退出登录”和重试按钮，**不会**跳转到登录，也不会调用退出或清理任何东西。账号导航只在有会话时出现。
 
-**资料（`/profile`）。** 调用 `UserService.UpdateMyProfile`，请求只有 `display_name` 与 `avatar_url`：邮箱、用户、角色、状态都不是它的字段，所以不能被页面或伪造请求修改。登录邮箱只读，没有修改邮箱的流程。资料只写 usersrv 的共用昵称/头像，`profile_version` 随之变化，各产品在下一次请求时取用；它不碰 metro 的骑行者资料（`handle`、简介等）、metro 目录及其 `revision`（`TestChainSharedProfileEditLeavesEverythingElseAlone` 对此断言：修改前后骑行者资料与目录行数不变，邮箱、角色、`auth_version` 与其他设备的会话也不变）。
+**资料（`/profile`）。** 昵称/文字头像预览和字数计数随输入更新（仍按 1–40 个字符校验）；“恢复默认头像”只清空本次编辑的头像地址，保存后生效；“取消修改”恢复最近一次成功保存的昵称与头像地址，并清除错误。保存期间锁定编辑与取消；保存失败保留草稿并允许重试。外链头像地址可以编辑，但不会在 OzID 内发起图片请求。调用 `UserService.UpdateMyProfile`，请求只有 `display_name` 与 `avatar_url`：邮箱、用户、角色、状态都不是它的字段，所以不能被页面或伪造请求修改。登录邮箱只读，没有修改邮箱的流程。资料只写 usersrv 的共用昵称/头像，`profile_version` 随之变化，各产品在下一次请求时取用；它不碰 metro 的骑行者资料（`handle`、简介等）、metro 目录及其 `revision`（`TestChainSharedProfileEditLeavesEverythingElseAlone` 对此断言：修改前后骑行者资料与目录行数不变，邮箱、角色、`auth_version` 与其他设备的会话也不变）。
 
 **密码（`/security`）。** 调用 `ChangePassword`，请求为当前密码和新密码：当前密码由 usersrv 校验（错误回答 `UNAUTHENTICATED`，页面显示“当前密码不正确”，会话不动）；新密码规则与注册相同（12 到 128 个字符）。成功后 usersrv 递增 `auth_version`，BFF 撤销该账号全部浏览器会话并清除当前 Cookie，既有管理令牌（MCP）在下次复核时因版本不同失效，**当前设备也要重新登录**：页面转到 `/login?reason=password-changed` 并说明“所有设备上的登录都已退出”。其他账号的会话和令牌不受影响；用旧密码登录失败，新密码可以；重新认证不能让已失效的会话复活。猜测当前密码受 usersrv 的账号级限流（默认 `password_per_account` 每 15 分钟 10 次，与“确认密码”共用，每次尝试都计数，成功也算；另有按地址的 `password_per_ip`）：达到上限后即使密码正确也被拒绝（`RESOURCE_EXHAUSTED`，“操作太频繁”），不改任何东西。真实密码验证时间只由 BFF 记录：`Reauthenticate` 与 `ChangePassword` 的请求里没有时间字段，错误密码不会移动它。
 
@@ -154,12 +164,12 @@ navigation:
   apps:
     ozid:     {origin: https://id.example.com, paths: ["/security"]}
     trip-map: {origin: https://trip.example.com, paths: ["/status"]}
-    metro:    {origin: https://metro.example.com, paths: ["/me", "/cities/*", "/topics/*", "/u/*"]}
+    metro:    {origin: https://metro.example.com, paths: ["/me", "/cities/*", "/topics", "/topics/*", "/u/*"]}
 ```
 
 路径规则：默认路径（缺省 `/`）总是允许；`paths` 里的项是精确 pathname，或以 `/*` 结尾的前缀（`/city/*` 允许 `/city` 及其下所有路径，`/*` 允许整个应用）。启动时校验，**配置缺失或不合法会让 BFF 启动失败并指出字段**，不会降级：
 
-**地铁足迹的返回页面（T11）。** 与山海足迹同一规则，名单是起始页 `/`、`/me`、`/cities/<slug>`、`/topics/<slug>`、`/u/<handle>`（段只含 ASCII 字母、数字与 `-._~`，1–64 位；非 ASCII 的城市名没有规范路径，回起始页），部署者在 `navigation.apps.metro.paths` 登记 `["/me", "/cities/*", "/topics/*", "/u/*"]`；产品先请 BFF 确认这个 pathname 再使用，未登记、拒绝、不可达或超过 3 秒回到起始页，query 与 fragment 从不带入。
+**地铁足迹的返回页面（T11）。** 与山海足迹同一规则，名单是起始页 `/`、`/me`、`/cities/<slug>`、`/topics`、`/topics/<slug>`、`/u/<handle>`（段只含 ASCII 字母、数字与 `-._~`，1–64 位；非 ASCII 的城市名没有规范路径，回起始页），部署者在 `navigation.apps.metro.paths` 登记 `["/me", "/cities/*", "/topics", "/topics/*", "/u/*"]`；产品先请 BFF 确认这个 pathname 再使用，未登记、拒绝、不可达或超过 3 秒回到起始页，query 与 fragment 从不带入。
 
 **山海足迹的返回页面（T10）。** 产品从哪个页面发起登录，就申请回到哪个页面，但只限一个封闭的名单：起始页（默认路径 `/`，带 Vite base 时是该 base）和 `/status`（公开的服务状态页，页面上有“使用 OzID 登录”链接）。名单之外的任何页面（分享页 `/s/<令牌>`、邮件落地页、未知路径）一律回到起始页；申请里永远只有 `app_id` 与规范 pathname，query、fragment 和令牌不会进入，也没有浏览器 `Referer` 泄露（跨站点只发 origin）。产品在发出名单内的非起始页之前先请 BFF 校验这个 pathname（`ResolveNavigation`，只读且匿名），BFF 没有对应规则、拒绝、不可达或超过 3 秒都退回起始页，所以未登记 `/status` 的部署不会让登录结束在 OzID 的“地址不允许”状态。部署者要让登录回到状态页，就在 `navigation.apps.trip-map.paths` 登记 `/status`（带 base 时是 `<base>status`）；弹窗打开与未保存的修改不属于返回承诺，返回的是页面，不是页面里的临时状态。
 

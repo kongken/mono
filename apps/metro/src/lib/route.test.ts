@@ -6,6 +6,7 @@ test("matches the public routes", () => {
   assert.deepEqual(matchRoute("/"), { name: "home" });
   assert.deepEqual(matchRoute("/cities/shanghai"), { name: "city", slug: "shanghai" });
   assert.deepEqual(matchRoute("/cities/shanghai/"), { name: "city", slug: "shanghai" });
+  assert.deepEqual(matchRoute("/topics"), { name: "topics" });
   assert.deepEqual(matchRoute("/topics/six-cars"), { name: "topic", slug: "six-cars" });
   assert.deepEqual(matchRoute("/u/alice"), { name: "profile", handle: "alice" });
   assert.deepEqual(matchRoute("/me"), { name: "me" });

@@ -49,6 +49,10 @@ const (
 	FieldExtendedOn = "extended_on"
 	// FieldIsLoop holds the string denoting the is_loop field in the database.
 	FieldIsLoop = "is_loop"
+	// FieldVehicleType holds the string denoting the vehicle_type field in the database.
+	FieldVehicleType = "vehicle_type"
+	// FieldStationNames holds the string denoting the station_names field in the database.
+	FieldStationNames = "station_names"
 	// EdgeCity holds the string denoting the city edge name in mutations.
 	EdgeCity = "city"
 	// EdgeRollingStock holds the string denoting the rolling_stock edge name in mutations.
@@ -91,6 +95,8 @@ var Columns = []string{
 	FieldCommencedOn,
 	FieldExtendedOn,
 	FieldIsLoop,
+	FieldVehicleType,
+	FieldStationNames,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -130,6 +136,10 @@ var (
 	DefaultLengthKm float64
 	// DefaultIsLoop holds the default value on creation for the "is_loop" field.
 	DefaultIsLoop bool
+	// DefaultVehicleType holds the default value on creation for the "vehicle_type" field.
+	DefaultVehicleType string
+	// DefaultStationNames holds the default value on creation for the "station_names" field.
+	DefaultStationNames []string
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() string
 )
@@ -254,6 +264,11 @@ func ByExtendedOn(opts ...sql.OrderTermOption) OrderOption {
 // ByIsLoop orders the results by the is_loop field.
 func ByIsLoop(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsLoop, opts...).ToFunc()
+}
+
+// ByVehicleType orders the results by the vehicle_type field.
+func ByVehicleType(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldVehicleType, opts...).ToFunc()
 }
 
 // ByCityField orders the results by city field.

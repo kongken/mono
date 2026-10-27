@@ -2,6 +2,7 @@
 export type Route =
   | { name: "home" }
   | { name: "city"; slug: string }
+  | { name: "topics" }
   | { name: "topic"; slug: string }
   | { name: "profile"; handle: string }
   | { name: "me" }
@@ -21,6 +22,7 @@ export function matchRoute(pathname: string): Route {
   if (parts.length === 0) return { name: "home" };
   const [a, b] = parts;
   if (parts.length === 2 && a === "cities") return { name: "city", slug: b };
+  if (parts.length === 1 && a === "topics") return { name: "topics" };
   if (parts.length === 2 && a === "topics") return { name: "topic", slug: b };
   if (parts.length === 2 && a === "u") return { name: "profile", handle: b };
   if (parts.length === 1 && a === "me") return { name: "me" };

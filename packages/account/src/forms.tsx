@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@kongken/ui/button";
+import { ArrowCounterClockwise } from "@phosphor-icons/react";
 import type { AccountApi, AccountUser, ReturnFrom, SessionInfo } from "./api.ts";
 import { classifyAccountError, type AccountField, type AccountFailure } from "./errors.ts";
 import { ACCOUNT_PRODUCT_SCOPE, ACCOUNT_SHARED_SCOPE, DELETE_CONFIRM_WORD } from "./scope.ts";
@@ -12,9 +13,10 @@ import {
   checkPasswordConfirmation,
   newMutationId,
   trimEmail,
+  MAX_DISPLAY_NAME_CHARS,
 } from "./validate.ts";
 import { createEpoch } from "./latest.ts";
-import { FORM_CLASS, LinkButton, Notice, PasswordField, TextField, useCooldown, useFocusFirstInvalid, useRunner } from "./ui.tsx";
+import { AccountAvatar, FORM_CLASS, LinkButton, Notice, PasswordField, TextField, useCooldown, useFocusFirstInvalid, useRunner } from "./ui.tsx";
 
 /** The resend cooldown of mail requests; usersrv enforces its own, this only explains the wait. */
 const RESEND_SECONDS = 60;
@@ -399,16 +401,26 @@ export function ProfileForm({
 }) {
   const [displayName, setDisplayName] = useState(user.displayName);
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl);
+  // Cancel restores the last successful response, even while the parent's refresh is pending.
+  const [saved, setSaved] = useState({ displayName: user.displayName, avatarUrl: user.avatarUrl });
   const [errors, setErrors] = useState<Errors>({});
   const [notice, setNotice] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [tick, setTick] = useState(0);
   const form = useRef<HTMLFormElement>(null);
   const { pending, run } = useRunner();
   useFocusFirstInvalid(form, tick);
-  const unchanged = displayName.trim() === user.displayName && avatarUrl === user.avatarUrl;
+  const unchanged = displayName === saved.displayName && avatarUrl === saved.avatarUrl;
+
+  const cancel = () => {
+    setDisplayName(saved.displayName);
+    setAvatarUrl(saved.avatarUrl);
+    setErrors({});
+    setNotice({ kind: "success", text: "已取消本次修改" });
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (pending || unchanged) return;
     const next: Errors = {};
     const nameError = checkDisplayName(displayName, false);
     const avatarError = checkAvatarUrl(avatarUrl);
@@ -422,6 +434,7 @@ export function ProfileForm({
         const updated = await api.updateProfile(displayName.trim(), avatarUrl);
         setDisplayName(updated.displayName);
         setAvatarUrl(updated.avatarUrl);
+        setSaved({ displayName: updated.displayName, avatarUrl: updated.avatarUrl });
         setNotice({ kind: "success", text: "资料已保存" });
         onUpdated(updated);
       } catch (error) {
@@ -435,36 +448,64 @@ export function ProfileForm({
   };
 
   return (
-    <form ref={form} noValidate onSubmit={(e) => void submit(e)} className={FORM_CLASS} aria-labelledby="account-profile-title" data-testid="profile-form">
-      <h3 id="account-profile-title" className="text-base font-semibold">基础资料</h3>
-      <TextField label="登录邮箱" type="email" value={email} readOnly autoComplete="off" hint="登录邮箱暂不支持修改，也不会出现在公开页面和好友列表中。" />
-      <TextField
-        label="昵称"
-        name="display_name"
-        autoComplete="nickname"
-        value={displayName}
-        error={errors.displayName}
-        hint="1 到 40 个字符，山海足迹和地铁足迹共用；不要求唯一。"
-        onChange={(e) => setDisplayName(e.target.value)}
-      />
-      <TextField
-        label="头像地址（可选）"
-        name="avatar_url"
-        type="url"
-        inputMode="url"
-        autoComplete="off"
-        autoCapitalize="none"
-        spellCheck={false}
-        value={avatarUrl}
-        error={errors.avatarUrl}
-        hint="https 图片地址，留空则不显示头像；服务器不会抓取这个地址。"
-        onChange={(e) => setAvatarUrl(e.target.value)}
-      />
-      {notice ? <Notice kind={notice.kind}>{notice.text}</Notice> : null}
-      <div>
-        <Button type="submit" disabled={pending || unchanged}>
-          {pending ? "保存中…" : "保存资料"}
-        </Button>
+    <form ref={form} noValidate onSubmit={(e) => void submit(e)} className="grid gap-6" aria-labelledby="account-profile-title" aria-busy={pending} data-testid="profile-form">
+      <fieldset disabled={pending} className="grid min-w-0 gap-6 rounded-xl bg-card p-6 shadow-sm sm:p-8">
+        <legend className="sr-only">编辑基础资料</legend>
+        <div className="flex flex-wrap items-center justify-between gap-5">
+          <div className="flex min-w-0 items-center gap-4">
+            <AccountAvatar name={displayName} className="size-20 ring-4 ring-muted" />
+            <div className="grid min-w-0 gap-1">
+              <h2 id="account-profile-title" className="text-base font-semibold">基础资料</h2>
+              <p className="break-all text-xl font-semibold" data-testid="profile-preview-name">{displayName.trim() || "未设定昵称"}</p>
+              <p className="text-xs text-muted-foreground">昵称与文字头像预览，保存后生效。</p>
+            </div>
+          </div>
+          <Button type="button" variant="outline" disabled={!avatarUrl} onClick={() => {
+            setAvatarUrl("");
+            setErrors({});
+            setNotice(null);
+          }}>
+            <ArrowCounterClockwise aria-hidden />恢复默认头像
+          </Button>
+        </div>
+        <TextField
+          label="昵称"
+          name="display_name"
+          autoComplete="nickname"
+          value={displayName}
+          error={errors.displayName}
+          hint="1 到 40 个字符，山海足迹和地铁足迹共用；不要求唯一。"
+          onChange={(e) => { setDisplayName(e.target.value); setNotice(null); }}
+        />
+        <p className="-mt-4 text-right text-xs tabular-nums text-muted-foreground" data-testid="profile-name-count">
+          {Array.from(displayName).length} / {MAX_DISPLAY_NAME_CHARS}
+        </p>
+        <TextField
+          label="头像地址（可选）"
+          name="avatar_url"
+          type="url"
+          inputMode="url"
+          autoComplete="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          value={avatarUrl}
+          error={errors.avatarUrl}
+          hint="https 图片地址，在接入产品中使用；OzID 仅显示文字头像。留空则恢复默认头像，保存后生效。"
+          onChange={(e) => { setAvatarUrl(e.target.value); setNotice(null); }}
+        />
+        <TextField label="登录邮箱" type="email" value={email} readOnly autoComplete="off" hint="登录邮箱暂不支持修改，也不会出现在公开页面和好友列表中。" />
+      </fieldset>
+      {notice?.kind === "error" ? <Notice kind="error">{notice.text}</Notice> : null}
+      <div className="flex flex-col gap-4 rounded-xl bg-card p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <p role="status" className="text-sm text-muted-foreground">
+          {pending ? "正在保存资料…" : notice?.kind === "success" ? notice.text : unchanged ? "当前所有内容为最新状态" : "有未保存的修改"}
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <Button type="button" variant="outline" disabled={pending || unchanged} onClick={cancel}>取消修改</Button>
+          <Button type="submit" disabled={pending || unchanged}>
+            {pending ? "保存中…" : "保存资料"}
+          </Button>
+        </div>
       </div>
     </form>
   );

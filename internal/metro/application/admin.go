@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -212,6 +213,7 @@ func applyCity(m *ent.CityMutation, d cityDoc) {
 	m.SetHeaderImages(d.HeaderImages)
 	m.SetMapSvgURL(d.MapSVGURL)
 	m.SetSortOrder(d.SortOrder)
+	m.SetRegion(d.Region)
 }
 
 func applyStock(m *ent.RollingStockMutation, d stockDoc, create bool) {
@@ -258,6 +260,12 @@ func applyLine(m *ent.LineMutation, d lineDoc, cityID string, stockID *string, c
 		}
 	}
 	m.SetIsLoop(d.IsLoop)
+	m.SetVehicleType(d.VehicleType)
+	names := slices.Clone(d.StationNames)
+	if names == nil {
+		names = []string{}
+	}
+	m.SetStationNames(names)
 }
 
 func applyTopic(m *ent.RollingStockTopicMutation, d topicDoc) {

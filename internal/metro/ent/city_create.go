@@ -78,6 +78,20 @@ func (_c *CityCreate) SetName(v string) *CityCreate {
 	return _c
 }
 
+// SetRegion sets the "region" field.
+func (_c *CityCreate) SetRegion(v string) *CityCreate {
+	_c.mutation.SetRegion(v)
+	return _c
+}
+
+// SetNillableRegion sets the "region" field if the given value is not nil.
+func (_c *CityCreate) SetNillableRegion(v *string) *CityCreate {
+	if v != nil {
+		_c.SetRegion(*v)
+	}
+	return _c
+}
+
 // SetHeaderImages sets the "header_images" field.
 func (_c *CityCreate) SetHeaderImages(v []string) *CityCreate {
 	_c.mutation.SetHeaderImages(v)
@@ -188,6 +202,10 @@ func (_c *CityCreate) defaults() {
 		v := city.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.Region(); !ok {
+		v := city.DefaultRegion
+		_c.mutation.SetRegion(v)
+	}
 	if _, ok := _c.mutation.HeaderImages(); !ok {
 		v := city.DefaultHeaderImages
 		_c.mutation.SetHeaderImages(v)
@@ -237,6 +255,9 @@ func (_c *CityCreate) check() error {
 		if err := city.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "City.name": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.Region(); !ok {
+		return &ValidationError{Name: "region", err: errors.New(`ent: missing required field "City.region"`)}
 	}
 	if _, ok := _c.mutation.HeaderImages(); !ok {
 		return &ValidationError{Name: "header_images", err: errors.New(`ent: missing required field "City.header_images"`)}
@@ -302,6 +323,10 @@ func (_c *CityCreate) createSpec() (*City, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(city.FieldName, field.TypeString, value)
 		_node.Name = value
+	}
+	if value, ok := _c.mutation.Region(); ok {
+		_spec.SetField(city.FieldRegion, field.TypeString, value)
+		_node.Region = value
 	}
 	if value, ok := _c.mutation.HeaderImages(); ok {
 		_spec.SetField(city.FieldHeaderImages, field.TypeJSON, value)
@@ -434,6 +459,18 @@ func (u *CityUpsert) SetName(v string) *CityUpsert {
 // UpdateName sets the "name" field to the value that was provided on create.
 func (u *CityUpsert) UpdateName() *CityUpsert {
 	u.SetExcluded(city.FieldName)
+	return u
+}
+
+// SetRegion sets the "region" field.
+func (u *CityUpsert) SetRegion(v string) *CityUpsert {
+	u.Set(city.FieldRegion, v)
+	return u
+}
+
+// UpdateRegion sets the "region" field to the value that was provided on create.
+func (u *CityUpsert) UpdateRegion() *CityUpsert {
+	u.SetExcluded(city.FieldRegion)
 	return u
 }
 
@@ -590,6 +627,20 @@ func (u *CityUpsertOne) SetName(v string) *CityUpsertOne {
 func (u *CityUpsertOne) UpdateName() *CityUpsertOne {
 	return u.Update(func(s *CityUpsert) {
 		s.UpdateName()
+	})
+}
+
+// SetRegion sets the "region" field.
+func (u *CityUpsertOne) SetRegion(v string) *CityUpsertOne {
+	return u.Update(func(s *CityUpsert) {
+		s.SetRegion(v)
+	})
+}
+
+// UpdateRegion sets the "region" field to the value that was provided on create.
+func (u *CityUpsertOne) UpdateRegion() *CityUpsertOne {
+	return u.Update(func(s *CityUpsert) {
+		s.UpdateRegion()
 	})
 }
 
@@ -920,6 +971,20 @@ func (u *CityUpsertBulk) SetName(v string) *CityUpsertBulk {
 func (u *CityUpsertBulk) UpdateName() *CityUpsertBulk {
 	return u.Update(func(s *CityUpsert) {
 		s.UpdateName()
+	})
+}
+
+// SetRegion sets the "region" field.
+func (u *CityUpsertBulk) SetRegion(v string) *CityUpsertBulk {
+	return u.Update(func(s *CityUpsert) {
+		s.SetRegion(v)
+	})
+}
+
+// UpdateRegion sets the "region" field to the value that was provided on create.
+func (u *CityUpsertBulk) UpdateRegion() *CityUpsertBulk {
+	return u.Update(func(s *CityUpsert) {
+		s.UpdateRegion()
 	})
 }
 

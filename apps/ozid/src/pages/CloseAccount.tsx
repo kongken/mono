@@ -5,7 +5,7 @@ import { Notice } from "@kongken/account/ui";
 import { account } from "@/lib/rpc";
 import { navigate } from "@/lib/router";
 import { useSession } from "@/lib/session";
-import { Spinner } from "@/components/Layout";
+import { PageHeader, Spinner } from "@/components/Layout";
 
 /**
  * Closing the shared account. Unlike the other self-service pages this one is not behind
@@ -49,9 +49,9 @@ export default function CloseAccountPage() {
     body = <Spinner />;
   }
   return (
-    <div className="mx-auto grid max-w-xl gap-6" data-testid="close-account-page">
-      <h1 className="text-xl font-semibold text-destructive">注销账号</h1>
-      {body}
+    <div className="grid max-w-2xl gap-6" data-testid="close-account-page">
+      <PageHeader eyebrow="OzID 统一身份管理" title="注销账号" danger>永久删除共用账号及各产品的数据，无法恢复。</PageHeader>
+      <div className="rounded-xl bg-card p-6 shadow-sm sm:p-8">{body}</div>
     </div>
   );
 }

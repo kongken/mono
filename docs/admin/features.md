@@ -142,6 +142,8 @@
 
 metro 的城市、线路、车型、专题（增删改）、导入/导出、目录审计和管理令牌页面已从 metro 公开站迁入控制台的“地铁目录”分区（`/metro`、`/metro/cities`、`/metro/lines`、`/metro/rolling-stocks`、`/metro/topics`、`/metro/import`、`/metro/export`、`/metro/audit`、`/metro/tokens`）。不是 iframe，也不是链接到旧站；`apps/admin` 与 `apps/metro` 不互相 import，两边共用的纯函数（线路状态文案、里程格式）放在 `packages/metro-core`，没有复制。
 
+城市编辑器可维护区域（华东/华北/华南/西南/华中/东北/西北，可留未分类）；线路编辑器可维护车型分类（A/B/L/胶轮/其他特种，可未分类）与按起终点顺序的完整站名列表（每行一站，可留空；填写时须与站数相等）。这些字段用于公开站的筛选、站点搜索与起终点展示，保存和再次编辑应完整保留；MCP 与 JSON 导入导出使用同样校验，具体限制见 [地铁目录规则](../metro/features.md#目录数据规则)。
+
 - **谁能看到、谁能操作。** 只有持有 `metro-admin` 的账号看到分区；只有 `ozid-admin` 的平台管理员直接打开 `/metro/*` 只看到“没有权限”，页面不发出任何 metro 调用。BFF 对 `bff.metro.v1.AdminService` 的每个过程声明 `required_role = "metro-admin"` 并检查，metro 服务再从内部凭证独立检查一次。
 - **没有 metro 上游时。** BFF 不挂载 metro 管理服务，控制台探测到后不显示分区，`/metro/*` 只说明“这个环境没有部署地铁目录服务”，不展示可操作的假页面。metro 暂时不可用时分区仍在，页面上说明并提供重试。
 - **周界。** `internal/bff/app/admin_perimeter.go` 列出受周界保护的服务：`bff.v1.UserAdminService`、`bff.metro.v1.AdminService`、`bff.v1.AccessTokenService`。对它们的每个浏览器请求（读、写、导入导出、审计、令牌；预检；`/api/<服务>/` 下的任何路径写法）先过来源白名单与受信代理链，再过精确的控制台 Origin，然后才是会话、角色和 `AdminSessionMaxAge`；名单外或 Origin 不对一律是同一个泛化拒绝，业务服务（metro、令牌库）收不到请求。`TestEveryRoleGatedBrowserServiceIsInsideTheAdminPerimeter` 枚举所有 `bff.` 前缀且带 `required_role` 的服务，新增管理服务忘记列入周界会使测试失败。公开目录（`bff.metro.v1.CatalogService`）、骑行者功能和 `/me` 不在周界内。

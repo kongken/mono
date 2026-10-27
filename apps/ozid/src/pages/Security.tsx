@@ -7,7 +7,7 @@ import { account } from "@/lib/rpc";
 import { Link, navigate, useSearch } from "@/lib/router";
 import { useSession } from "@/lib/session";
 import { goToTarget, useTarget } from "@/lib/target";
-import { Spinner } from "@/components/Layout";
+import { PageHeader, Spinner } from "@/components/Layout";
 import { TargetNotice } from "./Login";
 
 /**
@@ -80,12 +80,14 @@ export default function SecurityPage() {
     </div>
   );
 
-  if (controlled) return <div className="mx-auto max-w-md">{confirmation}</div>;
+  if (controlled) return <div className="mx-auto max-w-md rounded-xl bg-card p-6 shadow-sm sm:p-8">{confirmation}</div>;
 
   return (
-    <div className="mx-auto grid max-w-md gap-8" data-testid="security-page">
-      <h1 className="text-xl font-semibold">安全</h1>
-      <section className="grid gap-4 rounded-lg border bg-card p-4">
+    <div className="grid max-w-2xl gap-8" data-testid="security-page">
+      <PageHeader eyebrow="OzID 统一身份管理" title="安全">
+        修改登录密码，或在继续敏感操作前再次确认当前密码。
+      </PageHeader>
+      <section className="grid gap-4 rounded-xl bg-card p-6 shadow-sm sm:p-8">
         <ChangePasswordForm
           api={account}
           email={session.profile.email}
@@ -98,7 +100,7 @@ export default function SecurityPage() {
           }}
         />
       </section>
-      <section className="rounded-lg border bg-card p-4">{confirmation}</section>
+      <section className="rounded-xl bg-card p-6 shadow-sm sm:p-8">{confirmation}</section>
     </div>
   );
 }
