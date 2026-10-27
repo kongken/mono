@@ -21,6 +21,7 @@ import { regionCatalog, REGION_VERSION } from "../src/lib/region-catalog";
 import * as searchPb from "@kongken/api-client/bff/tripmap/v1/search_pb";
 import * as snapshotPb from "@kongken/api-client/bff/tripmap/v1/snapshot_pb";
 import * as statusPb from "@kongken/api-client/bff/tripmap/v1/status_pb";
+import * as worldPb from "@kongken/api-client/bff/tripmap/v1/world_pb";
 import { buildReport } from "../src/lib/report";
 import { searchNotes } from "../src/lib/search";
 
@@ -134,6 +135,12 @@ export function fakeBackend(
       failTest: false,
     },
     regionReceipts: new Map<string, { request: string; revision: number; changed: number; snapshotId: string }>(),
+    world: {
+      revision: 0,
+      document: { kind: "world", version: 1, countries: [], places: [] },
+      calls: [] as { baseRevision: number; requestId: string; document: object }[],
+      receipts: new Map<string, { request: string; revision: number; document: object }>(),
+    },
   };
   state.seedRevision = state.revision;
   const ts = () => ({ seconds: BigInt(Math.floor(Date.now() / 1000)) });
@@ -267,6 +274,13 @@ export function fakeBackend(
     },
     /** Saves a snapshot of the current server state, as the server's scheduler would. */
     seedSnapshot: (reason = "scheduled") => capture(reason).snap,
+    /** A server-side world edit used to force a stale-revision response in browser tests. */
+    otherWorld: (document: object) => {
+      state.world.revision++;
+      state.world.document = document;
+    },
+    worldDocument: () => state.world.document,
+    worldReplaceCalls: () => state.world.calls,
     install: async () => {
       await page.route("**/api/**", async (route) => {
         const req = route.request();
@@ -357,6 +371,25 @@ export function fakeBackend(
             state.regionReceipts.set(body.mutationId, saved);
             if (state.dropNextRegionReply > 0) { state.dropNextRegionReply--; return route.fulfill(failure("unavailable", "lost reply", 503)); }
             return send(regionsPb.ApplyRegionUpgradeResponseSchema, { version: body.version, revision: BigInt(saved.revision), changedCount: saved.changed, snapshotId: saved.snapshotId });
+          }
+          case "GetWorld":
+            return send(worldPb.GetWorldResponseSchema, { revision: BigInt(state.world.revision), document: state.world.document });
+          case "ReplaceWorld": {
+            const body = read(worldPb.ReplaceWorldRequestSchema) as worldPb.ReplaceWorldRequest;
+            state.world.calls.push({ baseRevision: Number(body.baseRevision), requestId: body.requestId, document: body.document ?? { kind: "world", version: 1, countries: [], places: [] } });
+            const request = toJsonString(worldPb.ReplaceWorldRequestSchema, body);
+            const prior = state.world.receipts.get(body.requestId);
+            if (prior) {
+              if (prior.request !== request) return route.fulfill(failure("already_exists", "request_id was already used", 409));
+              return send(worldPb.ReplaceWorldResponseSchema, { applied: true, replayed: true, revision: BigInt(prior.revision), document: prior.document, cloudRevision: BigInt(state.world.revision) });
+            }
+            if (Number(body.baseRevision) !== state.world.revision)
+              return send(worldPb.ReplaceWorldResponseSchema, { applied: false, replayed: false, revision: BigInt(state.world.revision), document: state.world.document, cloudRevision: BigInt(state.world.revision) });
+            const document = body.document ?? { kind: "world", version: 1, countries: [], places: [] };
+            if (JSON.stringify(document) !== JSON.stringify(state.world.document)) state.world.revision++;
+            state.world.document = document;
+            state.world.receipts.set(body.requestId, { request, revision: state.world.revision, document });
+            return send(worldPb.ReplaceWorldResponseSchema, { applied: true, replayed: false, revision: BigInt(state.world.revision), document, cloudRevision: BigInt(state.world.revision) });
           }
           case "GetFootprints":
             return send(footprint.GetFootprintsResponseSchema, {

@@ -383,11 +383,13 @@ export function clearAccountData(
       legacyCacheSeenKey(currentUserId),
       migratedKey(currentUserId),
       cloudItinerariesKey(currentUserId),
+      worldCloudKey(currentUserId),
     ])
       storage.removeItem(key);
   } else if (currentUserId) {
     storage.removeItem(cacheKey(currentUserId));
     storage.removeItem(cloudItinerariesKey(currentUserId));
+    storage.removeItem(worldCloudKey(currentUserId));
     try {
       const raw = storage.getItem(legacyCacheKey(currentUserId));
       if (accounted(storage, currentUserId, raw) || isClean(raw, validate))
@@ -410,6 +412,9 @@ export const MIGRATED_PREFIX = "shanhai-migrated-v1:";
 export const migratedKey = (userId: string) => MIGRATED_PREFIX + userId;
 export const CLOUD_ITINERARIES_PREFIX = "shanhai-cloud-itineraries-v1:";
 export const cloudItinerariesKey = (userId: string) => CLOUD_ITINERARIES_PREFIX + userId;
+/** Account-scoped world sync cache. Local world data uses a different key and is never touched here. */
+export const WORLD_CLOUD_PREFIX = "shanhai-world-cloud-v1:";
+export const worldCloudKey = (userId: string) => WORLD_CLOUD_PREFIX + userId;
 
 /**
  * Remembers which local data was already migrated for an account, so the

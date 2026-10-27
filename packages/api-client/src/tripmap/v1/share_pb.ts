@@ -392,4 +392,3 @@ export const ShareService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_tripmap_v1_share, 0);
-

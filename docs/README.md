@@ -5,7 +5,8 @@
 | 文档 | 内容 | 何时更新 |
 | --- | --- | --- |
 | [功能描述](trip-map/features.md) | 使用流程、交互规则、统计口径、验收场景和功能限制 | 用户可见功能发生变化时 |
-| [数据与地图说明](trip-map/data-and-maps.md) | 足迹结构、本地保存、备份格式、地图来源及区域索引 | 存储、备份或地图数据发生变化时 |
+| [数据与地图说明](trip-map/data-and-maps.md) | 足迹结构、本地保存、备份格式、地图来源、区域索引、世界地图数据及世界数据结构与存储 | 存储、备份或地图数据发生变化时 |
+| [世界视图规格](trip-map/world-spec.md) | 已实现（W1–W7）：国家/地区着色与海外城市点位的范围、数据模型 v1、点亮与统计口径、存储键、云端并发模型、地图数据要求、分阶段交付与验收追踪；当前行为以[功能描述](trip-map/features.md)和[数据与地图说明](trip-map/data-and-maps.md)为准 | 世界视图的规格、范围或决策变化时 |
 | [公开分享页与预览图](trip-map/sharing.md) | F6 的快照模型、公开接口、隐私规则、预览图资源、部署配置、限制和测试覆盖 | 分享功能、配置或限制变化时 |
 | [前后端 monorepo 布局](monorepo.md) | 前端 workspaces（`apps/`、`packages/`）与 Go 服务的目录约定、共享包职责、新增应用步骤、Cloudflare Pages 构建设置 | 目录结构、workspace 包或静态托管构建设置变化时 |
 | [Docker 镜像与 Actions](docker-images.md) | 前端、BFF、tripmap、metro 与 usersrv 镜像，构建发布触发和运行配置 | 镜像或发布流程变化时 |

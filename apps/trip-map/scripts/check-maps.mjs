@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { geoArea, geoMercator, geoPath } from "d3-geo";
 import { normalizeMap } from "../src/lib/maps.ts";
 import { buildShareGeometry, GEOMETRY_FILE } from "./prepare-share-geometry.mjs";
+import { checkWorldMap } from "./check-world-map.mjs";
 const regions = JSON.parse(await readFile("../../packages/geo-data/data/regions.json", "utf8"));
 assert.equal(regions.length, 34);
 const national = normalizeMap(JSON.parse(await readFile('public/maps/100000.json', 'utf8')));
@@ -67,6 +68,8 @@ assert.deepEqual(
   "Share geometry province IDs differ from regions.json",
 );
 for (const p of shareGeometry.provinces) assert.ok(p.rings.length > 0 && /^#[0-9a-f]{6}$/i.test(p.color), `${p.code} has no usable share geometry`);
+const world = await checkWorldMap();
 console.log(
   `Map checks passed: 34 provinces, ${total} city/district regions, valid projections and unique identifiers.`,
 );
+console.log(`World map checks passed: ${world.countries} catalog entries, ${world.shapes} country shapes plus CN from the national map, ${world.gzipBytes} bytes gzip.`);

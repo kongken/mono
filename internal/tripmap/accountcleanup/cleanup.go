@@ -1,6 +1,7 @@
 // Package accountcleanup removes one tripmap user's business data in phases.
 // Cross-user edges are cleared first, then object storage, then the users row
-// (Ent ON DELETE CASCADE handles the rest). Update registry_test when User
+// (Ent ON DELETE CASCADE handles the rest; the world document and its receipts are
+// also deleted explicitly in deleteUserRow). Update registry_test when User
 // edges in internal/tripmap/ent/schema change.
 package accountcleanup
 
@@ -17,6 +18,8 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
 	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/worlddocument"
+	"github.com/kongken/mono/internal/tripmap/ent/worldreceipt"
 )
 
 // ErrObjectStorageUnavailable means blob cleanup cannot proceed yet.
@@ -119,6 +122,15 @@ func deleteUserRow(ctx context.Context, db *ent.Client, userID string) error {
 		return nil
 	}
 	if err != nil {
+		return err
+	}
+	// The world document and its receipts (world-spec section 8) go in the same transaction as
+	// the user row; ON DELETE CASCADE would remove them too, but they are named here so the
+	// deletion does not silently depend on a foreign key.
+	if _, err = tx.WorldReceipt.Delete().Where(worldreceipt.UserID(userID)).Exec(ctx); err != nil {
+		return err
+	}
+	if _, err = tx.WorldDocument.Delete().Where(worlddocument.UserID(userID)).Exec(ctx); err != nil {
 		return err
 	}
 	if err = tx.User.DeleteOneID(u.ID).Exec(ctx); err != nil {

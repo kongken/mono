@@ -139,4 +139,3 @@ export const SearchService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_tripmap_v1_search, 0);
-

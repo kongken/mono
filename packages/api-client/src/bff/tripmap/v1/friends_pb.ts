@@ -586,4 +586,3 @@ export const FriendService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_tripmap_v1_friends, 0);
-

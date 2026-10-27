@@ -294,7 +294,7 @@ var thirdParty = map[string]bool{
 	"docs.github.com": true,
 	"api.mapbox.com": true, "www.mapbox.com": true, "apps.mapbox.com": true, "docs.mapbox.com": true,
 	"www.openstreetmap.org": true, "tile.openstreetmap.org": true, "operations.osmfoundation.org": true,
-	"geo.datav.aliyun.com": true, "datav.aliyun.com": true,
+	"geo.datav.aliyun.com": true, "datav.aliyun.com": true, "www.naturalearthdata.com": true,
 	"www.rfc-editor.org": true, "www.w3.org": true, "vite.dev": true, "scripts.sil.org": true,
 	"www.twilio.com": true, "documentation.mailgun.com": true, "developers.smtp2go.com": true,
 	"docs.rustfs.com": true, "docs.aws.amazon.com": true, "www.adobe.com": true,

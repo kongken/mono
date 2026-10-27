@@ -558,4 +558,3 @@ export const RiderService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_metro_v1_rider, 0);
-

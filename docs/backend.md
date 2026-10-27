@@ -295,7 +295,7 @@ curl --fail http://127.0.0.1:18081/api/bff.tripmap.v1.StatusService/GetStatus \
 
 **部署顺序与反向代理。** 先应用 `migrations/tripmap/20261014022913_f6_shares.sql`，再部署后端，最后部署前端。代理（BFF 与前端 Nginx）必须转发 `/s/` 与 `/api/share/` 到后端，且这些路径不写访问日志（令牌）；位于代理之后设置 `auth.client_ip_header`。镜像内的 Nginx 配置已处理；Vite 开发服务器代理 `/s/`。后端镜像构建需要 `internal/` 下的预览资源、`packages/fixtures` 和 `packages/geo-data/data` 中的区域索引与城市坐标；前端镜像构建需要 `internal/tripmap/share/assets/geometry.json`（`check:maps` 校验）。后端 `CGO_ENABLED=0` 构建通过。
 
-**生成。** 修改 `proto/` 后 `make buf`（同时生成 Connect、grpc-go 与 TypeScript 代码），修改 `internal/tripmap/ent/schema/` 后 `make ent`，迁移文件用 `make migration NAME=… DEV_DSN=…` 生成；生成文件不手改。
+**生成。** 修改 `proto/` 后 `make buf`（同时生成 Connect、grpc-go 与 TypeScript 代码，再由 `scripts/normalize-generated-api.mjs` 将生成的 `*_pb.ts` 末尾换行统一为一个，避免生成器附加的空行导致 `git diff --check` 失败），修改 `internal/tripmap/ent/schema/` 后 `make ent`，迁移文件用 `make migration NAME=… DEV_DSN=…` 生成；生成文件不手改。
 
 ## F7 共同旅行与好友
 
@@ -411,6 +411,44 @@ curl --fail http://127.0.0.1:18081/api/bff.tripmap.v1.StatusService/GetStatus \
 
 **验证与限制。** `internal/tripmap/notification` 的测试覆盖文案、令牌、SMTP（本地假服务器）、Web Push（本地 TLS 假推送服务和 SSRF 拒绝）；`internal/tripmap/application` 的集成测试（需要 PostgreSQL 与 Redis）覆盖设置、邮箱验证、订阅转移、发送时区与幂等、重试、退订、用户隔离和云端数据清理；前端有单元测试与桌面/手机 Playwright 验收。没有对真实 SMTP 服务商和真实浏览器推送服务做验证；投递语义为最多一次，没有送达回执；每小时一次的检查使实际发送可能晚最多约 1 小时。
 
+## 世界足迹云端文档与账号同步（`bff.tripmap.v1.WorldService` → `tripmap.v1.WorldService`，W5–W6）
+
+规则与客户端状态机见 [世界视图规格](trip-map/world-spec.md) 第 9 节；这里记录服务端实现、前端同步、数据模型、迁移与限制。登录用户的世界视图只有一份**整体替换**的云端文档，不做逐记录合并；冲突由客户端按整份文档选择。
+
+浏览器经 BFF 调用 `proto/bff/tripmap/v1/world.proto`；BFF 适配器 `internal/bff/tripmap/world/` 转调 tripmap 内部 gRPC（`proto/tripmap/v1/world.proto`，业务实现 `internal/tripmap/application/world_service.go` / `world_grpc.go`）。校验、规范形式、请求摘要与存储编码在不依赖数据库的 `internal/tripmap/world`。文档是**类型化 protobuf**（`WorldDocument`：`kind`、`version`、`countries`、`places`，坐标为整数微度 `lat_e6` / `lng_e6`），不是 JSON 字符串。所有方法须认证，只读写会话用户自己的文档；世界数据不进入足迹、云端快照、搜索、分享、报告、共同旅行、提醒与媒体。
+
+| 方法 | 行为 |
+| --- | --- |
+| `GetWorld` | 返回 `revision` 与文档（`Cache-Control: no-store`）；从未写入的用户得到空文档（`kind: "world"`、`version: 1`、无国家与城市）与 `revision = 0`，读取不建任何行 |
+| `ReplaceWorld` | 请求带 `base_revision`、`request_id`（`^[A-Za-z0-9_-]{1,64}$`）与完整文档；响应带 `applied`、`replayed`、`revision`、`document`、`cloud_revision` |
+
+**`ReplaceWorld` 判定顺序**（`request_id` 与文档校验之外的每一步都在同一个数据库事务里，先取该用户 `users` 行的行锁，所以同一用户的写入串行）：
+
+1. **格式与文档校验**：`base_revision` 为负、`request_id` 格式错误、文档不满足规格第 4 节（含 `kind`/`version`、国家码目录、`CN` 禁止、颜色、ID、名称裁剪与控制字符、坐标范围、日期、备注长度、重复项、城市 ≤ 5000、旅行 ≤ 10000、所有字符串字段 UTF-8 字节总和 ≤ 2,500,000）：`INVALID_ARGUMENT`，不改动任何状态，不记回执，`request_id` 仍可使用。
+2. **回执重放（先于 `base_revision`）**：同一用户已有该 `request_id` 的回执且摘要相同 → `applied = true`、`replayed = true`、`revision` 为回执里的结果版本、`document` 为该请求自带的（规范形式）文档、`cloud_revision` 为当前版本；不递增，不看 `base_revision`，即使其他设备已写入新版本。摘要不同 → `ALREADY_EXISTS`（同一 `request_id` 被用于不同内容，包括同文档不同 `base_revision`），不改动任何状态。
+3. **比较并替换**：`base_revision` 等于当前 `revision` → 规范化后的文档与云端结构相等则不改动、不加 `revision`，否则写入并 `revision + 1`；`applied = true`、`replayed = false`，并记录回执（含内容未变的空操作）。不相等（落后或超前）→ 不改动、不记回执，`applied = false`，`revision` 与 `cloud_revision` 为云端当前值、`document` 为云端文档：这是冲突，不是错误。
+
+**并发。** 行锁保证同一 `base_revision` 的并发请求只有一个成功、其余按冲突返回，同一个 `request_id` 同时发两次是一次写入加一次重放。首次写入依赖每用户唯一的 `world_documents.user_id`：若约束因并发创建而拒绝，事务回滚后重读，看到的是对方已提交的版本，于是按冲突返回（最多尝试 3 次，仍失败则返回 `ABORTED` 让客户端重试），不会变成内部错误。
+
+**回执。** 每用户保留最近 32 份成功请求的回执（`request_id`、请求摘要、结果 `revision`、每用户递增的 `seq`），写入后删除 `seq` 更旧的；回执不保存文档。摘要是服务端对 `base_revision` 与规范形式文档按固定编码计算的 SHA-256（`world.Digest`，不依赖 protobuf 序列化，客户端不参与）。回执被淘汰后，用同一 `request_id` 重放按第 3 步处理：得到冲突（云端若恰好等于目标，由客户端静默视为成功），不会重复写入。
+
+**限流与消息大小。** 每用户每分钟读 120 次、写 60 次（含冲突与被拒的请求），超出返回 `RESOURCE_EXHAUSTED`；BFF 的 Connect 读上限是 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 为 20 MiB，合法文档（文字最多 2.5 MB）远小于二者。BFF 把 `GetWorld` 登记为只读（不要求 CSRF），`ReplaceWorld` 与其他写入一样要求 Origin 与 CSRF 令牌，并沿用 `X-Kongken-User` 账号守卫；Origin 与 CORS 是产品应用已登记的那一套，与足迹接口相同。
+
+**存储。** 两个新 Ent 实体（`internal/tripmap/ent/schema/world.go`），迁移 `migrations/tripmap/20261026175706_world_documents.sql`（纯新增，不改动既有表）：
+
+| 表 | 关键字段与约束 |
+| --- | --- |
+| `world_documents` | 所属用户（`user_id` 唯一，`users` 外键级联删除）、`revision`（≥ 1，每次改动加 1）、gzip 压缩的规范形式 `tripmap.v1.WorldDocument` 载荷、城市数与旅行数、创建/更新时间；用户首次产生改动时才有行 |
+| `world_receipts` | 所属用户（外键级联删除）、`request_id`、请求摘要（十六进制 SHA-256）、结果 `revision`、每用户递增的 `seq`、创建时间；`(user_id, request_id)` 唯一、`(user_id, seq)` 唯一 |
+
+**账号注销。** 两个实体都在 `internal/tripmap/accountcleanup` 登记（`registry_test.go` 要求每个 `User` 边都显式登记）：`deleteUserRow` 在删除用户行的同一事务里先显式删除回执与文档（外键级联删除是第二道保证）。注销后同一邮箱重新注册得到空世界（`revision = 0`），旧 `request_id` 也可重新使用。
+
+**国家码目录。** `internal/tripmap/world/catalog.json` 是 `packages/geo-data/data/world-catalog.json` 的逐字副本（后端只读取 `code`；`CN` 在目录里但不能作为存储值，`HK`/`MO`/`TW` 不在目录里）。`npm run prepare:world` 同时写入两份，`npm run prepare:world -- --verify` 与 `npm run check:maps` 核对两份逐字一致，Go 测试 `TestCatalogIsTheFrontendCatalog` 也核对。
+
+**测试。** `internal/tripmap/world` 用共享夹具 `packages/fixtures/world-documents.json` 验证（不带 `scope` 的 54 条用例与前端一致，含规范形式、`kind` 与白名单；`json-text`（20 条，依赖 JSON 形状/类型/小数位）与 `utf16`（2 条，孤立代理项）按夹具约定跳过，孤立代理项用无效 UTF-8 单独覆盖），另测 `trip-dates.json`、空白集合（逐码点对照 `unicode.White_Space` 全集）、上限边界（恰好 2,500,000 字节通过、多 1 字节拒绝）、摘要与存储编码；`internal/tripmap/application/world_test.go` 测未知用户、与足迹数据互不相干、回执保留 32 份与顺序、创建竞争重试、损坏载荷、注销与限流；`internal/e2e/world_chain_test.go` 经真实 BFF（Cookie + CSRF + Origin）→ tripmap → PostgreSQL 覆盖规范形式、隔离与写入守卫、非法文档、最大文档、冲突、重放与 `ALREADY_EXISTS`、回执淘汰、并发写入与注销（规格第 13 节场景 D、E、F、K）。
+
+**限制。** 没有逐记录合并或增量同步；文档整体读写，最大约 2.5 MB 文字；回执只保留 32 份，更早的重放会退化为冲突；`GetWorld` 不做条件请求。海外城市列表没有搜索；两个标签页同时刷新离线副本的并发情形尚未单独验证。
+
 ## Mapbox 瓦片代理（可选）
 
 规则与验收见 [功能描述](trip-map/features.md#全国与省内地图)，前端启用方式与署名见 [数据与地图说明](trip-map/data-and-maps.md#mapbox-代理底图可选)，部署见 [部署与发布](deployment.md#mapbox-底图可选)。实现在 `internal/tripmap/tiles/`，由 `internal/tripmap/app/app.go` 挂载到 tripmap 的内部 HTTP 端口；BFF 在 `internal/bff/gateway/services.go` 登记 `/api/tiles/` 并透明转发（见 [BFF](bff.md#路由)），BFF 不持有 Mapbox 配置。不新增 proto、数据库表、迁移或足迹字段。
@@ -501,6 +539,7 @@ curl --fail http://127.0.0.1:18081/api/bff.tripmap.v1.StatusService/GetStatus \
 | `20261014140617_f11_itineraries.sql` | F11 的纯新增变更：新表 `itineraries`（`(user_id, itinerary_id)` 唯一索引、`users` 外键级联删除，站点为 JSON 列）；不改动既有表 |
 | `20261014165138_f12_notifications.sql` | F12 的纯新增变更：新表 `notification_profiles`、`notification_settings`、`push_subscriptions`、`notification_deliveries`（唯一索引与 `users` 外键级联删除）；不改动既有表 |
 | `20261017180000_retire_tripmap_sessions.sql` | 删除 tripmap 侧旧 `auth_sessions` / `account_deletion_receipts`；认证遗留列由手动 SQL 清理 |
+| `20261026175706_world_documents.sql` | W5 的纯新增变更：新表 `world_documents`（`user_id` 唯一、`users` 外键级联删除）与 `world_receipts`（`(user_id, request_id)`、`(user_id, seq)` 唯一索引、`users` 外键级联删除）；不改动既有表 |
 
 BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `auth_version`、去掉对旧身份映射的外键，并新建 `bff_account_deletions`；不导入旧测试账号，旧 BFF Cookie 会话在第一次使用时被撤销。旧 BFF 表 `auth_identities`、`account_deletion_receipts`（以及更早的 `auth_users` / `auth_sessions`）与 tripmap 用户表中的认证遗留列不会被版本化迁移自动删除。升级与各脚本的目标库、执行顺序见 [部署说明](deployment.md#自建用户系统的数据迁移)，退役对象与范围见 [Logto 退役与手动清理](usersrv/retirement.md)。脚本不会由服务启动自动执行。
 
@@ -510,7 +549,7 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 1. 备份数据库（F5 对账号的升级是单向的，回退旧后端需要这份备份）。
 2. 把后端配置改为 `auto_migrate: false`。
-3. 对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/tripmap/20261014011446_f5_multiple_trips.sql`，再依次执行 `20261014022913_f6_shares.sql`、`20261014050044_f7_collaboration.sql`、`20261014140617_f11_itineraries.sql` 和 `20261014165138_f12_notifications.sql`（已升级到前一版的数据库只执行尚未应用的文件）。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
+3. 对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/tripmap/20261014011446_f5_multiple_trips.sql`，再依次执行 `20261014022913_f6_shares.sql`、`20261014050044_f7_collaboration.sql`、`20261014140617_f11_itineraries.sql`、`20261014165138_f12_notifications.sql` 和 `20261026175706_world_documents.sql`（已升级到前一版的数据库只执行尚未应用的文件）。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
 4. 部署新后端；已有账号在第一次被新前端写入时才升级到结构 2（见上文），旧行保持原样。
 5. 全新数据库：按文件名顺序执行全部文件（含 baseline）。
 

@@ -29,6 +29,8 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
 	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/worlddocument"
+	"github.com/kongken/mono/internal/tripmap/ent/worldreceipt"
 )
 
 // UserUpdate is the builder for updating User entities.
@@ -465,6 +467,40 @@ func (_u *UserUpdate) AddNotificationDeliveries(v ...*NotificationDelivery) *Use
 	return _u.AddNotificationDeliveryIDs(ids...)
 }
 
+// SetWorldDocumentID sets the "world_document" edge to the WorldDocument entity by ID.
+func (_u *UserUpdate) SetWorldDocumentID(id string) *UserUpdate {
+	_u.mutation.SetWorldDocumentID(id)
+	return _u
+}
+
+// SetNillableWorldDocumentID sets the "world_document" edge to the WorldDocument entity by ID if the given value is not nil.
+func (_u *UserUpdate) SetNillableWorldDocumentID(id *string) *UserUpdate {
+	if id != nil {
+		_u = _u.SetWorldDocumentID(*id)
+	}
+	return _u
+}
+
+// SetWorldDocument sets the "world_document" edge to the WorldDocument entity.
+func (_u *UserUpdate) SetWorldDocument(v *WorldDocument) *UserUpdate {
+	return _u.SetWorldDocumentID(v.ID)
+}
+
+// AddWorldReceiptIDs adds the "world_receipts" edge to the WorldReceipt entity by IDs.
+func (_u *UserUpdate) AddWorldReceiptIDs(ids ...string) *UserUpdate {
+	_u.mutation.AddWorldReceiptIDs(ids...)
+	return _u
+}
+
+// AddWorldReceipts adds the "world_receipts" edges to the WorldReceipt entity.
+func (_u *UserUpdate) AddWorldReceipts(v ...*WorldReceipt) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddWorldReceiptIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -795,6 +831,33 @@ func (_u *UserUpdate) RemoveNotificationDeliveries(v ...*NotificationDelivery) *
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveNotificationDeliveryIDs(ids...)
+}
+
+// ClearWorldDocument clears the "world_document" edge to the WorldDocument entity.
+func (_u *UserUpdate) ClearWorldDocument() *UserUpdate {
+	_u.mutation.ClearWorldDocument()
+	return _u
+}
+
+// ClearWorldReceipts clears all "world_receipts" edges to the WorldReceipt entity.
+func (_u *UserUpdate) ClearWorldReceipts() *UserUpdate {
+	_u.mutation.ClearWorldReceipts()
+	return _u
+}
+
+// RemoveWorldReceiptIDs removes the "world_receipts" edge to WorldReceipt entities by IDs.
+func (_u *UserUpdate) RemoveWorldReceiptIDs(ids ...string) *UserUpdate {
+	_u.mutation.RemoveWorldReceiptIDs(ids...)
+	return _u
+}
+
+// RemoveWorldReceipts removes "world_receipts" edges to WorldReceipt entities.
+func (_u *UserUpdate) RemoveWorldReceipts(v ...*WorldReceipt) *UserUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveWorldReceiptIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1635,6 +1698,80 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.WorldDocumentCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   user.WorldDocumentTable,
+			Columns: []string{user.WorldDocumentColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(worlddocument.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.WorldDocumentIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   user.WorldDocumentTable,
+			Columns: []string{user.WorldDocumentColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(worlddocument.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.WorldReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.WorldReceiptsTable,
+			Columns: []string{user.WorldReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(worldreceipt.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedWorldReceiptsIDs(); len(nodes) > 0 && !_u.mutation.WorldReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.WorldReceiptsTable,
+			Columns: []string{user.WorldReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(worldreceipt.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.WorldReceiptsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.WorldReceiptsTable,
+			Columns: []string{user.WorldReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(worldreceipt.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -2076,6 +2213,40 @@ func (_u *UserUpdateOne) AddNotificationDeliveries(v ...*NotificationDelivery) *
 	return _u.AddNotificationDeliveryIDs(ids...)
 }
 
+// SetWorldDocumentID sets the "world_document" edge to the WorldDocument entity by ID.
+func (_u *UserUpdateOne) SetWorldDocumentID(id string) *UserUpdateOne {
+	_u.mutation.SetWorldDocumentID(id)
+	return _u
+}
+
+// SetNillableWorldDocumentID sets the "world_document" edge to the WorldDocument entity by ID if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableWorldDocumentID(id *string) *UserUpdateOne {
+	if id != nil {
+		_u = _u.SetWorldDocumentID(*id)
+	}
+	return _u
+}
+
+// SetWorldDocument sets the "world_document" edge to the WorldDocument entity.
+func (_u *UserUpdateOne) SetWorldDocument(v *WorldDocument) *UserUpdateOne {
+	return _u.SetWorldDocumentID(v.ID)
+}
+
+// AddWorldReceiptIDs adds the "world_receipts" edge to the WorldReceipt entity by IDs.
+func (_u *UserUpdateOne) AddWorldReceiptIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.AddWorldReceiptIDs(ids...)
+	return _u
+}
+
+// AddWorldReceipts adds the "world_receipts" edges to the WorldReceipt entity.
+func (_u *UserUpdateOne) AddWorldReceipts(v ...*WorldReceipt) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddWorldReceiptIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -2406,6 +2577,33 @@ func (_u *UserUpdateOne) RemoveNotificationDeliveries(v ...*NotificationDelivery
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveNotificationDeliveryIDs(ids...)
+}
+
+// ClearWorldDocument clears the "world_document" edge to the WorldDocument entity.
+func (_u *UserUpdateOne) ClearWorldDocument() *UserUpdateOne {
+	_u.mutation.ClearWorldDocument()
+	return _u
+}
+
+// ClearWorldReceipts clears all "world_receipts" edges to the WorldReceipt entity.
+func (_u *UserUpdateOne) ClearWorldReceipts() *UserUpdateOne {
+	_u.mutation.ClearWorldReceipts()
+	return _u
+}
+
+// RemoveWorldReceiptIDs removes the "world_receipts" edge to WorldReceipt entities by IDs.
+func (_u *UserUpdateOne) RemoveWorldReceiptIDs(ids ...string) *UserUpdateOne {
+	_u.mutation.RemoveWorldReceiptIDs(ids...)
+	return _u
+}
+
+// RemoveWorldReceipts removes "world_receipts" edges to WorldReceipt entities.
+func (_u *UserUpdateOne) RemoveWorldReceipts(v ...*WorldReceipt) *UserUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveWorldReceiptIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -3269,6 +3467,80 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(notificationdelivery.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.WorldDocumentCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   user.WorldDocumentTable,
+			Columns: []string{user.WorldDocumentColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(worlddocument.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.WorldDocumentIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   user.WorldDocumentTable,
+			Columns: []string{user.WorldDocumentColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(worlddocument.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.WorldReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.WorldReceiptsTable,
+			Columns: []string{user.WorldReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(worldreceipt.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedWorldReceiptsIDs(); len(nodes) > 0 && !_u.mutation.WorldReceiptsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.WorldReceiptsTable,
+			Columns: []string{user.WorldReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(worldreceipt.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.WorldReceiptsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.WorldReceiptsTable,
+			Columns: []string{user.WorldReceiptsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(worldreceipt.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

@@ -357,4 +357,3 @@ export const MediaService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_tripmap_v1_media, 0);
-

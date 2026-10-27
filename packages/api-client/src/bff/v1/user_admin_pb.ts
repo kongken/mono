@@ -780,4 +780,3 @@ export const UserAdminService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_v1_user_admin, 0);
-

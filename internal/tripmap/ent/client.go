@@ -33,6 +33,8 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
 	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/worlddocument"
+	"github.com/kongken/mono/internal/tripmap/ent/worldreceipt"
 )
 
 // Client is the client that holds all ent builders.
@@ -76,6 +78,10 @@ type Client struct {
 	TripMember *TripMemberClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
+	// WorldDocument is the client for interacting with the WorldDocument builders.
+	WorldDocument *WorldDocumentClient
+	// WorldReceipt is the client for interacting with the WorldReceipt builders.
+	WorldReceipt *WorldReceiptClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -105,6 +111,8 @@ func (c *Client) init() {
 	c.Trip = NewTripClient(c.config)
 	c.TripMember = NewTripMemberClient(c.config)
 	c.User = NewUserClient(c.config)
+	c.WorldDocument = NewWorldDocumentClient(c.config)
+	c.WorldReceipt = NewWorldReceiptClient(c.config)
 }
 
 type (
@@ -215,6 +223,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Trip:                 NewTripClient(cfg),
 		TripMember:           NewTripMemberClient(cfg),
 		User:                 NewUserClient(cfg),
+		WorldDocument:        NewWorldDocumentClient(cfg),
+		WorldReceipt:         NewWorldReceiptClient(cfg),
 	}, nil
 }
 
@@ -252,6 +262,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Trip:                 NewTripClient(cfg),
 		TripMember:           NewTripMemberClient(cfg),
 		User:                 NewUserClient(cfg),
+		WorldDocument:        NewWorldDocumentClient(cfg),
+		WorldReceipt:         NewWorldReceiptClient(cfg),
 	}, nil
 }
 
@@ -285,6 +297,7 @@ func (c *Client) Use(hooks ...Hook) {
 		c.MediaObject, c.NotificationDelivery, c.NotificationProfile,
 		c.NotificationSetting, c.ProvinceMark, c.PushSubscription, c.Share,
 		c.SharedTrip, c.Snapshot, c.SyncReceipt, c.Trip, c.TripMember, c.User,
+		c.WorldDocument, c.WorldReceipt,
 	} {
 		n.Use(hooks...)
 	}
@@ -298,6 +311,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.MediaObject, c.NotificationDelivery, c.NotificationProfile,
 		c.NotificationSetting, c.ProvinceMark, c.PushSubscription, c.Share,
 		c.SharedTrip, c.Snapshot, c.SyncReceipt, c.Trip, c.TripMember, c.User,
+		c.WorldDocument, c.WorldReceipt,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -342,6 +356,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.TripMember.mutate(ctx, m)
 	case *UserMutation:
 		return c.User.mutate(ctx, m)
+	case *WorldDocumentMutation:
+		return c.WorldDocument.mutate(ctx, m)
+	case *WorldReceiptMutation:
+		return c.WorldReceipt.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -3324,6 +3342,38 @@ func (c *UserClient) QueryNotificationDeliveries(_m *User) *NotificationDelivery
 	return query
 }
 
+// QueryWorldDocument queries the world_document edge of a User.
+func (c *UserClient) QueryWorldDocument(_m *User) *WorldDocumentQuery {
+	query := (&WorldDocumentClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(worlddocument.Table, worlddocument.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, user.WorldDocumentTable, user.WorldDocumentColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryWorldReceipts queries the world_receipts edge of a User.
+func (c *UserClient) QueryWorldReceipts(_m *User) *WorldReceiptQuery {
+	query := (&WorldReceiptClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(worldreceipt.Table, worldreceipt.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.WorldReceiptsTable, user.WorldReceiptsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	return c.hooks.User
@@ -3349,18 +3399,316 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 	}
 }
 
+// WorldDocumentClient is a client for the WorldDocument schema.
+type WorldDocumentClient struct {
+	config
+}
+
+// NewWorldDocumentClient returns a client for the WorldDocument from the given config.
+func NewWorldDocumentClient(c config) *WorldDocumentClient {
+	return &WorldDocumentClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `worlddocument.Hooks(f(g(h())))`.
+func (c *WorldDocumentClient) Use(hooks ...Hook) {
+	c.hooks.WorldDocument = append(c.hooks.WorldDocument, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `worlddocument.Intercept(f(g(h())))`.
+func (c *WorldDocumentClient) Intercept(interceptors ...Interceptor) {
+	c.inters.WorldDocument = append(c.inters.WorldDocument, interceptors...)
+}
+
+// Create returns a builder for creating a WorldDocument entity.
+func (c *WorldDocumentClient) Create() *WorldDocumentCreate {
+	mutation := newWorldDocumentMutation(c.config, OpCreate)
+	return &WorldDocumentCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of WorldDocument entities.
+func (c *WorldDocumentClient) CreateBulk(builders ...*WorldDocumentCreate) *WorldDocumentCreateBulk {
+	return &WorldDocumentCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *WorldDocumentClient) MapCreateBulk(slice any, setFunc func(*WorldDocumentCreate, int)) *WorldDocumentCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &WorldDocumentCreateBulk{err: fmt.Errorf("calling to WorldDocumentClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*WorldDocumentCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &WorldDocumentCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for WorldDocument.
+func (c *WorldDocumentClient) Update() *WorldDocumentUpdate {
+	mutation := newWorldDocumentMutation(c.config, OpUpdate)
+	return &WorldDocumentUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *WorldDocumentClient) UpdateOne(_m *WorldDocument) *WorldDocumentUpdateOne {
+	mutation := newWorldDocumentMutation(c.config, OpUpdateOne, withWorldDocument(_m))
+	return &WorldDocumentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *WorldDocumentClient) UpdateOneID(id string) *WorldDocumentUpdateOne {
+	mutation := newWorldDocumentMutation(c.config, OpUpdateOne, withWorldDocumentID(id))
+	return &WorldDocumentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for WorldDocument.
+func (c *WorldDocumentClient) Delete() *WorldDocumentDelete {
+	mutation := newWorldDocumentMutation(c.config, OpDelete)
+	return &WorldDocumentDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *WorldDocumentClient) DeleteOne(_m *WorldDocument) *WorldDocumentDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *WorldDocumentClient) DeleteOneID(id string) *WorldDocumentDeleteOne {
+	builder := c.Delete().Where(worlddocument.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &WorldDocumentDeleteOne{builder}
+}
+
+// Query returns a query builder for WorldDocument.
+func (c *WorldDocumentClient) Query() *WorldDocumentQuery {
+	return &WorldDocumentQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeWorldDocument},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a WorldDocument entity by its id.
+func (c *WorldDocumentClient) Get(ctx context.Context, id string) (*WorldDocument, error) {
+	return c.Query().Where(worlddocument.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *WorldDocumentClient) GetX(ctx context.Context, id string) *WorldDocument {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a WorldDocument.
+func (c *WorldDocumentClient) QueryUser(_m *WorldDocument) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(worlddocument.Table, worlddocument.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, true, worlddocument.UserTable, worlddocument.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *WorldDocumentClient) Hooks() []Hook {
+	return c.hooks.WorldDocument
+}
+
+// Interceptors returns the client interceptors.
+func (c *WorldDocumentClient) Interceptors() []Interceptor {
+	return c.inters.WorldDocument
+}
+
+func (c *WorldDocumentClient) mutate(ctx context.Context, m *WorldDocumentMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&WorldDocumentCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&WorldDocumentUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&WorldDocumentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&WorldDocumentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown WorldDocument mutation op: %q", m.Op())
+	}
+}
+
+// WorldReceiptClient is a client for the WorldReceipt schema.
+type WorldReceiptClient struct {
+	config
+}
+
+// NewWorldReceiptClient returns a client for the WorldReceipt from the given config.
+func NewWorldReceiptClient(c config) *WorldReceiptClient {
+	return &WorldReceiptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `worldreceipt.Hooks(f(g(h())))`.
+func (c *WorldReceiptClient) Use(hooks ...Hook) {
+	c.hooks.WorldReceipt = append(c.hooks.WorldReceipt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `worldreceipt.Intercept(f(g(h())))`.
+func (c *WorldReceiptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.WorldReceipt = append(c.inters.WorldReceipt, interceptors...)
+}
+
+// Create returns a builder for creating a WorldReceipt entity.
+func (c *WorldReceiptClient) Create() *WorldReceiptCreate {
+	mutation := newWorldReceiptMutation(c.config, OpCreate)
+	return &WorldReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of WorldReceipt entities.
+func (c *WorldReceiptClient) CreateBulk(builders ...*WorldReceiptCreate) *WorldReceiptCreateBulk {
+	return &WorldReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *WorldReceiptClient) MapCreateBulk(slice any, setFunc func(*WorldReceiptCreate, int)) *WorldReceiptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &WorldReceiptCreateBulk{err: fmt.Errorf("calling to WorldReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*WorldReceiptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &WorldReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for WorldReceipt.
+func (c *WorldReceiptClient) Update() *WorldReceiptUpdate {
+	mutation := newWorldReceiptMutation(c.config, OpUpdate)
+	return &WorldReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *WorldReceiptClient) UpdateOne(_m *WorldReceipt) *WorldReceiptUpdateOne {
+	mutation := newWorldReceiptMutation(c.config, OpUpdateOne, withWorldReceipt(_m))
+	return &WorldReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *WorldReceiptClient) UpdateOneID(id string) *WorldReceiptUpdateOne {
+	mutation := newWorldReceiptMutation(c.config, OpUpdateOne, withWorldReceiptID(id))
+	return &WorldReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for WorldReceipt.
+func (c *WorldReceiptClient) Delete() *WorldReceiptDelete {
+	mutation := newWorldReceiptMutation(c.config, OpDelete)
+	return &WorldReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *WorldReceiptClient) DeleteOne(_m *WorldReceipt) *WorldReceiptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *WorldReceiptClient) DeleteOneID(id string) *WorldReceiptDeleteOne {
+	builder := c.Delete().Where(worldreceipt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &WorldReceiptDeleteOne{builder}
+}
+
+// Query returns a query builder for WorldReceipt.
+func (c *WorldReceiptClient) Query() *WorldReceiptQuery {
+	return &WorldReceiptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeWorldReceipt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a WorldReceipt entity by its id.
+func (c *WorldReceiptClient) Get(ctx context.Context, id string) (*WorldReceipt, error) {
+	return c.Query().Where(worldreceipt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *WorldReceiptClient) GetX(ctx context.Context, id string) *WorldReceipt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a WorldReceipt.
+func (c *WorldReceiptClient) QueryUser(_m *WorldReceipt) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(worldreceipt.Table, worldreceipt.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, worldreceipt.UserTable, worldreceipt.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *WorldReceiptClient) Hooks() []Hook {
+	return c.hooks.WorldReceipt
+}
+
+// Interceptors returns the client interceptors.
+func (c *WorldReceiptClient) Interceptors() []Interceptor {
+	return c.inters.WorldReceipt
+}
+
+func (c *WorldReceiptClient) mutate(ctx context.Context, m *WorldReceiptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&WorldReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&WorldReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&WorldReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&WorldReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown WorldReceipt mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
 		CityVisit, FootprintChange, Friendship, Itinerary, MediaCleanup, MediaObject,
 		NotificationDelivery, NotificationProfile, NotificationSetting, ProvinceMark,
 		PushSubscription, Share, SharedTrip, Snapshot, SyncReceipt, Trip, TripMember,
-		User []ent.Hook
+		User, WorldDocument, WorldReceipt []ent.Hook
 	}
 	inters struct {
 		CityVisit, FootprintChange, Friendship, Itinerary, MediaCleanup, MediaObject,
 		NotificationDelivery, NotificationProfile, NotificationSetting, ProvinceMark,
 		PushSubscription, Share, SharedTrip, Snapshot, SyncReceipt, Trip, TripMember,
-		User []ent.Interceptor
+		User, WorldDocument, WorldReceipt []ent.Interceptor
 	}
 )

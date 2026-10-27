@@ -31,6 +31,8 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
 	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/worlddocument"
+	"github.com/kongken/mono/internal/tripmap/ent/worldreceipt"
 )
 
 const (
@@ -60,6 +62,8 @@ const (
 	TypeTrip                 = "Trip"
 	TypeTripMember           = "TripMember"
 	TypeUser                 = "User"
+	TypeWorldDocument        = "WorldDocument"
+	TypeWorldReceipt         = "WorldReceipt"
 )
 
 // CityVisitMutation represents an operation that mutates the CityVisit nodes in the graph.
@@ -14559,6 +14563,11 @@ type UserMutation struct {
 	notification_deliveries        map[string]struct{}
 	removednotification_deliveries map[string]struct{}
 	clearednotification_deliveries bool
+	world_document                 *string
+	clearedworld_document          bool
+	world_receipts                 map[string]struct{}
+	removedworld_receipts          map[string]struct{}
+	clearedworld_receipts          bool
 	done                           bool
 	oldValue                       func(context.Context) (*User, error)
 	predicates                     []predicate.User
@@ -16018,6 +16027,99 @@ func (m *UserMutation) ResetNotificationDeliveries() {
 	m.removednotification_deliveries = nil
 }
 
+// SetWorldDocumentID sets the "world_document" edge to the WorldDocument entity by id.
+func (m *UserMutation) SetWorldDocumentID(id string) {
+	m.world_document = &id
+}
+
+// ClearWorldDocument clears the "world_document" edge to the WorldDocument entity.
+func (m *UserMutation) ClearWorldDocument() {
+	m.clearedworld_document = true
+}
+
+// WorldDocumentCleared reports if the "world_document" edge to the WorldDocument entity was cleared.
+func (m *UserMutation) WorldDocumentCleared() bool {
+	return m.clearedworld_document
+}
+
+// WorldDocumentID returns the "world_document" edge ID in the mutation.
+func (m *UserMutation) WorldDocumentID() (id string, exists bool) {
+	if m.world_document != nil {
+		return *m.world_document, true
+	}
+	return
+}
+
+// WorldDocumentIDs returns the "world_document" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// WorldDocumentID instead. It exists only for internal usage by the builders.
+func (m *UserMutation) WorldDocumentIDs() (ids []string) {
+	if id := m.world_document; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetWorldDocument resets all changes to the "world_document" edge.
+func (m *UserMutation) ResetWorldDocument() {
+	m.world_document = nil
+	m.clearedworld_document = false
+}
+
+// AddWorldReceiptIDs adds the "world_receipts" edge to the WorldReceipt entity by ids.
+func (m *UserMutation) AddWorldReceiptIDs(ids ...string) {
+	if m.world_receipts == nil {
+		m.world_receipts = make(map[string]struct{})
+	}
+	for i := range ids {
+		m.world_receipts[ids[i]] = struct{}{}
+	}
+}
+
+// ClearWorldReceipts clears the "world_receipts" edge to the WorldReceipt entity.
+func (m *UserMutation) ClearWorldReceipts() {
+	m.clearedworld_receipts = true
+}
+
+// WorldReceiptsCleared reports if the "world_receipts" edge to the WorldReceipt entity was cleared.
+func (m *UserMutation) WorldReceiptsCleared() bool {
+	return m.clearedworld_receipts
+}
+
+// RemoveWorldReceiptIDs removes the "world_receipts" edge to the WorldReceipt entity by IDs.
+func (m *UserMutation) RemoveWorldReceiptIDs(ids ...string) {
+	if m.removedworld_receipts == nil {
+		m.removedworld_receipts = make(map[string]struct{})
+	}
+	for i := range ids {
+		delete(m.world_receipts, ids[i])
+		m.removedworld_receipts[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedWorldReceipts returns the removed IDs of the "world_receipts" edge to the WorldReceipt entity.
+func (m *UserMutation) RemovedWorldReceiptsIDs() (ids []string) {
+	for id := range m.removedworld_receipts {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// WorldReceiptsIDs returns the "world_receipts" edge IDs in the mutation.
+func (m *UserMutation) WorldReceiptsIDs() (ids []string) {
+	for id := range m.world_receipts {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetWorldReceipts resets all changes to the "world_receipts" edge.
+func (m *UserMutation) ResetWorldReceipts() {
+	m.world_receipts = nil
+	m.clearedworld_receipts = false
+	m.removedworld_receipts = nil
+}
+
 // Where appends a list predicates to the UserMutation builder.
 func (m *UserMutation) Where(ps ...predicate.User) {
 	m.predicates = append(m.predicates, ps...)
@@ -16363,7 +16465,7 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 17)
+	edges := make([]string, 0, 19)
 	if m.visits != nil {
 		edges = append(edges, user.EdgeVisits)
 	}
@@ -16414,6 +16516,12 @@ func (m *UserMutation) AddedEdges() []string {
 	}
 	if m.notification_deliveries != nil {
 		edges = append(edges, user.EdgeNotificationDeliveries)
+	}
+	if m.world_document != nil {
+		edges = append(edges, user.EdgeWorldDocument)
+	}
+	if m.world_receipts != nil {
+		edges = append(edges, user.EdgeWorldReceipts)
 	}
 	return edges
 }
@@ -16520,13 +16628,23 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeWorldDocument:
+		if id := m.world_document; id != nil {
+			return []ent.Value{*id}
+		}
+	case user.EdgeWorldReceipts:
+		ids := make([]ent.Value, 0, len(m.world_receipts))
+		for id := range m.world_receipts {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 17)
+	edges := make([]string, 0, 19)
 	if m.removedvisits != nil {
 		edges = append(edges, user.EdgeVisits)
 	}
@@ -16571,6 +16689,9 @@ func (m *UserMutation) RemovedEdges() []string {
 	}
 	if m.removednotification_deliveries != nil {
 		edges = append(edges, user.EdgeNotificationDeliveries)
+	}
+	if m.removedworld_receipts != nil {
+		edges = append(edges, user.EdgeWorldReceipts)
 	}
 	return edges
 }
@@ -16669,13 +16790,19 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeWorldReceipts:
+		ids := make([]ent.Value, 0, len(m.removedworld_receipts))
+		for id := range m.removedworld_receipts {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 17)
+	edges := make([]string, 0, 19)
 	if m.clearedvisits {
 		edges = append(edges, user.EdgeVisits)
 	}
@@ -16727,6 +16854,12 @@ func (m *UserMutation) ClearedEdges() []string {
 	if m.clearednotification_deliveries {
 		edges = append(edges, user.EdgeNotificationDeliveries)
 	}
+	if m.clearedworld_document {
+		edges = append(edges, user.EdgeWorldDocument)
+	}
+	if m.clearedworld_receipts {
+		edges = append(edges, user.EdgeWorldReceipts)
+	}
 	return edges
 }
 
@@ -16768,6 +16901,10 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 		return m.clearedpush_subscriptions
 	case user.EdgeNotificationDeliveries:
 		return m.clearednotification_deliveries
+	case user.EdgeWorldDocument:
+		return m.clearedworld_document
+	case user.EdgeWorldReceipts:
+		return m.clearedworld_receipts
 	}
 	return false
 }
@@ -16781,6 +16918,9 @@ func (m *UserMutation) ClearEdge(name string) error {
 		return nil
 	case user.EdgeNotificationProfile:
 		m.ClearNotificationProfile()
+		return nil
+	case user.EdgeWorldDocument:
+		m.ClearWorldDocument()
 		return nil
 	}
 	return fmt.Errorf("unknown User unique edge %s", name)
@@ -16841,6 +16981,1549 @@ func (m *UserMutation) ResetEdge(name string) error {
 	case user.EdgeNotificationDeliveries:
 		m.ResetNotificationDeliveries()
 		return nil
+	case user.EdgeWorldDocument:
+		m.ResetWorldDocument()
+		return nil
+	case user.EdgeWorldReceipts:
+		m.ResetWorldReceipts()
+		return nil
 	}
 	return fmt.Errorf("unknown User edge %s", name)
+}
+
+// WorldDocumentMutation represents an operation that mutates the WorldDocument nodes in the graph.
+type WorldDocumentMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *string
+	revision       *int64
+	addrevision    *int64
+	payload        *[]byte
+	place_count    *int
+	addplace_count *int
+	trip_count     *int
+	addtrip_count  *int
+	created_at     *time.Time
+	updated_at     *time.Time
+	clearedFields  map[string]struct{}
+	user           *string
+	cleareduser    bool
+	done           bool
+	oldValue       func(context.Context) (*WorldDocument, error)
+	predicates     []predicate.WorldDocument
+}
+
+var _ ent.Mutation = (*WorldDocumentMutation)(nil)
+
+// worlddocumentOption allows management of the mutation configuration using functional options.
+type worlddocumentOption func(*WorldDocumentMutation)
+
+// newWorldDocumentMutation creates new mutation for the WorldDocument entity.
+func newWorldDocumentMutation(c config, op Op, opts ...worlddocumentOption) *WorldDocumentMutation {
+	m := &WorldDocumentMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeWorldDocument,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withWorldDocumentID sets the ID field of the mutation.
+func withWorldDocumentID(id string) worlddocumentOption {
+	return func(m *WorldDocumentMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *WorldDocument
+		)
+		m.oldValue = func(ctx context.Context) (*WorldDocument, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().WorldDocument.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withWorldDocument sets the old WorldDocument of the mutation.
+func withWorldDocument(node *WorldDocument) worlddocumentOption {
+	return func(m *WorldDocumentMutation) {
+		m.oldValue = func(context.Context) (*WorldDocument, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m WorldDocumentMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m WorldDocumentMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of WorldDocument entities.
+func (m *WorldDocumentMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *WorldDocumentMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *WorldDocumentMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().WorldDocument.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *WorldDocumentMutation) SetUserID(s string) {
+	m.user = &s
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *WorldDocumentMutation) UserID() (r string, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the WorldDocument entity.
+// If the WorldDocument object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldDocumentMutation) OldUserID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *WorldDocumentMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetRevision sets the "revision" field.
+func (m *WorldDocumentMutation) SetRevision(i int64) {
+	m.revision = &i
+	m.addrevision = nil
+}
+
+// Revision returns the value of the "revision" field in the mutation.
+func (m *WorldDocumentMutation) Revision() (r int64, exists bool) {
+	v := m.revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRevision returns the old "revision" field's value of the WorldDocument entity.
+// If the WorldDocument object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldDocumentMutation) OldRevision(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRevision: %w", err)
+	}
+	return oldValue.Revision, nil
+}
+
+// AddRevision adds i to the "revision" field.
+func (m *WorldDocumentMutation) AddRevision(i int64) {
+	if m.addrevision != nil {
+		*m.addrevision += i
+	} else {
+		m.addrevision = &i
+	}
+}
+
+// AddedRevision returns the value that was added to the "revision" field in this mutation.
+func (m *WorldDocumentMutation) AddedRevision() (r int64, exists bool) {
+	v := m.addrevision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRevision resets all changes to the "revision" field.
+func (m *WorldDocumentMutation) ResetRevision() {
+	m.revision = nil
+	m.addrevision = nil
+}
+
+// SetPayload sets the "payload" field.
+func (m *WorldDocumentMutation) SetPayload(b []byte) {
+	m.payload = &b
+}
+
+// Payload returns the value of the "payload" field in the mutation.
+func (m *WorldDocumentMutation) Payload() (r []byte, exists bool) {
+	v := m.payload
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPayload returns the old "payload" field's value of the WorldDocument entity.
+// If the WorldDocument object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldDocumentMutation) OldPayload(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPayload is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPayload requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPayload: %w", err)
+	}
+	return oldValue.Payload, nil
+}
+
+// ResetPayload resets all changes to the "payload" field.
+func (m *WorldDocumentMutation) ResetPayload() {
+	m.payload = nil
+}
+
+// SetPlaceCount sets the "place_count" field.
+func (m *WorldDocumentMutation) SetPlaceCount(i int) {
+	m.place_count = &i
+	m.addplace_count = nil
+}
+
+// PlaceCount returns the value of the "place_count" field in the mutation.
+func (m *WorldDocumentMutation) PlaceCount() (r int, exists bool) {
+	v := m.place_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPlaceCount returns the old "place_count" field's value of the WorldDocument entity.
+// If the WorldDocument object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldDocumentMutation) OldPlaceCount(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPlaceCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPlaceCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPlaceCount: %w", err)
+	}
+	return oldValue.PlaceCount, nil
+}
+
+// AddPlaceCount adds i to the "place_count" field.
+func (m *WorldDocumentMutation) AddPlaceCount(i int) {
+	if m.addplace_count != nil {
+		*m.addplace_count += i
+	} else {
+		m.addplace_count = &i
+	}
+}
+
+// AddedPlaceCount returns the value that was added to the "place_count" field in this mutation.
+func (m *WorldDocumentMutation) AddedPlaceCount() (r int, exists bool) {
+	v := m.addplace_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPlaceCount resets all changes to the "place_count" field.
+func (m *WorldDocumentMutation) ResetPlaceCount() {
+	m.place_count = nil
+	m.addplace_count = nil
+}
+
+// SetTripCount sets the "trip_count" field.
+func (m *WorldDocumentMutation) SetTripCount(i int) {
+	m.trip_count = &i
+	m.addtrip_count = nil
+}
+
+// TripCount returns the value of the "trip_count" field in the mutation.
+func (m *WorldDocumentMutation) TripCount() (r int, exists bool) {
+	v := m.trip_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTripCount returns the old "trip_count" field's value of the WorldDocument entity.
+// If the WorldDocument object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldDocumentMutation) OldTripCount(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTripCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTripCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTripCount: %w", err)
+	}
+	return oldValue.TripCount, nil
+}
+
+// AddTripCount adds i to the "trip_count" field.
+func (m *WorldDocumentMutation) AddTripCount(i int) {
+	if m.addtrip_count != nil {
+		*m.addtrip_count += i
+	} else {
+		m.addtrip_count = &i
+	}
+}
+
+// AddedTripCount returns the value that was added to the "trip_count" field in this mutation.
+func (m *WorldDocumentMutation) AddedTripCount() (r int, exists bool) {
+	v := m.addtrip_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTripCount resets all changes to the "trip_count" field.
+func (m *WorldDocumentMutation) ResetTripCount() {
+	m.trip_count = nil
+	m.addtrip_count = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *WorldDocumentMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *WorldDocumentMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the WorldDocument entity.
+// If the WorldDocument object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldDocumentMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *WorldDocumentMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *WorldDocumentMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *WorldDocumentMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the WorldDocument entity.
+// If the WorldDocument object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldDocumentMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *WorldDocumentMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *WorldDocumentMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[worlddocument.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *WorldDocumentMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *WorldDocumentMutation) UserIDs() (ids []string) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *WorldDocumentMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the WorldDocumentMutation builder.
+func (m *WorldDocumentMutation) Where(ps ...predicate.WorldDocument) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the WorldDocumentMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *WorldDocumentMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.WorldDocument, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *WorldDocumentMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *WorldDocumentMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (WorldDocument).
+func (m *WorldDocumentMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *WorldDocumentMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.user != nil {
+		fields = append(fields, worlddocument.FieldUserID)
+	}
+	if m.revision != nil {
+		fields = append(fields, worlddocument.FieldRevision)
+	}
+	if m.payload != nil {
+		fields = append(fields, worlddocument.FieldPayload)
+	}
+	if m.place_count != nil {
+		fields = append(fields, worlddocument.FieldPlaceCount)
+	}
+	if m.trip_count != nil {
+		fields = append(fields, worlddocument.FieldTripCount)
+	}
+	if m.created_at != nil {
+		fields = append(fields, worlddocument.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, worlddocument.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *WorldDocumentMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case worlddocument.FieldUserID:
+		return m.UserID()
+	case worlddocument.FieldRevision:
+		return m.Revision()
+	case worlddocument.FieldPayload:
+		return m.Payload()
+	case worlddocument.FieldPlaceCount:
+		return m.PlaceCount()
+	case worlddocument.FieldTripCount:
+		return m.TripCount()
+	case worlddocument.FieldCreatedAt:
+		return m.CreatedAt()
+	case worlddocument.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *WorldDocumentMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case worlddocument.FieldUserID:
+		return m.OldUserID(ctx)
+	case worlddocument.FieldRevision:
+		return m.OldRevision(ctx)
+	case worlddocument.FieldPayload:
+		return m.OldPayload(ctx)
+	case worlddocument.FieldPlaceCount:
+		return m.OldPlaceCount(ctx)
+	case worlddocument.FieldTripCount:
+		return m.OldTripCount(ctx)
+	case worlddocument.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case worlddocument.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown WorldDocument field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WorldDocumentMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case worlddocument.FieldUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case worlddocument.FieldRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRevision(v)
+		return nil
+	case worlddocument.FieldPayload:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPayload(v)
+		return nil
+	case worlddocument.FieldPlaceCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPlaceCount(v)
+		return nil
+	case worlddocument.FieldTripCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTripCount(v)
+		return nil
+	case worlddocument.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case worlddocument.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown WorldDocument field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *WorldDocumentMutation) AddedFields() []string {
+	var fields []string
+	if m.addrevision != nil {
+		fields = append(fields, worlddocument.FieldRevision)
+	}
+	if m.addplace_count != nil {
+		fields = append(fields, worlddocument.FieldPlaceCount)
+	}
+	if m.addtrip_count != nil {
+		fields = append(fields, worlddocument.FieldTripCount)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *WorldDocumentMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case worlddocument.FieldRevision:
+		return m.AddedRevision()
+	case worlddocument.FieldPlaceCount:
+		return m.AddedPlaceCount()
+	case worlddocument.FieldTripCount:
+		return m.AddedTripCount()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WorldDocumentMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case worlddocument.FieldRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRevision(v)
+		return nil
+	case worlddocument.FieldPlaceCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPlaceCount(v)
+		return nil
+	case worlddocument.FieldTripCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTripCount(v)
+		return nil
+	}
+	return fmt.Errorf("unknown WorldDocument numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *WorldDocumentMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *WorldDocumentMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *WorldDocumentMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown WorldDocument nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *WorldDocumentMutation) ResetField(name string) error {
+	switch name {
+	case worlddocument.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case worlddocument.FieldRevision:
+		m.ResetRevision()
+		return nil
+	case worlddocument.FieldPayload:
+		m.ResetPayload()
+		return nil
+	case worlddocument.FieldPlaceCount:
+		m.ResetPlaceCount()
+		return nil
+	case worlddocument.FieldTripCount:
+		m.ResetTripCount()
+		return nil
+	case worlddocument.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case worlddocument.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown WorldDocument field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *WorldDocumentMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, worlddocument.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *WorldDocumentMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case worlddocument.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *WorldDocumentMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *WorldDocumentMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *WorldDocumentMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, worlddocument.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *WorldDocumentMutation) EdgeCleared(name string) bool {
+	switch name {
+	case worlddocument.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *WorldDocumentMutation) ClearEdge(name string) error {
+	switch name {
+	case worlddocument.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown WorldDocument unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *WorldDocumentMutation) ResetEdge(name string) error {
+	switch name {
+	case worlddocument.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown WorldDocument edge %s", name)
+}
+
+// WorldReceiptMutation represents an operation that mutates the WorldReceipt nodes in the graph.
+type WorldReceiptMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *string
+	request_id    *string
+	digest        *string
+	revision      *int64
+	addrevision   *int64
+	seq           *int64
+	addseq        *int64
+	created_at    *time.Time
+	clearedFields map[string]struct{}
+	user          *string
+	cleareduser   bool
+	done          bool
+	oldValue      func(context.Context) (*WorldReceipt, error)
+	predicates    []predicate.WorldReceipt
+}
+
+var _ ent.Mutation = (*WorldReceiptMutation)(nil)
+
+// worldreceiptOption allows management of the mutation configuration using functional options.
+type worldreceiptOption func(*WorldReceiptMutation)
+
+// newWorldReceiptMutation creates new mutation for the WorldReceipt entity.
+func newWorldReceiptMutation(c config, op Op, opts ...worldreceiptOption) *WorldReceiptMutation {
+	m := &WorldReceiptMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeWorldReceipt,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withWorldReceiptID sets the ID field of the mutation.
+func withWorldReceiptID(id string) worldreceiptOption {
+	return func(m *WorldReceiptMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *WorldReceipt
+		)
+		m.oldValue = func(ctx context.Context) (*WorldReceipt, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().WorldReceipt.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withWorldReceipt sets the old WorldReceipt of the mutation.
+func withWorldReceipt(node *WorldReceipt) worldreceiptOption {
+	return func(m *WorldReceiptMutation) {
+		m.oldValue = func(context.Context) (*WorldReceipt, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m WorldReceiptMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m WorldReceiptMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of WorldReceipt entities.
+func (m *WorldReceiptMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *WorldReceiptMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *WorldReceiptMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().WorldReceipt.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *WorldReceiptMutation) SetUserID(s string) {
+	m.user = &s
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *WorldReceiptMutation) UserID() (r string, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the WorldReceipt entity.
+// If the WorldReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldReceiptMutation) OldUserID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *WorldReceiptMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetRequestID sets the "request_id" field.
+func (m *WorldReceiptMutation) SetRequestID(s string) {
+	m.request_id = &s
+}
+
+// RequestID returns the value of the "request_id" field in the mutation.
+func (m *WorldReceiptMutation) RequestID() (r string, exists bool) {
+	v := m.request_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestID returns the old "request_id" field's value of the WorldReceipt entity.
+// If the WorldReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldReceiptMutation) OldRequestID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestID: %w", err)
+	}
+	return oldValue.RequestID, nil
+}
+
+// ResetRequestID resets all changes to the "request_id" field.
+func (m *WorldReceiptMutation) ResetRequestID() {
+	m.request_id = nil
+}
+
+// SetDigest sets the "digest" field.
+func (m *WorldReceiptMutation) SetDigest(s string) {
+	m.digest = &s
+}
+
+// Digest returns the value of the "digest" field in the mutation.
+func (m *WorldReceiptMutation) Digest() (r string, exists bool) {
+	v := m.digest
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDigest returns the old "digest" field's value of the WorldReceipt entity.
+// If the WorldReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldReceiptMutation) OldDigest(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDigest is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDigest requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDigest: %w", err)
+	}
+	return oldValue.Digest, nil
+}
+
+// ResetDigest resets all changes to the "digest" field.
+func (m *WorldReceiptMutation) ResetDigest() {
+	m.digest = nil
+}
+
+// SetRevision sets the "revision" field.
+func (m *WorldReceiptMutation) SetRevision(i int64) {
+	m.revision = &i
+	m.addrevision = nil
+}
+
+// Revision returns the value of the "revision" field in the mutation.
+func (m *WorldReceiptMutation) Revision() (r int64, exists bool) {
+	v := m.revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRevision returns the old "revision" field's value of the WorldReceipt entity.
+// If the WorldReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldReceiptMutation) OldRevision(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRevision: %w", err)
+	}
+	return oldValue.Revision, nil
+}
+
+// AddRevision adds i to the "revision" field.
+func (m *WorldReceiptMutation) AddRevision(i int64) {
+	if m.addrevision != nil {
+		*m.addrevision += i
+	} else {
+		m.addrevision = &i
+	}
+}
+
+// AddedRevision returns the value that was added to the "revision" field in this mutation.
+func (m *WorldReceiptMutation) AddedRevision() (r int64, exists bool) {
+	v := m.addrevision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRevision resets all changes to the "revision" field.
+func (m *WorldReceiptMutation) ResetRevision() {
+	m.revision = nil
+	m.addrevision = nil
+}
+
+// SetSeq sets the "seq" field.
+func (m *WorldReceiptMutation) SetSeq(i int64) {
+	m.seq = &i
+	m.addseq = nil
+}
+
+// Seq returns the value of the "seq" field in the mutation.
+func (m *WorldReceiptMutation) Seq() (r int64, exists bool) {
+	v := m.seq
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSeq returns the old "seq" field's value of the WorldReceipt entity.
+// If the WorldReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldReceiptMutation) OldSeq(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSeq is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSeq requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSeq: %w", err)
+	}
+	return oldValue.Seq, nil
+}
+
+// AddSeq adds i to the "seq" field.
+func (m *WorldReceiptMutation) AddSeq(i int64) {
+	if m.addseq != nil {
+		*m.addseq += i
+	} else {
+		m.addseq = &i
+	}
+}
+
+// AddedSeq returns the value that was added to the "seq" field in this mutation.
+func (m *WorldReceiptMutation) AddedSeq() (r int64, exists bool) {
+	v := m.addseq
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSeq resets all changes to the "seq" field.
+func (m *WorldReceiptMutation) ResetSeq() {
+	m.seq = nil
+	m.addseq = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *WorldReceiptMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *WorldReceiptMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the WorldReceipt entity.
+// If the WorldReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorldReceiptMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *WorldReceiptMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *WorldReceiptMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[worldreceipt.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *WorldReceiptMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *WorldReceiptMutation) UserIDs() (ids []string) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *WorldReceiptMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the WorldReceiptMutation builder.
+func (m *WorldReceiptMutation) Where(ps ...predicate.WorldReceipt) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the WorldReceiptMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *WorldReceiptMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.WorldReceipt, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *WorldReceiptMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *WorldReceiptMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (WorldReceipt).
+func (m *WorldReceiptMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *WorldReceiptMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.user != nil {
+		fields = append(fields, worldreceipt.FieldUserID)
+	}
+	if m.request_id != nil {
+		fields = append(fields, worldreceipt.FieldRequestID)
+	}
+	if m.digest != nil {
+		fields = append(fields, worldreceipt.FieldDigest)
+	}
+	if m.revision != nil {
+		fields = append(fields, worldreceipt.FieldRevision)
+	}
+	if m.seq != nil {
+		fields = append(fields, worldreceipt.FieldSeq)
+	}
+	if m.created_at != nil {
+		fields = append(fields, worldreceipt.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *WorldReceiptMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case worldreceipt.FieldUserID:
+		return m.UserID()
+	case worldreceipt.FieldRequestID:
+		return m.RequestID()
+	case worldreceipt.FieldDigest:
+		return m.Digest()
+	case worldreceipt.FieldRevision:
+		return m.Revision()
+	case worldreceipt.FieldSeq:
+		return m.Seq()
+	case worldreceipt.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *WorldReceiptMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case worldreceipt.FieldUserID:
+		return m.OldUserID(ctx)
+	case worldreceipt.FieldRequestID:
+		return m.OldRequestID(ctx)
+	case worldreceipt.FieldDigest:
+		return m.OldDigest(ctx)
+	case worldreceipt.FieldRevision:
+		return m.OldRevision(ctx)
+	case worldreceipt.FieldSeq:
+		return m.OldSeq(ctx)
+	case worldreceipt.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown WorldReceipt field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WorldReceiptMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case worldreceipt.FieldUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case worldreceipt.FieldRequestID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestID(v)
+		return nil
+	case worldreceipt.FieldDigest:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDigest(v)
+		return nil
+	case worldreceipt.FieldRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRevision(v)
+		return nil
+	case worldreceipt.FieldSeq:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSeq(v)
+		return nil
+	case worldreceipt.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown WorldReceipt field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *WorldReceiptMutation) AddedFields() []string {
+	var fields []string
+	if m.addrevision != nil {
+		fields = append(fields, worldreceipt.FieldRevision)
+	}
+	if m.addseq != nil {
+		fields = append(fields, worldreceipt.FieldSeq)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *WorldReceiptMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case worldreceipt.FieldRevision:
+		return m.AddedRevision()
+	case worldreceipt.FieldSeq:
+		return m.AddedSeq()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WorldReceiptMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case worldreceipt.FieldRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRevision(v)
+		return nil
+	case worldreceipt.FieldSeq:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSeq(v)
+		return nil
+	}
+	return fmt.Errorf("unknown WorldReceipt numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *WorldReceiptMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *WorldReceiptMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *WorldReceiptMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown WorldReceipt nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *WorldReceiptMutation) ResetField(name string) error {
+	switch name {
+	case worldreceipt.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case worldreceipt.FieldRequestID:
+		m.ResetRequestID()
+		return nil
+	case worldreceipt.FieldDigest:
+		m.ResetDigest()
+		return nil
+	case worldreceipt.FieldRevision:
+		m.ResetRevision()
+		return nil
+	case worldreceipt.FieldSeq:
+		m.ResetSeq()
+		return nil
+	case worldreceipt.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown WorldReceipt field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *WorldReceiptMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, worldreceipt.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *WorldReceiptMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case worldreceipt.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *WorldReceiptMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *WorldReceiptMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *WorldReceiptMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, worldreceipt.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *WorldReceiptMutation) EdgeCleared(name string) bool {
+	switch name {
+	case worldreceipt.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *WorldReceiptMutation) ClearEdge(name string) error {
+	switch name {
+	case worldreceipt.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown WorldReceipt unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *WorldReceiptMutation) ResetEdge(name string) error {
+	switch name {
+	case worldreceipt.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown WorldReceipt edge %s", name)
 }

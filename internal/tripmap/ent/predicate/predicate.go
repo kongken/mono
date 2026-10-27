@@ -59,3 +59,9 @@ type TripMember func(*sql.Selector)
 
 // User is the predicate function for user builders.
 type User func(*sql.Selector)
+
+// WorldDocument is the predicate function for worlddocument builders.
+type WorldDocument func(*sql.Selector)
+
+// WorldReceipt is the predicate function for worldreceipt builders.
+type WorldReceipt func(*sql.Selector)

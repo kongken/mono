@@ -26,6 +26,7 @@ COPY internal/tripmap/share/assets/geometry.json internal/tripmap/share/assets/g
 # F10 checks bind the frontend catalog to the exact backend index and manifest.
 COPY internal/tripmap/regions/regions.json internal/tripmap/regions/regions.json
 COPY internal/tripmap/regions/catalog.json internal/tripmap/regions/catalog.json
+COPY internal/tripmap/world/catalog.json internal/tripmap/world/catalog.json
 # Optional backend address; empty keeps the static site standalone (local-only). With a backend it must be the
 # BFF's canonical public address (https://api.example.com/api): the session Cookie belongs to that host, so a
 # same-origin /api proxy cannot carry the sign-in. Then VITE_OZID_ORIGIN (https://id.example.com) is required

@@ -62,6 +62,8 @@ func (User) Edges() []ent.Edge {
 		edge.To("notification_settings", NotificationSetting.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("push_subscriptions", PushSubscription.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("notification_deliveries", NotificationDelivery.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("world_document", WorldDocument.Type).Unique().Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("world_receipts", WorldReceipt.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }
 

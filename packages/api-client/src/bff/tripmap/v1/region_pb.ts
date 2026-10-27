@@ -286,4 +286,3 @@ export const RegionService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_tripmap_v1_region, 0);
-

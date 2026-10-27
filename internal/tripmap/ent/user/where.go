@@ -981,6 +981,52 @@ func HasNotificationDeliveriesWith(preds ...predicate.NotificationDelivery) pred
 	})
 }
 
+// HasWorldDocument applies the HasEdge predicate on the "world_document" edge.
+func HasWorldDocument() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, WorldDocumentTable, WorldDocumentColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasWorldDocumentWith applies the HasEdge predicate on the "world_document" edge with a given conditions (other predicates).
+func HasWorldDocumentWith(preds ...predicate.WorldDocument) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newWorldDocumentStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasWorldReceipts applies the HasEdge predicate on the "world_receipts" edge.
+func HasWorldReceipts() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, WorldReceiptsTable, WorldReceiptsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasWorldReceiptsWith applies the HasEdge predicate on the "world_receipts" edge with a given conditions (other predicates).
+func HasWorldReceiptsWith(preds ...predicate.WorldReceipt) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newWorldReceiptsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.User) predicate.User {
 	return predicate.User(sql.AndPredicates(predicates...))

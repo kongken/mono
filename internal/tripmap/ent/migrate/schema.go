@@ -666,6 +666,67 @@ var (
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
 	}
+	// WorldDocumentsColumns holds the columns for the "world_documents" table.
+	WorldDocumentsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "revision", Type: field.TypeInt64},
+		{Name: "payload", Type: field.TypeBytes},
+		{Name: "place_count", Type: field.TypeInt},
+		{Name: "trip_count", Type: field.TypeInt},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeString, Unique: true},
+	}
+	// WorldDocumentsTable holds the schema information for the "world_documents" table.
+	WorldDocumentsTable = &schema.Table{
+		Name:       "world_documents",
+		Columns:    WorldDocumentsColumns,
+		PrimaryKey: []*schema.Column{WorldDocumentsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "world_documents_users_world_document",
+				Columns:    []*schema.Column{WorldDocumentsColumns[7]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
+	// WorldReceiptsColumns holds the columns for the "world_receipts" table.
+	WorldReceiptsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "request_id", Type: field.TypeString},
+		{Name: "digest", Type: field.TypeString},
+		{Name: "revision", Type: field.TypeInt64},
+		{Name: "seq", Type: field.TypeInt64},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeString},
+	}
+	// WorldReceiptsTable holds the schema information for the "world_receipts" table.
+	WorldReceiptsTable = &schema.Table{
+		Name:       "world_receipts",
+		Columns:    WorldReceiptsColumns,
+		PrimaryKey: []*schema.Column{WorldReceiptsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "world_receipts_users_world_receipts",
+				Columns:    []*schema.Column{WorldReceiptsColumns[6]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "worldreceipt_user_id_request_id",
+				Unique:  true,
+				Columns: []*schema.Column{WorldReceiptsColumns[6], WorldReceiptsColumns[1]},
+			},
+			{
+				Name:    "worldreceipt_user_id_seq",
+				Unique:  true,
+				Columns: []*schema.Column{WorldReceiptsColumns[6], WorldReceiptsColumns[4]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		CityVisitsTable,
@@ -686,6 +747,8 @@ var (
 		CityTripsTable,
 		TripMembersTable,
 		UsersTable,
+		WorldDocumentsTable,
+		WorldReceiptsTable,
 	}
 )
 
@@ -750,5 +813,13 @@ func init() {
 	}
 	UsersTable.Annotation = &entsql.Annotation{
 		Table: "users",
+	}
+	WorldDocumentsTable.ForeignKeys[0].RefTable = UsersTable
+	WorldDocumentsTable.Annotation = &entsql.Annotation{
+		Table: "world_documents",
+	}
+	WorldReceiptsTable.ForeignKeys[0].RefTable = UsersTable
+	WorldReceiptsTable.Annotation = &entsql.Annotation{
+		Table: "world_receipts",
 	}
 }

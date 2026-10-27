@@ -112,4 +112,3 @@ export const StatusService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_tripmap_v1_status, 0);
-

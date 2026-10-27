@@ -31,6 +31,7 @@ type env struct {
 	search    tripmapv1connect.SearchServiceClient
 	region    tripmapv1connect.RegionServiceClient
 	itinerary tripmapv1connect.ItineraryServiceClient
+	world     tripmapv1connect.WorldServiceClient
 	notify    tripmapv1connect.NotificationServiceClient
 	notifier  *application.Notifier
 	mailer    *fakeMailer
@@ -101,6 +102,11 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 	mux.Handle(tripmapv1connect.NewSearchServiceHandler(application.NewSearchService(src, idx), opts))
 	mux.Handle(tripmapv1connect.NewRegionServiceHandler(application.NewRegionService(src, idx), opts))
 	mux.Handle(tripmapv1connect.NewItineraryServiceHandler(application.NewItineraryService(src, idx), opts))
+	worldSvc, err := application.NewWorldService(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux.Handle(tripmapv1connect.NewWorldServiceHandler(worldSvc, opts))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return &env{
@@ -116,6 +122,7 @@ func newEnv(t *testing.T, mutate ...func(*config.AppConfig)) *env {
 		search:    tripmapv1connect.NewSearchServiceClient(server.Client(), server.URL),
 		region:    tripmapv1connect.NewRegionServiceClient(server.Client(), server.URL),
 		itinerary: tripmapv1connect.NewItineraryServiceClient(server.Client(), server.URL),
+		world:     tripmapv1connect.NewWorldServiceClient(server.Client(), server.URL),
 	}
 }
 

@@ -24,6 +24,8 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
 	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/worlddocument"
+	"github.com/kongken/mono/internal/tripmap/ent/worldreceipt"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -682,4 +684,72 @@ func init() {
 	userDescID := userFields[0].Descriptor()
 	// user.DefaultID holds the default value on creation for the id field.
 	user.DefaultID = userDescID.Default.(func() string)
+	worlddocumentFields := schema.WorldDocument{}.Fields()
+	_ = worlddocumentFields
+	// worlddocumentDescRevision is the schema descriptor for revision field.
+	worlddocumentDescRevision := worlddocumentFields[2].Descriptor()
+	// worlddocument.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
+	worlddocument.RevisionValidator = worlddocumentDescRevision.Validators[0].(func(int64) error)
+	// worlddocumentDescPlaceCount is the schema descriptor for place_count field.
+	worlddocumentDescPlaceCount := worlddocumentFields[4].Descriptor()
+	// worlddocument.PlaceCountValidator is a validator for the "place_count" field. It is called by the builders before save.
+	worlddocument.PlaceCountValidator = worlddocumentDescPlaceCount.Validators[0].(func(int) error)
+	// worlddocumentDescTripCount is the schema descriptor for trip_count field.
+	worlddocumentDescTripCount := worlddocumentFields[5].Descriptor()
+	// worlddocument.TripCountValidator is a validator for the "trip_count" field. It is called by the builders before save.
+	worlddocument.TripCountValidator = worlddocumentDescTripCount.Validators[0].(func(int) error)
+	// worlddocumentDescCreatedAt is the schema descriptor for created_at field.
+	worlddocumentDescCreatedAt := worlddocumentFields[6].Descriptor()
+	// worlddocument.DefaultCreatedAt holds the default value on creation for the created_at field.
+	worlddocument.DefaultCreatedAt = worlddocumentDescCreatedAt.Default.(func() time.Time)
+	// worlddocumentDescUpdatedAt is the schema descriptor for updated_at field.
+	worlddocumentDescUpdatedAt := worlddocumentFields[7].Descriptor()
+	// worlddocument.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	worlddocument.DefaultUpdatedAt = worlddocumentDescUpdatedAt.Default.(func() time.Time)
+	// worlddocument.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	worlddocument.UpdateDefaultUpdatedAt = worlddocumentDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// worlddocumentDescID is the schema descriptor for id field.
+	worlddocumentDescID := worlddocumentFields[0].Descriptor()
+	// worlddocument.DefaultID holds the default value on creation for the id field.
+	worlddocument.DefaultID = worlddocumentDescID.Default.(func() string)
+	worldreceiptFields := schema.WorldReceipt{}.Fields()
+	_ = worldreceiptFields
+	// worldreceiptDescRequestID is the schema descriptor for request_id field.
+	worldreceiptDescRequestID := worldreceiptFields[2].Descriptor()
+	// worldreceipt.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	worldreceipt.RequestIDValidator = func() func(string) error {
+		validators := worldreceiptDescRequestID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(request_id string) error {
+			for _, fn := range fns {
+				if err := fn(request_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// worldreceiptDescDigest is the schema descriptor for digest field.
+	worldreceiptDescDigest := worldreceiptFields[3].Descriptor()
+	// worldreceipt.DigestValidator is a validator for the "digest" field. It is called by the builders before save.
+	worldreceipt.DigestValidator = worldreceiptDescDigest.Validators[0].(func(string) error)
+	// worldreceiptDescRevision is the schema descriptor for revision field.
+	worldreceiptDescRevision := worldreceiptFields[4].Descriptor()
+	// worldreceipt.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
+	worldreceipt.RevisionValidator = worldreceiptDescRevision.Validators[0].(func(int64) error)
+	// worldreceiptDescSeq is the schema descriptor for seq field.
+	worldreceiptDescSeq := worldreceiptFields[5].Descriptor()
+	// worldreceipt.SeqValidator is a validator for the "seq" field. It is called by the builders before save.
+	worldreceipt.SeqValidator = worldreceiptDescSeq.Validators[0].(func(int64) error)
+	// worldreceiptDescCreatedAt is the schema descriptor for created_at field.
+	worldreceiptDescCreatedAt := worldreceiptFields[6].Descriptor()
+	// worldreceipt.DefaultCreatedAt holds the default value on creation for the created_at field.
+	worldreceipt.DefaultCreatedAt = worldreceiptDescCreatedAt.Default.(func() time.Time)
+	// worldreceiptDescID is the schema descriptor for id field.
+	worldreceiptDescID := worldreceiptFields[0].Descriptor()
+	// worldreceipt.DefaultID holds the default value on creation for the id field.
+	worldreceipt.DefaultID = worldreceiptDescID.Default.(func() string)
 }

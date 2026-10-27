@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package bff.tripmap.v1;
+
+option go_package = "github.com/kongken/mono/pkg/proto/bff/tripmap/v1;bfftripmapv1";
+
+// WorldService exposes the signed-in user's world footprint document via the BFF.
+// The rules are those of tripmap.v1.WorldService (docs/trip-map/world-spec.md
+// section 9.1): one document per user, replaced as a whole, with a monotonic
+// revision, optimistic base_revision and request_id replay.
+service WorldService {
+  rpc GetWorld(GetWorldRequest) returns (GetWorldResponse);
+  rpc ReplaceWorld(ReplaceWorldRequest) returns (ReplaceWorldResponse);
+}
+
+message WorldCountry {
+  string code = 1;
+  string color = 2;
+}
+
+message WorldTrip {
+  string id = 1;
+  string date = 2;
+  string note = 3;
+}
+
+message WorldPlace {
+  string id = 1;
+  string name = 2;
+  string country = 3;
+  // WGS-84 micro-degrees: round(degrees * 1e6).
+  int32 lat_e6 = 4;
+  int32 lng_e6 = 5;
+  repeated WorldTrip trips = 6;
+}
+
+message WorldDocument {
+  string kind = 1;
+  int32 version = 2;
+  repeated WorldCountry countries = 3;
+  repeated WorldPlace places = 4;
+}
+
+message GetWorldRequest {}
+
+message GetWorldResponse {
+  int64 revision = 1;
+  WorldDocument document = 2;
+}
+
+message ReplaceWorldRequest {
+  int64 base_revision = 1;
+  string request_id = 2;
+  WorldDocument document = 3;
+}
+
+message ReplaceWorldResponse {
+  bool applied = 1;
+  bool replayed = 2;
+  int64 revision = 3;
+  WorldDocument document = 4;
+  int64 cloud_revision = 5;
+}

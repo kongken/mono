@@ -141,6 +141,12 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 	if n, err := client.Itinerary.Query().Count(ctx); err != nil || n != 0 {
 		t.Fatalf("itineraries table should start empty: %d %v", n, err)
 	}
+	if n, err := client.WorldDocument.Query().Count(ctx); err != nil || n != 0 {
+		t.Fatalf("world_documents table should start empty: %d %v", n, err)
+	}
+	if n, err := client.WorldReceipt.Query().Count(ctx); err != nil || n != 0 {
+		t.Fatalf("world_receipts table should start empty: %d %v", n, err)
+	}
 	// A share row keeps the user's data apart from the public token and goes away with the user.
 	exec(`INSERT INTO shares (id, visibility, token, show_cities, show_dates, show_notes, show_photos, photo_ids, version, published_revision, payload, created_at, updated_at, user_id)
 		VALUES ('sh1','link','tok',false,false,false,false,'[]',1,7,'\x7b7d',now(),now(),'u1')`)
@@ -162,6 +168,19 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 	if _, err := scoped.ExecContext(ctx, `INSERT INTO itineraries (id, itinerary_id, title, note, color, stops, version, created_at, updated_at, user_id) VALUES ('it2','itin-1','重复','','\#4b937d','[]',1,now(),now(),'u2')`); err == nil {
 		t.Fatal("duplicate itinerary_id per user allowed")
 	}
+	// The world footprint document (世界视图): one row per user, receipts unique per request_id and seq.
+	exec(`INSERT INTO world_documents (id, revision, payload, place_count, trip_count, created_at, updated_at, user_id) VALUES ('wd1',1,'\x00',0,0,now(),now(),'u2')`)
+	if _, err := scoped.ExecContext(ctx, `INSERT INTO world_documents (id, revision, payload, place_count, trip_count, created_at, updated_at, user_id) VALUES ('wd2',1,'\x00',0,0,now(),now(),'u2')`); err == nil {
+		t.Fatal("a user can own two world documents")
+	}
+	exec(`INSERT INTO world_receipts (id, request_id, digest, revision, seq, created_at, user_id) VALUES ('wr1','req-1','d1',1,1,now(),'u2')`)
+	if _, err := scoped.ExecContext(ctx, `INSERT INTO world_receipts (id, request_id, digest, revision, seq, created_at, user_id) VALUES ('wr2','req-1','d2',2,2,now(),'u2')`); err == nil {
+		t.Fatal("one request_id can have two receipts")
+	}
+	if _, err := scoped.ExecContext(ctx, `INSERT INTO world_receipts (id, request_id, digest, revision, seq, created_at, user_id) VALUES ('wr3','req-3','d3',2,1,now(),'u2')`); err == nil {
+		t.Fatal("two receipts can share one seq")
+	}
+	exec(`INSERT INTO world_receipts (id, request_id, digest, revision, seq, created_at, user_id) VALUES ('wr4','req-1','d1',1,1,now(),'u1')`)
 	exec(`INSERT INTO notification_profiles (id, timezone, send_hour, show_places, email, pending_email, code_hash, code_attempts, created_at, updated_at, user_id) VALUES ('np1','Asia/Shanghai',9,false,'','','',0,now(),now(),'u2')`)
 	if _, err := scoped.ExecContext(ctx, `INSERT INTO notification_profiles (id, created_at, updated_at, user_id) VALUES ('np2',now(),now(),'u2')`); err == nil {
 		t.Fatal("a user can own two notification profiles")
@@ -179,7 +198,7 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 		t.Fatal("a notification can be claimed twice for one period")
 	}
 	exec(`DELETE FROM users WHERE id='u2'`)
-	for _, table := range []string{"notification_profiles", "notification_settings", "push_subscriptions", "notification_deliveries"} {
+	for _, table := range []string{"notification_profiles", "notification_settings", "push_subscriptions", "notification_deliveries", "world_documents", "world_receipts"} {
 		var rows int
 		if err := scoped.QueryRowContext(ctx, `SELECT count(*) FROM `+table+` WHERE user_id='u2'`).Scan(&rows); err != nil || rows != 0 {
 			t.Fatalf("deleting a user left %d %s rows: %v", rows, table, err)

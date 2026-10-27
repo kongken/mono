@@ -31,6 +31,8 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
 	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
+	"github.com/kongken/mono/internal/tripmap/ent/worlddocument"
+	"github.com/kongken/mono/internal/tripmap/ent/worldreceipt"
 )
 
 // UserQuery is the builder for querying User entities.
@@ -57,6 +59,8 @@ type UserQuery struct {
 	withNotificationSettings   *NotificationSettingQuery
 	withPushSubscriptions      *PushSubscriptionQuery
 	withNotificationDeliveries *NotificationDeliveryQuery
+	withWorldDocument          *WorldDocumentQuery
+	withWorldReceipts          *WorldReceiptQuery
 	modifiers                  []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -468,6 +472,50 @@ func (_q *UserQuery) QueryNotificationDeliveries() *NotificationDeliveryQuery {
 	return query
 }
 
+// QueryWorldDocument chains the current query on the "world_document" edge.
+func (_q *UserQuery) QueryWorldDocument() *WorldDocumentQuery {
+	query := (&WorldDocumentClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(worlddocument.Table, worlddocument.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, user.WorldDocumentTable, user.WorldDocumentColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryWorldReceipts chains the current query on the "world_receipts" edge.
+func (_q *UserQuery) QueryWorldReceipts() *WorldReceiptQuery {
+	query := (&WorldReceiptClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(worldreceipt.Table, worldreceipt.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.WorldReceiptsTable, user.WorldReceiptsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first User entity from the query.
 // Returns a *NotFoundError when no User was found.
 func (_q *UserQuery) First(ctx context.Context) (*User, error) {
@@ -677,6 +725,8 @@ func (_q *UserQuery) Clone() *UserQuery {
 		withNotificationSettings:   _q.withNotificationSettings.Clone(),
 		withPushSubscriptions:      _q.withPushSubscriptions.Clone(),
 		withNotificationDeliveries: _q.withNotificationDeliveries.Clone(),
+		withWorldDocument:          _q.withWorldDocument.Clone(),
+		withWorldReceipts:          _q.withWorldReceipts.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -870,6 +920,28 @@ func (_q *UserQuery) WithNotificationDeliveries(opts ...func(*NotificationDelive
 	return _q
 }
 
+// WithWorldDocument tells the query-builder to eager-load the nodes that are connected to
+// the "world_document" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithWorldDocument(opts ...func(*WorldDocumentQuery)) *UserQuery {
+	query := (&WorldDocumentClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withWorldDocument = query
+	return _q
+}
+
+// WithWorldReceipts tells the query-builder to eager-load the nodes that are connected to
+// the "world_receipts" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithWorldReceipts(opts ...func(*WorldReceiptQuery)) *UserQuery {
+	query := (&WorldReceiptClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withWorldReceipts = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -948,7 +1020,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [17]bool{
+		loadedTypes = [19]bool{
 			_q.withVisits != nil,
 			_q.withTrips != nil,
 			_q.withProvinceMarks != nil,
@@ -966,6 +1038,8 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			_q.withNotificationSettings != nil,
 			_q.withPushSubscriptions != nil,
 			_q.withNotificationDeliveries != nil,
+			_q.withWorldDocument != nil,
+			_q.withWorldReceipts != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -1107,6 +1181,19 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			func(n *User, e *NotificationDelivery) {
 				n.Edges.NotificationDeliveries = append(n.Edges.NotificationDeliveries, e)
 			}); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withWorldDocument; query != nil {
+		if err := _q.loadWorldDocument(ctx, query, nodes, nil,
+			func(n *User, e *WorldDocument) { n.Edges.WorldDocument = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withWorldReceipts; query != nil {
+		if err := _q.loadWorldReceipts(ctx, query, nodes,
+			func(n *User) { n.Edges.WorldReceipts = []*WorldReceipt{} },
+			func(n *User, e *WorldReceipt) { n.Edges.WorldReceipts = append(n.Edges.WorldReceipts, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -1602,6 +1689,63 @@ func (_q *UserQuery) loadNotificationDeliveries(ctx context.Context, query *Noti
 	}
 	query.Where(predicate.NotificationDelivery(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(user.NotificationDeliveriesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadWorldDocument(ctx context.Context, query *WorldDocumentQuery, nodes []*User, init func(*User), assign func(*User, *WorldDocument)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(worlddocument.FieldUserID)
+	}
+	query.Where(predicate.WorldDocument(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.WorldDocumentColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadWorldReceipts(ctx context.Context, query *WorldReceiptQuery, nodes []*User, init func(*User), assign func(*User, *WorldReceipt)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(worldreceipt.FieldUserID)
+	}
+	query.Where(predicate.WorldReceipt(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.WorldReceiptsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

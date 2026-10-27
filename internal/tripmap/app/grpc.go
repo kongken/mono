@@ -35,6 +35,11 @@ func (h *Handlers) StartGRPC(extra ...func(grpc.ServiceRegistrar)) error {
 			foot := application.NewFootprintService(h.cfg, h, idx)
 			tripmapv1.RegisterFootprintServiceServer(r, application.FootprintGRPC(foot))
 			tripmapv1.RegisterItineraryServiceServer(r, application.ItineraryGRPC(application.NewItineraryService(h, idx)))
+			if worldSvc, werr := application.NewWorldService(h); werr != nil {
+				slog.Error("world service disabled", "error", werr)
+			} else {
+				tripmapv1.RegisterWorldServiceServer(r, application.WorldGRPC(worldSvc))
+			}
 			tripmapv1.RegisterProfileServiceServer(r, application.NewProfileService(h))
 			notif := application.NewNotificationService(h, h.notifier)
 			tripmapv1.RegisterNotificationServiceServer(r, application.NotificationGRPC(notif))

@@ -11,6 +11,8 @@
     "check:maps": "node scripts/prepare-region-catalog.mjs --check && node scripts/prepare-city-coords.mjs --check && node scripts/check-maps.mjs",
     "prepare:regions": "node scripts/prepare-region-catalog.mjs",
     "prepare:coords": "node scripts/prepare-city-coords.mjs",
+    "prepare:world": "node scripts/prepare-world-map.mjs",
+    "report:world-overlap": "node scripts/report-world-overlap.mjs",
     "prepare:search": "node scripts/prepare-search-index.mjs",
     "prepare:map-colors": "node scripts/prepare-province-neighbors.mjs",
     "prepare:share-geometry": "node scripts/prepare-share-geometry.mjs",

@@ -1736,4 +1736,3 @@ export const AdminService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_metro_v1_admin, 0);
-
