@@ -127,9 +127,9 @@ export function useWorldCloud(codes: WorldCodes, userId: string | null) {
     }
   }, [codes, show, write]);
 
-  const sync = useCallback(async () => {
+  const sync = useCallback(async (force = false) => {
     const id = userRef.current;
-    if (!id || running.current || stopped || phase === "cloud-conflict" || phase === "cloud-unreadable") return;
+    if (!id || running.current || stopped || (!force && (phase === "cloud-conflict" || phase === "cloud-unreadable"))) return;
     const cache = cacheRef.current;
     if (!cache) return;
     if (!cache.pending && sameWorld(cache.saved, cache.confirmed.document)) return;
@@ -222,7 +222,7 @@ export function useWorldCloud(codes: WorldCodes, userId: string | null) {
     if (choice === "theirs") { if (!theirs.document) return "unusable"; const next = { schema: 1 as const, saved: theirs.document, confirmed: { revision: theirs.revision, document: theirs.document } }; cacheRef.current = next; if (write(next) !== "ok") return "copy-failed"; show(next.saved); setTheirs(null); setPhase("ok"); return "ok"; }
     if (!exported && !preserve(browserStorage()!, theirs.text)) return "copy-failed";
     const next = { schema: 1 as const, saved: worldRef.current, confirmed: { revision: theirs.revision, document: theirs.document ?? emptyWorld() }, pending: { request_id: randomId(), base_revision: theirs.revision, document: worldRef.current } };
-    cacheRef.current = next; if (write(next) !== "ok") return "copy-failed"; setTheirs(null); setPhase("ok"); void sync(); return "ok";
+    cacheRef.current = next; if (write(next) !== "ok") return "copy-failed"; setTheirs(null); setPhase("ok"); void sync(true); return "ok";
   }, [show, sync, theirs, write]);
   return {
     world, phase, paused: phase !== "ok", announcement, announce: setAnnouncement, edit, toggle,

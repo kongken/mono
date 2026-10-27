@@ -138,6 +138,7 @@ export function fakeBackend(
     world: {
       revision: 0,
       document: { kind: "world", version: 1, countries: [], places: [] },
+      calls: [] as { baseRevision: number; requestId: string; document: object }[],
       receipts: new Map<string, { request: string; revision: number; document: object }>(),
     },
   };
@@ -279,6 +280,7 @@ export function fakeBackend(
       state.world.document = document;
     },
     worldDocument: () => state.world.document,
+    worldReplaceCalls: () => state.world.calls,
     install: async () => {
       await page.route("**/api/**", async (route) => {
         const req = route.request();
@@ -374,6 +376,7 @@ export function fakeBackend(
             return send(worldPb.GetWorldResponseSchema, { revision: BigInt(state.world.revision), document: state.world.document });
           case "ReplaceWorld": {
             const body = read(worldPb.ReplaceWorldRequestSchema) as worldPb.ReplaceWorldRequest;
+            state.world.calls.push({ baseRevision: Number(body.baseRevision), requestId: body.requestId, document: body.document ?? { kind: "world", version: 1, countries: [], places: [] } });
             const request = toJsonString(worldPb.ReplaceWorldRequestSchema, body);
             const prior = state.world.receipts.get(body.requestId);
             if (prior) {

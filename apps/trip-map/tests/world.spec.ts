@@ -542,6 +542,10 @@ test("cloud conflicts can be resolved with the local document", async ({ page })
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "冲突以本机为准" }).click();
   await expect(dialog).toHaveCount(0);
+  await expect.poll(() => backend.worldReplaceCalls().length).toBe(2);
+  expect(backend.worldReplaceCalls()[1].baseRevision).toBe(1);
+  await expect.poll(() => backend.worldDocument().countries.map((country: { code: string }) => country.code)).toEqual(["JP"]);
+  await expect.poll(async () => (await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), "shanhai-world-cloud-v1:ci-migrate")).pending).toBeUndefined();
   await expect(country(page, "JP")).toHaveAttribute("aria-pressed", "true");
   await expect(country(page, "US")).toHaveAttribute("aria-pressed", "false");
 });
