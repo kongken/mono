@@ -30,6 +30,7 @@ ent-usersrv:
 
 buf:
 	buf generate
+	node scripts/normalize-generated-api.mjs
 
 # Writes the next versioned migration into migrations/tripmap/ after an Ent schema change.
 # DEV_DSN only needs CREATEDB; a scratch database is created and dropped.

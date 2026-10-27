@@ -295,7 +295,7 @@ curl --fail http://127.0.0.1:18081/api/bff.tripmap.v1.StatusService/GetStatus \
 
 **部署顺序与反向代理。** 先应用 `migrations/tripmap/20261014022913_f6_shares.sql`，再部署后端，最后部署前端。代理（BFF 与前端 Nginx）必须转发 `/s/` 与 `/api/share/` 到后端，且这些路径不写访问日志（令牌）；位于代理之后设置 `auth.client_ip_header`。镜像内的 Nginx 配置已处理；Vite 开发服务器代理 `/s/`。后端镜像构建需要 `internal/` 下的预览资源、`packages/fixtures` 和 `packages/geo-data/data` 中的区域索引与城市坐标；前端镜像构建需要 `internal/tripmap/share/assets/geometry.json`（`check:maps` 校验）。后端 `CGO_ENABLED=0` 构建通过。
 
-**生成。** 修改 `proto/` 后 `make buf`（同时生成 Connect、grpc-go 与 TypeScript 代码），修改 `internal/tripmap/ent/schema/` 后 `make ent`，迁移文件用 `make migration NAME=… DEV_DSN=…` 生成；生成文件不手改。
+**生成。** 修改 `proto/` 后 `make buf`（同时生成 Connect、grpc-go 与 TypeScript 代码，再由 `scripts/normalize-generated-api.mjs` 将生成的 `*_pb.ts` 末尾换行统一为一个，避免生成器附加的空行导致 `git diff --check` 失败），修改 `internal/tripmap/ent/schema/` 后 `make ent`，迁移文件用 `make migration NAME=… DEV_DSN=…` 生成；生成文件不手改。
 
 ## F7 共同旅行与好友
 

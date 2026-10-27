@@ -578,4 +578,3 @@ export const CatalogService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_metro_v1_catalog, 0);
-

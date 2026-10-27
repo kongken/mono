@@ -561,4 +561,3 @@ export const ItineraryService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_tripmap_v1_itinerary, 0);
-

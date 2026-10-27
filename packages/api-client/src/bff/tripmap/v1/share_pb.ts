@@ -342,4 +342,3 @@ export const ShareService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_tripmap_v1_share, 0);
-

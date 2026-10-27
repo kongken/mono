@@ -368,4 +368,3 @@ export const SnapshotService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_tripmap_v1_snapshot, 0);
-

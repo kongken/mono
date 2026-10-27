@@ -536,4 +536,3 @@ export const NotificationService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_tripmap_v1_notification, 0);
-

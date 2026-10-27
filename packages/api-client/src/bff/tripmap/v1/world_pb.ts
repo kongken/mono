@@ -263,4 +263,3 @@ export const WorldService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_tripmap_v1_world, 0);
-

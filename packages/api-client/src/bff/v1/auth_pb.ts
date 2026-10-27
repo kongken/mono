@@ -1132,4 +1132,3 @@ export const UserService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_bff_v1_auth, 1);
-

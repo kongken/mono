@@ -797,4 +797,3 @@ export const AccountService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_usersrv_v1_account, 0);
-

@@ -34,4 +34,3 @@ export const anonymous: GenExtension<MethodOptions, boolean> = /*@__PURE__*/
  */
 export const required_role: GenExtension<MethodOptions, string> = /*@__PURE__*/
   extDesc(file_platform_v1_options, 1);
-

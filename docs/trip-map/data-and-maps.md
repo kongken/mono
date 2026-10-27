@@ -1,6 +1,6 @@
 # 数据与地图说明
 
-> **世界视图（已实现本机模式）：** 世界数据结构、存储键与界面的设计见 [世界视图规格](world-spec.md)，不改变下文任何现有结构或存储键。世界地图的边界数据、目录和加载器见下文“世界地图数据”；世界数据结构、本机存储、备份导入导出与本机编辑界面见“世界数据结构与存储”。账号云端保存尚未实现（待实现，见规格）。
+> **世界视图（已实现本机模式及云端后端）：** 世界数据结构、存储键与界面的设计见 [世界视图规格](world-spec.md)，不改变下文任何现有结构或存储键。世界地图的边界数据、目录和加载器见下文“世界地图数据”；世界数据结构、本机存储、备份导入导出与本机编辑界面见“世界数据结构与存储”。云端文档接口、并发控制与账号注销清理已实现，见 [后端说明](../backend.md)“世界足迹云端文档”；前端账号同步尚未接入（待实现，见规格第 9.2 节）。
 
 ## 足迹数据结构
 
@@ -167,13 +167,14 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 
 ## 世界地图数据
 
-世界视图（[规格](world-spec.md) 第 3、10 节）使用的边界、国家/地区目录和搜索索引已经生成并通过检查；界面尚未接入，现有的中国视图、区域索引、存储键和 `100000.json` 都没有改动。
+世界视图（[规格](world-spec.md) 第 3、10 节）使用的边界、国家/地区目录和搜索索引已经生成并用于本机界面；现有的中国视图、区域索引、存储键和 `100000.json` 都没有改动。
 
 | 文件 | 职责 |
 | --- | --- |
 | `apps/trip-map/public/maps/world.json` | 233 个国家/地区的多边形（GeoJSON，`properties.code` 为 ISO 3166-1 alpha-2 或 `XK`），**不含 `CN`、`HK`、`MO`、`TW`** |
 | `apps/trip-map/public/maps/100000.json` | 世界视图里的 `CN`：直接使用这份现有文件（34 个省级区域加 `100000_JD`），不复制、不修改 |
 | `packages/geo-data/data/world-catalog.json` | 247 项目录（ISO 3166-1 去掉 `HK`、`MO`、`TW`，加 `XK`）：中文名、英文名、别名、大洲、`hasShape`、标注用代表点；同时记录来源、授权、改动、输入与输出的 SHA-256 和目录内容摘要 |
+| `internal/tripmap/world/catalog.json` | 上述目录的逐字节副本，由 Go `embed` 内嵌用于云端文档的国家码校验；与前端目录一同生成，不手改 |
 | `packages/geo-data/data/world-search-index.json` | 中文名与别名的拼音、首字母；英文名、别名和 ISO 码在运行时直接匹配。内容完全由目录的名称和别名决定，目录里记录它的 SHA-256，`check:maps` 还会离线重新生成并比对 |
 | `apps/trip-map/scripts/prepare-world-map.mjs` | 生成脚本，见下文 |
 | `apps/trip-map/scripts/world-names.mjs`、`world-iso-codes.mjs` | 手工维护的常用译名与别名、没有多边形的 13 个 ISO 条目、ISO 3166-1 代码对照表 |
@@ -198,9 +199,9 @@ S3 key 在配置前缀下分为 `media/staging/<随机ID>`、`media/files/<媒�
 
 **更新与校验**：
 
-- `npm run prepare:world` 下载固定版本的输入，先校验 SHA-256，不符则失败，再写出上述三个输出文件；`-- --input <文件>` 可改用本地副本，同样校验。输出是确定性的：同一输入逐字节得到相同文件。
+- `npm run prepare:world` 下载固定版本的输入，先校验 SHA-256，不符则失败，再写出四个输出文件：`world.json`、前端 `world-catalog.json`、后端 `internal/tripmap/world/catalog.json` 副本和 `world-search-index.json`；`-- --input <文件>` 可改用本地副本，同样校验。输出是确定性的：同一输入逐字节得到相同文件。更新目录时，两份目录及其余生成文件须一同提交。
 - `npm run prepare:world -- --verify` 重新生成并与已提交文件比较（需要网络），用来确认确定性与未被手改。
-- `npm run check:maps` 离线运行：目录与 ISO 3166-1 一致且没有 `HK`、`MO`、`TW`；`hasShape` 的目录项与 `world.json` 的要素一一对应；`CN` 由 `100000.json` 的 34 个省级区域和 10 个部分的 `100000_JD` 组成且与 `regions.json` 一致；摘要链（输入、`world.json`、搜索索引、`100000.json`、目录）完整，搜索索引与目录离线重新生成的结果逐字一致；多边形方向、可绘制性与取整网格；新增世界资源 gzip 后合计不超过 600 KB（当前约 420 KB，不含复用的 `100000.json`）。
+- `npm run check:maps` 离线运行：前后端目录副本逐字节一致；目录与 ISO 3166-1 一致且没有 `HK`、`MO`、`TW`；`hasShape` 的目录项与 `world.json` 的要素一一对应；`CN` 由 `100000.json` 的 34 个省级区域和 10 个部分的 `100000_JD` 组成且与 `regions.json` 一致；摘要链（输入、`world.json`、搜索索引、`100000.json`、目录）完整，搜索索引与目录离线重新生成的结果逐字一致；多边形方向、可绘制性与取整网格；新增世界资源 gzip 后合计不超过 600 KB（当前约 420 KB，不含复用的 `100000.json`）。Go 测试 `TestCatalogIsTheFrontendCatalog` 也核对目录副本一致性。
 - `CN` 的基线是未修改的 `100000.json`：它的 SHA-256 固定在 `check-world-map.mjs` 的 `CHINA_BASELINE_SHA256`，被改动时 `check:maps` 失败。有意更新全国地图时，要在同一次变更里更新这个常量并重新运行 `npm run prepare:world`（目录里的 `china.sha256` 随之更新）。
 - 世界资源由浏览器按需加载（目录与索引是单独的代码块），没有第三方请求，也不需要任何 Key。
 
