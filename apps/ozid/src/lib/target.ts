@@ -20,7 +20,7 @@ export type TargetState =
  * Resolves the `app_id` / `return_path` of the query through the BFF's registry. The
  * page never builds a return address itself: it only ever uses `target.returnUrl`.
  */
-export function useTarget(search: string): TargetState {
+export function useTarget(search: string, attempt = 0): TargetState {
   const [state, setState] = useState<TargetState>(() => initial(search));
   useEffect(() => {
     const ctx = readNavContext(search);
@@ -46,7 +46,7 @@ export function useTarget(search: string): TargetState {
     return () => {
       live = false;
     };
-  }, [search]);
+  }, [search, attempt]);
   return state;
 }
 

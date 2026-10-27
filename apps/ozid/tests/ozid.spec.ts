@@ -63,7 +63,12 @@ test.describe("direct visit", () => {
     await expect(page.getByTestId("overview-name")).toHaveText("Oz 用户");
     await expect(page.getByTestId("overview-email")).toHaveText(EMAIL);
     expect(accounts.state.writesWithoutCsrf).toEqual([]);
-    expect(accounts.state.calls).not.toContain("ResolveNavigation");
+    // Only the overview's fixed product entries are resolved; sign-in carries no return context.
+    await expect(page.getByRole("link", { name: "打开山海足迹" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "打开地铁足迹" })).toBeVisible();
+    expect(accounts.state.bodies.get("ResolveNavigation")).toEqual([
+      { appId: "trip-map" }, { appId: "metro" },
+    ]);
     // No password, token or CSRF value is kept by the page.
     const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + document.cookie);
     expect(stored).not.toContain(PASSWORD);
@@ -103,6 +108,57 @@ test.describe("direct visit", () => {
     await expect(panel(page)).toHaveCount(0);
     await page.getByRole("button", { name: "重试" }).click();
     await expect(page.getByTestId("overview-name")).toHaveText(account.displayName);
+  });
+});
+
+test.describe("overview product entries", () => {
+  test("product links use registered server destinations and support real navigation", async ({ page }) => {
+    const { accounts, visited } = await setup(page, { signedIn: true });
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "打开山海足迹" })).toHaveAttribute("href", "https://trip.example.com/");
+    await expect(page.getByRole("link", { name: "打开地铁足迹" })).toHaveAttribute("href", "https://metro.example.com/");
+    await expect(page.getByTestId("overview")).not.toContainText("已连接");
+    await page.getByRole("link", { name: "打开地铁足迹" }).click();
+    await expect(page).toHaveURL("https://metro.example.com/");
+    expect(visited).toEqual(["https://metro.example.com/"]);
+    expect(accounts.state.calls).not.toContain("Logout");
+  });
+
+  test("a product entry failure can be retried without changing the session", async ({ page }) => {
+    const { accounts } = await setup(page, { signedIn: true });
+    accounts.failNext("ResolveNavigation", FAILURES.unavailable, 2);
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "打开地铁足迹" })).toHaveCount(0);
+    await page.getByRole("button", { name: "重试读取地铁足迹入口" }).click();
+    await expect(page.getByRole("link", { name: "打开地铁足迹" })).toHaveAttribute("href", "https://metro.example.com/");
+    expect(accounts.state.current).not.toBeNull();
+  });
+
+  test("an unavailable product and an unsafe server URL never become links", async ({ page }) => {
+    await setup(page, { signedIn: true });
+    await page.route("**/api/bff.v1.AuthService/ResolveNavigation", async (route) => {
+      if (route.request().postDataJSON().appId === "trip-map") return route.fulfill({
+        status: 400, contentType: "application/json", body: JSON.stringify({ code: "invalid_argument", message: "not registered" }),
+      });
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ appId: "metro", returnUrl: "javascript:alert(1)" }) });
+    });
+    await page.goto("/");
+    await expect(page.getByText("当前未提供此产品入口。", { exact: true })).toHaveCount(2);
+    await expect(page.getByRole("link", { name: /^打开/ })).toHaveCount(0);
+  });
+
+  test("overview sign-out explains the scope and keeps the session when a request fails", async ({ page }) => {
+    const { accounts } = await setup(page, { signedIn: true });
+    await page.goto("/");
+    await page.evaluate(() => localStorage.setItem("review-draft", "keep"));
+    await expect(page.getByTestId("overview")).toContainText("各产品保存在本机的内容和未同步修改会保留");
+    accounts.failNext("Logout", FAILURES.unavailable);
+    await page.getByRole("button", { name: "退出当前浏览器登录" }).click();
+    await expect(page.getByRole("alert")).toContainText("你仍处于登录状态");
+    expect(accounts.state.current).not.toBeNull();
+    await page.getByRole("button", { name: "退出当前浏览器登录" }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    expect(await page.evaluate(() => localStorage.getItem("review-draft"))).toBe("keep");
   });
 });
 
