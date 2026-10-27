@@ -171,6 +171,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.Body = io.NopCloser(bytes.NewReader(body))
+	if serveUnsupportedMethod(w, body) {
+		return
+	}
 	ctx = context.WithValue(ctx, requestAuthKey{}, requestAuth{principal: principal, clientIP: clientIP, forcedTools: requestedTools(body)})
 	// The SDK's Streamable HTTP transport requires both response media types in
 	// Accept, while the previous endpoint accepted an omitted or JSON-only
@@ -239,6 +242,27 @@ func (s *Server) sdkToolHandler(t *tool, auth requestAuth) sdkmcp.ToolHandler {
 
 func textResult(text string, isError bool) *sdkmcp.CallToolResult {
 	return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: text}}, IsError: isError}
+}
+
+func serveUnsupportedMethod(w http.ResponseWriter, body []byte) bool {
+	var req struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      json.RawMessage `json:"id"`
+		Method  string          `json:"method"`
+	}
+	if json.Unmarshal(bytes.TrimSpace(body), &req) != nil {
+		return false
+	}
+	if req.Method != "resources/list" && req.Method != "resources/templates/list" && req.Method != "prompts/list" && req.Method != "prompts/get" {
+		return false
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      req.ID,
+		"error":   map[string]any{"code": -32601, "message": "method not found"},
+	})
+	return true
 }
 
 func requestedTools(body []byte) map[string]bool {
