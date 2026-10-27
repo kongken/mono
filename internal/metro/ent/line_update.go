@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/kongken/mono/internal/metro/ent/city"
 	"github.com/kongken/mono/internal/metro/ent/line"
@@ -292,6 +293,32 @@ func (_u *LineUpdate) SetNillableIsLoop(v *bool) *LineUpdate {
 	return _u
 }
 
+// SetVehicleType sets the "vehicle_type" field.
+func (_u *LineUpdate) SetVehicleType(v string) *LineUpdate {
+	_u.mutation.SetVehicleType(v)
+	return _u
+}
+
+// SetNillableVehicleType sets the "vehicle_type" field if the given value is not nil.
+func (_u *LineUpdate) SetNillableVehicleType(v *string) *LineUpdate {
+	if v != nil {
+		_u.SetVehicleType(*v)
+	}
+	return _u
+}
+
+// SetStationNames sets the "station_names" field.
+func (_u *LineUpdate) SetStationNames(v []string) *LineUpdate {
+	_u.mutation.SetStationNames(v)
+	return _u
+}
+
+// AppendStationNames appends value to the "station_names" field.
+func (_u *LineUpdate) AppendStationNames(v []string) *LineUpdate {
+	_u.mutation.AppendStationNames(v)
+	return _u
+}
+
 // SetCity sets the "city" edge to the City entity.
 func (_u *LineUpdate) SetCity(v *City) *LineUpdate {
 	return _u.SetCityID(v.ID)
@@ -452,6 +479,17 @@ func (_u *LineUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.IsLoop(); ok {
 		_spec.SetField(line.FieldIsLoop, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.VehicleType(); ok {
+		_spec.SetField(line.FieldVehicleType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.StationNames(); ok {
+		_spec.SetField(line.FieldStationNames, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedStationNames(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, line.FieldStationNames, value)
+		})
 	}
 	if _u.mutation.CityCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -793,6 +831,32 @@ func (_u *LineUpdateOne) SetNillableIsLoop(v *bool) *LineUpdateOne {
 	return _u
 }
 
+// SetVehicleType sets the "vehicle_type" field.
+func (_u *LineUpdateOne) SetVehicleType(v string) *LineUpdateOne {
+	_u.mutation.SetVehicleType(v)
+	return _u
+}
+
+// SetNillableVehicleType sets the "vehicle_type" field if the given value is not nil.
+func (_u *LineUpdateOne) SetNillableVehicleType(v *string) *LineUpdateOne {
+	if v != nil {
+		_u.SetVehicleType(*v)
+	}
+	return _u
+}
+
+// SetStationNames sets the "station_names" field.
+func (_u *LineUpdateOne) SetStationNames(v []string) *LineUpdateOne {
+	_u.mutation.SetStationNames(v)
+	return _u
+}
+
+// AppendStationNames appends value to the "station_names" field.
+func (_u *LineUpdateOne) AppendStationNames(v []string) *LineUpdateOne {
+	_u.mutation.AppendStationNames(v)
+	return _u
+}
+
 // SetCity sets the "city" edge to the City entity.
 func (_u *LineUpdateOne) SetCity(v *City) *LineUpdateOne {
 	return _u.SetCityID(v.ID)
@@ -983,6 +1047,17 @@ func (_u *LineUpdateOne) sqlSave(ctx context.Context) (_node *Line, err error) {
 	}
 	if value, ok := _u.mutation.IsLoop(); ok {
 		_spec.SetField(line.FieldIsLoop, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.VehicleType(); ok {
+		_spec.SetField(line.FieldVehicleType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.StationNames(); ok {
+		_spec.SetField(line.FieldStationNames, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedStationNames(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, line.FieldStationNames, value)
+		})
 	}
 	if _u.mutation.CityCleared() {
 		edge := &sqlgraph.EdgeSpec{

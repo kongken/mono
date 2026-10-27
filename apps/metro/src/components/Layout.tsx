@@ -74,7 +74,8 @@ export function Layout({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-surface text-on-surface">
+    <div className="flex min-h-screen flex-col bg-surface pb-[calc(4rem+env(safe-area-inset-bottom))] text-on-surface md:pb-0">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-3 focus:text-ink">跳到正文</a>
       <header className="sticky top-0 z-40 bg-surface/90 shadow-[0_1px_8px_rgba(18,28,42,0.05)] backdrop-blur-md">
         <div className={cn(container, "flex h-16 items-center gap-4")}>
           <Link to="/" className="flex shrink-0 items-center gap-2.5" aria-label="地铁足迹 首页">
@@ -149,7 +150,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </Alert>
         </div>
       ) : null}
-      <main className="w-full flex-1 pb-24 md:pb-0">{children}</main>
+      <main id="main-content" tabIndex={-1} className="w-full flex-1">{children}</main>
       <footer className="mt-10 hidden bg-surface-low md:block">
         <div className={cn(container, "flex flex-wrap items-center justify-between gap-4 py-8")}>
           <div className="flex flex-col gap-1.5">

@@ -79,6 +79,7 @@ func lineMessage(l *ent.Line) *metrov1.Line {
 		Code: l.Code, Name: l.Name, Number: int32(l.Number), Status: statusEnum(l.Status),
 		Cars: int32(l.Cars), CarsAddition: int32(l.CarsAddition), Stations: int32(l.Stations),
 		LengthKm: l.LengthKm, Color: l.Color, IsLoop: l.IsLoop,
+		VehicleType: l.VehicleType, StationNames: slices.Clone(l.StationNames),
 	}
 	if c := l.Edges.City; c != nil {
 		out.CitySlug, out.CityName = c.Slug, c.Name
@@ -120,6 +121,7 @@ func cityMessage(c *ent.City, lineCount int, km float64) *metrov1.City {
 	return &metrov1.City{
 		Slug: c.Slug, Name: c.Name, HeaderImages: slices.Clone(c.HeaderImages), MapSvgUrl: c.MapSvgURL,
 		SortOrder: int32(c.SortOrder), LineCount: int32(lineCount), TotalLengthKm: roundKm(km),
+		Region: c.Region,
 	}
 }
 

@@ -85,6 +85,20 @@ func (_u *CityUpdate) SetNillableName(v *string) *CityUpdate {
 	return _u
 }
 
+// SetRegion sets the "region" field.
+func (_u *CityUpdate) SetRegion(v string) *CityUpdate {
+	_u.mutation.SetRegion(v)
+	return _u
+}
+
+// SetNillableRegion sets the "region" field if the given value is not nil.
+func (_u *CityUpdate) SetNillableRegion(v *string) *CityUpdate {
+	if v != nil {
+		_u.SetRegion(*v)
+	}
+	return _u
+}
+
 // SetHeaderImages sets the "header_images" field.
 func (_u *CityUpdate) SetHeaderImages(v []string) *CityUpdate {
 	_u.mutation.SetHeaderImages(v)
@@ -256,6 +270,9 @@ func (_u *CityUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(city.FieldName, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.Region(); ok {
+		_spec.SetField(city.FieldRegion, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.HeaderImages(); ok {
 		_spec.SetField(city.FieldHeaderImages, field.TypeJSON, value)
 	}
@@ -389,6 +406,20 @@ func (_u *CityUpdateOne) SetName(v string) *CityUpdateOne {
 func (_u *CityUpdateOne) SetNillableName(v *string) *CityUpdateOne {
 	if v != nil {
 		_u.SetName(*v)
+	}
+	return _u
+}
+
+// SetRegion sets the "region" field.
+func (_u *CityUpdateOne) SetRegion(v string) *CityUpdateOne {
+	_u.mutation.SetRegion(v)
+	return _u
+}
+
+// SetNillableRegion sets the "region" field if the given value is not nil.
+func (_u *CityUpdateOne) SetNillableRegion(v *string) *CityUpdateOne {
+	if v != nil {
+		_u.SetRegion(*v)
 	}
 	return _u
 }
@@ -593,6 +624,9 @@ func (_u *CityUpdateOne) sqlSave(ctx context.Context) (_node *City, err error) {
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(city.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Region(); ok {
+		_spec.SetField(city.FieldRegion, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.HeaderImages(); ok {
 		_spec.SetField(city.FieldHeaderImages, field.TypeJSON, value)

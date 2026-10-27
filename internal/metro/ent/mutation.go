@@ -1293,6 +1293,7 @@ type CityMutation struct {
 	updated_at          *time.Time
 	slug                *string
 	name                *string
+	region              *string
 	header_images       *[]string
 	appendheader_images []string
 	map_svg_url         *string
@@ -1611,6 +1612,42 @@ func (m *CityMutation) ResetName() {
 	m.name = nil
 }
 
+// SetRegion sets the "region" field.
+func (m *CityMutation) SetRegion(s string) {
+	m.region = &s
+}
+
+// Region returns the value of the "region" field in the mutation.
+func (m *CityMutation) Region() (r string, exists bool) {
+	v := m.region
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRegion returns the old "region" field's value of the City entity.
+// If the City object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CityMutation) OldRegion(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRegion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRegion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRegion: %w", err)
+	}
+	return oldValue.Region, nil
+}
+
+// ResetRegion resets all changes to the "region" field.
+func (m *CityMutation) ResetRegion() {
+	m.region = nil
+}
+
 // SetHeaderImages sets the "header_images" field.
 func (m *CityMutation) SetHeaderImages(s []string) {
 	m.header_images = &s
@@ -1842,7 +1879,7 @@ func (m *CityMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CityMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 9)
 	if m.revision != nil {
 		fields = append(fields, city.FieldRevision)
 	}
@@ -1857,6 +1894,9 @@ func (m *CityMutation) Fields() []string {
 	}
 	if m.name != nil {
 		fields = append(fields, city.FieldName)
+	}
+	if m.region != nil {
+		fields = append(fields, city.FieldRegion)
 	}
 	if m.header_images != nil {
 		fields = append(fields, city.FieldHeaderImages)
@@ -1885,6 +1925,8 @@ func (m *CityMutation) Field(name string) (ent.Value, bool) {
 		return m.Slug()
 	case city.FieldName:
 		return m.Name()
+	case city.FieldRegion:
+		return m.Region()
 	case city.FieldHeaderImages:
 		return m.HeaderImages()
 	case city.FieldMapSvgURL:
@@ -1910,6 +1952,8 @@ func (m *CityMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldSlug(ctx)
 	case city.FieldName:
 		return m.OldName(ctx)
+	case city.FieldRegion:
+		return m.OldRegion(ctx)
 	case city.FieldHeaderImages:
 		return m.OldHeaderImages(ctx)
 	case city.FieldMapSvgURL:
@@ -1959,6 +2003,13 @@ func (m *CityMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetName(v)
+		return nil
+	case city.FieldRegion:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRegion(v)
 		return nil
 	case city.FieldHeaderImages:
 		v, ok := value.([]string)
@@ -2071,6 +2122,9 @@ func (m *CityMutation) ResetField(name string) error {
 		return nil
 	case city.FieldName:
 		m.ResetName()
+		return nil
+	case city.FieldRegion:
+		m.ResetRegion()
 		return nil
 	case city.FieldHeaderImages:
 		m.ResetHeaderImages()
@@ -2196,6 +2250,9 @@ type LineMutation struct {
 	commenced_on         *time.Time
 	extended_on          *time.Time
 	is_loop              *bool
+	vehicle_type         *string
+	station_names        *[]string
+	appendstation_names  []string
 	clearedFields        map[string]struct{}
 	city                 *string
 	clearedcity          bool
@@ -3081,6 +3138,93 @@ func (m *LineMutation) ResetIsLoop() {
 	m.is_loop = nil
 }
 
+// SetVehicleType sets the "vehicle_type" field.
+func (m *LineMutation) SetVehicleType(s string) {
+	m.vehicle_type = &s
+}
+
+// VehicleType returns the value of the "vehicle_type" field in the mutation.
+func (m *LineMutation) VehicleType() (r string, exists bool) {
+	v := m.vehicle_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVehicleType returns the old "vehicle_type" field's value of the Line entity.
+// If the Line object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LineMutation) OldVehicleType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVehicleType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVehicleType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVehicleType: %w", err)
+	}
+	return oldValue.VehicleType, nil
+}
+
+// ResetVehicleType resets all changes to the "vehicle_type" field.
+func (m *LineMutation) ResetVehicleType() {
+	m.vehicle_type = nil
+}
+
+// SetStationNames sets the "station_names" field.
+func (m *LineMutation) SetStationNames(s []string) {
+	m.station_names = &s
+	m.appendstation_names = nil
+}
+
+// StationNames returns the value of the "station_names" field in the mutation.
+func (m *LineMutation) StationNames() (r []string, exists bool) {
+	v := m.station_names
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStationNames returns the old "station_names" field's value of the Line entity.
+// If the Line object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LineMutation) OldStationNames(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStationNames is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStationNames requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStationNames: %w", err)
+	}
+	return oldValue.StationNames, nil
+}
+
+// AppendStationNames adds s to the "station_names" field.
+func (m *LineMutation) AppendStationNames(s []string) {
+	m.appendstation_names = append(m.appendstation_names, s...)
+}
+
+// AppendedStationNames returns the list of values that were appended to the "station_names" field in this mutation.
+func (m *LineMutation) AppendedStationNames() ([]string, bool) {
+	if len(m.appendstation_names) == 0 {
+		return nil, false
+	}
+	return m.appendstation_names, true
+}
+
+// ResetStationNames resets all changes to the "station_names" field.
+func (m *LineMutation) ResetStationNames() {
+	m.station_names = nil
+	m.appendstation_names = nil
+}
+
 // ClearCity clears the "city" edge to the City entity.
 func (m *LineMutation) ClearCity() {
 	m.clearedcity = true
@@ -3169,7 +3313,7 @@ func (m *LineMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *LineMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 19)
 	if m.revision != nil {
 		fields = append(fields, line.FieldRevision)
 	}
@@ -3221,6 +3365,12 @@ func (m *LineMutation) Fields() []string {
 	if m.is_loop != nil {
 		fields = append(fields, line.FieldIsLoop)
 	}
+	if m.vehicle_type != nil {
+		fields = append(fields, line.FieldVehicleType)
+	}
+	if m.station_names != nil {
+		fields = append(fields, line.FieldStationNames)
+	}
 	return fields
 }
 
@@ -3263,6 +3413,10 @@ func (m *LineMutation) Field(name string) (ent.Value, bool) {
 		return m.ExtendedOn()
 	case line.FieldIsLoop:
 		return m.IsLoop()
+	case line.FieldVehicleType:
+		return m.VehicleType()
+	case line.FieldStationNames:
+		return m.StationNames()
 	}
 	return nil, false
 }
@@ -3306,6 +3460,10 @@ func (m *LineMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldExtendedOn(ctx)
 	case line.FieldIsLoop:
 		return m.OldIsLoop(ctx)
+	case line.FieldVehicleType:
+		return m.OldVehicleType(ctx)
+	case line.FieldStationNames:
+		return m.OldStationNames(ctx)
 	}
 	return nil, fmt.Errorf("unknown Line field %s", name)
 }
@@ -3433,6 +3591,20 @@ func (m *LineMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetIsLoop(v)
+		return nil
+	case line.FieldVehicleType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVehicleType(v)
+		return nil
+	case line.FieldStationNames:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStationNames(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Line field %s", name)
@@ -3629,6 +3801,12 @@ func (m *LineMutation) ResetField(name string) error {
 		return nil
 	case line.FieldIsLoop:
 		m.ResetIsLoop()
+		return nil
+	case line.FieldVehicleType:
+		m.ResetVehicleType()
+		return nil
+	case line.FieldStationNames:
+		m.ResetStationNames()
 		return nil
 	}
 	return fmt.Errorf("unknown Line field %s", name)

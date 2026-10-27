@@ -32,6 +32,7 @@ type cityDoc struct {
 	HeaderImages []string `json:"header_images"`
 	MapSVGURL    string   `json:"map_svg_url"`
 	SortOrder    int      `json:"sort_order"`
+	Region       string   `json:"region,omitempty"`
 }
 
 type stockDoc struct {
@@ -42,20 +43,22 @@ type stockDoc struct {
 }
 
 type lineDoc struct {
-	Code         string  `json:"code"`
-	City         string  `json:"city"`
-	Name         string  `json:"name"`
-	Number       int     `json:"number"`
-	Status       string  `json:"status"`
-	RollingStock string  `json:"rolling_stock,omitempty"`
-	Cars         int     `json:"cars"`
-	CarsAddition int     `json:"cars_addition"`
-	Stations     int     `json:"stations"`
-	LengthKm     float64 `json:"length_km"`
-	Color        string  `json:"color"`
-	CommencedOn  string  `json:"commenced_on,omitempty"`
-	ExtendedOn   string  `json:"extended_on,omitempty"`
-	IsLoop       bool    `json:"is_loop"`
+	Code         string   `json:"code"`
+	City         string   `json:"city"`
+	Name         string   `json:"name"`
+	Number       int      `json:"number"`
+	Status       string   `json:"status"`
+	RollingStock string   `json:"rolling_stock,omitempty"`
+	Cars         int      `json:"cars"`
+	CarsAddition int      `json:"cars_addition"`
+	Stations     int      `json:"stations"`
+	LengthKm     float64  `json:"length_km"`
+	Color        string   `json:"color"`
+	CommencedOn  string   `json:"commenced_on,omitempty"`
+	ExtendedOn   string   `json:"extended_on,omitempty"`
+	IsLoop       bool     `json:"is_loop"`
+	VehicleType  string   `json:"vehicle_type,omitempty"`
+	StationNames []string `json:"station_names,omitempty"`
 }
 
 type topicDoc struct {
@@ -108,7 +111,7 @@ func floatPtrEqual(a, b *float64) bool {
 
 func (d cityDoc) equal(o cityDoc) bool {
 	return d.Slug == o.Slug && d.Name == o.Name && slices.Equal(d.HeaderImages, o.HeaderImages) &&
-		d.MapSVGURL == o.MapSVGURL && d.SortOrder == o.SortOrder
+		d.MapSVGURL == o.MapSVGURL && d.SortOrder == o.SortOrder && d.Region == o.Region
 }
 
 func (d stockDoc) equal(o stockDoc) bool {
@@ -120,7 +123,8 @@ func (d lineDoc) equal(o lineDoc) bool {
 	return d.Code == o.Code && d.City == o.City && d.Name == o.Name && d.Number == o.Number && d.Status == o.Status &&
 		d.RollingStock == o.RollingStock && d.Cars == o.Cars && d.CarsAddition == o.CarsAddition &&
 		d.Stations == o.Stations && math.Abs(d.LengthKm-o.LengthKm) < 1e-9 && d.Color == o.Color &&
-		d.CommencedOn == o.CommencedOn && d.ExtendedOn == o.ExtendedOn && d.IsLoop == o.IsLoop
+		d.CommencedOn == o.CommencedOn && d.ExtendedOn == o.ExtendedOn && d.IsLoop == o.IsLoop &&
+		d.VehicleType == o.VehicleType && slices.Equal(d.StationNames, o.StationNames)
 }
 
 func (d topicDoc) equal(o topicDoc) bool {
@@ -130,7 +134,7 @@ func (d topicDoc) equal(o topicDoc) bool {
 // ---- records from stored rows ----
 
 func cityDocOf(c *ent.City) cityDoc {
-	d := cityDoc{Slug: c.Slug, Name: c.Name, HeaderImages: slices.Clone(c.HeaderImages), MapSVGURL: c.MapSvgURL, SortOrder: c.SortOrder}
+	d := cityDoc{Slug: c.Slug, Name: c.Name, HeaderImages: slices.Clone(c.HeaderImages), MapSVGURL: c.MapSvgURL, SortOrder: c.SortOrder, Region: c.Region}
 	d.normalize()
 	return d
 }
@@ -144,6 +148,7 @@ func lineDocOf(l *ent.Line) lineDoc {
 	d := lineDoc{
 		Code: l.Code, Name: l.Name, Number: l.Number, Status: string(l.Status), Cars: l.Cars,
 		CarsAddition: l.CarsAddition, Stations: l.Stations, LengthKm: l.LengthKm, Color: l.Color, IsLoop: l.IsLoop,
+		VehicleType: l.VehicleType, StationNames: slices.Clone(l.StationNames),
 	}
 	if l.Edges.City != nil {
 		d.City = l.Edges.City.Slug
@@ -170,7 +175,7 @@ func topicDocOf(t *ent.RollingStockTopic) topicDoc {
 
 func cityFromInput(in *metrov1.CityInput) cityDoc {
 	d := cityDoc{Slug: in.GetSlug(), Name: in.GetName(), HeaderImages: slices.Clone(in.GetHeaderImages()),
-		MapSVGURL: in.GetMapSvgUrl(), SortOrder: int(in.GetSortOrder())}
+		MapSVGURL: in.GetMapSvgUrl(), SortOrder: int(in.GetSortOrder()), Region: in.GetRegion()}
 	d.normalize()
 	return d
 }
@@ -198,6 +203,7 @@ func lineFromInput(in *metrov1.LineInput) lineDoc {
 		RollingStock: in.GetRollingStockCode(), Cars: int(in.GetCars()), CarsAddition: int(in.GetCarsAddition()),
 		Stations: int(in.GetStations()), LengthKm: in.GetLengthKm(), Color: in.GetColor(),
 		CommencedOn: in.GetCommencedOn(), ExtendedOn: in.GetExtendedOn(), IsLoop: in.GetIsLoop(),
+		VehicleType: in.GetVehicleType(), StationNames: slices.Clone(in.GetStationNames()),
 	}
 	switch s := in.GetStatus(); s {
 	case metrov1.LineStatus_LINE_STATUS_UNSPECIFIED:
@@ -225,7 +231,7 @@ func topicFromInput(in *metrov1.RollingStockTopicInput) topicDoc {
 
 func cityInputOf(d cityDoc) *metrov1.CityInput {
 	return &metrov1.CityInput{Slug: d.Slug, Name: d.Name, HeaderImages: slices.Clone(d.HeaderImages),
-		MapSvgUrl: d.MapSVGURL, SortOrder: int32(d.SortOrder)}
+		MapSvgUrl: d.MapSVGURL, SortOrder: int32(d.SortOrder), Region: d.Region}
 }
 
 func stockInputOf(d stockDoc) *metrov1.RollingStockInput {
@@ -242,6 +248,7 @@ func lineInputOf(d lineDoc) *metrov1.LineInput {
 		Code: d.Code, CitySlug: d.City, Name: d.Name, Number: int32(d.Number), RollingStockCode: d.RollingStock,
 		Cars: int32(d.Cars), CarsAddition: int32(d.CarsAddition), Stations: int32(d.Stations), LengthKm: d.LengthKm,
 		Color: d.Color, CommencedOn: d.CommencedOn, ExtendedOn: d.ExtendedOn, IsLoop: d.IsLoop,
+		VehicleType: d.VehicleType, StationNames: slices.Clone(d.StationNames),
 	}
 	out.Status = statusEnum(line.Status(d.Status))
 	return out
@@ -359,6 +366,9 @@ func (d cityDoc) validate(p string, l *errList) {
 		l.add(p+"slug", "must be lowercase letters, digits and hyphens, at most 32 characters")
 	}
 	l.text(p+"name", d.Name, 32)
+	if !slices.Contains([]string{"", "east", "north", "south", "southwest", "central", "northeast", "northwest"}, d.Region) {
+		l.add(p+"region", "must be empty or east, north, south, southwest, central, northeast, northwest")
+	}
 	if len(d.HeaderImages) > maxHeaderImages {
 		l.add(p+"header_images", "at most %d images", maxHeaderImages)
 	}
@@ -411,6 +421,15 @@ func (d lineDoc) validate(p string, l *errList) {
 	l.intRange(p+"cars", d.Cars, 0, 99)
 	l.intRange(p+"cars_addition", d.CarsAddition, 0, 99)
 	l.intRange(p+"stations", d.Stations, 0, 999)
+	if !slices.Contains([]string{"", "a", "b", "l", "rubber", "other"}, d.VehicleType) {
+		l.add(p+"vehicle_type", "must be empty or a, b, l, rubber, other")
+	}
+	if len(d.StationNames) > 999 || (len(d.StationNames) > 0 && len(d.StationNames) != d.Stations) {
+		l.add(p+"station_names", "must be empty or contain exactly stations entries, at most 999")
+	}
+	for i, name := range d.StationNames {
+		l.text(fmt.Sprintf("%sstation_names[%d]", p, i), name, 64)
+	}
 	if !atMostTwoDecimals(d.LengthKm) || d.LengthKm < 0 || d.LengthKm > 9999.99 {
 		l.add(p+"length_km", "must be between 0 and 9999.99 with at most two decimals")
 	}

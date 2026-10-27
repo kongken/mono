@@ -6,7 +6,7 @@ export const OZID = "https://id.example.com";
 export const EMAIL = "rider@example.com";
 export const PASSWORD = "correct horse battery";
 /** What the BFF's registry lists for this product: the pages a sign-in may return to (the start page is implicit). */
-export const REGISTERED = ["/me", "/cities/*", "/topics/*", "/u/*"];
+export const REGISTERED = ["/me", "/cities/*", "/topics", "/topics/*", "/u/*"];
 
 /**
  * The metro app against a fake BFF: the catalogue and rider service (fake-backend.ts) and the shared account
@@ -35,6 +35,19 @@ export async function setup(page: Page, opts: { signedIn?: boolean; registered?:
 }
 
 export const loginUrl = (returnPath: string) => `${OZID}/login?app_id=metro&return_path=${encodeURIComponent(returnPath)}`;
+
+/** A signed-in write is always an explicit save in the ride editor. */
+export async function saveRide(page: Page, code: string, year?: string) {
+  await page.getByTestId(`line-${code}`).getByRole("button", { name: "标记坐过" }).click();
+  const dialog = page.getByRole("dialog");
+  if (year !== undefined) await dialog.getByLabel("乘坐年份（可选）").fill(year);
+  await dialog.getByRole("button", { name: "保存记录", exact: true }).click();
+}
+
+export async function removeRide(page: Page, code: string) {
+  await page.getByTestId(`line-${code}`).getByRole("button", { name: "编辑足迹" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "移除此线路足迹" }).click();
+}
 
 /** The page asks Me again when it is shown or focused again; this is that moment (the ask is rate limited). */
 export async function refocus(page: Page) {

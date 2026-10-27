@@ -20,9 +20,8 @@ import (
 	"github.com/kongken/mono/internal/metro/ent"
 )
 
-// DB returns an Ent client bound to a throwaway schema with the tables created
-// and the catalog_state row seeded. Everything is removed on cleanup.
-func DB(t testing.TB) *ent.Client {
+// Schema returns a connection bound to an empty throwaway schema, removed on cleanup.
+func Schema(t testing.TB) *sql.DB {
 	t.Helper()
 	dsn := os.Getenv("TRIPMAP_TEST_POSTGRES_DSN")
 	if dsn == "" {
@@ -47,11 +46,21 @@ func DB(t testing.TB) *ent.Client {
 	cfg.RuntimeParams["search_path"] = schema
 	scoped := stdlib.OpenDB(*cfg)
 	t.Cleanup(func() { _ = scoped.Close() })
+	return scoped
+}
+
+// DB returns an Ent client bound to a throwaway schema with the tables created
+// and the catalog_state row seeded. Everything is removed on cleanup.
+func DB(t testing.TB) *ent.Client {
+	t.Helper()
+	scoped := Schema(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	db := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, scoped)))
-	if err = db.Schema.Create(ctx); err != nil {
+	if err := db.Schema.Create(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err = application.EnsureCatalogState(ctx, db); err != nil {
+	if err := application.EnsureCatalogState(ctx, db); err != nil {
 		t.Fatal(err)
 	}
 	return db

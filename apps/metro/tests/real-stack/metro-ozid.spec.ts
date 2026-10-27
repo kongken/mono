@@ -51,7 +51,13 @@ const header = (page: Page) => page.getByRole("banner");
 const signIn = (page: Page) => header(page).getByRole("button", { name: "登录", exact: true });
 const line = (page: Page, code: string) => page.getByTestId(`line-${code}`);
 const mark = (page: Page, code: string) => line(page, code).getByRole("button", { name: "标记坐过" });
-const marked = (page: Page, code: string) => line(page, code).getByRole("button", { name: "坐过", exact: true });
+const marked = (page: Page, code: string) => line(page, code).getByRole("button", { name: "编辑足迹", exact: true });
+
+async function saveRide(page: Page, code: string, year?: string) {
+  await mark(page, code).click();
+  if (year !== undefined) await page.getByRole("dialog").getByLabel("乘坐年份（可选）").fill(year);
+  await page.getByRole("dialog").getByRole("button", { name: "保存记录", exact: true }).click();
+}
 const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
 /** The page is shown or focused again: it asks Me once more (the ask is rate limited, so time moves on first). */
@@ -124,6 +130,13 @@ function recordTraffic(page: Page) {
 }
 
 test.describe("sign in through OzID and come back", () => {
+  test("the topic index is a real registered login return target", async ({ page }, info) => {
+    const who = acct("index", info);
+    await enterViaOzid(page, who, "/topics");
+    await expect(page).toHaveURL(`${stack.metro}/topics`);
+    await expect(page.getByRole("heading", { name: "车型专题", exact: true })).toBeVisible();
+    await expect(header(page).getByText(who.displayName)).toBeVisible();
+  });
   test("an anonymous mark only goes to OzID; the real return restores the account and its own lines", async ({ page, context }, info) => {
     const who = acct("round", info);
     const requested: string[] = [];
@@ -140,7 +153,7 @@ test.describe("sign in through OzID and come back", () => {
     await page.waitForURL(`${stack.metro}/cities/shanghai`);
     await expect(header(page).getByText(who.displayName)).toBeVisible();
     // The seeded ride is the real Me + rider answer for this account: sh-1 is marked, sh-2 is not.
-    await expect(marked(page, "sh-1")).toHaveAttribute("aria-pressed", "true");
+    await expect(marked(page, "sh-1")).toBeVisible();
     await expect(mark(page, "sh-2")).toBeVisible();
     expect(await noOverflow(page)).toBe(true);
     expect(new URL(page.url()).search).toBe("");
@@ -161,7 +174,7 @@ test.describe("sign in through OzID and come back", () => {
     // A reload stays signed in.
     await page.reload();
     await expect(header(page).getByText(who.displayName)).toBeVisible();
-    await expect(marked(page, "sh-1")).toHaveAttribute("aria-pressed", "true");
+    await expect(marked(page, "sh-1")).toBeVisible();
 
     // OzID's own pages open in another tab, with no opener, and leave this page as it is.
     const [popup] = await Promise.all([context.waitForEvent("page"), header(page).getByTestId("ozid-link-home").click()]);
@@ -177,10 +190,13 @@ test.describe("sign in through OzID and come back", () => {
     const who = acct("mark", info);
     await enterViaOzid(page, who);
     expect(await rides(who.id)).toEqual(["sh-1"]);
-    await mark(page, "sh-2").click();
-    await expect(marked(page, "sh-2")).toHaveAttribute("aria-pressed", "true");
+    await saveRide(page, "sh-2", "2019");
+    await expect(marked(page, "sh-2")).toBeVisible();
     expect(await rides(who.id)).toEqual(["sh-1", "sh-2"]);
+    await page.reload();
+    await expect(line(page, "sh-2")).toContainText("2019 年");
     await marked(page, "sh-2").click();
+    await page.getByRole("dialog").getByRole("button", { name: "移除此线路足迹" }).click();
     await expect(mark(page, "sh-2")).toBeVisible();
     expect(await rides(who.id)).toEqual(["sh-1"]);
   });
@@ -242,7 +258,7 @@ test.describe("a session that ends or changes elsewhere, and a network that fail
     const who = acct("out", info);
     await page.clock.install();
     await enterViaOzid(page, who);
-    await expect(marked(page, "sh-1")).toHaveAttribute("aria-pressed", "true");
+    await expect(marked(page, "sh-1")).toBeVisible();
     // What the page does on its own is counted from here: asks to the BFF about the session, requests to OzID's
     // origin (the product only ever goes there by a click), and moves of the page.
     const asks: string[] = [];
@@ -273,20 +289,20 @@ test.describe("a session that ends or changes elsewhere, and a network that fail
     await ozidSignIn(context, who);
     await refocus(page);
     await expect(header(page).getByText(who.displayName)).toBeVisible();
-    await expect(marked(page, "sh-1")).toHaveAttribute("aria-pressed", "true");
+    await expect(marked(page, "sh-1")).toBeVisible();
   });
 
   test("a network failure is not a sign-out: nothing is cleared, nobody is sent to sign in, and it recovers", async ({ page }, info) => {
     const who = acct("net", info);
     await page.clock.install();
     await enterViaOzid(page, who);
-    await expect(marked(page, "sh-1")).toHaveAttribute("aria-pressed", "true");
+    await expect(marked(page, "sh-1")).toBeVisible();
     let down = true;
     await page.route("**/bff.v1.AuthService/Me", (route) => (down ? route.abort("connectionrefused") : route.fallback()));
     await refocus(page);
     await expect(page.getByTestId("session-unverified")).toContainText("先按已登录的账号显示");
     await expect(header(page).getByText(who.displayName)).toBeVisible();
-    await expect(marked(page, "sh-1")).toHaveAttribute("aria-pressed", "true");
+    await expect(marked(page, "sh-1")).toBeVisible();
     await expect(signIn(page)).toHaveCount(0);
     down = false;
     await page.getByTestId("session-unverified").getByRole("button", { name: "重新检查" }).click();
@@ -310,7 +326,7 @@ test.describe("a session that ends or changes elsewhere, and a network that fail
     const b = acct("swapb", info);
     const timeline = recordTraffic(page);
     await enterViaOzid(page, a);
-    await expect(marked(page, "sh-1")).toHaveAttribute("aria-pressed", "true");
+    await expect(marked(page, "sh-1")).toBeVisible();
     const serverA = await rides(a.id);
     const serverB = await rides(b.id);
 
@@ -318,7 +334,7 @@ test.describe("a session that ends or changes elsewhere, and a network that fail
     await ozidSignOut(context);
     await ozidSignIn(context, b);
     timeline.length = 0;
-    await mark(page, "sh-2").click();
+    await saveRide(page, "sh-2");
     await expect.poll(() => timeline.some((h) => h.kind === "write" && h.status !== undefined)).toBe(true);
     const writes = timeline.filter((h) => h.kind === "write");
     expect(writes).toHaveLength(1);
@@ -331,8 +347,8 @@ test.describe("a session that ends or changes elsewhere, and a network that fail
     await expect(page.getByTestId("session-notice")).toContainText(b.displayName);
     await expect(page).toHaveURL(`${stack.metro}/cities/shanghai`);
     // B's own act is named as B's and lands in B's lines only.
-    await mark(page, "sh-2").click();
-    await expect(marked(page, "sh-2")).toHaveAttribute("aria-pressed", "true");
+    await saveRide(page, "sh-2");
+    await expect(marked(page, "sh-2")).toBeVisible();
     expect(await rides(b.id)).toEqual(["sh-1", "sh-2"]);
     expect(await rides(a.id)).toEqual(serverA);
   });
@@ -384,8 +400,8 @@ test.describe("a token replaced by another tab", () => {
     // The write leaves the page with the token it just fetched; before it is sent on, another tab replaces the
     // shared token, so the double submit no longer matches when the BFF compares them.
     await interleave(page, () => rotateCSRF(context));
-    await mark(page, "sh-2").click();
-    await expect(marked(page, "sh-2")).toHaveAttribute("aria-pressed", "true");
+    await saveRide(page, "sh-2");
+    await expect(marked(page, "sh-2")).toBeVisible();
 
     const calls = timeline.filter((h) => h.kind === "write" || h.kind === "csrf");
     // [token for the write, the write (refused), the repair token, the same write again]
@@ -419,7 +435,7 @@ test.describe("a token replaced by another tab", () => {
       await ozidSignOut(context);
       await ozidSignIn(context, b);
     });
-    await mark(page, "sh-2").click();
+    await saveRide(page, "sh-2");
 
     // The write is refused for its stale token (marked), a new token is fetched with B's Cookie, and the repeat
     // goes out as it was: A's header. The BFF's guard refuses that, before any service sees it.

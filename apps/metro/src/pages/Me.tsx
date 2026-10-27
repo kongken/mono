@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import type { ProfileInput } from "@kongken/api-client/bff/metro/v1/rider_pb";
+import type { ProfileInput, RiddenLine } from "@kongken/api-client/bff/metro/v1/rider_pb";
 import { Button } from "@kongken/ui/button";
-import { Input } from "@kongken/ui/input";
 import { rider, write } from "@/lib/rpc";
 import { describeError, fieldProblems, isUnauthenticated } from "@/lib/errors";
-import { formatKm, lines as splitLines, parseYear } from "@/lib/format";
+import { formatKm, lines as splitLines } from "@/lib/format";
 import { useAsync } from "@/lib/useAsync";
 import { useSession } from "@/lib/session";
 import { ozid } from "@/lib/account-center";
@@ -13,6 +12,7 @@ import { Alert, Eyebrow, Field, PageTitle, Panel, Spinner, Stat, Textarea, TextF
 import { container } from "@/components/Layout";
 import { Buildings, MapTrifold, Path, Ruler } from "@phosphor-icons/react";
 import { RiddenCities } from "@/components/RiddenCities";
+import { RideEditor } from "@/components/RideEditor";
 
 const shell = (children: React.ReactNode) => <div className={`${container} py-8 md:py-12`}>{children}</div>;
 
@@ -75,7 +75,7 @@ function SignedInMe() {
             ) : (
               <RiddenCities
                 cities={rides.value.cities}
-                action={(l) => <RideControls lineCode={l.lineCode} lineName={l.lineName} year={l.riddenYear} onChanged={reload} onError={(t) => setMessage({ kind: "error", text: t })} />}
+                action={(l) => <RideControls line={l} onChanged={reload} />}
               />
             )}
           </>
@@ -100,49 +100,22 @@ function SignedInMe() {
   );
 }
 
-function RideControls({ lineCode, lineName, year, onChanged, onError }: { lineCode: string; lineName: string; year: number; onChanged: () => void; onError: (t: string) => void }) {
-  const [value, setValue] = useState(year ? String(year) : "");
-  const [busy, setBusy] = useState(false);
-  useEffect(() => setValue(year ? String(year) : ""), [year]);
-  const parsed = parseYear(value);
-  const saveYear = async () => {
-    if (Number.isNaN(parsed)) return onError("年份需要在 1900 到今年之间，或留空。");
-    setBusy(true);
+function RideControls({ line, onChanged }: { line: RiddenLine; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const { refresh } = useSession();
+  const change = async (operation: () => Promise<unknown>) => {
     try {
-      await write(() => rider.markLine({ lineCode, riddenYear: parsed }));
+      await operation();
       onChanged();
     } catch (e) {
-      onError(describeError(e));
-    } finally {
-      setBusy(false);
+      if (isUnauthenticated(e)) void refresh();
+      throw e;
     }
   };
-  const remove = async () => {
-    setBusy(true);
-    try {
-      await write(() => rider.unmarkLine({ lineCode }));
-      onChanged();
-    } catch (e) {
-      onError(describeError(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <span className="flex items-center gap-1.5">
-      <Input
-        aria-label={`${lineName} 乘坐年份`}
-        inputMode="numeric"
-        placeholder="年份"
-        className="h-8 w-20 rounded-lg bg-surface-lowest"
-        value={value}
-        aria-invalid={Number.isNaN(parsed) || undefined}
-        onChange={(e) => setValue(e.target.value)}
-      />
-      <Button size="sm" variant="outline" disabled={busy || value === (year ? String(year) : "")} onClick={() => void saveYear()}>保存</Button>
-      <Button size="sm" variant="ghost" className="text-on-variant" disabled={busy} aria-label={`取消标记 ${lineName}`} onClick={() => void remove()}>取消标记</Button>
-    </span>
-  );
+  return <>
+    <Button variant="outline" className="min-h-11" aria-label={`编辑 ${line.lineName} 乘坐年份`} aria-haspopup="dialog" onClick={() => setOpen(true)}>编辑年份</Button>
+    {open ? <RideEditor line={{ code: line.lineCode, name: line.lineName, color: line.color, lengthKm: line.lengthKm }} year={line.riddenYear} ridden onClose={() => setOpen(false)} onSave={(year) => change(() => write(() => rider.markLine({ lineCode: line.lineCode, riddenYear: year })))} onRemove={() => change(() => write(() => rider.unmarkLine({ lineCode: line.lineCode })))} /> : null}
+  </>;
 }
 
 type ProfileForm = { handle: string; displayName: string; subtitle: string; bio: string; location: string; headerImages: string; twitter: string; instagram: string; weibo: string; facebook: string; github: string; isPublic: boolean };

@@ -54,6 +54,8 @@ message City {
   // Operating lines of the city and their total length.
   int32 line_count = 6;
   double total_length_km = 7;
+  // east, north, south, southwest, central, northeast or northwest; empty when unknown.
+  string region = 8;
 }
 
 message Line {
@@ -76,6 +78,10 @@ message Line {
   string commenced_on = 13;
   string extended_on = 14;
   bool is_loop = 15;
+  // a, b, l, rubber or other; empty when the vehicle class is unknown.
+  string vehicle_type = 16;
+  // Ordered station names, first to last; empty when the station list is unknown.
+  repeated string station_names = 17;
 }
 
 message RollingStockTopic {

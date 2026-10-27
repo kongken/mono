@@ -28,6 +28,8 @@ type City struct {
 	Slug string `json:"slug,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
+	// Region holds the value of the "region" field.
+	Region string `json:"region,omitempty"`
 	// HeaderImages holds the value of the "header_images" field.
 	HeaderImages []string `json:"header_images,omitempty"`
 	// MapSvgURL holds the value of the "map_svg_url" field.
@@ -67,7 +69,7 @@ func (*City) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case city.FieldRevision, city.FieldSortOrder:
 			values[i] = new(sql.NullInt64)
-		case city.FieldID, city.FieldSlug, city.FieldName, city.FieldMapSvgURL:
+		case city.FieldID, city.FieldSlug, city.FieldName, city.FieldRegion, city.FieldMapSvgURL:
 			values[i] = new(sql.NullString)
 		case city.FieldCreatedAt, city.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -121,6 +123,12 @@ func (_m *City) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field name", values[i])
 			} else if value.Valid {
 				_m.Name = value.String
+			}
+		case city.FieldRegion:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field region", values[i])
+			} else if value.Valid {
+				_m.Region = value.String
 			}
 		case city.FieldHeaderImages:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -197,6 +205,9 @@ func (_m *City) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("name=")
 	builder.WriteString(_m.Name)
+	builder.WriteString(", ")
+	builder.WriteString("region=")
+	builder.WriteString(_m.Region)
 	builder.WriteString(", ")
 	builder.WriteString("header_images=")
 	builder.WriteString(fmt.Sprintf("%v", _m.HeaderImages))

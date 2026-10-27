@@ -57,7 +57,7 @@ func TestMetroBrowserChain(t *testing.T) {
 					"ozid": {Origin: idO, Paths: []string{"/security"}},
 					// The start page, and the pages a sign-in may return to (the product asks the BFF about a page
 					// before naming it; anything not listed is answered with the start page).
-					"metro": {Origin: metroO, Paths: []string{"/me", "/cities/*", "/topics/*", "/u/*"}},
+					"metro": {Origin: metroO, Paths: []string{"/me", "/cities/*", "/topics", "/topics/*", "/u/*"}},
 				},
 			}
 		},
@@ -76,7 +76,7 @@ func TestMetroBrowserChain(t *testing.T) {
 	}
 	accounts := map[string]seeded{}
 	for _, project := range []string{"desktop", "mobile"} {
-		for _, kind := range []string{"round", "mark", "me", "out", "net", "swapa", "swapb", "csrf", "csrfa", "csrfb", "fb"} {
+		for _, kind := range []string{"index", "round", "mark", "me", "out", "net", "swapa", "swapb", "csrf", "csrfa", "csrfb", "fb"} {
 			name := "mt-" + kind + "-" + project
 			_, id, _ := stack0.account(name)
 			accounts[name] = seeded{ID: id, Email: name + "@example.com", DisplayName: name}
