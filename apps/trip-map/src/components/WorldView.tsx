@@ -154,7 +154,7 @@ const PHASE_MESSAGE: Record<Exclude<WorldPhase, "ok">, string> = {
   "cloud-error": "无法加载云端世界足迹，请重试；中国视图不受影响。",
   "cloud-save-failed": "账号世界缓存保存失败，当前修改未接受，请先导出备份。",
   "cloud-unreadable": "账号世界缓存无法读取，原文已保留，编辑和覆盖已暂停，请先导出原始缓存。",
-  "cloud-conflict": "其他页面或设备修改了云端世界足迹，已暂停发送，请先导出两边数据再选择。",
+  "cloud-conflict": "云端世界足迹发生冲突，已暂停发送，请先导出两边数据再选择。",
 };
 
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, "zh-Hans");
@@ -375,7 +375,7 @@ function WorldLocal({
 
   // --- Protection dialogs -------------------------------------------------------------------------
   const protectKey = `${local.phase}:${local.theirs?.text ?? ""}`;
-  const protectOpen = (local.phase === "unreadable" || local.phase === "conflict") && dismissed !== protectKey;
+  const protectOpen = (local.phase === "unreadable" || local.phase === "conflict" || local.phase === "cloud-conflict") && dismissed !== protectKey;
   useEffect(() => {
     if (local.phase === "ok") {
       setCopyFailed(false);
@@ -412,7 +412,7 @@ function WorldLocal({
                 导出当前世界足迹
               </Button>
             )}
-            {(unreadable || local.phase === "conflict") && (
+            {(unreadable || local.phase === "conflict" || local.phase === "cloud-conflict") && (
               <Button onClick={() => setDismissed("")}>{unreadable ? "恢复或重新开始" : "选择如何处理"}</Button>
             )}
           </div>
@@ -677,7 +677,7 @@ function WorldLocal({
       />
       {local.theirs && (
         <ConflictDialog
-          open={protectOpen && local.phase === "conflict"}
+          open={protectOpen && (local.phase === "conflict" || local.phase === "cloud-conflict")}
           theirs={local.theirs}
           mine={local.world}
           copyFailed={copyFailed}

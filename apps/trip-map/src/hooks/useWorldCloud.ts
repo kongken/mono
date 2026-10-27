@@ -23,7 +23,7 @@ export type WorldCloudCache = {
 };
 
 type CloudPhase = "ok" | "cloud-loading" | "cloud-error" | "cloud-save-failed" | "cloud-conflict" | "cloud-unreadable";
-type CloudTheirs = { text: string | null; document: WorldDocument | null; revision: number };
+type CloudTheirs = { text: string | null; document: WorldDocument | null; revision: number; source: "storage" | "server" };
 
 const browserStorage = (): Storage | null => {
   try { return window.localStorage; } catch { return null; }
@@ -72,7 +72,7 @@ export function useWorldCloud(codes: WorldCodes, userId: string | null) {
     try { current = storage.getItem(worldCloudKey(userRef.current)); } catch { return "error"; }
     if (current !== rawRef.current) {
       preserve(storage, current);
-      setTheirs({ text: current, document: current ? (() => { try { return parseCache(current, codes).saved; } catch { return null; } })() : emptyWorld(), revision: cacheRef.current?.confirmed.revision ?? 0 });
+      setTheirs({ text: current, document: current ? (() => { try { return parseCache(current, codes).saved; } catch { return null; } })() : emptyWorld(), revision: cacheRef.current?.confirmed.revision ?? 0, source: "storage" });
       setPhase("cloud-conflict");
       return "conflict";
     }
@@ -167,7 +167,7 @@ export function useWorldCloud(codes: WorldCodes, userId: string | null) {
             if (sameWorld(next.saved, next.confirmed.document)) return;
             continue;
           }
-          setTheirs({ text: JSON.stringify(remote.document), document: remote.document, revision: remote.revision });
+          setTheirs({ text: JSON.stringify(remote.document), document: remote.document, revision: remote.revision, source: "server" });
           setPhase("cloud-conflict");
           return;
         }
@@ -195,7 +195,7 @@ export function useWorldCloud(codes: WorldCodes, userId: string | null) {
       const current = event.newValue;
       if (current === rawRef.current) return;
       const s = browserStorage(); if (s) preserve(s, current);
-      setTheirs({ text: current, document: current ? (() => { try { return parseCache(current, codes).saved; } catch { return null; } })() : emptyWorld(), revision: cacheRef.current?.confirmed.revision ?? 0 });
+      setTheirs({ text: current, document: current ? (() => { try { return parseCache(current, codes).saved; } catch { return null; } })() : emptyWorld(), revision: cacheRef.current?.confirmed.revision ?? 0, source: "storage" });
       setPhase("cloud-conflict");
     };
     window.addEventListener("online", retry); document.addEventListener("visibilitychange", visible); window.addEventListener("storage", storage);
@@ -215,6 +215,10 @@ export function useWorldCloud(codes: WorldCodes, userId: string | null) {
   const resolve = useCallback((_choice: "recover" | "empty", _exported: boolean) => "copy-failed" as const, []);
   const settleConflict = useCallback((choice: "mine" | "theirs", exported: boolean): "ok" | "copy-failed" | "unusable" => {
     if (!theirs || !cacheRef.current) return "ok";
+    if (theirs.source === "storage") {
+      rawRef.current = theirs.text;
+      setRaw(theirs.text);
+    }
     if (choice === "theirs") { if (!theirs.document) return "unusable"; const next = { schema: 1 as const, saved: theirs.document, confirmed: { revision: theirs.revision, document: theirs.document } }; cacheRef.current = next; if (write(next) !== "ok") return "copy-failed"; show(next.saved); setTheirs(null); setPhase("ok"); return "ok"; }
     if (!exported && !preserve(browserStorage()!, theirs.text)) return "copy-failed";
     const next = { schema: 1 as const, saved: worldRef.current, confirmed: { revision: theirs.revision, document: theirs.document ?? emptyWorld() }, pending: { request_id: randomId(), base_revision: theirs.revision, document: worldRef.current } };

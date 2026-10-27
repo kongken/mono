@@ -273,6 +273,12 @@ export function fakeBackend(
     },
     /** Saves a snapshot of the current server state, as the server's scheduler would. */
     seedSnapshot: (reason = "scheduled") => capture(reason).snap,
+    /** A server-side world edit used to force a stale-revision response in browser tests. */
+    otherWorld: (document: object) => {
+      state.world.revision++;
+      state.world.document = document;
+    },
+    worldDocument: () => state.world.document,
     install: async () => {
       await page.route("**/api/**", async (route) => {
         const req = route.request();

@@ -18,7 +18,9 @@ const world = (extra: Record<string, unknown> = {}) =>
 const paris = { id: "p1", name: "巴黎", country: "FR", lat: 48.8566, lng: 2.3522, trips: [{ id: "t1", date: "2026-05-01", note: "塞纳河" }] };
 
 const installBackend = async (page: Page, visits: V[]) => {
-  await fakeBackend(page, { visits }).install();
+  const backend = fakeBackend(page, { visits });
+  await backend.install();
+  return backend;
 };
 const viewSwitch = (page: Page) => page.getByRole("group", { name: "地图视图" });
 const openWorld = async (page: Page) => {
@@ -509,6 +511,61 @@ test("signed in, the world view uses the cloud document and leaves local world d
   await expect(page.getByRole("button", { name: "地图来源与限制" })).toBeVisible();
   expect(await stored(page)).toBe(raw);
   expect(urls.filter((u) => /maps\/world\.json|world-catalog|world-search-index/.test(u)), "world assets are loaded for cloud mode").not.toEqual([]);
+});
+
+test("cloud stale revisions expose both conflict exports and recover with the cloud choice", async ({ page }) => {
+  const backend = await installBackend(page, []);
+  await login(page);
+  await openWorld(page);
+  await mapReady(page);
+  backend.otherWorld(JSON.parse(world({ countries: [{ code: "US", color: green }] })));
+  await country(page, "JP").dispatchEvent("click");
+  await expect(page.locator(".world-protect")).toContainText("云端世界足迹发生冲突");
+  const dialog = page.getByRole("dialog", { name: "云端世界足迹发生冲突" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "导出本页数据" }).click();
+  await dialog.getByRole("button", { name: "导出云端数据" }).click();
+  await dialog.getByRole("button", { name: "冲突以云端为准" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(country(page, "US")).toHaveAttribute("aria-pressed", "true");
+  await expect(country(page, "JP")).toHaveAttribute("aria-pressed", "false");
+});
+
+test("cloud conflicts can be resolved with the local document", async ({ page }) => {
+  const backend = await installBackend(page, []);
+  await login(page);
+  await openWorld(page);
+  await mapReady(page);
+  backend.otherWorld(JSON.parse(world({ countries: [{ code: "US", color: green }] })));
+  await country(page, "JP").dispatchEvent("click");
+  const dialog = page.getByRole("dialog", { name: "云端世界足迹发生冲突" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "冲突以本机为准" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(country(page, "JP")).toHaveAttribute("aria-pressed", "true");
+  await expect(country(page, "US")).toHaveAttribute("aria-pressed", "false");
+});
+
+test("a second tab cache change opens a cloud conflict and can be discarded in favour of the other tab", async ({ page, context }) => {
+  await installBackend(page, []);
+  await login(page);
+  await openWorld(page);
+  await mapReady(page);
+  const other = await context.newPage();
+  await installBackend(other, []);
+  await login(other);
+  await openWorld(other);
+  await mapReady(other);
+  const key = "shanhai-world-cloud-v1:ci-migrate";
+  const cache = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), key);
+  cache.saved.countries = [{ code: "US", color: green }];
+  await other.evaluate(([k, value]) => localStorage.setItem(k, value), [key, JSON.stringify(cache)] as const);
+  await expect(page.locator(".world-protect")).toContainText("云端世界足迹发生冲突");
+  const dialog = page.getByRole("dialog", { name: "云端世界足迹发生冲突" });
+  await dialog.getByRole("button", { name: "冲突以云端为准" }).click();
+  await expect(country(page, "US")).toHaveAttribute("aria-pressed", "true");
+  await expect(country(page, "JP")).toHaveAttribute("aria-pressed", "false");
+  await other.close();
 });
 
 test("every request of a world session is same-origin: no third-party map, tile, font or key", async ({ page, context }) => {

@@ -130,7 +130,7 @@ export function ConflictDialog({ open, theirs, mine, copyFailed, exported, onExp
           </DialogDescription>
         </DialogHeader>
         <p className="unreadable-note" role="status" data-testid="world-conflict-summary">
-          本页现有：{summary(mine)}。{cloud ? "云端数据" : "另一个标签页"}：{theirsText}。
+            {cloud ? "本机数据" : "本页现有"}：{summary(mine)}。{cloud ? "云端数据" : "另一个标签页"}：{theirsText}。
         </p>
         {copyFailed && (
           <p className="world-form-error" role="alert">
@@ -144,7 +144,7 @@ export function ConflictDialog({ open, theirs, mine, copyFailed, exported, onExp
           </Button>
           <Button variant="outline" onClick={onExportTheirs}>
             <DownloadSimple size={17} />
-            导出另一个标签页的数据
+            {cloud ? "导出云端数据" : "导出另一个标签页的数据"}
           </Button>
           <Button onClick={onKeepMine}>{cloud ? "冲突以本机为准" : "用本页数据覆盖（对方数据保留为副本）"}</Button>
           <Button variant="outline" onClick={onLoadTheirs} disabled={!theirs.document}>
