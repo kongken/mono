@@ -171,7 +171,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.Body = io.NopCloser(bytes.NewReader(body))
-	if serveUnsupportedMethod(w, body) {
+	if serveParseError(w, body) || serveUnsupportedMethod(w, body) {
 		return
 	}
 	ctx = context.WithValue(ctx, requestAuthKey{}, requestAuth{principal: principal, clientIP: clientIP, forcedTools: requestedTools(body)})
@@ -242,6 +242,19 @@ func (s *Server) sdkToolHandler(t *tool, auth requestAuth) sdkmcp.ToolHandler {
 
 func textResult(text string, isError bool) *sdkmcp.CallToolResult {
 	return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: text}}, IsError: isError}
+}
+
+func serveParseError(w http.ResponseWriter, body []byte) bool {
+	if json.Valid(bytes.TrimSpace(body)) {
+		return false
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      nil,
+		"error":   map[string]any{"code": -32700, "message": "parse error"},
+	})
+	return true
 }
 
 func serveUnsupportedMethod(w http.ResponseWriter, body []byte) bool {
