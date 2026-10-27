@@ -593,6 +593,29 @@ test("every request of a world session is same-origin: no third-party map, tile,
   expect(urls.filter((u) => /openstreetmap|mapbox|naturalearth|github|googleapis|unpkg|jsdelivr|cdn/i.test(u))).toEqual([]);
 });
 
+test("two tabs opening the world view together keep one complete offline cache", async ({ page, context }) => {
+  test.setTimeout(90000);
+  await installBackend(page, []);
+  await page.goto("/");
+  await openWorld(page);
+  await mapReady(page);
+  await offlineReady(page);
+  const other = await context.newPage();
+  await installBackend(other, []);
+  await other.goto("/");
+  await openWorld(other);
+  await mapReady(other);
+  await offlineReady(other);
+  await context.setOffline(true);
+  await Promise.all([page.reload(), other.reload()]);
+  await Promise.all([openWorld(page), openWorld(other)]);
+  await Promise.all([mapReady(page), mapReady(other)]);
+  const expectedCountries = catalog.countries.filter((entry) => entry.hasShape && entry.code !== "CN").length;
+  await expect(page.locator(".world-country")).toHaveCount(expectedCountries);
+  await expect(other.locator(".world-country")).toHaveCount(expectedCountries);
+  await other.close();
+});
+
 test("after one online visit the world view reloads offline: map, catalog, list, search, notice and marks", async ({ page, context }) => {
   test.setTimeout(90000);
   await installBackend(page, []);
