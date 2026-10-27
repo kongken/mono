@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CloudSlash, DownloadSimple, Info, MagnifyingGlass, Plus, UploadSimple, X } from "@phosphor-icons/react";
+import { DownloadSimple, Info, MagnifyingGlass, Plus, UploadSimple, X } from "@phosphor-icons/react";
 import { Button } from "@kongken/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@kongken/ui/dialog";
 import { Input } from "@kongken/ui/input";
 import { useWorldAssets } from "../hooks/useWorldAssets.ts";
+import { useWorldCloud } from "../hooks/useWorldCloud.ts";
 import { useWorldLocal, type WorldPhase } from "../hooks/useWorldLocal.ts";
 import {
   coordinateText,
@@ -41,8 +42,10 @@ export type WorldViewProps = {
   saved: Pick<Saved, "visits" | "provinces">;
   /** The local China footprints are under read protection: CN is not lit, and nothing is written. */
   chinaUnreadable: boolean;
-  /** Signed in: the world view shows a placeholder and never reads or writes the local world data. */
+  /** Signed in: the world view uses the account cache and WorldService. */
   cloudMode: boolean;
+  /** Signed in account ID; its world document is loaded from the account cache and cloud API. */
+  cloudUserId?: string;
   onOpenChina: () => void;
 };
 
@@ -57,13 +60,13 @@ function download(filename: string, text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function WorldView({ saved, chinaUnreadable, cloudMode, onOpenChina }: WorldViewProps) {
-  const assets = useWorldAssets(!cloudMode);
+export default function WorldView({ saved, chinaUnreadable, cloudMode, cloudUserId, onOpenChina }: WorldViewProps) {
+  const assets = useWorldAssets(true);
   const [noticeOpen, setNoticeOpen] = useState(false);
   const catalog = assets.catalog.status === "ready" ? assets.catalog : null;
 
   return (
-    <section className="world-view" aria-labelledby="world-title" data-offline={assets.offline} data-catalog={cloudMode ? "none" : assets.catalog.status}>
+    <section className="world-view" aria-labelledby="world-title" data-offline={assets.offline} data-catalog={assets.catalog.status}>
       <div className="world-head">
         <div>
           <h1 id="world-title">世界足迹</h1>
@@ -75,15 +78,7 @@ export default function WorldView({ saved, chinaUnreadable, cloudMode, onOpenChi
         </Button>
       </div>
 
-      {cloudMode ? (
-        <div className="world-card world-placeholder" role="status">
-          <CloudSlash size={22} />
-          <div>
-            <strong>云端同步将在后续版本提供</strong>
-            <p>登录状态下暂不显示世界足迹，也不会读取或上传这台设备上的世界足迹。退出登录后即可继续使用本机的世界足迹。</p>
-          </div>
-        </div>
-      ) : assets.catalog.status === "loading" ? (
+      {assets.catalog.status === "loading" ? (
         <p className="world-loading" role="status">
           正在载入国家/地区目录…
         </p>
@@ -99,6 +94,8 @@ export default function WorldView({ saved, chinaUnreadable, cloudMode, onOpenChi
           index={assets.catalog.index}
           codes={assets.catalog.codes}
           assets={assets}
+          cloudMode={cloudMode}
+          cloudUserId={cloudUserId}
           saved={saved}
           chinaUnreadable={chinaUnreadable}
           onOpenChina={onOpenChina}
@@ -153,6 +150,11 @@ const PHASE_MESSAGE: Record<Exclude<WorldPhase, "ok">, string> = {
   "save-failed": "世界足迹没有保存成功（存储已满或被浏览器拒绝）。修改只保留在当前页面，请先导出备份。",
   unreadable: "这台设备上保存的世界足迹无法读取，已暂停保存，原文原样保留，不会被覆盖。",
   conflict: "其他标签页修改了世界足迹，已暂停保存，避免覆盖对方的修改。本页的修改仍保留在页面中，请先导出，再选择保留哪一份。",
+  "cloud-loading": "正在加载云端世界足迹…",
+  "cloud-error": "无法加载云端世界足迹，请重试；中国视图不受影响。",
+  "cloud-save-failed": "账号世界缓存保存失败，当前修改未接受，请先导出备份。",
+  "cloud-unreadable": "账号世界缓存无法读取，原文已保留，编辑和覆盖已暂停，请先导出原始缓存。",
+  "cloud-conflict": "其他页面或设备修改了云端世界足迹，已暂停发送，请先导出两边数据再选择。",
 };
 
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, "zh-Hans");
@@ -162,6 +164,8 @@ function WorldLocal({
   index,
   codes,
   assets,
+  cloudMode,
+  cloudUserId,
   saved,
   chinaUnreadable,
   onOpenChina,
@@ -170,11 +174,15 @@ function WorldLocal({
   index: WorldSearchIndex;
   codes: WorldCodes;
   assets: ReturnType<typeof useWorldAssets>;
+  cloudMode: boolean;
+  cloudUserId?: string;
   saved: Pick<Saved, "visits" | "provinces">;
   chinaUnreadable: boolean;
   onOpenChina: () => void;
 }) {
-  const local = useWorldLocal(codes);
+  const localState = useWorldLocal(codes, !cloudMode);
+  const cloudState = useWorldCloud(codes, cloudMode ? cloudUserId ?? null : null);
+  const local = cloudMode ? cloudState : localState;
   const [query, setQuery] = useState("");
   const search = useRef<HTMLInputElement>(null);
   const placesCard = useRef<HTMLDivElement>(null);
@@ -208,6 +216,7 @@ function WorldLocal({
   const results = useMemo(() => searchWorldCountries(catalog.countries, index, query), [catalog, index, query]);
   const places = useMemo(() => [...local.world.places].sort(byName), [local.world.places]);
   const unreadable = local.phase === "unreadable";
+  const cloudUnreadable = local.phase === "cloud-unreadable";
   const { toggle: toggleMark, announce } = local;
   const toggle = (country: Pick<WorldCountry, "code" | "name">) => toggleMark(country.code, country.name);
   const onToggleCode = useMemo(() => (code: string) => toggleMark(code, assets.names[code] ?? code), [toggleMark, assets.names]);
@@ -391,10 +400,10 @@ function WorldLocal({
           <strong>{PHASE_MESSAGE[local.phase]}</strong>
           {unreadable && local.reason && <p>原因：{local.reason}。</p>}
           <div className="world-protect-actions">
-            {unreadable && local.raw !== null && (
+            {(unreadable || cloudUnreadable) && local.raw !== null && (
               <Button variant="outline" onClick={exportRaw}>
                 <DownloadSimple size={17} />
-                导出原文
+                {cloudUnreadable ? "导出原始账号缓存" : "导出原文"}
               </Button>
             )}
             {!unreadable && (
@@ -518,7 +527,7 @@ function WorldLocal({
             </div>
           )}
           <p className="world-status" role="status" aria-live="polite">
-            {local.announcement}
+            {cloudMode && cloudState.syncPending ? "本机已保存，待同步" : local.announcement}
           </p>
         </div>
 
@@ -678,6 +687,7 @@ function WorldLocal({
           onKeepMine={() => setCopyFailed(local.settleConflict("mine", exportedTheirs) === "copy-failed")}
           onLoadTheirs={() => setCopyFailed(local.settleConflict("theirs", false) === "copy-failed")}
           onClose={() => setDismissed(protectKey)}
+          cloud={cloudMode}
         />
       )}
     </>

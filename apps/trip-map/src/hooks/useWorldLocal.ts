@@ -34,7 +34,17 @@ export type WorldPhase =
   /** The stored text cannot be read: it is kept as it is and saving is paused. */
   | "unreadable"
   /** Another tab changed the stored text: saving is paused so that it is not overwritten. */
-  | "conflict";
+  | "conflict"
+  /** The account world document is being loaded for the first time. */
+  | "cloud-loading"
+  /** The account world document could not be loaded and has no local cache. */
+  | "cloud-error"
+  /** The account cache could not be parsed or validated. */
+  | "cloud-unreadable"
+  /** The account cache changed while this page was editing. */
+  | "cloud-conflict"
+  /** The browser refused an account-cache write. */
+  | "cloud-save-failed";
 
 function browserStorage(): Storage | null {
   try {
@@ -61,10 +71,14 @@ type Unreadable = Extract<WorldLoad, { status: "unreadable" }>;
 /** Another tab's stored text, as far as it can be used: a valid document, nothing at all, or unreadable. */
 export type Theirs = { text: string | null; document: WorldDocument | null };
 
-export function useWorldLocal(codes: WorldCodes) {
+export function useWorldLocal(codes: WorldCodes, enabled = true) {
   const [start] = useState(() => {
     const storage = browserStorage();
-    const load: WorldLoad = storage ? loadWorldLocal(storage, codes) : { status: "unavailable", document: emptyWorld() };
+    const load: WorldLoad = !enabled
+      ? { status: "empty", document: emptyWorld(), raw: null }
+      : storage
+        ? loadWorldLocal(storage, codes)
+        : { status: "unavailable", document: emptyWorld() };
     return { storage, load, writer: createWorldWriter(storage ?? refusing, load.status === "unavailable" ? null : load.raw) };
   });
   const { load, storage } = start;

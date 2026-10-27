@@ -2471,6 +2471,7 @@ function App() {
               saved={saved}
               chinaUnreadable={!!unreadable || !!localClash}
               cloudMode={cloud.mode === "cloud"}
+              cloudUserId={cloud.user?.id}
               onOpenChina={() => showView("china")}
             />
           </Suspense>

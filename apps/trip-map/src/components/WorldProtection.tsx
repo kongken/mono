@@ -110,9 +110,10 @@ type ConflictProps = {
   onKeepMine: () => void;
   onLoadTheirs: () => void;
   onClose: () => void;
+  cloud?: boolean;
 };
 
-export function ConflictDialog({ open, theirs, mine, copyFailed, exported, onExportMine, onExportTheirs, onKeepMine, onLoadTheirs, onClose }: ConflictProps) {
+export function ConflictDialog({ open, theirs, mine, copyFailed, exported, onExportMine, onExportTheirs, onKeepMine, onLoadTheirs, onClose, cloud = false }: ConflictProps) {
   const theirsText = theirs.text === null ? "已被清空" : theirs.document ? summary(theirs.document) : "内容无法识别，只能导出原文";
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
@@ -121,13 +122,15 @@ export function ConflictDialog({ open, theirs, mine, copyFailed, exported, onExp
           <span className="dialog-icon">
             <Warning size={25} weight="duotone" />
           </span>
-          <DialogTitle>其他标签页修改了世界足迹</DialogTitle>
+          <DialogTitle>{cloud ? "云端世界足迹发生冲突" : "其他标签页修改了世界足迹"}</DialogTitle>
           <DialogDescription>
-            另一个标签页保存了不同的世界足迹。为避免覆盖对方的修改，本页已暂停保存。建议先导出两边的数据，再选择保留哪一份。
+            {cloud
+              ? "另一台设备已经保存了不同的世界足迹。为避免静默覆盖，本机修改已暂停。请先导出两边的数据，再选择保留哪一份。"
+              : "另一个标签页保存了不同的世界足迹。为避免覆盖对方的修改，本页已暂停保存。建议先导出两边的数据，再选择保留哪一份。"}
           </DialogDescription>
         </DialogHeader>
         <p className="unreadable-note" role="status" data-testid="world-conflict-summary">
-          本页现有：{summary(mine)}。另一个标签页：{theirsText}。
+          本页现有：{summary(mine)}。{cloud ? "云端数据" : "另一个标签页"}：{theirsText}。
         </p>
         {copyFailed && (
           <p className="world-form-error" role="alert">
@@ -143,9 +146,9 @@ export function ConflictDialog({ open, theirs, mine, copyFailed, exported, onExp
             <DownloadSimple size={17} />
             导出另一个标签页的数据
           </Button>
-          <Button onClick={onKeepMine}>用本页数据覆盖（对方数据保留为副本）</Button>
+          <Button onClick={onKeepMine}>{cloud ? "冲突以本机为准" : "用本页数据覆盖（对方数据保留为副本）"}</Button>
           <Button variant="outline" onClick={onLoadTheirs} disabled={!theirs.document}>
-            载入另一个标签页的数据（本页未保存的修改将放弃）
+            {cloud ? "冲突以云端为准" : "载入另一个标签页的数据（本页未保存的修改将放弃）"}
           </Button>
           <Button variant="ghost" onClick={onClose}>
             稍后处理

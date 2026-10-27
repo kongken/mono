@@ -493,7 +493,7 @@ test("when the browser refuses to save, the edit stays on the page and can be ex
   expect(JSON.parse(readFileSync(await file.path(), "utf8")).countries.map((m: { code: string }) => m.code)).toEqual(["JP"]);
 });
 
-test("signed in, the world view is a placeholder: the local world data is neither shown nor changed", async ({ page, context }) => {
+test("signed in, the world view uses the cloud document and leaves local world data untouched", async ({ page, context }) => {
   const raw = world({ countries: [{ code: "JP", color: green }] });
   await seedWorld(page, raw);
   const urls = recordRequests(context);
@@ -502,12 +502,13 @@ test("signed in, the world view is a placeholder: the local world data is neithe
   await expect(page.getByRole("button", { name: "账号", exact: true })).toBeVisible();
   await expect(page.locator(".intro")).toBeVisible();
   await openWorld(page);
-  await expect(page.getByText("云端同步将在后续版本提供")).toBeVisible();
-  await expect(page.locator(".world-country")).toHaveCount(0);
-  await expect(page.locator(".world-stats")).toHaveCount(0);
+  await expect(page.getByText("世界足迹").first()).toBeVisible();
+  await expect(page.locator(".world-stats")).toBeVisible();
+  await expect(page.locator(".world-stats dd").first()).toHaveText("1");
+  await expect(page.locator(".world-country").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "地图来源与限制" })).toBeVisible();
   expect(await stored(page)).toBe(raw);
-  expect(urls.filter((u) => /maps\/world\.json|world-catalog|world-search-index/.test(u)), "no world map or catalog is fetched").toEqual([]);
+  expect(urls.filter((u) => /maps\/world\.json|world-catalog|world-search-index/.test(u)), "world assets are loaded for cloud mode").not.toEqual([]);
 });
 
 test("every request of a world session is same-origin: no third-party map, tile, font or key", async ({ page, context }) => {
