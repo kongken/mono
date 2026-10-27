@@ -3,8 +3,8 @@ import { create, toBinary } from "@bufbuild/protobuf";
 import { ValidationDetailSchema } from "@kongken/api-client/bff/metro/v1/admin_pb";
 
 type Role = "user" | "admin";
-type City = { id: string; revision: number; slug: string; name: string; headerImages: string[]; mapSvgUrl: string; sortOrder: number };
-type Line = { id: string; revision: number; code: string; citySlug: string; name: string; number: number; status: string; rollingStockCode: string; cars: number; carsAddition: number; stations: number; lengthKm: number; color: string; commencedOn: string; extendedOn: string; isLoop: boolean };
+type City = { id: string; revision: number; slug: string; name: string; headerImages: string[]; mapSvgUrl: string; sortOrder: number; region?: string };
+type Line = { id: string; revision: number; code: string; citySlug: string; name: string; number: number; status: string; rollingStockCode: string; cars: number; carsAddition: number; stations: number; lengthKm: number; color: string; commencedOn: string; extendedOn: string; isLoop: boolean; vehicleType?: string; stationNames?: string[] };
 
 const OPERATING = "LINE_STATUS_OPERATING";
 
@@ -63,6 +63,7 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
   const operating = (l: Line) => l.status === OPERATING;
   const cityJson = (c: City) => ({
     slug: c.slug, name: c.name, headerImages: c.headerImages, mapSvgUrl: c.mapSvgUrl, sortOrder: c.sortOrder,
+    region: c.region ?? "",
     lineCount: state.lines.filter((l) => l.citySlug === c.slug && operating(l)).length,
     totalLengthKm: state.lines.filter((l) => l.citySlug === c.slug && operating(l)).reduce((s, l) => s + l.lengthKm, 0),
   });
@@ -91,6 +92,7 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
       return { body: { version: String(state.version), city: cityJson(c), lines: ls.map(lineJson), totalLines: ls.length, totalLengthKm: ls.reduce((s, l) => s + l.lengthKm, 0) } };
     },
     "bff.metro.v1.CatalogService/ListRollingStockTopics": () => ({ body: { version: String(state.version), topics: state.topics } }),
+    "bff.metro.v1.CatalogService/ListLines": (b) => ({ body: { version: String(state.version), lines: state.lines.filter((l) => operating(l) && (!b.citySlug || b.citySlug === l.citySlug)).map(lineJson) } }),
     "bff.metro.v1.CatalogService/GetRollingStockTopic": (b) => {
       const t = state.topics.find((x) => x.slug === b.slug);
       if (!t) return failure(404, "not_found", "topic not found");
@@ -126,7 +128,7 @@ export function fakeBackend(page: Page, opts: { signedIn?: Role | false } = {}) 
         : failure(404, "not_found", "profile not found"),
   };
 
-  const readOnly = new Set(["Me", "IssueCSRFToken", "ResolveNavigation", "ListCities", "GetCity", "ListRollingStockTopics", "GetRollingStockTopic", "GetPublicProfile", "GetMyProfile", "ListMyLines"]);
+  const readOnly = new Set(["Me", "IssueCSRFToken", "ResolveNavigation", "ListCities", "GetCity", "ListLines", "ListRollingStockTopics", "GetRollingStockTopic", "GetPublicProfile", "GetMyProfile", "ListMyLines"]);
 
   function ridden() {
     const byCity = new Map<string, { citySlug: string; cityName: string; lines: object[] }>();

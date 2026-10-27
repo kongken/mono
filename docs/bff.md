@@ -295,6 +295,8 @@ auth:
 
 ## 导航注册表与 `ResolveNavigation`（OzID T1）
 
+metro 的专题总览 `/topics` 是单独的登录返回页；部署注册表需使用 `paths: ["/me", "/cities/*", "/topics", "/topics/*", "/u/*"]`。`/topics/*` 仅允许专题详情，不能覆盖总览。公开目录的城市区域 `region`、线路车型分类 `vehicle_type` 和有序站名 `station_names` 由目录适配器传递，管理接口/MCP 与内部契约同时维护；字段规则见 [地铁目录规则](metro/features.md#目录数据规则)。
+
 `bff.v1.AuthService/ResolveNavigation` 是匿名、只读的过程（不要求 CSRF，不读取或建立会话，不签发票据）：请求为稳定 `app_id` 与可选的 `return_path`，响应 `return_url` 由配置 `navigation.apps.<id>.origin` 加已校验的 pathname 拼成，另含 OzID 的 origin。客户端给出的绝对地址、`//`、反斜线、点段、百分号编码、query、fragment、未登记路径或未知应用都得到 `INVALID_ARGUMENT`；未配置 `navigation` 时得到 `FAILED_PRECONDITION`。
 
 配置段（`config.bff.example.yaml`）：`navigation.api_origin` 与 `navigation.apps`（`ozid` 必需；ID 取 `ozid`、`admin`、`trip-map`、`metro`；每项 `origin`、可选 `default_path` 与 `paths`）。BFF 启动时校验并在出错时拒绝启动：origin 必须精确且在 `cors_allowed_origins` 内、`auth.cookie_secure` 为 true 时必须 https、各 origin 与 `api_origin` 须在同一 schemeful site、origin 不重复。**同站点不等于授权**：未登记的兄弟子域名拿不到 CORS，写请求也过不了 Origin/CSRF 校验（`session_test`/`app_test` 与浏览器测试有覆盖）。Cookie 默认 host-only；只有显式配置并通过校验的 `auth.cookie_domain` 才设置 `Domain`，不因同站点自动扩大作用域。

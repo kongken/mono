@@ -1,0 +1,4 @@
+-- Modify "cities" table
+ALTER TABLE "cities" ADD CONSTRAINT "cities_region" CHECK ((region)::text = ANY ((ARRAY[''::character varying, 'east'::character varying, 'north'::character varying, 'south'::character varying, 'southwest'::character varying, 'central'::character varying, 'northeast'::character varying, 'northwest'::character varying])::text[])), ADD COLUMN "region" character varying NOT NULL DEFAULT '';
+-- Modify "lines" table
+ALTER TABLE "lines" ADD CONSTRAINT "lines_station_names" CHECK ((jsonb_array_length(station_names) = 0) OR (jsonb_array_length(station_names) = stations)), ADD CONSTRAINT "lines_vehicle_type" CHECK ((vehicle_type)::text = ANY ((ARRAY[''::character varying, 'a'::character varying, 'b'::character varying, 'l'::character varying, 'rubber'::character varying, 'other'::character varying])::text[])), ADD COLUMN "vehicle_type" character varying NOT NULL DEFAULT '', ADD COLUMN "station_names" jsonb NOT NULL DEFAULT '[]';

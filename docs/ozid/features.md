@@ -164,12 +164,12 @@ navigation:
   apps:
     ozid:     {origin: https://id.example.com, paths: ["/security"]}
     trip-map: {origin: https://trip.example.com, paths: ["/status"]}
-    metro:    {origin: https://metro.example.com, paths: ["/me", "/cities/*", "/topics/*", "/u/*"]}
+    metro:    {origin: https://metro.example.com, paths: ["/me", "/cities/*", "/topics", "/topics/*", "/u/*"]}
 ```
 
 路径规则：默认路径（缺省 `/`）总是允许；`paths` 里的项是精确 pathname，或以 `/*` 结尾的前缀（`/city/*` 允许 `/city` 及其下所有路径，`/*` 允许整个应用）。启动时校验，**配置缺失或不合法会让 BFF 启动失败并指出字段**，不会降级：
 
-**地铁足迹的返回页面（T11）。** 与山海足迹同一规则，名单是起始页 `/`、`/me`、`/cities/<slug>`、`/topics/<slug>`、`/u/<handle>`（段只含 ASCII 字母、数字与 `-._~`，1–64 位；非 ASCII 的城市名没有规范路径，回起始页），部署者在 `navigation.apps.metro.paths` 登记 `["/me", "/cities/*", "/topics/*", "/u/*"]`；产品先请 BFF 确认这个 pathname 再使用，未登记、拒绝、不可达或超过 3 秒回到起始页，query 与 fragment 从不带入。
+**地铁足迹的返回页面（T11）。** 与山海足迹同一规则，名单是起始页 `/`、`/me`、`/cities/<slug>`、`/topics`、`/topics/<slug>`、`/u/<handle>`（段只含 ASCII 字母、数字与 `-._~`，1–64 位；非 ASCII 的城市名没有规范路径，回起始页），部署者在 `navigation.apps.metro.paths` 登记 `["/me", "/cities/*", "/topics", "/topics/*", "/u/*"]`；产品先请 BFF 确认这个 pathname 再使用，未登记、拒绝、不可达或超过 3 秒回到起始页，query 与 fragment 从不带入。
 
 **山海足迹的返回页面（T10）。** 产品从哪个页面发起登录，就申请回到哪个页面，但只限一个封闭的名单：起始页（默认路径 `/`，带 Vite base 时是该 base）和 `/status`（公开的服务状态页，页面上有“使用 OzID 登录”链接）。名单之外的任何页面（分享页 `/s/<令牌>`、邮件落地页、未知路径）一律回到起始页；申请里永远只有 `app_id` 与规范 pathname，query、fragment 和令牌不会进入，也没有浏览器 `Referer` 泄露（跨站点只发 origin）。产品在发出名单内的非起始页之前先请 BFF 校验这个 pathname（`ResolveNavigation`，只读且匿名），BFF 没有对应规则、拒绝、不可达或超过 3 秒都退回起始页，所以未登记 `/status` 的部署不会让登录结束在 OzID 的“地址不允许”状态。部署者要让登录回到状态页，就在 `navigation.apps.trip-map.paths` 登记 `/status`（带 base 时是 `<base>status`）；弹窗打开与未保存的修改不属于返回承诺，返回的是页面，不是页面里的临时状态。
 

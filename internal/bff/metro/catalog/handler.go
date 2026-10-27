@@ -121,6 +121,7 @@ func mapCity(c *metrov1.City) *bffmetrov1.City {
 	return &bffmetrov1.City{
 		Slug: c.GetSlug(), Name: c.GetName(), HeaderImages: c.GetHeaderImages(), MapSvgUrl: c.GetMapSvgUrl(),
 		SortOrder: c.GetSortOrder(), LineCount: c.GetLineCount(), TotalLengthKm: c.GetTotalLengthKm(),
+		Region: c.GetRegion(),
 	}
 }
 
@@ -132,6 +133,7 @@ func mapLines(in []*metrov1.Line) []*bffmetrov1.Line {
 			Status: toBrowserStatus(l.GetStatus()), RollingStockCode: l.GetRollingStockCode(),
 			Cars: l.GetCars(), CarsAddition: l.GetCarsAddition(), Stations: l.GetStations(), LengthKm: l.GetLengthKm(),
 			Color: l.GetColor(), CommencedOn: l.GetCommencedOn(), ExtendedOn: l.GetExtendedOn(), IsLoop: l.GetIsLoop(),
+			VehicleType: l.GetVehicleType(), StationNames: l.GetStationNames(),
 		})
 	}
 	return out

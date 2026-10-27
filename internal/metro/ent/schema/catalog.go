@@ -48,6 +48,7 @@ func (City) Annotations() []schema.Annotation {
 			"cities_slug_length":  "char_length(slug) <= 32",
 			"cities_name_length":  "char_length(name) BETWEEN 1 AND 32",
 			"cities_images_limit": "jsonb_array_length(header_images) <= 8",
+			"cities_region":       "region IN ('', 'east', 'north', 'south', 'southwest', 'central', 'northeast', 'northwest')",
 		}),
 	}
 }
@@ -56,6 +57,7 @@ func (City) Fields() []ent.Field {
 	return append(base(),
 		field.String("slug").Unique().NotEmpty(),
 		field.String("name").NotEmpty(),
+		field.String("region").Default(""),
 		field.JSON("header_images", []string{}).Default([]string{}),
 		field.String("map_svg_url").Default(""),
 		field.Int("sort_order").Default(0),
@@ -109,10 +111,12 @@ func (Line) Annotations() []schema.Annotation {
 	return []schema.Annotation{
 		entsql.Annotation{Table: "lines"},
 		entsql.Checks(map[string]string{
-			"lines_code_format":  "code ~ '^[a-z0-9][a-z0-9-]{1,31}$'",
-			"lines_name_length":  "char_length(name) BETWEEN 1 AND 32",
-			"lines_counts":       "number >= 0 AND cars >= 0 AND cars_addition >= 0 AND stations >= 0 AND length_km >= 0",
-			"lines_color_format": "color ~ '^#[0-9A-Fa-f]{6}$'",
+			"lines_code_format":   "code ~ '^[a-z0-9][a-z0-9-]{1,31}$'",
+			"lines_name_length":   "char_length(name) BETWEEN 1 AND 32",
+			"lines_counts":        "number >= 0 AND cars >= 0 AND cars_addition >= 0 AND stations >= 0 AND length_km >= 0",
+			"lines_color_format":  "color ~ '^#[0-9A-Fa-f]{6}$'",
+			"lines_vehicle_type":  "vehicle_type IN ('', 'a', 'b', 'l', 'rubber', 'other')",
+			"lines_station_names": "jsonb_array_length(station_names) = 0 OR jsonb_array_length(station_names) = stations",
 		}),
 	}
 }
@@ -134,6 +138,8 @@ func (Line) Fields() []ent.Field {
 		field.Time("commenced_on").Optional().Nillable().SchemaType(dateType),
 		field.Time("extended_on").Optional().Nillable().SchemaType(dateType),
 		field.Bool("is_loop").Default(false),
+		field.String("vehicle_type").Default(""),
+		field.JSON("station_names", []string{}).Default([]string{}).Annotations(entsql.Default("[]")),
 	)
 }
 

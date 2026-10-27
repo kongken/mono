@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { FAILURES } from "@kongken/account/testing";
-import { EMAIL, loginUrl, OZID, PASSWORD, refocus, setup } from "./support";
+import { EMAIL, loginUrl, OZID, PASSWORD, refocus, saveRide, setup } from "./support";
 
 // The account entry of the metro app against a fake BFF (UI only). The product has no account forms of its own:
 // every sign-in, registration, password and device screen is OzID's. These specs cover what the product still
@@ -38,6 +38,7 @@ test.describe("the entry is OzID", () => {
     ["/me/", "/me"],
     ["/cities/shanghai", "/cities/shanghai"],
     ["/topics/six-cars", "/topics/six-cars"],
+    ["/topics", "/topics"],
     ["/u/alice", "/u/alice"],
   ] as const) {
     test(`signing in from ${from} comes back to ${returnPath}`, async ({ page }) => {
@@ -114,7 +115,8 @@ test.describe("the entry is OzID", () => {
     await setup(page, { signedIn: true });
     await page.goto("/");
     await expect(header(page).getByText("骑行者小山")).toBeVisible();
-    await expect(header(page).getByRole("link", { name: "我的足迹" })).toBeVisible();
+    // The product's own entries sit in the header on a desktop and in the bottom bar on a phone.
+    await expect(page.getByRole("navigation").getByRole("link", { name: "我的足迹" }).locator("visible=true")).toBeVisible();
     await expect(header(page).getByRole("button", { name: "退出" })).toBeVisible();
     await expect(page.locator(FORMS)).toHaveCount(0);
     for (const gone of ["修改密码", "已登录的设备", "注销账号", "保存资料", "登录邮箱", "账号设置"]) await expect(page.getByText(gone, { exact: true })).toHaveCount(0);
@@ -482,7 +484,7 @@ test.describe("what the product believes about the shared session", () => {
     await expect(header(page).getByText("骑行者小山")).toBeVisible();
     await expect(page.getByTestId("line-sh-1").getByRole("button", { name: "标记坐过" })).toBeVisible();
     accounts.signIn(b); // the shared Cookie is now B's; this page still believes in A
-    await page.getByTestId("line-sh-1").getByRole("button", { name: "标记坐过" }).click();
+    await saveRide(page, "sh-1");
     // Refused as "not signed in" by the account guard: nothing was written for anyone.
     expect(fake.state.writes).toEqual([]);
     expect([...fake.state.ridesBy.entries()].flatMap(([, m]) => [...m.keys()])).toEqual([]);
@@ -491,8 +493,8 @@ test.describe("what the product believes about the shared session", () => {
     await expect(page.getByTestId("session-notice")).toContainText("另一位骑行者");
     await expect(page).toHaveURL(/\/cities\/shanghai$/);
     // Acting again now is B's own act, named as B's.
-    await page.getByTestId("line-sh-1").getByRole("button", { name: "标记坐过" }).click();
-    await expect(page.getByTestId("line-sh-1").getByRole("button", { name: "坐过" })).toHaveAttribute("aria-pressed", "true");
+    await saveRide(page, "sh-1");
+    await expect(page.getByTestId("line-sh-1").getByRole("button", { name: "编辑足迹" })).toBeVisible();
     expect(fake.state.writes.map((w) => [w.method, w.cookieUser, w.header])).toEqual([["bff.metro.v1.RiderService/MarkLine", b.id, b.id]]);
     expect(fake.state.ridesBy.get(account.id)?.size ?? 0).toBe(0);
   });
@@ -543,8 +545,8 @@ test.describe("what the product believes about the shared session", () => {
     await page.goto("/cities/shanghai");
     fake.state.csrfRefusals = 1;
     const issued = accounts.state.calls.filter((c) => c === "IssueCSRFToken").length;
-    await page.getByTestId("line-sh-1").getByRole("button", { name: "标记坐过" }).click();
-    await expect(page.getByTestId("line-sh-1").getByRole("button", { name: "坐过" })).toHaveAttribute("aria-pressed", "true");
+    await saveRide(page, "sh-1");
+    await expect(page.getByTestId("line-sh-1").getByRole("button", { name: "编辑足迹" })).toBeVisible();
     expect(fake.state.calls.filter((c) => /RiderService\/MarkLine/.test(c))).toHaveLength(2);
     expect(fake.state.writes).toHaveLength(1);
     // One token for the write itself, one more fetched to repair the refusal.
@@ -555,10 +557,11 @@ test.describe("what the product believes about the shared session", () => {
     const { fake } = await setup(page, { signedIn: true });
     await page.goto("/cities/shanghai");
     fake.state.csrfRefusals = 2;
-    await page.getByTestId("line-sh-1").getByRole("button", { name: "标记坐过" }).click();
+    await saveRide(page, "sh-1");
     await expect(page.getByRole("alert")).toContainText("没有权限执行此操作");
     expect(fake.state.calls.filter((c) => /RiderService\/MarkLine/.test(c))).toHaveLength(2);
     expect(fake.state.writes).toEqual([]);
+    await page.getByRole("dialog").getByRole("button", { name: "取消", exact: true }).click();
     await expect(page.getByTestId("line-sh-1").getByRole("button", { name: "标记坐过" })).toBeVisible();
   });
 });

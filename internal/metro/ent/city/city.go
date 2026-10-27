@@ -24,6 +24,8 @@ const (
 	FieldSlug = "slug"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
+	// FieldRegion holds the string denoting the region field in the database.
+	FieldRegion = "region"
 	// FieldHeaderImages holds the string denoting the header_images field in the database.
 	FieldHeaderImages = "header_images"
 	// FieldMapSvgURL holds the string denoting the map_svg_url field in the database.
@@ -51,6 +53,7 @@ var Columns = []string{
 	FieldUpdatedAt,
 	FieldSlug,
 	FieldName,
+	FieldRegion,
 	FieldHeaderImages,
 	FieldMapSvgURL,
 	FieldSortOrder,
@@ -81,6 +84,8 @@ var (
 	SlugValidator func(string) error
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
 	NameValidator func(string) error
+	// DefaultRegion holds the default value on creation for the "region" field.
+	DefaultRegion string
 	// DefaultHeaderImages holds the default value on creation for the "header_images" field.
 	DefaultHeaderImages []string
 	// DefaultMapSvgURL holds the default value on creation for the "map_svg_url" field.
@@ -122,6 +127,11 @@ func BySlug(opts ...sql.OrderTermOption) OrderOption {
 // ByName orders the results by the name field.
 func ByName(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldName, opts...).ToFunc()
+}
+
+// ByRegion orders the results by the region field.
+func ByRegion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRegion, opts...).ToFunc()
 }
 
 // ByMapSvgURL orders the results by the map_svg_url field.

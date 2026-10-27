@@ -90,6 +90,11 @@ func Name(v string) predicate.City {
 	return predicate.City(sql.FieldEQ(FieldName, v))
 }
 
+// Region applies equality check predicate on the "region" field. It's identical to RegionEQ.
+func Region(v string) predicate.City {
+	return predicate.City(sql.FieldEQ(FieldRegion, v))
+}
+
 // MapSvgURL applies equality check predicate on the "map_svg_url" field. It's identical to MapSvgURLEQ.
 func MapSvgURL(v string) predicate.City {
 	return predicate.City(sql.FieldEQ(FieldMapSvgURL, v))
@@ -348,6 +353,71 @@ func NameEqualFold(v string) predicate.City {
 // NameContainsFold applies the ContainsFold predicate on the "name" field.
 func NameContainsFold(v string) predicate.City {
 	return predicate.City(sql.FieldContainsFold(FieldName, v))
+}
+
+// RegionEQ applies the EQ predicate on the "region" field.
+func RegionEQ(v string) predicate.City {
+	return predicate.City(sql.FieldEQ(FieldRegion, v))
+}
+
+// RegionNEQ applies the NEQ predicate on the "region" field.
+func RegionNEQ(v string) predicate.City {
+	return predicate.City(sql.FieldNEQ(FieldRegion, v))
+}
+
+// RegionIn applies the In predicate on the "region" field.
+func RegionIn(vs ...string) predicate.City {
+	return predicate.City(sql.FieldIn(FieldRegion, vs...))
+}
+
+// RegionNotIn applies the NotIn predicate on the "region" field.
+func RegionNotIn(vs ...string) predicate.City {
+	return predicate.City(sql.FieldNotIn(FieldRegion, vs...))
+}
+
+// RegionGT applies the GT predicate on the "region" field.
+func RegionGT(v string) predicate.City {
+	return predicate.City(sql.FieldGT(FieldRegion, v))
+}
+
+// RegionGTE applies the GTE predicate on the "region" field.
+func RegionGTE(v string) predicate.City {
+	return predicate.City(sql.FieldGTE(FieldRegion, v))
+}
+
+// RegionLT applies the LT predicate on the "region" field.
+func RegionLT(v string) predicate.City {
+	return predicate.City(sql.FieldLT(FieldRegion, v))
+}
+
+// RegionLTE applies the LTE predicate on the "region" field.
+func RegionLTE(v string) predicate.City {
+	return predicate.City(sql.FieldLTE(FieldRegion, v))
+}
+
+// RegionContains applies the Contains predicate on the "region" field.
+func RegionContains(v string) predicate.City {
+	return predicate.City(sql.FieldContains(FieldRegion, v))
+}
+
+// RegionHasPrefix applies the HasPrefix predicate on the "region" field.
+func RegionHasPrefix(v string) predicate.City {
+	return predicate.City(sql.FieldHasPrefix(FieldRegion, v))
+}
+
+// RegionHasSuffix applies the HasSuffix predicate on the "region" field.
+func RegionHasSuffix(v string) predicate.City {
+	return predicate.City(sql.FieldHasSuffix(FieldRegion, v))
+}
+
+// RegionEqualFold applies the EqualFold predicate on the "region" field.
+func RegionEqualFold(v string) predicate.City {
+	return predicate.City(sql.FieldEqualFold(FieldRegion, v))
+}
+
+// RegionContainsFold applies the ContainsFold predicate on the "region" field.
+func RegionContainsFold(v string) predicate.City {
+	return predicate.City(sql.FieldContainsFold(FieldRegion, v))
 }
 
 // MapSvgURLEQ applies the EQ predicate on the "map_svg_url" field.

@@ -77,12 +77,13 @@ func TestChainMetroAdminEditsAreVisibleToAnonymousReaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	city, err := admin.MetroAdmin.CreateCity(ctx, adminWrite(t, admin, &bffmetrov1.CreateCityRequest{City: &bffmetrov1.CityInput{Slug: "shanghai", Name: "上海"}}))
+	city, err := admin.MetroAdmin.CreateCity(ctx, adminWrite(t, admin, &bffmetrov1.CreateCityRequest{City: &bffmetrov1.CityInput{Slug: "shanghai", Name: "上海", Region: "east"}}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = admin.MetroAdmin.CreateLine(ctx, adminWrite(t, admin, &bffmetrov1.CreateLineRequest{Line: &bffmetrov1.LineInput{
 		Code: "sh-1", CitySlug: "shanghai", Name: "1号线", Number: 1, Color: "#E4002B", LengthKm: 36.9, Cars: 6,
+		VehicleType: "a", Stations: 3, StationNames: []string{"富锦路", "人民广场", "莘庄"},
 	}})); err != nil {
 		t.Fatal(err)
 	}
@@ -90,6 +91,10 @@ func TestChainMetroAdminEditsAreVisibleToAnonymousReaders(t *testing.T) {
 	stale, err := reader.Catalog.ListCities(ctx, connect.NewRequest(&bffmetrov1.ListCitiesRequest{KnownVersion: before.Msg.Version}))
 	if err != nil || stale.Msg.NotModified || len(stale.Msg.Cities) != 1 || stale.Msg.Cities[0].LineCount != 1 {
 		t.Fatalf("reader after the edit: %+v %v", stale, err)
+	}
+	public, err := reader.Catalog.GetCity(ctx, connect.NewRequest(&bffmetrov1.GetCityRequest{Slug: "shanghai"}))
+	if err != nil || public.Msg.City.Region != "east" || public.Msg.Lines[0].VehicleType != "a" || public.Msg.Lines[0].StationNames[1] != "人民广场" {
+		t.Fatalf("discovery fields did not cross the BFF and database: %v %v", public, err)
 	}
 
 	// Validation failures come back with field paths a form can show.

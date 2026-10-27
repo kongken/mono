@@ -17,11 +17,12 @@ import { CONSOLE_ORIGIN } from "./fake";
 type Body = Record<string, any>;
 type Out = { status: number; body: unknown };
 
-export type City = { id: string; revision: number; slug: string; name: string; headerImages: string[]; mapSvgUrl: string; sortOrder: number };
+export type City = { id: string; revision: number; slug: string; name: string; headerImages: string[]; mapSvgUrl: string; sortOrder: number; region?: string };
 export type Stock = { id: string; revision: number; code: string; lengthM?: number; widthM?: number; capacity?: number };
 export type Line = {
   id: string; revision: number; code: string; citySlug: string; name: string; number: number; status: string; rollingStockCode: string;
   cars: number; carsAddition: number; stations: number; lengthKm: number; color: string; commencedOn: string; extendedOn: string; isLoop: boolean;
+  vehicleType?: string; stationNames?: string[];
 };
 export type Topic = { id: string; revision: number; slug: string; name: string; rollingStockCodes: string[]; cars: number[] };
 export type Token = { id: string; userId: string; name: string; audience: string; scopes: string[]; createdAt: string; expiresAt: string; lastUsedAt?: string; revokedAt?: string };
@@ -106,7 +107,7 @@ export function createFakeMetro(accounts: FakeAccounts) {
   };
   const matches = (q: string, ...fields: string[]) => !q || fields.some((f) => f.toLowerCase().includes(q.toLowerCase()));
 
-  const cityIn = (c: City) => ({ slug: c.slug, name: c.name, headerImages: c.headerImages, mapSvgUrl: c.mapSvgUrl, sortOrder: c.sortOrder });
+  const cityIn = (c: City) => ({ slug: c.slug, name: c.name, headerImages: c.headerImages, mapSvgUrl: c.mapSvgUrl, sortOrder: c.sortOrder, region: c.region ?? "" });
   const lineIn = (l: Line) => {
     const { id: _i, revision: _r, ...rest } = l;
     return rest;
@@ -223,7 +224,7 @@ export function createFakeMetro(accounts: FakeAccounts) {
       case "CreateCity": {
         if (state.cities.some((c) => c.slug === b.city.slug)) return exists("slug");
         if (!b.city.slug || !b.city.name) return invalid([{ field: b.city.slug ? "name" : "slug", reason: "必填" }]);
-        const c: City = { id: nextId("c"), revision: 1, slug: b.city.slug, name: b.city.name, headerImages: b.city.headerImages ?? [], mapSvgUrl: b.city.mapSvgUrl ?? "", sortOrder: b.city.sortOrder ?? 0 };
+        const c: City = { id: nextId("c"), revision: 1, slug: b.city.slug, name: b.city.name, headerImages: b.city.headerImages ?? [], mapSvgUrl: b.city.mapSvgUrl ?? "", sortOrder: b.city.sortOrder ?? 0, region: b.city.region ?? "" };
         state.cities.push(c);
         bump();
         log("city.create", "city", c.id, null, cityIn(c));
@@ -233,7 +234,7 @@ export function createFakeMetro(accounts: FakeAccounts) {
         const c = revisionOf(state.cities, b.id);
         if (isOut(c)) return c;
         const before = cityIn(c);
-        Object.assign(c, { slug: b.city.slug, name: b.city.name, headerImages: b.city.headerImages ?? [], mapSvgUrl: b.city.mapSvgUrl ?? "", sortOrder: b.city.sortOrder ?? 0, revision: c.revision + 1 });
+        Object.assign(c, { slug: b.city.slug, name: b.city.name, headerImages: b.city.headerImages ?? [], mapSvgUrl: b.city.mapSvgUrl ?? "", sortOrder: b.city.sortOrder ?? 0, region: b.city.region ?? "", revision: c.revision + 1 });
         bump();
         log("city.update", "city", c.id, before, cityIn(c));
         return { status: 200, body: { city: { id: c.id, revision: String(c.revision), city: cityIn(c) }, catalogVersion: String(state.version) } };

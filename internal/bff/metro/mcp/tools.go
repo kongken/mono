@@ -66,9 +66,9 @@ const (
 )
 
 const (
-	cityRules  = "City: slug (lowercase letters, digits, hyphens, at most 32 characters), name, headerImages (https URLs, at most 8), mapSvgUrl (https URL of an SVG shown as an image), sortOrder."
+	cityRules  = "City: slug (lowercase letters, digits, hyphens, at most 32 characters), name, headerImages (https URLs, at most 8), mapSvgUrl (https URL of an SVG shown as an image), sortOrder, region (empty or east, north, south, southwest, central, northeast, northwest)."
 	stockRules = "Rolling stock: code (unique, at most 32 characters), optional lengthM, widthM, capacity."
-	lineRules  = "Line: code (unique, [a-z0-9][a-z0-9-]{1,31}, cannot be changed after creation), citySlug, name, number (0 = unnumbered, sorts last), status (LINE_STATUS_PLANNED, LINE_STATUS_UNDER_CONSTRUCTION, LINE_STATUS_OPERATING, LINE_STATUS_SUSPENDED, LINE_STATUS_RETIRED), rollingStockCode, cars, carsAddition, stations, lengthKm (at most two decimals), color (#RRGGBB), commencedOn and extendedOn (YYYY-MM-DD or empty), isLoop."
+	lineRules  = "Line: code (unique, [a-z0-9][a-z0-9-]{1,31}, cannot be changed after creation), citySlug, name, number (0 = unnumbered, sorts last), status (LINE_STATUS_PLANNED, LINE_STATUS_UNDER_CONSTRUCTION, LINE_STATUS_OPERATING, LINE_STATUS_SUSPENDED, LINE_STATUS_RETIRED), rollingStockCode, cars, carsAddition, stations, lengthKm (at most two decimals), color (#RRGGBB), commencedOn and extendedOn (YYYY-MM-DD or empty), isLoop, vehicleType (empty or a, b, l, rubber, other), stationNames (ordered from first to last, empty or exactly stations entries, each at most 64 characters)."
 	topicRules = "Topic: slug, name, rollingStockCodes and/or cars; at least one of the two lists must be non-empty. A line matches when its rolling stock is listed and/or its cars or carsAddition is listed."
 )
 

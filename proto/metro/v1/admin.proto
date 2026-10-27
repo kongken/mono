@@ -100,6 +100,8 @@ message CityInput {
   // https address of an SVG map, or empty. Clients display it as an image only.
   string map_svg_url = 4;
   int32 sort_order = 5;
+  // east, north, south, southwest, central, northeast or northwest; empty when unknown.
+  string region = 6;
 }
 
 message AdminCity {
@@ -149,6 +151,10 @@ message LineInput {
   string commenced_on = 12;
   string extended_on = 13;
   bool is_loop = 14;
+  // a, b, l, rubber or other; empty when the vehicle class is unknown.
+  string vehicle_type = 15;
+  // Ordered station names; empty or exactly `stations` entries, at most 999 names of 64 characters.
+  repeated string station_names = 16;
 }
 
 message AdminLine {

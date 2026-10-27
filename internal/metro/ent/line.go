@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -53,6 +54,10 @@ type Line struct {
 	ExtendedOn *time.Time `json:"extended_on,omitempty"`
 	// IsLoop holds the value of the "is_loop" field.
 	IsLoop bool `json:"is_loop,omitempty"`
+	// VehicleType holds the value of the "vehicle_type" field.
+	VehicleType string `json:"vehicle_type,omitempty"`
+	// StationNames holds the value of the "station_names" field.
+	StationNames []string `json:"station_names,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the LineQuery when eager-loading is set.
 	Edges        LineEdges `json:"edges"`
@@ -97,13 +102,15 @@ func (*Line) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case line.FieldStationNames:
+			values[i] = new([]byte)
 		case line.FieldIsLoop:
 			values[i] = new(sql.NullBool)
 		case line.FieldLengthKm:
 			values[i] = new(sql.NullFloat64)
 		case line.FieldRevision, line.FieldNumber, line.FieldCars, line.FieldCarsAddition, line.FieldStations:
 			values[i] = new(sql.NullInt64)
-		case line.FieldID, line.FieldCode, line.FieldCityID, line.FieldName, line.FieldStatus, line.FieldRollingStockID, line.FieldColor:
+		case line.FieldID, line.FieldCode, line.FieldCityID, line.FieldName, line.FieldStatus, line.FieldRollingStockID, line.FieldColor, line.FieldVehicleType:
 			values[i] = new(sql.NullString)
 		case line.FieldCreatedAt, line.FieldUpdatedAt, line.FieldCommencedOn, line.FieldExtendedOn:
 			values[i] = new(sql.NullTime)
@@ -233,6 +240,20 @@ func (_m *Line) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.IsLoop = value.Bool
 			}
+		case line.FieldVehicleType:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field vehicle_type", values[i])
+			} else if value.Valid {
+				_m.VehicleType = value.String
+			}
+		case line.FieldStationNames:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field station_names", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.StationNames); err != nil {
+					return fmt.Errorf("unmarshal field station_names: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -335,6 +356,12 @@ func (_m *Line) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("is_loop=")
 	builder.WriteString(fmt.Sprintf("%v", _m.IsLoop))
+	builder.WriteString(", ")
+	builder.WriteString("vehicle_type=")
+	builder.WriteString(_m.VehicleType)
+	builder.WriteString(", ")
+	builder.WriteString("station_names=")
+	builder.WriteString(fmt.Sprintf("%v", _m.StationNames))
 	builder.WriteByte(')')
 	return builder.String()
 }

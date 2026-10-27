@@ -84,6 +84,28 @@ test.describe("who sees the metro administration", () => {
 });
 
 test.describe("records: create, edit, delete", () => {
+  test("discovery metadata stays in city and line edit forms after saving", async ({ page }) => {
+    const s = await setup(page, { roles: ["metro-admin"] });
+    await page.goto("/metro/cities");
+    await page.getByRole("button", { name: "编辑 shanghai" }).click();
+    await page.getByLabel("区域", { exact: true }).selectOption("east");
+    await save(page).click();
+    await page.getByRole("button", { name: "编辑 shanghai" }).click();
+    await expect(page.getByLabel("区域", { exact: true })).toHaveValue("east");
+    await page.getByRole("button", { name: "取消", exact: true }).click();
+    await page.goto("/metro/lines");
+    await page.getByRole("button", { name: "编辑 sh-1" }).click();
+    await page.getByLabel("车型分类", { exact: true }).selectOption("a");
+    await page.getByLabel("站数", { exact: true }).fill("3");
+    await page.getByLabel("站名（每行一站，按起点到终点排序）", { exact: true }).fill("富锦路\n人民广场\n莘庄");
+    await save(page).click();
+    await page.getByRole("button", { name: "编辑 sh-1" }).click();
+    await expect(page.getByLabel("车型分类", { exact: true })).toHaveValue("a");
+    await expect(page.getByLabel("站名（每行一站，按起点到终点排序）", { exact: true })).toHaveValue("富锦路\n人民广场\n莘庄");
+    const change = s.metro.state.calls.find((c) => c.method === "UpdateLine");
+    expect(change?.body.line.stationNames).toEqual(["富锦路", "人民广场", "莘庄"]);
+  });
+
   test("a city is created, found, edited and deleted with no password or reason asked", async ({ page }) => {
     const s = await setup(page, { roles: ["metro-admin"] });
     await page.goto("/metro/cities");

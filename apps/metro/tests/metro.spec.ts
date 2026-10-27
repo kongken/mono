@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { loginUrl, setup } from "./support";
+import { loginUrl, removeRide, saveRide, setup } from "./support";
 
 // Acceptance scenarios 17-21 of docs/metro/spec.md, desktop and phone sizes.
 
@@ -39,18 +39,19 @@ test("18 a signed-in rider marks and unmarks a line, and /me follows", async ({ 
 
   await page.goto("/cities/shanghai");
   const line1 = page.getByTestId("line-sh-1");
-  await line1.getByRole("button", { name: "标记坐过" }).click();
-  await expect(line1.getByRole("button", { name: "坐过" })).toHaveAttribute("aria-pressed", "true");
+  await saveRide(page, "sh-1");
+  await expect(line1.getByRole("button", { name: "编辑足迹" })).toBeVisible();
 
   await page.getByRole("link", { name: "我的足迹" }).click();
   await expect(page.getByRole("heading", { name: "乘坐记录" })).toBeVisible();
   await expect(page.getByRole("region", { name: "上海" })).toContainText("1号线");
-  await page.getByLabel("1号线 乘坐年份").fill("2019");
-  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await page.getByRole("button", { name: "编辑 1号线 乘坐年份" }).click();
+  await page.getByRole("dialog").getByLabel("乘坐年份（可选）").fill("2019");
+  await page.getByRole("dialog").getByRole("button", { name: "保存记录", exact: true }).click();
   await expect(page.getByRole("region", { name: "上海" })).toContainText("2019 年");
 
   await page.goto("/cities/shanghai");
-  await page.getByTestId("line-sh-1").getByRole("button", { name: "坐过" }).click();
+  await removeRide(page, "sh-1");
   await expect(page.getByTestId("line-sh-1").getByRole("button", { name: "标记坐过" })).toBeVisible();
   await page.getByRole("link", { name: "我的足迹" }).click();
   await expect(page.getByText("还没有记录")).toBeVisible();

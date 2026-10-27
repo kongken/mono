@@ -46,6 +46,8 @@ test("a sign-in returns to the page it started on when that page is one of the p
     ["/cities/shanghai", "/cities/shanghai"],
     ["/cities/shanghai/", "/cities/shanghai"],
     ["/topics/six-cars", "/topics/six-cars"],
+    ["/topics", "/topics"],
+    ["/topics/", "/topics"],
     ["/u/alice_1", "/u/alice_1"],
     // The old account addresses, the mail landing pages and unknown paths have no business being returned to.
     ["/login", "/"],

@@ -78,6 +78,8 @@ const usable = (segment: string) => SEGMENT.test(segment) && segment !== "." && 
 export function returnPathFor(pathname: string): string {
   const route = matchRoute(pathname);
   switch (route.name) {
+    case "topics":
+      return "/topics";
     case "city":
       return usable(route.slug) ? `/cities/${route.slug}` : START_PATH;
     case "topic":

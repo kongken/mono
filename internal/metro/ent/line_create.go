@@ -231,6 +231,26 @@ func (_c *LineCreate) SetNillableIsLoop(v *bool) *LineCreate {
 	return _c
 }
 
+// SetVehicleType sets the "vehicle_type" field.
+func (_c *LineCreate) SetVehicleType(v string) *LineCreate {
+	_c.mutation.SetVehicleType(v)
+	return _c
+}
+
+// SetNillableVehicleType sets the "vehicle_type" field if the given value is not nil.
+func (_c *LineCreate) SetNillableVehicleType(v *string) *LineCreate {
+	if v != nil {
+		_c.SetVehicleType(*v)
+	}
+	return _c
+}
+
+// SetStationNames sets the "station_names" field.
+func (_c *LineCreate) SetStationNames(v []string) *LineCreate {
+	_c.mutation.SetStationNames(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *LineCreate) SetID(v string) *LineCreate {
 	_c.mutation.SetID(v)
@@ -330,6 +350,14 @@ func (_c *LineCreate) defaults() {
 		v := line.DefaultIsLoop
 		_c.mutation.SetIsLoop(v)
 	}
+	if _, ok := _c.mutation.VehicleType(); !ok {
+		v := line.DefaultVehicleType
+		_c.mutation.SetVehicleType(v)
+	}
+	if _, ok := _c.mutation.StationNames(); !ok {
+		v := line.DefaultStationNames
+		_c.mutation.SetStationNames(v)
+	}
 	if _, ok := _c.mutation.ID(); !ok {
 		v := line.DefaultID()
 		_c.mutation.SetID(v)
@@ -399,6 +427,12 @@ func (_c *LineCreate) check() error {
 	}
 	if _, ok := _c.mutation.IsLoop(); !ok {
 		return &ValidationError{Name: "is_loop", err: errors.New(`ent: missing required field "Line.is_loop"`)}
+	}
+	if _, ok := _c.mutation.VehicleType(); !ok {
+		return &ValidationError{Name: "vehicle_type", err: errors.New(`ent: missing required field "Line.vehicle_type"`)}
+	}
+	if _, ok := _c.mutation.StationNames(); !ok {
+		return &ValidationError{Name: "station_names", err: errors.New(`ent: missing required field "Line.station_names"`)}
 	}
 	if len(_c.mutation.CityIDs()) == 0 {
 		return &ValidationError{Name: "city", err: errors.New(`ent: missing required edge "Line.city"`)}
@@ -498,6 +532,14 @@ func (_c *LineCreate) createSpec() (*Line, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IsLoop(); ok {
 		_spec.SetField(line.FieldIsLoop, field.TypeBool, value)
 		_node.IsLoop = value
+	}
+	if value, ok := _c.mutation.VehicleType(); ok {
+		_spec.SetField(line.FieldVehicleType, field.TypeString, value)
+		_node.VehicleType = value
+	}
+	if value, ok := _c.mutation.StationNames(); ok {
+		_spec.SetField(line.FieldStationNames, field.TypeJSON, value)
+		_node.StationNames = value
 	}
 	if nodes := _c.mutation.CityIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -816,6 +858,30 @@ func (u *LineUpsert) SetIsLoop(v bool) *LineUpsert {
 // UpdateIsLoop sets the "is_loop" field to the value that was provided on create.
 func (u *LineUpsert) UpdateIsLoop() *LineUpsert {
 	u.SetExcluded(line.FieldIsLoop)
+	return u
+}
+
+// SetVehicleType sets the "vehicle_type" field.
+func (u *LineUpsert) SetVehicleType(v string) *LineUpsert {
+	u.Set(line.FieldVehicleType, v)
+	return u
+}
+
+// UpdateVehicleType sets the "vehicle_type" field to the value that was provided on create.
+func (u *LineUpsert) UpdateVehicleType() *LineUpsert {
+	u.SetExcluded(line.FieldVehicleType)
+	return u
+}
+
+// SetStationNames sets the "station_names" field.
+func (u *LineUpsert) SetStationNames(v []string) *LineUpsert {
+	u.Set(line.FieldStationNames, v)
+	return u
+}
+
+// UpdateStationNames sets the "station_names" field to the value that was provided on create.
+func (u *LineUpsert) UpdateStationNames() *LineUpsert {
+	u.SetExcluded(line.FieldStationNames)
 	return u
 }
 
@@ -1143,6 +1209,34 @@ func (u *LineUpsertOne) SetIsLoop(v bool) *LineUpsertOne {
 func (u *LineUpsertOne) UpdateIsLoop() *LineUpsertOne {
 	return u.Update(func(s *LineUpsert) {
 		s.UpdateIsLoop()
+	})
+}
+
+// SetVehicleType sets the "vehicle_type" field.
+func (u *LineUpsertOne) SetVehicleType(v string) *LineUpsertOne {
+	return u.Update(func(s *LineUpsert) {
+		s.SetVehicleType(v)
+	})
+}
+
+// UpdateVehicleType sets the "vehicle_type" field to the value that was provided on create.
+func (u *LineUpsertOne) UpdateVehicleType() *LineUpsertOne {
+	return u.Update(func(s *LineUpsert) {
+		s.UpdateVehicleType()
+	})
+}
+
+// SetStationNames sets the "station_names" field.
+func (u *LineUpsertOne) SetStationNames(v []string) *LineUpsertOne {
+	return u.Update(func(s *LineUpsert) {
+		s.SetStationNames(v)
+	})
+}
+
+// UpdateStationNames sets the "station_names" field to the value that was provided on create.
+func (u *LineUpsertOne) UpdateStationNames() *LineUpsertOne {
+	return u.Update(func(s *LineUpsert) {
+		s.UpdateStationNames()
 	})
 }
 
@@ -1637,6 +1731,34 @@ func (u *LineUpsertBulk) SetIsLoop(v bool) *LineUpsertBulk {
 func (u *LineUpsertBulk) UpdateIsLoop() *LineUpsertBulk {
 	return u.Update(func(s *LineUpsert) {
 		s.UpdateIsLoop()
+	})
+}
+
+// SetVehicleType sets the "vehicle_type" field.
+func (u *LineUpsertBulk) SetVehicleType(v string) *LineUpsertBulk {
+	return u.Update(func(s *LineUpsert) {
+		s.SetVehicleType(v)
+	})
+}
+
+// UpdateVehicleType sets the "vehicle_type" field to the value that was provided on create.
+func (u *LineUpsertBulk) UpdateVehicleType() *LineUpsertBulk {
+	return u.Update(func(s *LineUpsert) {
+		s.UpdateVehicleType()
+	})
+}
+
+// SetStationNames sets the "station_names" field.
+func (u *LineUpsertBulk) SetStationNames(v []string) *LineUpsertBulk {
+	return u.Update(func(s *LineUpsert) {
+		s.SetStationNames(v)
+	})
+}
+
+// UpdateStationNames sets the "station_names" field to the value that was provided on create.
+func (u *LineUpsertBulk) UpdateStationNames() *LineUpsertBulk {
+	return u.Update(func(s *LineUpsert) {
+		s.UpdateStationNames()
 	})
 }
 
