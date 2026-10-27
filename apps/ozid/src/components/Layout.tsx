@@ -40,7 +40,7 @@ function NavLink({ item, path }: { item: NavItem; path: string }) {
 
 function Brand({ className }: { className?: string }) {
   return (
-    <Link to="/" className={cn("flex items-center gap-2.5 rounded-lg", focus, className)}>
+    <Link to="/" className={cn("flex shrink-0 items-center gap-2.5 rounded-lg", focus, className)}>
       <span className="grid size-9 place-items-center rounded-xl bg-brand text-brand-foreground">
         <UserCircle className="size-6" weight="bold" aria-hidden />
       </span>
@@ -71,8 +71,9 @@ export function Layout({ children }: { children: ReactNode }) {
   };
   return (
     <div className={cn("flex min-h-screen flex-col", signedIn && "lg:pl-60")}>
+      <a href="#main-content" className="sr-only z-50 rounded-md bg-card p-3 text-primary focus:not-sr-only focus:fixed focus:left-4 focus:top-4">跳到主要内容</a>
       {signedIn ? (
-        <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col justify-between bg-sidebar px-4 py-6 shadow-[0_1px_8px_rgba(0,0,0,0.04)] lg:flex">
+        <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col justify-between gap-6 overflow-y-auto bg-sidebar px-4 py-6 shadow-[0_1px_8px_rgba(0,0,0,0.04)] lg:flex">
           <div className="grid gap-6">
             <Brand className="px-2" />
             <nav aria-label="账号" className="grid gap-1">
@@ -92,12 +93,12 @@ export function Layout({ children }: { children: ReactNode }) {
         </aside>
       ) : null}
       <header className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur-xl">
-        <div className={cn("mx-auto flex h-16 items-center gap-3 px-4 sm:px-8", signedIn ? "max-w-5xl" : "max-w-3xl")}>
+        <div className={cn("mx-auto flex min-h-16 items-center gap-3 px-4 py-3 sm:px-8", signedIn ? "max-w-5xl" : "max-w-3xl")}>
           <Brand className={cn(signedIn && "lg:hidden")} />
           <span className={cn("hidden text-sm text-muted-foreground", signedIn ? "md:inline lg:hidden" : "sm:inline")}>
             山海足迹、地铁足迹共用的账号
           </span>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex min-w-0 items-center gap-3">
             {signedIn ? (
               <>
                 <span className="hidden items-center gap-1.5 text-xs font-medium text-muted-foreground sm:flex">
@@ -131,7 +132,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         ) : null}
       </header>
-      <main className={cn("mx-auto w-full flex-1 px-4 py-8 sm:px-8", signedIn ? "max-w-5xl" : "max-w-3xl")}>{children}</main>
+      <main id="main-content" tabIndex={-1} className={cn("mx-auto w-full flex-1 scroll-mt-32 px-4 py-8 outline-none sm:px-8", signedIn ? "max-w-5xl" : "max-w-3xl")}>{children}</main>
       <footer className="border-t border-border/60">
         <p className={cn("mx-auto px-4 py-4 text-xs text-muted-foreground sm:px-8", signedIn ? "max-w-5xl" : "max-w-3xl")}>
           OzID 是各产品共用的账号：登录一次，已接入的产品都能识别你。
@@ -150,11 +151,11 @@ export function Spinner({ label = "加载中" }: { label?: string }) {
 }
 
 /** The heading block shared by the self-service pages. */
-export function PageHeader({ eyebrow, title, children }: { eyebrow?: string; title: string; children?: ReactNode }) {
+export function PageHeader({ eyebrow, title, children, danger = false }: { eyebrow?: string; title: string; children?: ReactNode; danger?: boolean }) {
   return (
     <header className="grid gap-1.5">
       {eyebrow ? <p className="text-[11px] font-semibold uppercase tracking-wider text-signal">{eyebrow}</p> : null}
-      <h1 className="text-2xl font-semibold tracking-tight text-primary sm:text-3xl">{title}</h1>
+      <h1 className={cn("text-2xl font-semibold tracking-tight text-primary sm:text-3xl", danger && "text-destructive")}>{title}</h1>
       {children ? <p className="text-sm leading-relaxed text-muted-foreground">{children}</p> : null}
     </header>
   );

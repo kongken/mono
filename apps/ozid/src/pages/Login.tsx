@@ -45,7 +45,7 @@ export default function LoginPage() {
   if (session.status === "loading" || target.status === "resolving") return <Spinner />;
   if (session.status === "unavailable")
     return (
-      <div className="mx-auto grid max-w-md gap-4">
+      <div className="mx-auto grid max-w-md gap-4 rounded-xl bg-card p-6 shadow-sm sm:p-8">
         <Notice kind="error">{session.message}。这不代表你已退出登录。</Notice>
         <Button onClick={() => void refresh()}>重试</Button>
       </div>
@@ -54,7 +54,7 @@ export default function LoginPage() {
   if (session.status === "signed-in" && !switching) {
     const name = session.profile.user.displayName;
     return (
-      <div className="mx-auto grid max-w-md gap-4" data-testid="signed-in-here">
+      <div className="mx-auto grid max-w-md gap-4 rounded-xl bg-card p-6 shadow-sm sm:p-8" data-testid="signed-in-here">
         <TargetNotice target={target} action="可以继续进入账号概览。" />
         <section aria-labelledby="signed-in-title" className="grid gap-3">
           <h1 id="signed-in-title" className="text-lg font-semibold">已登录</h1>
@@ -71,7 +71,7 @@ export default function LoginPage() {
 
   if (session.status === "signed-in" && switching) {
     return (
-      <div className="mx-auto grid max-w-md gap-4" data-testid="switch-account">
+      <div className="mx-auto grid max-w-md gap-4 rounded-xl bg-card p-6 shadow-sm sm:p-8" data-testid="switch-account">
         <h1 className="text-lg font-semibold">使用其他账号登录</h1>
         <Notice kind="info">
           账号在已接入的产品间共用，所以切换账号会退出这个浏览器上<strong>所有应用</strong>的当前登录；其他设备不受影响。

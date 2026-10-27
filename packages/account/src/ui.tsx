@@ -174,3 +174,13 @@ export function useFocusFirstInvalid(form: React.RefObject<HTMLFormElement | nul
 }
 
 export const FORM_CLASS = "grid gap-4";
+
+/** Text-only avatar: account pages do not fetch user-supplied external images. */
+export function AccountAvatar({ name, className }: { name: string; className?: string }) {
+  const chars = Array.from(name.trim());
+  return (
+    <span aria-hidden className={cn("grid size-16 shrink-0 select-none place-items-center rounded-full bg-primary text-xl font-semibold text-primary-foreground", className)}>
+      {chars.slice(-2).join("") || "?"}
+    </span>
+  );
+}

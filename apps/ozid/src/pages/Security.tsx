@@ -80,7 +80,7 @@ export default function SecurityPage() {
     </div>
   );
 
-  if (controlled) return <div className="mx-auto max-w-md">{confirmation}</div>;
+  if (controlled) return <div className="mx-auto max-w-md rounded-xl bg-card p-6 shadow-sm sm:p-8">{confirmation}</div>;
 
   return (
     <div className="grid max-w-2xl gap-8" data-testid="security-page">

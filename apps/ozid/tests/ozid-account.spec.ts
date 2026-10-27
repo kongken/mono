@@ -22,6 +22,21 @@ const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.
 const nav = (page: Page) => page.getByRole("navigation", { name: "账号" });
 
 test.describe("navigation", () => {
+  test("long account names keep header actions and profile content inside the viewport", async ({ page }) => {
+    const { account } = await setup(page);
+    account.displayName = "用于验证手机布局与昵称预览的较长名称".repeat(2);
+    for (const width of [320, 390, 768, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const path of ["/profile", "/"]) {
+        await page.goto(path);
+        await expect(page.getByTestId("header-name")).toHaveText(account.displayName);
+        expect(await noOverflow(page)).toBe(true);
+        const logout = await page.getByRole("button", { name: "退出登录", exact: true }).boundingBox();
+        expect(logout!.x + logout!.width).toBeLessThanOrEqual(width);
+      }
+    }
+  });
+
   test("every self-service page is reachable from the overview and the account navigation", async ({ page }) => {
     await setup(page);
     await page.goto("/");
@@ -66,6 +81,85 @@ test.describe("navigation", () => {
 });
 
 test.describe("profile", () => {
+  test("preview, avatar reset and cancel keep edits local until saved", async ({ page }) => {
+    const { accounts, account } = await setup(page);
+    account.avatarUrl = "https://cdn.example.com/saved.png";
+    await page.goto("/profile");
+    const form = page.getByTestId("profile-form");
+    const name = form.getByLabel("昵称");
+    const avatar = form.getByLabel("头像地址（可选）");
+    await expect(form.getByRole("button", { name: "取消修改" })).toBeDisabled();
+    await name.fill("新昵称😀");
+    await expect(form.getByTestId("profile-preview-name")).toHaveText("新昵称😀");
+    await expect(form.getByTestId("profile-name-count")).toHaveText("4 / 40");
+    await expect(form.getByRole("status")).toHaveText("有未保存的修改");
+    await form.getByRole("button", { name: "恢复默认头像" }).click();
+    await expect(avatar).toHaveValue("");
+    expect(accounts.state.calls).not.toContain("UpdateMyProfile");
+    await form.getByRole("button", { name: "取消修改" }).click();
+    await expect(name).toHaveValue("Oz 用户");
+    await expect(avatar).toHaveValue("https://cdn.example.com/saved.png");
+    await expect(form.getByTestId("profile-preview-name")).toHaveText("Oz 用户");
+
+    // Reset is a draft edit. Only saving sends the empty avatar to the server.
+    await form.getByRole("button", { name: "恢复默认头像" }).click();
+    await form.getByRole("button", { name: "保存资料" }).click();
+    await expect(form.getByRole("status")).toHaveText("资料已保存");
+    // ProtoJSON omits the empty scalar; usersrv still applies the empty avatar value.
+    expect(accounts.state.bodies.get("UpdateMyProfile")).toEqual([{ displayName: "Oz 用户" }]);
+    expect(account.avatarUrl).toBe("");
+    await page.reload();
+    await expect(avatar).toHaveValue("");
+    await expect(form.getByRole("button", { name: "恢复默认头像" })).toBeDisabled();
+    expect(await noOverflow(page)).toBe(true);
+  });
+
+  test("saving locks edits; failure keeps the draft and cancel uses the latest saved response", async ({ page }) => {
+    const { accounts } = await setup(page);
+    await page.goto("/profile");
+    const form = page.getByTestId("profile-form");
+    const name = form.getByLabel("昵称");
+    await name.fill(" 保存的新昵称 ");
+    const save = accounts.holdNext("UpdateMyProfile");
+    const refresh = accounts.holdNext("Me");
+    await form.getByRole("button", { name: "保存资料" }).click();
+    await save.arrived;
+    await expect(name).toBeDisabled();
+    await expect(form.getByRole("button", { name: "取消修改" })).toBeDisabled();
+    save.release();
+    await refresh.arrived;
+    await expect(form.getByRole("status")).toHaveText("资料已保存");
+    await name.fill("未保存的昵称");
+    accounts.failNext("UpdateMyProfile", FAILURES.unavailable);
+    await form.getByRole("button", { name: "保存资料" }).click();
+    await expect(form.getByRole("alert")).toBeVisible();
+    await expect(name).toHaveValue("未保存的昵称");
+    await expect(name).toBeEnabled();
+    await form.getByRole("button", { name: "取消修改" }).click();
+    await expect(name).toHaveValue("保存的新昵称");
+    await expect(form.getByRole("alert")).toHaveCount(0);
+    await expect(form.getByRole("button", { name: "保存资料" })).toBeDisabled();
+    refresh.release();
+  });
+
+  test("cancel clears validation errors and keyboard users can reach the new actions", async ({ page }) => {
+    await setup(page);
+    await page.goto("/profile");
+    const form = page.getByTestId("profile-form");
+    await form.getByLabel("昵称").fill(" ");
+    await form.getByRole("button", { name: "保存资料" }).click();
+    await expect(form.getByLabel("昵称")).toBeFocused();
+    await expect(form.getByLabel("昵称")).toHaveAttribute("aria-invalid", "true");
+    await form.getByRole("button", { name: "取消修改" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(form.getByLabel("昵称")).not.toHaveAttribute("aria-invalid", "true");
+    await expect(form.getByLabel("昵称")).toHaveValue("Oz 用户");
+    await form.getByLabel("头像地址（可选）").fill("https://cdn.example.com/draft.png");
+    await form.getByRole("button", { name: "恢复默认头像" }).focus();
+    await page.keyboard.press("Space");
+    await expect(form.getByLabel("头像地址（可选）")).toHaveValue("");
+  });
+
   test("the email is read only; nickname and avatar are saved and nothing else is sent", async ({ page }) => {
     const { accounts } = await setup(page);
     await page.goto("/profile");

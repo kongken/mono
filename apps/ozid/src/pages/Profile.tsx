@@ -19,7 +19,7 @@ export default function ProfilePage() {
   return (
     <RequireSession>
       {({ user, email }) => (
-        <div className="grid max-w-2xl gap-6" data-testid="profile-page">
+        <div className="grid gap-6" data-testid="profile-page">
           <PageHeader eyebrow="OzID 统一身份管理" title="资料">
             管理在接入应用中共用的基本信息。
           </PageHeader>
@@ -27,13 +27,14 @@ export default function ProfilePage() {
             <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-card text-signal shadow-sm">
               <UsersThree className="size-5" weight="bold" aria-hidden />
             </span>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              昵称和头像在山海足迹、地铁足迹间共用。地铁足迹里的骑行者主页、简介等资料仍在那个产品里单独编辑，这里不会改动。
-            </p>
+            <div className="grid gap-1">
+              <h2 className="text-sm font-semibold text-primary">共用范围说明</h2>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                昵称和头像在山海足迹、地铁足迹间共用。地铁足迹里的骑行者主页、简介等资料仍在那个产品里单独编辑，这里不会改动。
+              </p>
+            </div>
           </section>
-          <div className="rounded-xl bg-card p-6 shadow-sm sm:p-8">
-            <ProfileForm key={user.id} api={account} user={user} email={email} onUpdated={() => void refresh(true)} onSessionInvalid={() => void refresh(true)} />
-          </div>
+          <ProfileForm key={user.id} api={account} user={user} email={email} onUpdated={() => void refresh(true)} onSessionInvalid={() => void refresh(true)} />
         </div>
       )}
     </RequireSession>
