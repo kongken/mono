@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 @source "../../../packages/ui/src";
@@ -60,6 +61,17 @@
   --brand-foreground: #c3ecd4;
   --signal: #3c6752;
   --sidebar: #f1f4ef;
+  --surface: #f7faf6;
+  --surface-lowest: #ffffff;
+  --surface-low: #f1f4f1;
+  --surface-container: #ecefeb;
+  --surface-container-high: #e6e9e5;
+  --surface-container-highest: #e0e3e0;
+  --secondary-container: #c6ebd8;
+  --tertiary: #2b4959;
+  --tertiary-fixed: #c7e7fa;
+  --outline: #727974;
+  --primary-container: #2d4b3e;
 }
 * { box-sizing: border-box; }
 body {

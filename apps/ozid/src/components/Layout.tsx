@@ -58,6 +58,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const signedIn = session.status === "signed-in";
+  const landing = path === "/" && !signedIn;
   const leave = async () => {
     setBusy(true);
     setFailed(false);
@@ -92,7 +93,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         </aside>
       ) : null}
-      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur-xl">
+      {landing ? null : <header className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur-xl">
         <div className={cn("mx-auto flex min-h-16 items-center gap-3 px-4 py-3 sm:px-8", signedIn ? "max-w-5xl" : "max-w-3xl")}>
           <Brand className={cn(signedIn && "lg:hidden")} />
           <span className={cn("hidden text-sm text-muted-foreground", signedIn ? "md:inline lg:hidden" : "sm:inline")}>
@@ -131,13 +132,13 @@ export function Layout({ children }: { children: ReactNode }) {
             <Notice kind="error">退出登录没有完成，请检查网络后重试。</Notice>
           </div>
         ) : null}
-      </header>
-      <main id="main-content" tabIndex={-1} className={cn("mx-auto w-full flex-1 scroll-mt-32 px-4 py-8 outline-none sm:px-8", signedIn ? "max-w-5xl" : "max-w-3xl")}>{children}</main>
-      <footer className="border-t border-border/60">
+      </header>}
+      <main id="main-content" tabIndex={-1} className={cn("w-full flex-1 scroll-mt-32 outline-none", landing ? "" : "mx-auto px-4 py-8 sm:px-8", signedIn ? "max-w-5xl" : "max-w-3xl")}>{children}</main>
+      {landing ? null : <footer className="border-t border-border/60">
         <p className={cn("mx-auto px-4 py-4 text-xs text-muted-foreground sm:px-8", signedIn ? "max-w-5xl" : "max-w-3xl")}>
           OzID 是各产品共用的账号：登录一次，已接入的产品都能识别你。
         </p>
-      </footer>
+      </footer>}
     </div>
   );
 }

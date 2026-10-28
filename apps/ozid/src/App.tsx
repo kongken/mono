@@ -1,6 +1,7 @@
 import { Layout } from "@/components/Layout";
 import { useRoute } from "@/lib/router";
-import { SessionProvider } from "@/lib/session";
+import { SessionProvider, useSession } from "@/lib/session";
+import HomePage from "@/pages/Home";
 import CloseAccountPage from "@/pages/CloseAccount";
 import ForgotPasswordPage from "@/pages/ForgotPassword";
 import LoginPage from "@/pages/Login";
@@ -12,9 +13,10 @@ import SecurityPage from "@/pages/Security";
 import SessionsPage from "@/pages/Sessions";
 
 function Routes() {
+  const { session } = useSession();
   switch (useRoute()) {
     case "overview":
-      return <OverviewPage />;
+      return session.status === "signed-in" ? <OverviewPage /> : <HomePage />;
     case "login":
       return <LoginPage />;
     case "register":
