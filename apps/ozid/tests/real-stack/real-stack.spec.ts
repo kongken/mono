@@ -112,7 +112,7 @@ test.describe("one account across origins", () => {
 
     await page.goto(`${stack.id}/`);
     await page.getByRole("button", { name: "退出登录" }).click();
-    await expect(page).toHaveURL(`${stack.id}/`);
+    await expect(page).toHaveURL(`${stack.id}/login`);
     for (const origin of [stack.trip, stack.metro]) {
       await page.goto(`${origin}/`);
       await expect(me(page)).toHaveText(/^anonymous/);
@@ -181,7 +181,7 @@ test.describe("what the BFF refuses", () => {
       await expect(page.getByTestId("overview")).toBeVisible();
       await expect(page).toHaveURL(`${stack.id}/`);
       await page.getByRole("button", { name: "退出登录" }).click();
-      await expect(page).toHaveURL(`${stack.id}/`);
+      await expect(page).toHaveURL(`${stack.id}/login`);
     }
     expect(hostile).toEqual([]);
   });
@@ -220,7 +220,7 @@ test.describe("what the BFF refuses", () => {
     const ok = await raw(`${AUTH}Logout`, { origin: stack.id, headers: withPair, context });
     expect(ok.status, ok.text).toBe(200);
     await page.goto(`${stack.id}/`);
-    await expect(page).toHaveURL(new RegExp("/$"));
+    await expect(page).toHaveURL(new RegExp("/login"));
   });
 });
 
@@ -371,7 +371,7 @@ test.describe("account mail, end to end", () => {
 
     // The session of the browser that was signed in is gone.
     await page.goto(`${stack.id}/`);
-    await expect(page).toHaveURL(new RegExp("/$"));
+    await expect(page).toHaveURL(new RegExp("/login"));
     // The old password no longer works; the new one does, and goes back to the asking product.
     await other.page.getByRole("link", { name: "去登录" }).click();
     await expect(other.page).toHaveURL(`${stack.id}/login?app_id=trip-map&return_path=%2F`);
@@ -450,7 +450,7 @@ test.describe("profile, password and devices, end to end", () => {
   const stillIn = async (d: { page: Page }) => {
     await d.page.goto(`${stack.id}/`);
     await d.page.waitForLoadState("networkidle");
-    return await d.page.getByRole("button", { name: "退出登录" }).count() > 0;
+    return !new URL(d.page.url()).pathname.startsWith("/login");
   };
 
   test("edit the profile, sign out other devices, sign out this browser, change the password", async ({ browser }) => {

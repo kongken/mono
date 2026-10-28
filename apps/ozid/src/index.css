@@ -60,17 +60,6 @@
   --brand-foreground: #c3ecd4;
   --signal: #3c6752;
   --sidebar: #f1f4ef;
-  --surface: #f7faf6;
-  --surface-lowest: #ffffff;
-  --surface-low: #f1f4f1;
-  --surface-container: #ecefeb;
-  --surface-container-high: #e6e9e5;
-  --surface-container-highest: #e0e3e0;
-  --secondary-container: #c6ebd8;
-  --tertiary: #2b4959;
-  --tertiary-fixed: #c7e7fa;
-  --outline: #727974;
-  --primary-container: #2d4b3e;
 }
 * { box-sizing: border-box; }
 body {

@@ -51,9 +51,9 @@ test.describe("navigation", () => {
       await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
       expect(await noOverflow(page)).toBe(true);
     }
-    // No account navigation after sign-out; the public Oz homepage is the anonymous destination.
+    // No sign-in, no navigation: the account links only exist with a session.
     await page.getByRole("button", { name: "退出登录" }).click();
-    await expect(page.getByRole("heading", { name: "给日常，留一点探索的空间。" })).toBeVisible();
+    await expect(page).toHaveURL(/\/login$/);
     await expect(nav(page)).toHaveCount(0);
   });
 
