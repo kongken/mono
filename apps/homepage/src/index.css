@@ -1,0 +1,30 @@
+@import "tailwindcss";
+@source "../../../packages/ui/src";
+
+:root {
+  font-family: "DM Sans", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --surface: #f7faf6;
+  --surface-lowest: #ffffff;
+  --surface-low: #f1f4f1;
+  --surface-container: #ecefeb;
+  --surface-container-high: #e6e9e5;
+  --surface-container-highest: #e0e3e0;
+  --secondary: #456557;
+  --secondary-container: #c6ebd8;
+  --secondary-foreground: #2d4d40;
+  --tertiary: #2b4959;
+  --tertiary-fixed: #c7e7fa;
+  --primary: #163428;
+  --primary-container: #2d4b3e;
+  --foreground: #181c1b;
+  --muted-foreground: #424844;
+  --border: #c1c8c3;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; background: var(--surface); color: var(--foreground); }
+a { color: inherit; }
