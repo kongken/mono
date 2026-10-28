@@ -49,6 +49,9 @@ test.describe("direct visit", () => {
   test("anonymous visitors are led to sign in and, afterwards, to the account overview", async ({ page }) => {
     const { accounts } = await setup(page);
     await page.goto("/");
+    await expect(page.getByRole("heading", { name: "给日常，留一点探索的空间。" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "主页" }).getByRole("link", { name: "OzID", exact: true })).toHaveAttribute("href", "/login");
+    await page.getByRole("navigation", { name: "主页" }).getByRole("link", { name: "OzID", exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("heading", { name: "登录OzID" })).toBeVisible();
     // Fields are wired for password managers; registration and reset are pages of OzID too.
@@ -67,6 +70,7 @@ test.describe("direct visit", () => {
     await expect(page.getByRole("link", { name: "打开山海足迹" })).toBeVisible();
     await expect(page.getByRole("link", { name: "打开地铁足迹" })).toBeVisible();
     expect(accounts.state.bodies.get("ResolveNavigation")).toEqual([
+      { appId: "trip-map" }, { appId: "metro" },
       { appId: "trip-map" }, { appId: "metro" },
     ]);
     // No password, token or CSRF value is kept by the page.
@@ -157,7 +161,7 @@ test.describe("overview product entries", () => {
     await expect(page.getByRole("alert")).toContainText("你仍处于登录状态");
     expect(accounts.state.current).not.toBeNull();
     await page.getByRole("button", { name: "退出当前浏览器登录" }).click();
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole("heading", { name: "给日常，留一点探索的空间。" })).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem("review-draft"))).toBe("keep");
   });
 });
@@ -248,7 +252,7 @@ test.describe("a session that already exists", () => {
     const { accounts } = await setup(page, { signedIn: true });
     await page.goto("/");
     await page.getByRole("button", { name: "退出登录" }).click();
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole("heading", { name: "给日常，留一点探索的空间。" })).toBeVisible();
     expect(accounts.state.current).toBeNull();
   });
 });

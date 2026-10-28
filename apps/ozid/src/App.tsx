@@ -16,7 +16,7 @@ function Routes() {
   const { session } = useSession();
   switch (useRoute()) {
     case "overview":
-      return session.status === "signed-in" ? <OverviewPage /> : <HomePage />;
+      return session.status === "anonymous" ? <HomePage /> : <OverviewPage />;
     case "login":
       return <LoginPage />;
     case "register":
