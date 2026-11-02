@@ -256,13 +256,14 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 		mux.Handle(route, ingress.ConnectOnly(handler))
 		route, handler = bffv1connect.NewUserServiceHandler(auth, authOpts...)
 		mux.Handle(route, ingress.ConnectOnly(handler))
+		var ext *bffauth.ExternalHandler
 		if svc := h.authSvc.Load(); svc != nil {
 			registry, err := navigation.New(h.cfg.Navigation, h.cfg.CORSAllowedOrigins, h.cfg.Auth.CookieSecure)
 			if err != nil {
 				return nil, err
 			}
 			startCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			ext, err := bffauth.NewExternalHandler(startCtx, svc, h.usersClient.Load(), h.cfg.Auth.External, h.cfg.Navigation, registry, h.cfg.ClientIPHeader)
+			ext, err = bffauth.NewExternalHandler(startCtx, svc, h.usersClient.Load(), h.cfg.Auth.External, h.cfg.Navigation, registry, h.cfg.ClientIPHeader)
 			cancel()
 			if err != nil {
 				return nil, err
@@ -271,6 +272,9 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 			mux.Handle(route, ingress.ConnectOnly(handler))
 			mux.HandleFunc("/identity/callback/google", ext.Callback)
 			mux.HandleFunc("/identity/callback/github", ext.Callback)
+			identityHandler := bffauth.NewIdentityHandler(h.authSvc.Load(), h.usersClient.Load(), ext)
+			route, handler = bffv1connect.NewIdentityServiceHandler(identityHandler, authOpts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
 		}
 		if r := h.resources.Load(); r != nil {
 			route, handler = bffv1connect.NewAccessTokenServiceHandler(accesstoken.NewHandler(accesstoken.New(r.DB)), authOpts...)

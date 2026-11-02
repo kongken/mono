@@ -14,11 +14,12 @@ var readOnlyProcedures = map[string]bool{
 	bffv1connect.ExternalAuthServiceGetExternalFlowProcedure: true,
 	bfftripmapv1connect.StatusServiceGetStatusProcedure:      true,
 
-	bffv1connect.AuthServiceMeProcedure:                 true,
-	bffv1connect.AuthServiceListSessionsProcedure:       true,
-	bffv1connect.AuthServiceIssueCSRFTokenProcedure:     true,
-	bffv1connect.AuthServiceResolveNavigationProcedure:  true,
-	bffv1connect.AuthServiceGetAccountDeletionProcedure: true,
+	bffv1connect.AuthServiceMeProcedure:                          true,
+	bffv1connect.AuthServiceListSessionsProcedure:                true,
+	bffv1connect.AuthServiceIssueCSRFTokenProcedure:              true,
+	bffv1connect.AuthServiceResolveNavigationProcedure:           true,
+	bffv1connect.IdentityServiceGetIdentityCapabilitiesProcedure: true,
+	bffv1connect.IdentityServiceGetIdentityOperationProcedure:    true,
 
 	bffv1connect.AccessTokenServiceListAccessTokensProcedure: true,
 

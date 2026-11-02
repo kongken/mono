@@ -2,6 +2,7 @@ import { Layout } from "@/components/Layout";
 import { useRoute } from "@/lib/router";
 import { SessionProvider } from "@/lib/session";
 import CloseAccountPage from "@/pages/CloseAccount";
+import IdentitiesPage from "@/pages/Identities";
 import ForgotPasswordPage from "@/pages/ForgotPassword";
 import LoginPage from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
@@ -27,6 +28,8 @@ function Routes() {
       return <SecurityPage />;
     case "sessions":
       return <SessionsPage />;
+    case "identities":
+      return <IdentitiesPage />;
     case "close-account":
       return <CloseAccountPage />;
     default:
