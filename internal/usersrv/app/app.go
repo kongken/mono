@@ -23,6 +23,7 @@ import (
 	"github.com/kongken/mono/internal/usersrv/application"
 	"github.com/kongken/mono/internal/usersrv/config"
 	"github.com/kongken/mono/internal/usersrv/ent"
+	"github.com/kongken/mono/internal/usersrv/externalprovider"
 	"github.com/kongken/mono/internal/usersrv/mailer"
 	"github.com/kongken/mono/internal/usersrv/outbox"
 	"github.com/kongken/mono/internal/usersrv/passwordhash"
@@ -45,6 +46,9 @@ type Resources struct {
 	Accounts *account.Service
 	Limiter  application.Limiter
 	Limits   application.Limits
+	// ExternalProviders verify provider proofs only. They have no readiness
+	// probe or background worker and are not yet exposed through RPCs.
+	ExternalProviders map[externalprovider.ProviderName]externalprovider.ExternalProvider
 	// Mail is the outbox that issues challenges and delivers their mail; MailGuard
 	// applies the account mail limits. Both are nil only in tests that do not use mail.
 	Mail      *outbox.Service
@@ -85,6 +89,10 @@ func (h *Handlers) Check(ctx context.Context) []health.Status {
 // Bootstrap runs after Butterfly loads YAML and registers its named store clients.
 func (h *Handlers) Bootstrap(ctx context.Context) error {
 	if err := h.cfg.Validate(); err != nil {
+		return err
+	}
+	providers, err := buildExternalProviders(h.cfg.Auth, nil)
+	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
@@ -153,6 +161,7 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 		_ = client.Close()
 		return err
 	}
+	res.ExternalProviders = providers
 	h.resources.Store(res)
 	for _, w := range res.Workers {
 		w.Start()

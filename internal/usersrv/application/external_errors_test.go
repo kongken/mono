@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kongken/mono/internal/usersrv/account"
+	"github.com/kongken/mono/internal/usersrv/externalprovider"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -36,5 +37,11 @@ func TestExternalErrorsCarryFixedDomainDetails(t *testing.T) {
 				t.Fatalf("unexpected public detail: %v", err)
 			}
 		})
+	}
+}
+
+func TestExternalProviderUnavailableDoesNotBecomeAnAuthenticationFailure(t *testing.T) {
+	if err := toStatus("external", externalprovider.ErrUnavailable); status.Code(err) != codes.Unavailable {
+		t.Fatalf("provider outage: %v", err)
 	}
 }

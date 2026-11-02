@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/kongken/mono/internal/usersrv/account"
+	"github.com/kongken/mono/internal/usersrv/externalprovider"
 	"github.com/kongken/mono/internal/usersrv/identity"
 	"github.com/kongken/mono/internal/usersrv/ratelimit"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -119,7 +120,7 @@ func toStatus(op string, err error) error {
 		return errRateLimited()
 	case errors.Is(err, account.ErrEmailTaken):
 		return status.Error(codes.AlreadyExists, "email already registered")
-	case errors.Is(err, account.ErrUnavailable), errors.Is(err, ratelimit.ErrUnavailable),
+	case errors.Is(err, account.ErrUnavailable), errors.Is(err, externalprovider.ErrUnavailable), errors.Is(err, ratelimit.ErrUnavailable),
 		errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
 		if !errors.Is(err, context.Canceled) {
 			slog.Warn("usersrv unavailable", "op", op, "error", err)

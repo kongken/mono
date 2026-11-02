@@ -616,11 +616,22 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 错误用 `google.rpc.ErrorInfo`（domain `usersrv.v1`，reason 为 `INVALID_CREDENTIALS`、`ACCOUNT_NOT_ACTIVE`、`VERSION_CONFLICT`、`RATE_LIMITED`、`INVALID_ARGUMENT`、`DELETION_MISMATCH`、`TOKEN_INVALID`、`REGISTRATION_CLOSED`）；错误密码与内部凭证错误因此不会混淆。日志与审计不含邮箱、密码、令牌。
 
-**第三方账号基础（KON-38，S2）**：已加入外部身份 schema、可空密码的兼容读写、配置校验及 `usersrv.v1` 基础消息；Google/GitHub adapter、挑战、注册/绑定事务和浏览器入口仍待后续阶段实现，当前不能第三方登录或创建无密码账号。`AuthenticateWithEmail`、`GetAuthState`、`GetMyAccount` 的内部响应新增 `has_password`，只依赖哈希是否非 NULL；BFF 的内部 usersrv adapter 接收该字段，浏览器页面尚未使用它。NULL 哈希的邮箱登录、重新认证和改密均验证 dummy 哈希后中性拒绝，不能把空密码作为首次设密凭据；现有邮件 reset 能写入首次密码，递增版本并保留绑定。首次设密通知和新的操作确认属于 S3，尚未实现。
+**第三方账号基础（KON-38，S2）**：已加入外部身份 schema、可空密码的兼容读写、配置校验及 `usersrv.v1` 基础消息；S2 不包含 adapter 或完整流程；Google adapter 的后续实现见下方 KON-39 说明，GitHub、挑战、注册/绑定事务和浏览器入口仍待实现，当前不能第三方登录或创建无密码账号。`AuthenticateWithEmail`、`GetAuthState`、`GetMyAccount` 的内部响应新增 `has_password`，只依赖哈希是否非 NULL；BFF 的内部 usersrv adapter 接收该字段，浏览器页面尚未使用它。NULL 哈希的邮箱登录、重新认证和改密均验证 dummy 哈希后中性拒绝，不能把空密码作为首次设密凭据；现有邮件 reset 能写入首次密码，递增版本并保留绑定。首次设密通知和新的操作确认属于 S3，尚未实现。
 
 `auth.external.enabled` 与 `auth.external.providers.{google,github}.enabled` 独立且均默认 false；现有 `auth.registration_enabled` 仍默认 true，provider 门禁不读取注册开关。启用的 provider 要求非空 `client_id`、恰一项 `client_secret`/`client_secret_file`、正整数 `config_version` 和精确的 `/api/identity/callback/{provider}` URL；禁止凭据、query、fragment、编码路径和非 HTTPS（只有显式 `allow_loopback_http` 可接受本机 HTTP）。回调 origin 必须由运维与 BFF 注册地址核对；此阶段尚无 BFF callback 配置或路由，usersrv 不跨服务读取 BFF 配置。issuer/endpoint 不可配置，Google 固定 `https://accounts.google.com`，GitHub 固定 `https://github.com`；未知 provider 启动失败。外部全局开启还要求 `proof_key_id` 引用 `mail.encryption.keys` 中已加载的 key，后续挑战必须使用独立用途的 associated data；`require_verified_email` 默认 true 且不可关闭。未启用 provider 不读取其 Secret 文件，校验错误、fmt/slog 和 JSON 格式化不输出 client secret；readiness 不访问真实 provider。配置示例保留关闭状态，配置校验通过不表示流程已实现。
 
 外部认证固定错误 reason/code 已定义在 `proto/usersrv/v1/external.proto` 与 usersrv 错误映射中；`PROVIDER_REJECTED` 在 BFF 映射为中性认证失败，未带受信 usersrv reason 的 `UNAUTHENTICATED` 仍视为内部凭据错误。完整行为矩阵和后续事务要求见 [ADR 0001 §6](adr/0001-third-party-auth-contract.md#6-配置与发布边界)。
+
+**Google OIDC adapter（KON-39，S3a）**：`internal/usersrv/externalprovider` 实现 ADR 的 `ExternalProvider`，提供 `Name`、`AuthorizationURL`、`ExchangeCode`、`ValidateConfiguration`；usersrv Bootstrap 从已校验配置装配到 `Resources.ExternalProviders`。注册开关不参与 provider 装配，外部全局/Google 开关共同决定是否启用；配置是启动时的不可变快照，替换配置需重建 adapter，后续挑战层仍须在提交时复核当前代次/开关。构造、启动和 readiness 不访问厂商；此阶段没有外部认证 RPC、账号事务或浏览器 callback，Google adapter 尚不能单独提供登录。
+
+- 固定 discovery、授权、token 和 JWKS 地址，discovery 必须与所有固定端点及 RS256 一致；配置/请求不能传入 issuer 或 endpoint。授权只请求 `openid email profile`，带原流程 state、nonce、S256 challenge、固定 callback，不申请 offline access。code 交换只发送一次 POST，传固定 client/callback、原 verifier；先校验 verifier 形态及其 S256 与原 challenge 一致、provider 和 `config_version` 匹配，仍由 Google 校验 code 与原授权的绑定。不使用 tokeninfo/userinfo，不保存 refresh/access/ID token 或原始 claims。
+- 使用已有的 `golang-jwt/jwt/v5` 验签，只接受 RS256/RSA、有效 kid 和签名用途的 2048–8192 位公钥；拒绝 JOSE 远端 key URL、内嵌 key、未知 critical header。验证 `exp`（必需且未过期）、`iat`（必需、为正、早于 exp，最多允许 30 秒未来时钟偏差）、可选 nbf、稳定 sub、原流程 nonce；只信任配置的单个 Web client audience，拒绝未登记的附加 audience，azp 若出现必须等于该 client。两种官方 Google issuer 写法归一为固定规范 issuer。出现 at_hash 时还校验临时 access token 的 SHA-256 摘要。
+- 只有有效签名下 `email_verified=true` 的规范邮箱可成为候选；缺失、未验证、格式无效或 noreply 占位域名统一 `PROVIDER_REJECTED`，不产生用户或注册邮件挑战。已验证 Gmail 是 `google_authoritative`；Workspace 还要求签名 hd 与规范邮箱域匹配，不能用后缀或授权请求的 hd 提示替代。其他已验证邮箱（含 hd 不匹配）是 `provider_verified`，后续注册必须走 OzID 邮件验证。外部 sub 决定身份，邮箱/昵称/头像变化不改身份键；非法资料采用本地默认昵称/空头像，不抓取远程头像。
+- 整个调用最长 10 秒（调用方更早取消则更早结束），每响应最多 64 KiB、ID token 最多 32 KiB、JWKS 最多 32 个 key；TLS 校验开启，所有 HTTP 重定向均拒绝。discovery/JWKS 按 Cache-Control/Age 缓存（缺省 5 分钟，上限 6 小时，no-cache/no-store 不复用）；过期缓存遇故障不作为认证依据。未知 kid/签名轮换可触发刷新，强制刷新最多每 30 秒一次；并发 GET 合并，等待可取消，无后台刷新。code POST 从不自动重试；429/5xx/网络/超时为 `UNAVAILABLE`，其他不可用证明为中性 `PROVIDER_REJECTED`，错误不含厂商原文或秘密。
+
+返回值只有 provider、规范 issuer/sub、候选邮箱/信任等级、规范资料和 token 签发时间，后者不能刷新 OzID 密码认证时间。fmt/slog 对配置、请求、claims 和结果均脱敏；结果不是 user UUID、登录 Cookie 或绑定授权。adapter 没有数据库/会话依赖，也不拥有已消费 nonce 的进程内列表；本地假服务证明 provider code 重放被拒及 nonce 必须匹配，跨实例/浏览器重放保护仍依赖 KON-41/KON-42 的持久挑战和 BFF state 单次消费，尚未实现。
+
+本地 contract tests 经同一 provider interface 调用真实 HTTP/JWT 实现，注入 transport 仅把固定官方地址导到本地 TLS 假 discovery/token/JWKS；覆盖服务端 PKCE/单次 code、错误签名/claims/nonce/算法、邮箱矩阵、key 轮换/过期/并发/刷新限额、异常/超长响应、取消和日志脱敏，不访问真实 Google。协议依据：[Google OIDC](https://developers.google.com/identity/openid-connect/openid-connect)、[Google 邮箱权威性与服务端校验](https://developers.google.com/identity/sign-in/web/backend-auth)；引用与本地假服务测试均不代表真实厂商冒烟已完成。两 provider 继续默认关闭，未部署。
 
 **账号规则**（`internal/usersrv/identity`、`account`）：
 

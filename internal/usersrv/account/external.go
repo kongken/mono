@@ -1,12 +1,16 @@
 package account
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/kongken/mono/internal/usersrv/externalprovider"
+)
 
 // Fixed external-auth domain errors for the later adapter/transaction stages.
 // They never include provider responses, external subjects, email or ownership.
 var (
-	ErrProviderDisabled        = errors.New("external provider is disabled")
-	ErrProviderRejected        = errors.New("external authentication failed")
+	ErrProviderDisabled        = externalprovider.ErrDisabled
+	ErrProviderRejected        = externalprovider.ErrRejected
 	ErrIdentityConflict        = errors.New("external identity is unavailable")
 	ErrIdentityLimitReached    = errors.New("provider identity limit reached")
 	ErrRegistrationUnavailable = errors.New("registration is unavailable")
