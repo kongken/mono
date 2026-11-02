@@ -8,6 +8,7 @@ import (
 	"errors"
 	"mime"
 	"net/http"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -135,6 +136,10 @@ func Interceptor(p Policy) connect.Interceptor {
 				var ce *connect.Error
 				if errors.As(err, &ce) {
 					ce.Meta().Set(RequestIDHeader, requestID)
+					if strings.HasPrefix(procedure, "/bff.v1.ExternalAuthService/") {
+						ce.Meta().Set("Cache-Control", "no-store")
+						ce.Meta().Set("Referrer-Policy", "no-referrer")
+					}
 				}
 				return err
 			}
@@ -219,6 +224,10 @@ func Interceptor(p Policy) connect.Interceptor {
 				return nil, withID(err)
 			}
 			res.Header().Set(RequestIDHeader, requestID)
+			if strings.HasPrefix(procedure, "/bff.v1.ExternalAuthService/") {
+				res.Header().Set("Cache-Control", "no-store")
+				res.Header().Set("Referrer-Policy", "no-referrer")
+			}
 			return res, nil
 		}
 	})

@@ -11,7 +11,8 @@ import (
 // readOnlyProcedures are browser RPCs that must not require CSRF/Origin checks.
 // All other bff.* procedures are state-changing or session-establishing writes.
 var readOnlyProcedures = map[string]bool{
-	bfftripmapv1connect.StatusServiceGetStatusProcedure: true,
+	bffv1connect.ExternalAuthServiceGetExternalFlowProcedure: true,
+	bfftripmapv1connect.StatusServiceGetStatusProcedure:      true,
 
 	bffv1connect.AuthServiceMeProcedure:                 true,
 	bffv1connect.AuthServiceListSessionsProcedure:       true,

@@ -14,6 +14,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kongken/mono/internal/bff/ent/accesstoken"
 	"github.com/kongken/mono/internal/bff/ent/accountdeletion"
+	"github.com/kongken/mono/internal/bff/ent/browsercontext"
+	"github.com/kongken/mono/internal/bff/ent/oauthbrowserstate"
 	"github.com/kongken/mono/internal/bff/ent/session"
 )
 
@@ -75,9 +77,11 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			accesstoken.Table:     accesstoken.ValidColumn,
-			accountdeletion.Table: accountdeletion.ValidColumn,
-			session.Table:         session.ValidColumn,
+			accesstoken.Table:       accesstoken.ValidColumn,
+			accountdeletion.Table:   accountdeletion.ValidColumn,
+			browsercontext.Table:    browsercontext.ValidColumn,
+			oauthbrowserstate.Table: oauthbrowserstate.ValidColumn,
+			session.Table:           session.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

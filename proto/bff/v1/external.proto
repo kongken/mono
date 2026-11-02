@@ -1,0 +1,48 @@
+syntax = "proto3";
+package bff.v1;
+import "platform/v1/options.proto";
+option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
+
+// ExternalAuthService is served only to the exact OzID Origin. Every write
+// requires CSRF. Flow IDs are references: an independent HttpOnly Cookie and
+// the initiating browser/session generation are required to continue a flow.
+service ExternalAuthService {
+  rpc StartExternalLogin(StartExternalLoginRequest) returns (StartExternalLoginResponse) { option (platform.v1.anonymous) = true; }
+  rpc GetExternalFlow(GetExternalFlowRequest) returns (GetExternalFlowResponse) { option (platform.v1.anonymous) = true; }
+  rpc RequestExternalRegistrationEmail(RequestExternalRegistrationEmailRequest) returns (RequestExternalRegistrationEmailResponse) { option (platform.v1.anonymous) = true; }
+  // Explicit POST from the mail landing page; never creates an account/session.
+  rpc ConfirmExternalRegistrationEmail(ConfirmExternalRegistrationEmailRequest) returns (ConfirmExternalRegistrationEmailResponse) { option (platform.v1.anonymous) = true; }
+  // Only the original browser may submit. A lost result requires a fresh
+  // authorization: a usersrv creation receipt is not a login credential.
+  rpc CompleteExternalRegistration(CompleteExternalRegistrationRequest) returns (CompleteExternalRegistrationResponse) { option (platform.v1.anonymous) = true; }
+}
+message StartExternalLoginRequest {
+  // Exactly google or github; login or link. Link needs a live session.
+  string provider = 1;
+  string intent = 2;
+  string app_id = 3;
+  string return_path = 4;
+}
+message StartExternalLoginResponse { string flow_id = 1; string authorization_url = 2; }
+message GetExternalFlowRequest { string flow_id = 1; }
+message GetExternalFlowResponse {
+  // authenticated, registration_pending or link_pending. No provider subject.
+  string status = 1;
+  string candidate_email = 2;
+  string display_name = 3;
+  string avatar_url = 4;
+  bool email_confirmed = 5;
+  // Re-resolved server-side; empty when the registry no longer permits it.
+  string return_url = 6;
+}
+message RequestExternalRegistrationEmailRequest { string flow_id = 1; string email = 2; }
+message RequestExternalRegistrationEmailResponse { string message = 1; }
+message ConfirmExternalRegistrationEmailRequest { string challenge_id = 1; string token = 2; }
+message ConfirmExternalRegistrationEmailResponse {}
+message CompleteExternalRegistrationRequest { string flow_id = 1; string mutation_id = 2; string display_name = 3; string avatar_url = 4; }
+message CompleteExternalRegistrationResponse {
+  string return_url = 1;
+  // A replay can report creation but cannot create another session. Start a
+  // fresh authorization when the first session response was lost.
+  bool login_required = 2;
+}

@@ -164,6 +164,8 @@ usersrv 不保存 `state_hash`、原始 state、PKCE verifier 或 nonce。它们
 
 KON-41 实现补充：`auth_challenges` 增加 `proof_key_id` 与 `email_expires_at`，分别关联配置 key 与独立 10 分钟邮箱期限；provider 证明只以不同于邮件的 AES-GCM associated data 绑定挑战 ID/context 摘要。结果引用保留 24 小时，过期清理擦除证明和邮件摘要。`auth_operation_receipts` 另存原会话摘要以限制重放；`auth_notifications` 按 source kind/source ID/notification kind 去重，并外键级联关联用户。`mail_jobs.source_kind` 区分旧 account token、新 auth challenge 与通知事件，旧邮件行默认保留 `account_token`；新模板独立，不改变旧 token purpose。实际 TTL、锁序和验证证据见后端说明。
 
+KON-42 实现补充：BFF 增加持久 `auth_browser_contexts` 与会话代次字段，防止旧响应恢复旧身份；每 flow 使用独立 HttpOnly Cookie，`oauth_browser_states` 增加临时 key ID、原会话摘要、规范 app/path、邮件子期限及最终提交 claim/请求摘要。BFF 的 provider 配置代次默认 1，必须与 usersrv 同步，加入 context 摘要并核对 Begin 返回值。BFF 创建回执重试在原 flow 有效期内只回报结果，返回 `login_required`，不能再次签发会话；超过原流程期限重新授权。新邮件 fragment 在 token 之外带非凭据 challenge 引用以支持另一设备确认；GET 不消费。实现与验证边界见 [BFF S4](../bff.md#第三方浏览器流程kon-42--s4)，完整 UI 和账号操作面仍待后续。
+
 ### 2.6 BFF / usersrv 跨服务绑定与消费
 
 1. BFF 在 OzID Origin + CSRF 校验后生成 flow ID、至少 32 字节随机 state/浏览器绑定、PKCE S256 和 Google nonce，计算 context hash。绑定意图同时记录发起 user、session 和 `auth_version`；各标签页流程独立。

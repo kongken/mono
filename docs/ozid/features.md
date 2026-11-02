@@ -1,5 +1,7 @@
 # OzID 用户中心：功能描述（T1 统一登录与安全返回；T2 统一注册验证与密码重置邮件；T3 账号资料、密码与设备会话；T7 账号注销与失败恢复）
 
+> 第三方扩展当前状态：KON-41 usersrv 安全核心已通过复审；KON-42 BFF state/固定回调/原浏览器显式注册/无密码会话已实现、待独立复审，默认关闭。其服务端协议及真实 Chromium 验证见 [BFF S4](../bff.md#第三方浏览器流程kon-42--s4)。本页面登记的现有 UI 仍只有原邮箱密码流程；第三方按钮、候选资料确认、新邮件落地页和完整安全设置属于后续票，尚未开放给用户。
+
 本文描述 [OzID 规格](spec.md) 中 [Issue #79（T1）](https://github.com/kongken/mono/issues/79)、[Issue #80（T2）](https://github.com/kongken/mono/issues/80)、[Issue #81（T3）](https://github.com/kongken/mono/issues/81) 与 [Issue #85（T7）](https://github.com/kongken/mono/issues/85) 已实现的行为。独立管理控制台、`ozid-admin`、只读用户查询与管理 IP 周界已由 T4 实现，普通账号的禁用/启用与 `metro-admin` 授予/撤销已由 T5 实现，账号安全与管理审计查询已由 T6 实现，见[控制台功能描述](../admin/features.md)；OzID 网页注销页与失败恢复由 T7 实现（见[账号注销（T7）](#账号注销t7)）；metro 管理页面与管理接口已由 T8 迁入控制台并并入管理周界；MCP 的独立机器来源白名单由 T9 实现（`mcp.allowed_cidrs`，见 [BFF 文档](../bff.md)）；其余阶段（产品入口收敛）**尚未实现**，规格仍是它们的依据。文中域名全部是保留示例（`id.example.com` 等），不代表任何真实部署。
 
 ## 现状与范围

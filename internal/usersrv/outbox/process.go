@@ -180,6 +180,12 @@ func (s *Service) process(ctx context.Context, id uuid.UUID) bool {
 		s.record(job, "cancelled", "link_unavailable", "", started, "")
 		return true
 	}
+	// New confirmation pages can open on another device, where the original
+	// browser flow is absent. Include the non-authorizing challenge reference in
+	// the fragment beside the token; neither value reaches HTTP/Referer logs.
+	if job.SourceKind == mailjob.SourceKindAuthChallenge {
+		link += "&challenge_id=" + job.ChallengeID.String()
+	}
 	ttl := 10 * time.Minute
 	if job.SourceKind == mailjob.SourceKindAccountToken {
 		tok, err := s.db.AccountToken.Get(write, job.ChallengeID)

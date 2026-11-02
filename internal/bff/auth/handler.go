@@ -104,9 +104,12 @@ func (h *Handler) CompleteRegistration(ctx context.Context, req *connect.Request
 }
 
 func (h *Handler) LoginWithEmail(ctx context.Context, req *connect.Request[bffv1.LoginWithEmailRequest]) (*connect.Response[bffv1.LoginWithEmailResponse], error) {
+	if h.svc.cfg.External.Enabled && h.svc.browserID(req.Header()) == "" {
+		return nil, stateInvalid()
+	}
 	// A sign-in neither reads nor writes the deletion recovery Cookie: an unfinished deletion of
 	// another account in this browser is untouched by it.
-	msg, token, err := h.svc.Login(ctx, req.Msg.GetEmail(), req.Msg.GetPassword())
+	msg, token, err := h.svc.login(ctx, req.Msg.GetEmail(), req.Msg.GetPassword(), req.Header())
 	if err != nil {
 		return nil, err
 	}
@@ -139,6 +142,9 @@ func (h *Handler) Logout(ctx context.Context, req *connect.Request[bffv1.LogoutR
 	// Signing out ends the session and clears the session Cookie, nothing else: the deletion
 	// recovery Cookie of an unfinished deletion is a different credential and stays.
 	if err := h.svc.Logout(ctx, session.TokenFromRequest(req.Header())); err != nil {
+		return nil, err
+	}
+	if err := h.svc.advanceBrowser(ctx, req.Header()); err != nil {
 		return nil, err
 	}
 	res := connect.NewResponse(&bffv1.LogoutResponse{})
@@ -432,13 +438,22 @@ func (h *Handler) ResolveNavigation(_ context.Context, req *connect.Request[bffv
 	}), nil
 }
 
-func (h *Handler) IssueCSRFToken(_ context.Context, req *connect.Request[bffv1.IssueCSRFTokenRequest]) (*connect.Response[bffv1.IssueCSRFTokenResponse], error) {
+func (h *Handler) IssueCSRFToken(ctx context.Context, req *connect.Request[bffv1.IssueCSRFTokenRequest]) (*connect.Response[bffv1.IssueCSRFTokenResponse], error) {
 	token, err := h.svc.IssueCSRF()
 	if err != nil {
 		return nil, err
 	}
 	expires := time.Now().UTC().Add(h.csrfCookieTTL)
 	res := connect.NewResponse(&bffv1.IssueCSRFTokenResponse{Token: token})
+	if h.svc.cfg.External.Enabled {
+		browser, err := h.svc.issueBrowser(ctx, req.Header())
+		if err != nil {
+			return nil, err
+		}
+		if browser != "" {
+			setPrivateCookie(res.Header(), h.svc.cookies, browserCookie, browser, h.svc.now().Add(h.svc.browserLifetime()))
+		}
+	}
 	session.SetCSRFCookie(res.Header(), h.svc.cookies, token, expires)
 	return res, nil
 }

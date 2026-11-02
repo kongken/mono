@@ -30,6 +30,8 @@ func (Session) Fields() []ent.Field {
 		// session is usable only while usersrv still reports the same value. Sessions
 		// from before usersrv carry 0, which no account ever has, so they never match.
 		field.Int64("auth_version").Default(0).Immutable(),
+		field.String("browser_context_id").Optional().Nillable().Immutable(),
+		field.Int64("browser_generation").Optional().Nillable().Immutable(),
 		// AuthenticatedAt is when the password was last really checked on this
 		// session: sign-in, or a successful Reauthenticate. It is not the creation
 		// time, and refreshing a Cookie or calling Me never moves it. Null on rows

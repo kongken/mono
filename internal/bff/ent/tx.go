@@ -18,6 +18,10 @@ type Tx struct {
 	AccessToken *AccessTokenClient
 	// AccountDeletion is the client for interacting with the AccountDeletion builders.
 	AccountDeletion *AccountDeletionClient
+	// BrowserContext is the client for interacting with the BrowserContext builders.
+	BrowserContext *BrowserContextClient
+	// OAuthBrowserState is the client for interacting with the OAuthBrowserState builders.
+	OAuthBrowserState *OAuthBrowserStateClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
 
@@ -153,6 +157,8 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.AccessToken = NewAccessTokenClient(tx.config)
 	tx.AccountDeletion = NewAccountDeletionClient(tx.config)
+	tx.BrowserContext = NewBrowserContextClient(tx.config)
+	tx.OAuthBrowserState = NewOAuthBrowserStateClient(tx.config)
 	tx.Session = NewSessionClient(tx.config)
 }
 

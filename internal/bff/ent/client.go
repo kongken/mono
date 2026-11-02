@@ -16,6 +16,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/kongken/mono/internal/bff/ent/accesstoken"
 	"github.com/kongken/mono/internal/bff/ent/accountdeletion"
+	"github.com/kongken/mono/internal/bff/ent/browsercontext"
+	"github.com/kongken/mono/internal/bff/ent/oauthbrowserstate"
 	"github.com/kongken/mono/internal/bff/ent/session"
 
 	stdsql "database/sql"
@@ -30,6 +32,10 @@ type Client struct {
 	AccessToken *AccessTokenClient
 	// AccountDeletion is the client for interacting with the AccountDeletion builders.
 	AccountDeletion *AccountDeletionClient
+	// BrowserContext is the client for interacting with the BrowserContext builders.
+	BrowserContext *BrowserContextClient
+	// OAuthBrowserState is the client for interacting with the OAuthBrowserState builders.
+	OAuthBrowserState *OAuthBrowserStateClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
 }
@@ -45,6 +51,8 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.AccessToken = NewAccessTokenClient(c.config)
 	c.AccountDeletion = NewAccountDeletionClient(c.config)
+	c.BrowserContext = NewBrowserContextClient(c.config)
+	c.OAuthBrowserState = NewOAuthBrowserStateClient(c.config)
 	c.Session = NewSessionClient(c.config)
 }
 
@@ -136,11 +144,13 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:             ctx,
-		config:          cfg,
-		AccessToken:     NewAccessTokenClient(cfg),
-		AccountDeletion: NewAccountDeletionClient(cfg),
-		Session:         NewSessionClient(cfg),
+		ctx:               ctx,
+		config:            cfg,
+		AccessToken:       NewAccessTokenClient(cfg),
+		AccountDeletion:   NewAccountDeletionClient(cfg),
+		BrowserContext:    NewBrowserContextClient(cfg),
+		OAuthBrowserState: NewOAuthBrowserStateClient(cfg),
+		Session:           NewSessionClient(cfg),
 	}, nil
 }
 
@@ -158,11 +168,13 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:             ctx,
-		config:          cfg,
-		AccessToken:     NewAccessTokenClient(cfg),
-		AccountDeletion: NewAccountDeletionClient(cfg),
-		Session:         NewSessionClient(cfg),
+		ctx:               ctx,
+		config:            cfg,
+		AccessToken:       NewAccessTokenClient(cfg),
+		AccountDeletion:   NewAccountDeletionClient(cfg),
+		BrowserContext:    NewBrowserContextClient(cfg),
+		OAuthBrowserState: NewOAuthBrowserStateClient(cfg),
+		Session:           NewSessionClient(cfg),
 	}, nil
 }
 
@@ -193,6 +205,8 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	c.AccessToken.Use(hooks...)
 	c.AccountDeletion.Use(hooks...)
+	c.BrowserContext.Use(hooks...)
+	c.OAuthBrowserState.Use(hooks...)
 	c.Session.Use(hooks...)
 }
 
@@ -201,6 +215,8 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.AccessToken.Intercept(interceptors...)
 	c.AccountDeletion.Intercept(interceptors...)
+	c.BrowserContext.Intercept(interceptors...)
+	c.OAuthBrowserState.Intercept(interceptors...)
 	c.Session.Intercept(interceptors...)
 }
 
@@ -211,6 +227,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.AccessToken.mutate(ctx, m)
 	case *AccountDeletionMutation:
 		return c.AccountDeletion.mutate(ctx, m)
+	case *BrowserContextMutation:
+		return c.BrowserContext.mutate(ctx, m)
+	case *OAuthBrowserStateMutation:
+		return c.OAuthBrowserState.mutate(ctx, m)
 	case *SessionMutation:
 		return c.Session.mutate(ctx, m)
 	default:
@@ -484,6 +504,272 @@ func (c *AccountDeletionClient) mutate(ctx context.Context, m *AccountDeletionMu
 	}
 }
 
+// BrowserContextClient is a client for the BrowserContext schema.
+type BrowserContextClient struct {
+	config
+}
+
+// NewBrowserContextClient returns a client for the BrowserContext from the given config.
+func NewBrowserContextClient(c config) *BrowserContextClient {
+	return &BrowserContextClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `browsercontext.Hooks(f(g(h())))`.
+func (c *BrowserContextClient) Use(hooks ...Hook) {
+	c.hooks.BrowserContext = append(c.hooks.BrowserContext, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `browsercontext.Intercept(f(g(h())))`.
+func (c *BrowserContextClient) Intercept(interceptors ...Interceptor) {
+	c.inters.BrowserContext = append(c.inters.BrowserContext, interceptors...)
+}
+
+// Create returns a builder for creating a BrowserContext entity.
+func (c *BrowserContextClient) Create() *BrowserContextCreate {
+	mutation := newBrowserContextMutation(c.config, OpCreate)
+	return &BrowserContextCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of BrowserContext entities.
+func (c *BrowserContextClient) CreateBulk(builders ...*BrowserContextCreate) *BrowserContextCreateBulk {
+	return &BrowserContextCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *BrowserContextClient) MapCreateBulk(slice any, setFunc func(*BrowserContextCreate, int)) *BrowserContextCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &BrowserContextCreateBulk{err: fmt.Errorf("calling to BrowserContextClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*BrowserContextCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &BrowserContextCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for BrowserContext.
+func (c *BrowserContextClient) Update() *BrowserContextUpdate {
+	mutation := newBrowserContextMutation(c.config, OpUpdate)
+	return &BrowserContextUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *BrowserContextClient) UpdateOne(_m *BrowserContext) *BrowserContextUpdateOne {
+	mutation := newBrowserContextMutation(c.config, OpUpdateOne, withBrowserContext(_m))
+	return &BrowserContextUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *BrowserContextClient) UpdateOneID(id string) *BrowserContextUpdateOne {
+	mutation := newBrowserContextMutation(c.config, OpUpdateOne, withBrowserContextID(id))
+	return &BrowserContextUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for BrowserContext.
+func (c *BrowserContextClient) Delete() *BrowserContextDelete {
+	mutation := newBrowserContextMutation(c.config, OpDelete)
+	return &BrowserContextDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *BrowserContextClient) DeleteOne(_m *BrowserContext) *BrowserContextDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *BrowserContextClient) DeleteOneID(id string) *BrowserContextDeleteOne {
+	builder := c.Delete().Where(browsercontext.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &BrowserContextDeleteOne{builder}
+}
+
+// Query returns a query builder for BrowserContext.
+func (c *BrowserContextClient) Query() *BrowserContextQuery {
+	return &BrowserContextQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeBrowserContext},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a BrowserContext entity by its id.
+func (c *BrowserContextClient) Get(ctx context.Context, id string) (*BrowserContext, error) {
+	return c.Query().Where(browsercontext.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *BrowserContextClient) GetX(ctx context.Context, id string) *BrowserContext {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *BrowserContextClient) Hooks() []Hook {
+	return c.hooks.BrowserContext
+}
+
+// Interceptors returns the client interceptors.
+func (c *BrowserContextClient) Interceptors() []Interceptor {
+	return c.inters.BrowserContext
+}
+
+func (c *BrowserContextClient) mutate(ctx context.Context, m *BrowserContextMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&BrowserContextCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&BrowserContextUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&BrowserContextUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&BrowserContextDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown BrowserContext mutation op: %q", m.Op())
+	}
+}
+
+// OAuthBrowserStateClient is a client for the OAuthBrowserState schema.
+type OAuthBrowserStateClient struct {
+	config
+}
+
+// NewOAuthBrowserStateClient returns a client for the OAuthBrowserState from the given config.
+func NewOAuthBrowserStateClient(c config) *OAuthBrowserStateClient {
+	return &OAuthBrowserStateClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `oauthbrowserstate.Hooks(f(g(h())))`.
+func (c *OAuthBrowserStateClient) Use(hooks ...Hook) {
+	c.hooks.OAuthBrowserState = append(c.hooks.OAuthBrowserState, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `oauthbrowserstate.Intercept(f(g(h())))`.
+func (c *OAuthBrowserStateClient) Intercept(interceptors ...Interceptor) {
+	c.inters.OAuthBrowserState = append(c.inters.OAuthBrowserState, interceptors...)
+}
+
+// Create returns a builder for creating a OAuthBrowserState entity.
+func (c *OAuthBrowserStateClient) Create() *OAuthBrowserStateCreate {
+	mutation := newOAuthBrowserStateMutation(c.config, OpCreate)
+	return &OAuthBrowserStateCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of OAuthBrowserState entities.
+func (c *OAuthBrowserStateClient) CreateBulk(builders ...*OAuthBrowserStateCreate) *OAuthBrowserStateCreateBulk {
+	return &OAuthBrowserStateCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *OAuthBrowserStateClient) MapCreateBulk(slice any, setFunc func(*OAuthBrowserStateCreate, int)) *OAuthBrowserStateCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &OAuthBrowserStateCreateBulk{err: fmt.Errorf("calling to OAuthBrowserStateClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*OAuthBrowserStateCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &OAuthBrowserStateCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for OAuthBrowserState.
+func (c *OAuthBrowserStateClient) Update() *OAuthBrowserStateUpdate {
+	mutation := newOAuthBrowserStateMutation(c.config, OpUpdate)
+	return &OAuthBrowserStateUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *OAuthBrowserStateClient) UpdateOne(_m *OAuthBrowserState) *OAuthBrowserStateUpdateOne {
+	mutation := newOAuthBrowserStateMutation(c.config, OpUpdateOne, withOAuthBrowserState(_m))
+	return &OAuthBrowserStateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *OAuthBrowserStateClient) UpdateOneID(id string) *OAuthBrowserStateUpdateOne {
+	mutation := newOAuthBrowserStateMutation(c.config, OpUpdateOne, withOAuthBrowserStateID(id))
+	return &OAuthBrowserStateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for OAuthBrowserState.
+func (c *OAuthBrowserStateClient) Delete() *OAuthBrowserStateDelete {
+	mutation := newOAuthBrowserStateMutation(c.config, OpDelete)
+	return &OAuthBrowserStateDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *OAuthBrowserStateClient) DeleteOne(_m *OAuthBrowserState) *OAuthBrowserStateDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *OAuthBrowserStateClient) DeleteOneID(id string) *OAuthBrowserStateDeleteOne {
+	builder := c.Delete().Where(oauthbrowserstate.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &OAuthBrowserStateDeleteOne{builder}
+}
+
+// Query returns a query builder for OAuthBrowserState.
+func (c *OAuthBrowserStateClient) Query() *OAuthBrowserStateQuery {
+	return &OAuthBrowserStateQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeOAuthBrowserState},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a OAuthBrowserState entity by its id.
+func (c *OAuthBrowserStateClient) Get(ctx context.Context, id string) (*OAuthBrowserState, error) {
+	return c.Query().Where(oauthbrowserstate.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *OAuthBrowserStateClient) GetX(ctx context.Context, id string) *OAuthBrowserState {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *OAuthBrowserStateClient) Hooks() []Hook {
+	return c.hooks.OAuthBrowserState
+}
+
+// Interceptors returns the client interceptors.
+func (c *OAuthBrowserStateClient) Interceptors() []Interceptor {
+	return c.inters.OAuthBrowserState
+}
+
+func (c *OAuthBrowserStateClient) mutate(ctx context.Context, m *OAuthBrowserStateMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&OAuthBrowserStateCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&OAuthBrowserStateUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&OAuthBrowserStateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&OAuthBrowserStateDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown OAuthBrowserState mutation op: %q", m.Op())
+	}
+}
+
 // SessionClient is a client for the Session schema.
 type SessionClient struct {
 	config
@@ -620,10 +906,12 @@ func (c *SessionClient) mutate(ctx context.Context, m *SessionMutation) (Value, 
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AccessToken, AccountDeletion, Session []ent.Hook
+		AccessToken, AccountDeletion, BrowserContext, OAuthBrowserState,
+		Session []ent.Hook
 	}
 	inters struct {
-		AccessToken, AccountDeletion, Session []ent.Interceptor
+		AccessToken, AccountDeletion, BrowserContext, OAuthBrowserState,
+		Session []ent.Interceptor
 	}
 )
 

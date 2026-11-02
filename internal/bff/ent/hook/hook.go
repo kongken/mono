@@ -33,6 +33,30 @@ func (f AccountDeletionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Va
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AccountDeletionMutation", m)
 }
 
+// The BrowserContextFunc type is an adapter to allow the use of ordinary
+// function as BrowserContext mutator.
+type BrowserContextFunc func(context.Context, *ent.BrowserContextMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f BrowserContextFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.BrowserContextMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.BrowserContextMutation", m)
+}
+
+// The OAuthBrowserStateFunc type is an adapter to allow the use of ordinary
+// function as OAuthBrowserState mutator.
+type OAuthBrowserStateFunc func(context.Context, *ent.OAuthBrowserStateMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f OAuthBrowserStateFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.OAuthBrowserStateMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OAuthBrowserStateMutation", m)
+}
+
 // The SessionFunc type is an adapter to allow the use of ordinary
 // function as Session mutator.
 type SessionFunc func(context.Context, *ent.SessionMutation) (ent.Value, error)

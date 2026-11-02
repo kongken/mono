@@ -84,7 +84,8 @@ func (m MCPConfig) RateLimit() int {
 // the BFF keeps the Cookie session, CSRF, the admin session age and the list of
 // products whose data an account deletion removes.
 type AuthConfig struct {
-	SessionTTL time.Duration `yaml:"session_ttl"`
+	External   ExternalConfig `yaml:"external"`
+	SessionTTL time.Duration  `yaml:"session_ttl"`
 	// AdminSessionMaxAge bounds how old, counted from the last real password check
 	// (sign-in or Reauthenticate), a session may be when it calls a procedure that
 	// declares required_role. Default 12h; reauthenticating starts a new period.
@@ -289,6 +290,9 @@ func (c *Config) Print() {}
 // Validate checks the settings against the services in the route table: each
 // needs an upstream, and an upstream for an unknown service is a typo.
 func (c *Config) Validate(services []string) error {
+	if err := c.Auth.External.Validate(c.Navigation); err != nil {
+		return err
+	}
 	for _, name := range services {
 		if c.Upstreams[name] == "" {
 			return fmt.Errorf("upstreams.%s is required", name)

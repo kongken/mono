@@ -103,13 +103,14 @@ var ErrNotFound = errors.New("account not found")
 
 // Client calls usersrv.
 type Client struct {
-	account usersrvv1.AccountServiceClient
-	admin   usersrvv1.UserAdminServiceClient
+	external usersrvv1.ExternalIdentityServiceClient
+	account  usersrvv1.AccountServiceClient
+	admin    usersrvv1.UserAdminServiceClient
 }
 
 // New returns a client over the usersrv connection.
 func New(conn grpc.ClientConnInterface) *Client {
-	return &Client{account: usersrvv1.NewAccountServiceClient(conn), admin: usersrvv1.NewUserAdminServiceClient(conn)}
+	return &Client{account: usersrvv1.NewAccountServiceClient(conn), admin: usersrvv1.NewUserAdminServiceClient(conn), external: usersrvv1.NewExternalIdentityServiceClient(conn)}
 }
 
 // anonymous describes a call without a user: the client address and request ID of
@@ -323,7 +324,7 @@ func MapError(err error) error {
 			return connect.NewError(connect.CodeUnauthenticated, errors.New(LoginFailure))
 		}
 		if reason == ReasonProviderRejected {
-			return connect.NewError(connect.CodeUnauthenticated, errors.New("external authentication failed"))
+			return browserReason(connect.NewError(connect.CodeUnauthenticated, errors.New("external authentication failed")), reason)
 		}
 		slog.Error("usersrv refused the BFF service credential", "code", st.Code().String())
 		return connect.NewError(connect.CodeInternal, errors.New("internal error"))
@@ -338,7 +339,7 @@ func MapError(err error) error {
 		if reason == "" {
 			slog.Warn("usersrv answered without a reason", "code", st.Code().String())
 		}
-		return connect.NewError(connect.Code(st.Code()), errors.New(st.Message()))
+		return browserReason(connect.NewError(connect.Code(st.Code()), errors.New(st.Message())), reason)
 	}
 	slog.Error("usersrv call failed", "code", st.Code().String(), "reason", reason)
 	return connect.NewError(connect.CodeInternal, errors.New("internal error"))

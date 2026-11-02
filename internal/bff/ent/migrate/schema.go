@@ -78,6 +78,68 @@ var (
 			},
 		},
 	}
+	// AuthBrowserContextsColumns holds the columns for the "auth_browser_contexts" table.
+	AuthBrowserContextsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "generation", Type: field.TypeInt64, Default: 0},
+		{Name: "expires_at", Type: field.TypeTime},
+	}
+	// AuthBrowserContextsTable holds the schema information for the "auth_browser_contexts" table.
+	AuthBrowserContextsTable = &schema.Table{
+		Name:       "auth_browser_contexts",
+		Columns:    AuthBrowserContextsColumns,
+		PrimaryKey: []*schema.Column{AuthBrowserContextsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "browsercontext_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{AuthBrowserContextsColumns[2]},
+			},
+		},
+	}
+	// OauthBrowserStatesColumns holds the columns for the "oauth_browser_states" table.
+	OauthBrowserStatesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "usersrv_challenge_id", Type: field.TypeString, Unique: true},
+		{Name: "state_hash", Type: field.TypeString, Unique: true},
+		{Name: "provider", Type: field.TypeEnum, Enums: []string{"google", "github"}},
+		{Name: "intent", Type: field.TypeEnum, Enums: []string{"login", "link"}},
+		{Name: "browser_binding_hash", Type: field.TypeString},
+		{Name: "browser_context_id", Type: field.TypeString},
+		{Name: "browser_generation", Type: field.TypeInt64},
+		{Name: "initiating_token_hash", Type: field.TypeString},
+		{Name: "session_id", Type: field.TypeString, Nullable: true},
+		{Name: "user_id", Type: field.TypeString, Nullable: true},
+		{Name: "auth_version", Type: field.TypeInt64, Nullable: true},
+		{Name: "provider_config_version", Type: field.TypeInt64},
+		{Name: "context_hash", Type: field.TypeBytes},
+		{Name: "nonce_hash", Type: field.TypeString},
+		{Name: "key_id", Type: field.TypeString},
+		{Name: "pkce_verifier_ciphertext", Type: field.TypeBytes, Nullable: true},
+		{Name: "return_app_id", Type: field.TypeString},
+		{Name: "return_path", Type: field.TypeString},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "consumed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "result_status", Type: field.TypeString, Default: "issued"},
+		{Name: "final_claimed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "final_mutation_id", Type: field.TypeString, Nullable: true},
+		{Name: "final_request_hash", Type: field.TypeString, Nullable: true},
+		{Name: "confirmation_expires_at", Type: field.TypeTime, Nullable: true},
+	}
+	// OauthBrowserStatesTable holds the schema information for the "oauth_browser_states" table.
+	OauthBrowserStatesTable = &schema.Table{
+		Name:       "oauth_browser_states",
+		Columns:    OauthBrowserStatesColumns,
+		PrimaryKey: []*schema.Column{OauthBrowserStatesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "oauthbrowserstate_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{OauthBrowserStatesColumns[20]},
+			},
+		},
+	}
 	// AuthBrowserSessionsColumns holds the columns for the "auth_browser_sessions" table.
 	AuthBrowserSessionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -88,6 +150,8 @@ var (
 		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
 		{Name: "revoked", Type: field.TypeBool, Default: false},
 		{Name: "auth_version", Type: field.TypeInt64, Default: 0},
+		{Name: "browser_context_id", Type: field.TypeString, Nullable: true},
+		{Name: "browser_generation", Type: field.TypeInt64, Nullable: true},
 		{Name: "authenticated_at", Type: field.TypeTime, Nullable: true},
 	}
 	// AuthBrowserSessionsTable holds the schema information for the "auth_browser_sessions" table.
@@ -112,6 +176,8 @@ var (
 	Tables = []*schema.Table{
 		BffAccessTokensTable,
 		BffAccountDeletionsTable,
+		AuthBrowserContextsTable,
+		OauthBrowserStatesTable,
 		AuthBrowserSessionsTable,
 	}
 )
@@ -122,6 +188,20 @@ func init() {
 	}
 	BffAccountDeletionsTable.Annotation = &entsql.Annotation{
 		Table: "bff_account_deletions",
+	}
+	AuthBrowserContextsTable.Annotation = &entsql.Annotation{
+		Table: "auth_browser_contexts",
+	}
+	OauthBrowserStatesTable.Annotation = &entsql.Annotation{
+		Table: "oauth_browser_states",
+	}
+	OauthBrowserStatesTable.Annotation.Checks = map[string]string{
+		"oauth_state_binding":      "octet_length(context_hash) = 32 AND length(state_hash) = 64 AND length(browser_binding_hash) = 64 AND length(nonce_hash) = 64 AND length(initiating_token_hash) = 64",
+		"oauth_state_generation":   "browser_generation >= 0 AND provider_config_version > 0",
+		"oauth_state_intent":       "intent IN ('login','link')",
+		"oauth_state_link_session": "intent <> 'link' OR (session_id IS NOT NULL AND user_id IS NOT NULL AND auth_version IS NOT NULL AND auth_version > 0)",
+		"oauth_state_provider":     "provider IN ('google','github')",
+		"oauth_state_status":       "result_status IN ('issued','exchanging','registration_pending','link_pending','registering','authenticated','failed')",
 	}
 	AuthBrowserSessionsTable.Annotation = &entsql.Annotation{
 		Table: "auth_browser_sessions",

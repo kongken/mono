@@ -12,5 +12,11 @@ type AccessToken func(*sql.Selector)
 // AccountDeletion is the predicate function for accountdeletion builders.
 type AccountDeletion func(*sql.Selector)
 
+// BrowserContext is the predicate function for browsercontext builders.
+type BrowserContext func(*sql.Selector)
+
+// OAuthBrowserState is the predicate function for oauthbrowserstate builders.
+type OAuthBrowserState func(*sql.Selector)
+
 // Session is the predicate function for session builders.
 type Session func(*sql.Selector)
