@@ -13,7 +13,7 @@
 3. `password_hash` 改为可空。密码为空表示无密码账号；无密码账号必须至少有一个仍有效的外部身份。首次设置密码在同一事务中写入哈希并递增 `auth_version`，之后账号可以同时使用密码和外部身份。
 4. 所有一次性挑战和写操作回执都有明确用途、过期时间、使用者绑定和幂等键。回执只回答原请求的结果，不凭回执恢复已删除的账号或身份。
 5. OAuth/OIDC 的浏览器 `state`、PKCE verifier、nonce 和返回地址由 BFF 持有；provider secret、code exchange 和 claims 校验由 usersrv 的 provider-neutral adapter 持有。产品前端不直接调用 provider。
-6. Google OIDC 与 GitHub OAuth 的配置均默认关闭；没有配置、未通过启动校验或未显式启用时，BFF 不生成授权 URL。真实厂商冒烟只在发布门槛执行，不进入普通 CI。
+6. Google OIDC 与 GitHub OAuth 的配置均默认关闭；没有配置、未通过启动校验或未显式启用时，BFF 不生成授权 URL。独立的 `auth.registration_enabled` 沿用现有默认 `true`，关闭时只禁止新建账号，已有身份登录与已有账号主动绑定仍可用；最终建号提交必须再次检查。真实厂商冒烟只在发布门槛执行，不进入普通 CI。
 7. 迁移采用只增不删的扩展顺序。旧账号、旧会话和旧数据不转换成外部身份；回滚只能关闭 provider 并回退代码，不能在已有外部身份写入后向下执行破坏性降级。
 
 ## 1. 领域边界与不变量
@@ -26,6 +26,7 @@
 | provider | 本系统支持的外部认证实现，目前为 `google` 和 `github` |
 | 身份绑定 | 已登录账号把一个外部身份加入自己的账号 |
 | 身份解绑 | 已登录账号移除一个外部身份，但必须保留至少一种可用登录方式 |
+| 注册开关 | 只控制新建账号，不限制已有账号登录、主动绑定或恢复；独立于控制外部认证入口的全局/provider 开关 |
 | 登录挑战 | BFF 为一次浏览器登录生成的 state/PKCE/nonce 上下文 |
 | 操作挑战 | usersrv 为绑定、解绑、首次设密或恢复操作保存的一次性授权上下文 |
 | 操作回执 | 按 `(user_id, operation, mutation_id)` 唯一的结果，用于安全重放；匿名注册结果保存在其挑战行 |
@@ -164,10 +165,10 @@ usersrv 不保存 `state_hash`、原始 state、PKCE verifier 或 nonce。它们
 ### 2.6 BFF / usersrv 跨服务绑定与消费
 
 1. BFF 在 OzID Origin + CSRF 校验后生成 flow ID、至少 32 字节随机 state/浏览器绑定、PKCE S256 和 Google nonce，计算 context hash。绑定意图同时记录发起 user、session 和 `auth_version`；各标签页流程独立。
-2. BFF 调用 `BeginExternalLogin(flow_id, intent, provider, context_hash, 固定 redirect URI, 授权参数)`；usersrv 创建唯一 `bff_flow_id` 的 challenge 并返回 `challenge_id` 和授权 URL。授权参数只在构造 URL 时使用，不保存在 usersrv。BFF 持久化 challenge 引用后才给浏览器 URL；BFF 写失败留下的 usersrv 孤儿挑战到期清理，不能独立完成认证。
+2. BFF 调用 `BeginExternalLogin(flow_id, intent, provider, context_hash, 固定 redirect URI, 授权参数)`；usersrv 检查全局/provider 开关，创建唯一 `bff_flow_id` 的 challenge 并返回 `challenge_id` 和授权 URL。此时无法判断是否为已有身份，`registration_enabled=false` 不拒绝登录或绑定意图的启动（完整矩阵见 §6.2）。授权参数只在构造 URL 时使用，不保存在 usersrv。BFF 持久化 challenge 引用后才给浏览器 URL；BFF 写失败留下的 usersrv 孤儿挑战到期清理，不能独立完成认证。
 3. callback 从 state 摘要找 BFF 行，校验 provider、浏览器绑定、TTL、意图和发起会话仍有效。缺失/重放/过期/跨浏览器统一 `STATE_INVALID`，不调用 usersrv、不写会话。有效上下文中的 callback 用条件更新 `consumed_at IS NULL AND expires_at > now` 原子抢占；并发最多一个成功。取消或协议错误也终结该有效流程。
 4. BFF 将存储的 challenge ID、flow ID、context hash、code、解密 verifier/nonce 通过内部签名 RPC 交 usersrv，不采信 callback 中的用户、邮箱或返回地址。usersrv 核对持久化绑定后，用短事务把 `issued` 改为 `exchanging`；只有抢占者可在事务外交换 code、验证 provider。
-5. provider 校验成功后按 §5.4 锁序完成身份/账号检查，将 challenge 标为 `ready`（待注册或待绑定确认）或 `completed`（已有身份登录）；账号写入、最终 challenge 消费、审计、回执、通知在各自 usersrv 事务中原子提交。失败标为 `failed`，原 code 不能重兑。
+5. provider 校验成功后按 §5.4 锁序完成身份/账号检查，再检查当前全局/provider 开关。登录意图中，已绑定身份不受注册开关影响，challenge 标为 `completed`；未绑定身份只有在 `auth.registration_enabled=true` 时进入 `ready/registration_pending`，否则返回 `REGISTRATION_UNAVAILABLE`，不创建用户、身份或注册邮件挑战。绑定意图不受注册开关影响，仍可进入 `ready/link_pending`。账号写入、最终 challenge 消费、审计、回执、通知在各自 usersrv 事务中原子提交。失败标为 `failed`，原 code 不能重兑。
 6. 两个服务不承诺跨库事务。BFF state 已消费而 RPC 超时、进程退出或 provider 结果丢失时，此 callback 不可重试，重新发起授权；滞留 `exchanging` 到期失败，不能再次兑换。已提交账号保留，重登同一身份获得同一 UUID。注册/绑定的最终提交通过原浏览器独立流程凭据和 mutation 回执处理丢响应，不通过重放 callback 恢复。
 7. BFF 在设置会话前再次核对发起浏览器当前会话代次/意图，拒绝迟到或换账号的结果；绑定成功不创建替换会话。清理只删除本 flow 的临时材料，不清理其他标签页、现有会话或注销恢复 Cookie。每次完成、失败或到期清理 verifier/nonce 和短期证明。
 
@@ -179,12 +180,12 @@ usersrv 不保存 `state_hash`、原始 state、PKCE verifier 或 nonce。它们
 
 | RPC | 作用 | 关键不变量 |
 | --- | --- | --- |
-| `BeginExternalLogin` | 校验已启用 provider，生成授权参数/挑战引用 | 不创建账号，不接受任意 issuer/redirect URI |
-| `CompleteExternalLogin` | 用 challenge、code、verifier、nonce 完成 adapter 校验 | 已绑定身份返回当前用户；未绑定只返回 `registration_pending` 或 `link_pending`，不创建用户，不返回 subject |
-| `RequestExternalRegistrationEmail` / `ConfirmExternalRegistrationEmail` | 必要的 OzID 联系邮箱验证 | 仅有效 provider 证明可申请；编辑邮箱作废旧确认；邮件确认本身不创建用户 |
-| `CompleteExternalRegistration` | 原浏览器显式确认创建 | 重查注册/provider 开关、邮箱证明与唯一性；用户、首个身份、challenge、回执和审计同事务 |
+| `BeginExternalLogin` | 校验全局/provider 开关，生成授权参数/挑战引用 | 注册关闭仍允许登录/绑定意图启动；不创建账号，不接受任意 issuer/redirect URI |
+| `CompleteExternalLogin` | 用 challenge、code、verifier、nonce 完成 adapter 校验 | 重查全局/provider 开关；已有身份登录、已有账号的 `link_pending` 不受注册关闭影响；仅注册开启时返回 `registration_pending`，否则 `REGISTRATION_UNAVAILABLE`；不创建用户、不返回 subject |
+| `RequestExternalRegistrationEmail` / `ConfirmExternalRegistrationEmail` | 必要的 OzID 联系邮箱验证 | 重查全局/provider/注册开关；仅有效 provider 证明可申请；编辑邮箱作废旧确认；邮件确认本身不创建用户 |
+| `CompleteExternalRegistration` | 原浏览器显式确认创建 | 在最终建号事务内再次检查当前 `auth.registration_enabled` 及全局/provider 开关、邮箱证明与唯一性；用户、首个身份、challenge、回执和审计同事务 |
 | `BeginIdentityOperation` / `ConfirmIdentityOperation` / `GetIdentityOperation` | 绑定/解绑/注销的单次账号确认与状态查询 | 有密码验证当前密码；无密码使用 OzID 邮件；绑定用户、会话、版本、动作和目标 |
-| `LinkExternalIdentity` | 把已校验身份绑定到签名凭证的用户 | 要求当前 `auth_version`；同身份已属于同用户则幂等，属于他人返回冲突 |
+| `LinkExternalIdentity` | 把已校验身份绑定到签名凭证的用户 | 最终提交重查全局/provider 开关与当前 `auth_version`；注册关闭仍可绑定；同身份已属于同用户则幂等，属于他人返回冲突 |
 | `UnlinkExternalIdentity` | 删除指定身份 | 请求只接受身份记录 ID；禁止删除最后凭据 |
 | `SetInitialPassword` | 邮箱首次设密的语义名称，复用 `ResetPassword`，不新增 provider 设密旁路 | 目标来自 reset token；提交时仍无密码且版本匹配，设置后不自动登录 |
 | `RecoverAccountWithExternalIdentity` | 已绑定身份的重新登录语义，复用 Begin/CompleteExternalLogin | 不新增绕过邮箱或账号状态的恢复 RPC，不提升版本 |
@@ -198,11 +199,11 @@ usersrv 不保存 `state_hash`、原始 state、PKCE verifier 或 nonce。它们
 
 | RPC/HTTP 路由 | 权限 | 语义 |
 | --- | --- | --- |
-| `StartExternalLogin` | 匿名/当前会话 | 解析稳定 provider 与返回路径，创建 BFF state，返回 provider authorization URL |
-| `CompleteExternalLogin` | callback 匿名入口 | 按 §2.6 消费 state，转发内部证明；仅 authenticated 结果可设置 HttpOnly Cookie，待注册/绑定结果跳固定 OzID 完成页 |
-| `RequestExternalRegistrationEmail` / `ConfirmExternalRegistrationEmail` / `GetExternalRegistration` / `CompleteExternalRegistration` | 受浏览器流程保护；邮件确认允许另一设备 | 邮件 GET 不消费；原浏览器显式最终提交才创建及自动登录 |
+| `StartExternalLogin` | 匿名/当前会话 | 解析稳定 provider 与返回路径，检查全局/provider 开关，创建 BFF state 并返回授权 URL；注册关闭不能隐藏或拒绝已有身份所需的登录入口 |
+| `CompleteExternalLogin` | callback 匿名入口 | 按 §2.6 消费 state，转发内部证明；注册关闭仍接受 `authenticated/link_pending`，未绑定登录身份返回 `REGISTRATION_UNAVAILABLE`；仅 authenticated 可设置 HttpOnly Cookie，待注册/绑定结果跳固定 OzID 完成页 |
+| `RequestExternalRegistrationEmail` / `ConfirmExternalRegistrationEmail` / `GetExternalRegistration` / `CompleteExternalRegistration` | 受浏览器流程保护；邮件确认允许另一设备 | 邮件 GET 不消费；注册关闭时申请/确认/最终建号均拒绝，状态查询只显示原流程状态及当前不可注册；原浏览器显式最终提交才创建及自动登录 |
 | `ListExternalIdentities` | 当前会话 | 返回 provider 名称、显示标签、`linked_at`、最近认证时间 |
-| `LinkExternalIdentity` | 当前会话＋当前密码或本操作邮件确认 | 创建绑定挑战并进入 provider；不接受 email 作为绑定键 |
+| `LinkExternalIdentity` | 当前会话＋当前密码或本操作邮件确认 | 创建绑定挑战并进入 provider，原浏览器最终提交；全局/provider 必须开启，注册关闭仍可绑定；不接受 email 作为绑定键 |
 | `UnlinkExternalIdentity` | 当前会话＋当前密码或本操作邮件确认 | 传 `external_identity_id` 和 mutation_id；最后凭据拒绝 |
 | `BeginIdentityOperation` / `ConfirmIdentityOperation` / `GetIdentityOperation` | 原会话或其绑定的结果查询流程凭据 | 密码/邮件证明只授权具体操作；成功后旧会话只能凭原流程查询同一回执，不能执行新写操作或建立会话 |
 | `SetInitialPassword` | 现有 RequestPasswordReset / ResetPassword 邮件流程 | 无需外部认证旁路；首次设密成功提升版本，全部旧会话失效，不自动登录 |
@@ -216,12 +217,13 @@ callback 的 `error`、`error_description` 和 provider 返回体不能原样转
 
 | reason | gRPC/浏览器状态 | 使用场景 |
 | --- | --- | --- |
-| `PROVIDER_DISABLED` | `FAILED_PRECONDITION` / `failed_precondition` | provider 未启用或未完成配置 |
+| `PROVIDER_DISABLED` | `FAILED_PRECONDITION` / `failed_precondition` | BFF/usersrv 外部认证全局开关或目标 provider 未启用；拒绝启动、callback 和尚未提交的注册/绑定；启用配置不完整则启动校验失败 |
 | `STATE_INVALID` | `FAILED_PRECONDITION` / `unauthenticated` | state 缺失、重复、过期、浏览器上下文不匹配 |
 | `PROVIDER_REJECTED` | `UNAUTHENTICATED` / `unauthenticated` | 用户取消、code 无效、provider 身份无法验证 |
 | `IDENTITY_CONFLICT` | `ALREADY_EXISTS` / `already_exists` | 外部身份属于另一个账号 |
 | `IDENTITY_LIMIT_REACHED` | `FAILED_PRECONDITION` / `failed_precondition` | 本账号该 provider 已有另一条绑定 |
-| `REGISTRATION_UNAVAILABLE` | `FAILED_PRECONDITION` / `failed_precondition` | 注册关闭、邮箱冲突或不能完成创建；统一引导原方式登录/邮箱注册，不提供邮箱占用 reason |
+| `REGISTRATION_UNAVAILABLE` | `FAILED_PRECONDITION` / `failed_precondition` | 外部登录未绑定身份时注册关闭，或注册邮件/最终建号时注册关闭、邮箱冲突等；统一引导已有方式登录后主动绑定，仅注册开启时提供邮箱注册入口；不提供邮箱占用 reason |
+| `REGISTRATION_CLOSED`（现有） | `FAILED_PRECONDITION` / `failed_precondition` | 仅原邮箱 `RequestRegistration/CompleteRegistration` 的关闭语义，保持现有映射；外部注册统一使用 `REGISTRATION_UNAVAILABLE` |
 | `NOT_FOUND` | `NOT_FOUND` / `not_found` | 本人解绑目标不存在且无可重放回执；不透露其他账号是否拥有该 ID |
 | `LAST_CREDENTIAL` | `FAILED_PRECONDITION` / `failed_precondition` | 解绑后无密码且无其他身份 |
 | `VERSION_CONFLICT` | `ABORTED` / `aborted` | expected auth version 过期 |
@@ -230,7 +232,7 @@ callback 的 `error`、`error_description` 和 provider 返回体不能原样转
 | `INVALID_ARGUMENT` | `INVALID_ARGUMENT` / `invalid_argument` | provider、路径、密码或 ID 格式错误 |
 | `UNAVAILABLE` | `UNAVAILABLE` / `unavailable` | usersrv、Redis、provider 元数据或必要存储不可用 |
 
-`PROVIDER_REJECTED` 不区分用户取消、错误 code 和不满足邮箱验证策略的 provider 证明；不暴露内部未验证邮箱分类，不定义对外 `EMAIL_VERIFICATION_REQUIRED` reason。有效且未绑定的身份进入显式注册确认，不是“未知身份错误”，不得用候选邮箱查账号后改变响应。账号 disabled/deleting 沿用现有中性认证失败。日志只记录 provider、固定结果分类、流程/request ID 和必要的内部用户 UUID，不含邮箱、外部主体或协议秘密。
+`PROVIDER_REJECTED` 不区分用户取消、错误 code 和不满足邮箱验证策略的 provider 证明；不暴露内部未验证邮箱分类，不定义对外 `EMAIL_VERIFICATION_REQUIRED` reason。有效且未绑定的登录身份在注册开启时进入显式注册确认，关闭时统一 `REGISTRATION_UNAVAILABLE`；不得用候选邮箱查账号后改变响应。注册关闭不能给已有身份登录或已有账号主动绑定返回注册错误，也不能借机自动绑定同邮箱账号。有效上下文中同时注册关闭与 provider/全局关闭时，以 `PROVIDER_DISABLED` 拒绝；state/上下文/权限检查仍按各阶段要求执行，不能以开关绕过安全校验。账号 disabled/deleting 沿用现有中性认证失败。日志只记录 provider、固定结果分类、流程/request ID 和必要的内部用户 UUID，不含邮箱、外部主体或协议秘密。
 
 ## 4. provider-neutral adapter
 
@@ -260,14 +262,14 @@ adapter 不自动重试有副作用的 code exchange，不在 provider 之间故
 ### 5.1 注册/首次设密
 
 - 邮箱注册保持现状：申请 → `account_tokens` 邮箱验证 → 创建 active 账号；不因 provider 扩展改变中性响应。
-- 外部登录新账号：授权 → provider 验证 → `registration_pending`，此时没有正式用户。受信 Gmail/Workspace 邮箱可直接作为已验证联系地址；GitHub 已验证候选地址及其他 Google 地址通过 OzID 邮件确认。原浏览器显式提交时再锁 external key、重查开关/证明/邮箱唯一性，创建 active 账号＋首条身份＋注册回执＋审计并消费挑战；新账号无密码、无管理角色。邮箱并发冲突回滚整个事务并统一 `REGISTRATION_UNAVAILABLE`。
+- 外部登录新账号：授权 → provider 验证 → 区分已绑定登录与未绑定身份；未绑定且当前允许注册才进入 `registration_pending`，此时没有正式用户。受信 Gmail/Workspace 邮箱可直接作为已验证联系地址；GitHub 已验证候选地址及其他 Google 地址通过 OzID 邮件确认。原浏览器显式提交时再锁 external key，在最终建号事务内再次读取当前 `auth.registration_enabled` 和全局/provider 开关、重验证明/邮箱唯一性，才创建 active 账号＋首条身份＋注册回执＋审计并消费挑战；不得复用 Start、callback 或邮件确认时的开关快照。最终检查发现注册关闭时返回 `REGISTRATION_UNAVAILABLE`（外部全局/provider 关闭则 `PROVIDER_DISABLED`），无新用户/身份、无成功回执/成功审计；新账号无密码、无管理角色。邮箱并发冲突回滚整个事务并统一 `REGISTRATION_UNAVAILABLE`。切换与在途请求的边界见 §6.3。
 - 新注册幂等结果保存在挑战本行（提交前没有 user_id），字段为 `result_mutation_id/result_request_hash/result_user_id/result_expires_at`。挑战主键及行锁保证每个挑战至多一次成功，结果保留 24 小时；相同 mutation/hash 只返回同一 UUID，不重复建号。不同 hash 为 `MUTATION_REPLAY_MISMATCH`，已完成挑战不接受新的 mutation；不能凭结果引用直接签发会话。注册昵称/头像沿用现有校验，不抓取远程头像内容。
 - 无密码账号首次设密：申请现有 reset 邮件 → 邮箱 token 验证 → 锁账号 → 锁 reset token → 写密码、递增版本、消费该账号全部 reset token、写审计和唯一通知事件 → completed。现有 reset token 单次规则不改变；重复提交是中性 TOKEN_INVALID，不伪造新的重置回执或第二次通知。
 - 新增注册邮箱/操作邮件：`issued → confirmed → consumed`；POST 确认不执行最终操作，GET/扫描器不消费。邮箱 token 仅保存摘要，10 分钟到期；原浏览器 flow 有效期最多 15 分钟。两种证明都有效才可最终提交；另一设备不得因此改变 Cookie 或绑定。已有注册/密码重置仍可在另一设备完成，不受新增交接规则改写。
 
 ### 5.2 绑定与解绑
 
-- 绑定：当前账号密码确认或本操作邮件确认＋独立 provider 身份证明 → 原浏览器显式提交 → 按 §5.4 加锁、核对 challenge/版本和 provider 开关 → 插入身份 → `auth_version + 1` → 原子消费挑战、审计、通知事件和回执。当前会话也失效，成功页引导重新登录，不签发替换会话。
+- 绑定：当前账号密码确认或本操作邮件确认＋独立 provider 身份证明 → 原浏览器显式提交 → 按 §5.4 加锁、核对 challenge/版本和当前全局/provider 开关 → 插入身份 → `auth_version + 1` → 原子消费挑战、审计、通知事件和回执。此流程只给已有账号增加凭据，不新建账号，注册关闭时仍可执行（包括绑定操作的邮件确认）。当前会话也失效，成功页引导重新登录，不签发替换会话。
 - 解绑：当前账号密码确认或本操作邮件确认 → 通过身份 ID 非锁定读取不可变 external key → external-key advisory lock → users 行锁 → identity 行锁 → challenge/receipt → 重读目标与剩余凭据 → 删除指定记录 → `auth_version + 1` → 挑战、审计、通知事件和回执同事务提交。无目标但有同请求回执先重放；否则 `NOT_FOUND`。旧 identity ID 不能删除后来重绑的新记录。
 - 绑定同一身份到同一账号是幂等成功；绑定到不同账号是 `IDENTITY_CONFLICT`，不提供自动合并、转移或“证明邮箱后抢占”。
 
@@ -306,11 +308,51 @@ adapter 不自动重试有副作用的 code exchange，不在 provider 之间故
 
 ## 6. 配置与发布边界
 
+### 6.1 独立开关与默认值
+
+复用现有 usersrv `auth.registration_enabled`，不另设 `auth.external.registration_enabled`，也不在 BFF 维护第二个注册写入开关。它是所有新建账号的独立门禁，启动时省略默认为 `true`，显式 `false` 才关闭；与当前 `AuthConfig.RegistrationOpen()` 和邮箱注册默认行为一致。扩展后它同时约束邮箱注册和第三方新建账号，不影响已有账号登录、主动绑定、解绑、首次设密/找回密码。该扩展为待实现，现有开关实现见 `internal/usersrv/config/config.go`。
+
+| 服务/配置 | 启动默认值 | 控制范围 |
+| --- | --- | --- |
+| usersrv `auth.registration_enabled` | `true` | 是否允许创建新账号；不决定 provider 是否可用 |
+| usersrv `auth.external.enabled` | `false` | usersrv 是否接受任何 provider 的新外部登录/绑定流程及尚未提交操作 |
+| usersrv `auth.external.providers.{google,github}.enabled` | 各自 `false` | 只允许/禁止目标 provider 的新登录、注册、绑定及未提交流程；不影响另一 provider |
+| BFF `auth.external.enabled` | `false` | 浏览器外部认证入口及未提交流程的总门禁；usersrv 仍独立检查其配置，直接 RPC 不能绕过 |
+
 新增 usersrv 配置为 `auth.external.enabled`、`auth.external.providers.{google,github}.{enabled,client_id,client_secret,redirect_uri,config_version}`、`auth.external.require_verified_email=true`（本期不可放宽）、`auth.external.proof_key_id`。官方 issuer/endpoint 固定，redirect URI 必须与 BFF 已登记 callback 精确匹配，不能由请求扩展。
 
 BFF 增加 `auth.external.{enabled,state_ttl,confirmation_ttl,state_encryption_key_id}`，TTL 分别默认 15/10 分钟；仅接受固定 provider 名称、callback 与导航注册表。OAuth client secret 只在 usersrv Secret 中，BFF 仅有自己的临时载荷加密 key。配置代次变化使旧流程失败，未启用项不要求配置真实 Secret。
 
-全局和各 provider 均默认 `enabled=false`；启用项缺少 secret、redirect URI 不匹配、issuer 不在固定列表、必要加密 key 缺失或 provider 配置混杂时所属服务启动失败。关闭项不发授权 URL，新登录/绑定和未提交流程均拒绝；已建本地会话不因停用退出。查看/解绑与邮箱首次设密不依赖 provider 在线。readiness 不连接真实 provider；临时厂商故障不阻塞邮箱密码登录、匿名地图或公开目录。
+外部认证全局和各 provider 均默认 `enabled=false`；`registration_enabled=true` 不会自动启用它们。启用项缺少 secret、redirect URI 不匹配、issuer 不在固定列表、必要加密 key 缺失或 provider 配置混杂时所属服务启动失败。外部认证全局/目标 provider 关闭时不发授权 URL，其新登录/绑定及尚未提交流程均返回 `PROVIDER_DISABLED`；注册关闭只拒绝创建新账号的分支，绝不能套用前述总停用规则。所有开关关闭均不删除已绑定身份、不提升认证版本、不让已建本地会话退出。查看/解绑与邮箱首次设密不依赖 provider 在线。readiness 不连接真实 provider；临时厂商故障不阻塞邮箱密码登录、匿名地图或公开目录。
+
+### 6.2 Start / Complete / Link 全流程矩阵
+
+下表假定 state、provider 证明、账号状态、会话/版本、权限、TTL 等各自检查通过；“允许”不豁免这些检查。`E` 表示 BFF 与 usersrv 外部认证全局开关均开启且目标 provider 开启，`R` 表示当前 usersrv `auth.registration_enabled`。`E=false` 可由任何一个外部门禁关闭导致；其余 provider 的独立开关不影响目标 provider。
+
+| 阶段/意图 | `E=true, R=true` | `E=true, R=false` | `E=false, R=true/false` |
+| --- | --- | --- | --- |
+| `StartExternalLogin` → `BeginExternalLogin`，登录意图，身份尚未知 | 允许授权，不建账号 | 仍允许授权，以便识别已有身份；不建账号 | `PROVIDER_DISABLED`，不发授权 URL |
+| `CompleteExternalLogin`，登录意图，稳定身份已绑定 | `authenticated`，登录同一 UUID | 同样 `authenticated`，允许建立新会话 | `PROVIDER_DISABLED`，不建立新会话 |
+| `CompleteExternalLogin`，登录意图，稳定身份未绑定 | `registration_pending`，等待必要邮箱验证和显式确认 | `REGISTRATION_UNAVAILABLE`，不进入注册、不建用户/身份/注册邮件挑战 | `PROVIDER_DISABLED` |
+| 已有账号主动 Link 的启动 → `BeginExternalLogin(intent=link)` | 允许，绑定当前账号/会话/版本 | 同样允许，不受注册门禁影响 | `PROVIDER_DISABLED`，不发授权 URL |
+| `CompleteExternalLogin(intent=link)`，目标身份通过校验 | `link_pending`，仍须本账号操作证明及显式提交 | 同样 `link_pending`；不能误走注册分支 | `PROVIDER_DISABLED`，不新增绑定 |
+| `Begin/ConfirmIdentityOperation(identity_link)`，当前密码/本操作邮件确认 | 允许 | 同样允许，绑定确认邮件不是注册邮件 | `PROVIDER_DISABLED`，不推进新的绑定操作 |
+| `LinkExternalIdentity` 原浏览器最终提交，新增绑定 | 重查 `E`，依约束绑定 | 同样重查 `E` 并绑定；不检查注册开启、不创建用户 | `PROVIDER_DISABLED`，不新增绑定/不升版本 |
+| `Request/ConfirmExternalRegistrationEmail`，尚未完成的注册 | 允许必要邮箱验证，不建账号 | `REGISTRATION_UNAVAILABLE`，不新发/确认注册邮件 | `PROVIDER_DISABLED` |
+| `CompleteExternalRegistration` 原浏览器最终建号 | 事务内重查 `E`、`R`，全部条件满足才原子建号 | `REGISTRATION_UNAVAILABLE`，即使此前已授权/邮件确认也不得建号 | `PROVIDER_DISABLED`，不得建号 |
+| 查看已有身份/已完成回执、邮箱密码登录、解绑、邮箱首次设密/找回 | 按原权限和剩余凭据规则允许 | 同样允许 | 同样允许，不依赖外部入口或 provider 在线 |
+
+登录意图不能因注册关闭自动转成绑定；应引导用户先用已有方式登录，再独立主动绑定。相同邮箱既不证明拥有账号，也不能改变本矩阵结果。回执查询只展示已经提交的原结果，不执行新操作、不再升版本、不签发会话；不能把停用后的新 Link 请求伪装为回执重放。
+
+### 6.3 开关切换、最终检查与验收
+
+- Start 只证明当时可开始外部认证，不锁定后续注册资格。callback 后、邮件确认后、原浏览器最终提交前任一时刻关闭注册，未完成注册都必须在当前阶段按矩阵拒绝。已有身份的 callback 和已有账号 Link 的启动、callback、操作邮件确认、最终提交继续可用；注册开关变化不递增 `provider_config_version`，不因该变化作废登录/绑定证明。
+- usersrv 是建号门禁的权威，BFF 页面/状态查询的可注册提示仅供展示。`CompleteExternalRegistration` 在 §5.4 锁序的最终事务内、创建 `users`/首条身份之前再次读取当前有效 `auth.registration_enabled`、全局/provider 开关；不能只在 BFF、Begin、callback 或邮件申请阶段判断，也不能信任 challenge 中保存的旧布尔值。直接内部 RPC 和双标签页最终提交受同一门禁与唯一约束保护。
+- 关闭动作生效与最终建号必须有明确先后：关闭生效后不得有按旧配置放行的建号事务再提交。若支持运行时配置切换，必须与最终准入/提交串行协调或等待已获准事务排空后才报告关闭生效；若配置仅启动加载，则停止/排空所有仍使用旧配置的写入实例后，才算关闭生效。不在本 ADR 承诺新的热更新接口。
+- 因注册关闭而拒绝已有 `registration_pending` 流程的邮件/最终提交，不生成成功回执、不消费为注册成功、不改变现有账号、身份或会话；证明继续按原 TTL 到期，不续期。重新开启后仍在有效期内且未失败/消费的流程可重试，最终提交重新检查全部条件；callback 已失败并消费 state 的流程须重新授权。已经建号成功的同请求重放只能返回原结果引用，不能再次建号或凭回执登录。
+- A08 必须覆盖 Google/GitHub、注册开启/关闭及全局/provider 停用组合；单独覆盖 Start 后关闭、callback 后关闭、邮件确认后关闭、最终事务与关闭并发、BFF 旧提示及直接 RPC。断言注册关闭无新账号/首条身份/成功事件，而已有身份登录和已有账号主动绑定全流程仍成功；provider 停用则拒绝其新登录/绑定且保留旧身份/会话。以上都是待实现的验收要求，不是本次文档检查结果。
+
+### 6.4 限流与发布门槛
 
 流程启动/回调/提交分别限流，沿用原规格每 IP 30 次/15 分钟、账号敏感操作 10 次/15 分钟、token 提交 5 次/15 分钟的工程默认值；新增邮件沿用 60 秒冷却及现有邮箱/IP/全局合计限额。Redis 故障拒绝受控操作，不降级绕过验证。
 
@@ -360,7 +402,7 @@ Google OIDC 与 GitHub OAuth 各有一条真实厂商冒烟门槛：授权、取
 | A05 | 本人列表/绑定/解绑；每 provider 一条、全局身份唯一，无覆盖/转移 | usersrv Ent + 真实库并发 + BFF 权限 | 两个唯一约束、同用户上限、跨账号抢绑仅一方成功 |
 | A06 | 不删光登录方式；双并发解绑安全；旧请求不删重绑记录 | usersrv transaction/integration | 无密码最后身份拒绝、并发结果、重绑新 ID 与旧回执重放 |
 | A07 | 邮件首次设密后旧会话/MCP 全失效，不自动登录；无密码登录中性失败 | reset + BFF integration | NULL 哈希、token/版本单次性、全部旧凭据拒绝、新密码登录 |
-| A08 | 注册/provider 独立开关在最终提交检查，停用不删关联/退出旧会话 | usersrv/BFF config + integration | 关闭注册仍可已有身份登录/绑定、直接 RPC 不可绕开 provider 开关 |
+| A08 | 独立 `auth.registration_enabled` 默认 true、外部全局/provider 默认 false；Start/Complete/Link 按 §6.2，最终建号事务再次检查当前开关，停用不删关联/退出旧会话 | usersrv/BFF config + integration | 两 provider 全流程开关矩阵；Start/callback/邮件确认后及最终事务并发关闭均不建号；关闭注册仍可已有身份登录/主动绑定；BFF 旧提示和直接 RPC 不可绕过 |
 | A09 | 新邮件跨设备只确认，GET 不消费，原浏览器显式最终提交 | challenge + BFF + 真实浏览器 | 两设备 Cookie/账号隔离、预取与 GET、原浏览器最终修改 |
 | A10 | 过期/消费/换账号/退出/版本变化失败，不能跨动作/目标/会话复用 | challenge + BFF integration/browser | 用途/目标/会话/版本负例矩阵、ID 本身不授予权限 |
 | A11 | 绑定/解绑/首次设密原子提升版本；失败/重放不重增、不影响他人 | usersrv receipt/audit + BFF | 数据库事务、丢响应重试、旧 session/access token 请求拒绝 |
@@ -389,6 +431,6 @@ Google OIDC 与 GitHub OAuth 各有一条真实厂商冒烟门槛：授权、取
 
 产品未决项：无。七项产品选择和四项工程修订已确认，见 §1.3 与 KON-37 评论记录；不再要求重复产品确认。
 
-本修订仍需工程复审，重点检查 §2.6 的跨服务单次消费、§3 的 RPC/中性错误、§5.4 的可执行锁序及 §9 与原验收编号的一致性。复审通过后进入既有 Stage 2 模型/协议实现票；本 ADR 的提交不代表功能已实现、已部署或真实厂商已验证。
+本修订仍需工程复审，重点检查 §2.6 的跨服务单次消费、§3 的 RPC/中性错误、§5.4 的可执行锁序、§6 的独立注册开关/全流程矩阵/最终事务检查及 §9 与原验收编号的一致性。复审通过后进入既有 Stage 2 模型/协议实现票；本 ADR 的提交不代表功能已实现、已部署或真实厂商已验证。
 
 后续实现须同步受影响的 docs/ozid/features.md、docs/usersrv/spec.md、docs/bff.md、docs/backend.md、docs/admin/features.md、docs/ozid/acceptance.md 及部署文档，保持实现证据与发布门槛分开登记。
