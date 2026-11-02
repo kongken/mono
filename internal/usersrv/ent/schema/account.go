@@ -48,7 +48,9 @@ func (User) Fields() []ent.Field {
 		field.String("email_canonical").NotEmpty().Unique(),
 		field.Time("email_verified_at"),
 		// Self-describing Argon2id encoding; never in logs, responses or String().
-		field.String("password_hash").Sensitive().NotEmpty(),
+		field.String("password_hash").Sensitive().NotEmpty().Optional().Nillable(),
+		// NULL for historical rows whose original password time is unknown.
+		field.Time("password_set_at").Optional().Nillable(),
 		field.String("display_name").Default("旅行者"),
 		field.String("avatar_url").Default(""),
 		field.Int64("profile_version").Default(1),
@@ -65,7 +67,10 @@ func (User) Fields() []ent.Field {
 }
 
 func (User) Edges() []ent.Edge {
-	return []ent.Edge{edge.From("roles", UserRole.Type).Ref("user")}
+	return []ent.Edge{
+		edge.From("roles", UserRole.Type).Ref("user"),
+		edge.From("external_identities", ExternalIdentity.Type).Ref("user"),
+	}
 }
 
 // UserRole grants a role from the fixed whitelist. Rows go away with the user.

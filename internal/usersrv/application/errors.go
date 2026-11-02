@@ -33,6 +33,15 @@ const (
 	ReasonTargetProtected = "TARGET_PROTECTED"
 	ReasonTargetChanged   = "TARGET_CHANGED"
 	ReasonMutationReused  = "MUTATION_REUSED"
+	// ADR 0001 external-auth reasons (proto/usersrv/v1/external.proto).
+	ReasonProviderDisabled        = "PROVIDER_DISABLED"
+	ReasonProviderRejected        = "PROVIDER_REJECTED"
+	ReasonIdentityConflict        = "IDENTITY_CONFLICT"
+	ReasonIdentityLimitReached    = "IDENTITY_LIMIT_REACHED"
+	ReasonRegistrationUnavailable = "REGISTRATION_UNAVAILABLE"
+	ReasonLastCredential          = "LAST_CREDENTIAL"
+	ReasonMutationReplayMismatch  = "MUTATION_REPLAY_MISMATCH"
+	ReasonChallengeInvalid        = "CHALLENGE_INVALID"
 )
 
 func detailed(code codes.Code, message, reason string, metadata map[string]string) error {
@@ -66,6 +75,22 @@ func toStatus(op string, err error) error {
 		return detailed(codes.InvalidArgument, v.Field+": "+v.Reason, ReasonInvalidArgument, map[string]string{"field": v.Field})
 	}
 	switch {
+	case errors.Is(err, account.ErrProviderDisabled):
+		return detailed(codes.FailedPrecondition, "external provider is disabled", ReasonProviderDisabled, nil)
+	case errors.Is(err, account.ErrProviderRejected):
+		return detailed(codes.Unauthenticated, "external authentication failed", ReasonProviderRejected, nil)
+	case errors.Is(err, account.ErrIdentityConflict):
+		return detailed(codes.AlreadyExists, "external identity is unavailable", ReasonIdentityConflict, nil)
+	case errors.Is(err, account.ErrIdentityLimitReached):
+		return detailed(codes.FailedPrecondition, "provider identity limit reached", ReasonIdentityLimitReached, nil)
+	case errors.Is(err, account.ErrRegistrationUnavailable):
+		return detailed(codes.FailedPrecondition, "registration is unavailable", ReasonRegistrationUnavailable, nil)
+	case errors.Is(err, account.ErrLastCredential):
+		return detailed(codes.FailedPrecondition, "cannot remove the last login method", ReasonLastCredential, nil)
+	case errors.Is(err, account.ErrMutationReplayMismatch):
+		return detailed(codes.Aborted, "mutation request does not match", ReasonMutationReplayMismatch, nil)
+	case errors.Is(err, account.ErrChallengeInvalid):
+		return detailed(codes.FailedPrecondition, "operation challenge is invalid", ReasonChallengeInvalid, nil)
 	case errors.Is(err, account.ErrInvalidCredentials):
 		return detailed(codes.Unauthenticated, "invalid credentials", ReasonInvalidCredentials, nil)
 	case errors.Is(err, account.ErrNotActive):

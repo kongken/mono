@@ -1,6 +1,6 @@
 # 第三方登录契约、数据模型与迁移回滚方案
 
-**状态：产品决策已于 2026-10-29 在 KON-37 确认，工程契约修订待复审；功能待实现。Stage 2 在本修订评审通过后开始。**
+**状态：产品决策已于 2026-10-29 在 KON-37 确认，S1 工程契约修订（`cca228d`）已通过复审。KON-38（S2）基础模型、迁移、配置校验与内部能力消息已实现、待独立审查；第三方认证完整流程仍待实现。**
 
 依据：[Issue #103](https://github.com/kongken/mono/issues/103) 与 KON-37 的评审讨论。2026-10-28 的四项工程修订和 2026-10-29 的七项产品建议均获用户“没问题”确认。本文记录确认结果，不再把它们列为未决项。原规格 A01–A21 编号保留；本次对未验证 provider 邮箱的失败路径作收紧，见 §1.3 和 A02。
 
@@ -323,6 +323,8 @@ adapter 不自动重试有副作用的 code exchange，不在 provider 之间故
 
 BFF 增加 `auth.external.{enabled,state_ttl,confirmation_ttl,state_encryption_key_id}`，TTL 分别默认 15/10 分钟；仅接受固定 provider 名称、callback 与导航注册表。OAuth client secret 只在 usersrv Secret 中，BFF 仅有自己的临时载荷加密 key。配置代次变化使旧流程失败，未启用项不要求配置真实 Secret。
 
+S2 配置实现补充：usersrv 支持 `client_secret` 或 `client_secret_file` 恰选一项，禁用 provider 不读取文件。`proof_key_id` 引用已加载的 `mail.encryption.keys` key；后续挑战加密必须使用与邮件不同的用途绑定 associated data。配置只校验 callback 的固定路径及 URL 安全形态，部署时还须核对其 origin 与后续 BFF 注册地址完全一致；本阶段尚未实现 BFF callback/配置或 provider 网络调用。S2 只加入 §2.1–2.2 模型和基础消息/错误，§2.3–2.6 的挑战/回执/BFF 状态及写入事务由后续票落实。
+
 外部认证全局和各 provider 均默认 `enabled=false`；`registration_enabled=true` 不会自动启用它们。启用项缺少 secret、redirect URI 不匹配、issuer 不在固定列表、必要加密 key 缺失或 provider 配置混杂时所属服务启动失败。外部认证全局/目标 provider 关闭时不发授权 URL，其新登录/绑定及尚未提交流程均返回 `PROVIDER_DISABLED`；注册关闭只拒绝创建新账号的分支，绝不能套用前述总停用规则。所有开关关闭均不删除已绑定身份、不提升认证版本、不让已建本地会话退出。查看/解绑与邮箱首次设密不依赖 provider 在线。readiness 不连接真实 provider；临时厂商故障不阻塞邮箱密码登录、匿名地图或公开目录。
 
 ### 6.2 Start / Complete / Link 全流程矩阵
@@ -431,6 +433,6 @@ Google OIDC 与 GitHub OAuth 各有一条真实厂商冒烟门槛：授权、取
 
 产品未决项：无。七项产品选择和四项工程修订已确认，见 §1.3 与 KON-37 评论记录；不再要求重复产品确认。
 
-本修订仍需工程复审，重点检查 §2.6 的跨服务单次消费、§3 的 RPC/中性错误、§5.4 的可执行锁序、§6 的独立注册开关/全流程矩阵/最终事务检查及 §9 与原验收编号的一致性。复审通过后进入既有 Stage 2 模型/协议实现票；本 ADR 的提交不代表功能已实现、已部署或真实厂商已验证。
+S1 工程契约修订已通过复审，覆盖 §2.6 的跨服务单次消费、§3 的 RPC/中性错误、§5.4 的可执行锁序、§6 的独立注册开关/全流程矩阵/最终事务检查及 §9 与原验收编号的一致性。当前 KON-38 的 S2 基础实现需独立审查，通过后才能推进后续票；ADR 验收矩阵仍是完整功能的待实现要求，基础模型提交不代表第三方登录已可用、已部署或真实厂商已验证。
 
 后续实现须同步受影响的 docs/ozid/features.md、docs/usersrv/spec.md、docs/bff.md、docs/backend.md、docs/admin/features.md、docs/ozid/acceptance.md 及部署文档，保持实现证据与发布门槛分开登记。

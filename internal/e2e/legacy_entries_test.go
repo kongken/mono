@@ -292,7 +292,9 @@ func reservedAddr(a netip.Addr) bool {
 var thirdParty = map[string]bool{
 	"github.com": true, "raw.githubusercontent.com": true, "ghcr.io": true, "registry.npmjs.org": true,
 	"docs.github.com": true,
-	"api.mapbox.com": true, "www.mapbox.com": true, "apps.mapbox.com": true, "docs.mapbox.com": true,
+	// ADR 0001 fixes this public Google OIDC issuer; it is not a project deployment.
+	"accounts.google.com": true,
+	"api.mapbox.com":      true, "www.mapbox.com": true, "apps.mapbox.com": true, "docs.mapbox.com": true,
 	"www.openstreetmap.org": true, "tile.openstreetmap.org": true, "operations.osmfoundation.org": true,
 	"geo.datav.aliyun.com": true, "datav.aliyun.com": true, "www.naturalearthdata.com": true,
 	"www.rfc-editor.org": true, "www.w3.org": true, "vite.dev": true, "scripts.sil.org": true,

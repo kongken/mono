@@ -58,8 +58,8 @@ func TestEmailCaseInsensitiveUniquenessAndDistinctAliases(t *testing.T) {
 	if u.EmailCanonical != "alice+tag@example.com" || u.Status != user.StatusActive || u.AuthVersion != 1 || u.ProfileVersion != 1 || u.EmailVerifiedAt.IsZero() {
 		t.Fatalf("new account: %+v", u)
 	}
-	if strings.Contains(u.PasswordHash, password) || !strings.HasPrefix(u.PasswordHash, "$argon2id$") {
-		t.Fatalf("password stored as %q", u.PasswordHash)
+	if u.PasswordHash == nil || strings.Contains(*u.PasswordHash, password) || !strings.HasPrefix(*u.PasswordHash, "$argon2id$") {
+		t.Fatal("password was not stored as an Argon2id hash")
 	}
 }
 

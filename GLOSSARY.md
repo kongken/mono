@@ -16,7 +16,7 @@
 
 ## 第三方登录（待实现）
 
-以下术语对应 [ADR 0001](docs/adr/0001-third-party-auth-contract.md) 的已确认范围，当前运行时尚未实现。
+以下术语对应 [ADR 0001](docs/adr/0001-third-party-auth-contract.md) 的已确认范围；KON-38 已加入基础模型与内部能力消息，provider 认证及注册/绑定流程仍待实现。
 
 | 术语 | 含义 |
 | --- | --- |

@@ -33,7 +33,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // UserAdminService is the internal user management interface (BFF -> usersrv gRPC):
-// two reads and four narrow writes. It is the only usersrv interface whose methods may
+// three reads (the user list, one user, the account audit) and four narrow writes. It is the only usersrv interface whose methods may
 // name an account other than the caller: the caller (the credential's sub) is the
 // administrator, and a target is a request field.
 //
@@ -191,7 +191,7 @@ func (c *userAdminServiceClient) RevokeMetroAdmin(ctx context.Context, in *Chang
 // for forward compatibility.
 //
 // UserAdminService is the internal user management interface (BFF -> usersrv gRPC):
-// two reads and four narrow writes. It is the only usersrv interface whose methods may
+// three reads (the user list, one user, the account audit) and four narrow writes. It is the only usersrv interface whose methods may
 // name an account other than the caller: the caller (the credential's sub) is the
 // administrator, and a target is a request field.
 //

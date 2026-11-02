@@ -274,7 +274,7 @@ func (s *Service) CompleteRegistration(ctx context.Context, token, password, dis
 		}
 		ret = returnOf(own)
 		if err = tx.User.Create().SetID(id).SetEmailCanonical(own.EmailCanonical).SetEmailVerifiedAt(now).
-			SetPasswordHash(hash).SetDisplayName(name).Exec(ctx); err != nil {
+			SetPasswordHash(hash).SetPasswordSetAt(now).SetDisplayName(name).Exec(ctx); err != nil {
 			return err
 		}
 		if _, err = tx.AccountToken.Update().Where(accounttoken.IDIn(ids...), accounttoken.ConsumedAtIsNil()).
@@ -400,7 +400,7 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword, request
 		}
 		ret = returnOf(t)
 		if _, err = tx.User.UpdateOneID(userID).Where(user.AuthVersion(issued), user.StatusEQ(user.StatusActive)).
-			SetPasswordHash(hash).AddAuthVersion(1).Save(ctx); err != nil {
+			SetPasswordHash(hash).SetPasswordSetAt(now).AddAuthVersion(1).Save(ctx); err != nil {
 			if ent.IsNotFound(err) {
 				return ErrTokenInvalid
 			}

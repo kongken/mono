@@ -1,8 +1,12 @@
 # usersrv 自建用户系统规格
 
-> **后续第三方登录扩展（待实现）：** Google OIDC / GitHub OAuth、无密码账号及身份绑定的产品选择已确认，工程契约修订见 [ADR 0001](../adr/0001-third-party-auth-contract.md)，复审通过后进入实现。两 provider 默认关闭，当前邮箱＋密码实现及下述 P1–P6 状态不变；本契约提交不代表功能已启用或真实厂商已验证。
+> **第三方登录扩展（基础层已实现，完整流程待实现）：** S1 的 [ADR 0001](../adr/0001-third-party-auth-contract.md) 已通过复审；KON-38（S2）加入可空密码、`password_set_at`、外部身份表/双唯一约束/级联删除、增量迁移、独立 provider 配置校验、内部 `has_password` 字段与基础身份消息/错误映射。NULL 哈希的密码认证中性失败，现有邮箱 reset 可首次设密；新注册/改密/reset 写入设密时间，历史账号不回填假时间。adapter、挑战、第三方建号/绑定事务、首次设密通知和 BFF/OzID 入口仍待后续阶段实现；两 provider 默认关闭，不能第三方登录或由公网创建无密码账号，未部署或进行真实厂商冒烟。下述 P1–P6 为原邮箱＋密码阶段登记。
 
 > 扩展复用独立的 `auth.registration_enabled`（现有默认 `true`），关闭仅禁止新建账号，已有身份登录与已有账号主动绑定仍可用；外部全局/provider 开关默认 `false`。Start/Complete/Link 行为矩阵、错误映射及最终建号事务再次检查见 [ADR 0001 §6](../adr/0001-third-party-auth-contract.md#6-配置与发布边界)，均为待实现契约。
+
+> S2 迁移为 `migrations/usersrv/20261102170537_external_identity_foundation.sql`；保留原 UUID、邮箱、哈希、角色、状态、版本及业务归属。兼容版本可读 NULL；有首个无密码账号后禁止回退只接受非空哈希的旧版本、恢复 NOT NULL 或补随机密码。升级/回滚边界以 ADR §7–8 为准，实施配置与接口见[后端说明](../backend.md#usersrv-服务账号核心p1)。
+
+> S2 本地验证：隔离 PostgreSQL 17.11 / Redis 7.2.5 下，usersrv 迁移/约束/并发、账号及签名 gRPC 测试通过；旧账号升级保留原哈希/UUID/角色/版本，NULL 密码账号的登录/重新认证/改密中性拒绝，邮件首次设密后版本提升且绑定保留。相关包 `go test -race`、`go vet`、`make test`、`make build`、模块边界、文档检查通过；`make test` 设置了 `USERSRV_TEST_*`，其他业务所需的 PostgreSQL/Redis/S3 环境未提供，相应集成场景跳过。Node 24 下 trip-map、OzID、admin、metro 构建通过。改动协议的 `buf lint` 及对 S1 的 `buf breaking` 通过；全仓 lint 的 32 条管理 RPC 消息复用/命名错误与 S1 完全一致，未在本票重命名历史协议。A01–A21 的完整第三方流程、真实厂商及真实邮件验收仍未完成。
 
 > **后续扩展（部分已实现）：** [OzID 与统一管理控制台规格](../ozid/spec.md) 在本版 usersrv 基础上增加独立用户中心、独立统一管理前端、`ozid-admin` 与受限网页用户管理、集中邮件/导航及管理 IP 防护。其中 T1–T5 已实现（`ozid-admin`、`UserAdminService`、平台管理员的注销保护、管理周界、普通账号状态与 `metro-admin` 的受限修改，见[控制台功能描述](../admin/features.md)）；OzID 网页注销页、产品入口收敛与集中账号写的来源收紧（T12）也已实现，见[整体验收](../ozid/acceptance.md)。本文“首版不做”的独立前端与网页管理是历史范围，不限制后续扩展；P1–P6 已实现状态保持不变。OIDC、MFA 和修改邮箱仍不在新规格首版范围内。
 

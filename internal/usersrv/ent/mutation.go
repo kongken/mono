@@ -15,6 +15,7 @@ import (
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
 	"github.com/kongken/mono/internal/usersrv/ent/adminmutation"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
+	"github.com/kongken/mono/internal/usersrv/ent/externalidentity"
 	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/predicate"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
@@ -34,6 +35,7 @@ const (
 	TypeAccountToken      = "AccountToken"
 	TypeAdminMutation     = "AdminMutation"
 	TypeDeletionTombstone = "DeletionTombstone"
+	TypeExternalIdentity  = "ExternalIdentity"
 	TypeMailJob           = "MailJob"
 	TypeSecurityAudit     = "SecurityAudit"
 	TypeUser              = "User"
@@ -2469,6 +2471,1011 @@ func (m *DeletionTombstoneMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *DeletionTombstoneMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown DeletionTombstone edge %s", name)
+}
+
+// ExternalIdentityMutation represents an operation that mutates the ExternalIdentity nodes in the graph.
+type ExternalIdentityMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *uuid.UUID
+	provider              *externalidentity.Provider
+	issuer                *string
+	subject               *string
+	email_snapshot        *string
+	email_verified_at     *time.Time
+	display_name_snapshot *string
+	avatar_url_snapshot   *string
+	linked_at             *time.Time
+	last_authenticated_at *time.Time
+	updated_at            *time.Time
+	clearedFields         map[string]struct{}
+	user                  *uuid.UUID
+	cleareduser           bool
+	done                  bool
+	oldValue              func(context.Context) (*ExternalIdentity, error)
+	predicates            []predicate.ExternalIdentity
+}
+
+var _ ent.Mutation = (*ExternalIdentityMutation)(nil)
+
+// externalidentityOption allows management of the mutation configuration using functional options.
+type externalidentityOption func(*ExternalIdentityMutation)
+
+// newExternalIdentityMutation creates new mutation for the ExternalIdentity entity.
+func newExternalIdentityMutation(c config, op Op, opts ...externalidentityOption) *ExternalIdentityMutation {
+	m := &ExternalIdentityMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeExternalIdentity,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withExternalIdentityID sets the ID field of the mutation.
+func withExternalIdentityID(id uuid.UUID) externalidentityOption {
+	return func(m *ExternalIdentityMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ExternalIdentity
+		)
+		m.oldValue = func(ctx context.Context) (*ExternalIdentity, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ExternalIdentity.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withExternalIdentity sets the old ExternalIdentity of the mutation.
+func withExternalIdentity(node *ExternalIdentity) externalidentityOption {
+	return func(m *ExternalIdentityMutation) {
+		m.oldValue = func(context.Context) (*ExternalIdentity, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ExternalIdentityMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ExternalIdentityMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of ExternalIdentity entities.
+func (m *ExternalIdentityMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ExternalIdentityMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ExternalIdentityMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ExternalIdentity.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *ExternalIdentityMutation) SetUserID(u uuid.UUID) {
+	m.user = &u
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *ExternalIdentityMutation) UserID() (r uuid.UUID, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the ExternalIdentity entity.
+// If the ExternalIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ExternalIdentityMutation) OldUserID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *ExternalIdentityMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetProvider sets the "provider" field.
+func (m *ExternalIdentityMutation) SetProvider(e externalidentity.Provider) {
+	m.provider = &e
+}
+
+// Provider returns the value of the "provider" field in the mutation.
+func (m *ExternalIdentityMutation) Provider() (r externalidentity.Provider, exists bool) {
+	v := m.provider
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProvider returns the old "provider" field's value of the ExternalIdentity entity.
+// If the ExternalIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ExternalIdentityMutation) OldProvider(ctx context.Context) (v externalidentity.Provider, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProvider is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProvider requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProvider: %w", err)
+	}
+	return oldValue.Provider, nil
+}
+
+// ResetProvider resets all changes to the "provider" field.
+func (m *ExternalIdentityMutation) ResetProvider() {
+	m.provider = nil
+}
+
+// SetIssuer sets the "issuer" field.
+func (m *ExternalIdentityMutation) SetIssuer(s string) {
+	m.issuer = &s
+}
+
+// Issuer returns the value of the "issuer" field in the mutation.
+func (m *ExternalIdentityMutation) Issuer() (r string, exists bool) {
+	v := m.issuer
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIssuer returns the old "issuer" field's value of the ExternalIdentity entity.
+// If the ExternalIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ExternalIdentityMutation) OldIssuer(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIssuer is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIssuer requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIssuer: %w", err)
+	}
+	return oldValue.Issuer, nil
+}
+
+// ResetIssuer resets all changes to the "issuer" field.
+func (m *ExternalIdentityMutation) ResetIssuer() {
+	m.issuer = nil
+}
+
+// SetSubject sets the "subject" field.
+func (m *ExternalIdentityMutation) SetSubject(s string) {
+	m.subject = &s
+}
+
+// Subject returns the value of the "subject" field in the mutation.
+func (m *ExternalIdentityMutation) Subject() (r string, exists bool) {
+	v := m.subject
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSubject returns the old "subject" field's value of the ExternalIdentity entity.
+// If the ExternalIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ExternalIdentityMutation) OldSubject(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSubject is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSubject requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSubject: %w", err)
+	}
+	return oldValue.Subject, nil
+}
+
+// ResetSubject resets all changes to the "subject" field.
+func (m *ExternalIdentityMutation) ResetSubject() {
+	m.subject = nil
+}
+
+// SetEmailSnapshot sets the "email_snapshot" field.
+func (m *ExternalIdentityMutation) SetEmailSnapshot(s string) {
+	m.email_snapshot = &s
+}
+
+// EmailSnapshot returns the value of the "email_snapshot" field in the mutation.
+func (m *ExternalIdentityMutation) EmailSnapshot() (r string, exists bool) {
+	v := m.email_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEmailSnapshot returns the old "email_snapshot" field's value of the ExternalIdentity entity.
+// If the ExternalIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ExternalIdentityMutation) OldEmailSnapshot(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEmailSnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEmailSnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEmailSnapshot: %w", err)
+	}
+	return oldValue.EmailSnapshot, nil
+}
+
+// ClearEmailSnapshot clears the value of the "email_snapshot" field.
+func (m *ExternalIdentityMutation) ClearEmailSnapshot() {
+	m.email_snapshot = nil
+	m.clearedFields[externalidentity.FieldEmailSnapshot] = struct{}{}
+}
+
+// EmailSnapshotCleared returns if the "email_snapshot" field was cleared in this mutation.
+func (m *ExternalIdentityMutation) EmailSnapshotCleared() bool {
+	_, ok := m.clearedFields[externalidentity.FieldEmailSnapshot]
+	return ok
+}
+
+// ResetEmailSnapshot resets all changes to the "email_snapshot" field.
+func (m *ExternalIdentityMutation) ResetEmailSnapshot() {
+	m.email_snapshot = nil
+	delete(m.clearedFields, externalidentity.FieldEmailSnapshot)
+}
+
+// SetEmailVerifiedAt sets the "email_verified_at" field.
+func (m *ExternalIdentityMutation) SetEmailVerifiedAt(t time.Time) {
+	m.email_verified_at = &t
+}
+
+// EmailVerifiedAt returns the value of the "email_verified_at" field in the mutation.
+func (m *ExternalIdentityMutation) EmailVerifiedAt() (r time.Time, exists bool) {
+	v := m.email_verified_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEmailVerifiedAt returns the old "email_verified_at" field's value of the ExternalIdentity entity.
+// If the ExternalIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ExternalIdentityMutation) OldEmailVerifiedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEmailVerifiedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEmailVerifiedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEmailVerifiedAt: %w", err)
+	}
+	return oldValue.EmailVerifiedAt, nil
+}
+
+// ClearEmailVerifiedAt clears the value of the "email_verified_at" field.
+func (m *ExternalIdentityMutation) ClearEmailVerifiedAt() {
+	m.email_verified_at = nil
+	m.clearedFields[externalidentity.FieldEmailVerifiedAt] = struct{}{}
+}
+
+// EmailVerifiedAtCleared returns if the "email_verified_at" field was cleared in this mutation.
+func (m *ExternalIdentityMutation) EmailVerifiedAtCleared() bool {
+	_, ok := m.clearedFields[externalidentity.FieldEmailVerifiedAt]
+	return ok
+}
+
+// ResetEmailVerifiedAt resets all changes to the "email_verified_at" field.
+func (m *ExternalIdentityMutation) ResetEmailVerifiedAt() {
+	m.email_verified_at = nil
+	delete(m.clearedFields, externalidentity.FieldEmailVerifiedAt)
+}
+
+// SetDisplayNameSnapshot sets the "display_name_snapshot" field.
+func (m *ExternalIdentityMutation) SetDisplayNameSnapshot(s string) {
+	m.display_name_snapshot = &s
+}
+
+// DisplayNameSnapshot returns the value of the "display_name_snapshot" field in the mutation.
+func (m *ExternalIdentityMutation) DisplayNameSnapshot() (r string, exists bool) {
+	v := m.display_name_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisplayNameSnapshot returns the old "display_name_snapshot" field's value of the ExternalIdentity entity.
+// If the ExternalIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ExternalIdentityMutation) OldDisplayNameSnapshot(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisplayNameSnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisplayNameSnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisplayNameSnapshot: %w", err)
+	}
+	return oldValue.DisplayNameSnapshot, nil
+}
+
+// ClearDisplayNameSnapshot clears the value of the "display_name_snapshot" field.
+func (m *ExternalIdentityMutation) ClearDisplayNameSnapshot() {
+	m.display_name_snapshot = nil
+	m.clearedFields[externalidentity.FieldDisplayNameSnapshot] = struct{}{}
+}
+
+// DisplayNameSnapshotCleared returns if the "display_name_snapshot" field was cleared in this mutation.
+func (m *ExternalIdentityMutation) DisplayNameSnapshotCleared() bool {
+	_, ok := m.clearedFields[externalidentity.FieldDisplayNameSnapshot]
+	return ok
+}
+
+// ResetDisplayNameSnapshot resets all changes to the "display_name_snapshot" field.
+func (m *ExternalIdentityMutation) ResetDisplayNameSnapshot() {
+	m.display_name_snapshot = nil
+	delete(m.clearedFields, externalidentity.FieldDisplayNameSnapshot)
+}
+
+// SetAvatarURLSnapshot sets the "avatar_url_snapshot" field.
+func (m *ExternalIdentityMutation) SetAvatarURLSnapshot(s string) {
+	m.avatar_url_snapshot = &s
+}
+
+// AvatarURLSnapshot returns the value of the "avatar_url_snapshot" field in the mutation.
+func (m *ExternalIdentityMutation) AvatarURLSnapshot() (r string, exists bool) {
+	v := m.avatar_url_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAvatarURLSnapshot returns the old "avatar_url_snapshot" field's value of the ExternalIdentity entity.
+// If the ExternalIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ExternalIdentityMutation) OldAvatarURLSnapshot(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAvatarURLSnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAvatarURLSnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAvatarURLSnapshot: %w", err)
+	}
+	return oldValue.AvatarURLSnapshot, nil
+}
+
+// ClearAvatarURLSnapshot clears the value of the "avatar_url_snapshot" field.
+func (m *ExternalIdentityMutation) ClearAvatarURLSnapshot() {
+	m.avatar_url_snapshot = nil
+	m.clearedFields[externalidentity.FieldAvatarURLSnapshot] = struct{}{}
+}
+
+// AvatarURLSnapshotCleared returns if the "avatar_url_snapshot" field was cleared in this mutation.
+func (m *ExternalIdentityMutation) AvatarURLSnapshotCleared() bool {
+	_, ok := m.clearedFields[externalidentity.FieldAvatarURLSnapshot]
+	return ok
+}
+
+// ResetAvatarURLSnapshot resets all changes to the "avatar_url_snapshot" field.
+func (m *ExternalIdentityMutation) ResetAvatarURLSnapshot() {
+	m.avatar_url_snapshot = nil
+	delete(m.clearedFields, externalidentity.FieldAvatarURLSnapshot)
+}
+
+// SetLinkedAt sets the "linked_at" field.
+func (m *ExternalIdentityMutation) SetLinkedAt(t time.Time) {
+	m.linked_at = &t
+}
+
+// LinkedAt returns the value of the "linked_at" field in the mutation.
+func (m *ExternalIdentityMutation) LinkedAt() (r time.Time, exists bool) {
+	v := m.linked_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLinkedAt returns the old "linked_at" field's value of the ExternalIdentity entity.
+// If the ExternalIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ExternalIdentityMutation) OldLinkedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLinkedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLinkedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLinkedAt: %w", err)
+	}
+	return oldValue.LinkedAt, nil
+}
+
+// ResetLinkedAt resets all changes to the "linked_at" field.
+func (m *ExternalIdentityMutation) ResetLinkedAt() {
+	m.linked_at = nil
+}
+
+// SetLastAuthenticatedAt sets the "last_authenticated_at" field.
+func (m *ExternalIdentityMutation) SetLastAuthenticatedAt(t time.Time) {
+	m.last_authenticated_at = &t
+}
+
+// LastAuthenticatedAt returns the value of the "last_authenticated_at" field in the mutation.
+func (m *ExternalIdentityMutation) LastAuthenticatedAt() (r time.Time, exists bool) {
+	v := m.last_authenticated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastAuthenticatedAt returns the old "last_authenticated_at" field's value of the ExternalIdentity entity.
+// If the ExternalIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ExternalIdentityMutation) OldLastAuthenticatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastAuthenticatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastAuthenticatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastAuthenticatedAt: %w", err)
+	}
+	return oldValue.LastAuthenticatedAt, nil
+}
+
+// ResetLastAuthenticatedAt resets all changes to the "last_authenticated_at" field.
+func (m *ExternalIdentityMutation) ResetLastAuthenticatedAt() {
+	m.last_authenticated_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *ExternalIdentityMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *ExternalIdentityMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the ExternalIdentity entity.
+// If the ExternalIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ExternalIdentityMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *ExternalIdentityMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *ExternalIdentityMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[externalidentity.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *ExternalIdentityMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *ExternalIdentityMutation) UserIDs() (ids []uuid.UUID) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *ExternalIdentityMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the ExternalIdentityMutation builder.
+func (m *ExternalIdentityMutation) Where(ps ...predicate.ExternalIdentity) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ExternalIdentityMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ExternalIdentityMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ExternalIdentity, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ExternalIdentityMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ExternalIdentityMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ExternalIdentity).
+func (m *ExternalIdentityMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ExternalIdentityMutation) Fields() []string {
+	fields := make([]string, 0, 11)
+	if m.user != nil {
+		fields = append(fields, externalidentity.FieldUserID)
+	}
+	if m.provider != nil {
+		fields = append(fields, externalidentity.FieldProvider)
+	}
+	if m.issuer != nil {
+		fields = append(fields, externalidentity.FieldIssuer)
+	}
+	if m.subject != nil {
+		fields = append(fields, externalidentity.FieldSubject)
+	}
+	if m.email_snapshot != nil {
+		fields = append(fields, externalidentity.FieldEmailSnapshot)
+	}
+	if m.email_verified_at != nil {
+		fields = append(fields, externalidentity.FieldEmailVerifiedAt)
+	}
+	if m.display_name_snapshot != nil {
+		fields = append(fields, externalidentity.FieldDisplayNameSnapshot)
+	}
+	if m.avatar_url_snapshot != nil {
+		fields = append(fields, externalidentity.FieldAvatarURLSnapshot)
+	}
+	if m.linked_at != nil {
+		fields = append(fields, externalidentity.FieldLinkedAt)
+	}
+	if m.last_authenticated_at != nil {
+		fields = append(fields, externalidentity.FieldLastAuthenticatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, externalidentity.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ExternalIdentityMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case externalidentity.FieldUserID:
+		return m.UserID()
+	case externalidentity.FieldProvider:
+		return m.Provider()
+	case externalidentity.FieldIssuer:
+		return m.Issuer()
+	case externalidentity.FieldSubject:
+		return m.Subject()
+	case externalidentity.FieldEmailSnapshot:
+		return m.EmailSnapshot()
+	case externalidentity.FieldEmailVerifiedAt:
+		return m.EmailVerifiedAt()
+	case externalidentity.FieldDisplayNameSnapshot:
+		return m.DisplayNameSnapshot()
+	case externalidentity.FieldAvatarURLSnapshot:
+		return m.AvatarURLSnapshot()
+	case externalidentity.FieldLinkedAt:
+		return m.LinkedAt()
+	case externalidentity.FieldLastAuthenticatedAt:
+		return m.LastAuthenticatedAt()
+	case externalidentity.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ExternalIdentityMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case externalidentity.FieldUserID:
+		return m.OldUserID(ctx)
+	case externalidentity.FieldProvider:
+		return m.OldProvider(ctx)
+	case externalidentity.FieldIssuer:
+		return m.OldIssuer(ctx)
+	case externalidentity.FieldSubject:
+		return m.OldSubject(ctx)
+	case externalidentity.FieldEmailSnapshot:
+		return m.OldEmailSnapshot(ctx)
+	case externalidentity.FieldEmailVerifiedAt:
+		return m.OldEmailVerifiedAt(ctx)
+	case externalidentity.FieldDisplayNameSnapshot:
+		return m.OldDisplayNameSnapshot(ctx)
+	case externalidentity.FieldAvatarURLSnapshot:
+		return m.OldAvatarURLSnapshot(ctx)
+	case externalidentity.FieldLinkedAt:
+		return m.OldLinkedAt(ctx)
+	case externalidentity.FieldLastAuthenticatedAt:
+		return m.OldLastAuthenticatedAt(ctx)
+	case externalidentity.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown ExternalIdentity field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ExternalIdentityMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case externalidentity.FieldUserID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case externalidentity.FieldProvider:
+		v, ok := value.(externalidentity.Provider)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProvider(v)
+		return nil
+	case externalidentity.FieldIssuer:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIssuer(v)
+		return nil
+	case externalidentity.FieldSubject:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSubject(v)
+		return nil
+	case externalidentity.FieldEmailSnapshot:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEmailSnapshot(v)
+		return nil
+	case externalidentity.FieldEmailVerifiedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEmailVerifiedAt(v)
+		return nil
+	case externalidentity.FieldDisplayNameSnapshot:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisplayNameSnapshot(v)
+		return nil
+	case externalidentity.FieldAvatarURLSnapshot:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAvatarURLSnapshot(v)
+		return nil
+	case externalidentity.FieldLinkedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLinkedAt(v)
+		return nil
+	case externalidentity.FieldLastAuthenticatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastAuthenticatedAt(v)
+		return nil
+	case externalidentity.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ExternalIdentity field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ExternalIdentityMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ExternalIdentityMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ExternalIdentityMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown ExternalIdentity numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ExternalIdentityMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(externalidentity.FieldEmailSnapshot) {
+		fields = append(fields, externalidentity.FieldEmailSnapshot)
+	}
+	if m.FieldCleared(externalidentity.FieldEmailVerifiedAt) {
+		fields = append(fields, externalidentity.FieldEmailVerifiedAt)
+	}
+	if m.FieldCleared(externalidentity.FieldDisplayNameSnapshot) {
+		fields = append(fields, externalidentity.FieldDisplayNameSnapshot)
+	}
+	if m.FieldCleared(externalidentity.FieldAvatarURLSnapshot) {
+		fields = append(fields, externalidentity.FieldAvatarURLSnapshot)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ExternalIdentityMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ExternalIdentityMutation) ClearField(name string) error {
+	switch name {
+	case externalidentity.FieldEmailSnapshot:
+		m.ClearEmailSnapshot()
+		return nil
+	case externalidentity.FieldEmailVerifiedAt:
+		m.ClearEmailVerifiedAt()
+		return nil
+	case externalidentity.FieldDisplayNameSnapshot:
+		m.ClearDisplayNameSnapshot()
+		return nil
+	case externalidentity.FieldAvatarURLSnapshot:
+		m.ClearAvatarURLSnapshot()
+		return nil
+	}
+	return fmt.Errorf("unknown ExternalIdentity nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ExternalIdentityMutation) ResetField(name string) error {
+	switch name {
+	case externalidentity.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case externalidentity.FieldProvider:
+		m.ResetProvider()
+		return nil
+	case externalidentity.FieldIssuer:
+		m.ResetIssuer()
+		return nil
+	case externalidentity.FieldSubject:
+		m.ResetSubject()
+		return nil
+	case externalidentity.FieldEmailSnapshot:
+		m.ResetEmailSnapshot()
+		return nil
+	case externalidentity.FieldEmailVerifiedAt:
+		m.ResetEmailVerifiedAt()
+		return nil
+	case externalidentity.FieldDisplayNameSnapshot:
+		m.ResetDisplayNameSnapshot()
+		return nil
+	case externalidentity.FieldAvatarURLSnapshot:
+		m.ResetAvatarURLSnapshot()
+		return nil
+	case externalidentity.FieldLinkedAt:
+		m.ResetLinkedAt()
+		return nil
+	case externalidentity.FieldLastAuthenticatedAt:
+		m.ResetLastAuthenticatedAt()
+		return nil
+	case externalidentity.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ExternalIdentity field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ExternalIdentityMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, externalidentity.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ExternalIdentityMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case externalidentity.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ExternalIdentityMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ExternalIdentityMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ExternalIdentityMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, externalidentity.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ExternalIdentityMutation) EdgeCleared(name string) bool {
+	switch name {
+	case externalidentity.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ExternalIdentityMutation) ClearEdge(name string) error {
+	switch name {
+	case externalidentity.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown ExternalIdentity unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ExternalIdentityMutation) ResetEdge(name string) error {
+	switch name {
+	case externalidentity.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown ExternalIdentity edge %s", name)
 }
 
 // MailJobMutation represents an operation that mutates the MailJob nodes in the graph.
@@ -4985,30 +5992,34 @@ func (m *SecurityAuditMutation) ResetEdge(name string) error {
 // UserMutation represents an operation that mutates the User nodes in the graph.
 type UserMutation struct {
 	config
-	op                   Op
-	typ                  string
-	id                   *uuid.UUID
-	email_canonical      *string
-	email_verified_at    *time.Time
-	password_hash        *string
-	display_name         *string
-	avatar_url           *string
-	profile_version      *int64
-	addprofile_version   *int64
-	status               *user.Status
-	auth_version         *int64
-	addauth_version      *int64
-	created_at           *time.Time
-	updated_at           *time.Time
-	deletion_started_at  *time.Time
-	deletion_mutation_id *string
-	clearedFields        map[string]struct{}
-	roles                map[uuid.UUID]struct{}
-	removedroles         map[uuid.UUID]struct{}
-	clearedroles         bool
-	done                 bool
-	oldValue             func(context.Context) (*User, error)
-	predicates           []predicate.User
+	op                         Op
+	typ                        string
+	id                         *uuid.UUID
+	email_canonical            *string
+	email_verified_at          *time.Time
+	password_hash              *string
+	password_set_at            *time.Time
+	display_name               *string
+	avatar_url                 *string
+	profile_version            *int64
+	addprofile_version         *int64
+	status                     *user.Status
+	auth_version               *int64
+	addauth_version            *int64
+	created_at                 *time.Time
+	updated_at                 *time.Time
+	deletion_started_at        *time.Time
+	deletion_mutation_id       *string
+	clearedFields              map[string]struct{}
+	roles                      map[uuid.UUID]struct{}
+	removedroles               map[uuid.UUID]struct{}
+	clearedroles               bool
+	external_identities        map[uuid.UUID]struct{}
+	removedexternal_identities map[uuid.UUID]struct{}
+	clearedexternal_identities bool
+	done                       bool
+	oldValue                   func(context.Context) (*User, error)
+	predicates                 []predicate.User
 }
 
 var _ ent.Mutation = (*UserMutation)(nil)
@@ -5204,7 +6215,7 @@ func (m *UserMutation) PasswordHash() (r string, exists bool) {
 // OldPasswordHash returns the old "password_hash" field's value of the User entity.
 // If the User object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *UserMutation) OldPasswordHash(ctx context.Context) (v string, err error) {
+func (m *UserMutation) OldPasswordHash(ctx context.Context) (v *string, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldPasswordHash is only allowed on UpdateOne operations")
 	}
@@ -5218,9 +6229,71 @@ func (m *UserMutation) OldPasswordHash(ctx context.Context) (v string, err error
 	return oldValue.PasswordHash, nil
 }
 
+// ClearPasswordHash clears the value of the "password_hash" field.
+func (m *UserMutation) ClearPasswordHash() {
+	m.password_hash = nil
+	m.clearedFields[user.FieldPasswordHash] = struct{}{}
+}
+
+// PasswordHashCleared returns if the "password_hash" field was cleared in this mutation.
+func (m *UserMutation) PasswordHashCleared() bool {
+	_, ok := m.clearedFields[user.FieldPasswordHash]
+	return ok
+}
+
 // ResetPasswordHash resets all changes to the "password_hash" field.
 func (m *UserMutation) ResetPasswordHash() {
 	m.password_hash = nil
+	delete(m.clearedFields, user.FieldPasswordHash)
+}
+
+// SetPasswordSetAt sets the "password_set_at" field.
+func (m *UserMutation) SetPasswordSetAt(t time.Time) {
+	m.password_set_at = &t
+}
+
+// PasswordSetAt returns the value of the "password_set_at" field in the mutation.
+func (m *UserMutation) PasswordSetAt() (r time.Time, exists bool) {
+	v := m.password_set_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPasswordSetAt returns the old "password_set_at" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldPasswordSetAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPasswordSetAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPasswordSetAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPasswordSetAt: %w", err)
+	}
+	return oldValue.PasswordSetAt, nil
+}
+
+// ClearPasswordSetAt clears the value of the "password_set_at" field.
+func (m *UserMutation) ClearPasswordSetAt() {
+	m.password_set_at = nil
+	m.clearedFields[user.FieldPasswordSetAt] = struct{}{}
+}
+
+// PasswordSetAtCleared returns if the "password_set_at" field was cleared in this mutation.
+func (m *UserMutation) PasswordSetAtCleared() bool {
+	_, ok := m.clearedFields[user.FieldPasswordSetAt]
+	return ok
+}
+
+// ResetPasswordSetAt resets all changes to the "password_set_at" field.
+func (m *UserMutation) ResetPasswordSetAt() {
+	m.password_set_at = nil
+	delete(m.clearedFields, user.FieldPasswordSetAt)
 }
 
 // SetDisplayName sets the "display_name" field.
@@ -5667,6 +6740,60 @@ func (m *UserMutation) ResetRoles() {
 	m.removedroles = nil
 }
 
+// AddExternalIdentityIDs adds the "external_identities" edge to the ExternalIdentity entity by ids.
+func (m *UserMutation) AddExternalIdentityIDs(ids ...uuid.UUID) {
+	if m.external_identities == nil {
+		m.external_identities = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		m.external_identities[ids[i]] = struct{}{}
+	}
+}
+
+// ClearExternalIdentities clears the "external_identities" edge to the ExternalIdentity entity.
+func (m *UserMutation) ClearExternalIdentities() {
+	m.clearedexternal_identities = true
+}
+
+// ExternalIdentitiesCleared reports if the "external_identities" edge to the ExternalIdentity entity was cleared.
+func (m *UserMutation) ExternalIdentitiesCleared() bool {
+	return m.clearedexternal_identities
+}
+
+// RemoveExternalIdentityIDs removes the "external_identities" edge to the ExternalIdentity entity by IDs.
+func (m *UserMutation) RemoveExternalIdentityIDs(ids ...uuid.UUID) {
+	if m.removedexternal_identities == nil {
+		m.removedexternal_identities = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		delete(m.external_identities, ids[i])
+		m.removedexternal_identities[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedExternalIdentities returns the removed IDs of the "external_identities" edge to the ExternalIdentity entity.
+func (m *UserMutation) RemovedExternalIdentitiesIDs() (ids []uuid.UUID) {
+	for id := range m.removedexternal_identities {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ExternalIdentitiesIDs returns the "external_identities" edge IDs in the mutation.
+func (m *UserMutation) ExternalIdentitiesIDs() (ids []uuid.UUID) {
+	for id := range m.external_identities {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetExternalIdentities resets all changes to the "external_identities" edge.
+func (m *UserMutation) ResetExternalIdentities() {
+	m.external_identities = nil
+	m.clearedexternal_identities = false
+	m.removedexternal_identities = nil
+}
+
 // Where appends a list predicates to the UserMutation builder.
 func (m *UserMutation) Where(ps ...predicate.User) {
 	m.predicates = append(m.predicates, ps...)
@@ -5701,7 +6828,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 12)
+	fields := make([]string, 0, 13)
 	if m.email_canonical != nil {
 		fields = append(fields, user.FieldEmailCanonical)
 	}
@@ -5710,6 +6837,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.password_hash != nil {
 		fields = append(fields, user.FieldPasswordHash)
+	}
+	if m.password_set_at != nil {
+		fields = append(fields, user.FieldPasswordSetAt)
 	}
 	if m.display_name != nil {
 		fields = append(fields, user.FieldDisplayName)
@@ -5752,6 +6882,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.EmailVerifiedAt()
 	case user.FieldPasswordHash:
 		return m.PasswordHash()
+	case user.FieldPasswordSetAt:
+		return m.PasswordSetAt()
 	case user.FieldDisplayName:
 		return m.DisplayName()
 	case user.FieldAvatarURL:
@@ -5785,6 +6917,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldEmailVerifiedAt(ctx)
 	case user.FieldPasswordHash:
 		return m.OldPasswordHash(ctx)
+	case user.FieldPasswordSetAt:
+		return m.OldPasswordSetAt(ctx)
 	case user.FieldDisplayName:
 		return m.OldDisplayName(ctx)
 	case user.FieldAvatarURL:
@@ -5832,6 +6966,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetPasswordHash(v)
+		return nil
+	case user.FieldPasswordSetAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPasswordSetAt(v)
 		return nil
 	case user.FieldDisplayName:
 		v, ok := value.(string)
@@ -5953,6 +7094,12 @@ func (m *UserMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *UserMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(user.FieldPasswordHash) {
+		fields = append(fields, user.FieldPasswordHash)
+	}
+	if m.FieldCleared(user.FieldPasswordSetAt) {
+		fields = append(fields, user.FieldPasswordSetAt)
+	}
 	if m.FieldCleared(user.FieldDeletionStartedAt) {
 		fields = append(fields, user.FieldDeletionStartedAt)
 	}
@@ -5973,6 +7120,12 @@ func (m *UserMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *UserMutation) ClearField(name string) error {
 	switch name {
+	case user.FieldPasswordHash:
+		m.ClearPasswordHash()
+		return nil
+	case user.FieldPasswordSetAt:
+		m.ClearPasswordSetAt()
+		return nil
 	case user.FieldDeletionStartedAt:
 		m.ClearDeletionStartedAt()
 		return nil
@@ -5995,6 +7148,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldPasswordHash:
 		m.ResetPasswordHash()
+		return nil
+	case user.FieldPasswordSetAt:
+		m.ResetPasswordSetAt()
 		return nil
 	case user.FieldDisplayName:
 		m.ResetDisplayName()
@@ -6029,9 +7185,12 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.roles != nil {
 		edges = append(edges, user.EdgeRoles)
+	}
+	if m.external_identities != nil {
+		edges = append(edges, user.EdgeExternalIdentities)
 	}
 	return edges
 }
@@ -6046,15 +7205,24 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeExternalIdentities:
+		ids := make([]ent.Value, 0, len(m.external_identities))
+		for id := range m.external_identities {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.removedroles != nil {
 		edges = append(edges, user.EdgeRoles)
+	}
+	if m.removedexternal_identities != nil {
+		edges = append(edges, user.EdgeExternalIdentities)
 	}
 	return edges
 }
@@ -6069,15 +7237,24 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeExternalIdentities:
+		ids := make([]ent.Value, 0, len(m.removedexternal_identities))
+		for id := range m.removedexternal_identities {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.clearedroles {
 		edges = append(edges, user.EdgeRoles)
+	}
+	if m.clearedexternal_identities {
+		edges = append(edges, user.EdgeExternalIdentities)
 	}
 	return edges
 }
@@ -6088,6 +7265,8 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 	switch name {
 	case user.EdgeRoles:
 		return m.clearedroles
+	case user.EdgeExternalIdentities:
+		return m.clearedexternal_identities
 	}
 	return false
 }
@@ -6106,6 +7285,9 @@ func (m *UserMutation) ResetEdge(name string) error {
 	switch name {
 	case user.EdgeRoles:
 		m.ResetRoles()
+		return nil
+	case user.EdgeExternalIdentities:
+		m.ResetExternalIdentities()
 		return nil
 	}
 	return fmt.Errorf("unknown User edge %s", name)

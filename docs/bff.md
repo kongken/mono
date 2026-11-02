@@ -12,6 +12,8 @@
 
 - `bff.tripmap.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
 - `bff.v1.AuthService`（账号与会话）与 `bff.v1.UserService`：BFF 不保存密码，也不再有任何第三方登录。注册、登录、找回/重置密码、改密码、资料与注销都经内部 gRPC 调用 usersrv（`usersrv.v1.AccountService`），BFF 自己只负责浏览器会话、CSRF、入口策略和注销工作流。详见下文「账号、会话与注销（P4）」。
+
+KON-38 仅为后续第三方登录加入 usersrv 基础模型和内部契约。`internal/bff/usersrv` 经生成消息接收 `has_password`，并识别受信 usersrv 的 `PROVIDER_REJECTED` 中性错误；浏览器 RPC/页面、外部 callback、近期密码认证和管理门槛未改变。BFF 不 import `internal/usersrv`，provider 密钥只在 usersrv，完整入口待后续阶段实现。
 - `bff.v1` 的 RPC：`RequestRegistration`、`CompleteRegistration`、`LoginWithEmail`、`RequestPasswordReset`、`ResetPassword`（匿名）；`Me`、`ListSessions`、`Logout`、`RevokeSession`、`RevokeOtherSessions`、`Reauthenticate`、`ChangePassword`、`UpdateMyProfile`、`DeleteAccount`、`GetAccountDeletion`、`RetryAccountDeletion`（登录后）。旧的 Register/Login/OAuth RPC 已从契约删除，字段编号用 protobuf `reserved` 保留。
 - usersrv 已登记为上游服务（`gateway.Services`，`upstreams.usersrv`、`grpc.services.usersrv`），是必需的：不配置则启动失败。`/readyz` 增加 `usersrv_grpc`。
 - `bff.tripmap.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。tripmap 的展示投影（用户 ID、昵称、头像）在首次调用 `bff.tripmap.v1.*` 时由 BFF 按需确保：读 usersrv 的账号后调用 `ProfileService/EnsureProfile`，并在 Redis 记下已投影的 `profile_version`（24 小时），昵称或头像变化后下一次调用重新投影；Redis 故障不致命，只多做一次幂等调用。投影只含用户 ID、昵称、头像，不含邮箱。

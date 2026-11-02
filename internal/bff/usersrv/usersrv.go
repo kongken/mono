@@ -42,6 +42,7 @@ const (
 	ReasonDeletionMismatch   = "DELETION_MISMATCH"
 	ReasonTokenInvalid       = "TOKEN_INVALID"
 	ReasonRegistrationClosed = "REGISTRATION_CLOSED"
+	ReasonProviderRejected   = "PROVIDER_REJECTED"
 	// ReasonPlatformAdminProtected: the account holds the platform role, which
 	// forbids closing it from the web until the role is revoked by an operator.
 	ReasonPlatformAdminProtected = "PLATFORM_ADMIN_PROTECTED"
@@ -67,6 +68,7 @@ type AuthState struct {
 	AuthVersion    int64
 	Roles          []string
 	ProfileVersion int64
+	HasPassword    bool
 }
 
 // Profile is the cross-product nickname and avatar.
@@ -84,6 +86,7 @@ type Account struct {
 	Roles       []string
 	Status      Status
 	AuthVersion int64
+	HasPassword bool
 }
 
 // Login is what usersrv knows after a correct email and password.
@@ -92,6 +95,7 @@ type Login struct {
 	Profile     Profile
 	Roles       []string
 	AuthVersion int64
+	HasPassword bool
 }
 
 // ErrNotFound means the account does not exist (never registered, or deleted).
@@ -156,7 +160,7 @@ func (c *Client) Authenticate(ctx context.Context, email, password string) (Logi
 		}
 		return Login{}, MapError(err)
 	}
-	return Login{UserID: res.GetUserId(), Profile: profile(res.GetProfile()), Roles: res.GetRoles(), AuthVersion: res.GetAuthVersion()}, nil
+	return Login{UserID: res.GetUserId(), Profile: profile(res.GetProfile()), Roles: res.GetRoles(), AuthVersion: res.GetAuthVersion(), HasPassword: res.GetHasPassword()}, nil
 }
 
 func (c *Client) RequestPasswordReset(ctx context.Context, email string, ret Return) error {
@@ -184,7 +188,7 @@ func (c *Client) AuthState(ctx context.Context, userID string) (AuthState, error
 		}
 		return AuthState{}, MapError(err)
 	}
-	return AuthState{Status: statusOf(res.GetStatus()), AuthVersion: res.GetAuthVersion(), Roles: res.GetRoles(), ProfileVersion: res.GetProfileVersion()}, nil
+	return AuthState{Status: statusOf(res.GetStatus()), AuthVersion: res.GetAuthVersion(), Roles: res.GetRoles(), ProfileVersion: res.GetProfileVersion(), HasPassword: res.GetHasPassword()}, nil
 }
 
 // Account reads the caller's own account.
@@ -197,7 +201,7 @@ func (c *Client) Account(ctx context.Context, userID string) (Account, error) {
 		return Account{}, MapError(err)
 	}
 	return Account{UserID: res.GetUserId(), Email: res.GetEmail(), Profile: profile(res.GetProfile()), Roles: res.GetRoles(),
-		Status: statusOf(res.GetStatus()), AuthVersion: res.GetAuthVersion()}, nil
+		Status: statusOf(res.GetStatus()), AuthVersion: res.GetAuthVersion(), HasPassword: res.GetHasPassword()}, nil
 }
 
 // VerifyPassword re-checks the current password and returns the account's
@@ -317,6 +321,9 @@ func MapError(err error) error {
 	case codes.Unauthenticated:
 		if reason == ReasonInvalidCredentials {
 			return connect.NewError(connect.CodeUnauthenticated, errors.New(LoginFailure))
+		}
+		if reason == ReasonProviderRejected {
+			return connect.NewError(connect.CodeUnauthenticated, errors.New("external authentication failed"))
 		}
 		slog.Error("usersrv refused the BFF service credential", "code", st.Code().String())
 		return connect.NewError(connect.CodeInternal, errors.New("internal error"))

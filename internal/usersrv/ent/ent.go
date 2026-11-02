@@ -15,6 +15,7 @@ import (
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
 	"github.com/kongken/mono/internal/usersrv/ent/adminmutation"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
+	"github.com/kongken/mono/internal/usersrv/ent/externalidentity"
 	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
 	"github.com/kongken/mono/internal/usersrv/ent/user"
@@ -82,6 +83,7 @@ func checkColumn(t, c string) error {
 			accounttoken.Table:      accounttoken.ValidColumn,
 			adminmutation.Table:     adminmutation.ValidColumn,
 			deletiontombstone.Table: deletiontombstone.ValidColumn,
+			externalidentity.Table:  externalidentity.ValidColumn,
 			mailjob.Table:           mailjob.ValidColumn,
 			securityaudit.Table:     securityaudit.ValidColumn,
 			user.Table:              user.ValidColumn,

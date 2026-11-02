@@ -9,6 +9,7 @@ import (
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
 	"github.com/kongken/mono/internal/usersrv/ent/adminmutation"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
+	"github.com/kongken/mono/internal/usersrv/ent/externalidentity"
 	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/schema"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
@@ -70,6 +71,34 @@ func init() {
 	deletiontombstoneDescCompletedAt := deletiontombstoneFields[2].Descriptor()
 	// deletiontombstone.DefaultCompletedAt holds the default value on creation for the completed_at field.
 	deletiontombstone.DefaultCompletedAt = deletiontombstoneDescCompletedAt.Default.(func() time.Time)
+	externalidentityFields := schema.ExternalIdentity{}.Fields()
+	_ = externalidentityFields
+	// externalidentityDescIssuer is the schema descriptor for issuer field.
+	externalidentityDescIssuer := externalidentityFields[3].Descriptor()
+	// externalidentity.IssuerValidator is a validator for the "issuer" field. It is called by the builders before save.
+	externalidentity.IssuerValidator = externalidentityDescIssuer.Validators[0].(func(string) error)
+	// externalidentityDescSubject is the schema descriptor for subject field.
+	externalidentityDescSubject := externalidentityFields[4].Descriptor()
+	// externalidentity.SubjectValidator is a validator for the "subject" field. It is called by the builders before save.
+	externalidentity.SubjectValidator = externalidentityDescSubject.Validators[0].(func(string) error)
+	// externalidentityDescLinkedAt is the schema descriptor for linked_at field.
+	externalidentityDescLinkedAt := externalidentityFields[9].Descriptor()
+	// externalidentity.DefaultLinkedAt holds the default value on creation for the linked_at field.
+	externalidentity.DefaultLinkedAt = externalidentityDescLinkedAt.Default.(func() time.Time)
+	// externalidentityDescLastAuthenticatedAt is the schema descriptor for last_authenticated_at field.
+	externalidentityDescLastAuthenticatedAt := externalidentityFields[10].Descriptor()
+	// externalidentity.DefaultLastAuthenticatedAt holds the default value on creation for the last_authenticated_at field.
+	externalidentity.DefaultLastAuthenticatedAt = externalidentityDescLastAuthenticatedAt.Default.(func() time.Time)
+	// externalidentityDescUpdatedAt is the schema descriptor for updated_at field.
+	externalidentityDescUpdatedAt := externalidentityFields[11].Descriptor()
+	// externalidentity.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	externalidentity.DefaultUpdatedAt = externalidentityDescUpdatedAt.Default.(func() time.Time)
+	// externalidentity.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	externalidentity.UpdateDefaultUpdatedAt = externalidentityDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// externalidentityDescID is the schema descriptor for id field.
+	externalidentityDescID := externalidentityFields[0].Descriptor()
+	// externalidentity.DefaultID holds the default value on creation for the id field.
+	externalidentity.DefaultID = externalidentityDescID.Default.(func() uuid.UUID)
 	mailjobFields := schema.MailJob{}.Fields()
 	_ = mailjobFields
 	// mailjobDescProvider is the schema descriptor for provider field.
@@ -171,27 +200,27 @@ func init() {
 	// user.PasswordHashValidator is a validator for the "password_hash" field. It is called by the builders before save.
 	user.PasswordHashValidator = userDescPasswordHash.Validators[0].(func(string) error)
 	// userDescDisplayName is the schema descriptor for display_name field.
-	userDescDisplayName := userFields[4].Descriptor()
+	userDescDisplayName := userFields[5].Descriptor()
 	// user.DefaultDisplayName holds the default value on creation for the display_name field.
 	user.DefaultDisplayName = userDescDisplayName.Default.(string)
 	// userDescAvatarURL is the schema descriptor for avatar_url field.
-	userDescAvatarURL := userFields[5].Descriptor()
+	userDescAvatarURL := userFields[6].Descriptor()
 	// user.DefaultAvatarURL holds the default value on creation for the avatar_url field.
 	user.DefaultAvatarURL = userDescAvatarURL.Default.(string)
 	// userDescProfileVersion is the schema descriptor for profile_version field.
-	userDescProfileVersion := userFields[6].Descriptor()
+	userDescProfileVersion := userFields[7].Descriptor()
 	// user.DefaultProfileVersion holds the default value on creation for the profile_version field.
 	user.DefaultProfileVersion = userDescProfileVersion.Default.(int64)
 	// userDescAuthVersion is the schema descriptor for auth_version field.
-	userDescAuthVersion := userFields[8].Descriptor()
+	userDescAuthVersion := userFields[9].Descriptor()
 	// user.DefaultAuthVersion holds the default value on creation for the auth_version field.
 	user.DefaultAuthVersion = userDescAuthVersion.Default.(int64)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[9].Descriptor()
+	userDescCreatedAt := userFields[10].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
 	// userDescUpdatedAt is the schema descriptor for updated_at field.
-	userDescUpdatedAt := userFields[10].Descriptor()
+	userDescUpdatedAt := userFields[11].Descriptor()
 	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
 	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

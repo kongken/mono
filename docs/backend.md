@@ -616,6 +616,12 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 错误用 `google.rpc.ErrorInfo`（domain `usersrv.v1`，reason 为 `INVALID_CREDENTIALS`、`ACCOUNT_NOT_ACTIVE`、`VERSION_CONFLICT`、`RATE_LIMITED`、`INVALID_ARGUMENT`、`DELETION_MISMATCH`、`TOKEN_INVALID`、`REGISTRATION_CLOSED`）；错误密码与内部凭证错误因此不会混淆。日志与审计不含邮箱、密码、令牌。
 
+**第三方账号基础（KON-38，S2）**：已加入外部身份 schema、可空密码的兼容读写、配置校验及 `usersrv.v1` 基础消息；Google/GitHub adapter、挑战、注册/绑定事务和浏览器入口仍待后续阶段实现，当前不能第三方登录或创建无密码账号。`AuthenticateWithEmail`、`GetAuthState`、`GetMyAccount` 的内部响应新增 `has_password`，只依赖哈希是否非 NULL；BFF 的内部 usersrv adapter 接收该字段，浏览器页面尚未使用它。NULL 哈希的邮箱登录、重新认证和改密均验证 dummy 哈希后中性拒绝，不能把空密码作为首次设密凭据；现有邮件 reset 能写入首次密码，递增版本并保留绑定。首次设密通知和新的操作确认属于 S3，尚未实现。
+
+`auth.external.enabled` 与 `auth.external.providers.{google,github}.enabled` 独立且均默认 false；现有 `auth.registration_enabled` 仍默认 true，provider 门禁不读取注册开关。启用的 provider 要求非空 `client_id`、恰一项 `client_secret`/`client_secret_file`、正整数 `config_version` 和精确的 `/api/identity/callback/{provider}` URL；禁止凭据、query、fragment、编码路径和非 HTTPS（只有显式 `allow_loopback_http` 可接受本机 HTTP）。回调 origin 必须由运维与 BFF 注册地址核对；此阶段尚无 BFF callback 配置或路由，usersrv 不跨服务读取 BFF 配置。issuer/endpoint 不可配置，Google 固定 `https://accounts.google.com`，GitHub 固定 `https://github.com`；未知 provider 启动失败。外部全局开启还要求 `proof_key_id` 引用 `mail.encryption.keys` 中已加载的 key，后续挑战必须使用独立用途的 associated data；`require_verified_email` 默认 true 且不可关闭。未启用 provider 不读取其 Secret 文件，校验错误、fmt/slog 和 JSON 格式化不输出 client secret；readiness 不访问真实 provider。配置示例保留关闭状态，配置校验通过不表示流程已实现。
+
+外部认证固定错误 reason/code 已定义在 `proto/usersrv/v1/external.proto` 与 usersrv 错误映射中；`PROVIDER_REJECTED` 在 BFF 映射为中性认证失败，未带受信 usersrv reason 的 `UNAUTHENTICATED` 仍视为内部凭据错误。完整行为矩阵和后续事务要求见 [ADR 0001 §6](adr/0001-third-party-auth-contract.md#6-配置与发布边界)。
+
 **账号规则**（`internal/usersrv/identity`、`account`）：
 
 - 邮箱（`NormalizeEmail`，登录、注册、重置与运维命令共用）：去首尾空白，整个地址转小写（有意的策略，保留 `+tag`，不猜别名）；只接受单个纯 ASCII 地址，最长 254 字节，本地部分是 ≤64 字节的 dot-atom，域名是至少两段的 DNS 名（接受 ASCII 的 `xn--` 标签，顶级段不能全为数字，因此没有 IP）；拒绝换行、显示名、多个地址、注释、引号本地部分、控制字符与非 ASCII（IDN 请填 punycode）。规范化后的地址是唯一键（`email_canonical`）。
@@ -631,7 +637,8 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 | 表 | 关键字段与约束 |
 | --- | --- |
-| `users` | UUID 主键、`email_canonical`（唯一）、`email_verified_at`、`password_hash`（Sensitive，PHC 字符串）、`status`、`auth_version`（≥1）、`display_name`、`avatar_url`、`profile_version`、注销标记（`deletion_started_at`、`deletion_mutation_id`）、时间戳 |
+| `users` | UUID 主键、`email_canonical`（唯一）、`email_verified_at`、`password_hash`（Sensitive，可空 PHC 字符串；NULL 表示无密码）、`password_set_at`（历史未知为 NULL，真实设置/修改/重置时写入）、`status`、`auth_version`（≥1）、`display_name`、`avatar_url`、`profile_version`、注销标记（`deletion_started_at`、`deletion_mutation_id`）、时间戳 |
+| `external_identities` | UUID、`user_id` 外键级联删除、`provider/issuer/subject` 全局唯一、`user_id/provider` 唯一、可空 provider 资料快照、不可变 `linked_at`、`last_authenticated_at/updated_at`；subject/邮箱快照标为 Sensitive，不存 token/code/claims；S2 只落地模型，生产写入路径待 S3 |
 | `user_roles` | `(user_id, role)` 唯一，外键 `ON DELETE CASCADE`；目前只有 `metro-admin` |
 | `account_tokens` | 唯一的 32 字节 `token_hash`（只存哈希）、用途（注册/重置）及与用途绑定的约束、过期与使用时间、可空的返回上下文 `return_app_id`/`return_path`（成对出现）；由 P2 的 outbox 签发，P3 的注册/重置流程消费 |
 | `security_audit` | 用户 ID（可空）、操作者、动作、结果、请求 ID，以及 CLI 的 `reason`；只增不改，不含邮箱 |

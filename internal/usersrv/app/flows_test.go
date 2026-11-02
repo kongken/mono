@@ -291,7 +291,7 @@ func TestRegistrationLoginResetClosedLoop(t *testing.T) {
 	}
 	u := s.db.User.Query().OnlyX(context.Background())
 	if u.EmailCanonical != canonical || u.DisplayName != "小明" || u.Status != user.StatusActive || u.AuthVersion != 1 || u.EmailVerifiedAt.IsZero() ||
-		!strings.HasPrefix(u.PasswordHash, "$argon2id$") || strings.Contains(u.PasswordHash, password) {
+		u.PasswordHash == nil || !strings.HasPrefix(*u.PasswordHash, "$argon2id$") || strings.Contains(*u.PasswordHash, password) {
 		t.Fatalf("new account: %+v", u)
 	}
 	// The same link is dead now.

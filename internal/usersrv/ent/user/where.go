@@ -71,6 +71,11 @@ func PasswordHash(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldPasswordHash, v))
 }
 
+// PasswordSetAt applies equality check predicate on the "password_set_at" field. It's identical to PasswordSetAtEQ.
+func PasswordSetAt(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPasswordSetAt, v))
+}
+
 // DisplayName applies equality check predicate on the "display_name" field. It's identical to DisplayNameEQ.
 func DisplayName(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldDisplayName, v))
@@ -271,6 +276,16 @@ func PasswordHashHasSuffix(v string) predicate.User {
 	return predicate.User(sql.FieldHasSuffix(FieldPasswordHash, v))
 }
 
+// PasswordHashIsNil applies the IsNil predicate on the "password_hash" field.
+func PasswordHashIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldPasswordHash))
+}
+
+// PasswordHashNotNil applies the NotNil predicate on the "password_hash" field.
+func PasswordHashNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldPasswordHash))
+}
+
 // PasswordHashEqualFold applies the EqualFold predicate on the "password_hash" field.
 func PasswordHashEqualFold(v string) predicate.User {
 	return predicate.User(sql.FieldEqualFold(FieldPasswordHash, v))
@@ -279,6 +294,56 @@ func PasswordHashEqualFold(v string) predicate.User {
 // PasswordHashContainsFold applies the ContainsFold predicate on the "password_hash" field.
 func PasswordHashContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldPasswordHash, v))
+}
+
+// PasswordSetAtEQ applies the EQ predicate on the "password_set_at" field.
+func PasswordSetAtEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPasswordSetAt, v))
+}
+
+// PasswordSetAtNEQ applies the NEQ predicate on the "password_set_at" field.
+func PasswordSetAtNEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldPasswordSetAt, v))
+}
+
+// PasswordSetAtIn applies the In predicate on the "password_set_at" field.
+func PasswordSetAtIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldIn(FieldPasswordSetAt, vs...))
+}
+
+// PasswordSetAtNotIn applies the NotIn predicate on the "password_set_at" field.
+func PasswordSetAtNotIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldPasswordSetAt, vs...))
+}
+
+// PasswordSetAtGT applies the GT predicate on the "password_set_at" field.
+func PasswordSetAtGT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGT(FieldPasswordSetAt, v))
+}
+
+// PasswordSetAtGTE applies the GTE predicate on the "password_set_at" field.
+func PasswordSetAtGTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldPasswordSetAt, v))
+}
+
+// PasswordSetAtLT applies the LT predicate on the "password_set_at" field.
+func PasswordSetAtLT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLT(FieldPasswordSetAt, v))
+}
+
+// PasswordSetAtLTE applies the LTE predicate on the "password_set_at" field.
+func PasswordSetAtLTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldPasswordSetAt, v))
+}
+
+// PasswordSetAtIsNil applies the IsNil predicate on the "password_set_at" field.
+func PasswordSetAtIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldPasswordSetAt))
+}
+
+// PasswordSetAtNotNil applies the NotNil predicate on the "password_set_at" field.
+func PasswordSetAtNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldPasswordSetAt))
 }
 
 // DisplayNameEQ applies the EQ predicate on the "display_name" field.
@@ -731,6 +796,29 @@ func HasRoles() predicate.User {
 func HasRolesWith(preds ...predicate.UserRole) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newRolesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasExternalIdentities applies the HasEdge predicate on the "external_identities" edge.
+func HasExternalIdentities() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, ExternalIdentitiesTable, ExternalIdentitiesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasExternalIdentitiesWith applies the HasEdge predicate on the "external_identities" edge with a given conditions (other predicates).
+func HasExternalIdentitiesWith(preds ...predicate.ExternalIdentity) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newExternalIdentitiesStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

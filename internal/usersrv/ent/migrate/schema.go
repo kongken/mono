@@ -101,6 +101,52 @@ var (
 			},
 		},
 	}
+	// ExternalIdentitiesColumns holds the columns for the "external_identities" table.
+	ExternalIdentitiesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "provider", Type: field.TypeEnum, Enums: []string{"google", "github"}},
+		{Name: "issuer", Type: field.TypeString},
+		{Name: "subject", Type: field.TypeString},
+		{Name: "email_snapshot", Type: field.TypeString, Nullable: true},
+		{Name: "email_verified_at", Type: field.TypeTime, Nullable: true},
+		{Name: "display_name_snapshot", Type: field.TypeString, Nullable: true},
+		{Name: "avatar_url_snapshot", Type: field.TypeString, Nullable: true},
+		{Name: "linked_at", Type: field.TypeTime},
+		{Name: "last_authenticated_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeUUID},
+	}
+	// ExternalIdentitiesTable holds the schema information for the "external_identities" table.
+	ExternalIdentitiesTable = &schema.Table{
+		Name:       "external_identities",
+		Columns:    ExternalIdentitiesColumns,
+		PrimaryKey: []*schema.Column{ExternalIdentitiesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "external_identities_users_user",
+				Columns:    []*schema.Column{ExternalIdentitiesColumns[11]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "externalidentity_provider_issuer_subject",
+				Unique:  true,
+				Columns: []*schema.Column{ExternalIdentitiesColumns[1], ExternalIdentitiesColumns[2], ExternalIdentitiesColumns[3]},
+			},
+			{
+				Name:    "externalidentity_user_id_provider",
+				Unique:  true,
+				Columns: []*schema.Column{ExternalIdentitiesColumns[11], ExternalIdentitiesColumns[1]},
+			},
+			{
+				Name:    "externalidentity_user_id_linked_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{ExternalIdentitiesColumns[11], ExternalIdentitiesColumns[8], ExternalIdentitiesColumns[0]},
+			},
+		},
+	}
 	// MailJobsColumns holds the columns for the "mail_jobs" table.
 	MailJobsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -202,7 +248,8 @@ var (
 		{Name: "id", Type: field.TypeUUID},
 		{Name: "email_canonical", Type: field.TypeString, Unique: true},
 		{Name: "email_verified_at", Type: field.TypeTime},
-		{Name: "password_hash", Type: field.TypeString},
+		{Name: "password_hash", Type: field.TypeString, Nullable: true},
+		{Name: "password_set_at", Type: field.TypeTime, Nullable: true},
 		{Name: "display_name", Type: field.TypeString, Default: "旅行者"},
 		{Name: "avatar_url", Type: field.TypeString, Default: ""},
 		{Name: "profile_version", Type: field.TypeInt64, Default: 1},
@@ -253,6 +300,7 @@ var (
 		AccountTokensTable,
 		AdminMutationsTable,
 		DeletionTombstonesTable,
+		ExternalIdentitiesTable,
 		MailJobsTable,
 		SecurityAuditTable,
 		UsersTable,
@@ -292,6 +340,15 @@ func init() {
 	DeletionTombstonesTable.Annotation.Checks = map[string]string{
 		"deletion_tombstones_expiry":   "expires_at > completed_at",
 		"deletion_tombstones_mutation": "char_length(mutation_id) BETWEEN 1 AND 64",
+	}
+	ExternalIdentitiesTable.ForeignKeys[0].RefTable = UsersTable
+	ExternalIdentitiesTable.Annotation = &entsql.Annotation{
+		Table: "external_identities",
+	}
+	ExternalIdentitiesTable.Annotation.Checks = map[string]string{
+		"external_identities_issuer":   "(provider = 'google' AND issuer = 'https://accounts.google.com') OR (provider = 'github' AND issuer = 'https://github.com')",
+		"external_identities_provider": "provider IN ('google', 'github')",
+		"external_identities_subject":  "char_length(subject) BETWEEN 1 AND 255 AND (provider <> 'github' OR subject ~ '^[1-9][0-9]*$')",
 	}
 	MailJobsTable.Annotation = &entsql.Annotation{
 		Table: "mail_jobs",

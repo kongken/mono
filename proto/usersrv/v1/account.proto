@@ -154,6 +154,8 @@ message AuthenticateWithEmailResponse {
   BaseProfile profile = 2;
   repeated string roles = 3;
   int64 auth_version = 4;
+  // True after a successful password login; additive capability for all login paths.
+  bool has_password = 5;
 }
 
 message RequestPasswordResetRequest {
@@ -181,6 +183,8 @@ message GetAuthStateResponse {
   // Current role names, sorted; empty for none.
   repeated string roles = 3;
   int64 profile_version = 4;
+  // Based only on password_hash IS NOT NULL, never on provider availability.
+  bool has_password = 5;
 }
 
 message GetMyAccountRequest {}
@@ -192,6 +196,8 @@ message GetMyAccountResponse {
   repeated string roles = 4;
   AccountStatus status = 5;
   int64 auth_version = 6;
+  // A passwordless account must use the existing email reset flow to set one.
+  bool has_password = 7;
 }
 
 message VerifyPasswordRequest {

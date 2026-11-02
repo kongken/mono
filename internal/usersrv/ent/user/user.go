@@ -22,6 +22,8 @@ const (
 	FieldEmailVerifiedAt = "email_verified_at"
 	// FieldPasswordHash holds the string denoting the password_hash field in the database.
 	FieldPasswordHash = "password_hash"
+	// FieldPasswordSetAt holds the string denoting the password_set_at field in the database.
+	FieldPasswordSetAt = "password_set_at"
 	// FieldDisplayName holds the string denoting the display_name field in the database.
 	FieldDisplayName = "display_name"
 	// FieldAvatarURL holds the string denoting the avatar_url field in the database.
@@ -42,6 +44,8 @@ const (
 	FieldDeletionMutationID = "deletion_mutation_id"
 	// EdgeRoles holds the string denoting the roles edge name in mutations.
 	EdgeRoles = "roles"
+	// EdgeExternalIdentities holds the string denoting the external_identities edge name in mutations.
+	EdgeExternalIdentities = "external_identities"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// RolesTable is the table that holds the roles relation/edge.
@@ -51,6 +55,13 @@ const (
 	RolesInverseTable = "user_roles"
 	// RolesColumn is the table column denoting the roles relation/edge.
 	RolesColumn = "user_id"
+	// ExternalIdentitiesTable is the table that holds the external_identities relation/edge.
+	ExternalIdentitiesTable = "external_identities"
+	// ExternalIdentitiesInverseTable is the table name for the ExternalIdentity entity.
+	// It exists in this package in order to avoid circular dependency with the "externalidentity" package.
+	ExternalIdentitiesInverseTable = "external_identities"
+	// ExternalIdentitiesColumn is the table column denoting the external_identities relation/edge.
+	ExternalIdentitiesColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -59,6 +70,7 @@ var Columns = []string{
 	FieldEmailCanonical,
 	FieldEmailVerifiedAt,
 	FieldPasswordHash,
+	FieldPasswordSetAt,
 	FieldDisplayName,
 	FieldAvatarURL,
 	FieldProfileVersion,
@@ -153,6 +165,11 @@ func ByPasswordHash(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPasswordHash, opts...).ToFunc()
 }
 
+// ByPasswordSetAt orders the results by the password_set_at field.
+func ByPasswordSetAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPasswordSetAt, opts...).ToFunc()
+}
+
 // ByDisplayName orders the results by the display_name field.
 func ByDisplayName(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDisplayName, opts...).ToFunc()
@@ -211,10 +228,31 @@ func ByRoles(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newRolesStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByExternalIdentitiesCount orders the results by external_identities count.
+func ByExternalIdentitiesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newExternalIdentitiesStep(), opts...)
+	}
+}
+
+// ByExternalIdentities orders the results by external_identities terms.
+func ByExternalIdentities(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newExternalIdentitiesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newRolesStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(RolesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, true, RolesTable, RolesColumn),
+	)
+}
+func newExternalIdentitiesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ExternalIdentitiesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, ExternalIdentitiesTable, ExternalIdentitiesColumn),
 	)
 }

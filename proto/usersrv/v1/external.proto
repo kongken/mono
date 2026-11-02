@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package usersrv.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/kongken/mono/pkg/proto/usersrv/v1;usersrvv1";
+
+// Foundation types for ADR 0001. External authentication RPCs and browser
+// exposure are implemented in later stages; these messages grant no authority.
+enum ExternalProvider {
+  EXTERNAL_PROVIDER_UNSPECIFIED = 0;
+  EXTERNAL_PROVIDER_GOOGLE = 1;
+  EXTERNAL_PROVIDER_GITHUB = 2;
+}
+
+// ExternalIdentityKey is internal-only provider identity data, populated only
+// after server-side adapter verification. A browser-supplied key, email or user
+// ID is never proof and must never select a login/binding target in an RPC.
+// This type must not appear in browser responses, audit or logs.
+message ExternalIdentityKey {
+  ExternalProvider provider = 1;
+  // Fixed canonical issuer: https://accounts.google.com or https://github.com.
+  string issuer = 2;
+  // Google sub or GitHub numeric ID as canonical decimal text, never username/email.
+  string subject = 3;
+}
+
+// ExternalIdentitySummary is the owner's safe view, with no external subject,
+// provider email, tokens or claims. Binding RPCs arrive in later stages.
+message ExternalIdentitySummary {
+  string external_identity_id = 1;
+  ExternalProvider provider = 2;
+  string display_label = 3;
+  google.protobuf.Timestamp linked_at = 4;
+  google.protobuf.Timestamp last_authenticated_at = 5;
+}
+
+// External auth errors use google.rpc.ErrorInfo, domain usersrv.v1, with the
+// following fixed reason/code pairs. No detail contains subject/email/claims:
+// PROVIDER_DISABLED          FAILED_PRECONDITION (external global/provider off)
+// PROVIDER_REJECTED          UNAUTHENTICATED (neutral cancel/proof/email failure)
+// IDENTITY_CONFLICT          ALREADY_EXISTS (never identifies the other owner)
+// IDENTITY_LIMIT_REACHED     FAILED_PRECONDITION (one identity per provider)
+// REGISTRATION_UNAVAILABLE   FAILED_PRECONDITION (new-account branch only)
+// LAST_CREDENTIAL            FAILED_PRECONDITION
+// MUTATION_REPLAY_MISMATCH    ABORTED
+// CHALLENGE_INVALID          FAILED_PRECONDITION
+// VERSION_CONFLICT           ABORTED (existing reason)
+// STATE_INVALID belongs to BFF browser state validation, not a usersrv proof.
+// Existing email registration keeps REGISTRATION_CLOSED; no fields are renumbered.

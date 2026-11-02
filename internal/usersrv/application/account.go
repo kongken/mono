@@ -153,7 +153,7 @@ func (s *AccountService) AuthenticateWithEmail(ctx context.Context, req *usersrv
 		return nil, toStatus("authenticate_with_email", err)
 	}
 	return &usersrvv1.AuthenticateWithEmailResponse{
-		UserId: id.String(), Profile: protoProfile(st.Profile), Roles: st.Roles, AuthVersion: st.AuthVersion,
+		UserId: id.String(), Profile: protoProfile(st.Profile), Roles: st.Roles, AuthVersion: st.AuthVersion, HasPassword: st.HasPassword,
 	}, nil
 }
 
@@ -187,7 +187,7 @@ func (s *AccountService) GetAuthState(ctx context.Context, _ *usersrvv1.GetAuthS
 		return nil, toStatus("get_auth_state", err)
 	}
 	return &usersrvv1.GetAuthStateResponse{
-		Status: protoStatus(st.Status), AuthVersion: st.AuthVersion, Roles: st.Roles, ProfileVersion: st.Profile.Version,
+		Status: protoStatus(st.Status), AuthVersion: st.AuthVersion, Roles: st.Roles, ProfileVersion: st.Profile.Version, HasPassword: st.HasPassword,
 	}, nil
 }
 
@@ -202,7 +202,7 @@ func (s *AccountService) GetMyAccount(ctx context.Context, _ *usersrvv1.GetMyAcc
 	}
 	return &usersrvv1.GetMyAccountResponse{
 		UserId: a.ID.String(), Email: a.Email, Profile: protoProfile(a.Profile), Roles: a.Roles,
-		Status: protoStatus(a.Status), AuthVersion: a.AuthVersion,
+		Status: protoStatus(a.Status), AuthVersion: a.AuthVersion, HasPassword: a.HasPassword,
 	}, nil
 }
 
