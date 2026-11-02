@@ -7,13 +7,22 @@ import { PageHeader, Spinner } from "@/components/Layout";
 
 const operationKey = "ozid:identity-operation";
 
-type Pending = { kind: "identity_link" | "identity_unlink"; provider?: string; identityId?: string; challengeId: string; flowId?: string };
+type Pending = { kind: "identity_link" | "identity_unlink"; provider?: string; identityId?: string; challengeId: string; flowId?: string; mutationId: string };
+
+function readPending(): Pending | null {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(operationKey) ?? "null");
+    if (!value) return null;
+    return { ...value, mutationId: value.mutationId ?? crypto.randomUUID() };
+  } catch { return null; }
+}
+
 
 export default function IdentitiesPage() {
   const search = useSearch();
   const flowId = useMemo(() => new URLSearchParams(search).get("flow") ?? "", [search]);
   const [data, setData] = useState<Awaited<ReturnType<typeof identity.getIdentityCapabilities>> | null>(null);
-  const [pending, setPending] = useState<Pending | null>(() => { try { return JSON.parse(sessionStorage.getItem(operationKey) ?? "null"); } catch { return null; } });
+  const [pending, setPending] = useState<Pending | null>(() => readPending());
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,25 +39,28 @@ export default function IdentitiesPage() {
     setBusy(true); setError(undefined);
     try {
       await ensureCsrf();
+      const mutationId = crypto.randomUUID();
+      const draft: Pending = { kind: "identity_link", provider, challengeId: "", mutationId };
+      setPending(draft); sessionStorage.setItem(operationKey, JSON.stringify(draft));
       const op = await identity.beginIdentityOperation({ kind: "identity_link", provider, currentPassword: password });
-      const next: Pending = { kind: "identity_link", provider, challengeId: op.challengeId };
+      const next: Pending = { kind: "identity_link", provider, challengeId: op.challengeId, mutationId };
       sessionStorage.setItem(operationKey, JSON.stringify(next));
       const start = await external.startExternalLogin({ provider, intent: "link", appId: "ozid", returnPath: "/identities" });
       window.location.assign(start.authorizationUrl);
-    } catch { setError("无法开始绑定，请确认密码后重试。"); setBusy(false); }
+    } catch { sessionStorage.removeItem(operationKey); setPending(null); setError("无法开始绑定，请确认密码后重试。"); setBusy(false); }
   }
   async function beginUnlink(identityId: string) {
     setBusy(true); setError(undefined);
-    try { await ensureCsrf(); const op = await identity.beginIdentityOperation({ kind: "identity_unlink", externalIdentityId: identityId, currentPassword: password }); const next: Pending = { kind: "identity_unlink", identityId, challengeId: op.challengeId }; setPending(next); sessionStorage.setItem(operationKey, JSON.stringify(next)); }
-    catch { setError("无法开始解绑，请确认密码后重试。"); } finally { setBusy(false); }
+    try { await ensureCsrf(); const mutationId = crypto.randomUUID(); const draft: Pending = { kind: "identity_unlink", identityId, challengeId: "", mutationId }; setPending(draft); sessionStorage.setItem(operationKey, JSON.stringify(draft)); const op = await identity.beginIdentityOperation({ kind: "identity_unlink", externalIdentityId: identityId, currentPassword: password }); const next: Pending = { kind: "identity_unlink", identityId, challengeId: op.challengeId, mutationId }; setPending(next); sessionStorage.setItem(operationKey, JSON.stringify(next)); }
+    catch { sessionStorage.removeItem(operationKey); setPending(null); setError("无法开始解绑，请确认密码后重试。"); } finally { setBusy(false); }
   }
   async function confirm() {
     if (!pending || (!hasPassword && !token)) return;
     setBusy(true); setError(undefined);
     try {
       await ensureCsrf(); if (!hasPassword) await identity.confirmIdentityOperation({ challengeId: pending.challengeId, token });
-      if (pending.kind === "identity_link" && pending.flowId) await identity.linkExternalIdentity({ operationChallengeId: pending.challengeId, providerFlowId: pending.flowId, mutationId: crypto.randomUUID() });
-      if (pending.kind === "identity_unlink" && pending.identityId) await identity.unlinkExternalIdentity({ operationChallengeId: pending.challengeId, externalIdentityId: pending.identityId, mutationId: crypto.randomUUID() });
+      if (pending.kind === "identity_link" && pending.flowId) await identity.linkExternalIdentity({ operationChallengeId: pending.challengeId, providerFlowId: pending.flowId, mutationId: pending.mutationId });
+      if (pending.kind === "identity_unlink" && pending.identityId) await identity.unlinkExternalIdentity({ operationChallengeId: pending.challengeId, externalIdentityId: pending.identityId, mutationId: pending.mutationId });
       sessionStorage.removeItem(operationKey); setPending(null); setToken(""); setPassword(""); refresh();
     } catch { setError("确认失败，验证码可能已过期，请重新开始操作。"); } finally { setBusy(false); }
   }
