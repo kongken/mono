@@ -4,25 +4,15 @@ import { Notice } from "@kongken/account/ui";
 import { useSearch, Link } from "@/lib/router";
 import { identity, external, ensureCsrf } from "@/lib/rpc";
 import { PageHeader, Spinner } from "@/components/Layout";
+import { readPending, type Pending } from "@/lib/identityPending";
 
 const operationKey = "ozid:identity-operation";
-
-type Pending = { kind: "identity_link" | "identity_unlink"; provider?: string; identityId?: string; challengeId: string; flowId?: string; mutationId: string };
-
-function readPending(): Pending | null {
-  try {
-    const value = JSON.parse(sessionStorage.getItem(operationKey) ?? "null");
-    if (!value) return null;
-    return { ...value, mutationId: value.mutationId ?? crypto.randomUUID() };
-  } catch { return null; }
-}
-
 
 export default function IdentitiesPage() {
   const search = useSearch();
   const flowId = useMemo(() => new URLSearchParams(search).get("flow") ?? "", [search]);
   const [data, setData] = useState<Awaited<ReturnType<typeof identity.getIdentityCapabilities>> | null>(null);
-  const [pending, setPending] = useState<Pending | null>(() => readPending());
+  const [pending, setPending] = useState<Pending | null>(() => readPending(sessionStorage));
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
