@@ -15,6 +15,7 @@ import (
 	"github.com/kongken/mono/internal/platform/navpath"
 	"github.com/kongken/mono/internal/usersrv/ent"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
+	"github.com/kongken/mono/internal/usersrv/ent/authchallenge"
 	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/user"
 	"github.com/kongken/mono/internal/usersrv/identity"
@@ -255,6 +256,15 @@ func (s *Service) Preflight(ctx context.Context) error {
 	if len(missing) > 0 {
 		slog.Error("usersrv mail outbox: queued jobs need decryption keys that are not configured", "alert", "mail_key_missing", "key_ids", missing)
 		return fmt.Errorf("outbox preflight: queued mail jobs need encryption keys that are not configured: %v", missing)
+	}
+	proofKeys, err := s.db.AuthChallenge.Query().Where(authchallenge.ProofKeyIDNotNil()).GroupBy(authchallenge.FieldProofKeyID).Strings(ctx)
+	if err != nil {
+		return errors.New("outbox preflight: authentication proof schema unavailable")
+	}
+	for _, key := range proofKeys {
+		if !s.keys.Has(key) {
+			return errors.New("outbox preflight: authentication proofs need an unconfigured key")
+		}
 	}
 	return nil
 }

@@ -81,6 +81,146 @@ var (
 			},
 		},
 	}
+	// AuthChallengesColumns holds the columns for the "auth_challenges" table.
+	AuthChallengesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "kind", Type: field.TypeEnum, Enums: []string{"external_login", "external_registration", "identity_link", "identity_unlink", "set_password", "recovery", "account_deletion"}},
+		{Name: "provider", Type: field.TypeEnum, Nullable: true, Enums: []string{"google", "github"}},
+		{Name: "issuer", Type: field.TypeString, Nullable: true},
+		{Name: "bff_flow_id", Type: field.TypeUUID, Unique: true, Nullable: true},
+		{Name: "context_hash", Type: field.TypeBytes},
+		{Name: "session_binding_hash", Type: field.TypeBytes, Nullable: true},
+		{Name: "target_identity_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "provider_config_version", Type: field.TypeInt64, Nullable: true},
+		{Name: "proof_ciphertext", Type: field.TypeBytes, Nullable: true},
+		{Name: "proof_key_id", Type: field.TypeString, Nullable: true},
+		{Name: "email_token_hash", Type: field.TypeBytes, Nullable: true},
+		{Name: "email_expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "confirmed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"issued", "exchanging", "ready", "completed", "failed"}, Default: "issued"},
+		{Name: "result_mutation_id", Type: field.TypeString, Nullable: true},
+		{Name: "result_request_hash", Type: field.TypeBytes, Nullable: true},
+		{Name: "result_user_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "result_expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "auth_version", Type: field.TypeInt64, Nullable: true},
+		{Name: "return_app_id", Type: field.TypeString, Default: ""},
+		{Name: "return_path", Type: field.TypeString, Default: ""},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "consumed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeUUID, Nullable: true},
+	}
+	// AuthChallengesTable holds the schema information for the "auth_challenges" table.
+	AuthChallengesTable = &schema.Table{
+		Name:       "auth_challenges",
+		Columns:    AuthChallengesColumns,
+		PrimaryKey: []*schema.Column{AuthChallengesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "auth_challenges_users_user",
+				Columns:    []*schema.Column{AuthChallengesColumns[25]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "authchallenge_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{AuthChallengesColumns[22]},
+			},
+			{
+				Name:    "authchallenge_user_id_kind_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{AuthChallengesColumns[25], AuthChallengesColumns[1], AuthChallengesColumns[22]},
+			},
+			{
+				Name:    "authchallenge_email_token_hash",
+				Unique:  true,
+				Columns: []*schema.Column{AuthChallengesColumns[11]},
+			},
+		},
+	}
+	// AuthNotificationsColumns holds the columns for the "auth_notifications" table.
+	AuthNotificationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "source_kind", Type: field.TypeEnum, Enums: []string{"operation_receipt", "reset_token"}},
+		{Name: "source_id", Type: field.TypeUUID},
+		{Name: "notification_kind", Type: field.TypeEnum, Enums: []string{"identity_link", "identity_unlink", "password_set_first"}},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeUUID},
+	}
+	// AuthNotificationsTable holds the schema information for the "auth_notifications" table.
+	AuthNotificationsTable = &schema.Table{
+		Name:       "auth_notifications",
+		Columns:    AuthNotificationsColumns,
+		PrimaryKey: []*schema.Column{AuthNotificationsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "auth_notifications_users_user",
+				Columns:    []*schema.Column{AuthNotificationsColumns[5]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "authnotification_source_kind_source_id_notification_kind",
+				Unique:  true,
+				Columns: []*schema.Column{AuthNotificationsColumns[1], AuthNotificationsColumns[2], AuthNotificationsColumns[3]},
+			},
+			{
+				Name:    "authnotification_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{AuthNotificationsColumns[5], AuthNotificationsColumns[4]},
+			},
+		},
+	}
+	// AuthOperationReceiptsColumns holds the columns for the "auth_operation_receipts" table.
+	AuthOperationReceiptsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "operation", Type: field.TypeEnum, Enums: []string{"identity_link", "identity_unlink", "set_password", "recovery"}},
+		{Name: "mutation_id", Type: field.TypeString},
+		{Name: "request_hash", Type: field.TypeBytes},
+		{Name: "session_binding_hash", Type: field.TypeBytes},
+		{Name: "result", Type: field.TypeEnum, Enums: []string{"applied", "already_applied", "rejected"}},
+		{Name: "auth_version", Type: field.TypeInt64},
+		{Name: "identity_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeUUID},
+	}
+	// AuthOperationReceiptsTable holds the schema information for the "auth_operation_receipts" table.
+	AuthOperationReceiptsTable = &schema.Table{
+		Name:       "auth_operation_receipts",
+		Columns:    AuthOperationReceiptsColumns,
+		PrimaryKey: []*schema.Column{AuthOperationReceiptsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "auth_operation_receipts_users_user",
+				Columns:    []*schema.Column{AuthOperationReceiptsColumns[10]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "authoperationreceipt_user_id_operation_mutation_id",
+				Unique:  true,
+				Columns: []*schema.Column{AuthOperationReceiptsColumns[10], AuthOperationReceiptsColumns[1], AuthOperationReceiptsColumns[2]},
+			},
+			{
+				Name:    "authoperationreceipt_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{AuthOperationReceiptsColumns[10], AuthOperationReceiptsColumns[8]},
+			},
+			{
+				Name:    "authoperationreceipt_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{AuthOperationReceiptsColumns[9]},
+			},
+		},
+	}
 	// DeletionTombstonesColumns holds the columns for the "deletion_tombstones" table.
 	DeletionTombstonesColumns = []*schema.Column{
 		{Name: "user_id", Type: field.TypeUUID},
@@ -151,6 +291,7 @@ var (
 	MailJobsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
 		{Name: "challenge_id", Type: field.TypeUUID},
+		{Name: "source_kind", Type: field.TypeEnum, Enums: []string{"account_token", "auth_challenge", "notification"}, Default: "account_token"},
 		{Name: "provider", Type: field.TypeString},
 		{Name: "generation", Type: field.TypeInt},
 		{Name: "template", Type: field.TypeString},
@@ -176,12 +317,12 @@ var (
 			{
 				Name:    "mailjob_status_next_attempt_at",
 				Unique:  false,
-				Columns: []*schema.Column{MailJobsColumns[7], MailJobsColumns[9]},
+				Columns: []*schema.Column{MailJobsColumns[8], MailJobsColumns[10]},
 			},
 			{
 				Name:    "mailjob_status_lease_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{MailJobsColumns[7], MailJobsColumns[11]},
+				Columns: []*schema.Column{MailJobsColumns[8], MailJobsColumns[12]},
 			},
 			{
 				Name:    "mailjob_challenge_id",
@@ -191,7 +332,7 @@ var (
 			{
 				Name:    "mailjob_finished_at",
 				Unique:  false,
-				Columns: []*schema.Column{MailJobsColumns[16]},
+				Columns: []*schema.Column{MailJobsColumns[17]},
 			},
 		},
 	}
@@ -299,6 +440,9 @@ var (
 	Tables = []*schema.Table{
 		AccountTokensTable,
 		AdminMutationsTable,
+		AuthChallengesTable,
+		AuthNotificationsTable,
+		AuthOperationReceiptsTable,
 		DeletionTombstonesTable,
 		ExternalIdentitiesTable,
 		MailJobsTable,
@@ -334,6 +478,47 @@ func init() {
 		"admin_mutations_status":   "status IN ('active', 'disabled', 'deleting')",
 		"admin_mutations_version":  "auth_version >= 1",
 	}
+	AuthChallengesTable.ForeignKeys[0].RefTable = UsersTable
+	AuthChallengesTable.Annotation = &entsql.Annotation{
+		Table: "auth_challenges",
+	}
+	AuthChallengesTable.Annotation.Checks = map[string]string{
+		"auth_challenges_completed":     "status <> 'completed' OR consumed_at IS NOT NULL",
+		"auth_challenges_context":       "octet_length(context_hash) = 32 AND (session_binding_hash IS NULL OR octet_length(session_binding_hash) = 32)",
+		"auth_challenges_email_hash":    "email_token_hash IS NULL OR octet_length(email_token_hash) = 32",
+		"auth_challenges_expiry":        "expires_at > created_at",
+		"auth_challenges_issuer":        "provider IS NULL OR (provider = 'google' AND issuer = 'https://accounts.google.com') OR (provider = 'github' AND issuer = 'https://github.com')",
+		"auth_challenges_kind":          "kind IN ('external_login','external_registration','identity_link','identity_unlink','set_password','recovery','account_deletion')",
+		"auth_challenges_kind_owner":    "(kind IN ('external_login','external_registration') AND user_id IS NULL) OR (kind NOT IN ('external_login','external_registration') AND user_id IS NOT NULL)",
+		"auth_challenges_kind_provider": "kind NOT IN ('external_login','external_registration','identity_link') OR provider IS NOT NULL",
+		"auth_challenges_owner":         "(user_id IS NULL AND auth_version IS NULL AND session_binding_hash IS NULL) OR (user_id IS NOT NULL AND auth_version IS NOT NULL AND auth_version >= 1 AND session_binding_hash IS NOT NULL)",
+		"auth_challenges_proof":         "(proof_ciphertext IS NULL) = (proof_key_id IS NULL)",
+		"auth_challenges_provider":      "(provider IS NULL AND issuer IS NULL AND provider_config_version IS NULL) OR (provider IS NOT NULL AND provider IN ('google','github') AND issuer IS NOT NULL AND provider_config_version IS NOT NULL AND provider_config_version >= 1)",
+		"auth_challenges_result":        "(result_mutation_id IS NULL AND result_request_hash IS NULL AND result_user_id IS NULL AND result_expires_at IS NULL) OR (status = 'completed' AND result_mutation_id IS NOT NULL AND char_length(result_mutation_id) BETWEEN 1 AND 64 AND result_request_hash IS NOT NULL AND result_user_id IS NOT NULL AND result_expires_at IS NOT NULL)",
+		"auth_challenges_result_hash":   "result_request_hash IS NULL OR octet_length(result_request_hash) = 32",
+		"auth_challenges_status":        "status IN ('issued','exchanging','ready','completed','failed')",
+		"auth_challenges_target":        "kind <> 'identity_unlink' OR target_identity_id IS NOT NULL",
+	}
+	AuthNotificationsTable.ForeignKeys[0].RefTable = UsersTable
+	AuthNotificationsTable.Annotation = &entsql.Annotation{
+		Table: "auth_notifications",
+	}
+	AuthNotificationsTable.Annotation.Checks = map[string]string{
+		"auth_notifications_kind":   "notification_kind IN ('identity_link','identity_unlink','password_set_first')",
+		"auth_notifications_source": "source_kind IN ('operation_receipt','reset_token')",
+	}
+	AuthOperationReceiptsTable.ForeignKeys[0].RefTable = UsersTable
+	AuthOperationReceiptsTable.Annotation = &entsql.Annotation{
+		Table: "auth_operation_receipts",
+	}
+	AuthOperationReceiptsTable.Annotation.Checks = map[string]string{
+		"auth_receipts_expiry":    "expires_at > created_at",
+		"auth_receipts_hash":      "octet_length(request_hash) = 32 AND octet_length(session_binding_hash) = 32",
+		"auth_receipts_mutation":  "char_length(mutation_id) BETWEEN 1 AND 64",
+		"auth_receipts_operation": "operation IN ('identity_link','identity_unlink','set_password','recovery')",
+		"auth_receipts_result":    "result IN ('applied','already_applied','rejected')",
+		"auth_receipts_version":   "auth_version >= 1",
+	}
 	DeletionTombstonesTable.Annotation = &entsql.Annotation{
 		Table: "deletion_tombstones",
 	}
@@ -363,8 +548,9 @@ func init() {
 		"mail_jobs_lease":      "(status = 'sending') = (lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL)",
 		"mail_jobs_provider":   "provider IN ('mailgun', 'sendgrid', 'smtp', 'smtp2go')",
 		"mail_jobs_result":     "char_length(result_class) <= 64",
+		"mail_jobs_source":     "source_kind IN ('account_token','auth_challenge','notification')",
 		"mail_jobs_status":     "status IN ('pending', 'sending', 'accepted', 'failed', 'uncertain', 'expired', 'cancelled')",
-		"mail_jobs_template":   "template IN ('verify_email', 'reset_password')",
+		"mail_jobs_template":   "template IN ('verify_email', 'reset_password', 'external_registration', 'identity_operation', 'identity_link', 'identity_unlink', 'password_set_first')",
 	}
 	SecurityAuditTable.Annotation = &entsql.Annotation{
 		Table: "security_audit",

@@ -1,10 +1,10 @@
 # 第三方登录契约、数据模型与迁移回滚方案
 
-**状态：产品决策已于 2026-10-29 在 KON-37 确认，S1 工程契约修订（`cca228d`）、KON-38 的 S2 基础实现（`8dae623`）和 KON-39 的 S3a Google adapter（`05c8b66`）已通过复审。KON-40（S3b）GitHub adapter 已实现、待独立审查；第三方认证完整流程仍待实现。**
+**状态：产品决策已于 2026-10-29 在 KON-37 确认，S1 工程契约修订（`cca228d`）、KON-38 的 S2 基础实现（`8dae623`）和 KON-39 的 S3a Google adapter（`05c8b66`）已通过复审。KON-40 的 S3b GitHub adapter（`3fe64af`）已通过复审。KON-41（S3c）usersrv 安全核心已实现、待独立审查；BFF/OzID 完整流程仍待实现。**
 
 依据：[Issue #103](https://github.com/kongken/mono/issues/103) 与 KON-37 的评审讨论。2026-10-28 的四项工程修订和 2026-10-29 的七项产品建议均获用户“没问题”确认。本文记录确认结果，不再把它们列为未决项。原规格 A01–A21 编号保留；本次对未验证 provider 邮箱的失败路径作收紧，见 §1.3 和 A02。
 
-本 ADR 冻结 Issue #103 的第三方登录扩展边界。仓库当前实现是 usersrv 的邮箱＋密码系统：`users` 保存已验证账号，`account_tokens` 只承载注册和密码重置挑战，BFF 保存浏览器会话，`auth_version` 在认证相关变更时递增；运行时没有 OAuth/Logto。本文把 Google OIDC 与 GitHub OAuth 接入定义为默认关闭的增量能力，不把现有邮箱＋密码契约改成兼容层，也不允许外部 provider 直接成为产品服务的账号来源。
+本 ADR 冻结 Issue #103 的第三方登录扩展边界。冻结时的仓库基线是 usersrv 的邮箱＋密码系统：`users` 保存已验证账号，`account_tokens` 只承载注册和密码重置挑战，BFF 保存浏览器会话，`auth_version` 在认证相关变更时递增；该基线没有 OAuth/Logto。本文把 Google OIDC 与 GitHub OAuth 接入定义为默认关闭的增量能力，不把现有邮箱＋密码契约改成兼容层，也不允许外部 provider 直接成为产品服务的账号来源。
 
 ## 决策摘要
 
@@ -162,6 +162,8 @@ usersrv 不保存 `state_hash`、原始 state、PKCE verifier 或 nonce。它们
 - BFF 状态只允许当前浏览器会话继续绑定；匿名登录 state 必须绑定启动时的 CSRF/浏览器上下文摘要。callback 不接受客户端传入的 user ID、provider subject 或 return URL。
 - BFF 继续保存 `auth_browser_sessions` 和 `bff_access_tokens` 的 `auth_version`。外部登录创建新会话时写入 usersrv 返回的当前版本；角色和账号状态仍由每请求 `GetAuthState` 复核。
 
+KON-41 实现补充：`auth_challenges` 增加 `proof_key_id` 与 `email_expires_at`，分别关联配置 key 与独立 10 分钟邮箱期限；provider 证明只以不同于邮件的 AES-GCM associated data 绑定挑战 ID/context 摘要。结果引用保留 24 小时，过期清理擦除证明和邮件摘要。`auth_operation_receipts` 另存原会话摘要以限制重放；`auth_notifications` 按 source kind/source ID/notification kind 去重，并外键级联关联用户。`mail_jobs.source_kind` 区分旧 account token、新 auth challenge 与通知事件，旧邮件行默认保留 `account_token`；新模板独立，不改变旧 token purpose。实际 TTL、锁序和验证证据见后端说明。
+
 ### 2.6 BFF / usersrv 跨服务绑定与消费
 
 1. BFF 在 OzID Origin + CSRF 校验后生成 flow ID、至少 32 字节随机 state/浏览器绑定、PKCE S256 和 Google nonce，计算 context hash。绑定意图同时记录发起 user、session 和 `auth_version`；各标签页流程独立。
@@ -176,7 +178,7 @@ usersrv 不保存 `state_hash`、原始 state、PKCE verifier 或 nonce。它们
 
 ### 3.1 usersrv.v1 新增 RPC
 
-现有邮箱密码 RPC 保持字段和错误含义；`ResetPassword` 扩展到 NULL 哈希，仍以有效邮箱 token 而非外部回调授权。以下新增方法名及职责为实现契约，message 字段号在 Stage 2 的 proto 中生成：
+KON-41 已在 `external.proto` 实现 `ExternalIdentityService` 及以下 RPC，并生成 Go/gRPC/Connect 与 TypeScript；只有已签名内部 BFF 可调用，不新增公网路由。登录/切换账号使用匿名 BFF 凭证；Link 必须使用签名 sub，用户 ID 从不进入请求消息。现有邮箱密码 RPC 保持字段和错误含义；`ResetPassword` 扩展到 NULL 哈希，仍以有效邮箱 token 而非外部回调授权。以下新增方法名及职责为实现契约，message 字段号在 Stage 2 的 proto 中生成：
 
 | RPC | 作用 | 关键不变量 |
 | --- | --- | --- |
@@ -191,7 +193,7 @@ usersrv 不保存 `state_hash`、原始 state、PKCE verifier 或 nonce。它们
 | `RecoverAccountWithExternalIdentity` | 已绑定身份的重新登录语义，复用 Begin/CompleteExternalLogin | 不新增绕过邮箱或账号状态的恢复 RPC，不提升版本 |
 | `GetExternalIdentities` | 返回本人绑定身份的安全摘要 | 不返回 subject 原文、token 或 claims |
 
-建议 message 字段：`provider`、`challenge_id`、`mutation_id`、`expected_auth_version`、`external_identity_id`。用户 ID 只从 BFF 签名凭证的 `sub` 取得；匿名登录的目标用户只由 usersrv 对 `(provider, issuer, subject)` 查询或创建，绝不从请求体取得。
+当前 message 字段包括：`provider`、`challenge_id`、`mutation_id`、`expected_auth_version`、`external_identity_id`。用户 ID 只从 BFF 签名凭证的 `sub` 取得；匿名登录的目标用户只由 usersrv 对 `(provider, issuer, subject)` 查询或创建，绝不从请求体取得。
 
 `CompleteExternalLogin` 返回互斥结果：`authenticated`（`user_id`、profile、roles、`auth_version`、`has_password`）或 `registration_pending/link_pending`（challenge 引用、可展示候选资料、必要验证状态）。待定结果不携带用户 ID、角色或会话授权；正式注册信息仅在显式创建完成后返回。本人身份列表只含内部 identity ID、provider、显示标签和时间，不包含 subject、token 或完整 claims。匿名请求不暴露邮箱是否占用。
 
@@ -325,7 +327,7 @@ adapter 不自动重试有副作用的 code exchange，不在 provider 之间故
 
 BFF 增加 `auth.external.{enabled,state_ttl,confirmation_ttl,state_encryption_key_id}`，TTL 分别默认 15/10 分钟；仅接受固定 provider 名称、callback 与导航注册表。OAuth client secret 只在 usersrv Secret 中，BFF 仅有自己的临时载荷加密 key。配置代次变化使旧流程失败，未启用项不要求配置真实 Secret。
 
-S2 配置实现补充：usersrv 支持 `client_secret` 或 `client_secret_file` 恰选一项，禁用 provider 不读取文件。`proof_key_id` 引用已加载的 `mail.encryption.keys` key；后续挑战加密必须使用与邮件不同的用途绑定 associated data。配置只校验 callback 的固定路径及 URL 安全形态，部署时还须核对其 origin 与后续 BFF 注册地址完全一致；本阶段尚未实现 BFF callback/配置或 provider 网络调用。S2 只加入 §2.1–2.2 模型和基础消息/错误，§2.3–2.6 的挑战/回执/BFF 状态及写入事务由后续票落实。
+S2 配置实现补充：usersrv 支持 `client_secret` 或 `client_secret_file` 恰选一项，禁用 provider 不读取文件。`proof_key_id` 引用已加载的 `mail.encryption.keys` key；KON-41 的挑战加密使用与邮件不同的用途绑定 associated data。配置只校验 callback 的固定路径及 URL 安全形态，部署时还须核对其 origin 与后续 BFF 注册地址完全一致；本阶段尚未实现 BFF callback/配置或 provider 网络调用。S2 只加入 §2.1–2.2 模型和基础消息/错误；KON-41 已落实 §2.3–2.5 的 usersrv 挑战、回执、通知事件/加密 outbox 及写入事务。§2.6 的 usersrv 半边已实现，BFF 状态、浏览器绑定和跨服务端到端验收仍待 KON-42 等后续票。
 
 外部认证全局和各 provider 均默认 `enabled=false`；`registration_enabled=true` 不会自动启用它们。启用项缺少 secret、redirect URI 不匹配、issuer 不在固定列表、必要加密 key 缺失或 provider 配置混杂时所属服务启动失败。外部认证全局/目标 provider 关闭时不发授权 URL，其新登录/绑定及尚未提交流程均返回 `PROVIDER_DISABLED`；注册关闭只拒绝创建新账号的分支，绝不能套用前述总停用规则。所有开关关闭均不删除已绑定身份、不提升认证版本、不让已建本地会话退出。查看/解绑与邮箱首次设密不依赖 provider 在线。readiness 不连接真实 provider；临时厂商故障不阻塞邮箱密码登录、匿名地图或公开目录。
 
@@ -435,6 +437,6 @@ Google OIDC 与 GitHub OAuth 各有一条真实厂商冒烟门槛：授权、取
 
 产品未决项：无。七项产品选择和四项工程修订已确认，见 §1.3 与 KON-37 评论记录；不再要求重复产品确认。
 
-S1 工程契约修订、KON-38 的 S2 基础实现和 KON-39 的 S3a Google adapter 已通过复审。当前 KON-40 的 GitHub adapter 需独立审查，通过后才能推进后续票；ADR 验收矩阵仍是完整功能的待实现要求，基础模型和 adapter 提交不代表第三方登录已可用、已部署或真实厂商已验证。
+S1 工程契约修订、KON-38/S2、KON-39/S3a 和 KON-40/S3b 已通过复审。当前 KON-41 的 usersrv 安全核心需独立审查，通过后才能推进后续票；ADR 验收矩阵仍包含 BFF/浏览器层的待实现要求，内部实现不代表公网第三方登录已可用、已部署或真实厂商已验证。
 
 后续实现须同步受影响的 docs/ozid/features.md、docs/usersrv/spec.md、docs/bff.md、docs/backend.md、docs/admin/features.md、docs/ozid/acceptance.md 及部署文档，保持实现证据与发布门槛分开登记。

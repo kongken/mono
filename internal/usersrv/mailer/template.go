@@ -99,6 +99,22 @@ var definitions = map[Kind]definition{
 	},
 }
 
+func init() {
+	for _, kind := range []Kind{KindExternalRegistration, KindIdentityOperation} {
+		definitions[kind] = definition{subject: "【%s】确认本次账号操作", text: texttemplate.Must(texttemplate.New(string(kind)).Parse("请在 {{.Minutes}} 分钟内打开链接，确认本次操作：\n\n{{.Link}}\n\n确认后，请回到发起操作的浏览器完成提交。打开链接不会创建账号或更改登录方式。如非本人操作，请忽略，不要转发链接。\n—— {{.AppName}}")), html: htmltemplate.Must(htmltemplate.New(string(kind)).Parse(htmlLayout("你好，", "请确认本次操作，随后回到发起操作的浏览器完成提交。打开链接不会创建账号或更改登录方式。", "确认本次操作", "如非本人操作，请忽略，不要转发链接。")))}
+	}
+	for _, kind := range []Kind{KindIdentityLink, KindIdentityUnlink, KindPasswordSetFirst} {
+		text := "账号已绑定第三方登录方式。"
+		if kind == KindIdentityUnlink {
+			text = "账号已解绑第三方登录方式。"
+		}
+		if kind == KindPasswordSetFirst {
+			text = "账号已首次设置密码。"
+		}
+		definitions[kind] = definition{subject: "【%s】账号安全通知", text: texttemplate.Must(texttemplate.New(string(kind)).Parse(text + "\n如非本人操作，请使用已有方式登录用户中心检查账号安全。\n{{.Link}}\n—— {{.AppName}}")), html: htmltemplate.Must(htmltemplate.New(string(kind)).Parse(htmlLayout("你好，", text, "查看账号安全", "如非本人操作，请使用已有方式登录用户中心检查账号安全。本邮件不提供一键撤销操作。")))}
+	}
+}
+
 // htmlLayout is the one HTML frame of every mail: no images, no scripts, no
 // third-party resources, inline styles only. The link appears twice, as a button
 // and as text to copy. html/template escapes every value for its context.

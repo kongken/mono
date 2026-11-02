@@ -12,6 +12,15 @@ type AccountToken func(*sql.Selector)
 // AdminMutation is the predicate function for adminmutation builders.
 type AdminMutation func(*sql.Selector)
 
+// AuthChallenge is the predicate function for authchallenge builders.
+type AuthChallenge func(*sql.Selector)
+
+// AuthNotification is the predicate function for authnotification builders.
+type AuthNotification func(*sql.Selector)
+
+// AuthOperationReceipt is the predicate function for authoperationreceipt builders.
+type AuthOperationReceipt func(*sql.Selector)
+
 // DeletionTombstone is the predicate function for deletiontombstone builders.
 type DeletionTombstone func(*sql.Selector)
 

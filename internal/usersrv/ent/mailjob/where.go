@@ -170,6 +170,26 @@ func ChallengeIDLTE(v uuid.UUID) predicate.MailJob {
 	return predicate.MailJob(sql.FieldLTE(FieldChallengeID, v))
 }
 
+// SourceKindEQ applies the EQ predicate on the "source_kind" field.
+func SourceKindEQ(v SourceKind) predicate.MailJob {
+	return predicate.MailJob(sql.FieldEQ(FieldSourceKind, v))
+}
+
+// SourceKindNEQ applies the NEQ predicate on the "source_kind" field.
+func SourceKindNEQ(v SourceKind) predicate.MailJob {
+	return predicate.MailJob(sql.FieldNEQ(FieldSourceKind, v))
+}
+
+// SourceKindIn applies the In predicate on the "source_kind" field.
+func SourceKindIn(vs ...SourceKind) predicate.MailJob {
+	return predicate.MailJob(sql.FieldIn(FieldSourceKind, vs...))
+}
+
+// SourceKindNotIn applies the NotIn predicate on the "source_kind" field.
+func SourceKindNotIn(vs ...SourceKind) predicate.MailJob {
+	return predicate.MailJob(sql.FieldNotIn(FieldSourceKind, vs...))
+}
+
 // ProviderEQ applies the EQ predicate on the "provider" field.
 func ProviderEQ(v string) predicate.MailJob {
 	return predicate.MailJob(sql.FieldEQ(FieldProvider, v))

@@ -131,6 +131,8 @@ tripmap、BFF、metro、usersrv 与各前端为独立镜像（见 [Docker 镜像
  
 ## usersrv 的部署
 
+第三方扩展的 usersrv 内部核心已加入，但 BFF/OzID 完整流程仍待验收，两 provider 继续默认关闭。升级须同时应用 `20261102182653_external_security_core.sql` 与 `20261102182700_security_mail_templates.sql`；第二份迁移扩展旧邮件模板 CHECK，不能遗漏。旧队列保留 `account_token` 来源和原密文；切换前暂停并排空旧 outbox worker，新模板只交给新 worker 投递，入队后不能回退无法处理它们的旧 worker，无密码账号也不能回退仅支持非空 hash 的旧 usersrv。排空旧实例后再认为配置关闭生效；细节见 [ADR 0001](adr/0001-third-party-auth-contract.md) 和[后端说明](backend.md#usersrv-服务账号核心p1)。
+
 usersrv 是账号服务，BFF 没有它就无法登录或注册，因此是必需的。它只被 BFF 经内部 gRPC 调用，不得暴露到公网。镜像 `ghcr.io/kongken/mono-usersrv`（`deploy/usersrv/Dockerfile`，入口 `/usersrv`，运维命令 `/usersrv-admin`，容器内 HTTP 18086、gRPC 18087，配置挂载为 `/config/config.yaml`）；资源建议见 [后端初始化](backend.md#usersrv-服务账号核心p1)（内存限制不低于 512 MiB）。
 
 1. **独立数据库与 Redis。** 在同一 PostgreSQL 实例创建独立数据库 `usersrv`（Compose 示例用 `deploy/postgres/init-databases.sql` 在空数据目录首次启动时创建 `bff`、`usersrv`、`metro`；已有数据目录不会重跑，须手动创建）。usersrv 不使用 S3。Redis 必需，限流在 Redis 不可用时拒绝而不是放行；key 前缀默认 `usersrv:`，与 BFF 共用实例时保持前缀不同。

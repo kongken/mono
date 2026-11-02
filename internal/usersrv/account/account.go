@@ -16,6 +16,8 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -96,7 +98,10 @@ type Service struct {
 	// registrationClosed switches new sign-ups off (SetRegistrationOpen).
 	mail               Mail
 	guard              MailGuard
-	registrationClosed bool
+	registrationClosed atomic.Bool
+	admissionMu        sync.RWMutex // Gate changes wait for admitted final transactions.
+	external           ExternalSettings
+	securityMail       SecurityMail
 	// AuditRetention and TokenRetention drive PurgeExpired.
 	AuditRetention time.Duration
 	TokenRetention time.Duration
@@ -428,6 +433,9 @@ func (s *Service) BeginDeletion(ctx context.Context, id uuid.UUID, mutationID, r
 			version = u.AuthVersion
 			return nil
 		case StatusActive:
+			if u.PasswordHash == nil {
+				return ErrChallengeInvalid
+			}
 		default:
 			return ErrNotActive
 		}
@@ -533,6 +541,9 @@ func (s *Service) PurgeExpired(ctx context.Context) (PurgeResult, error) {
 		return res, err
 	}
 	res.Audit, err = s.purgeAudit(ctx, now.Add(-s.AuditRetention))
+	if err == nil {
+		err = s.PurgeSecurity(ctx)
+	}
 	return res, err
 }
 

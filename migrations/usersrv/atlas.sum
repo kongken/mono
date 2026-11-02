@@ -1,4 +1,4 @@
-h1:/mQM8+dw4KMoVL0spS6+gz2IzVBwrdGmxP8HQrYWj18=
+h1:28BakI6WrCgt2VeYU73xcXwDB/1vKkMk7idEiNUO+1M=
 20261024150906_baseline.sql h1:Q/xzg9cSLl/guh5+ctw95/X/Rcnuq/C19J2YELi03+8=
 20261024153533_mail_outbox.sql h1:NNLWRlbMdDSC+eYMLclHWwRsQgXxtQNuDAZASILFNTs=
 20261025044828_account_token_return_context.sql h1:Fjy7WZ6WMOoo7ZEzwIPqNfYWdPevc+ywIJOcjHgzoic=
@@ -6,3 +6,5 @@ h1:/mQM8+dw4KMoVL0spS6+gz2IzVBwrdGmxP8HQrYWj18=
 20261025130000_admin_mutations.sql h1:9VJLDg9cYmLVUlF+gnq5XHhG8tm6NnRacP54NbScrnE=
 20261025140000_audit_query.sql h1:UQ0VlZsf4W0J47J3+YP+7+XCa1IZ5dp15mdA+L5Z0q4=
 20261102170537_external_identity_foundation.sql h1:4aVvaLaR4r4EgZ4icxvFAiIFnII5EkTk+kMwjNsfFog=
+20261102182653_external_security_core.sql h1:0lTLKGAb/wCStvztYmHJD38NDXnBIhTX6zbV03LiPVM=
+20261102182700_security_mail_templates.sql h1:dtB41XDwHyjIjRVHJXRGnbP/aKPX39AUhMP0QZ8HzsI=

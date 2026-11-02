@@ -135,7 +135,7 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 	}
 	client := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, db)))
 	if h.cfg.AutoMigrate {
-		if err := client.Schema.Create(ctx); err != nil {
+		if err := migrateSchema(ctx, client); err != nil {
 			_ = client.Close()
 			return fmt.Errorf("ent migration: %w", err)
 		}
@@ -162,6 +162,16 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 		return err
 	}
 	res.ExternalProviders = providers
+	codec, err := mail.ProofCipher(h.cfg.Auth.External.ProofKeyID)
+	if err != nil {
+		_ = client.Close()
+		return err
+	}
+	policies := map[externalprovider.ProviderName]account.ProviderPolicy{}
+	for name, p := range h.cfg.Auth.External.Providers {
+		policies[externalprovider.ProviderName(name)] = account.ProviderPolicy{Enabled: h.cfg.Auth.External.ProviderEnabled(name), ConfigVersion: p.ConfigVersion, RedirectURI: p.RedirectURI}
+	}
+	res.Accounts.ConfigureExternal(account.ExternalSettings{Providers: providers, Policies: policies, Codec: codec})
 	h.resources.Store(res)
 	for _, w := range res.Workers {
 		w.Start()
@@ -270,6 +280,7 @@ func NewResources(db *ent.Client, hasher *passwordhash.Hasher, rdb redis.Univers
 		probes = append(probes, health.Probe{Name: "mail_outbox", Check: sender.Check})
 		res.Mail, res.MailGuard = o.mail, guard
 		accounts.SetMail(AccountMail(o.mail, guard))
+		accounts.SetSecurityMail(outboxMail{o.mail})
 		res.Workers = append(res.Workers, sender)
 	}
 	res.Health = health.New(probes...)

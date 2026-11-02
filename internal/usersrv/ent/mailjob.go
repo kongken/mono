@@ -20,6 +20,8 @@ type MailJob struct {
 	ID uuid.UUID `json:"id,omitempty"`
 	// ChallengeID holds the value of the "challenge_id" field.
 	ChallengeID uuid.UUID `json:"challenge_id,omitempty"`
+	// SourceKind holds the value of the "source_kind" field.
+	SourceKind mailjob.SourceKind `json:"source_kind,omitempty"`
 	// Provider holds the value of the "provider" field.
 	Provider string `json:"provider,omitempty"`
 	// Generation holds the value of the "generation" field.
@@ -62,7 +64,7 @@ func (*MailJob) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case mailjob.FieldGeneration, mailjob.FieldAttempts:
 			values[i] = new(sql.NullInt64)
-		case mailjob.FieldProvider, mailjob.FieldTemplate, mailjob.FieldKeyID, mailjob.FieldStatus, mailjob.FieldLeaseOwner, mailjob.FieldResultClass:
+		case mailjob.FieldSourceKind, mailjob.FieldProvider, mailjob.FieldTemplate, mailjob.FieldKeyID, mailjob.FieldStatus, mailjob.FieldLeaseOwner, mailjob.FieldResultClass:
 			values[i] = new(sql.NullString)
 		case mailjob.FieldNextAttemptAt, mailjob.FieldLeaseExpiresAt, mailjob.FieldExpiresAt, mailjob.FieldCreatedAt, mailjob.FieldUpdatedAt, mailjob.FieldFinishedAt:
 			values[i] = new(sql.NullTime)
@@ -94,6 +96,12 @@ func (_m *MailJob) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field challenge_id", values[i])
 			} else if value != nil {
 				_m.ChallengeID = *value
+			}
+		case mailjob.FieldSourceKind:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field source_kind", values[i])
+			} else if value.Valid {
+				_m.SourceKind = mailjob.SourceKind(value.String)
 			}
 		case mailjob.FieldProvider:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -227,6 +235,9 @@ func (_m *MailJob) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("challenge_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ChallengeID))
+	builder.WriteString(", ")
+	builder.WriteString("source_kind=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SourceKind))
 	builder.WriteString(", ")
 	builder.WriteString("provider=")
 	builder.WriteString(_m.Provider)

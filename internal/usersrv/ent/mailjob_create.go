@@ -30,6 +30,20 @@ func (_c *MailJobCreate) SetChallengeID(v uuid.UUID) *MailJobCreate {
 	return _c
 }
 
+// SetSourceKind sets the "source_kind" field.
+func (_c *MailJobCreate) SetSourceKind(v mailjob.SourceKind) *MailJobCreate {
+	_c.mutation.SetSourceKind(v)
+	return _c
+}
+
+// SetNillableSourceKind sets the "source_kind" field if the given value is not nil.
+func (_c *MailJobCreate) SetNillableSourceKind(v *mailjob.SourceKind) *MailJobCreate {
+	if v != nil {
+		_c.SetSourceKind(*v)
+	}
+	return _c
+}
+
 // SetProvider sets the "provider" field.
 func (_c *MailJobCreate) SetProvider(v string) *MailJobCreate {
 	_c.mutation.SetProvider(v)
@@ -241,6 +255,10 @@ func (_c *MailJobCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *MailJobCreate) defaults() {
+	if _, ok := _c.mutation.SourceKind(); !ok {
+		v := mailjob.DefaultSourceKind
+		_c.mutation.SetSourceKind(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := mailjob.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -271,6 +289,14 @@ func (_c *MailJobCreate) defaults() {
 func (_c *MailJobCreate) check() error {
 	if _, ok := _c.mutation.ChallengeID(); !ok {
 		return &ValidationError{Name: "challenge_id", err: errors.New(`ent: missing required field "MailJob.challenge_id"`)}
+	}
+	if _, ok := _c.mutation.SourceKind(); !ok {
+		return &ValidationError{Name: "source_kind", err: errors.New(`ent: missing required field "MailJob.source_kind"`)}
+	}
+	if v, ok := _c.mutation.SourceKind(); ok {
+		if err := mailjob.SourceKindValidator(v); err != nil {
+			return &ValidationError{Name: "source_kind", err: fmt.Errorf(`ent: validator failed for field "MailJob.source_kind": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.Provider(); !ok {
 		return &ValidationError{Name: "provider", err: errors.New(`ent: missing required field "MailJob.provider"`)}
@@ -356,6 +382,10 @@ func (_c *MailJobCreate) createSpec() (*MailJob, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ChallengeID(); ok {
 		_spec.SetField(mailjob.FieldChallengeID, field.TypeUUID, value)
 		_node.ChallengeID = value
+	}
+	if value, ok := _c.mutation.SourceKind(); ok {
+		_spec.SetField(mailjob.FieldSourceKind, field.TypeEnum, value)
+		_node.SourceKind = value
 	}
 	if value, ok := _c.mutation.Provider(); ok {
 		_spec.SetField(mailjob.FieldProvider, field.TypeString, value)
@@ -644,6 +674,9 @@ func (u *MailJobUpsertOne) UpdateNewValues() *MailJobUpsertOne {
 		}
 		if _, exists := u.create.mutation.ChallengeID(); exists {
 			s.SetIgnore(mailjob.FieldChallengeID)
+		}
+		if _, exists := u.create.mutation.SourceKind(); exists {
+			s.SetIgnore(mailjob.FieldSourceKind)
 		}
 		if _, exists := u.create.mutation.Provider(); exists {
 			s.SetIgnore(mailjob.FieldProvider)
@@ -1058,6 +1091,9 @@ func (u *MailJobUpsertBulk) UpdateNewValues() *MailJobUpsertBulk {
 			}
 			if _, exists := b.mutation.ChallengeID(); exists {
 				s.SetIgnore(mailjob.FieldChallengeID)
+			}
+			if _, exists := b.mutation.SourceKind(); exists {
+				s.SetIgnore(mailjob.FieldSourceKind)
 			}
 			if _, exists := b.mutation.Provider(); exists {
 				s.SetIgnore(mailjob.FieldProvider)

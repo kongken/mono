@@ -267,9 +267,10 @@ func (MailJob) Annotations() []schema.Annotation {
 	return []schema.Annotation{
 		entsql.Annotation{Table: "mail_jobs"},
 		entsql.Checks(map[string]string{
+			"mail_jobs_source":     "source_kind IN ('account_token','auth_challenge','notification')",
 			"mail_jobs_status":     "status IN ('pending', 'sending', 'accepted', 'failed', 'uncertain', 'expired', 'cancelled')",
 			"mail_jobs_provider":   "provider IN ('mailgun', 'sendgrid', 'smtp', 'smtp2go')",
-			"mail_jobs_template":   "template IN ('verify_email', 'reset_password')",
+			"mail_jobs_template":   "template IN ('verify_email', 'reset_password', 'external_registration', 'identity_operation', 'identity_link', 'identity_unlink', 'password_set_first')",
 			"mail_jobs_attempts":   "attempts BETWEEN 0 AND 3",
 			"mail_jobs_generation": "generation >= 1",
 			"mail_jobs_result":     "char_length(result_class) <= 64",
@@ -289,6 +290,7 @@ func (MailJob) Fields() []ent.Field {
 		// The account_tokens row this mail carries. No foreign key: challenges are
 		// purged by the lifecycle code and the job record must outlive them.
 		field.UUID("challenge_id", uuid.UUID{}).Immutable(),
+		field.Enum("source_kind").Values("account_token", "auth_challenge", "notification").Default("account_token").Immutable(),
 		// Fixed when the job is issued: a configuration change never re-routes a
 		// queued job to another vendor.
 		field.String("provider").NotEmpty().Immutable(),

@@ -33,6 +33,42 @@ func (f AdminMutationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Valu
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AdminMutationMutation", m)
 }
 
+// The AuthChallengeFunc type is an adapter to allow the use of ordinary
+// function as AuthChallenge mutator.
+type AuthChallengeFunc func(context.Context, *ent.AuthChallengeMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AuthChallengeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AuthChallengeMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AuthChallengeMutation", m)
+}
+
+// The AuthNotificationFunc type is an adapter to allow the use of ordinary
+// function as AuthNotification mutator.
+type AuthNotificationFunc func(context.Context, *ent.AuthNotificationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AuthNotificationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AuthNotificationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AuthNotificationMutation", m)
+}
+
+// The AuthOperationReceiptFunc type is an adapter to allow the use of ordinary
+// function as AuthOperationReceipt mutator.
+type AuthOperationReceiptFunc func(context.Context, *ent.AuthOperationReceiptMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AuthOperationReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AuthOperationReceiptMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AuthOperationReceiptMutation", m)
+}
+
 // The DeletionTombstoneFunc type is an adapter to allow the use of ordinary
 // function as DeletionTombstone mutator.
 type DeletionTombstoneFunc func(context.Context, *ent.DeletionTombstoneMutation) (ent.Value, error)
