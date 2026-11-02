@@ -160,7 +160,7 @@ func (h *IdentityHandler) LinkExternalIdentity(ctx context.Context, req *connect
 	if row.Intent != "link" || row.UserID == nil || *row.UserID != bs.UserID {
 		return nil, stateInvalid()
 	}
-	op := identityRef(bs, "", "identity_link", "", providerName(identityProvider(string(row.Provider))))
+	op := identityRef(bs, "", "identity_link", "", string(row.Provider))
 	op.ChallengeId = req.Msg.GetOperationChallengeId()
 	out, err := h.users.LinkExternalIdentity(ctx, bs.UserID, &usersrvv1.LinkExternalIdentityRequest{Operation: op, ProviderProof: h.external.ref(row), MutationId: req.Msg.GetMutationId()})
 	if err != nil {

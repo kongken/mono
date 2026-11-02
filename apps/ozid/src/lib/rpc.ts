@@ -3,6 +3,7 @@ import { createClient } from "@connectrpc/connect";
 import { createAccountApi } from "@kongken/account/api";
 import { parseApiBase } from "@kongken/account/navigation";
 import { AuthService } from "@kongken/api-client/bff/v1/auth_pb";
+import { ExternalAuthService } from "@kongken/api-client/bff/v1/external_pb";
 import { IdentityService } from "@kongken/api-client/bff/v1/identity_pb";
 
 /** The stable app ID of the user center in the BFF's navigation registry. Not a host name. */
@@ -34,6 +35,7 @@ const transport = createConnectTransport({
 
 const auth = createClient(AuthService, transport);
 const identity = createClient(IdentityService, transport);
+const external = createClient(ExternalAuthService, transport);
 
 async function ensureCsrf() {
   csrf = (await auth.issueCSRFToken({})).token;
@@ -41,4 +43,4 @@ async function ensureCsrf() {
 
 /** The shared account client. OzID only uses sign-in, Me, sign-out, navigation and reauthentication. */
 export const account = createAccountApi({ transport, appId: APP_ID, ensureCsrf });
-export { identity };
+export { identity, external, ensureCsrf };

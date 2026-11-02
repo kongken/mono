@@ -17,6 +17,8 @@ export function matchRoute(pathname: string): Route {
       return "profile";
     case "/security":
       return "security";
+    case "/sessions":
+      return "sessions";
     case "/identities":
       return "identities";
     case "/close-account":

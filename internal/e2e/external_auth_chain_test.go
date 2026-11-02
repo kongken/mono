@@ -185,6 +185,47 @@ func finishExternal(t *testing.T, b *Browser, id string) (*connect.Response[bffv
 	return extClient(b).CompleteExternalRegistration(t.Context(), req)
 }
 
+func identityClient(b *Browser) bffv1connect.IdentityServiceClient {
+	return bffv1connect.NewIdentityServiceClient(b.HTTP, b.APIURL)
+}
+
+func TestExternalBrowserIdentityLinkBindsAfterOperationConfirmation(t *testing.T) {
+	e := externalChain(t)
+	b := e.h.FreshBrowser()
+	start := startExternal(t, b, "google", "login")
+	callbackExternal(t, b, start, "google", "")
+	if _, err := finishExternal(t, b, start.GetFlowId()); err != nil {
+		t.Fatal(err)
+	}
+	begin := connect.NewRequest(&bffv1.BeginIdentityOperationRequest{Kind: "identity_link", Provider: "github"})
+	b.Write(t.Context(), begin)
+	op, err := identityClient(b).BeginIdentityOperation(t.Context(), begin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.h.DeliverMail()
+	confirm := connect.NewRequest(&bffv1.ConfirmIdentityOperationRequest{ChallengeId: op.Msg.GetChallengeId(), Token: e.h.Inbox.TokenIn(t, "candidate@gmail.com")})
+	b.Write(t.Context(), confirm)
+	if _, err = identityClient(b).ConfirmIdentityOperation(t.Context(), confirm); err != nil {
+		t.Fatal(err)
+	}
+	startReq := connect.NewRequest(&bffv1.StartExternalLoginRequest{Provider: "github", Intent: "link", AppId: "ozid", ReturnPath: "/identities"})
+	b.Write(t.Context(), startReq)
+	linkedStart, err := extClient(b).StartExternalLogin(t.Context(), startReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	callbackExternal(t, b, linkedStart.Msg, "github", "")
+	link := connect.NewRequest(&bffv1.LinkExternalIdentityRequest{OperationChallengeId: op.Msg.GetChallengeId(), ProviderFlowId: linkedStart.Msg.GetFlowId(), MutationId: "identity-link-once"})
+	b.Write(t.Context(), link)
+	result, err := identityClient(b).LinkExternalIdentity(t.Context(), link)
+	if err != nil || result.Msg.GetExternalIdentityId() == "" || result.Msg.GetReplayed() {
+		t.Fatalf("link: %v %#v", err, result)
+	}
+	if got := e.h.UsersrvDB.ExternalIdentity.Query().CountX(t.Context()); got != 2 {
+		t.Fatalf("external identities: got %d, want 2", got)
+	}
+}
 func TestExternalBrowserRegistrationAndStableLogin(t *testing.T) {
 	e := externalChain(t)
 	h := e.h
