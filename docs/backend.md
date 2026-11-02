@@ -616,7 +616,7 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 错误用 `google.rpc.ErrorInfo`（domain `usersrv.v1`，reason 为 `INVALID_CREDENTIALS`、`ACCOUNT_NOT_ACTIVE`、`VERSION_CONFLICT`、`RATE_LIMITED`、`INVALID_ARGUMENT`、`DELETION_MISMATCH`、`TOKEN_INVALID`、`REGISTRATION_CLOSED`）；错误密码与内部凭证错误因此不会混淆。日志与审计不含邮箱、密码、令牌。
 
-**第三方账号基础（KON-38，S2）**：已加入外部身份 schema、可空密码的兼容读写、配置校验及 `usersrv.v1` 基础消息；S2 不包含 adapter 或完整流程；Google adapter 的后续实现见下方 KON-39 说明，GitHub、挑战、注册/绑定事务和浏览器入口仍待实现，当前不能第三方登录或创建无密码账号。`AuthenticateWithEmail`、`GetAuthState`、`GetMyAccount` 的内部响应新增 `has_password`，只依赖哈希是否非 NULL；BFF 的内部 usersrv adapter 接收该字段，浏览器页面尚未使用它。NULL 哈希的邮箱登录、重新认证和改密均验证 dummy 哈希后中性拒绝，不能把空密码作为首次设密凭据；现有邮件 reset 能写入首次密码，递增版本并保留绑定。首次设密通知和新的操作确认属于 S3，尚未实现。
+**第三方账号基础（KON-38，S2）**：已加入外部身份 schema、可空密码的兼容读写、配置校验及 `usersrv.v1` 基础消息；S2 不包含 adapter 或完整流程；Google/GitHub adapter 的后续实现见下方 KON-39/KON-40 说明，挑战、注册/绑定事务和浏览器入口仍待实现，当前不能第三方登录或创建无密码账号。`AuthenticateWithEmail`、`GetAuthState`、`GetMyAccount` 的内部响应新增 `has_password`，只依赖哈希是否非 NULL；BFF 的内部 usersrv adapter 接收该字段，浏览器页面尚未使用它。NULL 哈希的邮箱登录、重新认证和改密均验证 dummy 哈希后中性拒绝，不能把空密码作为首次设密凭据；现有邮件 reset 能写入首次密码，递增版本并保留绑定。首次设密通知和新的操作确认属于 S3，尚未实现。
 
 `auth.external.enabled` 与 `auth.external.providers.{google,github}.enabled` 独立且均默认 false；现有 `auth.registration_enabled` 仍默认 true，provider 门禁不读取注册开关。启用的 provider 要求非空 `client_id`、恰一项 `client_secret`/`client_secret_file`、正整数 `config_version` 和精确的 `/api/identity/callback/{provider}` URL；禁止凭据、query、fragment、编码路径和非 HTTPS（只有显式 `allow_loopback_http` 可接受本机 HTTP）。回调 origin 必须由运维与 BFF 注册地址核对；此阶段尚无 BFF callback 配置或路由，usersrv 不跨服务读取 BFF 配置。issuer/endpoint 不可配置，Google 固定 `https://accounts.google.com`，GitHub 固定 `https://github.com`；未知 provider 启动失败。外部全局开启还要求 `proof_key_id` 引用 `mail.encryption.keys` 中已加载的 key，后续挑战必须使用独立用途的 associated data；`require_verified_email` 默认 true 且不可关闭。未启用 provider 不读取其 Secret 文件，校验错误、fmt/slog 和 JSON 格式化不输出 client secret；readiness 不访问真实 provider。配置示例保留关闭状态，配置校验通过不表示流程已实现。
 
@@ -632,6 +632,15 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 返回值只有 provider、规范 issuer/sub、候选邮箱/信任等级、规范资料和 token 签发时间，后者不能刷新 OzID 密码认证时间。fmt/slog 对配置、请求、claims 和结果均脱敏；结果不是 user UUID、登录 Cookie 或绑定授权。adapter 没有数据库/会话依赖，也不拥有已消费 nonce 的进程内列表；本地假服务证明 provider code 重放被拒及 nonce 必须匹配，跨实例/浏览器重放保护仍依赖 KON-41/KON-42 的持久挑战和 BFF state 单次消费，尚未实现。
 
 本地 contract tests 经同一 provider interface 调用真实 HTTP/JWT 实现，注入 transport 仅把固定官方地址导到本地 TLS 假 discovery/token/JWKS；覆盖服务端 PKCE/单次 code、错误签名/claims/nonce/算法、邮箱矩阵、key 轮换/过期/并发/刷新限额、异常/超长响应、取消和日志脱敏，不访问真实 Google。协议依据：[Google OIDC](https://developers.google.com/identity/openid-connect/openid-connect)、[Google 邮箱权威性与服务端校验](https://developers.google.com/identity/sign-in/web/backend-auth)；引用与本地假服务测试均不代表真实厂商冒烟已完成。两 provider 继续默认关闭，未部署。
+
+**GitHub OAuth adapter（KON-40，S3b）**：实现同一个 `ExternalProvider`，Bootstrap 离线装配，独立受外部全局/GitHub 开关控制，注册关闭不禁用 adapter。没有新增 RPC、账号写入或浏览器入口，所有外部开关仍默认关闭。
+
+- 固定 `github.com` 授权/token 与 `api.github.com` 本人/邮箱端点，不能由配置、客户端 profile、API 返回的 URL 或 Link 替换。授权只请求 `user:email`，带原 state、S256 challenge 和固定 callback。交换时先检查 provider、配置代次、原 challenge/verifier，再以配置的 client ID/secret 和固定 callback 发出一次 POST；只接受该交换返回的 bearer，返回 scope 必须恰为 `user:email`，避免接受历史授权累积的额外权限。不请求 offline access，不保存/刷新 access 或 refresh token。OAuth 没有 OIDC nonce；state 比较和单次消费由后续 BFF 持久挑战承担。
+- 每次交换均用同一临时 bearer 读取 `/user`，固定 REST 版本 `2026-03-10`；只接受 `type=User` 的正数 uint64 JSON ID，直接转为规范十进制 subject，拒绝浮点/指数/字符串/零/溢出，包含大于 2^53 的 ID 不丢位。issuer 固定 `https://github.com`。不以 login、昵称、邮箱或 avatar/profile URL 作为身份键；昵称/头像沿用本地规范化及默认值，服务端不抓头像。
+- 只从 `/user/emails` 选择唯一的 `primary && verified` 规范可投递地址，不信任 `/user.email`，不回传完整列表。每页 100 条、最多 5 页，逐页构造固定端点；不跟随 Link。缺失、未验证、noreply 域或 `noreply/no-reply` 本地名、非法地址、重复主邮箱、超过分页上限统一 `PROVIDER_REJECTED`，无部分身份结果。按 ADR §1.3/A02 转现有邮箱注册或已有账号登录后主动绑定，不实现原票已被收紧的补填分支；真实投递能力仍由 OzID 邮件确认验证。有效候选一律 `provider_verified`，即使是 Gmail 也不能免 OzID 验证；注册确认、编辑邮箱后撤销旧证明和邮件挑战留给 KON-41/KON-42。
+- 总调用共用 10 秒截止时间（包含 token、本人、各页邮箱），每响应最多 64 KiB，TLS 校验开启、所有重定向拒绝、无自动重试。429/5xx/网络/超时，以及带剩余额度 0 或 Retry-After 的 403，映射 `UNAVAILABLE`；其他 API/证明错误中性拒绝，不透出厂商原文。结果只含最小身份事实，认证时间是本次证明校验时间，不能刷新 OzID 密码认证时间；配置、请求、adapter、身份的 fmt/slog 均脱敏。
+
+本地 TLS 假 OAuth/user/email contract tests 验证 client/callback、PKCE、单次 code、错误/跨 provider code、完整邮箱矩阵、数字 ID 精度及稳定性、受限分页、重定向/响应体/JSON/权限/限流/故障、各阶段取消、共享截止时间和日志脱敏；Google 原有测试及独立开关装配也参与回归。协议依据：[GitHub OAuth 授权码与 PKCE](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)、[本人 API](https://docs.github.com/en/rest/users/users#get-the-authenticated-user)、[邮箱 API](https://docs.github.com/en/rest/users/emails#list-email-addresses-for-the-authenticated-user)、[REST 版本](https://docs.github.com/en/rest/about-the-rest-api/api-versions)。自动化不访问真实 GitHub；这不是持久挑战/账号事务/浏览器端到端或真实厂商冒烟证据。
 
 **账号规则**（`internal/usersrv/identity`、`account`）：
 

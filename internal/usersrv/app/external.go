@@ -25,5 +25,19 @@ func buildExternalProviders(auth config.AuthConfig, transport http.RoundTripper)
 	if err != nil {
 		return nil, err
 	}
-	return map[externalprovider.ProviderName]externalprovider.ExternalProvider{externalprovider.GoogleName: g}, nil
+	p = auth.External.Providers[string(externalprovider.GitHubName)]
+	ghCfg := externalprovider.GitHubConfig{Enabled: auth.External.ProviderEnabled(string(externalprovider.GitHubName)),
+		ClientID: p.ClientID, RedirectURI: p.RedirectURI, ConfigVersion: p.ConfigVersion, AllowLoopbackHTTP: auth.AllowLoopbackHTTP}
+	if ghCfg.Enabled {
+		secret, err := p.ClientSecretValue()
+		if err != nil {
+			return nil, err
+		}
+		ghCfg.ClientSecret = secret
+	}
+	gh, err := externalprovider.NewGitHub(ghCfg, transport)
+	if err != nil {
+		return nil, err
+	}
+	return map[externalprovider.ProviderName]externalprovider.ExternalProvider{externalprovider.GoogleName: g, externalprovider.GitHubName: gh}, nil
 }

@@ -40,7 +40,8 @@ func readJSON(c *http.Client, req *http.Request, dst any) (http.Header, error) {
 		return nil, ErrUnavailable
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 ||
+		(resp.StatusCode == http.StatusForbidden && (resp.Header.Get("X-RateLimit-Remaining") == "0" || resp.Header.Get("Retry-After") != "")) {
 		return nil, ErrUnavailable
 	}
 	if resp.StatusCode != http.StatusOK {

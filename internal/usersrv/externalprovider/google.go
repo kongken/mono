@@ -9,7 +9,6 @@ import (
 	"errors"
 	"log/slog"
 	"math/big"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -77,21 +76,7 @@ func (g *Google) ValidateConfiguration() error {
 		return nil
 	}
 	c := g.cfg
-	if strings.TrimSpace(c.ClientID) != c.ClientID || c.ClientID == "" || len(c.ClientID) > 1024 || strings.ContainsAny(c.ClientID, "\r\n\x00") ||
-		strings.TrimSpace(c.ClientSecret) != c.ClientSecret || c.ClientSecret == "" || len(c.ClientSecret) > 8192 || strings.ContainsAny(c.ClientSecret, "\r\n\x00") || c.ConfigVersion < 1 {
-		return errors.New("google provider requires a client ID, secret and positive config version")
-	}
-	u, err := url.Parse(c.RedirectURI)
-	if err != nil || u == nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" ||
-		u.RawPath != "" || u.Path != "/api/identity/callback/google" || u.String() != c.RedirectURI {
-		return errors.New("google provider requires an exact callback URL")
-	}
-	ip := net.ParseIP(u.Hostname())
-	loopback := u.Hostname() == "localhost" || (ip != nil && ip.IsLoopback())
-	if u.Scheme != "https" && !(u.Scheme == "http" && c.AllowLoopbackHTTP && loopback) {
-		return errors.New("google callback requires HTTPS (loopback HTTP needs development opt-in)")
-	}
-	return nil
+	return validateClientConfiguration(GoogleName, c.ClientID, c.ClientSecret, c.RedirectURI, c.ConfigVersion, c.AllowLoopbackHTTP)
 }
 
 var (

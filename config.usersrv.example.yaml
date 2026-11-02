@@ -43,8 +43,8 @@ internal_auth:
 auth:
   # Set false to refuse new sign-ups (requests and completions are refused); login and reset are unaffected.
   registration_enabled: true
-  # KON-39 adds an isolated Google adapter; GitHub, persistent challenges, OAuth
-  # callbacks and registration/Link flows still await implementation/acceptance.
+  # KON-39/KON-40 add isolated Google/GitHub adapters; persistent challenges,
+  # OAuth callbacks and registration/Link flows still await implementation/acceptance.
   # Keep all external gates off until the complete flow passes acceptance.
   external:
     enabled: false

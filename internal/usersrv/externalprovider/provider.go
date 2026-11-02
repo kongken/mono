@@ -33,6 +33,7 @@ const (
 
 // AuthorizationRequest comes from BFF-owned, browser-bound state. All three
 // values must be retained with the original flow; none is a caller identity.
+// Nonce is specific to Google OIDC; GitHub OAuth uses state and PKCE only.
 type AuthorizationRequest struct {
 	State, Nonce, CodeChallenge string `json:"-"`
 }
@@ -62,7 +63,8 @@ type ProviderIdentity struct {
 	EmailVerified          bool
 	EmailTrust             EmailTrust
 	DisplayName, AvatarURL string
-	// Token issuance time; never an OzID password authentication time.
+	// Google token issuance time or GitHub proof verification time;
+	// never an OzID password authentication time.
 	AuthenticatedAt time.Time
 }
 

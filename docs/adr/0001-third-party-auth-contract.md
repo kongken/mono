@@ -1,6 +1,6 @@
 # 第三方登录契约、数据模型与迁移回滚方案
 
-**状态：产品决策已于 2026-10-29 在 KON-37 确认，S1 工程契约修订（`cca228d`）和 KON-38 的 S2 基础实现（`8dae623`）已通过复审。KON-39（S3a）Google adapter 已实现、待独立审查；第三方认证完整流程仍待实现。**
+**状态：产品决策已于 2026-10-29 在 KON-37 确认，S1 工程契约修订（`cca228d`）、KON-38 的 S2 基础实现（`8dae623`）和 KON-39 的 S3a Google adapter（`05c8b66`）已通过复审。KON-40（S3b）GitHub adapter 已实现、待独立审查；第三方认证完整流程仍待实现。**
 
 依据：[Issue #103](https://github.com/kongken/mono/issues/103) 与 KON-37 的评审讨论。2026-10-28 的四项工程修订和 2026-10-29 的七项产品建议均获用户“没问题”确认。本文记录确认结果，不再把它们列为未决项。原规格 A01–A21 编号保留；本次对未验证 provider 邮箱的失败路径作收紧，见 §1.3 和 A02。
 
@@ -238,7 +238,7 @@ callback 的 `error`、`error_description` 和 provider 返回体不能原样转
 
 usersrv 内部接口不暴露 Google/GitHub 的 SDK 类型：
 
-KON-39 已在 `internal/usersrv/externalprovider` 实现以下 interface 及 Google adapter；仅复用仓库已有的 JWT 库并提升为直接依赖，没有新增账号写入或 RPC。Google 固定单个 Web client audience；`ExchangeCode` 同时要求原 S256 challenge/verifier、nonce、provider 和配置代次，返回最小已验证身份，不消费 usersrv/BFF 的持久挑战。代码、默认值、本地假 provider 覆盖和仍待实现的全流程边界见[后端说明](../backend.md#usersrv-服务账号核心p1)。GitHub adapter 由 KON-40 实现。
+KON-39/KON-40 已在 `internal/usersrv/externalprovider` 实现以下 interface 及 Google/GitHub adapter；仅复用仓库已有的 JWT 库并提升为直接依赖，没有新增账号写入或 RPC。Google 固定单个 Web client audience；`ExchangeCode` 同时要求原 S256 challenge/verifier、nonce、provider 和配置代次。GitHub 固定官方 OAuth/token/本人/邮箱 API，只申请 `user:email`，通过配置的 client secret、固定 callback 和原 PKCE code exchange 校验 token 归属，再以同一临时 bearer 读取本人数字 ID 和已验证主邮箱；不接受外来 token/profile，不作浮点 ID 转换，不缓存用户资料。GitHub OAuth 没有 OIDC nonce；state 比较、单次消费和浏览器绑定仍属于后续 BFF 持久流程。两个 adapter 均返回最小已验证身份，不消费 usersrv/BFF 的持久挑战。代码、默认值、本地假 provider 覆盖和仍待实现的全流程边界见[后端说明](../backend.md#usersrv-服务账号核心p1)。
 
 ```text
 ExternalProvider
@@ -435,6 +435,6 @@ Google OIDC 与 GitHub OAuth 各有一条真实厂商冒烟门槛：授权、取
 
 产品未决项：无。七项产品选择和四项工程修订已确认，见 §1.3 与 KON-37 评论记录；不再要求重复产品确认。
 
-S1 工程契约修订及 KON-38 的 S2 基础实现已通过复审。当前 KON-39 的 Google adapter 需独立审查，通过后才能推进后续票；ADR 验收矩阵仍是完整功能的待实现要求，基础模型和 adapter 提交不代表第三方登录已可用、已部署或真实厂商已验证。
+S1 工程契约修订、KON-38 的 S2 基础实现和 KON-39 的 S3a Google adapter 已通过复审。当前 KON-40 的 GitHub adapter 需独立审查，通过后才能推进后续票；ADR 验收矩阵仍是完整功能的待实现要求，基础模型和 adapter 提交不代表第三方登录已可用、已部署或真实厂商已验证。
 
 后续实现须同步受影响的 docs/ozid/features.md、docs/usersrv/spec.md、docs/bff.md、docs/backend.md、docs/admin/features.md、docs/ozid/acceptance.md 及部署文档，保持实现证据与发布门槛分开登记。
