@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -243,7 +242,7 @@ func (h *ExternalHandler) StartExternalLogin(ctx context.Context, req *connect.R
 	contextHash := digest(canonical)
 	flowBinding := &usersrvv1.ExternalFlowBinding{FlowId: id, ContextHash: contextHash}
 	if intent == "link" {
-		flowBinding.SessionBindingHash, _ = hex.DecodeString(tokenHash)
+		flowBinding.SessionBindingHash = digest([]byte(bs.SessionID))
 		flowBinding.ExpectedAuthVersion = bs.AuthVersion
 	}
 	caller := ""
