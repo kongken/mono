@@ -292,7 +292,7 @@ func reservedAddr(a netip.Addr) bool {
 var thirdParty = map[string]bool{
 	"github.com": true, "raw.githubusercontent.com": true, "ghcr.io": true, "registry.npmjs.org": true,
 	"docs.github.com": true,
-	"api.mapbox.com": true, "www.mapbox.com": true, "apps.mapbox.com": true, "docs.mapbox.com": true,
+	"api.mapbox.com":  true, "www.mapbox.com": true, "apps.mapbox.com": true, "docs.mapbox.com": true,
 	"www.openstreetmap.org": true, "tile.openstreetmap.org": true, "operations.osmfoundation.org": true,
 	"geo.datav.aliyun.com": true, "datav.aliyun.com": true, "www.naturalearthdata.com": true,
 	"www.rfc-editor.org": true, "www.w3.org": true, "vite.dev": true, "scripts.sil.org": true,
@@ -313,6 +313,19 @@ func publicFile(f string) bool {
 		f == ".env.example" || (strings.HasPrefix(f, "config.") && strings.HasSuffix(f, ".example.yaml"))
 }
 
+func TestHomepageFeatureDocsUseReservedStorePlaceholder(t *testing.T) {
+	root := repoRoot(t)
+	src, ok := readText(t, root, "docs/homepage/features.md")
+	if !ok {
+		t.Fatal("docs/homepage/features.md must be readable")
+	}
+	if strings.Contains(src, "chromewebstore.google.com") {
+		t.Fatal("homepage feature docs must not embed a real store host")
+	}
+	if !strings.Contains(src, "chromewebstore.example/detail/<扩展 ID>") {
+		t.Fatal("homepage feature docs must retain the reserved store placeholder")
+	}
+}
 func TestPublicFilesUseOnlyReservedNamesAndNoCredentials(t *testing.T) {
 	root := repoRoot(t)
 	// The scan can see what it is for.

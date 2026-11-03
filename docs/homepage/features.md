@@ -18,7 +18,7 @@
 - 列表数据在 `apps/homepage/src/extensions.ts`，每个条目对应一个商店上架插件，字段包括商店 ID、名称、一句话说明、分类、版本、更新时间、体积、语言、开发者、功能清单、权限说明、隐私说明以及图标和截图路径。
 - 展示值以 Chrome 网上应用店页面为准；商店页面变化时同步更新这里。页面上不写商店没有给出的数字（例如安装量、评分）。
 - 图标与截图下载到 `apps/homepage/public/extensions/`，随站点一起发布，运行时不请求第三方资源。图标用 128px 方图，截图转为体积更小的 JPEG。
-- 安装按钮直接跳转 `https://chromewebstore.google.com/detail/<扩展 ID>`，使用 `target="_blank"` 与 `rel="noopener noreferrer"`。
+- 安装按钮直接跳转 `https://chromewebstore.example/detail/<扩展 ID>`（部署时替换为实际 Chrome 网上应用店地址），使用 `target="_blank"` 与 `rel="noopener noreferrer"`。
 - 目前只有 **RequestLoom — Headers & Redirects**（开发者 OzLabs）。它的功能、权限（`declarativeNetRequest`、`storage`、站点访问 `<all_urls>`）与「没有开发者后端、广告、分析或遥测」的隐私说明来自商店的描述与 manifest。
 
 ### 新增一个插件
