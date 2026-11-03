@@ -316,6 +316,19 @@ func publicFile(f string) bool {
 		f == ".env.example" || (strings.HasPrefix(f, "config.") && strings.HasSuffix(f, ".example.yaml"))
 }
 
+func TestHomepageFeatureDocsUseReservedStorePlaceholder(t *testing.T) {
+	root := repoRoot(t)
+	src, ok := readText(t, root, "docs/homepage/features.md")
+	if !ok {
+		t.Fatal("docs/homepage/features.md must be readable")
+	}
+	if strings.Contains(src, "chromewebstore.google.com") {
+		t.Fatal("homepage feature docs must not embed a real store host")
+	}
+	if !strings.Contains(src, "chromewebstore.example/detail/<扩展 ID>") {
+		t.Fatal("homepage feature docs must retain the reserved store placeholder")
+	}
+}
 func TestPublicFilesUseOnlyReservedNamesAndNoCredentials(t *testing.T) {
 	root := repoRoot(t)
 	// The scan can see what it is for.
