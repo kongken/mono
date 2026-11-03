@@ -3,7 +3,9 @@
 export const VERIFY_EMAIL_PATH = "/account/verify-email";
 export const RESET_PASSWORD_PATH = "/account/reset-password";
 
-export type LandingKind = "verify-email" | "reset-password";
+export const EXTERNAL_EMAIL_PATH = "/account/confirm-external-email";
+
+export type LandingKind = "verify-email" | "reset-password" | "external-registration";
 
 const trimSlash = (s: string) => (s.length > 1 ? s.replace(/\/+$/, "") : s);
 
@@ -17,7 +19,7 @@ export function landingKind(pathname: string, base = "/"): LandingKind | null {
   }
   path = trimSlash(path);
   if (path === VERIFY_EMAIL_PATH) return "verify-email";
-  if (path === RESET_PASSWORD_PATH) return "reset-password";
+  if (path === EXTERNAL_EMAIL_PATH) return "external-registration";
   return null;
 }
 

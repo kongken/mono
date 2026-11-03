@@ -7,6 +7,7 @@ import { Notice } from "@kongken/account/ui";
 import "./index.css";
 import App from "./App.tsx";
 import ConfirmOperationPage from "./pages/ConfirmOperation";
+import ConfirmExternalEmailPage from "./pages/ConfirmExternalEmail";
 import { account, configError } from "./lib/rpc.ts";
 
 // The links in account mails open /account/verify-email and /account/reset-password with
@@ -36,6 +37,8 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {configError ? (
       <ConfigError message={configError} />
+    ) : landing?.kind === "external-registration" ? (
+      <ConfirmExternalEmailPage challengeId={operationParams.get("challenge_id") ?? ""} token={landing.token} />
     ) : landing ? (
       <AccountLanding
         kind={landing.kind}

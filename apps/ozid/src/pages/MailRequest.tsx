@@ -6,6 +6,7 @@ import { pageOf } from "@/lib/routes";
 import { fromTarget, useTarget } from "@/lib/target";
 import { Spinner } from "@/components/Layout";
 import { TargetNotice } from "@/pages/Login";
+import ExternalButtons from "@/components/ExternalButtons";
 
 /**
  * Registration and password reset are asked for here, whichever app the user came from. The
@@ -31,6 +32,7 @@ export default function MailRequestPage({ mode }: { mode: "register" | "forgot" 
           from={fromTarget(target)}
           onSwitch={(next) => navigate(pageOf(next, search))}
         />
+        <ExternalButtons />
       </div>
     </div>
   );
