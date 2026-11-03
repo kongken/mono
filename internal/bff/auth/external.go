@@ -106,8 +106,13 @@ func (h *ExternalHandler) cookie(header http.Header, id string) string {
 func (h *ExternalHandler) ref(row *ent.OAuthBrowserState) *usersrvv1.ExternalChallengeReference {
 	b := &usersrvv1.ExternalFlowBinding{FlowId: row.ID, ContextHash: row.ContextHash}
 	if row.Intent == oauthbrowserstate.IntentLink {
-		raw, _ := hex.DecodeString(row.InitiatingTokenHash)
-		b.SessionBindingHash = raw
+		// Identity operations bind to the persisted BFF session row ID. Keep the
+		// external proof on that same derivation; the initiating token hash is a
+		// separate bearer credential and cannot satisfy the usersrv operation
+		// challenge binding.
+		if row.SessionID != nil {
+			b.SessionBindingHash = digest([]byte(*row.SessionID))
+		}
 		if row.AuthVersion != nil {
 			b.ExpectedAuthVersion = *row.AuthVersion
 		}
