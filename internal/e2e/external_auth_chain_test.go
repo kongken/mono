@@ -113,7 +113,7 @@ func externalChain(t *testing.T) *externalStack {
 		c.Auth.External = bffconfig.ExternalConfig{Enabled: true, Providers: map[string]bool{"google": true, "github": true}, StateEncryptionKeyID: "state-1", StateEncryptionKeyFiles: map[string]string{"state-1": keyFile}}
 		product := strings.Replace(base, "localhost:", "trip.localhost:", 1)
 		admin := strings.Replace(base, "localhost:", "admin.localhost:", 1)
-		c.Navigation = navigation.Config{APIOrigin: base, Apps: map[string]navigation.App{"ozid": {Origin: base}, "trip-map": {Origin: product, Paths: []string{"/city/*"}}, "admin": {Origin: admin}}}
+		c.Navigation = navigation.Config{APIOrigin: base, Apps: map[string]navigation.App{"ozid": {Origin: base, Paths: []string{"/identities"}}, "trip-map": {Origin: product, Paths: []string{"/city/*"}}, "admin": {Origin: admin}}}
 		c.CORSAllowedOrigins = []string{base, product, admin}
 		c.Admin.AllowedCIDRs = []string{"127.0.0.1/32", "::1/128"}
 	}})
