@@ -19,6 +19,7 @@ export function landingKind(pathname: string, base = "/"): LandingKind | null {
   }
   path = trimSlash(path);
   if (path === VERIFY_EMAIL_PATH) return "verify-email";
+  if (path === RESET_PASSWORD_PATH) return "reset-password";
   if (path === EXTERNAL_EMAIL_PATH) return "external-registration";
   return null;
 }
