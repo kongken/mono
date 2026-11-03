@@ -7,6 +7,8 @@ import (
 
 	"github.com/kongken/mono/internal/bff/ent/accesstoken"
 	"github.com/kongken/mono/internal/bff/ent/accountdeletion"
+	"github.com/kongken/mono/internal/bff/ent/browsercontext"
+	"github.com/kongken/mono/internal/bff/ent/oauthbrowserstate"
 	"github.com/kongken/mono/internal/bff/ent/schema"
 	"github.com/kongken/mono/internal/bff/ent/session"
 )
@@ -89,6 +91,30 @@ func init() {
 	accountdeletionDescID := accountdeletionFields[0].Descriptor()
 	// accountdeletion.DefaultID holds the default value on creation for the id field.
 	accountdeletion.DefaultID = accountdeletionDescID.Default.(func() string)
+	browsercontextFields := schema.BrowserContext{}.Fields()
+	_ = browsercontextFields
+	// browsercontextDescGeneration is the schema descriptor for generation field.
+	browsercontextDescGeneration := browsercontextFields[1].Descriptor()
+	// browsercontext.DefaultGeneration holds the default value on creation for the generation field.
+	browsercontext.DefaultGeneration = browsercontextDescGeneration.Default.(int64)
+	oauthbrowserstateFields := schema.OAuthBrowserState{}.Fields()
+	_ = oauthbrowserstateFields
+	// oauthbrowserstateDescProviderConfigVersion is the schema descriptor for provider_config_version field.
+	oauthbrowserstateDescProviderConfigVersion := oauthbrowserstateFields[12].Descriptor()
+	// oauthbrowserstate.ProviderConfigVersionValidator is a validator for the "provider_config_version" field. It is called by the builders before save.
+	oauthbrowserstate.ProviderConfigVersionValidator = oauthbrowserstateDescProviderConfigVersion.Validators[0].(func(int64) error)
+	// oauthbrowserstateDescCreatedAt is the schema descriptor for created_at field.
+	oauthbrowserstateDescCreatedAt := oauthbrowserstateFields[19].Descriptor()
+	// oauthbrowserstate.DefaultCreatedAt holds the default value on creation for the created_at field.
+	oauthbrowserstate.DefaultCreatedAt = oauthbrowserstateDescCreatedAt.Default.(func() time.Time)
+	// oauthbrowserstateDescResultStatus is the schema descriptor for result_status field.
+	oauthbrowserstateDescResultStatus := oauthbrowserstateFields[22].Descriptor()
+	// oauthbrowserstate.DefaultResultStatus holds the default value on creation for the result_status field.
+	oauthbrowserstate.DefaultResultStatus = oauthbrowserstateDescResultStatus.Default.(string)
+	// oauthbrowserstateDescID is the schema descriptor for id field.
+	oauthbrowserstateDescID := oauthbrowserstateFields[0].Descriptor()
+	// oauthbrowserstate.DefaultID holds the default value on creation for the id field.
+	oauthbrowserstate.DefaultID = oauthbrowserstateDescID.Default.(func() string)
 	sessionFields := schema.Session{}.Fields()
 	_ = sessionFields
 	// sessionDescUserID is the schema descriptor for user_id field.

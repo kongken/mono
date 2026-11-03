@@ -16,11 +16,21 @@ const (
 	// KindVerifyEmail is the registration mail: it confirms ownership of the address.
 	KindVerifyEmail Kind = "verify_email"
 	// KindResetPassword is the password reset mail.
-	KindResetPassword Kind = "reset_password"
+	KindResetPassword        Kind = "reset_password"
+	KindExternalRegistration Kind = "external_registration"
+	KindIdentityOperation    Kind = "identity_operation"
+	KindIdentityLink         Kind = "identity_link"
+	KindIdentityUnlink       Kind = "identity_unlink"
+	KindPasswordSetFirst     Kind = "password_set_first"
 )
 
 // Valid reports whether k is a known template type.
-func (k Kind) Valid() bool { return k == KindVerifyEmail || k == KindResetPassword }
+func (k Kind) Valid() bool {
+	return k == KindVerifyEmail || k == KindResetPassword || k == KindExternalRegistration || k == KindIdentityOperation || k.Notification()
+}
+func (k Kind) Notification() bool {
+	return k == KindIdentityLink || k == KindIdentityUnlink || k == KindPasswordSetFirst
+}
 
 // CentralApp is the app ID whose origin every new account mail links to: the OzID
 // user center. The source app of a request never selects the link origin.
@@ -34,6 +44,15 @@ const (
 )
 
 func (k Kind) path() string {
+	if k == KindExternalRegistration {
+		return "/account/confirm-external-email"
+	}
+	if k == KindIdentityOperation {
+		return "/account/confirm-operation"
+	}
+	if k.Notification() {
+		return "/security"
+	}
 	if k == KindVerifyEmail {
 		return VerifyEmailPath
 	}
@@ -116,6 +135,12 @@ func (l *Links) Build(kind Kind, appID, token string) (string, error) {
 	}
 	if !kind.Valid() {
 		return "", errors.New("mailer: unknown template")
+	}
+	if kind.Notification() {
+		if token != "" {
+			return "", errors.New("mailer: notifications carry no token")
+		}
+		return origin + kind.path(), nil
 	}
 	if !tokenPattern.MatchString(token) {
 		return "", errors.New("mailer: malformed token")

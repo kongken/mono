@@ -136,6 +136,7 @@ func (s *Service) process(ctx context.Context, id uuid.UUID) bool {
 	var pl payload
 	plain, err := s.keys.open(deref(job.KeyID), job.ID.String(), job.Template, job.Ciphertext)
 	if err == nil {
+		defer clear(plain)
 		err = json.Unmarshal(plain, &pl)
 		if err == nil && pl.Version != 1 {
 			err = errors.New("unsupported payload")
@@ -147,7 +148,13 @@ func (s *Service) process(ctx context.Context, id uuid.UUID) bool {
 		return true
 	}
 
-	if sk, err := s.recheck(write, job, now); err != nil {
+	var sk *skip
+	if job.SourceKind == mailjob.SourceKindAccountToken {
+		sk, err = s.recheck(write, job, now)
+	} else {
+		sk, err = s.recheckSecurity(write, job, pl, now)
+	}
+	if err != nil {
 		// The database could not answer: give the job back untouched, without
 		// counting this as a send attempt that failed at the vendor.
 		s.release(write, job)
@@ -173,12 +180,22 @@ func (s *Service) process(ctx context.Context, id uuid.UUID) bool {
 		s.record(job, "cancelled", "link_unavailable", "", started, "")
 		return true
 	}
-	tok, err := s.db.AccountToken.Get(write, job.ChallengeID)
-	if err != nil {
-		s.release(write, job)
-		return true
+	// New confirmation pages can open on another device, where the original
+	// browser flow is absent. Include the non-authorizing challenge reference in
+	// the fragment beside the token; neither value reaches HTTP/Referer logs.
+	if job.SourceKind == mailjob.SourceKindAuthChallenge {
+		link += "&challenge_id=" + job.ChallengeID.String()
 	}
-	content, err := mailer.Render(kind, mailer.TemplateData{AppName: mailer.AppName(linkApp), Link: link, ExpiresIn: tok.ExpiresAt.Sub(tok.CreatedAt)})
+	ttl := 10 * time.Minute
+	if job.SourceKind == mailjob.SourceKindAccountToken {
+		tok, err := s.db.AccountToken.Get(write, job.ChallengeID)
+		if err != nil {
+			s.release(write, job)
+			return true
+		}
+		ttl = tok.ExpiresAt.Sub(tok.CreatedAt)
+	}
+	content, err := mailer.Render(kind, mailer.TemplateData{AppName: mailer.AppName(linkApp), Link: link, ExpiresIn: ttl})
 	if err != nil {
 		s.finish(write, job, mailjob.StatusFailed, "render_failed")
 		s.record(job, "failed", "render_failed", "", started, "mail_render_failed")

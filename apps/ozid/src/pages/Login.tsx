@@ -8,6 +8,7 @@ import { pageOf } from "@/lib/routes";
 import { useSession } from "@/lib/session";
 import { goToTarget, useTarget, type TargetState } from "@/lib/target";
 import { Spinner } from "@/components/Layout";
+import ExternalButtons from "@/components/ExternalButtons";
 
 /** What the user is told when the requested return address was not accepted. */
 export function TargetNotice({ target, action }: { target: TargetState; action: string }) {
@@ -113,6 +114,7 @@ export default function LoginPage() {
             proceed();
           }}
         />
+        <ExternalButtons />
       </div>
     </div>
   );

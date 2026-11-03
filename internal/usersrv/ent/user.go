@@ -23,7 +23,9 @@ type User struct {
 	// EmailVerifiedAt holds the value of the "email_verified_at" field.
 	EmailVerifiedAt time.Time `json:"email_verified_at,omitempty"`
 	// PasswordHash holds the value of the "password_hash" field.
-	PasswordHash string `json:"-"`
+	PasswordHash *string `json:"-"`
+	// PasswordSetAt holds the value of the "password_set_at" field.
+	PasswordSetAt *time.Time `json:"password_set_at,omitempty"`
 	// DisplayName holds the value of the "display_name" field.
 	DisplayName string `json:"display_name,omitempty"`
 	// AvatarURL holds the value of the "avatar_url" field.
@@ -52,9 +54,11 @@ type User struct {
 type UserEdges struct {
 	// Roles holds the value of the roles edge.
 	Roles []*UserRole `json:"roles,omitempty"`
+	// ExternalIdentities holds the value of the external_identities edge.
+	ExternalIdentities []*ExternalIdentity `json:"external_identities,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // RolesOrErr returns the Roles value or an error if the edge
@@ -66,6 +70,15 @@ func (e UserEdges) RolesOrErr() ([]*UserRole, error) {
 	return nil, &NotLoadedError{edge: "roles"}
 }
 
+// ExternalIdentitiesOrErr returns the ExternalIdentities value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ExternalIdentitiesOrErr() ([]*ExternalIdentity, error) {
+	if e.loadedTypes[1] {
+		return e.ExternalIdentities, nil
+	}
+	return nil, &NotLoadedError{edge: "external_identities"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -75,7 +88,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullInt64)
 		case user.FieldEmailCanonical, user.FieldPasswordHash, user.FieldDisplayName, user.FieldAvatarURL, user.FieldStatus, user.FieldDeletionMutationID:
 			values[i] = new(sql.NullString)
-		case user.FieldEmailVerifiedAt, user.FieldCreatedAt, user.FieldUpdatedAt, user.FieldDeletionStartedAt:
+		case user.FieldEmailVerifiedAt, user.FieldPasswordSetAt, user.FieldCreatedAt, user.FieldUpdatedAt, user.FieldDeletionStartedAt:
 			values[i] = new(sql.NullTime)
 		case user.FieldID:
 			values[i] = new(uuid.UUID)
@@ -116,7 +129,15 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field password_hash", values[i])
 			} else if value.Valid {
-				_m.PasswordHash = value.String
+				_m.PasswordHash = new(string)
+				*_m.PasswordHash = value.String
+			}
+		case user.FieldPasswordSetAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field password_set_at", values[i])
+			} else if value.Valid {
+				_m.PasswordSetAt = new(time.Time)
+				*_m.PasswordSetAt = value.Time
 			}
 		case user.FieldDisplayName:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -192,6 +213,11 @@ func (_m *User) QueryRoles() *UserRoleQuery {
 	return NewUserClient(_m.config).QueryRoles(_m)
 }
 
+// QueryExternalIdentities queries the "external_identities" edge of the User entity.
+func (_m *User) QueryExternalIdentities() *ExternalIdentityQuery {
+	return NewUserClient(_m.config).QueryExternalIdentities(_m)
+}
+
 // Update returns a builder for updating this User.
 // Note that you need to call User.Unwrap() before calling this method if this User
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -222,6 +248,11 @@ func (_m *User) String() string {
 	builder.WriteString(_m.EmailVerifiedAt.Format(time.ANSIC))
 	builder.WriteString(", ")
 	builder.WriteString("password_hash=<sensitive>")
+	builder.WriteString(", ")
+	if v := _m.PasswordSetAt; v != nil {
+		builder.WriteString("password_set_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("display_name=")
 	builder.WriteString(_m.DisplayName)

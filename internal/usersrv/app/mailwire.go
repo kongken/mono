@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"github.com/kongken/mono/internal/usersrv/account"
 	"github.com/kongken/mono/internal/usersrv/ent"
@@ -18,6 +19,13 @@ func AccountMail(svc *outbox.Service, guard *outbox.Guard) (account.Mail, accoun
 type outboxMail struct{ svc *outbox.Service }
 
 func (m outboxMail) Central() bool { return m.svc.Central() }
+
+func (m outboxMail) QueueChallenge(ctx context.Context, tx *ent.Tx, in account.ChallengeMail) error {
+	return m.svc.QueueSecurity(ctx, tx, in.ID, in.Email, in.Token, in.Kind, in.ExpiresAt, false)
+}
+func (m outboxMail) QueueNotification(ctx context.Context, tx *ent.Tx, in account.NotificationMail) error {
+	return m.svc.QueueSecurity(ctx, tx, in.ID, in.Email, "", in.Kind, time.Now().UTC().Add(24*time.Hour), true)
+}
 
 func (m outboxMail) Issue(ctx context.Context, tx *ent.Tx, in account.MailRequest) error {
 	_, err := m.svc.Issue(ctx, tx, outbox.IssueInput{

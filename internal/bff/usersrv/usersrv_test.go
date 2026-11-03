@@ -27,6 +27,7 @@ func TestMapErrorKeepsAuthenticationAndInternalFailuresApart(t *testing.T) {
 		msg  string
 	}{
 		"bad credentials":    {withReason(t, codes.Unauthenticated, usersrv.ReasonInvalidCredentials, "x"), connect.CodeUnauthenticated, usersrv.LoginFailure},
+		"provider rejected":  {withReason(t, codes.Unauthenticated, usersrv.ReasonProviderRejected, "provider secret response"), connect.CodeUnauthenticated, "external authentication failed"},
 		"credential refused": {status.Error(codes.Unauthenticated, "bad token"), connect.CodeInternal, "internal error"},
 		"unavailable":        {status.Error(codes.Unavailable, "dial"), connect.CodeUnavailable, "account service unavailable"},
 		"invalid":            {withReason(t, codes.InvalidArgument, "INVALID_ARGUMENT", "password too short"), connect.CodeInvalidArgument, "password too short"},

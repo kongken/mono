@@ -316,6 +316,9 @@ func (s *Service) PurgeDeletionReceipts(ctx context.Context) (int, error) {
 // for the request itself) waits for its owner and is never started in the
 // background. It returns how many workflows it advanced.
 func (s *Service) RunDeletionsOnce(ctx context.Context) (int, error) {
+	if err := s.PurgeExternal(ctx); err != nil {
+		return 0, err
+	}
 	now := s.now()
 	rows, err := s.db.AccountDeletion.Query().
 		Where(accountdeletion.StageIn(schema.DeletionStageCleanup, schema.DeletionStageFinish, schema.DeletionStageLocal),

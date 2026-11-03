@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
+	"github.com/kongken/mono/internal/usersrv/ent/externalidentity"
 	"github.com/kongken/mono/internal/usersrv/ent/predicate"
 	"github.com/kongken/mono/internal/usersrv/ent/user"
 	"github.com/kongken/mono/internal/usersrv/ent/userrole"
@@ -69,6 +70,32 @@ func (_u *UserUpdate) SetNillablePasswordHash(v *string) *UserUpdate {
 	if v != nil {
 		_u.SetPasswordHash(*v)
 	}
+	return _u
+}
+
+// ClearPasswordHash clears the value of the "password_hash" field.
+func (_u *UserUpdate) ClearPasswordHash() *UserUpdate {
+	_u.mutation.ClearPasswordHash()
+	return _u
+}
+
+// SetPasswordSetAt sets the "password_set_at" field.
+func (_u *UserUpdate) SetPasswordSetAt(v time.Time) *UserUpdate {
+	_u.mutation.SetPasswordSetAt(v)
+	return _u
+}
+
+// SetNillablePasswordSetAt sets the "password_set_at" field if the given value is not nil.
+func (_u *UserUpdate) SetNillablePasswordSetAt(v *time.Time) *UserUpdate {
+	if v != nil {
+		_u.SetPasswordSetAt(*v)
+	}
+	return _u
+}
+
+// ClearPasswordSetAt clears the value of the "password_set_at" field.
+func (_u *UserUpdate) ClearPasswordSetAt() *UserUpdate {
+	_u.mutation.ClearPasswordSetAt()
 	return _u
 }
 
@@ -217,6 +244,21 @@ func (_u *UserUpdate) AddRoles(v ...*UserRole) *UserUpdate {
 	return _u.AddRoleIDs(ids...)
 }
 
+// AddExternalIdentityIDs adds the "external_identities" edge to the ExternalIdentity entity by IDs.
+func (_u *UserUpdate) AddExternalIdentityIDs(ids ...uuid.UUID) *UserUpdate {
+	_u.mutation.AddExternalIdentityIDs(ids...)
+	return _u
+}
+
+// AddExternalIdentities adds the "external_identities" edges to the ExternalIdentity entity.
+func (_u *UserUpdate) AddExternalIdentities(v ...*ExternalIdentity) *UserUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddExternalIdentityIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -241,6 +283,27 @@ func (_u *UserUpdate) RemoveRoles(v ...*UserRole) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveRoleIDs(ids...)
+}
+
+// ClearExternalIdentities clears all "external_identities" edges to the ExternalIdentity entity.
+func (_u *UserUpdate) ClearExternalIdentities() *UserUpdate {
+	_u.mutation.ClearExternalIdentities()
+	return _u
+}
+
+// RemoveExternalIdentityIDs removes the "external_identities" edge to ExternalIdentity entities by IDs.
+func (_u *UserUpdate) RemoveExternalIdentityIDs(ids ...uuid.UUID) *UserUpdate {
+	_u.mutation.RemoveExternalIdentityIDs(ids...)
+	return _u
+}
+
+// RemoveExternalIdentities removes "external_identities" edges to ExternalIdentity entities.
+func (_u *UserUpdate) RemoveExternalIdentities(v ...*ExternalIdentity) *UserUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveExternalIdentityIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -319,6 +382,15 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.PasswordHash(); ok {
 		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
+	}
+	if _u.mutation.PasswordHashCleared() {
+		_spec.ClearField(user.FieldPasswordHash, field.TypeString)
+	}
+	if value, ok := _u.mutation.PasswordSetAt(); ok {
+		_spec.SetField(user.FieldPasswordSetAt, field.TypeTime, value)
+	}
+	if _u.mutation.PasswordSetAtCleared() {
+		_spec.ClearField(user.FieldPasswordSetAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.DisplayName(); ok {
 		_spec.SetField(user.FieldDisplayName, field.TypeString, value)
@@ -401,6 +473,51 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.ExternalIdentitiesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ExternalIdentitiesTable,
+			Columns: []string{user.ExternalIdentitiesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(externalidentity.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedExternalIdentitiesIDs(); len(nodes) > 0 && !_u.mutation.ExternalIdentitiesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ExternalIdentitiesTable,
+			Columns: []string{user.ExternalIdentitiesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(externalidentity.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ExternalIdentitiesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ExternalIdentitiesTable,
+			Columns: []string{user.ExternalIdentitiesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(externalidentity.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -460,6 +577,32 @@ func (_u *UserUpdateOne) SetNillablePasswordHash(v *string) *UserUpdateOne {
 	if v != nil {
 		_u.SetPasswordHash(*v)
 	}
+	return _u
+}
+
+// ClearPasswordHash clears the value of the "password_hash" field.
+func (_u *UserUpdateOne) ClearPasswordHash() *UserUpdateOne {
+	_u.mutation.ClearPasswordHash()
+	return _u
+}
+
+// SetPasswordSetAt sets the "password_set_at" field.
+func (_u *UserUpdateOne) SetPasswordSetAt(v time.Time) *UserUpdateOne {
+	_u.mutation.SetPasswordSetAt(v)
+	return _u
+}
+
+// SetNillablePasswordSetAt sets the "password_set_at" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillablePasswordSetAt(v *time.Time) *UserUpdateOne {
+	if v != nil {
+		_u.SetPasswordSetAt(*v)
+	}
+	return _u
+}
+
+// ClearPasswordSetAt clears the value of the "password_set_at" field.
+func (_u *UserUpdateOne) ClearPasswordSetAt() *UserUpdateOne {
+	_u.mutation.ClearPasswordSetAt()
 	return _u
 }
 
@@ -608,6 +751,21 @@ func (_u *UserUpdateOne) AddRoles(v ...*UserRole) *UserUpdateOne {
 	return _u.AddRoleIDs(ids...)
 }
 
+// AddExternalIdentityIDs adds the "external_identities" edge to the ExternalIdentity entity by IDs.
+func (_u *UserUpdateOne) AddExternalIdentityIDs(ids ...uuid.UUID) *UserUpdateOne {
+	_u.mutation.AddExternalIdentityIDs(ids...)
+	return _u
+}
+
+// AddExternalIdentities adds the "external_identities" edges to the ExternalIdentity entity.
+func (_u *UserUpdateOne) AddExternalIdentities(v ...*ExternalIdentity) *UserUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddExternalIdentityIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -632,6 +790,27 @@ func (_u *UserUpdateOne) RemoveRoles(v ...*UserRole) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveRoleIDs(ids...)
+}
+
+// ClearExternalIdentities clears all "external_identities" edges to the ExternalIdentity entity.
+func (_u *UserUpdateOne) ClearExternalIdentities() *UserUpdateOne {
+	_u.mutation.ClearExternalIdentities()
+	return _u
+}
+
+// RemoveExternalIdentityIDs removes the "external_identities" edge to ExternalIdentity entities by IDs.
+func (_u *UserUpdateOne) RemoveExternalIdentityIDs(ids ...uuid.UUID) *UserUpdateOne {
+	_u.mutation.RemoveExternalIdentityIDs(ids...)
+	return _u
+}
+
+// RemoveExternalIdentities removes "external_identities" edges to ExternalIdentity entities.
+func (_u *UserUpdateOne) RemoveExternalIdentities(v ...*ExternalIdentity) *UserUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveExternalIdentityIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -741,6 +920,15 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	if value, ok := _u.mutation.PasswordHash(); ok {
 		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
 	}
+	if _u.mutation.PasswordHashCleared() {
+		_spec.ClearField(user.FieldPasswordHash, field.TypeString)
+	}
+	if value, ok := _u.mutation.PasswordSetAt(); ok {
+		_spec.SetField(user.FieldPasswordSetAt, field.TypeTime, value)
+	}
+	if _u.mutation.PasswordSetAtCleared() {
+		_spec.ClearField(user.FieldPasswordSetAt, field.TypeTime)
+	}
 	if value, ok := _u.mutation.DisplayName(); ok {
 		_spec.SetField(user.FieldDisplayName, field.TypeString, value)
 	}
@@ -815,6 +1003,51 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(userrole.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ExternalIdentitiesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ExternalIdentitiesTable,
+			Columns: []string{user.ExternalIdentitiesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(externalidentity.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedExternalIdentitiesIDs(); len(nodes) > 0 && !_u.mutation.ExternalIdentitiesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ExternalIdentitiesTable,
+			Columns: []string{user.ExternalIdentitiesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(externalidentity.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ExternalIdentitiesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ExternalIdentitiesTable,
+			Columns: []string{user.ExternalIdentitiesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(externalidentity.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

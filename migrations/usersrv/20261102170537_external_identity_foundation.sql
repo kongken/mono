@@ -1,0 +1,10 @@
+-- Modify "users" table
+ALTER TABLE "users" ALTER COLUMN "password_hash" DROP NOT NULL, ADD COLUMN "password_set_at" timestamptz NULL;
+-- Create "external_identities" table
+CREATE TABLE "external_identities" ("id" uuid NOT NULL, "provider" character varying NOT NULL, "issuer" character varying NOT NULL, "subject" character varying NOT NULL, "email_snapshot" character varying NULL, "email_verified_at" timestamptz NULL, "display_name_snapshot" character varying NULL, "avatar_url_snapshot" character varying NULL, "linked_at" timestamptz NOT NULL, "last_authenticated_at" timestamptz NOT NULL, "updated_at" timestamptz NOT NULL, "user_id" uuid NOT NULL, PRIMARY KEY ("id"), CONSTRAINT "external_identities_users_user" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, CONSTRAINT "external_identities_issuer" CHECK ((((provider)::text = 'google'::text) AND ((issuer)::text = 'https://accounts.google.com'::text)) OR (((provider)::text = 'github'::text) AND ((issuer)::text = 'https://github.com'::text))), CONSTRAINT "external_identities_provider" CHECK ((provider)::text = ANY ((ARRAY['google'::character varying, 'github'::character varying])::text[])), CONSTRAINT "external_identities_subject" CHECK (((char_length((subject)::text) >= 1) AND (char_length((subject)::text) <= 255)) AND (((provider)::text <> 'github'::text) OR ((subject)::text ~ '^[1-9][0-9]*$'::text))));
+-- Create index "externalidentity_provider_issuer_subject" to table: "external_identities"
+CREATE UNIQUE INDEX "externalidentity_provider_issuer_subject" ON "external_identities" ("provider", "issuer", "subject");
+-- Create index "externalidentity_user_id_linked_at_id" to table: "external_identities"
+CREATE INDEX "externalidentity_user_id_linked_at_id" ON "external_identities" ("user_id", "linked_at", "id");
+-- Create index "externalidentity_user_id_provider" to table: "external_identities"
+CREATE UNIQUE INDEX "externalidentity_user_id_provider" ON "external_identities" ("user_id", "provider");

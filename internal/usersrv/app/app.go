@@ -23,6 +23,7 @@ import (
 	"github.com/kongken/mono/internal/usersrv/application"
 	"github.com/kongken/mono/internal/usersrv/config"
 	"github.com/kongken/mono/internal/usersrv/ent"
+	"github.com/kongken/mono/internal/usersrv/externalprovider"
 	"github.com/kongken/mono/internal/usersrv/mailer"
 	"github.com/kongken/mono/internal/usersrv/outbox"
 	"github.com/kongken/mono/internal/usersrv/passwordhash"
@@ -45,6 +46,9 @@ type Resources struct {
 	Accounts *account.Service
 	Limiter  application.Limiter
 	Limits   application.Limits
+	// ExternalProviders verify provider proofs only. They have no readiness
+	// probe or background worker and are not yet exposed through RPCs.
+	ExternalProviders map[externalprovider.ProviderName]externalprovider.ExternalProvider
 	// Mail is the outbox that issues challenges and delivers their mail; MailGuard
 	// applies the account mail limits. Both are nil only in tests that do not use mail.
 	Mail      *outbox.Service
@@ -87,6 +91,10 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 	if err := h.cfg.Validate(); err != nil {
 		return err
 	}
+	providers, err := buildExternalProviders(h.cfg.Auth, nil)
+	if err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	hashCfg, err := h.cfg.Auth.PasswordHash.Resolve()
@@ -127,7 +135,7 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 	}
 	client := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, db)))
 	if h.cfg.AutoMigrate {
-		if err := client.Schema.Create(ctx); err != nil {
+		if err := migrateSchema(ctx, client); err != nil {
 			_ = client.Close()
 			return fmt.Errorf("ent migration: %w", err)
 		}
@@ -153,6 +161,17 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 		_ = client.Close()
 		return err
 	}
+	res.ExternalProviders = providers
+	codec, err := mail.ProofCipher(h.cfg.Auth.External.ProofKeyID)
+	if err != nil {
+		_ = client.Close()
+		return err
+	}
+	policies := map[externalprovider.ProviderName]account.ProviderPolicy{}
+	for name, p := range h.cfg.Auth.External.Providers {
+		policies[externalprovider.ProviderName(name)] = account.ProviderPolicy{Enabled: h.cfg.Auth.External.ProviderEnabled(name), ConfigVersion: p.ConfigVersion, RedirectURI: p.RedirectURI}
+	}
+	res.Accounts.ConfigureExternal(account.ExternalSettings{Providers: providers, Policies: policies, Codec: codec})
 	h.resources.Store(res)
 	for _, w := range res.Workers {
 		w.Start()
@@ -261,6 +280,7 @@ func NewResources(db *ent.Client, hasher *passwordhash.Hasher, rdb redis.Univers
 		probes = append(probes, health.Probe{Name: "mail_outbox", Check: sender.Check})
 		res.Mail, res.MailGuard = o.mail, guard
 		accounts.SetMail(AccountMail(o.mail, guard))
+		accounts.SetSecurityMail(outboxMail{o.mail})
 		res.Workers = append(res.Workers, sender)
 	}
 	res.Health = health.New(probes...)

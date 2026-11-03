@@ -1,10 +1,32 @@
 # usersrv 自建用户系统规格
 
+> **第三方登录扩展（基础层已实现，完整流程待实现）：** S1 的 [ADR 0001](../adr/0001-third-party-auth-contract.md) 已通过复审；KON-38（S2）加入可空密码、`password_set_at`、外部身份表/双唯一约束/级联删除、增量迁移、独立 provider 配置校验、内部 `has_password` 字段与基础身份消息/错误映射。NULL 哈希的密码认证中性失败，现有邮箱 reset 可首次设密；新注册/改密/reset 写入设密时间，历史账号不回填假时间。Google/GitHub adapter 的后续实现见下方 S3a/S3b 登记；KON-41 的 usersrv 挑战/事务/通知见下方 S3c 登记，BFF S4 已实现、待复审，OzID UI 仍待后续阶段实现。两 provider 默认关闭，默认配置不提供第三方登录或公网创建无密码账号，未部署或进行真实厂商冒烟。下述 P1–P6 为原邮箱＋密码阶段登记。
+
+> 扩展复用独立的 `auth.registration_enabled`（现有默认 `true`），关闭仅禁止新建账号，已有身份登录与已有账号主动绑定仍可用；外部全局/provider 开关默认 `false`。Start/Complete/Link 行为矩阵、错误映射及最终建号事务再次检查见 [ADR 0001 §6](../adr/0001-third-party-auth-contract.md#6-配置与发布边界)，usersrv 核心和 BFF S4 已实现当前服务端部分，完整 OzID UI/操作面仍待后续。
+
+> S2 迁移为 `migrations/usersrv/20261102170537_external_identity_foundation.sql`；保留原 UUID、邮箱、哈希、角色、状态、版本及业务归属。兼容版本可读 NULL；有首个无密码账号后禁止回退只接受非空哈希的旧版本、恢复 NOT NULL 或补随机密码。升级/回滚边界以 ADR §7–8 为准，实施配置与接口见[后端说明](../backend.md#usersrv-服务账号核心p1)。
+
+> S2 本地验证：隔离 PostgreSQL 17.11 / Redis 7.2.5 下，usersrv 迁移/约束/并发、账号及签名 gRPC 测试通过；旧账号升级保留原哈希/UUID/角色/版本，NULL 密码账号的登录/重新认证/改密中性拒绝，邮件首次设密后版本提升且绑定保留。相关包 `go test -race`、`go vet`、`make test`、`make build`、模块边界、文档检查通过；`make test` 设置了 `USERSRV_TEST_*`，其他业务所需的 PostgreSQL/Redis/S3 环境未提供，相应集成场景跳过。Node 24 下 trip-map、OzID、admin、metro 构建通过。改动协议的 `buf lint` 及对 S1 的 `buf breaking` 通过；全仓 lint 的 32 条管理 RPC 消息复用/命名错误与 S1 完全一致，未在本票重命名历史协议。A01–A21 的完整第三方流程、真实厂商及真实邮件验收仍未完成。
+
+> **Google adapter（KON-39，S3a）已通过复审（`05c8b66`）：** S2 提交 `8dae623` 已通过复审；新增 provider-neutral interface 和独立 Google OIDC 模块，固定官方端点、授权码/S256/nonce、RS256/JWKS、issuer/audience/azp/时效及邮箱信任规则，Bootstrap 离线装配，配置仍默认关闭。最小身份结果不包含 token，也不写账号/绑定/会话；本地 TLS 假 provider contract tests 覆盖正反例及缓存轮换/并发。持久挑战、注册/绑定事务、通知和 BFF/OzID 流程仍待后续票实现；完整行为与验证层次见[后端说明](../backend.md#usersrv-服务账号核心p1)。
+
+> S3a 验证：本地 provider contract tests 和相关 usersrv/BFF 包 `go test -race`、`go vet`、全仓 `make test`、`make build`、模块边界、文档及差异检查通过；纯本地 TLS 假服务，不连接真实 Google。此阶段没有 schema/proto/前端改动，无新生成物；未提供数据库/Redis/S3 环境，依赖它们的既有集成场景跳过，S2 的真实库证据单列在上方。所有开关仍默认关闭，未部署或执行真实厂商冒烟；adapter 的 nonce 比较及假 provider 单次 code 测试不能替代后续持久挑战的跨实例重放验收。
+
+> **GitHub adapter（KON-40，S3b）已通过复审（`3fe64af`）：** 固定官方授权码/PKCE、本人与最小 `user:email` 读取，稳定数字 ID 不经浮点转换，邮箱只能取唯一的已验证可投递主地址。noreply/缺失/未验证/非法邮箱按 ADR §1.3 中性失败，转现有邮箱注册或登录后绑定，不新增原 A02 补填分支；有效候选一律仍需后续 OzID 邮件确认。总调用 10 秒、响应 64 KiB、最多 5 页邮箱、无重定向/重试，启动离线且两 provider 独立启停。无外部 RPC/账号/会话写入。详细规则和官方协议来源见[后端说明](../backend.md#usersrv-服务账号核心p1)。
+
+> S3b 验证：本地 TLS 假 OAuth/user/email contract tests、相关包 race/vet、全仓 `make test`/`make build`、模块边界和文档检查通过；覆盖错误/跨 provider/重放 code、原 PKCE、数字 ID、邮箱矩阵/分页、限流/故障/取消及脱敏，并回归 Google。无 schema/proto/前端变更，无新生成物；既有数据库/Redis/S3 集成场景仍因未提供环境跳过，不能替代后续全链路或真实厂商冒烟。两 provider 默认关闭，未部署；S3b 已通过独立复审，后续 S3c 状态见下方。
+
+> **usersrv 安全核心（KON-41，S3c）已实现并通过独立复审：** 新增 auth challenge/操作回执/通知事件表及 Ent 生成物、前向迁移、内部 `ExternalIdentityService` 和 Go/Connect/TypeScript 生成物。实现短事务 code 抢占、加密最小证明、用途/flow/context/会话/版本绑定、邮件交接及撤销旧证明、原浏览器最终注册/绑定/解绑、最后凭据保护、auth_version、幂等回执和原子审计/通知 outbox；首次设密复用 reset，新增安全通知。无密码注销需本操作邮件和“注销”确认词，旧 BeginDeletion 不能绕过。邮件确认和 Get 均不直接修改账号或签发会话；注册门禁在最终事务复核，关闭等待已准入事务排空。内部 RPC 均经过 BFF 方法绑定签名，用户只取 sub，不接受请求体用户 ID。
+
+> S3c 证据与限制：隔离 PostgreSQL 17.11/Redis 7.2.5、本地 TLS 假 GitHub/邮件及真实签名 gRPC 验证了原子性、并发锁序、重放、邮件交接、故障回滚与限流；测试明细、两份迁移、CHECK 扩展和回滚边界见[后端说明](../backend.md#usersrv-服务账号核心p1)。两 provider 仍默认关闭；BFF OAuth state/callback/会话建立与浏览器验证由下方 KON-42 登记；OzID 页面和完整操作面仍待后续票，A04–A14/A17–A18 仅覆盖当前 usersrv 层，不宣称整条验收已完成。未部署、未做真实厂商冒烟，S3c 已通过复审；S4 完成后仍须独立审查再继续。
+
 > **后续扩展（部分已实现）：** [OzID 与统一管理控制台规格](../ozid/spec.md) 在本版 usersrv 基础上增加独立用户中心、独立统一管理前端、`ozid-admin` 与受限网页用户管理、集中邮件/导航及管理 IP 防护。其中 T1–T5 已实现（`ozid-admin`、`UserAdminService`、平台管理员的注销保护、管理周界、普通账号状态与 `metro-admin` 的受限修改，见[控制台功能描述](../admin/features.md)）；OzID 网页注销页、产品入口收敛与集中账号写的来源收紧（T12）也已实现，见[整体验收](../ozid/acceptance.md)。本文“首版不做”的独立前端与网页管理是历史范围，不限制后续扩展；P1–P6 已实现状态保持不变。OIDC、MFA 和修改邮箱仍不在新规格首版范围内。
 
-> **状态：P1–P6 已全部实现并在本地验证（见[验证状态](#验证状态)）；正式环境开放前仍须由运维完成真实邮件厂商的手动冒烟与按需的手动退役步骤。** BFF 已接入 `usersrv`（经内部 gRPC 完成注册、登录、改密码、注销、每请求认证状态与角色），运行时已没有 Logto/OAuth 代码；两个前端有邮箱登录、注册、找回密码与账号设置；usersrv 有镜像、CI 发布矩阵与部署示例，退役对象与手动清理步骤见 [Logto 退役与手动清理](retirement.md)。没有任何真实邮件厂商被实测，不得把 fake adapter 测试说成生产已验证。
+> **状态：P1–P6 已全部实现并在本地验证（见[验证状态](#验证状态)）；正式环境开放前仍须由运维完成真实邮件厂商的手动冒烟与按需的手动退役步骤。** BFF 已接入 `usersrv`（经内部 gRPC 完成注册、登录、改密码、注销、每请求认证状态与角色），原 Logto/OAuth 入口已退役；新第三方流程按上方 S4 登记；两个前端有邮箱登录、注册、找回密码与账号设置；usersrv 有镜像、CI 发布矩阵与部署示例，退役对象与手动清理步骤见 [Logto 退役与手动清理](retirement.md)。没有任何真实邮件厂商被实测，不得把 fake adapter 测试说成生产已验证。
 >
 > 规格与评审：[GitHub Issue #75](https://github.com/kongken/mono/issues/75)。本文是实现规格的仓库副本，评审修改同步到该 Issue。具体安全参数、流程细节及交付拆分是本规格提出的工程默认值，不代表用户逐项确认；第 1 节单列已确认要求。实现后同步各产品的当前行为文档，并在本文逐阶段登记状态。
+
+> **BFF S4（KON-42）已实现、待独立复审：** 原浏览器独立 flow/HttpOnly Cookie、加密 PKCE/nonce、固定 callback、单次 state CAS、login/link 意图与会话代次绑定、注册邮件交接/最终提交及无密码会话已接入签名 usersrv RPC。已有身份用稳定 UUID 登录；pending/邮件确认不建号，同邮箱不合并，注册最终事务再次检查开关。创建回执重试不签发会话；外部登录的近期密码时间为空，管理门槛保持。新邮件 fragment 携带非凭据 challenge ID 以支持另一设备显式确认；不改变原 token purpose。配置、BFF 迁移、真实库/Chromium 测试和限制见 [BFF S4](../bff.md#第三方浏览器流程kon-42--s4)。默认关闭、无真实厂商/部署冒烟；完整绑定解绑操作面和 OzID UI 尚待后续，不宣称全部 A01–A21 已验收。
 
 ## 实现状态登记
 
@@ -23,7 +45,7 @@
 
 - **镜像与发布**：`deploy/usersrv/Dockerfile`（只复制 usersrv 相关目录，构建阶段跑这些包的 Go 单元测试，产出 `/usersrv` 与 `/usersrv-admin`，distroless 运行层）；`docker-publish.yml` 的矩阵加入 `usersrv`；`make test-integration` 现在同时设置 `USERSRV_TEST_*`（没有它们，真实账号链整体跳过）。
 - **部署示例**：`deploy/compose.stack.example.yaml` 增加 `usersrv` 服务与 `deploy/postgres/init-databases.sql`（三个独立库）；`deploy/k8s/secrets.layout.example.yaml` 增加 `usersrv-tls`、`usersrv-keys`、`usersrv-mail`；Nginx 模板与 Caddy 示例对 `/auth/` 返回 404。
-- **Logto 退役**：运行时没有任何 Logto/OAuth 入口、配置、依赖或废弃 RPC；`/auth/login`、`/auth/callback/*`、`/auth/logout`、`/api/auth/login` 返回 404（无重定向、无 Cookie），旧 RPC 不存在（`internal/e2e/logto_retired_chain_test.go`）。仓库里仍出现这些词的地方只有：已应用的历史迁移与 `atlas.sum`、退役文档与脚本、本规格、断言“界面没有 Logto/OAuth 文案”的负向测试，以及清除浏览器里 `shanhai-oauth-pending-v1` 旧键的一行。旧表、旧 Redis OAuth state、旧测试数据与 S3 对象的清理**全部手动**，范围写在退役文档里；没有任何自动 DROP 或清库。
+- **Logto 退役**：原 Logto/OAuth 入口、配置、依赖与废弃 RPC 均已删除；S4 的新固定第三方回调独立实现；`/auth/login`、`/auth/callback/*`、`/auth/logout`、`/api/auth/login` 返回 404（无重定向、无 Cookie），旧 RPC 不存在（`internal/e2e/logto_retired_chain_test.go`）。仓库里仍出现这些词的地方只有：已应用的历史迁移与 `atlas.sum`、退役文档与脚本、本规格、断言“界面没有 Logto/OAuth 文案”的负向测试，以及清除浏览器里 `shanhai-oauth-pending-v1` 旧键的一行。旧表、旧 Redis OAuth state、旧测试数据与 S3 对象的清理**全部手动**，范围写在退役文档里；没有任何自动 DROP 或清库。
 - **产品**：trip-map 全屏的“无法加载云端足迹”页在会话失效且本地没有缓存时提供重新登录入口（此前只有导出与重试）；T10 起该入口是前往 OzID 的按钮，产品里不再有登录表单。
 - **文档**：§15 列出的文档已同步，旧的 Logto 当前行为改为历史说明；[邮件冒烟说明](mail-smoke-test.md)改为适用于已集成的栈。
 

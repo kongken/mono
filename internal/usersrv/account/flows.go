@@ -122,11 +122,20 @@ type MailGuard interface {
 // SetMail installs the outbox and its limits. Without them the request methods
 // answer ErrUnavailable: usersrv must not look able to register users while no
 // mail can leave.
-func (s *Service) SetMail(m Mail, g MailGuard) { s.mail, s.guard = m, g }
+func (s *Service) SetMail(m Mail, g MailGuard) {
+	s.mail, s.guard = m, g
+	if security, ok := m.(SecurityMail); ok {
+		s.securityMail = security
+	}
+}
 
 // SetRegistrationOpen switches new sign-ups on or off (auth.registration_enabled).
 // It never affects login, password reset or any existing account.
-func (s *Service) SetRegistrationOpen(open bool) { s.registrationClosed = !open }
+func (s *Service) SetRegistrationOpen(open bool) {
+	s.admissionMu.Lock()
+	defer s.admissionMu.Unlock()
+	s.registrationClosed.Store(!open)
+}
 
 // mailReady returns ErrUnavailable until SetMail was called.
 func (s *Service) mailReady() error {
@@ -164,10 +173,12 @@ func (s *Service) admit(ctx context.Context, purpose MailPurpose, email, clientI
 // limits or the mail is revealed. The password is not part of this step, no
 // user is created and no session exists.
 func (s *Service) RequestRegistration(ctx context.Context, email string, ret ReturnContext, clientIP, requestID string) error {
+	s.admissionMu.RLock()
+	defer s.admissionMu.RUnlock()
 	if err := s.mailReady(); err != nil {
 		return err
 	}
-	if s.registrationClosed {
+	if s.registrationClosed.Load() {
 		return ErrRegistrationClosed
 	}
 	canonical, err := identity.NormalizeEmail(email)
@@ -209,7 +220,9 @@ func (s *Service) RequestRegistration(ctx context.Context, email string, ret Ret
 // violation on the email is treated like any other lost race. It does not
 // sign anybody in.
 func (s *Service) CompleteRegistration(ctx context.Context, token, password, displayName, requestID string) (uuid.UUID, ReturnContext, error) {
-	if s.registrationClosed {
+	s.admissionMu.RLock()
+	defer s.admissionMu.RUnlock()
+	if s.registrationClosed.Load() {
 		return uuid.Nil, ReturnContext{}, ErrRegistrationClosed
 	}
 	// Policy checks do not depend on the token, so they reveal nothing about it.
@@ -274,7 +287,7 @@ func (s *Service) CompleteRegistration(ctx context.Context, token, password, dis
 		}
 		ret = returnOf(own)
 		if err = tx.User.Create().SetID(id).SetEmailCanonical(own.EmailCanonical).SetEmailVerifiedAt(now).
-			SetPasswordHash(hash).SetDisplayName(name).Exec(ctx); err != nil {
+			SetPasswordHash(hash).SetPasswordSetAt(now).SetDisplayName(name).Exec(ctx); err != nil {
 			return err
 		}
 		if _, err = tx.AccountToken.Update().Where(accounttoken.IDIn(ids...), accounttoken.ConsumedAtIsNil()).
@@ -400,7 +413,7 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword, request
 		}
 		ret = returnOf(t)
 		if _, err = tx.User.UpdateOneID(userID).Where(user.AuthVersion(issued), user.StatusEQ(user.StatusActive)).
-			SetPasswordHash(hash).AddAuthVersion(1).Save(ctx); err != nil {
+			SetPasswordHash(hash).SetPasswordSetAt(now).AddAuthVersion(1).Save(ctx); err != nil {
 			if ent.IsNotFound(err) {
 				return ErrTokenInvalid
 			}
@@ -416,6 +429,17 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword, request
 		}
 		if err = s.cancelPendingJobs(ctx, tx, ids, "challenge_consumed"); err != nil {
 			return err
+		}
+		if u.PasswordHash == nil {
+			if err = s.notify(ctx, tx, u, "reset_token", t.ID, "password_set_first"); err != nil {
+				return err
+			}
+			if err = s.audit(ctx, tx, auditEntry{userID: &userID, actor: userActor(userID), action: "password.set_first", requestID: requestID, result: "ok"}); err != nil {
+				return err
+			}
+			if err = s.audit(ctx, tx, auditEntry{userID: &userID, actor: userActor(userID), action: "account.recovery", requestID: requestID, result: "ok"}); err != nil {
+				return err
+			}
 		}
 		return s.audit(ctx, tx, auditEntry{userID: &userID, actor: userActor(userID), action: "password.reset", requestID: requestID, result: "ok"})
 	})

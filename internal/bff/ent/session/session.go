@@ -27,6 +27,10 @@ const (
 	FieldRevoked = "revoked"
 	// FieldAuthVersion holds the string denoting the auth_version field in the database.
 	FieldAuthVersion = "auth_version"
+	// FieldBrowserContextID holds the string denoting the browser_context_id field in the database.
+	FieldBrowserContextID = "browser_context_id"
+	// FieldBrowserGeneration holds the string denoting the browser_generation field in the database.
+	FieldBrowserGeneration = "browser_generation"
 	// FieldAuthenticatedAt holds the string denoting the authenticated_at field in the database.
 	FieldAuthenticatedAt = "authenticated_at"
 	// Table holds the table name of the session in the database.
@@ -43,6 +47,8 @@ var Columns = []string{
 	FieldLastUsedAt,
 	FieldRevoked,
 	FieldAuthVersion,
+	FieldBrowserContextID,
+	FieldBrowserGeneration,
 	FieldAuthenticatedAt,
 }
 
@@ -112,6 +118,16 @@ func ByRevoked(opts ...sql.OrderTermOption) OrderOption {
 // ByAuthVersion orders the results by the auth_version field.
 func ByAuthVersion(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAuthVersion, opts...).ToFunc()
+}
+
+// ByBrowserContextID orders the results by the browser_context_id field.
+func ByBrowserContextID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBrowserContextID, opts...).ToFunc()
+}
+
+// ByBrowserGeneration orders the results by the browser_generation field.
+func ByBrowserGeneration(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBrowserGeneration, opts...).ToFunc()
 }
 
 // ByAuthenticatedAt orders the results by the authenticated_at field.

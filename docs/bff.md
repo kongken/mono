@@ -1,5 +1,23 @@
 # BFF（公网入口）
 
+## 第三方浏览器流程（KON-42 / S4）
+
+已实现、待独立复审：新增 `bff.v1.ExternalAuthService`，由 OzID 的精确 Origin 调用；Start、邮件申请/确认、最终注册均要求现有 CSRF，Get 只读仍要求 OzID Origin 和原浏览器证明。默认关闭；完整 OzID UI、绑定/解绑与能力接口属于后续 KON-43 等阶段，不能把当前后端接口当作已上线的第三方入口。冻结契约见 [ADR 0001](adr/0001-third-party-auth-contract.md)。
+
+- `IssueCSRFToken` 在外部功能启用时同时设置独立 HttpOnly 浏览器上下文 Cookie；浏览器须先接收它，再发起 Start。每次 Start 生成独立 flow/state、随机 HttpOnly flow Cookie、S256 verifier 和 Google nonce；只接受 `google/github`、`login/link`，Link 必须有当前有效会话。导航先由现有注册表规范化，usersrv Begin 成功后保存 BFF 状态，再返回固定官方授权 URL。Start 不读取或缓存注册开关。
+- `oauth_browser_states` 保存 state/浏览器摘要、意图、原 session/user/auth_version、浏览器代次、usersrv challenge/config version/context、规范 app/path 与期限。verifier/nonce 仅以 AES-256-GCM 加密保存，AAD 绑定 flow ID、key ID、context，回调抢占时先擦除密文。新 `auth_browser_contexts` 让同浏览器标签页的登录/退出推进代次；新会话绑定代次，每请求检查，再调用 usersrv `GetAuthState`。升级前无此字段的有效密码会话保留原规则。 外部功能启用后的密码登录也须先接收浏览器上下文（现有 IssueCSRFToken 完成），在 usersrv 验证前后核对同一代次；成功切换时只撤销本次被替换的原会话。
+- 固定 GET 回调只有 `/api/identity/callback/google` 与 `/api/identity/callback/github`，在 gateway 清单登记并脱敏 tracing；不接受客户端身份、邮箱、角色、return URL。校验 state、provider、期限、flow Cookie、启动浏览器代次和原会话；原子 CAS 消费一次，取消和畸形响应也终结合法流程。跨浏览器或错 provider 不消费原流程。回调结果丢失不能重兑 code，必须重新授权。
+- 回调与所有外部 RPC（包括错误）均 `no-store` / `no-referrer`。离开回调时只重定向到固定 OzID `/account/external`，URL 仅有非凭据 flow 引用及固定错误分类；原 code/state 不交 SPA。pending 不创建用户或会话；已有身份返回的 UUID/auth_version 经即时复核，代次仍匹配才建立新会话。Link 只产生 `link_pending`，不替换当前账号或会话。
+- `GetExternalFlow` 只读候选资料/邮箱确认状态及再次解析的安全 return URL。GitHub/非权威 Google 地址要用 OzID 邮件确认；其他设备可 POST 邮件 token，但最终建号只能由原浏览器显式提交。邮件 fragment 为 `#token=…&challenge_id=…`；challenge ID 不是凭据。最终 usersrv 事务再次检查注册与 provider 开关；同邮箱冲突保持中性且不合并。注册关闭仍允许已有身份登录与已有账号启动 Link。
+- BFF 为最终提交保存独立 claim/请求摘要。第一次确定成功才可建立一条会话；usersrv 创建回执本身不能签发会话。RPC 结果丢失或 BFF 会话写失败时，已提交账号保留、原会话保留；相同原浏览器/请求重试只回报结果并返回 `login_required=true`，再授权登录到同一 UUID。确定的校验/事务拒绝允许修改后再次显式提交。
+- 外部会话的 `authenticated_at` 保持 NULL；读取会话不再回退到创建时间，`Me` 省略此时间。只有真实密码登录/重新认证写入密码认证时间。管理员、MCP token 创建、角色/IP/Origin/CSRF 门槛继续沿用现有检查。迟到结果不升级旧代次，即使浏览器晚收到旧 Cookie，旧会话也不能恢复成有效身份。失败不清理其他 flow、现有会话或注销恢复 Cookie；flow Cookie 自己到期，维护任务每 30 秒清理过期状态和密文。
+
+配置 `auth.external`：`enabled=false`，`providers.google=false`、`providers.github=false`；`provider_config_versions` 各默认 1，须与 usersrv 代次同步（加入 context 摘要并校验 Begin 返回值）；`state_ttl=15m`、`confirmation_ttl=10m`（可缩短，不能超过 usersrv 固定上限）。`state_encryption_key_id` 指向 `state_encryption_key_files` 中的 Secret 文件，每个文件是 32 随机字节的 base64。旧 key 必须保留到对应未消费状态过期；启动 preflight 拒绝缺少活跃状态 key。BFF 不持有 OAuth client secret，注册开关仍只在 usersrv。禁用 provider 不影响已有会话/绑定。配置是启动快照，收紧 usersrv 配置时仍须排空所有旧实例。
+
+迁移先应用 `migrations/bff/20261102192322_external_browser_flows.sql`（Ent、索引、约束和 atlas.sum 一起提交），再部署代码；`auto_migrate=false` 不会代替生产迁移。readiness 继续依赖 BFF PostgreSQL、Redis 与签名 usersrv RPC，不探测真实 provider，单个 provider 故障不降级密码登录。
+
+验证入口：`internal/e2e/external_auth_chain_test.go` 使用真实 PostgreSQL/Redis/BFF/签名 usersrv RPC、内存假 provider 和捕获邮件，覆盖 A01–A05/A08/A15–A16/A18–A19 的当前 BFF 部分；adapter 加密协议仍由本地 OIDC/JWKS/GitHub HTTP contract tests 验证。`EXTERNAL_BROWSER_E2E=1` 配合 `TRIPMAP_TEST_*`、`USERSRV_TEST_*` 运行 `go test ./internal/e2e -run '^TestExternal' -count=1`，额外通过 Playwright 驱动真实 Chromium（需安装 Chromium 与 npm 依赖；不联系真实厂商）。完整设置 UI、真实厂商/真实邮件与上线验收仍待后续。
+
 > **后续方案：** [OzID 与统一管理控制台规格](ozid/spec.md) 规划统一用户中心、独立管理前端、配置化域名/导航、网页用户管理、集中账号写来源及浏览器/MCP 两类 IP 白名单。其中 T1（统一登录、重新认证与安全返回）、T2（统一注册验证与密码重置邮件）、T3（账号资料、密码与设备会话页面）、T4（独立管理控制台、`ozid-admin` 与只读用户查询、管理 IP 周界）、T5/T6（账号状态与角色修改、安全与审计查询）、T7（OzID 网页注销页与失败恢复）和 T8（metro 管理功能迁入控制台、metro 管理接口与管理令牌接口进入管理周界）已实现，见[导航注册表与 `ResolveNavigation`](#导航注册表与-resolvenavigation-ozid-t1)、[管理周界与用户查询](#管理周界与用户查询ozid-t4)、[OzID 功能描述](ozid/features.md) 和[控制台功能描述](admin/features.md)；其余（集中账号写来源、MCP 的独立 IP 白名单、产品入口收敛）仍待实现，不代表这些新防护或入口已生效。
 
 一个仓库承载多个业务时，BFF（`cmd/bff`）是唯一的公网入口，统一处理跨域、客户端地址、请求生命周期和追踪脱敏。业务服务只在内网监听。当前有 tripmap（山海足迹）和 metro（地铁足迹，可选）两个业务。
@@ -11,7 +29,9 @@
 **当前已实现**
 
 - `bff.tripmap.v1.StatusService/GetStatus`（匿名）→ `tripmap.v1.SystemService/GetStatus`。
-- `bff.v1.AuthService`（账号与会话）与 `bff.v1.UserService`：BFF 不保存密码，也不再有任何第三方登录。注册、登录、找回/重置密码、改密码、资料与注销都经内部 gRPC 调用 usersrv（`usersrv.v1.AccountService`），BFF 自己只负责浏览器会话、CSRF、入口策略和注销工作流。详见下文「账号、会话与注销（P4）」。
+- `bff.v1.AuthService`（账号与会话）与 `bff.v1.UserService`：BFF 不保存密码；第三方浏览器流程见上方 S4 登记。注册、登录、找回/重置密码、改密码、资料与注销都经内部 gRPC 调用 usersrv（`usersrv.v1.AccountService`），BFF 自己只负责浏览器会话、CSRF、入口策略和注销工作流。详见下文「账号、会话与注销（P4）」。
+
+KON-38 仅为后续第三方登录加入 usersrv 基础模型和内部契约。`internal/bff/usersrv` 经生成消息接收 `has_password`，并识别受信 usersrv 的 `PROVIDER_REJECTED` 中性错误；此基础提交未改变浏览器入口；S4 新增 callback/会话，密码认证与管理门槛保持。BFF 不 import `internal/usersrv`，provider 密钥只在 usersrv，浏览器入口的当前实现和后续 UI 边界见上方 S4 登记。
 - `bff.v1` 的 RPC：`RequestRegistration`、`CompleteRegistration`、`LoginWithEmail`、`RequestPasswordReset`、`ResetPassword`（匿名）；`Me`、`ListSessions`、`Logout`、`RevokeSession`、`RevokeOtherSessions`、`Reauthenticate`、`ChangePassword`、`UpdateMyProfile`、`DeleteAccount`、`GetAccountDeletion`、`RetryAccountDeletion`（登录后）。旧的 Register/Login/OAuth RPC 已从契约删除，字段编号用 protobuf `reserved` 保留。
 - usersrv 已登记为上游服务（`gateway.Services`，`upstreams.usersrv`、`grpc.services.usersrv`），是必需的：不配置则启动失败。`/readyz` 增加 `usersrv_grpc`。
 - `bff.tripmap.v1.FootprintService`（读、增量、批量 sync、单条写）→ tripmap gRPC `FootprintService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`SyncChanges` 登记为 25 秒重任务；Connect 读上限 `grpcx.LegitimatePayloadBytes`（16 MiB），内部 gRPC 默认 20 MiB。tripmap 的展示投影（用户 ID、昵称、头像）在首次调用 `bff.tripmap.v1.*` 时由 BFF 按需确保：读 usersrv 的账号后调用 `ProfileService/EnsureProfile`，并在 Redis 记下已投影的 `profile_version`（24 小时），昵称或头像变化后下一次调用重新投影；Redis 故障不致命，只多做一次幂等调用。投影只含用户 ID、昵称、头像，不含邮箱。
@@ -234,7 +254,7 @@ BFF 共用账号、会话、CSRF 与入口策略（`bff.v1.AuthService`、`inter
 
 ## 当前限制（多产品）
 
-- 会话/CSRF/注销恢复 Cookie **默认** host-only（无 `Domain`），通常所有前端直连同一个 BFF origin；显式共享 Domain 见下节。不承诺跨根域、第三方 Cookie 或 OIDC。各前端代理到同一 BFF 本身不等于共享会话。
+- 会话/CSRF/注销恢复 Cookie **默认** host-only（无 `Domain`），通常所有前端直连同一个 BFF origin；显式共享 Domain 见下节。不承诺跨根域或第三方 Cookie；外部 provider 使用顶层跳转和同站 BFF 会话。各前端代理到同一 BFF 本身不等于共享会话。
 - `bff.tripmap.v1.StatusService` 的响应带有山海足迹专有字段（`footprint_schema`、`share_enabled`、`region_version`），是产品级状态，不是通用健康检查。
 
 ### 可选共享 Cookie Domain
@@ -284,7 +304,7 @@ auth:
 
 **重试工具**：运维没有单独的命令行；排查时可对工作流行读取 `stage`、`attempts`、`last_error`，后台任务会自动重试（间隔 30 秒起指数退避，最长 15 分钟）。
 
-**限制**：登录入口只有 `bff.v1.AuthService`：旧的 `/auth/login`、OAuth 回调和 `/auth/logout` 等 HTTP 路径一律 404（没有重定向，也不设 Cookie），已删除的 OAuth RPC 不再存在（`internal/e2e/logto_retired_chain_test.go` 在真实链路上验证）。没有对真实邮件厂商实测。手动退役脚本不会由服务启动自动执行。
+**限制**：密码登录入口为 `bff.v1.AuthService`；新增外部入口见 S4。旧的 `/auth/login`、OAuth 回调和 `/auth/logout` 等 HTTP 路径一律 404（没有重定向，也不设 Cookie），已删除的 OAuth RPC 不再存在（`internal/e2e/logto_retired_chain_test.go` 在真实链路上验证）。没有对真实邮件厂商实测。手动退役脚本不会由服务启动自动执行。
 
 ## 多 Web App 登录与跨域
 
@@ -332,3 +352,5 @@ metro 的专题总览 `/topics` 是单独的登录返回页；部署注册表需
 `auth.legacy_mail_transition`（`origins`、`until`）：产品自己的旧邮件页（T12 起）只向 OzID 交接，不调账号过程；此例外只为**升级前构建**仍在自己页面完成旧链接的产品镜像：`until` 之前这些产品 origin 可以调用 `CompleteRegistration` 与 `ResetPassword`，其他账号过程仍被拒。`until` 为 RFC 3339，加载时不得晚于现在 7 天；已过期时 BFF 仍启动，拒绝这些 origin 并写警告。清单见 [整体验收](ozid/acceptance.md#旧邮件-ttl-过渡清单)。
 
 产品镜像与示例网关不再代理同源 `/api/*`（只留分享、通知、底图与探针路径）。真实网关与浏览器的整体验收见 [整体验收](ozid/acceptance.md)。
+
+S4 本地验证：隔离 PostgreSQL 17.11 / Redis 7.2.5 的上述链路和 EXTERNAL_BROWSER_E2E Chromium 均通过；首次设密使旧外部会话失效，实际密码重新认证后才可通过管理入口。全仓 make test/build、相关 race/vet、模块边界、文档、迁移重放无差异、新 proto lint/全仓 breaking 与 Node 24 四应用构建通过。全仓 Buf lint 的 32 条历史管理 RPC 诊断与 S3c 基线一致。未设置真实 S3、旧网关浏览器和真实厂商环境的对应场景跳过；不将其记作通过。

@@ -99,6 +99,16 @@ func AuthVersion(v int64) predicate.Session {
 	return predicate.Session(sql.FieldEQ(FieldAuthVersion, v))
 }
 
+// BrowserContextID applies equality check predicate on the "browser_context_id" field. It's identical to BrowserContextIDEQ.
+func BrowserContextID(v string) predicate.Session {
+	return predicate.Session(sql.FieldEQ(FieldBrowserContextID, v))
+}
+
+// BrowserGeneration applies equality check predicate on the "browser_generation" field. It's identical to BrowserGenerationEQ.
+func BrowserGeneration(v int64) predicate.Session {
+	return predicate.Session(sql.FieldEQ(FieldBrowserGeneration, v))
+}
+
 // AuthenticatedAt applies equality check predicate on the "authenticated_at" field. It's identical to AuthenticatedAtEQ.
 func AuthenticatedAt(v time.Time) predicate.Session {
 	return predicate.Session(sql.FieldEQ(FieldAuthenticatedAt, v))
@@ -412,6 +422,131 @@ func AuthVersionLT(v int64) predicate.Session {
 // AuthVersionLTE applies the LTE predicate on the "auth_version" field.
 func AuthVersionLTE(v int64) predicate.Session {
 	return predicate.Session(sql.FieldLTE(FieldAuthVersion, v))
+}
+
+// BrowserContextIDEQ applies the EQ predicate on the "browser_context_id" field.
+func BrowserContextIDEQ(v string) predicate.Session {
+	return predicate.Session(sql.FieldEQ(FieldBrowserContextID, v))
+}
+
+// BrowserContextIDNEQ applies the NEQ predicate on the "browser_context_id" field.
+func BrowserContextIDNEQ(v string) predicate.Session {
+	return predicate.Session(sql.FieldNEQ(FieldBrowserContextID, v))
+}
+
+// BrowserContextIDIn applies the In predicate on the "browser_context_id" field.
+func BrowserContextIDIn(vs ...string) predicate.Session {
+	return predicate.Session(sql.FieldIn(FieldBrowserContextID, vs...))
+}
+
+// BrowserContextIDNotIn applies the NotIn predicate on the "browser_context_id" field.
+func BrowserContextIDNotIn(vs ...string) predicate.Session {
+	return predicate.Session(sql.FieldNotIn(FieldBrowserContextID, vs...))
+}
+
+// BrowserContextIDGT applies the GT predicate on the "browser_context_id" field.
+func BrowserContextIDGT(v string) predicate.Session {
+	return predicate.Session(sql.FieldGT(FieldBrowserContextID, v))
+}
+
+// BrowserContextIDGTE applies the GTE predicate on the "browser_context_id" field.
+func BrowserContextIDGTE(v string) predicate.Session {
+	return predicate.Session(sql.FieldGTE(FieldBrowserContextID, v))
+}
+
+// BrowserContextIDLT applies the LT predicate on the "browser_context_id" field.
+func BrowserContextIDLT(v string) predicate.Session {
+	return predicate.Session(sql.FieldLT(FieldBrowserContextID, v))
+}
+
+// BrowserContextIDLTE applies the LTE predicate on the "browser_context_id" field.
+func BrowserContextIDLTE(v string) predicate.Session {
+	return predicate.Session(sql.FieldLTE(FieldBrowserContextID, v))
+}
+
+// BrowserContextIDContains applies the Contains predicate on the "browser_context_id" field.
+func BrowserContextIDContains(v string) predicate.Session {
+	return predicate.Session(sql.FieldContains(FieldBrowserContextID, v))
+}
+
+// BrowserContextIDHasPrefix applies the HasPrefix predicate on the "browser_context_id" field.
+func BrowserContextIDHasPrefix(v string) predicate.Session {
+	return predicate.Session(sql.FieldHasPrefix(FieldBrowserContextID, v))
+}
+
+// BrowserContextIDHasSuffix applies the HasSuffix predicate on the "browser_context_id" field.
+func BrowserContextIDHasSuffix(v string) predicate.Session {
+	return predicate.Session(sql.FieldHasSuffix(FieldBrowserContextID, v))
+}
+
+// BrowserContextIDIsNil applies the IsNil predicate on the "browser_context_id" field.
+func BrowserContextIDIsNil() predicate.Session {
+	return predicate.Session(sql.FieldIsNull(FieldBrowserContextID))
+}
+
+// BrowserContextIDNotNil applies the NotNil predicate on the "browser_context_id" field.
+func BrowserContextIDNotNil() predicate.Session {
+	return predicate.Session(sql.FieldNotNull(FieldBrowserContextID))
+}
+
+// BrowserContextIDEqualFold applies the EqualFold predicate on the "browser_context_id" field.
+func BrowserContextIDEqualFold(v string) predicate.Session {
+	return predicate.Session(sql.FieldEqualFold(FieldBrowserContextID, v))
+}
+
+// BrowserContextIDContainsFold applies the ContainsFold predicate on the "browser_context_id" field.
+func BrowserContextIDContainsFold(v string) predicate.Session {
+	return predicate.Session(sql.FieldContainsFold(FieldBrowserContextID, v))
+}
+
+// BrowserGenerationEQ applies the EQ predicate on the "browser_generation" field.
+func BrowserGenerationEQ(v int64) predicate.Session {
+	return predicate.Session(sql.FieldEQ(FieldBrowserGeneration, v))
+}
+
+// BrowserGenerationNEQ applies the NEQ predicate on the "browser_generation" field.
+func BrowserGenerationNEQ(v int64) predicate.Session {
+	return predicate.Session(sql.FieldNEQ(FieldBrowserGeneration, v))
+}
+
+// BrowserGenerationIn applies the In predicate on the "browser_generation" field.
+func BrowserGenerationIn(vs ...int64) predicate.Session {
+	return predicate.Session(sql.FieldIn(FieldBrowserGeneration, vs...))
+}
+
+// BrowserGenerationNotIn applies the NotIn predicate on the "browser_generation" field.
+func BrowserGenerationNotIn(vs ...int64) predicate.Session {
+	return predicate.Session(sql.FieldNotIn(FieldBrowserGeneration, vs...))
+}
+
+// BrowserGenerationGT applies the GT predicate on the "browser_generation" field.
+func BrowserGenerationGT(v int64) predicate.Session {
+	return predicate.Session(sql.FieldGT(FieldBrowserGeneration, v))
+}
+
+// BrowserGenerationGTE applies the GTE predicate on the "browser_generation" field.
+func BrowserGenerationGTE(v int64) predicate.Session {
+	return predicate.Session(sql.FieldGTE(FieldBrowserGeneration, v))
+}
+
+// BrowserGenerationLT applies the LT predicate on the "browser_generation" field.
+func BrowserGenerationLT(v int64) predicate.Session {
+	return predicate.Session(sql.FieldLT(FieldBrowserGeneration, v))
+}
+
+// BrowserGenerationLTE applies the LTE predicate on the "browser_generation" field.
+func BrowserGenerationLTE(v int64) predicate.Session {
+	return predicate.Session(sql.FieldLTE(FieldBrowserGeneration, v))
+}
+
+// BrowserGenerationIsNil applies the IsNil predicate on the "browser_generation" field.
+func BrowserGenerationIsNil() predicate.Session {
+	return predicate.Session(sql.FieldIsNull(FieldBrowserGeneration))
+}
+
+// BrowserGenerationNotNil applies the NotNil predicate on the "browser_generation" field.
+func BrowserGenerationNotNil() predicate.Session {
+	return predicate.Session(sql.FieldNotNull(FieldBrowserGeneration))
 }
 
 // AuthenticatedAtEQ applies the EQ predicate on the "authenticated_at" field.

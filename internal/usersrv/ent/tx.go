@@ -4,6 +4,8 @@ package ent
 
 import (
 	"context"
+	stdsql "database/sql"
+	"fmt"
 	"sync"
 
 	"entgo.io/ent/dialect"
@@ -16,8 +18,16 @@ type Tx struct {
 	AccountToken *AccountTokenClient
 	// AdminMutation is the client for interacting with the AdminMutation builders.
 	AdminMutation *AdminMutationClient
+	// AuthChallenge is the client for interacting with the AuthChallenge builders.
+	AuthChallenge *AuthChallengeClient
+	// AuthNotification is the client for interacting with the AuthNotification builders.
+	AuthNotification *AuthNotificationClient
+	// AuthOperationReceipt is the client for interacting with the AuthOperationReceipt builders.
+	AuthOperationReceipt *AuthOperationReceiptClient
 	// DeletionTombstone is the client for interacting with the DeletionTombstone builders.
 	DeletionTombstone *DeletionTombstoneClient
+	// ExternalIdentity is the client for interacting with the ExternalIdentity builders.
+	ExternalIdentity *ExternalIdentityClient
 	// MailJob is the client for interacting with the MailJob builders.
 	MailJob *MailJobClient
 	// SecurityAudit is the client for interacting with the SecurityAudit builders.
@@ -159,7 +169,11 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.AccountToken = NewAccountTokenClient(tx.config)
 	tx.AdminMutation = NewAdminMutationClient(tx.config)
+	tx.AuthChallenge = NewAuthChallengeClient(tx.config)
+	tx.AuthNotification = NewAuthNotificationClient(tx.config)
+	tx.AuthOperationReceipt = NewAuthOperationReceiptClient(tx.config)
 	tx.DeletionTombstone = NewDeletionTombstoneClient(tx.config)
+	tx.ExternalIdentity = NewExternalIdentityClient(tx.config)
 	tx.MailJob = NewMailJobClient(tx.config)
 	tx.SecurityAudit = NewSecurityAuditClient(tx.config)
 	tx.User = NewUserClient(tx.config)
@@ -226,3 +240,27 @@ func (tx *txDriver) Query(ctx context.Context, query string, args, v any) error 
 }
 
 var _ dialect.Driver = (*txDriver)(nil)
+
+// ExecContext allows calling the underlying ExecContext method of the transaction if it is supported by it.
+// See, database/sql#Tx.ExecContext for more information.
+func (tx *txDriver) ExecContext(ctx context.Context, query string, args ...any) (stdsql.Result, error) {
+	ex, ok := tx.tx.(interface {
+		ExecContext(context.Context, string, ...any) (stdsql.Result, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("Tx.ExecContext is not supported")
+	}
+	return ex.ExecContext(ctx, query, args...)
+}
+
+// QueryContext allows calling the underlying QueryContext method of the transaction if it is supported by it.
+// See, database/sql#Tx.QueryContext for more information.
+func (tx *txDriver) QueryContext(ctx context.Context, query string, args ...any) (*stdsql.Rows, error) {
+	q, ok := tx.tx.(interface {
+		QueryContext(context.Context, string, ...any) (*stdsql.Rows, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("Tx.QueryContext is not supported")
+	}
+	return q.QueryContext(ctx, query, args...)
+}

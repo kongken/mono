@@ -31,6 +31,10 @@ type Session struct {
 	Revoked bool `json:"revoked,omitempty"`
 	// AuthVersion holds the value of the "auth_version" field.
 	AuthVersion int64 `json:"auth_version,omitempty"`
+	// BrowserContextID holds the value of the "browser_context_id" field.
+	BrowserContextID *string `json:"browser_context_id,omitempty"`
+	// BrowserGeneration holds the value of the "browser_generation" field.
+	BrowserGeneration *int64 `json:"browser_generation,omitempty"`
 	// AuthenticatedAt holds the value of the "authenticated_at" field.
 	AuthenticatedAt *time.Time `json:"authenticated_at,omitempty"`
 	selectValues    sql.SelectValues
@@ -43,9 +47,9 @@ func (*Session) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case session.FieldRevoked:
 			values[i] = new(sql.NullBool)
-		case session.FieldAuthVersion:
+		case session.FieldAuthVersion, session.FieldBrowserGeneration:
 			values[i] = new(sql.NullInt64)
-		case session.FieldID, session.FieldUserID, session.FieldTokenHash:
+		case session.FieldID, session.FieldUserID, session.FieldTokenHash, session.FieldBrowserContextID:
 			values[i] = new(sql.NullString)
 		case session.FieldCreatedAt, session.FieldExpiresAt, session.FieldLastUsedAt, session.FieldAuthenticatedAt:
 			values[i] = new(sql.NullTime)
@@ -113,6 +117,20 @@ func (_m *Session) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.AuthVersion = value.Int64
 			}
+		case session.FieldBrowserContextID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field browser_context_id", values[i])
+			} else if value.Valid {
+				_m.BrowserContextID = new(string)
+				*_m.BrowserContextID = value.String
+			}
+		case session.FieldBrowserGeneration:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field browser_generation", values[i])
+			} else if value.Valid {
+				_m.BrowserGeneration = new(int64)
+				*_m.BrowserGeneration = value.Int64
+			}
 		case session.FieldAuthenticatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field authenticated_at", values[i])
@@ -177,6 +195,16 @@ func (_m *Session) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("auth_version=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AuthVersion))
+	builder.WriteString(", ")
+	if v := _m.BrowserContextID; v != nil {
+		builder.WriteString("browser_context_id=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.BrowserGeneration; v != nil {
+		builder.WriteString("browser_generation=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	if v := _m.AuthenticatedAt; v != nil {
 		builder.WriteString("authenticated_at=")

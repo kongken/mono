@@ -6,7 +6,7 @@
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
-当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端。浏览器账号由自建的用户系统 usersrv 提供：BFF（`bff.v1.AuthService`）经内部 gRPC 调用 usersrv 完成注册、登录、改密码与注销，自己只保存 Cookie/CSRF 会话和注销工作流；tripmap 只保留业务数据（用户 UUID 对应的展示投影）与内部 gRPC，不再挂载浏览器 Connect。Logto 与全部第三方登录已从运行时移除。BFF 会话迁移见 `migrations/bff/20261024161800_usersrv_sessions.sql`，旧表的手动清理见 `deploy/sql/bff/retire_logto_identities.sql`。足迹读写经 `bff.tripmap.v1.FootprintService` → tripmap gRPC（服务端校验、用户隔离、revision 与限流），见 [功能描述](trip-map/features.md) 与 [BFF](bff.md)。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号数据删除、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；F4 照片与附件已实现；F6 公开分享页与预览图已实现（默认关闭，见 [公开分享页与预览图](trip-map/sharing.md)）；F12 提醒与通知已实现（邮件与浏览器推送默认关闭，见下文 F12）。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
+当前已实现服务启动、依赖检查、Ent 建表、S3 对象存储封装与基础客户端。浏览器账号由自建的用户系统 usersrv 提供：BFF（`bff.v1.AuthService`）经内部 gRPC 调用 usersrv 完成注册、登录、改密码与注销，自己只保存 Cookie/CSRF 会话和注销工作流；tripmap 只保留业务数据（用户 UUID 对应的展示投影）与内部 gRPC，不再挂载浏览器 Connect。Logto 已从运行时移除；KON-42 新增默认关闭的独立 Google/GitHub 浏览器流程，配置、迁移与验证边界见 [BFF S4](bff.md#第三方浏览器流程kon-42--s4)。BFF 会话迁移见 `migrations/bff/20261024161800_usersrv_sessions.sql`，旧表的手动清理见 `deploy/sql/bff/retire_logto_identities.sql`。足迹读写经 `bff.tripmap.v1.FootprintService` → tripmap gRPC（服务端校验、用户隔离、revision 与限流），见 [功能描述](trip-map/features.md) 与 [BFF](bff.md)。前端持久化离线修改、重连三方合并及同记录冲突选择已实现。已补齐账号数据删除、增量变更日志与批量同步；云端快照与恢复（F3，`SnapshotService`）已实现；F4 照片与附件已实现；F6 公开分享页与预览图已实现（默认关闭，见 [公开分享页与预览图](trip-map/sharing.md)）；F12 提醒与通知已实现（邮件与浏览器推送默认关闭，见下文 F12）。未登录的城市足迹继续保存在浏览器；本地足迹迁移（F2）完全由前端经批量同步接口发起，后端没有专门的迁移接口，也不会自行读取或覆盖本地记录；云端已有足迹时，前端会在迁移前调用 `CreateSnapshot` 保存一份快照。
 
 Redis 客户端已接入，后续用于会话、缓存或限流；本次没有把城市足迹存入 Redis。对象内容使用 S3，PostgreSQL 只存业务记录和媒体元数据。
 
@@ -616,6 +616,46 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 错误用 `google.rpc.ErrorInfo`（domain `usersrv.v1`，reason 为 `INVALID_CREDENTIALS`、`ACCOUNT_NOT_ACTIVE`、`VERSION_CONFLICT`、`RATE_LIMITED`、`INVALID_ARGUMENT`、`DELETION_MISMATCH`、`TOKEN_INVALID`、`REGISTRATION_CLOSED`）；错误密码与内部凭证错误因此不会混淆。日志与审计不含邮箱、密码、令牌。
 
+**第三方账号基础（KON-38，S2）**：已加入外部身份 schema、可空密码的兼容读写、配置校验及 `usersrv.v1` 基础消息；S2 不包含 adapter 或完整流程；Google/GitHub adapter 的后续实现见下方 KON-39/KON-40 说明，KON-41 的内部挑战/事务实现见下文，浏览器入口仍待实现，当前公网不能第三方登录或创建无密码账号。`AuthenticateWithEmail`、`GetAuthState`、`GetMyAccount` 的内部响应新增 `has_password`，只依赖哈希是否非 NULL；BFF 的内部 usersrv adapter 接收该字段，浏览器页面尚未使用它。NULL 哈希的邮箱登录、重新认证和改密均验证 dummy 哈希后中性拒绝，不能把空密码作为首次设密凭据；现有邮件 reset 能写入首次密码，递增版本并保留绑定。首次设密通知和新的操作确认已在下方 S3c 中实现。
+
+`auth.external.enabled` 与 `auth.external.providers.{google,github}.enabled` 独立且均默认 false；现有 `auth.registration_enabled` 仍默认 true，provider 门禁不读取注册开关。启用的 provider 要求非空 `client_id`、恰一项 `client_secret`/`client_secret_file`、正整数 `config_version` 和精确的 `/api/identity/callback/{provider}` URL；禁止凭据、query、fragment、编码路径和非 HTTPS（只有显式 `allow_loopback_http` 可接受本机 HTTP）。回调 origin 必须由运维与 BFF 注册地址核对；此阶段尚无 BFF callback 配置或路由，usersrv 不跨服务读取 BFF 配置。issuer/endpoint 不可配置，Google 固定 `https://accounts.google.com`，GitHub 固定 `https://github.com`；未知 provider 启动失败。外部全局开启还要求 `proof_key_id` 引用 `mail.encryption.keys` 中已加载的 key，后续挑战必须使用独立用途的 associated data；`require_verified_email` 默认 true 且不可关闭。未启用 provider 不读取其 Secret 文件，校验错误、fmt/slog 和 JSON 格式化不输出 client secret；readiness 不访问真实 provider。配置示例保留关闭状态，配置校验通过不表示流程已实现。
+
+外部认证固定错误 reason/code 已定义在 `proto/usersrv/v1/external.proto` 与 usersrv 错误映射中；`PROVIDER_REJECTED` 在 BFF 映射为中性认证失败，未带受信 usersrv reason 的 `UNAUTHENTICATED` 仍视为内部凭据错误。完整行为矩阵和后续事务要求见 [ADR 0001 §6](adr/0001-third-party-auth-contract.md#6-配置与发布边界)。
+
+**Google OIDC adapter（KON-39，S3a）**：`internal/usersrv/externalprovider` 实现 ADR 的 `ExternalProvider`，提供 `Name`、`AuthorizationURL`、`ExchangeCode`、`ValidateConfiguration`；usersrv Bootstrap 从已校验配置装配到 `Resources.ExternalProviders`。注册开关不参与 provider 装配，外部全局/Google 开关共同决定是否启用；配置是启动时的不可变快照，替换配置需重建 adapter，后续挑战层仍须在提交时复核当前代次/开关。构造、启动和 readiness 不访问厂商；此阶段没有外部认证 RPC、账号事务或浏览器 callback，Google adapter 尚不能单独提供登录。
+
+- 固定 discovery、授权、token 和 JWKS 地址，discovery 必须与所有固定端点及 RS256 一致；配置/请求不能传入 issuer 或 endpoint。授权只请求 `openid email profile`，带原流程 state、nonce、S256 challenge、固定 callback，不申请 offline access。code 交换只发送一次 POST，传固定 client/callback、原 verifier；先校验 verifier 形态及其 S256 与原 challenge 一致、provider 和 `config_version` 匹配，仍由 Google 校验 code 与原授权的绑定。不使用 tokeninfo/userinfo，不保存 refresh/access/ID token 或原始 claims。
+- 使用已有的 `golang-jwt/jwt/v5` 验签，只接受 RS256/RSA、有效 kid 和签名用途的 2048–8192 位公钥；拒绝 JOSE 远端 key URL、内嵌 key、未知 critical header。验证 `exp`（必需且未过期）、`iat`（必需、为正、早于 exp，最多允许 30 秒未来时钟偏差）、可选 nbf、稳定 sub、原流程 nonce；只信任配置的单个 Web client audience，拒绝未登记的附加 audience，azp 若出现必须等于该 client。两种官方 Google issuer 写法归一为固定规范 issuer。出现 at_hash 时还校验临时 access token 的 SHA-256 摘要。
+- 只有有效签名下 `email_verified=true` 的规范邮箱可成为候选；缺失、未验证、格式无效或 noreply 占位域名统一 `PROVIDER_REJECTED`，不产生用户或注册邮件挑战。已验证 Gmail 是 `google_authoritative`；Workspace 还要求签名 hd 与规范邮箱域匹配，不能用后缀或授权请求的 hd 提示替代。其他已验证邮箱（含 hd 不匹配）是 `provider_verified`，后续注册必须走 OzID 邮件验证。外部 sub 决定身份，邮箱/昵称/头像变化不改身份键；非法资料采用本地默认昵称/空头像，不抓取远程头像。
+- 整个调用最长 10 秒（调用方更早取消则更早结束），每响应最多 64 KiB、ID token 最多 32 KiB、JWKS 最多 32 个 key；TLS 校验开启，所有 HTTP 重定向均拒绝。discovery/JWKS 按 Cache-Control/Age 缓存（缺省 5 分钟，上限 6 小时，no-cache/no-store 不复用）；过期缓存遇故障不作为认证依据。未知 kid/签名轮换可触发刷新，强制刷新最多每 30 秒一次；并发 GET 合并，等待可取消，无后台刷新。code POST 从不自动重试；429/5xx/网络/超时为 `UNAVAILABLE`，其他不可用证明为中性 `PROVIDER_REJECTED`，错误不含厂商原文或秘密。
+
+返回值只有 provider、规范 issuer/sub、候选邮箱/信任等级、规范资料和 token 签发时间，后者不能刷新 OzID 密码认证时间。fmt/slog 对配置、请求、claims 和结果均脱敏；结果不是 user UUID、登录 Cookie 或绑定授权。adapter 没有数据库/会话依赖，也不拥有已消费 nonce 的进程内列表；本地假服务证明 provider code 重放被拒及 nonce 必须匹配，跨实例/浏览器重放保护仍依赖 KON-41/KON-42 的持久挑战和 BFF state 单次消费，尚未实现。
+
+本地 contract tests 经同一 provider interface 调用真实 HTTP/JWT 实现，注入 transport 仅把固定官方地址导到本地 TLS 假 discovery/token/JWKS；覆盖服务端 PKCE/单次 code、错误签名/claims/nonce/算法、邮箱矩阵、key 轮换/过期/并发/刷新限额、异常/超长响应、取消和日志脱敏，不访问真实 Google。协议依据：[Google OIDC](https://developers.google.com/identity/openid-connect/openid-connect)、[Google 邮箱权威性与服务端校验](https://developers.google.com/identity/sign-in/web/backend-auth)；引用与本地假服务测试均不代表真实厂商冒烟已完成。两 provider 继续默认关闭，未部署。
+
+**GitHub OAuth adapter（KON-40，S3b）**：实现同一个 `ExternalProvider`，Bootstrap 离线装配，独立受外部全局/GitHub 开关控制，注册关闭不禁用 adapter。没有新增 RPC、账号写入或浏览器入口，所有外部开关仍默认关闭。
+
+- 固定 `github.com` 授权/token 与 `api.github.com` 本人/邮箱端点，不能由配置、客户端 profile、API 返回的 URL 或 Link 替换。授权只请求 `user:email`，带原 state、S256 challenge 和固定 callback。交换时先检查 provider、配置代次、原 challenge/verifier，再以配置的 client ID/secret 和固定 callback 发出一次 POST；只接受该交换返回的 bearer，返回 scope 必须恰为 `user:email`，避免接受历史授权累积的额外权限。不请求 offline access，不保存/刷新 access 或 refresh token。OAuth 没有 OIDC nonce；state 比较和单次消费由后续 BFF 持久挑战承担。
+- 每次交换均用同一临时 bearer 读取 `/user`，固定 REST 版本 `2026-03-10`；只接受 `type=User` 的正数 uint64 JSON ID，直接转为规范十进制 subject，拒绝浮点/指数/字符串/零/溢出，包含大于 2^53 的 ID 不丢位。issuer 固定 `https://github.com`。不以 login、昵称、邮箱或 avatar/profile URL 作为身份键；昵称/头像沿用本地规范化及默认值，服务端不抓头像。
+- 只从 `/user/emails` 选择唯一的 `primary && verified` 规范可投递地址，不信任 `/user.email`，不回传完整列表。每页 100 条、最多 5 页，逐页构造固定端点；不跟随 Link。缺失、未验证、noreply 域或 `noreply/no-reply` 本地名、非法地址、重复主邮箱、超过分页上限统一 `PROVIDER_REJECTED`，无部分身份结果。按 ADR §1.3/A02 转现有邮箱注册或已有账号登录后主动绑定，不实现原票已被收紧的补填分支；真实投递能力仍由 OzID 邮件确认验证。有效候选一律 `provider_verified`，即使是 Gmail 也不能免 OzID 验证；注册确认、编辑邮箱后撤销旧证明和邮件挑战留给 KON-41/KON-42。
+- 总调用共用 10 秒截止时间（包含 token、本人、各页邮箱），每响应最多 64 KiB，TLS 校验开启、所有重定向拒绝、无自动重试。429/5xx/网络/超时，以及带剩余额度 0 或 Retry-After 的 403，映射 `UNAVAILABLE`；其他 API/证明错误中性拒绝，不透出厂商原文。结果只含最小身份事实，认证时间是本次证明校验时间，不能刷新 OzID 密码认证时间；配置、请求、adapter、身份的 fmt/slog 均脱敏。
+
+本地 TLS 假 OAuth/user/email contract tests 验证 client/callback、PKCE、单次 code、错误/跨 provider code、完整邮箱矩阵、数字 ID 精度及稳定性、受限分页、重定向/响应体/JSON/权限/限流/故障、各阶段取消、共享截止时间和日志脱敏；Google 原有测试及独立开关装配也参与回归。协议依据：[GitHub OAuth 授权码与 PKCE](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)、[本人 API](https://docs.github.com/en/rest/users/users#get-the-authenticated-user)、[邮箱 API](https://docs.github.com/en/rest/users/emails#list-email-addresses-for-the-authenticated-user)、[REST 版本](https://docs.github.com/en/rest/about-the-rest-api/api-versions)。自动化不访问真实 GitHub；这不是持久挑战/账号事务/浏览器端到端或真实厂商冒烟证据。
+
+**usersrv 安全核心（KON-41，S3c）**：`account` 实现持久挑战、邮件交接、原子注册与绑定/解绑、首次设密通知和受控注销；`application.ExternalIdentityService` 通过现有签名 gRPC 服务暴露，Go/Connect/TypeScript 由 proto 生成。请求没有用户 ID 字段：账号操作只取 BFF 凭证 sub，匿名方法同样要求方法绑定的 BFF 签名。登录/切换账号用匿名凭证与 `intent=login`；Link 用 sub、会话摘要、认证版本和 `intent=link`。S3c 自身不提供 BFF 浏览器入口；S4 的固定回调/会话与测试见 [BFF S4](bff.md#第三方浏览器流程kon-42--s4)，OzID UI 仍待后续，两 provider 默认关闭。
+
+- `auth_challenges` 单独承载第三方/操作证明；原 `account_tokens` 注册/reset purpose 不变。挑战绑定用途、flow/context 摘要、provider/配置代次、用户/会话/版本和具体解绑 ID；最长 15 分钟。usersrv 不存 state、PKCE verifier、nonce、OAuth code/token。code 先在短事务原子抢占 `issued → exchanging`，释放事务后调用 adapter，再依当前门禁完成账号检查；失败终结或滞留至到期，不能再兑换。已有身份登录只更新身份快照/最近认证时间，不改账号邮箱、资料、密码、角色或版本。
+- 最小身份/候选邮箱以 AES-GCM 短期加密，`proof_key_id` 对应配置 key，associated data 使用独立于邮件的用途前缀并绑定 challenge ID/context；启动拒绝缺失解密 key。注册只在最终原浏览器提交时建账号和首条身份；非权威邮箱先走独立 10 分钟邮件确认，编辑/重发撤销旧摘要/确认。只有唯一邮箱和外部键全部满足才提交，碰撞统一 `REGISTRATION_UNAVAILABLE`；不会查邮箱后自动登录/合并。新账号无密码、无管理角色。外部注册回执在挑战本行保留 24 小时，绑定原浏览器、mutation 和规范请求 hash；只返回原 UUID 引用，不能凭重放签发会话。
+- 邮件链接固定 OzID origin，新增 `/account/confirm-external-email#token=…&challenge_id=…` 与 `/account/confirm-operation#token=…&challenge_id=…`，页面/HTTP 路由留待后续实现。只有显式 Confirm RPC 校验摘要；Get RPC 不消费。另一设备可确认邮件，但不能以 token 代替原 context/session 最终提交。绑定/解绑/注销，有密码必须实际校验当前密码；无密码向 OzID 已验证邮箱发送本操作确认。重复 Begin 同一无密码操作 context 会重发并作废旧 token，不延长原浏览器期限；新 flow 相互独立。邮件不能代替平台管理员密码确认，平台管理员仍不能自助注销。
+- 总锁序为 external-key 事务 advisory lock → users 行锁 → identity 行锁 → 按 ID 排序的 challenges → receipt；新注册在 key 锁下插入 users/identity 后锁挑战并重验，任何并发邮件修改都回滚整个临时建号。纯密码/禁用/注销路径保持 users-first，不反向请求 external key；provider 网络始终在事务外。同账号同 provider 一条、同键一个 owner，禁止覆盖/转移；最后凭据在用户锁下重算。旧 identity ID 与旧回执不能删除后来重绑的新记录。
+- `auth_operation_receipts` 绑定原会话和规范请求 hash，24 小时内在版本检查前识别同请求；不同请求复用 mutation 为 `MUTATION_REPLAY_MISMATCH`。成功绑定/解绑原子提升 `auth_version`，消费挑战，写审计、回执、唯一通知事件及加密 outbox；同身份同账号返回 `already_applied`，不重复升版本或发通知。结果查询/重放只展示旧结果，不授权旧会话执行新操作。现有 ResetPassword 在用户/token 锁下首次设密，消费所有 reset token、提升版本、记录 `password.set_first/account.recovery` 和唯一通知；重复 reset 仍中性 `TOKEN_INVALID`，不自动登录，原身份保留。
+- `auth.registration_enabled` 关闭仍允许已有身份登录、已有账号 Link/操作邮件、解绑和首次设密；仅外部新建号分支被拒。最终建号事务重新读当前门禁。进程内配置准入读锁覆盖最终提交，关闭动作等待已准入事务排空后才返回；部署替换启动配置仍必须排空所有旧实例，不承诺集群热更新 API。全局/provider 门禁只约束登录/注册/Link，解绑、首次设密、通知和本地清理不要求 provider 在线。
+- `auth_notifications` 唯一键为 `(source_kind, source_id, notification_kind)`，绑定/解绑 source 为 receipt ID、首次设密为 reset token ID；收件人只能是原 OzID 已验证邮箱。`mail_jobs.source_kind` 区分旧 token、新挑战、通知，均用现有加密、固定厂商/配置代次、有限重试和 uncertain 不重发规则。通知只有安全说明与固定 `/security` 链接，无 token/一键撤销；投递失败不回滚账号。到期维护擦除证明/邮件摘要、清理 24 小时回执和 7 天通知事件。新增流程 DTO/证明的 fmt/slog 脱敏，审计只含内部 UUID、固定动作/结果、provider 与 request/mutation ID。
+
+迁移为 `20261102182653_external_security_core.sql` 及 `20261102182700_security_mail_templates.sql`，后者显式替换旧模板 CHECK（Ent 不自动 diff 已有 CHECK 表达式）；开发 `auto_migrate` 同步更新该约束。生产须先完整应用迁移，暂停并排空旧 outbox worker，再切换新 usersrv；新模板只交给新 worker 投递。旧排队邮件默认 `source_kind=account_token`、密文不变；出现新模板后不能回退不能识别它们的旧 worker，新挑战/回执也不能交给旧代码继续。无密码账号的 S2 回滚限制继续成立。
+
+S3c 自动化使用隔离 PostgreSQL/Redis、真实签名 usersrv gRPC、真实事务/outbox 与本地假 OAuth/邮件，覆盖 A04–A11、A13–A14、A17–A18 的 usersrv 部分：同邮箱/同键竞争、并发最终提交、两个解绑、解绑与首次设密、绑定与禁用的锁顺序、outbox 失败全回滚、通知不确定结果、旧回执/重绑、跨设备确认但 context 隔离、邮件重发、配置关闭排空、Redis 失败与限流、非空旧库升级及数据库 CHECK。Google/GitHub adapter 合约和原邮箱/管理流程参与回归。A07/A11 的 BFF 会话/MCP、A09/A10 的 Cookie/浏览器、A12 的管理时间/Origin/IP 与 A13 的恢复 Cookie/跨产品清理仍需后续票验收；无真实厂商冒烟或部署。
+
 **账号规则**（`internal/usersrv/identity`、`account`）：
 
 - 邮箱（`NormalizeEmail`，登录、注册、重置与运维命令共用）：去首尾空白，整个地址转小写（有意的策略，保留 `+tag`，不猜别名）；只接受单个纯 ASCII 地址，最长 254 字节，本地部分是 ≤64 字节的 dot-atom，域名是至少两段的 DNS 名（接受 ASCII 的 `xn--` 标签，顶级段不能全为数字，因此没有 IP）；拒绝换行、显示名、多个地址、注释、引号本地部分、控制字符与非 ASCII（IDN 请填 punycode）。规范化后的地址是唯一键（`email_canonical`）。
@@ -631,7 +671,8 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 | 表 | 关键字段与约束 |
 | --- | --- |
-| `users` | UUID 主键、`email_canonical`（唯一）、`email_verified_at`、`password_hash`（Sensitive，PHC 字符串）、`status`、`auth_version`（≥1）、`display_name`、`avatar_url`、`profile_version`、注销标记（`deletion_started_at`、`deletion_mutation_id`）、时间戳 |
+| `users` | UUID 主键、`email_canonical`（唯一）、`email_verified_at`、`password_hash`（Sensitive，可空 PHC 字符串；NULL 表示无密码）、`password_set_at`（历史未知为 NULL，真实设置/修改/重置时写入）、`status`、`auth_version`（≥1）、`display_name`、`avatar_url`、`profile_version`、注销标记（`deletion_started_at`、`deletion_mutation_id`）、时间戳 |
+| `external_identities` | UUID、`user_id` 外键级联删除、`provider/issuer/subject` 全局唯一、`user_id/provider` 唯一、可空 provider 资料快照、不可变 `linked_at`、`last_authenticated_at/updated_at`；subject/邮箱快照标为 Sensitive，不存 token/code/claims；S2 只落地模型，生产写入路径待 S3 |
 | `user_roles` | `(user_id, role)` 唯一，外键 `ON DELETE CASCADE`；目前只有 `metro-admin` |
 | `account_tokens` | 唯一的 32 字节 `token_hash`（只存哈希）、用途（注册/重置）及与用途绑定的约束、过期与使用时间、可空的返回上下文 `return_app_id`/`return_path`（成对出现）；由 P2 的 outbox 签发，P3 的注册/重置流程消费 |
 | `security_audit` | 用户 ID（可空）、操作者、动作、结果、请求 ID，以及 CLI 的 `reason`；只增不改，不含邮箱 |

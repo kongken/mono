@@ -17,6 +17,8 @@ const (
 	FieldID = "id"
 	// FieldChallengeID holds the string denoting the challenge_id field in the database.
 	FieldChallengeID = "challenge_id"
+	// FieldSourceKind holds the string denoting the source_kind field in the database.
+	FieldSourceKind = "source_kind"
 	// FieldProvider holds the string denoting the provider field in the database.
 	FieldProvider = "provider"
 	// FieldGeneration holds the string denoting the generation field in the database.
@@ -55,6 +57,7 @@ const (
 var Columns = []string{
 	FieldID,
 	FieldChallengeID,
+	FieldSourceKind,
 	FieldProvider,
 	FieldGeneration,
 	FieldTemplate,
@@ -101,6 +104,33 @@ var (
 	DefaultID func() uuid.UUID
 )
 
+// SourceKind defines the type for the "source_kind" enum field.
+type SourceKind string
+
+// SourceKindAccountToken is the default value of the SourceKind enum.
+const DefaultSourceKind = SourceKindAccountToken
+
+// SourceKind values.
+const (
+	SourceKindAccountToken  SourceKind = "account_token"
+	SourceKindAuthChallenge SourceKind = "auth_challenge"
+	SourceKindNotification  SourceKind = "notification"
+)
+
+func (sk SourceKind) String() string {
+	return string(sk)
+}
+
+// SourceKindValidator is a validator for the "source_kind" field enum values. It is called by the builders before save.
+func SourceKindValidator(sk SourceKind) error {
+	switch sk {
+	case SourceKindAccountToken, SourceKindAuthChallenge, SourceKindNotification:
+		return nil
+	default:
+		return fmt.Errorf("mailjob: invalid enum value for source_kind field: %q", sk)
+	}
+}
+
 // Status defines the type for the "status" enum field.
 type Status string
 
@@ -143,6 +173,11 @@ func ByID(opts ...sql.OrderTermOption) OrderOption {
 // ByChallengeID orders the results by the challenge_id field.
 func ByChallengeID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldChallengeID, opts...).ToFunc()
+}
+
+// BySourceKind orders the results by the source_kind field.
+func BySourceKind(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSourceKind, opts...).ToFunc()
 }
 
 // ByProvider orders the results by the provider field.

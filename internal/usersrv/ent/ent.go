@@ -14,7 +14,11 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
 	"github.com/kongken/mono/internal/usersrv/ent/adminmutation"
+	"github.com/kongken/mono/internal/usersrv/ent/authchallenge"
+	"github.com/kongken/mono/internal/usersrv/ent/authnotification"
+	"github.com/kongken/mono/internal/usersrv/ent/authoperationreceipt"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
+	"github.com/kongken/mono/internal/usersrv/ent/externalidentity"
 	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
 	"github.com/kongken/mono/internal/usersrv/ent/user"
@@ -79,13 +83,17 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			accounttoken.Table:      accounttoken.ValidColumn,
-			adminmutation.Table:     adminmutation.ValidColumn,
-			deletiontombstone.Table: deletiontombstone.ValidColumn,
-			mailjob.Table:           mailjob.ValidColumn,
-			securityaudit.Table:     securityaudit.ValidColumn,
-			user.Table:              user.ValidColumn,
-			userrole.Table:          userrole.ValidColumn,
+			accounttoken.Table:         accounttoken.ValidColumn,
+			adminmutation.Table:        adminmutation.ValidColumn,
+			authchallenge.Table:        authchallenge.ValidColumn,
+			authnotification.Table:     authnotification.ValidColumn,
+			authoperationreceipt.Table: authoperationreceipt.ValidColumn,
+			deletiontombstone.Table:    deletiontombstone.ValidColumn,
+			externalidentity.Table:     externalidentity.ValidColumn,
+			mailjob.Table:              mailjob.ValidColumn,
+			securityaudit.Table:        securityaudit.ValidColumn,
+			user.Table:                 user.ValidColumn,
+			userrole.Table:             userrole.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

@@ -1,0 +1,28 @@
+syntax = "proto3";
+package bff.v1;
+import "platform/v1/options.proto";
+option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
+
+// IdentityService is the OzID account security surface. All mutations are
+// bound to the authenticated browser session; usersrv remains authoritative.
+service IdentityService {
+  rpc GetIdentityCapabilities(GetIdentityCapabilitiesRequest) returns (GetIdentityCapabilitiesResponse);
+  rpc BeginIdentityOperation(BeginIdentityOperationRequest) returns (BeginIdentityOperationResponse);
+  rpc ConfirmIdentityOperation(ConfirmIdentityOperationRequest) returns (ConfirmIdentityOperationResponse) { option (platform.v1.anonymous) = true; }
+  rpc GetIdentityOperation(GetIdentityOperationRequest) returns (GetIdentityOperationResponse);
+  rpc LinkExternalIdentity(LinkExternalIdentityRequest) returns (LinkExternalIdentityResponse);
+  rpc UnlinkExternalIdentity(UnlinkExternalIdentityRequest) returns (UnlinkExternalIdentityResponse);
+}
+message GetIdentityCapabilitiesRequest {}
+message IdentitySummary { string id = 1; string provider = 2; string display_label = 3; string linked_at = 4; string last_authenticated_at = 5; }
+message GetIdentityCapabilitiesResponse { repeated IdentitySummary identities = 1; bool has_password = 2; int64 auth_version = 3; }
+message BeginIdentityOperationRequest { string kind = 1; string external_identity_id = 2; string provider = 3; string current_password = 4; }
+message BeginIdentityOperationResponse { string challenge_id = 1; }
+message ConfirmIdentityOperationRequest { string challenge_id = 1; string token = 2; }
+message ConfirmIdentityOperationResponse {}
+message GetIdentityOperationRequest { string challenge_id = 1; string kind = 2; string external_identity_id = 3; string provider = 4; }
+message GetIdentityOperationResponse { string challenge_id = 1; string kind = 2; string status = 3; bool confirmed = 4; }
+message LinkExternalIdentityRequest { string operation_challenge_id = 1; string provider_flow_id = 2; string mutation_id = 3; }
+message LinkExternalIdentityResponse { string external_identity_id = 1; int64 auth_version = 2; bool replayed = 3; string result = 4; }
+message UnlinkExternalIdentityRequest { string operation_challenge_id = 1; string external_identity_id = 2; string mutation_id = 3; }
+message UnlinkExternalIdentityResponse { int64 auth_version = 1; bool replayed = 2; }

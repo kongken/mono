@@ -16,6 +16,8 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -96,7 +98,10 @@ type Service struct {
 	// registrationClosed switches new sign-ups off (SetRegistrationOpen).
 	mail               Mail
 	guard              MailGuard
-	registrationClosed bool
+	registrationClosed atomic.Bool
+	admissionMu        sync.RWMutex // Gate changes wait for admitted final transactions.
+	external           ExternalSettings
+	securityMail       SecurityMail
 	// AuditRetention and TokenRetention drive PurgeExpired.
 	AuditRetention time.Duration
 	TokenRetention time.Duration
@@ -124,6 +129,7 @@ type AuthState struct {
 	AuthVersion int64
 	Roles       []string
 	Profile     Profile
+	HasPassword bool
 }
 
 // Account is one account as seen by its owner.
@@ -170,7 +176,7 @@ func (s *Service) CreateVerifiedUser(ctx context.Context, in NewUser) (uuid.UUID
 	id := uuid.New()
 	err = s.inTx(ctx, func(tx *ent.Tx) error {
 		if _, err := tx.User.Create().SetID(id).SetEmailCanonical(email).SetEmailVerifiedAt(verified).
-			SetPasswordHash(hash).SetDisplayName(name).Save(ctx); err != nil {
+			SetPasswordHash(hash).SetPasswordSetAt(s.now()).SetDisplayName(name).Save(ctx); err != nil {
 			return err
 		}
 		return s.audit(ctx, tx, auditEntry{userID: &id, actor: userActor(id), action: "account.create", result: "ok"})
@@ -210,8 +216,19 @@ func stateOf(u *ent.User) AuthState {
 	sort.Strings(roles)
 	return AuthState{
 		Status: Status(u.Status), AuthVersion: u.AuthVersion, Roles: roles,
-		Profile: Profile{DisplayName: u.DisplayName, AvatarURL: u.AvatarURL, Version: u.ProfileVersion},
+		Profile:     Profile{DisplayName: u.DisplayName, AvatarURL: u.AvatarURL, Version: u.ProfileVersion},
+		HasPassword: u.PasswordHash != nil,
 	}
+}
+
+// verifyStoredPassword spends the same verification work for a passwordless
+// account as for an unknown address. NULL never reaches the hash parser, never
+// authenticates, and never becomes an empty or synthetic password.
+func (s *Service) verifyStoredPassword(ctx context.Context, hash *string, password string) (bool, error) {
+	if hash == nil {
+		return false, s.hasher.VerifyDummy(ctx, password)
+	}
+	return s.hasher.Verify(ctx, *hash, password)
 }
 
 // Authenticate checks an email and password. An unknown address, a wrong
@@ -263,7 +280,7 @@ func (s *Service) authenticate(ctx context.Context, email, password string) (*en
 	if err != nil {
 		return nil, "", mapStoreError(err)
 	}
-	ok, err := s.hasher.Verify(ctx, u.PasswordHash, password)
+	ok, err := s.verifyStoredPassword(ctx, u.PasswordHash, password)
 	if err != nil {
 		return nil, "", mapStoreError(err)
 	}
@@ -286,7 +303,7 @@ func (s *Service) VerifyPassword(ctx context.Context, id uuid.UUID, password, re
 	if err != nil {
 		return 0, err
 	}
-	ok, err := s.hasher.Verify(ctx, u.PasswordHash, password)
+	ok, err := s.verifyStoredPassword(ctx, u.PasswordHash, password)
 	if err != nil {
 		return 0, mapStoreError(err)
 	}
@@ -312,7 +329,7 @@ func (s *Service) ChangePassword(ctx context.Context, id uuid.UUID, current, nex
 	if err != nil {
 		return 0, err
 	}
-	ok, err := s.hasher.Verify(ctx, u.PasswordHash, current)
+	ok, err := s.verifyStoredPassword(ctx, u.PasswordHash, current)
 	if err != nil {
 		return 0, mapStoreError(err)
 	}
@@ -328,7 +345,7 @@ func (s *Service) ChangePassword(ctx context.Context, id uuid.UUID, current, nex
 	err = s.inTx(ctx, func(tx *ent.Tx) error {
 		updated, err := tx.User.UpdateOneID(id).
 			Where(user.AuthVersion(u.AuthVersion), user.StatusEQ(user.StatusActive)).
-			SetPasswordHash(hash).AddAuthVersion(1).Save(ctx)
+			SetPasswordHash(hash).SetPasswordSetAt(s.now()).AddAuthVersion(1).Save(ctx)
 		if err != nil {
 			return err
 		}
@@ -416,6 +433,9 @@ func (s *Service) BeginDeletion(ctx context.Context, id uuid.UUID, mutationID, r
 			version = u.AuthVersion
 			return nil
 		case StatusActive:
+			if u.PasswordHash == nil {
+				return ErrChallengeInvalid
+			}
 		default:
 			return ErrNotActive
 		}
@@ -521,6 +541,9 @@ func (s *Service) PurgeExpired(ctx context.Context) (PurgeResult, error) {
 		return res, err
 	}
 	res.Audit, err = s.purgeAudit(ctx, now.Add(-s.AuditRetention))
+	if err == nil {
+		err = s.PurgeSecurity(ctx)
+	}
 	return res, err
 }
 

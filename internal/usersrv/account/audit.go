@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/usersrv/ent"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
+	"github.com/kongken/mono/internal/usersrv/ent/authchallenge"
 	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/predicate"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
@@ -112,8 +113,17 @@ func (s *Service) voidTokens(ctx context.Context, tx *ent.Tx, id uuid.UUID, emai
 	if err = s.cancelPendingJobs(ctx, tx, ids, "account_closed"); err != nil {
 		return err
 	}
-	_, err = tx.AccountToken.Delete().Where(match).Exec(ctx)
-	return err
+	if _, err = tx.AccountToken.Delete().Where(match).Exec(ctx); err != nil {
+		return err
+	}
+	challenges, err := tx.AuthChallenge.Query().Where(authchallenge.UserID(id), authchallenge.StatusNotIn(authchallenge.StatusCompleted, authchallenge.StatusFailed)).Order(ent.Asc(authchallenge.FieldID)).ForUpdate().IDs(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.AuthChallenge.Update().Where(authchallenge.IDIn(challenges...)).SetStatus(authchallenge.StatusFailed).SetConsumedAt(s.now()).ClearProofCiphertext().ClearProofKeyID().ClearEmailTokenHash().Save(ctx); err != nil {
+		return err
+	}
+	return s.cancelPendingJobs(ctx, tx, challenges, "account_closed")
 }
 
 // cancelPendingJobs cancels the mail jobs of the given challenges that no worker

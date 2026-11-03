@@ -97,6 +97,34 @@ func (_c *SessionCreate) SetNillableAuthVersion(v *int64) *SessionCreate {
 	return _c
 }
 
+// SetBrowserContextID sets the "browser_context_id" field.
+func (_c *SessionCreate) SetBrowserContextID(v string) *SessionCreate {
+	_c.mutation.SetBrowserContextID(v)
+	return _c
+}
+
+// SetNillableBrowserContextID sets the "browser_context_id" field if the given value is not nil.
+func (_c *SessionCreate) SetNillableBrowserContextID(v *string) *SessionCreate {
+	if v != nil {
+		_c.SetBrowserContextID(*v)
+	}
+	return _c
+}
+
+// SetBrowserGeneration sets the "browser_generation" field.
+func (_c *SessionCreate) SetBrowserGeneration(v int64) *SessionCreate {
+	_c.mutation.SetBrowserGeneration(v)
+	return _c
+}
+
+// SetNillableBrowserGeneration sets the "browser_generation" field if the given value is not nil.
+func (_c *SessionCreate) SetNillableBrowserGeneration(v *int64) *SessionCreate {
+	if v != nil {
+		_c.SetBrowserGeneration(*v)
+	}
+	return _c
+}
+
 // SetAuthenticatedAt sets the "authenticated_at" field.
 func (_c *SessionCreate) SetAuthenticatedAt(v time.Time) *SessionCreate {
 	_c.mutation.SetAuthenticatedAt(v)
@@ -272,6 +300,14 @@ func (_c *SessionCreate) createSpec() (*Session, *sqlgraph.CreateSpec) {
 		_spec.SetField(session.FieldAuthVersion, field.TypeInt64, value)
 		_node.AuthVersion = value
 	}
+	if value, ok := _c.mutation.BrowserContextID(); ok {
+		_spec.SetField(session.FieldBrowserContextID, field.TypeString, value)
+		_node.BrowserContextID = &value
+	}
+	if value, ok := _c.mutation.BrowserGeneration(); ok {
+		_spec.SetField(session.FieldBrowserGeneration, field.TypeInt64, value)
+		_node.BrowserGeneration = &value
+	}
 	if value, ok := _c.mutation.AuthenticatedAt(); ok {
 		_spec.SetField(session.FieldAuthenticatedAt, field.TypeTime, value)
 		_node.AuthenticatedAt = &value
@@ -416,6 +452,12 @@ func (u *SessionUpsertOne) UpdateNewValues() *SessionUpsertOne {
 		}
 		if _, exists := u.create.mutation.AuthVersion(); exists {
 			s.SetIgnore(session.FieldAuthVersion)
+		}
+		if _, exists := u.create.mutation.BrowserContextID(); exists {
+			s.SetIgnore(session.FieldBrowserContextID)
+		}
+		if _, exists := u.create.mutation.BrowserGeneration(); exists {
+			s.SetIgnore(session.FieldBrowserGeneration)
 		}
 	}))
 	return u
@@ -712,6 +754,12 @@ func (u *SessionUpsertBulk) UpdateNewValues() *SessionUpsertBulk {
 			}
 			if _, exists := b.mutation.AuthVersion(); exists {
 				s.SetIgnore(session.FieldAuthVersion)
+			}
+			if _, exists := b.mutation.BrowserContextID(); exists {
+				s.SetIgnore(session.FieldBrowserContextID)
+			}
+			if _, exists := b.mutation.BrowserGeneration(); exists {
+				s.SetIgnore(session.FieldBrowserGeneration)
 			}
 		}
 	}))

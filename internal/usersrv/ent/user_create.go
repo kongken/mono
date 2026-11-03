@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
+	"github.com/kongken/mono/internal/usersrv/ent/externalidentity"
 	"github.com/kongken/mono/internal/usersrv/ent/user"
 	"github.com/kongken/mono/internal/usersrv/ent/userrole"
 )
@@ -40,6 +41,28 @@ func (_c *UserCreate) SetEmailVerifiedAt(v time.Time) *UserCreate {
 // SetPasswordHash sets the "password_hash" field.
 func (_c *UserCreate) SetPasswordHash(v string) *UserCreate {
 	_c.mutation.SetPasswordHash(v)
+	return _c
+}
+
+// SetNillablePasswordHash sets the "password_hash" field if the given value is not nil.
+func (_c *UserCreate) SetNillablePasswordHash(v *string) *UserCreate {
+	if v != nil {
+		_c.SetPasswordHash(*v)
+	}
+	return _c
+}
+
+// SetPasswordSetAt sets the "password_set_at" field.
+func (_c *UserCreate) SetPasswordSetAt(v time.Time) *UserCreate {
+	_c.mutation.SetPasswordSetAt(v)
+	return _c
+}
+
+// SetNillablePasswordSetAt sets the "password_set_at" field if the given value is not nil.
+func (_c *UserCreate) SetNillablePasswordSetAt(v *time.Time) *UserCreate {
+	if v != nil {
+		_c.SetPasswordSetAt(*v)
+	}
 	return _c
 }
 
@@ -198,6 +221,21 @@ func (_c *UserCreate) AddRoles(v ...*UserRole) *UserCreate {
 	return _c.AddRoleIDs(ids...)
 }
 
+// AddExternalIdentityIDs adds the "external_identities" edge to the ExternalIdentity entity by IDs.
+func (_c *UserCreate) AddExternalIdentityIDs(ids ...uuid.UUID) *UserCreate {
+	_c.mutation.AddExternalIdentityIDs(ids...)
+	return _c
+}
+
+// AddExternalIdentities adds the "external_identities" edges to the ExternalIdentity entity.
+func (_c *UserCreate) AddExternalIdentities(v ...*ExternalIdentity) *UserCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddExternalIdentityIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_c *UserCreate) Mutation() *UserMutation {
 	return _c.mutation
@@ -280,9 +318,6 @@ func (_c *UserCreate) check() error {
 	if _, ok := _c.mutation.EmailVerifiedAt(); !ok {
 		return &ValidationError{Name: "email_verified_at", err: errors.New(`ent: missing required field "User.email_verified_at"`)}
 	}
-	if _, ok := _c.mutation.PasswordHash(); !ok {
-		return &ValidationError{Name: "password_hash", err: errors.New(`ent: missing required field "User.password_hash"`)}
-	}
 	if v, ok := _c.mutation.PasswordHash(); ok {
 		if err := user.PasswordHashValidator(v); err != nil {
 			return &ValidationError{Name: "password_hash", err: fmt.Errorf(`ent: validator failed for field "User.password_hash": %w`, err)}
@@ -360,7 +395,11 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	}
 	if value, ok := _c.mutation.PasswordHash(); ok {
 		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
-		_node.PasswordHash = value
+		_node.PasswordHash = &value
+	}
+	if value, ok := _c.mutation.PasswordSetAt(); ok {
+		_spec.SetField(user.FieldPasswordSetAt, field.TypeTime, value)
+		_node.PasswordSetAt = &value
 	}
 	if value, ok := _c.mutation.DisplayName(); ok {
 		_spec.SetField(user.FieldDisplayName, field.TypeString, value)
@@ -407,6 +446,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(userrole.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ExternalIdentitiesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ExternalIdentitiesTable,
+			Columns: []string{user.ExternalIdentitiesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(externalidentity.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {
@@ -499,6 +554,30 @@ func (u *UserUpsert) SetPasswordHash(v string) *UserUpsert {
 // UpdatePasswordHash sets the "password_hash" field to the value that was provided on create.
 func (u *UserUpsert) UpdatePasswordHash() *UserUpsert {
 	u.SetExcluded(user.FieldPasswordHash)
+	return u
+}
+
+// ClearPasswordHash clears the value of the "password_hash" field.
+func (u *UserUpsert) ClearPasswordHash() *UserUpsert {
+	u.SetNull(user.FieldPasswordHash)
+	return u
+}
+
+// SetPasswordSetAt sets the "password_set_at" field.
+func (u *UserUpsert) SetPasswordSetAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldPasswordSetAt, v)
+	return u
+}
+
+// UpdatePasswordSetAt sets the "password_set_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdatePasswordSetAt() *UserUpsert {
+	u.SetExcluded(user.FieldPasswordSetAt)
+	return u
+}
+
+// ClearPasswordSetAt clears the value of the "password_set_at" field.
+func (u *UserUpsert) ClearPasswordSetAt() *UserUpsert {
+	u.SetNull(user.FieldPasswordSetAt)
 	return u
 }
 
@@ -712,6 +791,34 @@ func (u *UserUpsertOne) SetPasswordHash(v string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdatePasswordHash() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdatePasswordHash()
+	})
+}
+
+// ClearPasswordHash clears the value of the "password_hash" field.
+func (u *UserUpsertOne) ClearPasswordHash() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearPasswordHash()
+	})
+}
+
+// SetPasswordSetAt sets the "password_set_at" field.
+func (u *UserUpsertOne) SetPasswordSetAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPasswordSetAt(v)
+	})
+}
+
+// UpdatePasswordSetAt sets the "password_set_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdatePasswordSetAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePasswordSetAt()
+	})
+}
+
+// ClearPasswordSetAt clears the value of the "password_set_at" field.
+func (u *UserUpsertOne) ClearPasswordSetAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearPasswordSetAt()
 	})
 }
 
@@ -1112,6 +1219,34 @@ func (u *UserUpsertBulk) SetPasswordHash(v string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdatePasswordHash() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdatePasswordHash()
+	})
+}
+
+// ClearPasswordHash clears the value of the "password_hash" field.
+func (u *UserUpsertBulk) ClearPasswordHash() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearPasswordHash()
+	})
+}
+
+// SetPasswordSetAt sets the "password_set_at" field.
+func (u *UserUpsertBulk) SetPasswordSetAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPasswordSetAt(v)
+	})
+}
+
+// UpdatePasswordSetAt sets the "password_set_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdatePasswordSetAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePasswordSetAt()
+	})
+}
+
+// ClearPasswordSetAt clears the value of the "password_set_at" field.
+func (u *UserUpsertBulk) ClearPasswordSetAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearPasswordSetAt()
 	})
 }
 

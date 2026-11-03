@@ -98,6 +98,11 @@ func TestPerimeterRunsBeforeSessionAndRoleAndHandler(t *testing.T) {
 	}
 }
 
+func TestAccountDeletionProgressReadNeedsNoCSRF(t *testing.T) {
+	if ingress.RequiresWriteProtection(bffv1connect.AuthServiceGetAccountDeletionProcedure) {
+		t.Fatal("GetAccountDeletion is a recovery-progress read and must not demand CSRF")
+	}
+}
 func TestUserAdminReadsNeedNoCSRFButAreNotAnonymous(t *testing.T) {
 	for _, p := range []string{bffv1connect.UserAdminServiceListUsersProcedure, bffv1connect.UserAdminServiceGetUserProcedure} {
 		if ingress.RequiresWriteProtection(p) {

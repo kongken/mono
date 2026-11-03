@@ -42,6 +42,7 @@ const (
 	ReasonDeletionMismatch   = "DELETION_MISMATCH"
 	ReasonTokenInvalid       = "TOKEN_INVALID"
 	ReasonRegistrationClosed = "REGISTRATION_CLOSED"
+	ReasonProviderRejected   = "PROVIDER_REJECTED"
 	// ReasonPlatformAdminProtected: the account holds the platform role, which
 	// forbids closing it from the web until the role is revoked by an operator.
 	ReasonPlatformAdminProtected = "PLATFORM_ADMIN_PROTECTED"
@@ -67,6 +68,7 @@ type AuthState struct {
 	AuthVersion    int64
 	Roles          []string
 	ProfileVersion int64
+	HasPassword    bool
 }
 
 // Profile is the cross-product nickname and avatar.
@@ -84,6 +86,7 @@ type Account struct {
 	Roles       []string
 	Status      Status
 	AuthVersion int64
+	HasPassword bool
 }
 
 // Login is what usersrv knows after a correct email and password.
@@ -92,6 +95,7 @@ type Login struct {
 	Profile     Profile
 	Roles       []string
 	AuthVersion int64
+	HasPassword bool
 }
 
 // ErrNotFound means the account does not exist (never registered, or deleted).
@@ -99,13 +103,14 @@ var ErrNotFound = errors.New("account not found")
 
 // Client calls usersrv.
 type Client struct {
-	account usersrvv1.AccountServiceClient
-	admin   usersrvv1.UserAdminServiceClient
+	external usersrvv1.ExternalIdentityServiceClient
+	account  usersrvv1.AccountServiceClient
+	admin    usersrvv1.UserAdminServiceClient
 }
 
 // New returns a client over the usersrv connection.
 func New(conn grpc.ClientConnInterface) *Client {
-	return &Client{account: usersrvv1.NewAccountServiceClient(conn), admin: usersrvv1.NewUserAdminServiceClient(conn)}
+	return &Client{account: usersrvv1.NewAccountServiceClient(conn), admin: usersrvv1.NewUserAdminServiceClient(conn), external: usersrvv1.NewExternalIdentityServiceClient(conn)}
 }
 
 // anonymous describes a call without a user: the client address and request ID of
@@ -156,7 +161,7 @@ func (c *Client) Authenticate(ctx context.Context, email, password string) (Logi
 		}
 		return Login{}, MapError(err)
 	}
-	return Login{UserID: res.GetUserId(), Profile: profile(res.GetProfile()), Roles: res.GetRoles(), AuthVersion: res.GetAuthVersion()}, nil
+	return Login{UserID: res.GetUserId(), Profile: profile(res.GetProfile()), Roles: res.GetRoles(), AuthVersion: res.GetAuthVersion(), HasPassword: res.GetHasPassword()}, nil
 }
 
 func (c *Client) RequestPasswordReset(ctx context.Context, email string, ret Return) error {
@@ -184,7 +189,7 @@ func (c *Client) AuthState(ctx context.Context, userID string) (AuthState, error
 		}
 		return AuthState{}, MapError(err)
 	}
-	return AuthState{Status: statusOf(res.GetStatus()), AuthVersion: res.GetAuthVersion(), Roles: res.GetRoles(), ProfileVersion: res.GetProfileVersion()}, nil
+	return AuthState{Status: statusOf(res.GetStatus()), AuthVersion: res.GetAuthVersion(), Roles: res.GetRoles(), ProfileVersion: res.GetProfileVersion(), HasPassword: res.GetHasPassword()}, nil
 }
 
 // Account reads the caller's own account.
@@ -197,7 +202,7 @@ func (c *Client) Account(ctx context.Context, userID string) (Account, error) {
 		return Account{}, MapError(err)
 	}
 	return Account{UserID: res.GetUserId(), Email: res.GetEmail(), Profile: profile(res.GetProfile()), Roles: res.GetRoles(),
-		Status: statusOf(res.GetStatus()), AuthVersion: res.GetAuthVersion()}, nil
+		Status: statusOf(res.GetStatus()), AuthVersion: res.GetAuthVersion(), HasPassword: res.GetHasPassword()}, nil
 }
 
 // VerifyPassword re-checks the current password and returns the account's
@@ -318,6 +323,9 @@ func MapError(err error) error {
 		if reason == ReasonInvalidCredentials {
 			return connect.NewError(connect.CodeUnauthenticated, errors.New(LoginFailure))
 		}
+		if reason == ReasonProviderRejected {
+			return browserReason(connect.NewError(connect.CodeUnauthenticated, errors.New("external authentication failed")), reason)
+		}
 		slog.Error("usersrv refused the BFF service credential", "code", st.Code().String())
 		return connect.NewError(connect.CodeInternal, errors.New("internal error"))
 	case codes.Unavailable:
@@ -331,7 +339,7 @@ func MapError(err error) error {
 		if reason == "" {
 			slog.Warn("usersrv answered without a reason", "code", st.Code().String())
 		}
-		return connect.NewError(connect.Code(st.Code()), errors.New(st.Message()))
+		return browserReason(connect.NewError(connect.Code(st.Code()), errors.New(st.Message())), reason)
 	}
 	slog.Error("usersrv call failed", "code", st.Code().String(), "reason", reason)
 	return connect.NewError(connect.CodeInternal, errors.New("internal error"))

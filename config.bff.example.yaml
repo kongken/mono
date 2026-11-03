@@ -75,6 +75,20 @@ mcp:
   rate_limit_per_minute: 60
 
 auth:
+  # External browser authorization is opt-in, independently for each provider.
+  # OAuth client ID/secret and registration_enabled belong ONLY to usersrv.
+  external:
+    enabled: false
+    providers: {google: false, github: false}
+    # Must match usersrv; versions default to 1. Roll changes out together.
+    provider_config_versions: {google: 1, github: 1}
+    state_ttl: 15m
+    confirmation_ttl: 10m
+    state_encryption_key_id: ""
+    # Each Secret file contains base64 of 32 random bytes. Before enabling, set
+    # the active ID and retain old files until their live states have expired.
+    # state_encryption_key_id: state-1
+    # state_encryption_key_files: {state-1: /secrets/bff-external-state-1.key}
   session_ttl: 168h
   # Procedures that declare required_role (the metro admin API) need a session whose
   # password was last checked (sign-in or Reauthenticate) within this long. The role

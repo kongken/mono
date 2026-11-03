@@ -1,14 +1,33 @@
 package auth
 
 import (
+	"crypto/sha256"
 	"strings"
 	"testing"
 
+	"github.com/kongken/mono/internal/bff/ent"
+	"github.com/kongken/mono/internal/bff/ent/oauthbrowserstate"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-// No account-deletion call names a user, an account, a workflow or an email: the caller is the
+func TestExternalProofUsesIdentityOperationSessionBinding(t *testing.T) {
+	sessionID := "session-row"
+	row := &ent.OAuthBrowserState{
+		ID:                  "flow-id",
+		Intent:              oauthbrowserstate.IntentLink,
+		ContextHash:         []byte("context"),
+		UsersrvChallengeID:  "challenge-id",
+		InitiatingTokenHash: "a different bearer hash",
+		SessionID:           &sessionID,
+	}
+	ref := (&ExternalHandler{}).ref(row)
+	want := sha256.Sum256([]byte(sessionID))
+	if got := ref.GetBinding().GetSessionBindingHash(); string(got) != string(want[:]) {
+		t.Fatalf("session binding hash = %x, want persisted session ID hash %x", got, want)
+	}
+}
+
 // Cookie, and the only identifiers in a request are the caller's own idempotency key and the
 // typed confirmation. A field added here that could point at someone else fails this test, so
 // a path that closes another person's account cannot appear unnoticed.

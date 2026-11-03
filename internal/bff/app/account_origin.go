@@ -19,8 +19,10 @@ import (
 // without being listed anywhere; a test fails when a browser service is in neither this list nor
 // the admin and product lists.
 var accountServices = []string{
+	bffv1connect.ExternalAuthServiceName,
 	bffv1connect.AuthServiceName,
 	bffv1connect.UserServiceName,
+	bffv1connect.IdentityServiceName,
 }
 
 // accountOpenProcedures are the account procedures every registered application keeps. They are

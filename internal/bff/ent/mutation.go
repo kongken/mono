@@ -13,6 +13,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/kongken/mono/internal/bff/ent/accesstoken"
 	"github.com/kongken/mono/internal/bff/ent/accountdeletion"
+	"github.com/kongken/mono/internal/bff/ent/browsercontext"
+	"github.com/kongken/mono/internal/bff/ent/oauthbrowserstate"
 	"github.com/kongken/mono/internal/bff/ent/predicate"
 	"github.com/kongken/mono/internal/bff/ent/session"
 )
@@ -26,9 +28,11 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeAccessToken     = "AccessToken"
-	TypeAccountDeletion = "AccountDeletion"
-	TypeSession         = "Session"
+	TypeAccessToken       = "AccessToken"
+	TypeAccountDeletion   = "AccountDeletion"
+	TypeBrowserContext    = "BrowserContext"
+	TypeOAuthBrowserState = "OAuthBrowserState"
+	TypeSession           = "Session"
 )
 
 // AccessTokenMutation represents an operation that mutates the AccessToken nodes in the graph.
@@ -2174,25 +2178,2409 @@ func (m *AccountDeletionMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown AccountDeletion edge %s", name)
 }
 
+// BrowserContextMutation represents an operation that mutates the BrowserContext nodes in the graph.
+type BrowserContextMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *string
+	generation    *int64
+	addgeneration *int64
+	expires_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*BrowserContext, error)
+	predicates    []predicate.BrowserContext
+}
+
+var _ ent.Mutation = (*BrowserContextMutation)(nil)
+
+// browsercontextOption allows management of the mutation configuration using functional options.
+type browsercontextOption func(*BrowserContextMutation)
+
+// newBrowserContextMutation creates new mutation for the BrowserContext entity.
+func newBrowserContextMutation(c config, op Op, opts ...browsercontextOption) *BrowserContextMutation {
+	m := &BrowserContextMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeBrowserContext,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withBrowserContextID sets the ID field of the mutation.
+func withBrowserContextID(id string) browsercontextOption {
+	return func(m *BrowserContextMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *BrowserContext
+		)
+		m.oldValue = func(ctx context.Context) (*BrowserContext, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().BrowserContext.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withBrowserContext sets the old BrowserContext of the mutation.
+func withBrowserContext(node *BrowserContext) browsercontextOption {
+	return func(m *BrowserContextMutation) {
+		m.oldValue = func(context.Context) (*BrowserContext, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m BrowserContextMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m BrowserContextMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of BrowserContext entities.
+func (m *BrowserContextMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *BrowserContextMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *BrowserContextMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().BrowserContext.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetGeneration sets the "generation" field.
+func (m *BrowserContextMutation) SetGeneration(i int64) {
+	m.generation = &i
+	m.addgeneration = nil
+}
+
+// Generation returns the value of the "generation" field in the mutation.
+func (m *BrowserContextMutation) Generation() (r int64, exists bool) {
+	v := m.generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGeneration returns the old "generation" field's value of the BrowserContext entity.
+// If the BrowserContext object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BrowserContextMutation) OldGeneration(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGeneration: %w", err)
+	}
+	return oldValue.Generation, nil
+}
+
+// AddGeneration adds i to the "generation" field.
+func (m *BrowserContextMutation) AddGeneration(i int64) {
+	if m.addgeneration != nil {
+		*m.addgeneration += i
+	} else {
+		m.addgeneration = &i
+	}
+}
+
+// AddedGeneration returns the value that was added to the "generation" field in this mutation.
+func (m *BrowserContextMutation) AddedGeneration() (r int64, exists bool) {
+	v := m.addgeneration
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGeneration resets all changes to the "generation" field.
+func (m *BrowserContextMutation) ResetGeneration() {
+	m.generation = nil
+	m.addgeneration = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *BrowserContextMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *BrowserContextMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the BrowserContext entity.
+// If the BrowserContext object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BrowserContextMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *BrowserContextMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// Where appends a list predicates to the BrowserContextMutation builder.
+func (m *BrowserContextMutation) Where(ps ...predicate.BrowserContext) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the BrowserContextMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *BrowserContextMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.BrowserContext, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *BrowserContextMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *BrowserContextMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (BrowserContext).
+func (m *BrowserContextMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *BrowserContextMutation) Fields() []string {
+	fields := make([]string, 0, 2)
+	if m.generation != nil {
+		fields = append(fields, browsercontext.FieldGeneration)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, browsercontext.FieldExpiresAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *BrowserContextMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case browsercontext.FieldGeneration:
+		return m.Generation()
+	case browsercontext.FieldExpiresAt:
+		return m.ExpiresAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *BrowserContextMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case browsercontext.FieldGeneration:
+		return m.OldGeneration(ctx)
+	case browsercontext.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown BrowserContext field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *BrowserContextMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case browsercontext.FieldGeneration:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGeneration(v)
+		return nil
+	case browsercontext.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown BrowserContext field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *BrowserContextMutation) AddedFields() []string {
+	var fields []string
+	if m.addgeneration != nil {
+		fields = append(fields, browsercontext.FieldGeneration)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *BrowserContextMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case browsercontext.FieldGeneration:
+		return m.AddedGeneration()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *BrowserContextMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case browsercontext.FieldGeneration:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGeneration(v)
+		return nil
+	}
+	return fmt.Errorf("unknown BrowserContext numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *BrowserContextMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *BrowserContextMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *BrowserContextMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown BrowserContext nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *BrowserContextMutation) ResetField(name string) error {
+	switch name {
+	case browsercontext.FieldGeneration:
+		m.ResetGeneration()
+		return nil
+	case browsercontext.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	}
+	return fmt.Errorf("unknown BrowserContext field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *BrowserContextMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *BrowserContextMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *BrowserContextMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *BrowserContextMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *BrowserContextMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *BrowserContextMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *BrowserContextMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown BrowserContext unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *BrowserContextMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown BrowserContext edge %s", name)
+}
+
+// OAuthBrowserStateMutation represents an operation that mutates the OAuthBrowserState nodes in the graph.
+type OAuthBrowserStateMutation struct {
+	config
+	op                         Op
+	typ                        string
+	id                         *string
+	usersrv_challenge_id       *string
+	state_hash                 *string
+	provider                   *oauthbrowserstate.Provider
+	intent                     *oauthbrowserstate.Intent
+	browser_binding_hash       *string
+	browser_context_id         *string
+	browser_generation         *int64
+	addbrowser_generation      *int64
+	initiating_token_hash      *string
+	session_id                 *string
+	user_id                    *string
+	auth_version               *int64
+	addauth_version            *int64
+	provider_config_version    *int64
+	addprovider_config_version *int64
+	context_hash               *[]byte
+	nonce_hash                 *string
+	key_id                     *string
+	pkce_verifier_ciphertext   *[]byte
+	return_app_id              *string
+	return_path                *string
+	created_at                 *time.Time
+	expires_at                 *time.Time
+	consumed_at                *time.Time
+	result_status              *string
+	final_claimed_at           *time.Time
+	final_mutation_id          *string
+	final_request_hash         *string
+	confirmation_expires_at    *time.Time
+	clearedFields              map[string]struct{}
+	done                       bool
+	oldValue                   func(context.Context) (*OAuthBrowserState, error)
+	predicates                 []predicate.OAuthBrowserState
+}
+
+var _ ent.Mutation = (*OAuthBrowserStateMutation)(nil)
+
+// oauthbrowserstateOption allows management of the mutation configuration using functional options.
+type oauthbrowserstateOption func(*OAuthBrowserStateMutation)
+
+// newOAuthBrowserStateMutation creates new mutation for the OAuthBrowserState entity.
+func newOAuthBrowserStateMutation(c config, op Op, opts ...oauthbrowserstateOption) *OAuthBrowserStateMutation {
+	m := &OAuthBrowserStateMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeOAuthBrowserState,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withOAuthBrowserStateID sets the ID field of the mutation.
+func withOAuthBrowserStateID(id string) oauthbrowserstateOption {
+	return func(m *OAuthBrowserStateMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *OAuthBrowserState
+		)
+		m.oldValue = func(ctx context.Context) (*OAuthBrowserState, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().OAuthBrowserState.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withOAuthBrowserState sets the old OAuthBrowserState of the mutation.
+func withOAuthBrowserState(node *OAuthBrowserState) oauthbrowserstateOption {
+	return func(m *OAuthBrowserStateMutation) {
+		m.oldValue = func(context.Context) (*OAuthBrowserState, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m OAuthBrowserStateMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m OAuthBrowserStateMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of OAuthBrowserState entities.
+func (m *OAuthBrowserStateMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *OAuthBrowserStateMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *OAuthBrowserStateMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().OAuthBrowserState.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUsersrvChallengeID sets the "usersrv_challenge_id" field.
+func (m *OAuthBrowserStateMutation) SetUsersrvChallengeID(s string) {
+	m.usersrv_challenge_id = &s
+}
+
+// UsersrvChallengeID returns the value of the "usersrv_challenge_id" field in the mutation.
+func (m *OAuthBrowserStateMutation) UsersrvChallengeID() (r string, exists bool) {
+	v := m.usersrv_challenge_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsersrvChallengeID returns the old "usersrv_challenge_id" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldUsersrvChallengeID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsersrvChallengeID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsersrvChallengeID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsersrvChallengeID: %w", err)
+	}
+	return oldValue.UsersrvChallengeID, nil
+}
+
+// ResetUsersrvChallengeID resets all changes to the "usersrv_challenge_id" field.
+func (m *OAuthBrowserStateMutation) ResetUsersrvChallengeID() {
+	m.usersrv_challenge_id = nil
+}
+
+// SetStateHash sets the "state_hash" field.
+func (m *OAuthBrowserStateMutation) SetStateHash(s string) {
+	m.state_hash = &s
+}
+
+// StateHash returns the value of the "state_hash" field in the mutation.
+func (m *OAuthBrowserStateMutation) StateHash() (r string, exists bool) {
+	v := m.state_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStateHash returns the old "state_hash" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldStateHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStateHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStateHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStateHash: %w", err)
+	}
+	return oldValue.StateHash, nil
+}
+
+// ResetStateHash resets all changes to the "state_hash" field.
+func (m *OAuthBrowserStateMutation) ResetStateHash() {
+	m.state_hash = nil
+}
+
+// SetProvider sets the "provider" field.
+func (m *OAuthBrowserStateMutation) SetProvider(o oauthbrowserstate.Provider) {
+	m.provider = &o
+}
+
+// Provider returns the value of the "provider" field in the mutation.
+func (m *OAuthBrowserStateMutation) Provider() (r oauthbrowserstate.Provider, exists bool) {
+	v := m.provider
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProvider returns the old "provider" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldProvider(ctx context.Context) (v oauthbrowserstate.Provider, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProvider is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProvider requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProvider: %w", err)
+	}
+	return oldValue.Provider, nil
+}
+
+// ResetProvider resets all changes to the "provider" field.
+func (m *OAuthBrowserStateMutation) ResetProvider() {
+	m.provider = nil
+}
+
+// SetIntent sets the "intent" field.
+func (m *OAuthBrowserStateMutation) SetIntent(o oauthbrowserstate.Intent) {
+	m.intent = &o
+}
+
+// Intent returns the value of the "intent" field in the mutation.
+func (m *OAuthBrowserStateMutation) Intent() (r oauthbrowserstate.Intent, exists bool) {
+	v := m.intent
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIntent returns the old "intent" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldIntent(ctx context.Context) (v oauthbrowserstate.Intent, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIntent is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIntent requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIntent: %w", err)
+	}
+	return oldValue.Intent, nil
+}
+
+// ResetIntent resets all changes to the "intent" field.
+func (m *OAuthBrowserStateMutation) ResetIntent() {
+	m.intent = nil
+}
+
+// SetBrowserBindingHash sets the "browser_binding_hash" field.
+func (m *OAuthBrowserStateMutation) SetBrowserBindingHash(s string) {
+	m.browser_binding_hash = &s
+}
+
+// BrowserBindingHash returns the value of the "browser_binding_hash" field in the mutation.
+func (m *OAuthBrowserStateMutation) BrowserBindingHash() (r string, exists bool) {
+	v := m.browser_binding_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBrowserBindingHash returns the old "browser_binding_hash" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldBrowserBindingHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBrowserBindingHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBrowserBindingHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBrowserBindingHash: %w", err)
+	}
+	return oldValue.BrowserBindingHash, nil
+}
+
+// ResetBrowserBindingHash resets all changes to the "browser_binding_hash" field.
+func (m *OAuthBrowserStateMutation) ResetBrowserBindingHash() {
+	m.browser_binding_hash = nil
+}
+
+// SetBrowserContextID sets the "browser_context_id" field.
+func (m *OAuthBrowserStateMutation) SetBrowserContextID(s string) {
+	m.browser_context_id = &s
+}
+
+// BrowserContextID returns the value of the "browser_context_id" field in the mutation.
+func (m *OAuthBrowserStateMutation) BrowserContextID() (r string, exists bool) {
+	v := m.browser_context_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBrowserContextID returns the old "browser_context_id" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldBrowserContextID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBrowserContextID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBrowserContextID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBrowserContextID: %w", err)
+	}
+	return oldValue.BrowserContextID, nil
+}
+
+// ResetBrowserContextID resets all changes to the "browser_context_id" field.
+func (m *OAuthBrowserStateMutation) ResetBrowserContextID() {
+	m.browser_context_id = nil
+}
+
+// SetBrowserGeneration sets the "browser_generation" field.
+func (m *OAuthBrowserStateMutation) SetBrowserGeneration(i int64) {
+	m.browser_generation = &i
+	m.addbrowser_generation = nil
+}
+
+// BrowserGeneration returns the value of the "browser_generation" field in the mutation.
+func (m *OAuthBrowserStateMutation) BrowserGeneration() (r int64, exists bool) {
+	v := m.browser_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBrowserGeneration returns the old "browser_generation" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldBrowserGeneration(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBrowserGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBrowserGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBrowserGeneration: %w", err)
+	}
+	return oldValue.BrowserGeneration, nil
+}
+
+// AddBrowserGeneration adds i to the "browser_generation" field.
+func (m *OAuthBrowserStateMutation) AddBrowserGeneration(i int64) {
+	if m.addbrowser_generation != nil {
+		*m.addbrowser_generation += i
+	} else {
+		m.addbrowser_generation = &i
+	}
+}
+
+// AddedBrowserGeneration returns the value that was added to the "browser_generation" field in this mutation.
+func (m *OAuthBrowserStateMutation) AddedBrowserGeneration() (r int64, exists bool) {
+	v := m.addbrowser_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBrowserGeneration resets all changes to the "browser_generation" field.
+func (m *OAuthBrowserStateMutation) ResetBrowserGeneration() {
+	m.browser_generation = nil
+	m.addbrowser_generation = nil
+}
+
+// SetInitiatingTokenHash sets the "initiating_token_hash" field.
+func (m *OAuthBrowserStateMutation) SetInitiatingTokenHash(s string) {
+	m.initiating_token_hash = &s
+}
+
+// InitiatingTokenHash returns the value of the "initiating_token_hash" field in the mutation.
+func (m *OAuthBrowserStateMutation) InitiatingTokenHash() (r string, exists bool) {
+	v := m.initiating_token_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInitiatingTokenHash returns the old "initiating_token_hash" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldInitiatingTokenHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInitiatingTokenHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInitiatingTokenHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInitiatingTokenHash: %w", err)
+	}
+	return oldValue.InitiatingTokenHash, nil
+}
+
+// ResetInitiatingTokenHash resets all changes to the "initiating_token_hash" field.
+func (m *OAuthBrowserStateMutation) ResetInitiatingTokenHash() {
+	m.initiating_token_hash = nil
+}
+
+// SetSessionID sets the "session_id" field.
+func (m *OAuthBrowserStateMutation) SetSessionID(s string) {
+	m.session_id = &s
+}
+
+// SessionID returns the value of the "session_id" field in the mutation.
+func (m *OAuthBrowserStateMutation) SessionID() (r string, exists bool) {
+	v := m.session_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSessionID returns the old "session_id" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldSessionID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSessionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSessionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSessionID: %w", err)
+	}
+	return oldValue.SessionID, nil
+}
+
+// ClearSessionID clears the value of the "session_id" field.
+func (m *OAuthBrowserStateMutation) ClearSessionID() {
+	m.session_id = nil
+	m.clearedFields[oauthbrowserstate.FieldSessionID] = struct{}{}
+}
+
+// SessionIDCleared returns if the "session_id" field was cleared in this mutation.
+func (m *OAuthBrowserStateMutation) SessionIDCleared() bool {
+	_, ok := m.clearedFields[oauthbrowserstate.FieldSessionID]
+	return ok
+}
+
+// ResetSessionID resets all changes to the "session_id" field.
+func (m *OAuthBrowserStateMutation) ResetSessionID() {
+	m.session_id = nil
+	delete(m.clearedFields, oauthbrowserstate.FieldSessionID)
+}
+
+// SetUserID sets the "user_id" field.
+func (m *OAuthBrowserStateMutation) SetUserID(s string) {
+	m.user_id = &s
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *OAuthBrowserStateMutation) UserID() (r string, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldUserID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ClearUserID clears the value of the "user_id" field.
+func (m *OAuthBrowserStateMutation) ClearUserID() {
+	m.user_id = nil
+	m.clearedFields[oauthbrowserstate.FieldUserID] = struct{}{}
+}
+
+// UserIDCleared returns if the "user_id" field was cleared in this mutation.
+func (m *OAuthBrowserStateMutation) UserIDCleared() bool {
+	_, ok := m.clearedFields[oauthbrowserstate.FieldUserID]
+	return ok
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *OAuthBrowserStateMutation) ResetUserID() {
+	m.user_id = nil
+	delete(m.clearedFields, oauthbrowserstate.FieldUserID)
+}
+
+// SetAuthVersion sets the "auth_version" field.
+func (m *OAuthBrowserStateMutation) SetAuthVersion(i int64) {
+	m.auth_version = &i
+	m.addauth_version = nil
+}
+
+// AuthVersion returns the value of the "auth_version" field in the mutation.
+func (m *OAuthBrowserStateMutation) AuthVersion() (r int64, exists bool) {
+	v := m.auth_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAuthVersion returns the old "auth_version" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldAuthVersion(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAuthVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAuthVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAuthVersion: %w", err)
+	}
+	return oldValue.AuthVersion, nil
+}
+
+// AddAuthVersion adds i to the "auth_version" field.
+func (m *OAuthBrowserStateMutation) AddAuthVersion(i int64) {
+	if m.addauth_version != nil {
+		*m.addauth_version += i
+	} else {
+		m.addauth_version = &i
+	}
+}
+
+// AddedAuthVersion returns the value that was added to the "auth_version" field in this mutation.
+func (m *OAuthBrowserStateMutation) AddedAuthVersion() (r int64, exists bool) {
+	v := m.addauth_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAuthVersion clears the value of the "auth_version" field.
+func (m *OAuthBrowserStateMutation) ClearAuthVersion() {
+	m.auth_version = nil
+	m.addauth_version = nil
+	m.clearedFields[oauthbrowserstate.FieldAuthVersion] = struct{}{}
+}
+
+// AuthVersionCleared returns if the "auth_version" field was cleared in this mutation.
+func (m *OAuthBrowserStateMutation) AuthVersionCleared() bool {
+	_, ok := m.clearedFields[oauthbrowserstate.FieldAuthVersion]
+	return ok
+}
+
+// ResetAuthVersion resets all changes to the "auth_version" field.
+func (m *OAuthBrowserStateMutation) ResetAuthVersion() {
+	m.auth_version = nil
+	m.addauth_version = nil
+	delete(m.clearedFields, oauthbrowserstate.FieldAuthVersion)
+}
+
+// SetProviderConfigVersion sets the "provider_config_version" field.
+func (m *OAuthBrowserStateMutation) SetProviderConfigVersion(i int64) {
+	m.provider_config_version = &i
+	m.addprovider_config_version = nil
+}
+
+// ProviderConfigVersion returns the value of the "provider_config_version" field in the mutation.
+func (m *OAuthBrowserStateMutation) ProviderConfigVersion() (r int64, exists bool) {
+	v := m.provider_config_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProviderConfigVersion returns the old "provider_config_version" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldProviderConfigVersion(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProviderConfigVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProviderConfigVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProviderConfigVersion: %w", err)
+	}
+	return oldValue.ProviderConfigVersion, nil
+}
+
+// AddProviderConfigVersion adds i to the "provider_config_version" field.
+func (m *OAuthBrowserStateMutation) AddProviderConfigVersion(i int64) {
+	if m.addprovider_config_version != nil {
+		*m.addprovider_config_version += i
+	} else {
+		m.addprovider_config_version = &i
+	}
+}
+
+// AddedProviderConfigVersion returns the value that was added to the "provider_config_version" field in this mutation.
+func (m *OAuthBrowserStateMutation) AddedProviderConfigVersion() (r int64, exists bool) {
+	v := m.addprovider_config_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetProviderConfigVersion resets all changes to the "provider_config_version" field.
+func (m *OAuthBrowserStateMutation) ResetProviderConfigVersion() {
+	m.provider_config_version = nil
+	m.addprovider_config_version = nil
+}
+
+// SetContextHash sets the "context_hash" field.
+func (m *OAuthBrowserStateMutation) SetContextHash(b []byte) {
+	m.context_hash = &b
+}
+
+// ContextHash returns the value of the "context_hash" field in the mutation.
+func (m *OAuthBrowserStateMutation) ContextHash() (r []byte, exists bool) {
+	v := m.context_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldContextHash returns the old "context_hash" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldContextHash(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldContextHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldContextHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldContextHash: %w", err)
+	}
+	return oldValue.ContextHash, nil
+}
+
+// ResetContextHash resets all changes to the "context_hash" field.
+func (m *OAuthBrowserStateMutation) ResetContextHash() {
+	m.context_hash = nil
+}
+
+// SetNonceHash sets the "nonce_hash" field.
+func (m *OAuthBrowserStateMutation) SetNonceHash(s string) {
+	m.nonce_hash = &s
+}
+
+// NonceHash returns the value of the "nonce_hash" field in the mutation.
+func (m *OAuthBrowserStateMutation) NonceHash() (r string, exists bool) {
+	v := m.nonce_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNonceHash returns the old "nonce_hash" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldNonceHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNonceHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNonceHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNonceHash: %w", err)
+	}
+	return oldValue.NonceHash, nil
+}
+
+// ResetNonceHash resets all changes to the "nonce_hash" field.
+func (m *OAuthBrowserStateMutation) ResetNonceHash() {
+	m.nonce_hash = nil
+}
+
+// SetKeyID sets the "key_id" field.
+func (m *OAuthBrowserStateMutation) SetKeyID(s string) {
+	m.key_id = &s
+}
+
+// KeyID returns the value of the "key_id" field in the mutation.
+func (m *OAuthBrowserStateMutation) KeyID() (r string, exists bool) {
+	v := m.key_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKeyID returns the old "key_id" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldKeyID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKeyID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKeyID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKeyID: %w", err)
+	}
+	return oldValue.KeyID, nil
+}
+
+// ResetKeyID resets all changes to the "key_id" field.
+func (m *OAuthBrowserStateMutation) ResetKeyID() {
+	m.key_id = nil
+}
+
+// SetPkceVerifierCiphertext sets the "pkce_verifier_ciphertext" field.
+func (m *OAuthBrowserStateMutation) SetPkceVerifierCiphertext(b []byte) {
+	m.pkce_verifier_ciphertext = &b
+}
+
+// PkceVerifierCiphertext returns the value of the "pkce_verifier_ciphertext" field in the mutation.
+func (m *OAuthBrowserStateMutation) PkceVerifierCiphertext() (r []byte, exists bool) {
+	v := m.pkce_verifier_ciphertext
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPkceVerifierCiphertext returns the old "pkce_verifier_ciphertext" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldPkceVerifierCiphertext(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPkceVerifierCiphertext is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPkceVerifierCiphertext requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPkceVerifierCiphertext: %w", err)
+	}
+	return oldValue.PkceVerifierCiphertext, nil
+}
+
+// ClearPkceVerifierCiphertext clears the value of the "pkce_verifier_ciphertext" field.
+func (m *OAuthBrowserStateMutation) ClearPkceVerifierCiphertext() {
+	m.pkce_verifier_ciphertext = nil
+	m.clearedFields[oauthbrowserstate.FieldPkceVerifierCiphertext] = struct{}{}
+}
+
+// PkceVerifierCiphertextCleared returns if the "pkce_verifier_ciphertext" field was cleared in this mutation.
+func (m *OAuthBrowserStateMutation) PkceVerifierCiphertextCleared() bool {
+	_, ok := m.clearedFields[oauthbrowserstate.FieldPkceVerifierCiphertext]
+	return ok
+}
+
+// ResetPkceVerifierCiphertext resets all changes to the "pkce_verifier_ciphertext" field.
+func (m *OAuthBrowserStateMutation) ResetPkceVerifierCiphertext() {
+	m.pkce_verifier_ciphertext = nil
+	delete(m.clearedFields, oauthbrowserstate.FieldPkceVerifierCiphertext)
+}
+
+// SetReturnAppID sets the "return_app_id" field.
+func (m *OAuthBrowserStateMutation) SetReturnAppID(s string) {
+	m.return_app_id = &s
+}
+
+// ReturnAppID returns the value of the "return_app_id" field in the mutation.
+func (m *OAuthBrowserStateMutation) ReturnAppID() (r string, exists bool) {
+	v := m.return_app_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReturnAppID returns the old "return_app_id" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldReturnAppID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReturnAppID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReturnAppID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReturnAppID: %w", err)
+	}
+	return oldValue.ReturnAppID, nil
+}
+
+// ResetReturnAppID resets all changes to the "return_app_id" field.
+func (m *OAuthBrowserStateMutation) ResetReturnAppID() {
+	m.return_app_id = nil
+}
+
+// SetReturnPath sets the "return_path" field.
+func (m *OAuthBrowserStateMutation) SetReturnPath(s string) {
+	m.return_path = &s
+}
+
+// ReturnPath returns the value of the "return_path" field in the mutation.
+func (m *OAuthBrowserStateMutation) ReturnPath() (r string, exists bool) {
+	v := m.return_path
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReturnPath returns the old "return_path" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldReturnPath(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReturnPath is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReturnPath requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReturnPath: %w", err)
+	}
+	return oldValue.ReturnPath, nil
+}
+
+// ResetReturnPath resets all changes to the "return_path" field.
+func (m *OAuthBrowserStateMutation) ResetReturnPath() {
+	m.return_path = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *OAuthBrowserStateMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *OAuthBrowserStateMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *OAuthBrowserStateMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *OAuthBrowserStateMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *OAuthBrowserStateMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *OAuthBrowserStateMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// SetConsumedAt sets the "consumed_at" field.
+func (m *OAuthBrowserStateMutation) SetConsumedAt(t time.Time) {
+	m.consumed_at = &t
+}
+
+// ConsumedAt returns the value of the "consumed_at" field in the mutation.
+func (m *OAuthBrowserStateMutation) ConsumedAt() (r time.Time, exists bool) {
+	v := m.consumed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConsumedAt returns the old "consumed_at" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldConsumedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConsumedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConsumedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConsumedAt: %w", err)
+	}
+	return oldValue.ConsumedAt, nil
+}
+
+// ClearConsumedAt clears the value of the "consumed_at" field.
+func (m *OAuthBrowserStateMutation) ClearConsumedAt() {
+	m.consumed_at = nil
+	m.clearedFields[oauthbrowserstate.FieldConsumedAt] = struct{}{}
+}
+
+// ConsumedAtCleared returns if the "consumed_at" field was cleared in this mutation.
+func (m *OAuthBrowserStateMutation) ConsumedAtCleared() bool {
+	_, ok := m.clearedFields[oauthbrowserstate.FieldConsumedAt]
+	return ok
+}
+
+// ResetConsumedAt resets all changes to the "consumed_at" field.
+func (m *OAuthBrowserStateMutation) ResetConsumedAt() {
+	m.consumed_at = nil
+	delete(m.clearedFields, oauthbrowserstate.FieldConsumedAt)
+}
+
+// SetResultStatus sets the "result_status" field.
+func (m *OAuthBrowserStateMutation) SetResultStatus(s string) {
+	m.result_status = &s
+}
+
+// ResultStatus returns the value of the "result_status" field in the mutation.
+func (m *OAuthBrowserStateMutation) ResultStatus() (r string, exists bool) {
+	v := m.result_status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResultStatus returns the old "result_status" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldResultStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResultStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResultStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResultStatus: %w", err)
+	}
+	return oldValue.ResultStatus, nil
+}
+
+// ResetResultStatus resets all changes to the "result_status" field.
+func (m *OAuthBrowserStateMutation) ResetResultStatus() {
+	m.result_status = nil
+}
+
+// SetFinalClaimedAt sets the "final_claimed_at" field.
+func (m *OAuthBrowserStateMutation) SetFinalClaimedAt(t time.Time) {
+	m.final_claimed_at = &t
+}
+
+// FinalClaimedAt returns the value of the "final_claimed_at" field in the mutation.
+func (m *OAuthBrowserStateMutation) FinalClaimedAt() (r time.Time, exists bool) {
+	v := m.final_claimed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFinalClaimedAt returns the old "final_claimed_at" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldFinalClaimedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFinalClaimedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFinalClaimedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFinalClaimedAt: %w", err)
+	}
+	return oldValue.FinalClaimedAt, nil
+}
+
+// ClearFinalClaimedAt clears the value of the "final_claimed_at" field.
+func (m *OAuthBrowserStateMutation) ClearFinalClaimedAt() {
+	m.final_claimed_at = nil
+	m.clearedFields[oauthbrowserstate.FieldFinalClaimedAt] = struct{}{}
+}
+
+// FinalClaimedAtCleared returns if the "final_claimed_at" field was cleared in this mutation.
+func (m *OAuthBrowserStateMutation) FinalClaimedAtCleared() bool {
+	_, ok := m.clearedFields[oauthbrowserstate.FieldFinalClaimedAt]
+	return ok
+}
+
+// ResetFinalClaimedAt resets all changes to the "final_claimed_at" field.
+func (m *OAuthBrowserStateMutation) ResetFinalClaimedAt() {
+	m.final_claimed_at = nil
+	delete(m.clearedFields, oauthbrowserstate.FieldFinalClaimedAt)
+}
+
+// SetFinalMutationID sets the "final_mutation_id" field.
+func (m *OAuthBrowserStateMutation) SetFinalMutationID(s string) {
+	m.final_mutation_id = &s
+}
+
+// FinalMutationID returns the value of the "final_mutation_id" field in the mutation.
+func (m *OAuthBrowserStateMutation) FinalMutationID() (r string, exists bool) {
+	v := m.final_mutation_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFinalMutationID returns the old "final_mutation_id" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldFinalMutationID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFinalMutationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFinalMutationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFinalMutationID: %w", err)
+	}
+	return oldValue.FinalMutationID, nil
+}
+
+// ClearFinalMutationID clears the value of the "final_mutation_id" field.
+func (m *OAuthBrowserStateMutation) ClearFinalMutationID() {
+	m.final_mutation_id = nil
+	m.clearedFields[oauthbrowserstate.FieldFinalMutationID] = struct{}{}
+}
+
+// FinalMutationIDCleared returns if the "final_mutation_id" field was cleared in this mutation.
+func (m *OAuthBrowserStateMutation) FinalMutationIDCleared() bool {
+	_, ok := m.clearedFields[oauthbrowserstate.FieldFinalMutationID]
+	return ok
+}
+
+// ResetFinalMutationID resets all changes to the "final_mutation_id" field.
+func (m *OAuthBrowserStateMutation) ResetFinalMutationID() {
+	m.final_mutation_id = nil
+	delete(m.clearedFields, oauthbrowserstate.FieldFinalMutationID)
+}
+
+// SetFinalRequestHash sets the "final_request_hash" field.
+func (m *OAuthBrowserStateMutation) SetFinalRequestHash(s string) {
+	m.final_request_hash = &s
+}
+
+// FinalRequestHash returns the value of the "final_request_hash" field in the mutation.
+func (m *OAuthBrowserStateMutation) FinalRequestHash() (r string, exists bool) {
+	v := m.final_request_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFinalRequestHash returns the old "final_request_hash" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldFinalRequestHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFinalRequestHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFinalRequestHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFinalRequestHash: %w", err)
+	}
+	return oldValue.FinalRequestHash, nil
+}
+
+// ClearFinalRequestHash clears the value of the "final_request_hash" field.
+func (m *OAuthBrowserStateMutation) ClearFinalRequestHash() {
+	m.final_request_hash = nil
+	m.clearedFields[oauthbrowserstate.FieldFinalRequestHash] = struct{}{}
+}
+
+// FinalRequestHashCleared returns if the "final_request_hash" field was cleared in this mutation.
+func (m *OAuthBrowserStateMutation) FinalRequestHashCleared() bool {
+	_, ok := m.clearedFields[oauthbrowserstate.FieldFinalRequestHash]
+	return ok
+}
+
+// ResetFinalRequestHash resets all changes to the "final_request_hash" field.
+func (m *OAuthBrowserStateMutation) ResetFinalRequestHash() {
+	m.final_request_hash = nil
+	delete(m.clearedFields, oauthbrowserstate.FieldFinalRequestHash)
+}
+
+// SetConfirmationExpiresAt sets the "confirmation_expires_at" field.
+func (m *OAuthBrowserStateMutation) SetConfirmationExpiresAt(t time.Time) {
+	m.confirmation_expires_at = &t
+}
+
+// ConfirmationExpiresAt returns the value of the "confirmation_expires_at" field in the mutation.
+func (m *OAuthBrowserStateMutation) ConfirmationExpiresAt() (r time.Time, exists bool) {
+	v := m.confirmation_expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConfirmationExpiresAt returns the old "confirmation_expires_at" field's value of the OAuthBrowserState entity.
+// If the OAuthBrowserState object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuthBrowserStateMutation) OldConfirmationExpiresAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConfirmationExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConfirmationExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConfirmationExpiresAt: %w", err)
+	}
+	return oldValue.ConfirmationExpiresAt, nil
+}
+
+// ClearConfirmationExpiresAt clears the value of the "confirmation_expires_at" field.
+func (m *OAuthBrowserStateMutation) ClearConfirmationExpiresAt() {
+	m.confirmation_expires_at = nil
+	m.clearedFields[oauthbrowserstate.FieldConfirmationExpiresAt] = struct{}{}
+}
+
+// ConfirmationExpiresAtCleared returns if the "confirmation_expires_at" field was cleared in this mutation.
+func (m *OAuthBrowserStateMutation) ConfirmationExpiresAtCleared() bool {
+	_, ok := m.clearedFields[oauthbrowserstate.FieldConfirmationExpiresAt]
+	return ok
+}
+
+// ResetConfirmationExpiresAt resets all changes to the "confirmation_expires_at" field.
+func (m *OAuthBrowserStateMutation) ResetConfirmationExpiresAt() {
+	m.confirmation_expires_at = nil
+	delete(m.clearedFields, oauthbrowserstate.FieldConfirmationExpiresAt)
+}
+
+// Where appends a list predicates to the OAuthBrowserStateMutation builder.
+func (m *OAuthBrowserStateMutation) Where(ps ...predicate.OAuthBrowserState) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the OAuthBrowserStateMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *OAuthBrowserStateMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.OAuthBrowserState, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *OAuthBrowserStateMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *OAuthBrowserStateMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (OAuthBrowserState).
+func (m *OAuthBrowserStateMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *OAuthBrowserStateMutation) Fields() []string {
+	fields := make([]string, 0, 26)
+	if m.usersrv_challenge_id != nil {
+		fields = append(fields, oauthbrowserstate.FieldUsersrvChallengeID)
+	}
+	if m.state_hash != nil {
+		fields = append(fields, oauthbrowserstate.FieldStateHash)
+	}
+	if m.provider != nil {
+		fields = append(fields, oauthbrowserstate.FieldProvider)
+	}
+	if m.intent != nil {
+		fields = append(fields, oauthbrowserstate.FieldIntent)
+	}
+	if m.browser_binding_hash != nil {
+		fields = append(fields, oauthbrowserstate.FieldBrowserBindingHash)
+	}
+	if m.browser_context_id != nil {
+		fields = append(fields, oauthbrowserstate.FieldBrowserContextID)
+	}
+	if m.browser_generation != nil {
+		fields = append(fields, oauthbrowserstate.FieldBrowserGeneration)
+	}
+	if m.initiating_token_hash != nil {
+		fields = append(fields, oauthbrowserstate.FieldInitiatingTokenHash)
+	}
+	if m.session_id != nil {
+		fields = append(fields, oauthbrowserstate.FieldSessionID)
+	}
+	if m.user_id != nil {
+		fields = append(fields, oauthbrowserstate.FieldUserID)
+	}
+	if m.auth_version != nil {
+		fields = append(fields, oauthbrowserstate.FieldAuthVersion)
+	}
+	if m.provider_config_version != nil {
+		fields = append(fields, oauthbrowserstate.FieldProviderConfigVersion)
+	}
+	if m.context_hash != nil {
+		fields = append(fields, oauthbrowserstate.FieldContextHash)
+	}
+	if m.nonce_hash != nil {
+		fields = append(fields, oauthbrowserstate.FieldNonceHash)
+	}
+	if m.key_id != nil {
+		fields = append(fields, oauthbrowserstate.FieldKeyID)
+	}
+	if m.pkce_verifier_ciphertext != nil {
+		fields = append(fields, oauthbrowserstate.FieldPkceVerifierCiphertext)
+	}
+	if m.return_app_id != nil {
+		fields = append(fields, oauthbrowserstate.FieldReturnAppID)
+	}
+	if m.return_path != nil {
+		fields = append(fields, oauthbrowserstate.FieldReturnPath)
+	}
+	if m.created_at != nil {
+		fields = append(fields, oauthbrowserstate.FieldCreatedAt)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, oauthbrowserstate.FieldExpiresAt)
+	}
+	if m.consumed_at != nil {
+		fields = append(fields, oauthbrowserstate.FieldConsumedAt)
+	}
+	if m.result_status != nil {
+		fields = append(fields, oauthbrowserstate.FieldResultStatus)
+	}
+	if m.final_claimed_at != nil {
+		fields = append(fields, oauthbrowserstate.FieldFinalClaimedAt)
+	}
+	if m.final_mutation_id != nil {
+		fields = append(fields, oauthbrowserstate.FieldFinalMutationID)
+	}
+	if m.final_request_hash != nil {
+		fields = append(fields, oauthbrowserstate.FieldFinalRequestHash)
+	}
+	if m.confirmation_expires_at != nil {
+		fields = append(fields, oauthbrowserstate.FieldConfirmationExpiresAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *OAuthBrowserStateMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case oauthbrowserstate.FieldUsersrvChallengeID:
+		return m.UsersrvChallengeID()
+	case oauthbrowserstate.FieldStateHash:
+		return m.StateHash()
+	case oauthbrowserstate.FieldProvider:
+		return m.Provider()
+	case oauthbrowserstate.FieldIntent:
+		return m.Intent()
+	case oauthbrowserstate.FieldBrowserBindingHash:
+		return m.BrowserBindingHash()
+	case oauthbrowserstate.FieldBrowserContextID:
+		return m.BrowserContextID()
+	case oauthbrowserstate.FieldBrowserGeneration:
+		return m.BrowserGeneration()
+	case oauthbrowserstate.FieldInitiatingTokenHash:
+		return m.InitiatingTokenHash()
+	case oauthbrowserstate.FieldSessionID:
+		return m.SessionID()
+	case oauthbrowserstate.FieldUserID:
+		return m.UserID()
+	case oauthbrowserstate.FieldAuthVersion:
+		return m.AuthVersion()
+	case oauthbrowserstate.FieldProviderConfigVersion:
+		return m.ProviderConfigVersion()
+	case oauthbrowserstate.FieldContextHash:
+		return m.ContextHash()
+	case oauthbrowserstate.FieldNonceHash:
+		return m.NonceHash()
+	case oauthbrowserstate.FieldKeyID:
+		return m.KeyID()
+	case oauthbrowserstate.FieldPkceVerifierCiphertext:
+		return m.PkceVerifierCiphertext()
+	case oauthbrowserstate.FieldReturnAppID:
+		return m.ReturnAppID()
+	case oauthbrowserstate.FieldReturnPath:
+		return m.ReturnPath()
+	case oauthbrowserstate.FieldCreatedAt:
+		return m.CreatedAt()
+	case oauthbrowserstate.FieldExpiresAt:
+		return m.ExpiresAt()
+	case oauthbrowserstate.FieldConsumedAt:
+		return m.ConsumedAt()
+	case oauthbrowserstate.FieldResultStatus:
+		return m.ResultStatus()
+	case oauthbrowserstate.FieldFinalClaimedAt:
+		return m.FinalClaimedAt()
+	case oauthbrowserstate.FieldFinalMutationID:
+		return m.FinalMutationID()
+	case oauthbrowserstate.FieldFinalRequestHash:
+		return m.FinalRequestHash()
+	case oauthbrowserstate.FieldConfirmationExpiresAt:
+		return m.ConfirmationExpiresAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *OAuthBrowserStateMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case oauthbrowserstate.FieldUsersrvChallengeID:
+		return m.OldUsersrvChallengeID(ctx)
+	case oauthbrowserstate.FieldStateHash:
+		return m.OldStateHash(ctx)
+	case oauthbrowserstate.FieldProvider:
+		return m.OldProvider(ctx)
+	case oauthbrowserstate.FieldIntent:
+		return m.OldIntent(ctx)
+	case oauthbrowserstate.FieldBrowserBindingHash:
+		return m.OldBrowserBindingHash(ctx)
+	case oauthbrowserstate.FieldBrowserContextID:
+		return m.OldBrowserContextID(ctx)
+	case oauthbrowserstate.FieldBrowserGeneration:
+		return m.OldBrowserGeneration(ctx)
+	case oauthbrowserstate.FieldInitiatingTokenHash:
+		return m.OldInitiatingTokenHash(ctx)
+	case oauthbrowserstate.FieldSessionID:
+		return m.OldSessionID(ctx)
+	case oauthbrowserstate.FieldUserID:
+		return m.OldUserID(ctx)
+	case oauthbrowserstate.FieldAuthVersion:
+		return m.OldAuthVersion(ctx)
+	case oauthbrowserstate.FieldProviderConfigVersion:
+		return m.OldProviderConfigVersion(ctx)
+	case oauthbrowserstate.FieldContextHash:
+		return m.OldContextHash(ctx)
+	case oauthbrowserstate.FieldNonceHash:
+		return m.OldNonceHash(ctx)
+	case oauthbrowserstate.FieldKeyID:
+		return m.OldKeyID(ctx)
+	case oauthbrowserstate.FieldPkceVerifierCiphertext:
+		return m.OldPkceVerifierCiphertext(ctx)
+	case oauthbrowserstate.FieldReturnAppID:
+		return m.OldReturnAppID(ctx)
+	case oauthbrowserstate.FieldReturnPath:
+		return m.OldReturnPath(ctx)
+	case oauthbrowserstate.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case oauthbrowserstate.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	case oauthbrowserstate.FieldConsumedAt:
+		return m.OldConsumedAt(ctx)
+	case oauthbrowserstate.FieldResultStatus:
+		return m.OldResultStatus(ctx)
+	case oauthbrowserstate.FieldFinalClaimedAt:
+		return m.OldFinalClaimedAt(ctx)
+	case oauthbrowserstate.FieldFinalMutationID:
+		return m.OldFinalMutationID(ctx)
+	case oauthbrowserstate.FieldFinalRequestHash:
+		return m.OldFinalRequestHash(ctx)
+	case oauthbrowserstate.FieldConfirmationExpiresAt:
+		return m.OldConfirmationExpiresAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown OAuthBrowserState field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OAuthBrowserStateMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case oauthbrowserstate.FieldUsersrvChallengeID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsersrvChallengeID(v)
+		return nil
+	case oauthbrowserstate.FieldStateHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStateHash(v)
+		return nil
+	case oauthbrowserstate.FieldProvider:
+		v, ok := value.(oauthbrowserstate.Provider)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProvider(v)
+		return nil
+	case oauthbrowserstate.FieldIntent:
+		v, ok := value.(oauthbrowserstate.Intent)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIntent(v)
+		return nil
+	case oauthbrowserstate.FieldBrowserBindingHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBrowserBindingHash(v)
+		return nil
+	case oauthbrowserstate.FieldBrowserContextID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBrowserContextID(v)
+		return nil
+	case oauthbrowserstate.FieldBrowserGeneration:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBrowserGeneration(v)
+		return nil
+	case oauthbrowserstate.FieldInitiatingTokenHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInitiatingTokenHash(v)
+		return nil
+	case oauthbrowserstate.FieldSessionID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSessionID(v)
+		return nil
+	case oauthbrowserstate.FieldUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case oauthbrowserstate.FieldAuthVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAuthVersion(v)
+		return nil
+	case oauthbrowserstate.FieldProviderConfigVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProviderConfigVersion(v)
+		return nil
+	case oauthbrowserstate.FieldContextHash:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetContextHash(v)
+		return nil
+	case oauthbrowserstate.FieldNonceHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNonceHash(v)
+		return nil
+	case oauthbrowserstate.FieldKeyID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetKeyID(v)
+		return nil
+	case oauthbrowserstate.FieldPkceVerifierCiphertext:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPkceVerifierCiphertext(v)
+		return nil
+	case oauthbrowserstate.FieldReturnAppID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReturnAppID(v)
+		return nil
+	case oauthbrowserstate.FieldReturnPath:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReturnPath(v)
+		return nil
+	case oauthbrowserstate.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case oauthbrowserstate.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	case oauthbrowserstate.FieldConsumedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConsumedAt(v)
+		return nil
+	case oauthbrowserstate.FieldResultStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResultStatus(v)
+		return nil
+	case oauthbrowserstate.FieldFinalClaimedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFinalClaimedAt(v)
+		return nil
+	case oauthbrowserstate.FieldFinalMutationID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFinalMutationID(v)
+		return nil
+	case oauthbrowserstate.FieldFinalRequestHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFinalRequestHash(v)
+		return nil
+	case oauthbrowserstate.FieldConfirmationExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConfirmationExpiresAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OAuthBrowserState field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *OAuthBrowserStateMutation) AddedFields() []string {
+	var fields []string
+	if m.addbrowser_generation != nil {
+		fields = append(fields, oauthbrowserstate.FieldBrowserGeneration)
+	}
+	if m.addauth_version != nil {
+		fields = append(fields, oauthbrowserstate.FieldAuthVersion)
+	}
+	if m.addprovider_config_version != nil {
+		fields = append(fields, oauthbrowserstate.FieldProviderConfigVersion)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *OAuthBrowserStateMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case oauthbrowserstate.FieldBrowserGeneration:
+		return m.AddedBrowserGeneration()
+	case oauthbrowserstate.FieldAuthVersion:
+		return m.AddedAuthVersion()
+	case oauthbrowserstate.FieldProviderConfigVersion:
+		return m.AddedProviderConfigVersion()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OAuthBrowserStateMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case oauthbrowserstate.FieldBrowserGeneration:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBrowserGeneration(v)
+		return nil
+	case oauthbrowserstate.FieldAuthVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAuthVersion(v)
+		return nil
+	case oauthbrowserstate.FieldProviderConfigVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddProviderConfigVersion(v)
+		return nil
+	}
+	return fmt.Errorf("unknown OAuthBrowserState numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *OAuthBrowserStateMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(oauthbrowserstate.FieldSessionID) {
+		fields = append(fields, oauthbrowserstate.FieldSessionID)
+	}
+	if m.FieldCleared(oauthbrowserstate.FieldUserID) {
+		fields = append(fields, oauthbrowserstate.FieldUserID)
+	}
+	if m.FieldCleared(oauthbrowserstate.FieldAuthVersion) {
+		fields = append(fields, oauthbrowserstate.FieldAuthVersion)
+	}
+	if m.FieldCleared(oauthbrowserstate.FieldPkceVerifierCiphertext) {
+		fields = append(fields, oauthbrowserstate.FieldPkceVerifierCiphertext)
+	}
+	if m.FieldCleared(oauthbrowserstate.FieldConsumedAt) {
+		fields = append(fields, oauthbrowserstate.FieldConsumedAt)
+	}
+	if m.FieldCleared(oauthbrowserstate.FieldFinalClaimedAt) {
+		fields = append(fields, oauthbrowserstate.FieldFinalClaimedAt)
+	}
+	if m.FieldCleared(oauthbrowserstate.FieldFinalMutationID) {
+		fields = append(fields, oauthbrowserstate.FieldFinalMutationID)
+	}
+	if m.FieldCleared(oauthbrowserstate.FieldFinalRequestHash) {
+		fields = append(fields, oauthbrowserstate.FieldFinalRequestHash)
+	}
+	if m.FieldCleared(oauthbrowserstate.FieldConfirmationExpiresAt) {
+		fields = append(fields, oauthbrowserstate.FieldConfirmationExpiresAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *OAuthBrowserStateMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *OAuthBrowserStateMutation) ClearField(name string) error {
+	switch name {
+	case oauthbrowserstate.FieldSessionID:
+		m.ClearSessionID()
+		return nil
+	case oauthbrowserstate.FieldUserID:
+		m.ClearUserID()
+		return nil
+	case oauthbrowserstate.FieldAuthVersion:
+		m.ClearAuthVersion()
+		return nil
+	case oauthbrowserstate.FieldPkceVerifierCiphertext:
+		m.ClearPkceVerifierCiphertext()
+		return nil
+	case oauthbrowserstate.FieldConsumedAt:
+		m.ClearConsumedAt()
+		return nil
+	case oauthbrowserstate.FieldFinalClaimedAt:
+		m.ClearFinalClaimedAt()
+		return nil
+	case oauthbrowserstate.FieldFinalMutationID:
+		m.ClearFinalMutationID()
+		return nil
+	case oauthbrowserstate.FieldFinalRequestHash:
+		m.ClearFinalRequestHash()
+		return nil
+	case oauthbrowserstate.FieldConfirmationExpiresAt:
+		m.ClearConfirmationExpiresAt()
+		return nil
+	}
+	return fmt.Errorf("unknown OAuthBrowserState nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *OAuthBrowserStateMutation) ResetField(name string) error {
+	switch name {
+	case oauthbrowserstate.FieldUsersrvChallengeID:
+		m.ResetUsersrvChallengeID()
+		return nil
+	case oauthbrowserstate.FieldStateHash:
+		m.ResetStateHash()
+		return nil
+	case oauthbrowserstate.FieldProvider:
+		m.ResetProvider()
+		return nil
+	case oauthbrowserstate.FieldIntent:
+		m.ResetIntent()
+		return nil
+	case oauthbrowserstate.FieldBrowserBindingHash:
+		m.ResetBrowserBindingHash()
+		return nil
+	case oauthbrowserstate.FieldBrowserContextID:
+		m.ResetBrowserContextID()
+		return nil
+	case oauthbrowserstate.FieldBrowserGeneration:
+		m.ResetBrowserGeneration()
+		return nil
+	case oauthbrowserstate.FieldInitiatingTokenHash:
+		m.ResetInitiatingTokenHash()
+		return nil
+	case oauthbrowserstate.FieldSessionID:
+		m.ResetSessionID()
+		return nil
+	case oauthbrowserstate.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case oauthbrowserstate.FieldAuthVersion:
+		m.ResetAuthVersion()
+		return nil
+	case oauthbrowserstate.FieldProviderConfigVersion:
+		m.ResetProviderConfigVersion()
+		return nil
+	case oauthbrowserstate.FieldContextHash:
+		m.ResetContextHash()
+		return nil
+	case oauthbrowserstate.FieldNonceHash:
+		m.ResetNonceHash()
+		return nil
+	case oauthbrowserstate.FieldKeyID:
+		m.ResetKeyID()
+		return nil
+	case oauthbrowserstate.FieldPkceVerifierCiphertext:
+		m.ResetPkceVerifierCiphertext()
+		return nil
+	case oauthbrowserstate.FieldReturnAppID:
+		m.ResetReturnAppID()
+		return nil
+	case oauthbrowserstate.FieldReturnPath:
+		m.ResetReturnPath()
+		return nil
+	case oauthbrowserstate.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case oauthbrowserstate.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	case oauthbrowserstate.FieldConsumedAt:
+		m.ResetConsumedAt()
+		return nil
+	case oauthbrowserstate.FieldResultStatus:
+		m.ResetResultStatus()
+		return nil
+	case oauthbrowserstate.FieldFinalClaimedAt:
+		m.ResetFinalClaimedAt()
+		return nil
+	case oauthbrowserstate.FieldFinalMutationID:
+		m.ResetFinalMutationID()
+		return nil
+	case oauthbrowserstate.FieldFinalRequestHash:
+		m.ResetFinalRequestHash()
+		return nil
+	case oauthbrowserstate.FieldConfirmationExpiresAt:
+		m.ResetConfirmationExpiresAt()
+		return nil
+	}
+	return fmt.Errorf("unknown OAuthBrowserState field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *OAuthBrowserStateMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *OAuthBrowserStateMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *OAuthBrowserStateMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *OAuthBrowserStateMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *OAuthBrowserStateMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *OAuthBrowserStateMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *OAuthBrowserStateMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown OAuthBrowserState unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *OAuthBrowserStateMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown OAuthBrowserState edge %s", name)
+}
+
 // SessionMutation represents an operation that mutates the Session nodes in the graph.
 type SessionMutation struct {
 	config
-	op               Op
-	typ              string
-	id               *string
-	user_id          *string
-	token_hash       *string
-	created_at       *time.Time
-	expires_at       *time.Time
-	last_used_at     *time.Time
-	revoked          *bool
-	auth_version     *int64
-	addauth_version  *int64
-	authenticated_at *time.Time
-	clearedFields    map[string]struct{}
-	done             bool
-	oldValue         func(context.Context) (*Session, error)
-	predicates       []predicate.Session
+	op                    Op
+	typ                   string
+	id                    *string
+	user_id               *string
+	token_hash            *string
+	created_at            *time.Time
+	expires_at            *time.Time
+	last_used_at          *time.Time
+	revoked               *bool
+	auth_version          *int64
+	addauth_version       *int64
+	browser_context_id    *string
+	browser_generation    *int64
+	addbrowser_generation *int64
+	authenticated_at      *time.Time
+	clearedFields         map[string]struct{}
+	done                  bool
+	oldValue              func(context.Context) (*Session, error)
+	predicates            []predicate.Session
 }
 
 var _ ent.Mutation = (*SessionMutation)(nil)
@@ -2584,6 +4972,125 @@ func (m *SessionMutation) ResetAuthVersion() {
 	m.addauth_version = nil
 }
 
+// SetBrowserContextID sets the "browser_context_id" field.
+func (m *SessionMutation) SetBrowserContextID(s string) {
+	m.browser_context_id = &s
+}
+
+// BrowserContextID returns the value of the "browser_context_id" field in the mutation.
+func (m *SessionMutation) BrowserContextID() (r string, exists bool) {
+	v := m.browser_context_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBrowserContextID returns the old "browser_context_id" field's value of the Session entity.
+// If the Session object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SessionMutation) OldBrowserContextID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBrowserContextID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBrowserContextID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBrowserContextID: %w", err)
+	}
+	return oldValue.BrowserContextID, nil
+}
+
+// ClearBrowserContextID clears the value of the "browser_context_id" field.
+func (m *SessionMutation) ClearBrowserContextID() {
+	m.browser_context_id = nil
+	m.clearedFields[session.FieldBrowserContextID] = struct{}{}
+}
+
+// BrowserContextIDCleared returns if the "browser_context_id" field was cleared in this mutation.
+func (m *SessionMutation) BrowserContextIDCleared() bool {
+	_, ok := m.clearedFields[session.FieldBrowserContextID]
+	return ok
+}
+
+// ResetBrowserContextID resets all changes to the "browser_context_id" field.
+func (m *SessionMutation) ResetBrowserContextID() {
+	m.browser_context_id = nil
+	delete(m.clearedFields, session.FieldBrowserContextID)
+}
+
+// SetBrowserGeneration sets the "browser_generation" field.
+func (m *SessionMutation) SetBrowserGeneration(i int64) {
+	m.browser_generation = &i
+	m.addbrowser_generation = nil
+}
+
+// BrowserGeneration returns the value of the "browser_generation" field in the mutation.
+func (m *SessionMutation) BrowserGeneration() (r int64, exists bool) {
+	v := m.browser_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBrowserGeneration returns the old "browser_generation" field's value of the Session entity.
+// If the Session object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SessionMutation) OldBrowserGeneration(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBrowserGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBrowserGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBrowserGeneration: %w", err)
+	}
+	return oldValue.BrowserGeneration, nil
+}
+
+// AddBrowserGeneration adds i to the "browser_generation" field.
+func (m *SessionMutation) AddBrowserGeneration(i int64) {
+	if m.addbrowser_generation != nil {
+		*m.addbrowser_generation += i
+	} else {
+		m.addbrowser_generation = &i
+	}
+}
+
+// AddedBrowserGeneration returns the value that was added to the "browser_generation" field in this mutation.
+func (m *SessionMutation) AddedBrowserGeneration() (r int64, exists bool) {
+	v := m.addbrowser_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearBrowserGeneration clears the value of the "browser_generation" field.
+func (m *SessionMutation) ClearBrowserGeneration() {
+	m.browser_generation = nil
+	m.addbrowser_generation = nil
+	m.clearedFields[session.FieldBrowserGeneration] = struct{}{}
+}
+
+// BrowserGenerationCleared returns if the "browser_generation" field was cleared in this mutation.
+func (m *SessionMutation) BrowserGenerationCleared() bool {
+	_, ok := m.clearedFields[session.FieldBrowserGeneration]
+	return ok
+}
+
+// ResetBrowserGeneration resets all changes to the "browser_generation" field.
+func (m *SessionMutation) ResetBrowserGeneration() {
+	m.browser_generation = nil
+	m.addbrowser_generation = nil
+	delete(m.clearedFields, session.FieldBrowserGeneration)
+}
+
 // SetAuthenticatedAt sets the "authenticated_at" field.
 func (m *SessionMutation) SetAuthenticatedAt(t time.Time) {
 	m.authenticated_at = &t
@@ -2667,7 +5174,7 @@ func (m *SessionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *SessionMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 10)
 	if m.user_id != nil {
 		fields = append(fields, session.FieldUserID)
 	}
@@ -2688,6 +5195,12 @@ func (m *SessionMutation) Fields() []string {
 	}
 	if m.auth_version != nil {
 		fields = append(fields, session.FieldAuthVersion)
+	}
+	if m.browser_context_id != nil {
+		fields = append(fields, session.FieldBrowserContextID)
+	}
+	if m.browser_generation != nil {
+		fields = append(fields, session.FieldBrowserGeneration)
 	}
 	if m.authenticated_at != nil {
 		fields = append(fields, session.FieldAuthenticatedAt)
@@ -2714,6 +5227,10 @@ func (m *SessionMutation) Field(name string) (ent.Value, bool) {
 		return m.Revoked()
 	case session.FieldAuthVersion:
 		return m.AuthVersion()
+	case session.FieldBrowserContextID:
+		return m.BrowserContextID()
+	case session.FieldBrowserGeneration:
+		return m.BrowserGeneration()
 	case session.FieldAuthenticatedAt:
 		return m.AuthenticatedAt()
 	}
@@ -2739,6 +5256,10 @@ func (m *SessionMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldRevoked(ctx)
 	case session.FieldAuthVersion:
 		return m.OldAuthVersion(ctx)
+	case session.FieldBrowserContextID:
+		return m.OldBrowserContextID(ctx)
+	case session.FieldBrowserGeneration:
+		return m.OldBrowserGeneration(ctx)
 	case session.FieldAuthenticatedAt:
 		return m.OldAuthenticatedAt(ctx)
 	}
@@ -2799,6 +5320,20 @@ func (m *SessionMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetAuthVersion(v)
 		return nil
+	case session.FieldBrowserContextID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBrowserContextID(v)
+		return nil
+	case session.FieldBrowserGeneration:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBrowserGeneration(v)
+		return nil
 	case session.FieldAuthenticatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -2817,6 +5352,9 @@ func (m *SessionMutation) AddedFields() []string {
 	if m.addauth_version != nil {
 		fields = append(fields, session.FieldAuthVersion)
 	}
+	if m.addbrowser_generation != nil {
+		fields = append(fields, session.FieldBrowserGeneration)
+	}
 	return fields
 }
 
@@ -2827,6 +5365,8 @@ func (m *SessionMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case session.FieldAuthVersion:
 		return m.AddedAuthVersion()
+	case session.FieldBrowserGeneration:
+		return m.AddedBrowserGeneration()
 	}
 	return nil, false
 }
@@ -2843,6 +5383,13 @@ func (m *SessionMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddAuthVersion(v)
 		return nil
+	case session.FieldBrowserGeneration:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBrowserGeneration(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Session numeric field %s", name)
 }
@@ -2853,6 +5400,12 @@ func (m *SessionMutation) ClearedFields() []string {
 	var fields []string
 	if m.FieldCleared(session.FieldLastUsedAt) {
 		fields = append(fields, session.FieldLastUsedAt)
+	}
+	if m.FieldCleared(session.FieldBrowserContextID) {
+		fields = append(fields, session.FieldBrowserContextID)
+	}
+	if m.FieldCleared(session.FieldBrowserGeneration) {
+		fields = append(fields, session.FieldBrowserGeneration)
 	}
 	if m.FieldCleared(session.FieldAuthenticatedAt) {
 		fields = append(fields, session.FieldAuthenticatedAt)
@@ -2873,6 +5426,12 @@ func (m *SessionMutation) ClearField(name string) error {
 	switch name {
 	case session.FieldLastUsedAt:
 		m.ClearLastUsedAt()
+		return nil
+	case session.FieldBrowserContextID:
+		m.ClearBrowserContextID()
+		return nil
+	case session.FieldBrowserGeneration:
+		m.ClearBrowserGeneration()
 		return nil
 	case session.FieldAuthenticatedAt:
 		m.ClearAuthenticatedAt()
@@ -2905,6 +5464,12 @@ func (m *SessionMutation) ResetField(name string) error {
 		return nil
 	case session.FieldAuthVersion:
 		m.ResetAuthVersion()
+		return nil
+	case session.FieldBrowserContextID:
+		m.ResetBrowserContextID()
+		return nil
+	case session.FieldBrowserGeneration:
+		m.ResetBrowserGeneration()
 		return nil
 	case session.FieldAuthenticatedAt:
 		m.ResetAuthenticatedAt()

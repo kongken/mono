@@ -12,6 +12,7 @@ test("only the OzID pages exist", () => {
   assert.equal(matchRoute("/security"), "security");
   assert.equal(matchRoute("/sessions"), "sessions");
   assert.equal(matchRoute("/sessions/"), "sessions");
+  assert.equal(matchRoute("/account/external"), "external");
   assert.equal(matchRoute("/close-account"), "close-account");
   assert.equal(matchRoute("/close-account/"), "close-account");
   // The mail landing pages are not routes of the app: they are served before it starts.

@@ -7,7 +7,7 @@
 
 import { landingKind, MAIL_TOKEN, type LandingKind } from "./paths.ts";
 
-export { landingKind, RESET_PASSWORD_PATH, VERIFY_EMAIL_PATH, type LandingKind } from "./paths.ts";
+export { landingKind, RESET_PASSWORD_PATH, VERIFY_EMAIL_PATH, EXTERNAL_EMAIL_PATH, type LandingKind } from "./paths.ts";
 
 /** The token of a `#token=...` fragment, or null when it is absent or not URL-safe base64. */
 export function parseFragmentToken(hash: string): string | null {

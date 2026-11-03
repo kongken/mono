@@ -18,11 +18,17 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/kongken/mono/internal/usersrv/ent/accounttoken"
 	"github.com/kongken/mono/internal/usersrv/ent/adminmutation"
+	"github.com/kongken/mono/internal/usersrv/ent/authchallenge"
+	"github.com/kongken/mono/internal/usersrv/ent/authnotification"
+	"github.com/kongken/mono/internal/usersrv/ent/authoperationreceipt"
 	"github.com/kongken/mono/internal/usersrv/ent/deletiontombstone"
+	"github.com/kongken/mono/internal/usersrv/ent/externalidentity"
 	"github.com/kongken/mono/internal/usersrv/ent/mailjob"
 	"github.com/kongken/mono/internal/usersrv/ent/securityaudit"
 	"github.com/kongken/mono/internal/usersrv/ent/user"
 	"github.com/kongken/mono/internal/usersrv/ent/userrole"
+
+	stdsql "database/sql"
 )
 
 // Client is the client that holds all ent builders.
@@ -34,8 +40,16 @@ type Client struct {
 	AccountToken *AccountTokenClient
 	// AdminMutation is the client for interacting with the AdminMutation builders.
 	AdminMutation *AdminMutationClient
+	// AuthChallenge is the client for interacting with the AuthChallenge builders.
+	AuthChallenge *AuthChallengeClient
+	// AuthNotification is the client for interacting with the AuthNotification builders.
+	AuthNotification *AuthNotificationClient
+	// AuthOperationReceipt is the client for interacting with the AuthOperationReceipt builders.
+	AuthOperationReceipt *AuthOperationReceiptClient
 	// DeletionTombstone is the client for interacting with the DeletionTombstone builders.
 	DeletionTombstone *DeletionTombstoneClient
+	// ExternalIdentity is the client for interacting with the ExternalIdentity builders.
+	ExternalIdentity *ExternalIdentityClient
 	// MailJob is the client for interacting with the MailJob builders.
 	MailJob *MailJobClient
 	// SecurityAudit is the client for interacting with the SecurityAudit builders.
@@ -57,7 +71,11 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.AccountToken = NewAccountTokenClient(c.config)
 	c.AdminMutation = NewAdminMutationClient(c.config)
+	c.AuthChallenge = NewAuthChallengeClient(c.config)
+	c.AuthNotification = NewAuthNotificationClient(c.config)
+	c.AuthOperationReceipt = NewAuthOperationReceiptClient(c.config)
 	c.DeletionTombstone = NewDeletionTombstoneClient(c.config)
+	c.ExternalIdentity = NewExternalIdentityClient(c.config)
 	c.MailJob = NewMailJobClient(c.config)
 	c.SecurityAudit = NewSecurityAuditClient(c.config)
 	c.User = NewUserClient(c.config)
@@ -152,15 +170,19 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:               ctx,
-		config:            cfg,
-		AccountToken:      NewAccountTokenClient(cfg),
-		AdminMutation:     NewAdminMutationClient(cfg),
-		DeletionTombstone: NewDeletionTombstoneClient(cfg),
-		MailJob:           NewMailJobClient(cfg),
-		SecurityAudit:     NewSecurityAuditClient(cfg),
-		User:              NewUserClient(cfg),
-		UserRole:          NewUserRoleClient(cfg),
+		ctx:                  ctx,
+		config:               cfg,
+		AccountToken:         NewAccountTokenClient(cfg),
+		AdminMutation:        NewAdminMutationClient(cfg),
+		AuthChallenge:        NewAuthChallengeClient(cfg),
+		AuthNotification:     NewAuthNotificationClient(cfg),
+		AuthOperationReceipt: NewAuthOperationReceiptClient(cfg),
+		DeletionTombstone:    NewDeletionTombstoneClient(cfg),
+		ExternalIdentity:     NewExternalIdentityClient(cfg),
+		MailJob:              NewMailJobClient(cfg),
+		SecurityAudit:        NewSecurityAuditClient(cfg),
+		User:                 NewUserClient(cfg),
+		UserRole:             NewUserRoleClient(cfg),
 	}, nil
 }
 
@@ -178,15 +200,19 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:               ctx,
-		config:            cfg,
-		AccountToken:      NewAccountTokenClient(cfg),
-		AdminMutation:     NewAdminMutationClient(cfg),
-		DeletionTombstone: NewDeletionTombstoneClient(cfg),
-		MailJob:           NewMailJobClient(cfg),
-		SecurityAudit:     NewSecurityAuditClient(cfg),
-		User:              NewUserClient(cfg),
-		UserRole:          NewUserRoleClient(cfg),
+		ctx:                  ctx,
+		config:               cfg,
+		AccountToken:         NewAccountTokenClient(cfg),
+		AdminMutation:        NewAdminMutationClient(cfg),
+		AuthChallenge:        NewAuthChallengeClient(cfg),
+		AuthNotification:     NewAuthNotificationClient(cfg),
+		AuthOperationReceipt: NewAuthOperationReceiptClient(cfg),
+		DeletionTombstone:    NewDeletionTombstoneClient(cfg),
+		ExternalIdentity:     NewExternalIdentityClient(cfg),
+		MailJob:              NewMailJobClient(cfg),
+		SecurityAudit:        NewSecurityAuditClient(cfg),
+		User:                 NewUserClient(cfg),
+		UserRole:             NewUserRoleClient(cfg),
 	}, nil
 }
 
@@ -216,7 +242,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AccountToken, c.AdminMutation, c.DeletionTombstone, c.MailJob,
+		c.AccountToken, c.AdminMutation, c.AuthChallenge, c.AuthNotification,
+		c.AuthOperationReceipt, c.DeletionTombstone, c.ExternalIdentity, c.MailJob,
 		c.SecurityAudit, c.User, c.UserRole,
 	} {
 		n.Use(hooks...)
@@ -227,7 +254,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AccountToken, c.AdminMutation, c.DeletionTombstone, c.MailJob,
+		c.AccountToken, c.AdminMutation, c.AuthChallenge, c.AuthNotification,
+		c.AuthOperationReceipt, c.DeletionTombstone, c.ExternalIdentity, c.MailJob,
 		c.SecurityAudit, c.User, c.UserRole,
 	} {
 		n.Intercept(interceptors...)
@@ -241,8 +269,16 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.AccountToken.mutate(ctx, m)
 	case *AdminMutationMutation:
 		return c.AdminMutation.mutate(ctx, m)
+	case *AuthChallengeMutation:
+		return c.AuthChallenge.mutate(ctx, m)
+	case *AuthNotificationMutation:
+		return c.AuthNotification.mutate(ctx, m)
+	case *AuthOperationReceiptMutation:
+		return c.AuthOperationReceipt.mutate(ctx, m)
 	case *DeletionTombstoneMutation:
 		return c.DeletionTombstone.mutate(ctx, m)
+	case *ExternalIdentityMutation:
+		return c.ExternalIdentity.mutate(ctx, m)
 	case *MailJobMutation:
 		return c.MailJob.mutate(ctx, m)
 	case *SecurityAuditMutation:
@@ -522,6 +558,453 @@ func (c *AdminMutationClient) mutate(ctx context.Context, m *AdminMutationMutati
 	}
 }
 
+// AuthChallengeClient is a client for the AuthChallenge schema.
+type AuthChallengeClient struct {
+	config
+}
+
+// NewAuthChallengeClient returns a client for the AuthChallenge from the given config.
+func NewAuthChallengeClient(c config) *AuthChallengeClient {
+	return &AuthChallengeClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `authchallenge.Hooks(f(g(h())))`.
+func (c *AuthChallengeClient) Use(hooks ...Hook) {
+	c.hooks.AuthChallenge = append(c.hooks.AuthChallenge, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `authchallenge.Intercept(f(g(h())))`.
+func (c *AuthChallengeClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AuthChallenge = append(c.inters.AuthChallenge, interceptors...)
+}
+
+// Create returns a builder for creating a AuthChallenge entity.
+func (c *AuthChallengeClient) Create() *AuthChallengeCreate {
+	mutation := newAuthChallengeMutation(c.config, OpCreate)
+	return &AuthChallengeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AuthChallenge entities.
+func (c *AuthChallengeClient) CreateBulk(builders ...*AuthChallengeCreate) *AuthChallengeCreateBulk {
+	return &AuthChallengeCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AuthChallengeClient) MapCreateBulk(slice any, setFunc func(*AuthChallengeCreate, int)) *AuthChallengeCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AuthChallengeCreateBulk{err: fmt.Errorf("calling to AuthChallengeClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AuthChallengeCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AuthChallengeCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AuthChallenge.
+func (c *AuthChallengeClient) Update() *AuthChallengeUpdate {
+	mutation := newAuthChallengeMutation(c.config, OpUpdate)
+	return &AuthChallengeUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AuthChallengeClient) UpdateOne(_m *AuthChallenge) *AuthChallengeUpdateOne {
+	mutation := newAuthChallengeMutation(c.config, OpUpdateOne, withAuthChallenge(_m))
+	return &AuthChallengeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AuthChallengeClient) UpdateOneID(id uuid.UUID) *AuthChallengeUpdateOne {
+	mutation := newAuthChallengeMutation(c.config, OpUpdateOne, withAuthChallengeID(id))
+	return &AuthChallengeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AuthChallenge.
+func (c *AuthChallengeClient) Delete() *AuthChallengeDelete {
+	mutation := newAuthChallengeMutation(c.config, OpDelete)
+	return &AuthChallengeDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AuthChallengeClient) DeleteOne(_m *AuthChallenge) *AuthChallengeDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AuthChallengeClient) DeleteOneID(id uuid.UUID) *AuthChallengeDeleteOne {
+	builder := c.Delete().Where(authchallenge.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AuthChallengeDeleteOne{builder}
+}
+
+// Query returns a query builder for AuthChallenge.
+func (c *AuthChallengeClient) Query() *AuthChallengeQuery {
+	return &AuthChallengeQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAuthChallenge},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AuthChallenge entity by its id.
+func (c *AuthChallengeClient) Get(ctx context.Context, id uuid.UUID) (*AuthChallenge, error) {
+	return c.Query().Where(authchallenge.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AuthChallengeClient) GetX(ctx context.Context, id uuid.UUID) *AuthChallenge {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a AuthChallenge.
+func (c *AuthChallengeClient) QueryUser(_m *AuthChallenge) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(authchallenge.Table, authchallenge.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, authchallenge.UserTable, authchallenge.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *AuthChallengeClient) Hooks() []Hook {
+	return c.hooks.AuthChallenge
+}
+
+// Interceptors returns the client interceptors.
+func (c *AuthChallengeClient) Interceptors() []Interceptor {
+	return c.inters.AuthChallenge
+}
+
+func (c *AuthChallengeClient) mutate(ctx context.Context, m *AuthChallengeMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AuthChallengeCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AuthChallengeUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AuthChallengeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AuthChallengeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AuthChallenge mutation op: %q", m.Op())
+	}
+}
+
+// AuthNotificationClient is a client for the AuthNotification schema.
+type AuthNotificationClient struct {
+	config
+}
+
+// NewAuthNotificationClient returns a client for the AuthNotification from the given config.
+func NewAuthNotificationClient(c config) *AuthNotificationClient {
+	return &AuthNotificationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `authnotification.Hooks(f(g(h())))`.
+func (c *AuthNotificationClient) Use(hooks ...Hook) {
+	c.hooks.AuthNotification = append(c.hooks.AuthNotification, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `authnotification.Intercept(f(g(h())))`.
+func (c *AuthNotificationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AuthNotification = append(c.inters.AuthNotification, interceptors...)
+}
+
+// Create returns a builder for creating a AuthNotification entity.
+func (c *AuthNotificationClient) Create() *AuthNotificationCreate {
+	mutation := newAuthNotificationMutation(c.config, OpCreate)
+	return &AuthNotificationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AuthNotification entities.
+func (c *AuthNotificationClient) CreateBulk(builders ...*AuthNotificationCreate) *AuthNotificationCreateBulk {
+	return &AuthNotificationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AuthNotificationClient) MapCreateBulk(slice any, setFunc func(*AuthNotificationCreate, int)) *AuthNotificationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AuthNotificationCreateBulk{err: fmt.Errorf("calling to AuthNotificationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AuthNotificationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AuthNotificationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AuthNotification.
+func (c *AuthNotificationClient) Update() *AuthNotificationUpdate {
+	mutation := newAuthNotificationMutation(c.config, OpUpdate)
+	return &AuthNotificationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AuthNotificationClient) UpdateOne(_m *AuthNotification) *AuthNotificationUpdateOne {
+	mutation := newAuthNotificationMutation(c.config, OpUpdateOne, withAuthNotification(_m))
+	return &AuthNotificationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AuthNotificationClient) UpdateOneID(id uuid.UUID) *AuthNotificationUpdateOne {
+	mutation := newAuthNotificationMutation(c.config, OpUpdateOne, withAuthNotificationID(id))
+	return &AuthNotificationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AuthNotification.
+func (c *AuthNotificationClient) Delete() *AuthNotificationDelete {
+	mutation := newAuthNotificationMutation(c.config, OpDelete)
+	return &AuthNotificationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AuthNotificationClient) DeleteOne(_m *AuthNotification) *AuthNotificationDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AuthNotificationClient) DeleteOneID(id uuid.UUID) *AuthNotificationDeleteOne {
+	builder := c.Delete().Where(authnotification.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AuthNotificationDeleteOne{builder}
+}
+
+// Query returns a query builder for AuthNotification.
+func (c *AuthNotificationClient) Query() *AuthNotificationQuery {
+	return &AuthNotificationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAuthNotification},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AuthNotification entity by its id.
+func (c *AuthNotificationClient) Get(ctx context.Context, id uuid.UUID) (*AuthNotification, error) {
+	return c.Query().Where(authnotification.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AuthNotificationClient) GetX(ctx context.Context, id uuid.UUID) *AuthNotification {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a AuthNotification.
+func (c *AuthNotificationClient) QueryUser(_m *AuthNotification) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(authnotification.Table, authnotification.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, authnotification.UserTable, authnotification.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *AuthNotificationClient) Hooks() []Hook {
+	return c.hooks.AuthNotification
+}
+
+// Interceptors returns the client interceptors.
+func (c *AuthNotificationClient) Interceptors() []Interceptor {
+	return c.inters.AuthNotification
+}
+
+func (c *AuthNotificationClient) mutate(ctx context.Context, m *AuthNotificationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AuthNotificationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AuthNotificationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AuthNotificationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AuthNotificationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AuthNotification mutation op: %q", m.Op())
+	}
+}
+
+// AuthOperationReceiptClient is a client for the AuthOperationReceipt schema.
+type AuthOperationReceiptClient struct {
+	config
+}
+
+// NewAuthOperationReceiptClient returns a client for the AuthOperationReceipt from the given config.
+func NewAuthOperationReceiptClient(c config) *AuthOperationReceiptClient {
+	return &AuthOperationReceiptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `authoperationreceipt.Hooks(f(g(h())))`.
+func (c *AuthOperationReceiptClient) Use(hooks ...Hook) {
+	c.hooks.AuthOperationReceipt = append(c.hooks.AuthOperationReceipt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `authoperationreceipt.Intercept(f(g(h())))`.
+func (c *AuthOperationReceiptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AuthOperationReceipt = append(c.inters.AuthOperationReceipt, interceptors...)
+}
+
+// Create returns a builder for creating a AuthOperationReceipt entity.
+func (c *AuthOperationReceiptClient) Create() *AuthOperationReceiptCreate {
+	mutation := newAuthOperationReceiptMutation(c.config, OpCreate)
+	return &AuthOperationReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AuthOperationReceipt entities.
+func (c *AuthOperationReceiptClient) CreateBulk(builders ...*AuthOperationReceiptCreate) *AuthOperationReceiptCreateBulk {
+	return &AuthOperationReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AuthOperationReceiptClient) MapCreateBulk(slice any, setFunc func(*AuthOperationReceiptCreate, int)) *AuthOperationReceiptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AuthOperationReceiptCreateBulk{err: fmt.Errorf("calling to AuthOperationReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AuthOperationReceiptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AuthOperationReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AuthOperationReceipt.
+func (c *AuthOperationReceiptClient) Update() *AuthOperationReceiptUpdate {
+	mutation := newAuthOperationReceiptMutation(c.config, OpUpdate)
+	return &AuthOperationReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AuthOperationReceiptClient) UpdateOne(_m *AuthOperationReceipt) *AuthOperationReceiptUpdateOne {
+	mutation := newAuthOperationReceiptMutation(c.config, OpUpdateOne, withAuthOperationReceipt(_m))
+	return &AuthOperationReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AuthOperationReceiptClient) UpdateOneID(id uuid.UUID) *AuthOperationReceiptUpdateOne {
+	mutation := newAuthOperationReceiptMutation(c.config, OpUpdateOne, withAuthOperationReceiptID(id))
+	return &AuthOperationReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AuthOperationReceipt.
+func (c *AuthOperationReceiptClient) Delete() *AuthOperationReceiptDelete {
+	mutation := newAuthOperationReceiptMutation(c.config, OpDelete)
+	return &AuthOperationReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AuthOperationReceiptClient) DeleteOne(_m *AuthOperationReceipt) *AuthOperationReceiptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AuthOperationReceiptClient) DeleteOneID(id uuid.UUID) *AuthOperationReceiptDeleteOne {
+	builder := c.Delete().Where(authoperationreceipt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AuthOperationReceiptDeleteOne{builder}
+}
+
+// Query returns a query builder for AuthOperationReceipt.
+func (c *AuthOperationReceiptClient) Query() *AuthOperationReceiptQuery {
+	return &AuthOperationReceiptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAuthOperationReceipt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AuthOperationReceipt entity by its id.
+func (c *AuthOperationReceiptClient) Get(ctx context.Context, id uuid.UUID) (*AuthOperationReceipt, error) {
+	return c.Query().Where(authoperationreceipt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AuthOperationReceiptClient) GetX(ctx context.Context, id uuid.UUID) *AuthOperationReceipt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a AuthOperationReceipt.
+func (c *AuthOperationReceiptClient) QueryUser(_m *AuthOperationReceipt) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(authoperationreceipt.Table, authoperationreceipt.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, authoperationreceipt.UserTable, authoperationreceipt.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *AuthOperationReceiptClient) Hooks() []Hook {
+	return c.hooks.AuthOperationReceipt
+}
+
+// Interceptors returns the client interceptors.
+func (c *AuthOperationReceiptClient) Interceptors() []Interceptor {
+	return c.inters.AuthOperationReceipt
+}
+
+func (c *AuthOperationReceiptClient) mutate(ctx context.Context, m *AuthOperationReceiptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AuthOperationReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AuthOperationReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AuthOperationReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AuthOperationReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AuthOperationReceipt mutation op: %q", m.Op())
+	}
+}
+
 // DeletionTombstoneClient is a client for the DeletionTombstone schema.
 type DeletionTombstoneClient struct {
 	config
@@ -652,6 +1135,155 @@ func (c *DeletionTombstoneClient) mutate(ctx context.Context, m *DeletionTombsto
 		return (&DeletionTombstoneDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown DeletionTombstone mutation op: %q", m.Op())
+	}
+}
+
+// ExternalIdentityClient is a client for the ExternalIdentity schema.
+type ExternalIdentityClient struct {
+	config
+}
+
+// NewExternalIdentityClient returns a client for the ExternalIdentity from the given config.
+func NewExternalIdentityClient(c config) *ExternalIdentityClient {
+	return &ExternalIdentityClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `externalidentity.Hooks(f(g(h())))`.
+func (c *ExternalIdentityClient) Use(hooks ...Hook) {
+	c.hooks.ExternalIdentity = append(c.hooks.ExternalIdentity, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `externalidentity.Intercept(f(g(h())))`.
+func (c *ExternalIdentityClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ExternalIdentity = append(c.inters.ExternalIdentity, interceptors...)
+}
+
+// Create returns a builder for creating a ExternalIdentity entity.
+func (c *ExternalIdentityClient) Create() *ExternalIdentityCreate {
+	mutation := newExternalIdentityMutation(c.config, OpCreate)
+	return &ExternalIdentityCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ExternalIdentity entities.
+func (c *ExternalIdentityClient) CreateBulk(builders ...*ExternalIdentityCreate) *ExternalIdentityCreateBulk {
+	return &ExternalIdentityCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ExternalIdentityClient) MapCreateBulk(slice any, setFunc func(*ExternalIdentityCreate, int)) *ExternalIdentityCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ExternalIdentityCreateBulk{err: fmt.Errorf("calling to ExternalIdentityClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ExternalIdentityCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ExternalIdentityCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ExternalIdentity.
+func (c *ExternalIdentityClient) Update() *ExternalIdentityUpdate {
+	mutation := newExternalIdentityMutation(c.config, OpUpdate)
+	return &ExternalIdentityUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ExternalIdentityClient) UpdateOne(_m *ExternalIdentity) *ExternalIdentityUpdateOne {
+	mutation := newExternalIdentityMutation(c.config, OpUpdateOne, withExternalIdentity(_m))
+	return &ExternalIdentityUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ExternalIdentityClient) UpdateOneID(id uuid.UUID) *ExternalIdentityUpdateOne {
+	mutation := newExternalIdentityMutation(c.config, OpUpdateOne, withExternalIdentityID(id))
+	return &ExternalIdentityUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ExternalIdentity.
+func (c *ExternalIdentityClient) Delete() *ExternalIdentityDelete {
+	mutation := newExternalIdentityMutation(c.config, OpDelete)
+	return &ExternalIdentityDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ExternalIdentityClient) DeleteOne(_m *ExternalIdentity) *ExternalIdentityDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ExternalIdentityClient) DeleteOneID(id uuid.UUID) *ExternalIdentityDeleteOne {
+	builder := c.Delete().Where(externalidentity.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ExternalIdentityDeleteOne{builder}
+}
+
+// Query returns a query builder for ExternalIdentity.
+func (c *ExternalIdentityClient) Query() *ExternalIdentityQuery {
+	return &ExternalIdentityQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeExternalIdentity},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ExternalIdentity entity by its id.
+func (c *ExternalIdentityClient) Get(ctx context.Context, id uuid.UUID) (*ExternalIdentity, error) {
+	return c.Query().Where(externalidentity.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ExternalIdentityClient) GetX(ctx context.Context, id uuid.UUID) *ExternalIdentity {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a ExternalIdentity.
+func (c *ExternalIdentityClient) QueryUser(_m *ExternalIdentity) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(externalidentity.Table, externalidentity.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, externalidentity.UserTable, externalidentity.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ExternalIdentityClient) Hooks() []Hook {
+	return c.hooks.ExternalIdentity
+}
+
+// Interceptors returns the client interceptors.
+func (c *ExternalIdentityClient) Interceptors() []Interceptor {
+	return c.inters.ExternalIdentity
+}
+
+func (c *ExternalIdentityClient) mutate(ctx context.Context, m *ExternalIdentityMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ExternalIdentityCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ExternalIdentityUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ExternalIdentityUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ExternalIdentityDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ExternalIdentity mutation op: %q", m.Op())
 	}
 }
 
@@ -1045,6 +1677,22 @@ func (c *UserClient) QueryRoles(_m *User) *UserRoleQuery {
 	return query
 }
 
+// QueryExternalIdentities queries the external_identities edge of a User.
+func (c *UserClient) QueryExternalIdentities(_m *User) *ExternalIdentityQuery {
+	query := (&ExternalIdentityClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(externalidentity.Table, externalidentity.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.ExternalIdentitiesTable, user.ExternalIdentitiesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	return c.hooks.User
@@ -1222,11 +1870,37 @@ func (c *UserRoleClient) mutate(ctx context.Context, m *UserRoleMutation) (Value
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AccountToken, AdminMutation, DeletionTombstone, MailJob, SecurityAudit, User,
-		UserRole []ent.Hook
+		AccountToken, AdminMutation, AuthChallenge, AuthNotification,
+		AuthOperationReceipt, DeletionTombstone, ExternalIdentity, MailJob,
+		SecurityAudit, User, UserRole []ent.Hook
 	}
 	inters struct {
-		AccountToken, AdminMutation, DeletionTombstone, MailJob, SecurityAudit, User,
-		UserRole []ent.Interceptor
+		AccountToken, AdminMutation, AuthChallenge, AuthNotification,
+		AuthOperationReceipt, DeletionTombstone, ExternalIdentity, MailJob,
+		SecurityAudit, User, UserRole []ent.Interceptor
 	}
 )
+
+// ExecContext allows calling the underlying ExecContext method of the driver if it is supported by it.
+// See, database/sql#DB.ExecContext for more information.
+func (c *config) ExecContext(ctx context.Context, query string, args ...any) (stdsql.Result, error) {
+	ex, ok := c.driver.(interface {
+		ExecContext(context.Context, string, ...any) (stdsql.Result, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("Driver.ExecContext is not supported")
+	}
+	return ex.ExecContext(ctx, query, args...)
+}
+
+// QueryContext allows calling the underlying QueryContext method of the driver if it is supported by it.
+// See, database/sql#DB.QueryContext for more information.
+func (c *config) QueryContext(ctx context.Context, query string, args ...any) (*stdsql.Rows, error) {
+	q, ok := c.driver.(interface {
+		QueryContext(context.Context, string, ...any) (*stdsql.Rows, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("Driver.QueryContext is not supported")
+	}
+	return q.QueryContext(ctx, query, args...)
+}

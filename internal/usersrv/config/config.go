@@ -57,7 +57,8 @@ type AuthConfig struct {
 	// RegistrationEnabled defaults to true; set it to false to refuse new sign-ups
 	// (registration requests and completions are then refused). It never affects
 	// login or password reset.
-	RegistrationEnabled *bool `yaml:"registration_enabled"`
+	RegistrationEnabled *bool          `yaml:"registration_enabled"`
+	External            ExternalConfig `yaml:"external"`
 	// Apps maps an app ID to its link origin. Mail links are built only from these
 	// origins and fixed paths. "ozid" is required: every new registration and password
 	// reset mail lands there, whichever app the request came from, and the origin must
@@ -170,6 +171,9 @@ func (c *AppConfig) Validate() error {
 		return err
 	}
 	if err := c.Mail.validate(&c.Auth); err != nil {
+		return err
+	}
+	if err := c.Auth.External.validate(c.Auth.AllowLoopbackHTTP, c.Mail.Encryption); err != nil {
 		return err
 	}
 	return c.RateLimit.validate()

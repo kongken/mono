@@ -8,12 +8,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/bff/config"
 	"github.com/kongken/mono/internal/bff/ent"
+	"github.com/kongken/mono/internal/bff/ent/browsercontext"
 	entsession "github.com/kongken/mono/internal/bff/ent/session"
 	"github.com/kongken/mono/internal/bff/ratelimit"
 	"github.com/kongken/mono/internal/bff/session"
@@ -108,6 +110,21 @@ func toUser(id string, p usersrv.Profile) *bffv1.User {
 // auth_version, and the time the password was really checked. A session ID from
 // before the login is never reused.
 func (s *Service) Login(ctx context.Context, email, password string) (*bffv1.LoginWithEmailResponse, string, error) {
+	return s.login(ctx, email, password, nil)
+}
+func (s *Service) login(ctx context.Context, email, password string, header http.Header) (*bffv1.LoginWithEmailResponse, string, error) {
+	var expectedGeneration int64
+	browserID := s.browserID(header)
+	if browserID != "" {
+		b, err := s.db.BrowserContext.Query().Where(browsercontext.ID(browserID), browsercontext.ExpiresAtGT(s.now())).Only(ctx)
+		if err != nil {
+			if ent.IsNotFound(err) {
+				return nil, "", stateInvalid()
+			}
+			return nil, "", internal(err)
+		}
+		expectedGeneration = b.Generation
+	}
 	l, err := s.users.Authenticate(ctx, email, password)
 	if err != nil {
 		return nil, "", err
@@ -118,9 +135,43 @@ func (s *Service) Login(ctx context.Context, email, password string) (*bffv1.Log
 	}
 	authenticated := s.now()
 	expires := authenticated.Add(s.SessionLifetime())
-	if _, err = s.db.Session.Create().SetUserID(l.UserID).SetTokenHash(hash).SetExpiresAt(expires).
-		SetAuthVersion(l.AuthVersion).SetAuthenticatedAt(authenticated).Save(ctx); err != nil {
+	client := s.db
+	var tx *ent.Tx
+	var browser *ent.BrowserContext
+	if browserID != "" {
+		tx, err = s.db.Tx(ctx)
+		if err != nil {
+			return nil, "", internal(err)
+		}
+		defer tx.Rollback()
+		browser, err = tx.BrowserContext.Query().Where(browsercontext.ID(browserID), browsercontext.Generation(expectedGeneration), browsercontext.ExpiresAtGT(s.now())).ForUpdate().Only(ctx)
+		if err != nil {
+			if ent.IsNotFound(err) {
+				return nil, "", stateInvalid()
+			}
+			return nil, "", internal(err)
+		}
+		if err = tx.BrowserContext.UpdateOne(browser).AddGeneration(1).SetExpiresAt(s.now().Add(s.browserLifetime())).Exec(ctx); err != nil {
+			return nil, "", internal(err)
+		}
+		client = tx.Client()
+		if old := session.TokenFromRequest(header); old != "" {
+			if _, err = client.Session.Update().Where(entsession.TokenHash(session.HashToken(old))).SetRevoked(true).Save(ctx); err != nil {
+				return nil, "", internal(err)
+			}
+		}
+	}
+	create := client.Session.Create().SetUserID(l.UserID).SetTokenHash(hash).SetExpiresAt(expires).SetAuthVersion(l.AuthVersion).SetAuthenticatedAt(authenticated)
+	if browser != nil {
+		create.SetBrowserContextID(browser.ID).SetBrowserGeneration(browser.Generation + 1)
+	}
+	if _, err = create.Save(ctx); err != nil {
 		return nil, "", internal(err)
+	}
+	if tx != nil {
+		if err = tx.Commit(); err != nil {
+			return nil, "", internal(err)
+		}
 	}
 	return &bffv1.LoginWithEmailResponse{User: toUser(l.UserID, l.Profile), ExpiresAt: timestamppb.New(expires)}, token, nil
 }
@@ -140,7 +191,7 @@ func (s *Service) Me(ctx context.Context, bs session.BrowserSession) (*bffv1.MeR
 	}
 	return &bffv1.MeResponse{
 		User: toUser(acct.UserID, acct.Profile), Roles: acct.Roles, Email: acct.Email,
-		AuthenticatedAt:  timestamppb.New(bs.AuthenticatedAt),
+		AuthenticatedAt:  passwordTimestamp(bs.AuthenticatedAt),
 		SessionExpiresAt: timestamppb.New(bs.ExpiresAt),
 	}, nil
 }
@@ -295,6 +346,9 @@ func (s *Service) ResolveSession(ctx context.Context, token string) (session.Bro
 		slog.Error("session lookup", "error", err)
 		return session.BrowserSession{}, internal(err)
 	}
+	if err := s.validBrowserGeneration(ctx, row); err != nil {
+		return session.BrowserSession{}, err
+	}
 	// Rows from before usersrv name users that usersrv has never heard of (and
 	// carry version 0); they are never forwarded.
 	if _, perr := uuid.Parse(row.UserID); perr != nil || row.AuthVersion <= 0 {
@@ -318,7 +372,7 @@ func (s *Service) ResolveSession(ctx context.Context, token string) (session.Bro
 			slog.Warn("touch session", "error", err)
 		}
 	}
-	authenticated := row.CreatedAt
+	var authenticated time.Time
 	if row.AuthenticatedAt != nil {
 		authenticated = *row.AuthenticatedAt
 	}
@@ -326,6 +380,13 @@ func (s *Service) ResolveSession(ctx context.Context, token string) (session.Bro
 		UserID: row.UserID, SessionID: row.ID, AuthVersion: row.AuthVersion, ProfileVersion: state.ProfileVersion,
 		Roles: state.Roles, AuthenticatedAt: authenticated, ExpiresAt: row.ExpiresAt,
 	}, nil
+}
+
+func passwordTimestamp(at time.Time) *timestamppb.Timestamp {
+	if at.IsZero() {
+		return nil
+	}
+	return timestamppb.New(at)
 }
 
 // RequireRecentPassword refuses a sensitive action unless the password was checked

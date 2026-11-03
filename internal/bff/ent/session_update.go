@@ -149,6 +149,12 @@ func (_u *SessionUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Revoked(); ok {
 		_spec.SetField(session.FieldRevoked, field.TypeBool, value)
 	}
+	if _u.mutation.BrowserContextIDCleared() {
+		_spec.ClearField(session.FieldBrowserContextID, field.TypeString)
+	}
+	if _u.mutation.BrowserGenerationCleared() {
+		_spec.ClearField(session.FieldBrowserGeneration, field.TypeInt64)
+	}
 	if value, ok := _u.mutation.AuthenticatedAt(); ok {
 		_spec.SetField(session.FieldAuthenticatedAt, field.TypeTime, value)
 	}
@@ -325,6 +331,12 @@ func (_u *SessionUpdateOne) sqlSave(ctx context.Context) (_node *Session, err er
 	}
 	if value, ok := _u.mutation.Revoked(); ok {
 		_spec.SetField(session.FieldRevoked, field.TypeBool, value)
+	}
+	if _u.mutation.BrowserContextIDCleared() {
+		_spec.ClearField(session.FieldBrowserContextID, field.TypeString)
+	}
+	if _u.mutation.BrowserGenerationCleared() {
+		_spec.ClearField(session.FieldBrowserGeneration, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.AuthenticatedAt(); ok {
 		_spec.SetField(session.FieldAuthenticatedAt, field.TypeTime, value)
