@@ -44,26 +44,30 @@ CREATE TABLE "timeline_mutations" (
   "request_hash" character varying NOT NULL,
   "entry_ref" character varying NULL,
   "media_ref" character varying NULL,
-  "result_revision" bigint NOT NULL,
+  "result_revision" integer NOT NULL,
   "result_state" character varying NOT NULL,
-  "result_snapshot" jsonb NOT NULL,
-  "snapshot_version" bigint NOT NULL DEFAULT 1,
+  "result_snapshot" bytea NOT NULL,
+  "snapshot_version" integer NOT NULL DEFAULT 1,
   "created_at" timestamptz NOT NULL,
+  "expires_at" timestamptz NOT NULL DEFAULT (now() + interval '30 days'),
   PRIMARY KEY ("id"),
   CONSTRAINT "timeline_mutations_target" CHECK ((target_kind = 'entry' AND entry_ref IS NOT NULL AND media_ref IS NULL) OR (target_kind = 'media' AND media_ref IS NOT NULL AND entry_ref IS NOT NULL)),
   CONSTRAINT "timeline_mutations_operation" CHECK ((target_kind = 'entry' AND operation IN ('create','update','trash','restore','purge')) OR (target_kind = 'media' AND operation = 'media_delete')),
   CONSTRAINT "timeline_mutations_hash" CHECK (length(request_hash) = 64),
-  CONSTRAINT "timeline_mutations_state" CHECK (result_state IN ('active','trashed','purged','deleting'))
+  CONSTRAINT "timeline_mutations_state" CHECK (result_state IN ('active','trashed','purged','deleting')),
+  CONSTRAINT "timeline_mutations_expiry" CHECK (expires_at > created_at)
 );
 CREATE UNIQUE INDEX "timeline_mutations_user_id_mutation_id" ON "timeline_mutations" ("user_id", "mutation_id");
 CREATE INDEX "timeline_mutations_created_at" ON "timeline_mutations" ("created_at");
 CREATE FUNCTION timeline_mutations_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF NEW.user_id <> OLD.user_id OR NEW.mutation_id <> OLD.mutation_id OR NEW.target_kind <> OLD.target_kind
+  IF NEW.id IS DISTINCT FROM OLD.id
+    OR NEW.user_id IS DISTINCT FROM OLD.user_id OR NEW.mutation_id <> OLD.mutation_id OR NEW.target_kind <> OLD.target_kind
     OR NEW.operation <> OLD.operation OR NEW.request_hash <> OLD.request_hash OR NEW.entry_ref IS DISTINCT FROM OLD.entry_ref
     OR NEW.media_ref IS DISTINCT FROM OLD.media_ref OR NEW.result_revision <> OLD.result_revision
     OR NEW.result_state <> OLD.result_state OR NEW.result_snapshot IS DISTINCT FROM OLD.result_snapshot
-    OR NEW.snapshot_version <> OLD.snapshot_version OR NEW.created_at <> OLD.created_at THEN
+    OR NEW.snapshot_version <> OLD.snapshot_version OR NEW.created_at <> OLD.created_at
+    OR NEW.expires_at <> OLD.expires_at THEN
     RAISE EXCEPTION 'timeline mutation receipts are immutable';
   END IF;
   RETURN NEW;

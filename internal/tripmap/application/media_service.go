@@ -435,7 +435,7 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tri
 			replayTx, replayErr := mediaTx(ctx, st, p.UserID)
 			if replayErr == nil {
 				defer func() { _ = replayTx.Rollback() }()
-				first, queryErr := replayTx.MediaDeleteReceipt.Query().Where(mediadeletereceipt.UserID(p.UserID), mediadeletereceipt.MutationID(mutationID)).Only(ctx)
+				first, queryErr := replayTx.TimelineMutation.Query().Where(timelinemutation.UserID(p.UserID), timelinemutation.MutationID(mutationID)).Only(ctx)
 				if queryErr == nil && first.RequestHash == hash {
 					return connect.NewResponse(&tripmapv1.DeleteMediaResponse{Receipt: mediaDeleteReceipt(first, true)}), nil
 				}

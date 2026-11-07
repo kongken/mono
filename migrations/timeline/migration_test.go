@@ -94,10 +94,10 @@ func TestRefsMigrationPostgreSQL(t *testing.T) {
 		if !strings.HasPrefix(ref, "ent_") || len(ref) != 30 {
 			t.Fatalf("invalid entry ref %q", ref)
 		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO timeline_mutations (id,user_id,mutation_id,target_kind,operation,request_hash,entry_ref,result_revision,result_state,result_snapshot) VALUES ('r1','u1','m-unique','entry','update',repeat('a',64),$1,2,'active','{}')`, ref); err != nil {
+		if _, err := db.ExecContext(ctx, `INSERT INTO timeline_mutations (id,user_id,mutation_id,target_kind,operation,request_hash,entry_ref,result_revision,result_state,result_snapshot,created_at,expires_at) VALUES ('r1','u1','m-unique','entry','update',repeat('a',64),$1,2,'active',decode('7b7d','hex'),now(),now()+interval '30 days')`, ref); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.ExecContext(ctx, `UPDATE timeline_mutations SET result_snapshot='{"changed":true}' WHERE id='r1'`); err == nil {
+		if _, err := db.ExecContext(ctx, `UPDATE timeline_mutations SET result_snapshot=decode('7b226368616e676564223a747275657d','hex') WHERE id='r1'`); err == nil {
 			t.Fatal("receipt snapshot update unexpectedly succeeded")
 		}
 	}
