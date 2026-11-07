@@ -50,6 +50,12 @@ func (_c *MediaObjectCreate) SetEntryID(v string) *MediaObjectCreate {
 	return _c
 }
 
+// SetEntryPublicRef sets the "entry_public_ref" field.
+func (_c *MediaObjectCreate) SetEntryPublicRef(v string) *MediaObjectCreate {
+	_c.mutation.SetEntryPublicRef(v)
+	return _c
+}
+
 // SetObjectKey sets the "object_key" field.
 func (_c *MediaObjectCreate) SetObjectKey(v string) *MediaObjectCreate {
 	_c.mutation.SetObjectKey(v)
@@ -195,6 +201,14 @@ func (_c *MediaObjectCreate) check() error {
 			return &ValidationError{Name: "entry_id", err: fmt.Errorf(`ent: validator failed for field "MediaObject.entry_id": %w`, err)}
 		}
 	}
+	if _, ok := _c.mutation.EntryPublicRef(); !ok {
+		return &ValidationError{Name: "entry_public_ref", err: errors.New(`ent: missing required field "MediaObject.entry_public_ref"`)}
+	}
+	if v, ok := _c.mutation.EntryPublicRef(); ok {
+		if err := mediaobject.EntryPublicRefValidator(v); err != nil {
+			return &ValidationError{Name: "entry_public_ref", err: fmt.Errorf(`ent: validator failed for field "MediaObject.entry_public_ref": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.ObjectKey(); !ok {
 		return &ValidationError{Name: "object_key", err: errors.New(`ent: missing required field "MediaObject.object_key"`)}
 	}
@@ -258,6 +272,10 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.UserID(); ok {
 		_spec.SetField(mediaobject.FieldUserID, field.TypeString, value)
 		_node.UserID = value
+	}
+	if value, ok := _c.mutation.EntryPublicRef(); ok {
+		_spec.SetField(mediaobject.FieldEntryPublicRef, field.TypeString, value)
+		_node.EntryPublicRef = value
 	}
 	if value, ok := _c.mutation.ObjectKey(); ok {
 		_spec.SetField(mediaobject.FieldObjectKey, field.TypeString, value)
@@ -393,6 +411,9 @@ func (u *MediaObjectUpsertOne) UpdateNewValues() *MediaObjectUpsertOne {
 		}
 		if _, exists := u.create.mutation.EntryID(); exists {
 			s.SetIgnore(mediaobject.FieldEntryID)
+		}
+		if _, exists := u.create.mutation.EntryPublicRef(); exists {
+			s.SetIgnore(mediaobject.FieldEntryPublicRef)
 		}
 		if _, exists := u.create.mutation.ObjectKey(); exists {
 			s.SetIgnore(mediaobject.FieldObjectKey)
@@ -650,6 +671,9 @@ func (u *MediaObjectUpsertBulk) UpdateNewValues() *MediaObjectUpsertBulk {
 			}
 			if _, exists := b.mutation.EntryID(); exists {
 				s.SetIgnore(mediaobject.FieldEntryID)
+			}
+			if _, exists := b.mutation.EntryPublicRef(); exists {
+				s.SetIgnore(mediaobject.FieldEntryPublicRef)
 			}
 			if _, exists := b.mutation.ObjectKey(); exists {
 				s.SetIgnore(mediaobject.FieldObjectKey)

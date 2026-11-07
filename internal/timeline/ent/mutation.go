@@ -2162,21 +2162,22 @@ func (m *EntryMutation) ResetEdge(name string) error {
 // MediaObjectMutation represents an operation that mutates the MediaObject nodes in the graph.
 type MediaObjectMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *string
-	public_ref    *string
-	user_id       *string
-	object_key    *string
-	thumbnail_key *string
-	upload_key    *string
-	created_at    *time.Time
-	clearedFields map[string]struct{}
-	entry         *string
-	clearedentry  bool
-	done          bool
-	oldValue      func(context.Context) (*MediaObject, error)
-	predicates    []predicate.MediaObject
+	op               Op
+	typ              string
+	id               *string
+	public_ref       *string
+	user_id          *string
+	entry_public_ref *string
+	object_key       *string
+	thumbnail_key    *string
+	upload_key       *string
+	created_at       *time.Time
+	clearedFields    map[string]struct{}
+	entry            *string
+	clearedentry     bool
+	done             bool
+	oldValue         func(context.Context) (*MediaObject, error)
+	predicates       []predicate.MediaObject
 }
 
 var _ ent.Mutation = (*MediaObjectMutation)(nil)
@@ -2391,6 +2392,42 @@ func (m *MediaObjectMutation) ResetEntryID() {
 	m.entry = nil
 }
 
+// SetEntryPublicRef sets the "entry_public_ref" field.
+func (m *MediaObjectMutation) SetEntryPublicRef(s string) {
+	m.entry_public_ref = &s
+}
+
+// EntryPublicRef returns the value of the "entry_public_ref" field in the mutation.
+func (m *MediaObjectMutation) EntryPublicRef() (r string, exists bool) {
+	v := m.entry_public_ref
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEntryPublicRef returns the old "entry_public_ref" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldEntryPublicRef(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEntryPublicRef is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEntryPublicRef requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEntryPublicRef: %w", err)
+	}
+	return oldValue.EntryPublicRef, nil
+}
+
+// ResetEntryPublicRef resets all changes to the "entry_public_ref" field.
+func (m *MediaObjectMutation) ResetEntryPublicRef() {
+	m.entry_public_ref = nil
+}
+
 // SetObjectKey sets the "object_key" field.
 func (m *MediaObjectMutation) SetObjectKey(s string) {
 	m.object_key = &s
@@ -2596,7 +2633,7 @@ func (m *MediaObjectMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *MediaObjectMutation) Fields() []string {
-	fields := make([]string, 0, 7)
+	fields := make([]string, 0, 8)
 	if m.public_ref != nil {
 		fields = append(fields, mediaobject.FieldPublicRef)
 	}
@@ -2605,6 +2642,9 @@ func (m *MediaObjectMutation) Fields() []string {
 	}
 	if m.entry != nil {
 		fields = append(fields, mediaobject.FieldEntryID)
+	}
+	if m.entry_public_ref != nil {
+		fields = append(fields, mediaobject.FieldEntryPublicRef)
 	}
 	if m.object_key != nil {
 		fields = append(fields, mediaobject.FieldObjectKey)
@@ -2632,6 +2672,8 @@ func (m *MediaObjectMutation) Field(name string) (ent.Value, bool) {
 		return m.UserID()
 	case mediaobject.FieldEntryID:
 		return m.EntryID()
+	case mediaobject.FieldEntryPublicRef:
+		return m.EntryPublicRef()
 	case mediaobject.FieldObjectKey:
 		return m.ObjectKey()
 	case mediaobject.FieldThumbnailKey:
@@ -2655,6 +2697,8 @@ func (m *MediaObjectMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldUserID(ctx)
 	case mediaobject.FieldEntryID:
 		return m.OldEntryID(ctx)
+	case mediaobject.FieldEntryPublicRef:
+		return m.OldEntryPublicRef(ctx)
 	case mediaobject.FieldObjectKey:
 		return m.OldObjectKey(ctx)
 	case mediaobject.FieldThumbnailKey:
@@ -2692,6 +2736,13 @@ func (m *MediaObjectMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetEntryID(v)
+		return nil
+	case mediaobject.FieldEntryPublicRef:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEntryPublicRef(v)
 		return nil
 	case mediaobject.FieldObjectKey:
 		v, ok := value.(string)
@@ -2778,6 +2829,9 @@ func (m *MediaObjectMutation) ResetField(name string) error {
 		return nil
 	case mediaobject.FieldEntryID:
 		m.ResetEntryID()
+		return nil
+	case mediaobject.FieldEntryPublicRef:
+		m.ResetEntryPublicRef()
 		return nil
 	case mediaobject.FieldObjectKey:
 		m.ResetObjectKey()

@@ -20,6 +20,8 @@ const (
 	FieldUserID = "user_id"
 	// FieldEntryID holds the string denoting the entry_id field in the database.
 	FieldEntryID = "entry_id"
+	// FieldEntryPublicRef holds the string denoting the entry_public_ref field in the database.
+	FieldEntryPublicRef = "entry_public_ref"
 	// FieldObjectKey holds the string denoting the object_key field in the database.
 	FieldObjectKey = "object_key"
 	// FieldThumbnailKey holds the string denoting the thumbnail_key field in the database.
@@ -47,6 +49,7 @@ var Columns = []string{
 	FieldPublicRef,
 	FieldUserID,
 	FieldEntryID,
+	FieldEntryPublicRef,
 	FieldObjectKey,
 	FieldThumbnailKey,
 	FieldUploadKey,
@@ -70,6 +73,8 @@ var (
 	UserIDValidator func(string) error
 	// EntryIDValidator is a validator for the "entry_id" field. It is called by the builders before save.
 	EntryIDValidator func(string) error
+	// EntryPublicRefValidator is a validator for the "entry_public_ref" field. It is called by the builders before save.
+	EntryPublicRefValidator func(string) error
 	// ObjectKeyValidator is a validator for the "object_key" field. It is called by the builders before save.
 	ObjectKeyValidator func(string) error
 	// DefaultThumbnailKey holds the default value on creation for the "thumbnail_key" field.
@@ -103,6 +108,11 @@ func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 // ByEntryID orders the results by the entry_id field.
 func ByEntryID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldEntryID, opts...).ToFunc()
+}
+
+// ByEntryPublicRef orders the results by the entry_public_ref field.
+func ByEntryPublicRef(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldEntryPublicRef, opts...).ToFunc()
 }
 
 // ByObjectKey orders the results by the object_key field.

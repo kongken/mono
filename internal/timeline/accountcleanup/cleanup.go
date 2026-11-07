@@ -2,11 +2,14 @@ package accountcleanup
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"github.com/kongken/mono/internal/timeline/ent"
 	"github.com/kongken/mono/internal/timeline/ent/cleanupobject"
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
+	"github.com/kongken/mono/internal/timeline/ent/timelinemutation"
 	"github.com/kongken/mono/internal/tripmap/blobstore"
 )
 
@@ -36,6 +39,15 @@ func Run(ctx context.Context, st *Store, userID string) error {
 		return err
 	}
 	for _, m := range media {
+		h := sha256.Sum256([]byte("media_delete:" + m.ID + ":" + userID))
+		hash := hex.EncodeToString(h[:])
+		mutationID := "cleanup:media:" + m.ID
+		_, err = tx.TimelineMutation.Create().SetUserID(userID).SetMutationID(mutationID).SetTargetKind("media").SetOperation("media_delete").SetEntryRef(m.EntryPublicRef).SetMediaRef(m.PublicRef).SetRequestHash(hash).SetResultRevision(1).SetResultState("tombstoned").SetResultSnapshot(map[string]any{"media_ref": m.PublicRef, "entry_ref": m.EntryPublicRef, "object_key": m.ObjectKey, "thumbnail_key": m.ThumbnailKey, "upload_key": m.UploadKey, "deleted": true}).Save(ctx)
+		if err != nil {
+			if old, qerr := tx.TimelineMutation.Query().Where(timelinemutation.UserID(userID), timelinemutation.MutationIDEQ(mutationID)).Only(ctx); qerr != nil || old.RequestHash != hash {
+				return err
+			}
+		}
 		keys := []string{m.ObjectKey, m.ThumbnailKey, m.UploadKey}
 		for _, key := range keys {
 			if key == "" {

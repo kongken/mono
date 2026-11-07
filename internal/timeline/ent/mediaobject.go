@@ -24,6 +24,8 @@ type MediaObject struct {
 	UserID string `json:"user_id,omitempty"`
 	// EntryID holds the value of the "entry_id" field.
 	EntryID string `json:"entry_id,omitempty"`
+	// EntryPublicRef holds the value of the "entry_public_ref" field.
+	EntryPublicRef string `json:"entry_public_ref,omitempty"`
 	// ObjectKey holds the value of the "object_key" field.
 	ObjectKey string `json:"object_key,omitempty"`
 	// ThumbnailKey holds the value of the "thumbnail_key" field.
@@ -63,7 +65,7 @@ func (*MediaObject) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case mediaobject.FieldID, mediaobject.FieldPublicRef, mediaobject.FieldUserID, mediaobject.FieldEntryID, mediaobject.FieldObjectKey, mediaobject.FieldThumbnailKey, mediaobject.FieldUploadKey:
+		case mediaobject.FieldID, mediaobject.FieldPublicRef, mediaobject.FieldUserID, mediaobject.FieldEntryID, mediaobject.FieldEntryPublicRef, mediaobject.FieldObjectKey, mediaobject.FieldThumbnailKey, mediaobject.FieldUploadKey:
 			values[i] = new(sql.NullString)
 		case mediaobject.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -105,6 +107,12 @@ func (_m *MediaObject) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field entry_id", values[i])
 			} else if value.Valid {
 				_m.EntryID = value.String
+			}
+		case mediaobject.FieldEntryPublicRef:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field entry_public_ref", values[i])
+			} else if value.Valid {
+				_m.EntryPublicRef = value.String
 			}
 		case mediaobject.FieldObjectKey:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -179,6 +187,9 @@ func (_m *MediaObject) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("entry_id=")
 	builder.WriteString(_m.EntryID)
+	builder.WriteString(", ")
+	builder.WriteString("entry_public_ref=")
+	builder.WriteString(_m.EntryPublicRef)
 	builder.WriteString(", ")
 	builder.WriteString("object_key=")
 	builder.WriteString(_m.ObjectKey)

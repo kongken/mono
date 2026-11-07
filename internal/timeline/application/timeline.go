@@ -90,7 +90,14 @@ func (s *TimelineService) mutateEntry(ctx context.Context, uid, mutationID, oper
 	}
 	r, err := s.receipt(ctx, tx.Client(), uid, mutationID, operation, "entry", row.PublicRef, "", hash, row.Revision, state, snapshot(row))
 	if err != nil {
-		return rollback(err)
+		_ = tx.Rollback()
+		if old, qerr := s.db.TimelineMutation.Query().Where(timelinemutation.UserID(uid), timelinemutation.MutationIDEQ(mutationID)).Only(ctx); qerr == nil {
+			if old.RequestHash != hash {
+				return nil, nil, status.Error(codes.Aborted, "MUTATION_REPLAY_MISMATCH")
+			}
+			return snapshotEntry(old.ResultSnapshot), &timelinev1.MutationReceipt{MutationId: old.MutationID, Operation: old.Operation, ResultRevision: int64(old.ResultRevision), Replayed: true}, nil
+		}
+		return nil, nil, err
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, nil, err
@@ -99,7 +106,11 @@ func (s *TimelineService) mutateEntry(ctx context.Context, uid, mutationID, oper
 }
 
 func snapshot(e *ent.Entry) map[string]any {
-	return map[string]any{"id": e.ID, "entry_ref": e.PublicRef, "revision": e.Revision, "title": e.Title, "body": e.Body, "occurred_date": e.OccurredDate, "occurred_time": e.OccurredTime, "timezone": e.Timezone, "category": e.Category, "location": e.Location, "amount_minor": e.AmountMinor, "currency": e.Currency, "url": e.URL, "url_title": e.URLTitle, "url_note": e.URLNote, "deleted": e.DeletedAt != nil}
+	deletedAt := ""
+	if e.DeletedAt != nil {
+		deletedAt = e.DeletedAt.UTC().Format(time.RFC3339Nano)
+	}
+	return map[string]any{"id": e.ID, "entry_ref": e.PublicRef, "revision": e.Revision, "title": e.Title, "body": e.Body, "occurred_date": e.OccurredDate, "occurred_time": e.OccurredTime, "timezone": e.Timezone, "category": e.Category, "location": e.Location, "amount_minor": e.AmountMinor, "currency": e.Currency, "url": e.URL, "url_title": e.URLTitle, "url_note": e.URLNote, "deleted": e.DeletedAt != nil, "deleted_at": deletedAt, "created_at": e.CreatedAt.UTC().Format(time.RFC3339Nano), "updated_at": e.UpdatedAt.UTC().Format(time.RFC3339Nano)}
 }
 
 func snapshotEntry(v map[string]any) *ent.Entry {
@@ -119,7 +130,17 @@ func snapshotEntry(v map[string]any) *ent.Entry {
 		return 0
 	}
 	row := &ent.Entry{ID: get("id"), PublicRef: get("entry_ref"), Title: get("title"), Body: get("body"), OccurredDate: get("occurred_date"), OccurredTime: get("occurred_time"), Timezone: get("timezone"), Category: get("category"), Location: get("location"), AmountMinor: int64(integer("amount_minor")), Currency: get("currency"), URL: get("url"), URLTitle: get("url_title"), URLNote: get("url_note"), Revision: integer("revision")}
-	if deleted, ok := v["deleted"].(bool); ok && deleted {
+	if value, ok := v["created_at"].(string); ok {
+		row.CreatedAt, _ = time.Parse(time.RFC3339Nano, value)
+	}
+	if value, ok := v["updated_at"].(string); ok {
+		row.UpdatedAt, _ = time.Parse(time.RFC3339Nano, value)
+	}
+	if value, ok := v["deleted_at"].(string); ok && value != "" {
+		t, _ := time.Parse(time.RFC3339Nano, value)
+		row.DeletedAt = &t
+	}
+	if deleted, ok := v["deleted"].(bool); ok && deleted && row.DeletedAt == nil {
 		t := time.Unix(0, 1).UTC()
 		row.DeletedAt = &t
 	}

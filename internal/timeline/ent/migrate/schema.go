@@ -66,6 +66,7 @@ var (
 		{Name: "id", Type: field.TypeString},
 		{Name: "public_ref", Type: field.TypeString, Unique: true},
 		{Name: "user_id", Type: field.TypeString},
+		{Name: "entry_public_ref", Type: field.TypeString},
 		{Name: "object_key", Type: field.TypeString},
 		{Name: "thumbnail_key", Type: field.TypeString, Default: ""},
 		{Name: "upload_key", Type: field.TypeString, Default: ""},
@@ -80,7 +81,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "timeline_media_objects_timeline_entries_media",
-				Columns:    []*schema.Column{TimelineMediaObjectsColumns[7]},
+				Columns:    []*schema.Column{TimelineMediaObjectsColumns[8]},
 				RefColumns: []*schema.Column{TimelineEntriesColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -94,7 +95,7 @@ var (
 			{
 				Name:    "mediaobject_entry_id",
 				Unique:  false,
-				Columns: []*schema.Column{TimelineMediaObjectsColumns[7]},
+				Columns: []*schema.Column{TimelineMediaObjectsColumns[8]},
 			},
 		},
 	}
