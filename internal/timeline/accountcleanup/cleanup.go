@@ -15,6 +15,26 @@ import (
 
 var ErrObjectStorageUnavailable = errors.New("object storage unavailable")
 
+var ErrTombstoneNotFound = errors.New("media tombstone not found")
+
+// ReplayMediaTombstone is the shared post-cleanup replay contract for attachment
+// deletion. It queries only the authenticated owner scope; another owner's ref
+// is intentionally indistinguishable from an unknown ref.
+func ReplayMediaTombstone(ctx context.Context, db *ent.Client, userID, mutationID, mediaRef string) (map[string]any, error) {
+	if db == nil || userID == "" || mutationID == "" || mediaRef == "" {
+		return nil, ErrTombstoneNotFound
+	}
+	r, err := db.TimelineMutation.Query().Where(
+		timelinemutation.UserID(userID), timelinemutation.MutationIDEQ(mutationID),
+		timelinemutation.TargetKindEQ("media"), timelinemutation.OperationEQ("media_delete"),
+		timelinemutation.MediaRefEQ(mediaRef),
+	).Only(ctx)
+	if err != nil {
+		return nil, ErrTombstoneNotFound
+	}
+	return r.ResultSnapshot, nil
+}
+
 type Store struct {
 	DB    *ent.Client
 	Blobs blobstore.Store
