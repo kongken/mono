@@ -36,15 +36,33 @@ func NewMediaService(src StoreSource, idx *regions.Index) *MediaService {
 }
 
 var mediaRefPattern = regexp.MustCompile(`^med_[0-9a-f]{26}$`)
+var entryRefPattern = regexp.MustCompile(`^ent_[0-9a-f]{26}$`)
 
 func mediaPublicRef(id string) string {
 	digest := sha256.Sum256([]byte(id))
 	return "med_" + hex.EncodeToString(digest[:13])
 }
 
-func entryPublicRef(userID, tripID string) string {
-	digest := sha256.Sum256([]byte(userID + "\x00" + tripID))
-	return "ent_" + hex.EncodeToString(digest[:13])
+func timelineEntryOwned(ctx context.Context, tx *ent.Tx, userID, entryRef string) error {
+	if !entryRefPattern.MatchString(entryRef) {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("invalid entry_ref"))
+	}
+	rows, err := tx.QuerySQL(ctx, `SELECT public_ref FROM timeline_entries WHERE public_ref = $1 AND user_id = $2`, []any{entryRef, userID})
+	if err != nil {
+		return internalError(err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return connect.NewError(connect.CodeNotFound, errors.New("timeline entry not found"))
+	}
+	var resolved string
+	if err := rows.Scan(&resolved); err != nil {
+		return internalError(err)
+	}
+	if resolved != entryRef {
+		return connect.NewError(connect.CodeNotFound, errors.New("timeline entry not found"))
+	}
+	return nil
 }
 
 func mediaInfo(m *ent.MediaObject) *tripmapv1.MediaInfo {
@@ -101,6 +119,9 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 	}
 	if r.TripId != "" && !tripIDPattern.MatchString(r.TripId) {
 		return nil, invalid("invalid trip id")
+	}
+	if !entryRefPattern.MatchString(r.EntryRef) {
+		return nil, invalid("entry_ref is required")
 	}
 	if !mediaType(r.ContentType) || r.SizeBytes <= 0 || r.SizeBytes > mediaMaxBytes {
 		return nil, invalid("JPEG, PNG, WebP or PDF up to 10 MB required")
@@ -172,6 +193,9 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 				return nil, err
 			}
 		}
+		if err = timelineEntryOwned(ctx, tx, p.UserID, r.EntryRef); err != nil {
+			return nil, err
+		}
 		count, err := tx.MediaObject.Query().Where(mediaobject.UserID(p.UserID), mediaobject.RegionCode(r.RegionCode), mediaobject.StatusNEQ(mediaobject.StatusDeleting)).Count(ctx)
 		if err != nil {
 			return nil, internalError(err)
@@ -182,7 +206,7 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 		id := uuid.NewString()
 		raw := "media/staging/" + uuid.NewString()
 		expires := time.Now().UTC().Add(10 * time.Minute)
-		m, err = tx.MediaObject.Create().SetID(id).SetPublicRef(mediaPublicRef(id)).SetEntryPublicRef(entryPublicRef(p.UserID, r.TripId)).SetRevision(1).SetUserID(p.UserID).SetRegionCode(r.RegionCode).SetTripID(r.TripId).SetFilename(r.Filename).SetUploadID(r.UploadId).SetRequestHash(hash).SetUploadKey(raw).SetObjectKey("media/files/" + id).SetThumbnailKey("media/thumbnails/" + id).SetContentType(r.ContentType).SetSizeBytes(r.SizeBytes).SetUploadExpiresAt(expires).Save(ctx)
+		m, err = tx.MediaObject.Create().SetID(id).SetPublicRef(mediaPublicRef(id)).SetEntryPublicRef(r.EntryRef).SetRevision(1).SetUserID(p.UserID).SetRegionCode(r.RegionCode).SetTripID(r.TripId).SetFilename(r.Filename).SetUploadID(r.UploadId).SetRequestHash(hash).SetUploadKey(raw).SetObjectKey("media/files/" + id).SetThumbnailKey("media/thumbnails/" + id).SetContentType(r.ContentType).SetSizeBytes(r.SizeBytes).SetUploadExpiresAt(expires).Save(ctx)
 		if err != nil {
 			return nil, internalError(err)
 		}

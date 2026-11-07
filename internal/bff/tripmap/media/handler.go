@@ -25,7 +25,7 @@ func (h *Handler) PrepareUpload(ctx context.Context, req *connect.Request[bfftri
 	in := req.Msg
 	out, err := h.client.PrepareUpload(h.tripmap(ctx, req), &tripmapv1.PrepareUploadRequest{
 		RegionCode: in.GetRegionCode(), Filename: in.GetFilename(), ContentType: in.GetContentType(),
-		SizeBytes: in.GetSizeBytes(), UploadId: in.GetUploadId(), TripId: in.GetTripId(),
+		SizeBytes: in.GetSizeBytes(), UploadId: in.GetUploadId(), TripId: in.GetTripId(), EntryRef: in.GetEntryRef(),
 	})
 	if err != nil {
 		return nil, upstream.ToConnect("tripmap", err)

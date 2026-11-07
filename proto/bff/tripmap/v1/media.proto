@@ -38,6 +38,8 @@ message PrepareUploadRequest {
   int64 size_bytes = 4;
   string upload_id = 5;
   string trip_id = 6;
+  // Required opaque public_ref of the owning Timeline Entry.
+  string entry_ref = 7;
 }
 
 message PrepareUploadResponse {

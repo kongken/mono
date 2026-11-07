@@ -36,6 +36,8 @@ message PrepareUploadRequest {
   string upload_id = 5;
   // Optional. The trip must exist for this user in region_code.
   string trip_id = 6;
+  // Required opaque public_ref of the owning Timeline Entry.
+  string entry_ref = 7;
 }
 message PrepareUploadResponse {
   MediaInfo media = 1;
