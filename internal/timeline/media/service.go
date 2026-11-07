@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -95,12 +96,18 @@ func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID strin
 	if err != nil {
 		return nil, ErrNotFound
 	}
+	if m.Status != "pending" || m.UploadExpiresAt == nil || !m.UploadExpiresAt.After(time.Now().UTC()) {
+		return nil, ErrInvalid
+	}
 	r, err := st.Blobs.Get(ctx, m.UploadKey)
 	if err != nil {
 		return nil, ErrNotFound
 	}
-	_, _ = io.Copy(io.Discard, r)
+	data, err := io.ReadAll(io.LimitReader(r, m.SizeBytes+1))
 	r.Close()
+	if err != nil || int64(len(data)) != m.SizeBytes || http.DetectContentType(data) != m.ContentType {
+		return nil, ErrInvalid
+	}
 	m, err = m.Update().SetStatus("ready").Save(ctx)
 	if err != nil {
 		return nil, err
@@ -119,17 +126,17 @@ func Delete(ctx context.Context, st *Store, userID, mediaRef, mutationID string,
 		return err
 	}
 	defer tx.Rollback()
-	m, err := tx.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.PublicRefEQ(mediaRef)).Only(ctx)
-	if err != nil {
-		return ErrNotFound
-	}
 	h := sha256.Sum256([]byte(fmt.Sprintf("delete:%s:%d", mediaRef, expectedRevision)))
 	hash := hex.EncodeToString(h[:])
 	if old, e := tx.TimelineMutation.Query().Where(timelinemutation.UserID(userID), timelinemutation.MutationIDEQ(mutationID)).Only(ctx); e == nil {
-		if old.RequestHash != hash {
+		if old.RequestHash != hash || old.MediaRef == nil || *old.MediaRef != mediaRef {
 			return ErrInvalid
 		}
 		return nil
+	}
+	m, err := tx.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.PublicRefEQ(mediaRef)).Only(ctx)
+	if err != nil {
+		return ErrNotFound
 	}
 	if expectedRevision != 1 {
 		return ErrInvalid
@@ -138,7 +145,14 @@ func Delete(ctx context.Context, st *Store, userID, mediaRef, mutationID string,
 	if err != nil {
 		return err
 	}
-	_, err = tx.TimelineMutation.Create().SetUserID(userID).SetMutationID(mutationID).SetTargetKind("media").SetOperation("media_delete").SetEntryRef(m.EntryPublicRef).SetMediaRef(m.PublicRef).SetRequestHash(hash).SetResultRevision(1).SetResultState("deleting").SetResultSnapshot(map[string]any{"media_ref": m.PublicRef, "entry_ref": m.EntryPublicRef, "filename": m.Filename, "content_type": m.ContentType, "size_bytes": m.SizeBytes}).Save(ctx)
+	for _, key := range []string{m.ObjectKey, m.UploadKey, m.ThumbnailKey} {
+		if key != "" {
+			if err = tx.CleanupObject.Create().SetObjectKey(key).OnConflict().Ignore().Exec(ctx); err != nil {
+				return err
+			}
+		}
+	}
+	_, err = tx.TimelineMutation.Create().SetUserID(userID).SetMutationID(mutationID).SetTargetKind("media").SetOperation("media_delete").SetEntryRef(m.EntryPublicRef).SetMediaRef(m.PublicRef).SetRequestHash(hash).SetResultRevision(1).SetResultState("deleting").SetResultSnapshot(map[string]any{"media_ref": m.PublicRef, "entry_ref": m.EntryPublicRef, "object_key": m.ObjectKey, "upload_key": m.UploadKey, "thumbnail_key": m.ThumbnailKey, "filename": m.Filename, "content_type": m.ContentType, "size_bytes": m.SizeBytes}).Save(ctx)
 	if err != nil {
 		return err
 	}
