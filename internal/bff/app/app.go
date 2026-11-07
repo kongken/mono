@@ -31,6 +31,7 @@ import (
 	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/bff/ratelimit"
 	"github.com/kongken/mono/internal/bff/session"
+	bfftimeline "github.com/kongken/mono/internal/bff/timeline"
 	bfftripmap "github.com/kongken/mono/internal/bff/tripmap"
 	"github.com/kongken/mono/internal/bff/upstream"
 	"github.com/kongken/mono/internal/bff/useradmin"
@@ -309,6 +310,8 @@ func (h *Handlers) cleaners(clients *upstream.Clients) []bffauth.UserDataCleaner
 			out = append(out, bfftripmap.NewCleaner(conn))
 		case bffmetro.Service:
 			out = append(out, bffmetro.NewCleaner(conn))
+		case bfftimeline.Service:
+			out = append(out, bfftimeline.NewCleaner(conn))
 		}
 	}
 	return out
