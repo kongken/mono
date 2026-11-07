@@ -81,7 +81,7 @@ function ExtensionCard({ extension }: { extension: ChromeExtension }) {
 const installSteps = [
   ["打开商店页面", "点击插件卡片上的按钮，在 Chrome 网上应用店确认插件名称与开发者 OzLabs。"],
   ["添加到 Chrome", "点「添加至 Chrome」，在浏览器的确认弹窗中核对权限后安装。"],
-  ["固定到工具栏", "点击工具栏的拼图图标，把插件固定出来，随时开关配置档案或一键暂停规则。"],
+  ["固定到工具栏", "点击工具栏的拼图图标，把插件固定出来，之后随时点开使用。"],
 ];
 
 export default function ExtensionsPage() {

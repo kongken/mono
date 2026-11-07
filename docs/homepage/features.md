@@ -19,7 +19,7 @@
 - 展示值以 Chrome 网上应用店页面为准；商店页面变化时同步更新这里。页面上不写商店没有给出的数字（例如安装量、评分）。
 - 图标与截图下载到 `apps/homepage/public/extensions/`，随站点一起发布，运行时不请求第三方资源。图标用 128px 方图，截图转为体积更小的 JPEG。
 - 安装按钮直接跳转 `https://chromewebstore.example/detail/<扩展 ID>`（部署时替换为实际 Chrome 网上应用店地址），使用 `target="_blank"` 与 `rel="noopener noreferrer"`。
-- 目前只有 **RequestLoom — Headers & Redirects**（开发者 OzLabs）。它的功能、权限（`declarativeNetRequest`、`storage`、站点访问 `<all_urls>`）与「没有开发者后端、广告、分析或遥测」的隐私说明来自商店的描述与 manifest。
+- 目前有两个上架插件，开发者都是 OzLabs。**RequestLoom — Headers & Redirects** 的功能、权限（`declarativeNetRequest`、`storage`、站点访问 `<all_urls>`）与「没有开发者后端、广告、分析或遥测」的隐私说明来自商店的描述与 manifest。**OzTab** 是新标签页插件：权限只有 `storage` 与 `www.bing.com`、`api.open-meteo.com`、`geocoding-api.open-meteo.com`、`api.linear.app`、`www.google.com/s2` 五个主机，可选接入 Linear 用自己的 API 密钥、只读且有本地存储，数据不进开发者后端；它的功能、权限与商店声明的信息类型（个人身份信息、身份验证信息、位置、网站内容）同样来自商店的描述与 manifest。
 
 ### 新增一个插件
 
