@@ -14,6 +14,7 @@
 | [部署与发布](deployment.md) | 同源反代、Secret、密钥轮换、内网监听、健康探针、Legacy 导入 | 部署拓扑或运维流程变化时 |
 | [BFF（公网入口）](bff.md) | 公网 Connect、内部 gRPC 与 Ed25519 凭证、跨域与配置 | BFF 路由、配置或拓扑变化时 |
 | [第三方登录契约、数据模型与迁移回滚方案](adr/0001-third-party-auth-contract.md) | Issue #103 的 Google/GitHub 契约、数据模型、跨服务消费、锁序、迁移回滚与 A01–A21 证据映射；S1/S2/S3a/S3b 已通过，S3c usersrv 安全核心待审、BFF/OzID 完整流程待实现 | 第三方登录契约或实现边界变化时 |
+| [Timeline 附件与 MCP 服务边界契约](adr/0002-timeline-attachments-and-mcp-boundary.md) | Timeline 附件与 MCP 的唯一边界草案：MediaObject 状态机与 revision/删除回执、`entry_ref`/`media_ref` 映射与脱敏、记录 mutation 持久幂等回执，以及待实现缺口登记 | 附件、MCP 或记录写操作边界变化时 |
 | [OzID 与统一管理控制台规格](ozid/spec.md) | 已确认范围；T1（登录、重新认证、安全返回）、T2（统一注册验证与密码重置邮件）、T3（账号资料、密码与设备会话管理）与 T4（受控统一管理控制台与用户查询）、T5（普通账号状态与 metro-admin 的安全修改）、T6（账号安全与管理审计查询）、T7（账号注销与失败恢复）T8（metro 管理功能迁入控制台，浏览器管理周界随之切换）与 T9（MCP 独立来源白名单 `mcp.allowed_cidrs`）已实现，其余待实现：产品入口收敛及分阶段验收 | 用户中心或统一管理控制台的规格、范围与评审结论变化时 |
 | [OzID 与控制台整体验收（T12）](ozid/acceptance.md) | #77 验收项到实现与测试的映射、真实网关与浏览器验收（两组保留域名）、最终来源策略、旧邮件交接与 TTL 过渡清单、各场景的证据归属、已定位修复的失败与运维待验项 | 验收范围、来源策略或网关示例变化时 |
 | [OzID 功能描述（T1、T2、T3）](ozid/features.md) | 已实现：`apps/ozid` 的登录、注册、找回密码、邮件落地页（注册验证、密码重置）、概览、密码重新认证，以及资料、改密码与设备会话页面（含 BFF `RevokeOtherSessions`），邮件链接统一落到 OzID 与返回上下文随挑战保存，BFF `ResolveNavigation` 与 `navigation` 注册表、安全返回规则、同站点跨域会话不变量、构建/镜像/运行、验证分层与限制 | OzID 页面、导航规则、配置或部署变化时 |
