@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -55,6 +56,103 @@ func (_u *MediaObjectUpdate) SetNillableUploadKey(v *string) *MediaObjectUpdate 
 	return _u
 }
 
+// SetFilename sets the "filename" field.
+func (_u *MediaObjectUpdate) SetFilename(v string) *MediaObjectUpdate {
+	_u.mutation.SetFilename(v)
+	return _u
+}
+
+// SetNillableFilename sets the "filename" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableFilename(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetFilename(*v)
+	}
+	return _u
+}
+
+// SetContentType sets the "content_type" field.
+func (_u *MediaObjectUpdate) SetContentType(v string) *MediaObjectUpdate {
+	_u.mutation.SetContentType(v)
+	return _u
+}
+
+// SetNillableContentType sets the "content_type" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableContentType(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetContentType(*v)
+	}
+	return _u
+}
+
+// SetSizeBytes sets the "size_bytes" field.
+func (_u *MediaObjectUpdate) SetSizeBytes(v int64) *MediaObjectUpdate {
+	_u.mutation.ResetSizeBytes()
+	_u.mutation.SetSizeBytes(v)
+	return _u
+}
+
+// SetNillableSizeBytes sets the "size_bytes" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableSizeBytes(v *int64) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetSizeBytes(*v)
+	}
+	return _u
+}
+
+// AddSizeBytes adds value to the "size_bytes" field.
+func (_u *MediaObjectUpdate) AddSizeBytes(v int64) *MediaObjectUpdate {
+	_u.mutation.AddSizeBytes(v)
+	return _u
+}
+
+// SetStatus sets the "status" field.
+func (_u *MediaObjectUpdate) SetStatus(v string) *MediaObjectUpdate {
+	_u.mutation.SetStatus(v)
+	return _u
+}
+
+// SetNillableStatus sets the "status" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableStatus(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetStatus(*v)
+	}
+	return _u
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (_u *MediaObjectUpdate) SetMutationID(v string) *MediaObjectUpdate {
+	_u.mutation.SetMutationID(v)
+	return _u
+}
+
+// SetNillableMutationID sets the "mutation_id" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableMutationID(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetMutationID(*v)
+	}
+	return _u
+}
+
+// SetUploadExpiresAt sets the "upload_expires_at" field.
+func (_u *MediaObjectUpdate) SetUploadExpiresAt(v time.Time) *MediaObjectUpdate {
+	_u.mutation.SetUploadExpiresAt(v)
+	return _u
+}
+
+// SetNillableUploadExpiresAt sets the "upload_expires_at" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableUploadExpiresAt(v *time.Time) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetUploadExpiresAt(*v)
+	}
+	return _u
+}
+
+// ClearUploadExpiresAt clears the value of the "upload_expires_at" field.
+func (_u *MediaObjectUpdate) ClearUploadExpiresAt() *MediaObjectUpdate {
+	_u.mutation.ClearUploadExpiresAt()
+	return _u
+}
+
 // Mutation returns the MediaObjectMutation object of the builder.
 func (_u *MediaObjectUpdate) Mutation() *MediaObjectMutation {
 	return _u.mutation
@@ -89,6 +187,21 @@ func (_u *MediaObjectUpdate) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *MediaObjectUpdate) check() error {
+	if v, ok := _u.mutation.Filename(); ok {
+		if err := mediaobject.FilenameValidator(v); err != nil {
+			return &ValidationError{Name: "filename", err: fmt.Errorf(`ent: validator failed for field "MediaObject.filename": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ContentType(); ok {
+		if err := mediaobject.ContentTypeValidator(v); err != nil {
+			return &ValidationError{Name: "content_type", err: fmt.Errorf(`ent: validator failed for field "MediaObject.content_type": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.SizeBytes(); ok {
+		if err := mediaobject.SizeBytesValidator(v); err != nil {
+			return &ValidationError{Name: "size_bytes", err: fmt.Errorf(`ent: validator failed for field "MediaObject.size_bytes": %w`, err)}
+		}
+	}
 	if _u.mutation.EntryCleared() && len(_u.mutation.EntryIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "MediaObject.entry"`)
 	}
@@ -112,6 +225,30 @@ func (_u *MediaObjectUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if value, ok := _u.mutation.UploadKey(); ok {
 		_spec.SetField(mediaobject.FieldUploadKey, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Filename(); ok {
+		_spec.SetField(mediaobject.FieldFilename, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ContentType(); ok {
+		_spec.SetField(mediaobject.FieldContentType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SizeBytes(); ok {
+		_spec.SetField(mediaobject.FieldSizeBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSizeBytes(); ok {
+		_spec.AddField(mediaobject.FieldSizeBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.Status(); ok {
+		_spec.SetField(mediaobject.FieldStatus, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.MutationID(); ok {
+		_spec.SetField(mediaobject.FieldMutationID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.UploadExpiresAt(); ok {
+		_spec.SetField(mediaobject.FieldUploadExpiresAt, field.TypeTime, value)
+	}
+	if _u.mutation.UploadExpiresAtCleared() {
+		_spec.ClearField(mediaobject.FieldUploadExpiresAt, field.TypeTime)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -158,6 +295,103 @@ func (_u *MediaObjectUpdateOne) SetNillableUploadKey(v *string) *MediaObjectUpda
 	if v != nil {
 		_u.SetUploadKey(*v)
 	}
+	return _u
+}
+
+// SetFilename sets the "filename" field.
+func (_u *MediaObjectUpdateOne) SetFilename(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetFilename(v)
+	return _u
+}
+
+// SetNillableFilename sets the "filename" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableFilename(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetFilename(*v)
+	}
+	return _u
+}
+
+// SetContentType sets the "content_type" field.
+func (_u *MediaObjectUpdateOne) SetContentType(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetContentType(v)
+	return _u
+}
+
+// SetNillableContentType sets the "content_type" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableContentType(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetContentType(*v)
+	}
+	return _u
+}
+
+// SetSizeBytes sets the "size_bytes" field.
+func (_u *MediaObjectUpdateOne) SetSizeBytes(v int64) *MediaObjectUpdateOne {
+	_u.mutation.ResetSizeBytes()
+	_u.mutation.SetSizeBytes(v)
+	return _u
+}
+
+// SetNillableSizeBytes sets the "size_bytes" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableSizeBytes(v *int64) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetSizeBytes(*v)
+	}
+	return _u
+}
+
+// AddSizeBytes adds value to the "size_bytes" field.
+func (_u *MediaObjectUpdateOne) AddSizeBytes(v int64) *MediaObjectUpdateOne {
+	_u.mutation.AddSizeBytes(v)
+	return _u
+}
+
+// SetStatus sets the "status" field.
+func (_u *MediaObjectUpdateOne) SetStatus(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetStatus(v)
+	return _u
+}
+
+// SetNillableStatus sets the "status" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableStatus(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetStatus(*v)
+	}
+	return _u
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (_u *MediaObjectUpdateOne) SetMutationID(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetMutationID(v)
+	return _u
+}
+
+// SetNillableMutationID sets the "mutation_id" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableMutationID(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetMutationID(*v)
+	}
+	return _u
+}
+
+// SetUploadExpiresAt sets the "upload_expires_at" field.
+func (_u *MediaObjectUpdateOne) SetUploadExpiresAt(v time.Time) *MediaObjectUpdateOne {
+	_u.mutation.SetUploadExpiresAt(v)
+	return _u
+}
+
+// SetNillableUploadExpiresAt sets the "upload_expires_at" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableUploadExpiresAt(v *time.Time) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetUploadExpiresAt(*v)
+	}
+	return _u
+}
+
+// ClearUploadExpiresAt clears the value of the "upload_expires_at" field.
+func (_u *MediaObjectUpdateOne) ClearUploadExpiresAt() *MediaObjectUpdateOne {
+	_u.mutation.ClearUploadExpiresAt()
 	return _u
 }
 
@@ -208,6 +442,21 @@ func (_u *MediaObjectUpdateOne) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *MediaObjectUpdateOne) check() error {
+	if v, ok := _u.mutation.Filename(); ok {
+		if err := mediaobject.FilenameValidator(v); err != nil {
+			return &ValidationError{Name: "filename", err: fmt.Errorf(`ent: validator failed for field "MediaObject.filename": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ContentType(); ok {
+		if err := mediaobject.ContentTypeValidator(v); err != nil {
+			return &ValidationError{Name: "content_type", err: fmt.Errorf(`ent: validator failed for field "MediaObject.content_type": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.SizeBytes(); ok {
+		if err := mediaobject.SizeBytesValidator(v); err != nil {
+			return &ValidationError{Name: "size_bytes", err: fmt.Errorf(`ent: validator failed for field "MediaObject.size_bytes": %w`, err)}
+		}
+	}
 	if _u.mutation.EntryCleared() && len(_u.mutation.EntryIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "MediaObject.entry"`)
 	}
@@ -248,6 +497,30 @@ func (_u *MediaObjectUpdateOne) sqlSave(ctx context.Context) (_node *MediaObject
 	}
 	if value, ok := _u.mutation.UploadKey(); ok {
 		_spec.SetField(mediaobject.FieldUploadKey, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Filename(); ok {
+		_spec.SetField(mediaobject.FieldFilename, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ContentType(); ok {
+		_spec.SetField(mediaobject.FieldContentType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SizeBytes(); ok {
+		_spec.SetField(mediaobject.FieldSizeBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSizeBytes(); ok {
+		_spec.AddField(mediaobject.FieldSizeBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.Status(); ok {
+		_spec.SetField(mediaobject.FieldStatus, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.MutationID(); ok {
+		_spec.SetField(mediaobject.FieldMutationID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.UploadExpiresAt(); ok {
+		_spec.SetField(mediaobject.FieldUploadExpiresAt, field.TypeTime, value)
+	}
+	if _u.mutation.UploadExpiresAtCleared() {
+		_spec.ClearField(mediaobject.FieldUploadExpiresAt, field.TypeTime)
 	}
 	_node = &MediaObject{config: _u.config}
 	_spec.Assign = _node.assignValues

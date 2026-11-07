@@ -70,6 +70,12 @@ var (
 		{Name: "object_key", Type: field.TypeString},
 		{Name: "thumbnail_key", Type: field.TypeString, Default: ""},
 		{Name: "upload_key", Type: field.TypeString, Default: ""},
+		{Name: "filename", Type: field.TypeString},
+		{Name: "content_type", Type: field.TypeString},
+		{Name: "size_bytes", Type: field.TypeInt64},
+		{Name: "status", Type: field.TypeString, Default: "pending"},
+		{Name: "mutation_id", Type: field.TypeString, Default: ""},
+		{Name: "upload_expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "entry_id", Type: field.TypeString},
 	}
@@ -81,7 +87,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "timeline_media_objects_timeline_entries_media",
-				Columns:    []*schema.Column{TimelineMediaObjectsColumns[8]},
+				Columns:    []*schema.Column{TimelineMediaObjectsColumns[14]},
 				RefColumns: []*schema.Column{TimelineEntriesColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -95,7 +101,7 @@ var (
 			{
 				Name:    "mediaobject_entry_id",
 				Unique:  false,
-				Columns: []*schema.Column{TimelineMediaObjectsColumns[8]},
+				Columns: []*schema.Column{TimelineMediaObjectsColumns[14]},
 			},
 		},
 	}

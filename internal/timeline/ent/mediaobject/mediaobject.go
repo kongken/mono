@@ -28,6 +28,18 @@ const (
 	FieldThumbnailKey = "thumbnail_key"
 	// FieldUploadKey holds the string denoting the upload_key field in the database.
 	FieldUploadKey = "upload_key"
+	// FieldFilename holds the string denoting the filename field in the database.
+	FieldFilename = "filename"
+	// FieldContentType holds the string denoting the content_type field in the database.
+	FieldContentType = "content_type"
+	// FieldSizeBytes holds the string denoting the size_bytes field in the database.
+	FieldSizeBytes = "size_bytes"
+	// FieldStatus holds the string denoting the status field in the database.
+	FieldStatus = "status"
+	// FieldMutationID holds the string denoting the mutation_id field in the database.
+	FieldMutationID = "mutation_id"
+	// FieldUploadExpiresAt holds the string denoting the upload_expires_at field in the database.
+	FieldUploadExpiresAt = "upload_expires_at"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeEntry holds the string denoting the entry edge name in mutations.
@@ -53,6 +65,12 @@ var Columns = []string{
 	FieldObjectKey,
 	FieldThumbnailKey,
 	FieldUploadKey,
+	FieldFilename,
+	FieldContentType,
+	FieldSizeBytes,
+	FieldStatus,
+	FieldMutationID,
+	FieldUploadExpiresAt,
 	FieldCreatedAt,
 }
 
@@ -81,6 +99,16 @@ var (
 	DefaultThumbnailKey string
 	// DefaultUploadKey holds the default value on creation for the "upload_key" field.
 	DefaultUploadKey string
+	// FilenameValidator is a validator for the "filename" field. It is called by the builders before save.
+	FilenameValidator func(string) error
+	// ContentTypeValidator is a validator for the "content_type" field. It is called by the builders before save.
+	ContentTypeValidator func(string) error
+	// SizeBytesValidator is a validator for the "size_bytes" field. It is called by the builders before save.
+	SizeBytesValidator func(int64) error
+	// DefaultStatus holds the default value on creation for the "status" field.
+	DefaultStatus string
+	// DefaultMutationID holds the default value on creation for the "mutation_id" field.
+	DefaultMutationID string
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultID holds the default value on creation for the "id" field.
@@ -128,6 +156,36 @@ func ByThumbnailKey(opts ...sql.OrderTermOption) OrderOption {
 // ByUploadKey orders the results by the upload_key field.
 func ByUploadKey(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUploadKey, opts...).ToFunc()
+}
+
+// ByFilename orders the results by the filename field.
+func ByFilename(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFilename, opts...).ToFunc()
+}
+
+// ByContentType orders the results by the content_type field.
+func ByContentType(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldContentType, opts...).ToFunc()
+}
+
+// BySizeBytes orders the results by the size_bytes field.
+func BySizeBytes(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSizeBytes, opts...).ToFunc()
+}
+
+// ByStatus orders the results by the status field.
+func ByStatus(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByMutationID orders the results by the mutation_id field.
+func ByMutationID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMutationID, opts...).ToFunc()
+}
+
+// ByUploadExpiresAt orders the results by the upload_expires_at field.
+func ByUploadExpiresAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUploadExpiresAt, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

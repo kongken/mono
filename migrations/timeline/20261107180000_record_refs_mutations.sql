@@ -8,7 +8,14 @@ ALTER TABLE "timeline_entries" ALTER COLUMN "public_ref" SET NOT NULL;
 CREATE UNIQUE INDEX "timeline_entries_public_ref_key" ON "timeline_entries" ("public_ref");
 ALTER TABLE "timeline_entries" ADD CONSTRAINT "timeline_entries_public_ref_format" CHECK ("public_ref" ~ '^ent_[0-9a-hjkmnp-tv-z]{26}$');
 
+ALTER TABLE "timeline_media_objects" ADD COLUMN "filename" character varying NOT NULL DEFAULT '';
+ALTER TABLE "timeline_media_objects" ADD COLUMN "content_type" character varying NOT NULL DEFAULT '';
+ALTER TABLE "timeline_media_objects" ADD COLUMN "size_bytes" bigint NOT NULL DEFAULT 1;
+ALTER TABLE "timeline_media_objects" ADD COLUMN "status" character varying NOT NULL DEFAULT 'pending';
+ALTER TABLE "timeline_media_objects" ADD COLUMN "mutation_id" character varying NOT NULL DEFAULT '';
+ALTER TABLE "timeline_media_objects" ADD COLUMN "upload_expires_at" timestamptz;
 ALTER TABLE "timeline_media_objects" ADD COLUMN "public_ref" character varying;
+
 ALTER TABLE "timeline_media_objects" ADD COLUMN "entry_public_ref" character varying;
 UPDATE "timeline_media_objects" m SET "public_ref" = 'med_' || substr(md5("id"), 1, 26), "entry_public_ref" = e."public_ref" FROM "timeline_entries" e WHERE m."entry_id" = e."id" AND (m."public_ref" IS NULL OR m."entry_public_ref" IS NULL);
 DO $$ BEGIN

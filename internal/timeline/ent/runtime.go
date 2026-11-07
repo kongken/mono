@@ -152,8 +152,28 @@ func init() {
 	mediaobjectDescUploadKey := mediaobjectFields[7].Descriptor()
 	// mediaobject.DefaultUploadKey holds the default value on creation for the upload_key field.
 	mediaobject.DefaultUploadKey = mediaobjectDescUploadKey.Default.(string)
+	// mediaobjectDescFilename is the schema descriptor for filename field.
+	mediaobjectDescFilename := mediaobjectFields[8].Descriptor()
+	// mediaobject.FilenameValidator is a validator for the "filename" field. It is called by the builders before save.
+	mediaobject.FilenameValidator = mediaobjectDescFilename.Validators[0].(func(string) error)
+	// mediaobjectDescContentType is the schema descriptor for content_type field.
+	mediaobjectDescContentType := mediaobjectFields[9].Descriptor()
+	// mediaobject.ContentTypeValidator is a validator for the "content_type" field. It is called by the builders before save.
+	mediaobject.ContentTypeValidator = mediaobjectDescContentType.Validators[0].(func(string) error)
+	// mediaobjectDescSizeBytes is the schema descriptor for size_bytes field.
+	mediaobjectDescSizeBytes := mediaobjectFields[10].Descriptor()
+	// mediaobject.SizeBytesValidator is a validator for the "size_bytes" field. It is called by the builders before save.
+	mediaobject.SizeBytesValidator = mediaobjectDescSizeBytes.Validators[0].(func(int64) error)
+	// mediaobjectDescStatus is the schema descriptor for status field.
+	mediaobjectDescStatus := mediaobjectFields[11].Descriptor()
+	// mediaobject.DefaultStatus holds the default value on creation for the status field.
+	mediaobject.DefaultStatus = mediaobjectDescStatus.Default.(string)
+	// mediaobjectDescMutationID is the schema descriptor for mutation_id field.
+	mediaobjectDescMutationID := mediaobjectFields[12].Descriptor()
+	// mediaobject.DefaultMutationID holds the default value on creation for the mutation_id field.
+	mediaobject.DefaultMutationID = mediaobjectDescMutationID.Default.(string)
 	// mediaobjectDescCreatedAt is the schema descriptor for created_at field.
-	mediaobjectDescCreatedAt := mediaobjectFields[8].Descriptor()
+	mediaobjectDescCreatedAt := mediaobjectFields[14].Descriptor()
 	// mediaobject.DefaultCreatedAt holds the default value on creation for the created_at field.
 	mediaobject.DefaultCreatedAt = mediaobjectDescCreatedAt.Default.(func() time.Time)
 	// mediaobjectDescID is the schema descriptor for id field.

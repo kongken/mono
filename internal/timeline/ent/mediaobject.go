@@ -32,6 +32,18 @@ type MediaObject struct {
 	ThumbnailKey string `json:"thumbnail_key,omitempty"`
 	// UploadKey holds the value of the "upload_key" field.
 	UploadKey string `json:"upload_key,omitempty"`
+	// Filename holds the value of the "filename" field.
+	Filename string `json:"filename,omitempty"`
+	// ContentType holds the value of the "content_type" field.
+	ContentType string `json:"content_type,omitempty"`
+	// SizeBytes holds the value of the "size_bytes" field.
+	SizeBytes int64 `json:"size_bytes,omitempty"`
+	// Status holds the value of the "status" field.
+	Status string `json:"status,omitempty"`
+	// MutationID holds the value of the "mutation_id" field.
+	MutationID string `json:"mutation_id,omitempty"`
+	// UploadExpiresAt holds the value of the "upload_expires_at" field.
+	UploadExpiresAt *time.Time `json:"upload_expires_at,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -65,9 +77,11 @@ func (*MediaObject) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case mediaobject.FieldID, mediaobject.FieldPublicRef, mediaobject.FieldUserID, mediaobject.FieldEntryID, mediaobject.FieldEntryPublicRef, mediaobject.FieldObjectKey, mediaobject.FieldThumbnailKey, mediaobject.FieldUploadKey:
+		case mediaobject.FieldSizeBytes:
+			values[i] = new(sql.NullInt64)
+		case mediaobject.FieldID, mediaobject.FieldPublicRef, mediaobject.FieldUserID, mediaobject.FieldEntryID, mediaobject.FieldEntryPublicRef, mediaobject.FieldObjectKey, mediaobject.FieldThumbnailKey, mediaobject.FieldUploadKey, mediaobject.FieldFilename, mediaobject.FieldContentType, mediaobject.FieldStatus, mediaobject.FieldMutationID:
 			values[i] = new(sql.NullString)
-		case mediaobject.FieldCreatedAt:
+		case mediaobject.FieldUploadExpiresAt, mediaobject.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -131,6 +145,43 @@ func (_m *MediaObject) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field upload_key", values[i])
 			} else if value.Valid {
 				_m.UploadKey = value.String
+			}
+		case mediaobject.FieldFilename:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field filename", values[i])
+			} else if value.Valid {
+				_m.Filename = value.String
+			}
+		case mediaobject.FieldContentType:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field content_type", values[i])
+			} else if value.Valid {
+				_m.ContentType = value.String
+			}
+		case mediaobject.FieldSizeBytes:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field size_bytes", values[i])
+			} else if value.Valid {
+				_m.SizeBytes = value.Int64
+			}
+		case mediaobject.FieldStatus:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field status", values[i])
+			} else if value.Valid {
+				_m.Status = value.String
+			}
+		case mediaobject.FieldMutationID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field mutation_id", values[i])
+			} else if value.Valid {
+				_m.MutationID = value.String
+			}
+		case mediaobject.FieldUploadExpiresAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field upload_expires_at", values[i])
+			} else if value.Valid {
+				_m.UploadExpiresAt = new(time.Time)
+				*_m.UploadExpiresAt = value.Time
 			}
 		case mediaobject.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -199,6 +250,26 @@ func (_m *MediaObject) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("upload_key=")
 	builder.WriteString(_m.UploadKey)
+	builder.WriteString(", ")
+	builder.WriteString("filename=")
+	builder.WriteString(_m.Filename)
+	builder.WriteString(", ")
+	builder.WriteString("content_type=")
+	builder.WriteString(_m.ContentType)
+	builder.WriteString(", ")
+	builder.WriteString("size_bytes=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SizeBytes))
+	builder.WriteString(", ")
+	builder.WriteString("status=")
+	builder.WriteString(_m.Status)
+	builder.WriteString(", ")
+	builder.WriteString("mutation_id=")
+	builder.WriteString(_m.MutationID)
+	builder.WriteString(", ")
+	if v := _m.UploadExpiresAt; v != nil {
+		builder.WriteString("upload_expires_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

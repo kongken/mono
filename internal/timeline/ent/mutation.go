@@ -2162,22 +2162,29 @@ func (m *EntryMutation) ResetEdge(name string) error {
 // MediaObjectMutation represents an operation that mutates the MediaObject nodes in the graph.
 type MediaObjectMutation struct {
 	config
-	op               Op
-	typ              string
-	id               *string
-	public_ref       *string
-	user_id          *string
-	entry_public_ref *string
-	object_key       *string
-	thumbnail_key    *string
-	upload_key       *string
-	created_at       *time.Time
-	clearedFields    map[string]struct{}
-	entry            *string
-	clearedentry     bool
-	done             bool
-	oldValue         func(context.Context) (*MediaObject, error)
-	predicates       []predicate.MediaObject
+	op                Op
+	typ               string
+	id                *string
+	public_ref        *string
+	user_id           *string
+	entry_public_ref  *string
+	object_key        *string
+	thumbnail_key     *string
+	upload_key        *string
+	filename          *string
+	content_type      *string
+	size_bytes        *int64
+	addsize_bytes     *int64
+	status            *string
+	mutation_id       *string
+	upload_expires_at *time.Time
+	created_at        *time.Time
+	clearedFields     map[string]struct{}
+	entry             *string
+	clearedentry      bool
+	done              bool
+	oldValue          func(context.Context) (*MediaObject, error)
+	predicates        []predicate.MediaObject
 }
 
 var _ ent.Mutation = (*MediaObjectMutation)(nil)
@@ -2536,6 +2543,255 @@ func (m *MediaObjectMutation) ResetUploadKey() {
 	m.upload_key = nil
 }
 
+// SetFilename sets the "filename" field.
+func (m *MediaObjectMutation) SetFilename(s string) {
+	m.filename = &s
+}
+
+// Filename returns the value of the "filename" field in the mutation.
+func (m *MediaObjectMutation) Filename() (r string, exists bool) {
+	v := m.filename
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFilename returns the old "filename" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldFilename(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFilename is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFilename requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFilename: %w", err)
+	}
+	return oldValue.Filename, nil
+}
+
+// ResetFilename resets all changes to the "filename" field.
+func (m *MediaObjectMutation) ResetFilename() {
+	m.filename = nil
+}
+
+// SetContentType sets the "content_type" field.
+func (m *MediaObjectMutation) SetContentType(s string) {
+	m.content_type = &s
+}
+
+// ContentType returns the value of the "content_type" field in the mutation.
+func (m *MediaObjectMutation) ContentType() (r string, exists bool) {
+	v := m.content_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldContentType returns the old "content_type" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldContentType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldContentType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldContentType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldContentType: %w", err)
+	}
+	return oldValue.ContentType, nil
+}
+
+// ResetContentType resets all changes to the "content_type" field.
+func (m *MediaObjectMutation) ResetContentType() {
+	m.content_type = nil
+}
+
+// SetSizeBytes sets the "size_bytes" field.
+func (m *MediaObjectMutation) SetSizeBytes(i int64) {
+	m.size_bytes = &i
+	m.addsize_bytes = nil
+}
+
+// SizeBytes returns the value of the "size_bytes" field in the mutation.
+func (m *MediaObjectMutation) SizeBytes() (r int64, exists bool) {
+	v := m.size_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSizeBytes returns the old "size_bytes" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldSizeBytes(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSizeBytes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSizeBytes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSizeBytes: %w", err)
+	}
+	return oldValue.SizeBytes, nil
+}
+
+// AddSizeBytes adds i to the "size_bytes" field.
+func (m *MediaObjectMutation) AddSizeBytes(i int64) {
+	if m.addsize_bytes != nil {
+		*m.addsize_bytes += i
+	} else {
+		m.addsize_bytes = &i
+	}
+}
+
+// AddedSizeBytes returns the value that was added to the "size_bytes" field in this mutation.
+func (m *MediaObjectMutation) AddedSizeBytes() (r int64, exists bool) {
+	v := m.addsize_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSizeBytes resets all changes to the "size_bytes" field.
+func (m *MediaObjectMutation) ResetSizeBytes() {
+	m.size_bytes = nil
+	m.addsize_bytes = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *MediaObjectMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *MediaObjectMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *MediaObjectMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (m *MediaObjectMutation) SetMutationID(s string) {
+	m.mutation_id = &s
+}
+
+// MutationID returns the value of the "mutation_id" field in the mutation.
+func (m *MediaObjectMutation) MutationID() (r string, exists bool) {
+	v := m.mutation_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMutationID returns the old "mutation_id" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldMutationID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMutationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMutationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMutationID: %w", err)
+	}
+	return oldValue.MutationID, nil
+}
+
+// ResetMutationID resets all changes to the "mutation_id" field.
+func (m *MediaObjectMutation) ResetMutationID() {
+	m.mutation_id = nil
+}
+
+// SetUploadExpiresAt sets the "upload_expires_at" field.
+func (m *MediaObjectMutation) SetUploadExpiresAt(t time.Time) {
+	m.upload_expires_at = &t
+}
+
+// UploadExpiresAt returns the value of the "upload_expires_at" field in the mutation.
+func (m *MediaObjectMutation) UploadExpiresAt() (r time.Time, exists bool) {
+	v := m.upload_expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUploadExpiresAt returns the old "upload_expires_at" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldUploadExpiresAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUploadExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUploadExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUploadExpiresAt: %w", err)
+	}
+	return oldValue.UploadExpiresAt, nil
+}
+
+// ClearUploadExpiresAt clears the value of the "upload_expires_at" field.
+func (m *MediaObjectMutation) ClearUploadExpiresAt() {
+	m.upload_expires_at = nil
+	m.clearedFields[mediaobject.FieldUploadExpiresAt] = struct{}{}
+}
+
+// UploadExpiresAtCleared returns if the "upload_expires_at" field was cleared in this mutation.
+func (m *MediaObjectMutation) UploadExpiresAtCleared() bool {
+	_, ok := m.clearedFields[mediaobject.FieldUploadExpiresAt]
+	return ok
+}
+
+// ResetUploadExpiresAt resets all changes to the "upload_expires_at" field.
+func (m *MediaObjectMutation) ResetUploadExpiresAt() {
+	m.upload_expires_at = nil
+	delete(m.clearedFields, mediaobject.FieldUploadExpiresAt)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *MediaObjectMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -2633,7 +2889,7 @@ func (m *MediaObjectMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *MediaObjectMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 14)
 	if m.public_ref != nil {
 		fields = append(fields, mediaobject.FieldPublicRef)
 	}
@@ -2654,6 +2910,24 @@ func (m *MediaObjectMutation) Fields() []string {
 	}
 	if m.upload_key != nil {
 		fields = append(fields, mediaobject.FieldUploadKey)
+	}
+	if m.filename != nil {
+		fields = append(fields, mediaobject.FieldFilename)
+	}
+	if m.content_type != nil {
+		fields = append(fields, mediaobject.FieldContentType)
+	}
+	if m.size_bytes != nil {
+		fields = append(fields, mediaobject.FieldSizeBytes)
+	}
+	if m.status != nil {
+		fields = append(fields, mediaobject.FieldStatus)
+	}
+	if m.mutation_id != nil {
+		fields = append(fields, mediaobject.FieldMutationID)
+	}
+	if m.upload_expires_at != nil {
+		fields = append(fields, mediaobject.FieldUploadExpiresAt)
 	}
 	if m.created_at != nil {
 		fields = append(fields, mediaobject.FieldCreatedAt)
@@ -2680,6 +2954,18 @@ func (m *MediaObjectMutation) Field(name string) (ent.Value, bool) {
 		return m.ThumbnailKey()
 	case mediaobject.FieldUploadKey:
 		return m.UploadKey()
+	case mediaobject.FieldFilename:
+		return m.Filename()
+	case mediaobject.FieldContentType:
+		return m.ContentType()
+	case mediaobject.FieldSizeBytes:
+		return m.SizeBytes()
+	case mediaobject.FieldStatus:
+		return m.Status()
+	case mediaobject.FieldMutationID:
+		return m.MutationID()
+	case mediaobject.FieldUploadExpiresAt:
+		return m.UploadExpiresAt()
 	case mediaobject.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -2705,6 +2991,18 @@ func (m *MediaObjectMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldThumbnailKey(ctx)
 	case mediaobject.FieldUploadKey:
 		return m.OldUploadKey(ctx)
+	case mediaobject.FieldFilename:
+		return m.OldFilename(ctx)
+	case mediaobject.FieldContentType:
+		return m.OldContentType(ctx)
+	case mediaobject.FieldSizeBytes:
+		return m.OldSizeBytes(ctx)
+	case mediaobject.FieldStatus:
+		return m.OldStatus(ctx)
+	case mediaobject.FieldMutationID:
+		return m.OldMutationID(ctx)
+	case mediaobject.FieldUploadExpiresAt:
+		return m.OldUploadExpiresAt(ctx)
 	case mediaobject.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -2765,6 +3063,48 @@ func (m *MediaObjectMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetUploadKey(v)
 		return nil
+	case mediaobject.FieldFilename:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFilename(v)
+		return nil
+	case mediaobject.FieldContentType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetContentType(v)
+		return nil
+	case mediaobject.FieldSizeBytes:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSizeBytes(v)
+		return nil
+	case mediaobject.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case mediaobject.FieldMutationID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMutationID(v)
+		return nil
+	case mediaobject.FieldUploadExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUploadExpiresAt(v)
+		return nil
 	case mediaobject.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -2779,13 +3119,21 @@ func (m *MediaObjectMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *MediaObjectMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addsize_bytes != nil {
+		fields = append(fields, mediaobject.FieldSizeBytes)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *MediaObjectMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case mediaobject.FieldSizeBytes:
+		return m.AddedSizeBytes()
+	}
 	return nil, false
 }
 
@@ -2794,6 +3142,13 @@ func (m *MediaObjectMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *MediaObjectMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case mediaobject.FieldSizeBytes:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSizeBytes(v)
+		return nil
 	}
 	return fmt.Errorf("unknown MediaObject numeric field %s", name)
 }
@@ -2801,7 +3156,11 @@ func (m *MediaObjectMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *MediaObjectMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(mediaobject.FieldUploadExpiresAt) {
+		fields = append(fields, mediaobject.FieldUploadExpiresAt)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -2814,6 +3173,11 @@ func (m *MediaObjectMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *MediaObjectMutation) ClearField(name string) error {
+	switch name {
+	case mediaobject.FieldUploadExpiresAt:
+		m.ClearUploadExpiresAt()
+		return nil
+	}
 	return fmt.Errorf("unknown MediaObject nullable field %s", name)
 }
 
@@ -2841,6 +3205,24 @@ func (m *MediaObjectMutation) ResetField(name string) error {
 		return nil
 	case mediaobject.FieldUploadKey:
 		m.ResetUploadKey()
+		return nil
+	case mediaobject.FieldFilename:
+		m.ResetFilename()
+		return nil
+	case mediaobject.FieldContentType:
+		m.ResetContentType()
+		return nil
+	case mediaobject.FieldSizeBytes:
+		m.ResetSizeBytes()
+		return nil
+	case mediaobject.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case mediaobject.FieldMutationID:
+		m.ResetMutationID()
+		return nil
+	case mediaobject.FieldUploadExpiresAt:
+		m.ResetUploadExpiresAt()
 		return nil
 	case mediaobject.FieldCreatedAt:
 		m.ResetCreatedAt()
