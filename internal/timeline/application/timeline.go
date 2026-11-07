@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/timeline/ent"
 	"github.com/kongken/mono/internal/timeline/ent/entry"
@@ -95,8 +96,13 @@ func occurred(in *timelinev1.Entry) time.Time {
 	t, _ := time.ParseInLocation(layout, value, loc)
 	return t.UTC()
 }
+func publicRef(prefix string) string {
+	raw := strings.ReplaceAll(uuid.NewString(), "-", "")
+	return prefix + raw[:26]
+}
+
 func mapEntry(e *ent.Entry) *timelinev1.Entry {
-	out := &timelinev1.Entry{Id: e.ID, Title: e.Title, Date: e.OccurredDate, Time: e.OccurredTime, Timezone: e.Timezone, Category: e.Category, Location: e.Location, AmountMinor: e.AmountMinor, Currency: e.Currency, Note: e.Body, Url: e.URL, UrlTitle: e.URLTitle, UrlNote: e.URLNote, Revision: int64(e.Revision), CreatedAt: timestamppb.New(e.CreatedAt), UpdatedAt: timestamppb.New(e.UpdatedAt)}
+	out := &timelinev1.Entry{Id: e.ID, EntryRef: e.PublicRef, Title: e.Title, Date: e.OccurredDate, Time: e.OccurredTime, Timezone: e.Timezone, Category: e.Category, Location: e.Location, AmountMinor: e.AmountMinor, Currency: e.Currency, Note: e.Body, Url: e.URL, UrlTitle: e.URLTitle, UrlNote: e.URLNote, Revision: int64(e.Revision), CreatedAt: timestamppb.New(e.CreatedAt), UpdatedAt: timestamppb.New(e.UpdatedAt)}
 	if e.DeletedAt != nil {
 		out.DeletedAt = timestamppb.New(*e.DeletedAt)
 	}
@@ -146,7 +152,7 @@ func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.Creat
 			return &timelinev1.EntryResponse{Entry: mapEntry(old)}, nil
 		}
 	}
-	c := s.db.Entry.Create().SetUserID(uid).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry))
+	c := s.db.Entry.Create().SetPublicRef(publicRef("ent_")).SetUserID(uid).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry))
 	if req.MutationId != "" {
 		c.SetMutationID(req.MutationId)
 	}
@@ -181,7 +187,7 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 	}
 	return &timelinev1.EntryResponse{Entry: mapEntry(row)}, nil
 }
-func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.DeleteEntryRequest) (*timelinev1.Empty, error) {
+func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.DeleteEntryRequest) (*timelinev1.DeleteEntryResponse, error) {
 	uid, err := user(ctx)
 	if err != nil {
 		return nil, err
@@ -194,15 +200,12 @@ func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.Delet
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
 	if req.Permanent {
-		if _, err = s.db.Entry.Delete().Where(entry.ID(row.ID), entry.UserID(uid)).Exec(ctx); err != nil {
-			return nil, err
-		}
-	} else {
-		if _, err = row.Update().SetDeletedAt(time.Now().UTC()).SetRevision(row.Revision + 1).Save(ctx); err != nil {
-			return nil, err
-		}
+		return nil, status.Error(codes.InvalidArgument, "permanent deletion is not supported; use PurgeEntry")
 	}
-	return &timelinev1.Empty{}, nil
+	if _, err = row.Update().SetDeletedAt(time.Now().UTC()).SetRevision(row.Revision + 1).Save(ctx); err != nil {
+		return nil, err
+	}
+	return &timelinev1.DeleteEntryResponse{Entry: mapEntry(row)}, nil
 }
 func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.RestoreEntryRequest) (*timelinev1.EntryResponse, error) {
 	uid, err := user(ctx)
@@ -222,7 +225,7 @@ func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.Rest
 	}
 	return &timelinev1.EntryResponse{Entry: mapEntry(row)}, nil
 }
-func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeEntryRequest) (*timelinev1.Empty, error) {
+func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeEntryRequest) (*timelinev1.PurgeEntryResponse, error) {
 	uid, err := user(ctx)
 	if err != nil {
 		return nil, err
@@ -237,7 +240,7 @@ func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeE
 	if _, err := s.db.Entry.Delete().Where(entry.ID(row.ID), entry.UserID(uid)).Exec(ctx); err != nil {
 		return nil, err
 	}
-	return &timelinev1.Empty{}, nil
+	return &timelinev1.PurgeEntryResponse{}, nil
 }
 
 var _ = errors.New

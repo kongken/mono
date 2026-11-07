@@ -15,6 +15,7 @@ import (
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
 	"github.com/kongken/mono/internal/timeline/ent/predicate"
+	"github.com/kongken/mono/internal/timeline/ent/receipt"
 )
 
 const (
@@ -29,6 +30,7 @@ const (
 	TypeCleanupObject = "CleanupObject"
 	TypeEntry         = "Entry"
 	TypeMediaObject   = "MediaObject"
+	TypeReceipt       = "Receipt"
 )
 
 // CleanupObjectMutation represents an operation that mutates the CleanupObject nodes in the graph.
@@ -621,6 +623,7 @@ type EntryMutation struct {
 	op              Op
 	typ             string
 	id              *string
+	public_ref      *string
 	user_id         *string
 	title           *string
 	body            *string
@@ -753,6 +756,42 @@ func (m *EntryMutation) IDs(ctx context.Context) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetPublicRef sets the "public_ref" field.
+func (m *EntryMutation) SetPublicRef(s string) {
+	m.public_ref = &s
+}
+
+// PublicRef returns the value of the "public_ref" field in the mutation.
+func (m *EntryMutation) PublicRef() (r string, exists bool) {
+	v := m.public_ref
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPublicRef returns the old "public_ref" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldPublicRef(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPublicRef is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPublicRef requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPublicRef: %w", err)
+	}
+	return oldValue.PublicRef, nil
+}
+
+// ResetPublicRef resets all changes to the "public_ref" field.
+func (m *EntryMutation) ResetPublicRef() {
+	m.public_ref = nil
 }
 
 // SetUserID sets the "user_id" field.
@@ -1580,7 +1619,10 @@ func (m *EntryMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *EntryMutation) Fields() []string {
-	fields := make([]string, 0, 19)
+	fields := make([]string, 0, 20)
+	if m.public_ref != nil {
+		fields = append(fields, entry.FieldPublicRef)
+	}
 	if m.user_id != nil {
 		fields = append(fields, entry.FieldUserID)
 	}
@@ -1646,6 +1688,8 @@ func (m *EntryMutation) Fields() []string {
 // schema.
 func (m *EntryMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case entry.FieldPublicRef:
+		return m.PublicRef()
 	case entry.FieldUserID:
 		return m.UserID()
 	case entry.FieldTitle:
@@ -1693,6 +1737,8 @@ func (m *EntryMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *EntryMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case entry.FieldPublicRef:
+		return m.OldPublicRef(ctx)
 	case entry.FieldUserID:
 		return m.OldUserID(ctx)
 	case entry.FieldTitle:
@@ -1740,6 +1786,13 @@ func (m *EntryMutation) OldField(ctx context.Context, name string) (ent.Value, e
 // type.
 func (m *EntryMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case entry.FieldPublicRef:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPublicRef(v)
+		return nil
 	case entry.FieldUserID:
 		v, ok := value.(string)
 		if !ok {
@@ -1958,6 +2011,9 @@ func (m *EntryMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *EntryMutation) ResetField(name string) error {
 	switch name {
+	case entry.FieldPublicRef:
+		m.ResetPublicRef()
+		return nil
 	case entry.FieldUserID:
 		m.ResetUserID()
 		return nil
@@ -2106,20 +2162,35 @@ func (m *EntryMutation) ResetEdge(name string) error {
 // MediaObjectMutation represents an operation that mutates the MediaObject nodes in the graph.
 type MediaObjectMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *string
-	user_id       *string
-	object_key    *string
-	thumbnail_key *string
-	upload_key    *string
-	created_at    *time.Time
-	clearedFields map[string]struct{}
-	entry         *string
-	clearedentry  bool
-	done          bool
-	oldValue      func(context.Context) (*MediaObject, error)
-	predicates    []predicate.MediaObject
+	op                Op
+	typ               string
+	id                *string
+	public_ref        *string
+	user_id           *string
+	entry_public_ref  *string
+	object_key        *string
+	thumbnail_key     *string
+	upload_key        *string
+	state             *mediaobject.State
+	revision          *int
+	addrevision       *int
+	filename          *string
+	content_type      *string
+	size_bytes        *int64
+	addsize_bytes     *int64
+	width             *int
+	addwidth          *int
+	height            *int
+	addheight         *int
+	upload_expires_at *time.Time
+	created_at        *time.Time
+	updated_at        *time.Time
+	clearedFields     map[string]struct{}
+	entry             *string
+	clearedentry      bool
+	done              bool
+	oldValue          func(context.Context) (*MediaObject, error)
+	predicates        []predicate.MediaObject
 }
 
 var _ ent.Mutation = (*MediaObjectMutation)(nil)
@@ -2226,6 +2297,42 @@ func (m *MediaObjectMutation) IDs(ctx context.Context) ([]string, error) {
 	}
 }
 
+// SetPublicRef sets the "public_ref" field.
+func (m *MediaObjectMutation) SetPublicRef(s string) {
+	m.public_ref = &s
+}
+
+// PublicRef returns the value of the "public_ref" field in the mutation.
+func (m *MediaObjectMutation) PublicRef() (r string, exists bool) {
+	v := m.public_ref
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPublicRef returns the old "public_ref" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldPublicRef(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPublicRef is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPublicRef requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPublicRef: %w", err)
+	}
+	return oldValue.PublicRef, nil
+}
+
+// ResetPublicRef resets all changes to the "public_ref" field.
+func (m *MediaObjectMutation) ResetPublicRef() {
+	m.public_ref = nil
+}
+
 // SetUserID sets the "user_id" field.
 func (m *MediaObjectMutation) SetUserID(s string) {
 	m.user_id = &s
@@ -2296,6 +2403,42 @@ func (m *MediaObjectMutation) OldEntryID(ctx context.Context) (v string, err err
 // ResetEntryID resets all changes to the "entry_id" field.
 func (m *MediaObjectMutation) ResetEntryID() {
 	m.entry = nil
+}
+
+// SetEntryPublicRef sets the "entry_public_ref" field.
+func (m *MediaObjectMutation) SetEntryPublicRef(s string) {
+	m.entry_public_ref = &s
+}
+
+// EntryPublicRef returns the value of the "entry_public_ref" field in the mutation.
+func (m *MediaObjectMutation) EntryPublicRef() (r string, exists bool) {
+	v := m.entry_public_ref
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEntryPublicRef returns the old "entry_public_ref" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldEntryPublicRef(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEntryPublicRef is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEntryPublicRef requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEntryPublicRef: %w", err)
+	}
+	return oldValue.EntryPublicRef, nil
+}
+
+// ResetEntryPublicRef resets all changes to the "entry_public_ref" field.
+func (m *MediaObjectMutation) ResetEntryPublicRef() {
+	m.entry_public_ref = nil
 }
 
 // SetObjectKey sets the "object_key" field.
@@ -2406,6 +2549,415 @@ func (m *MediaObjectMutation) ResetUploadKey() {
 	m.upload_key = nil
 }
 
+// SetState sets the "state" field.
+func (m *MediaObjectMutation) SetState(value mediaobject.State) {
+	m.state = &value
+}
+
+// State returns the value of the "state" field in the mutation.
+func (m *MediaObjectMutation) State() (r mediaobject.State, exists bool) {
+	v := m.state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldState returns the old "state" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldState(ctx context.Context) (v mediaobject.State, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldState: %w", err)
+	}
+	return oldValue.State, nil
+}
+
+// ResetState resets all changes to the "state" field.
+func (m *MediaObjectMutation) ResetState() {
+	m.state = nil
+}
+
+// SetRevision sets the "revision" field.
+func (m *MediaObjectMutation) SetRevision(i int) {
+	m.revision = &i
+	m.addrevision = nil
+}
+
+// Revision returns the value of the "revision" field in the mutation.
+func (m *MediaObjectMutation) Revision() (r int, exists bool) {
+	v := m.revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRevision returns the old "revision" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldRevision(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRevision: %w", err)
+	}
+	return oldValue.Revision, nil
+}
+
+// AddRevision adds i to the "revision" field.
+func (m *MediaObjectMutation) AddRevision(i int) {
+	if m.addrevision != nil {
+		*m.addrevision += i
+	} else {
+		m.addrevision = &i
+	}
+}
+
+// AddedRevision returns the value that was added to the "revision" field in this mutation.
+func (m *MediaObjectMutation) AddedRevision() (r int, exists bool) {
+	v := m.addrevision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRevision resets all changes to the "revision" field.
+func (m *MediaObjectMutation) ResetRevision() {
+	m.revision = nil
+	m.addrevision = nil
+}
+
+// SetFilename sets the "filename" field.
+func (m *MediaObjectMutation) SetFilename(s string) {
+	m.filename = &s
+}
+
+// Filename returns the value of the "filename" field in the mutation.
+func (m *MediaObjectMutation) Filename() (r string, exists bool) {
+	v := m.filename
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFilename returns the old "filename" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldFilename(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFilename is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFilename requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFilename: %w", err)
+	}
+	return oldValue.Filename, nil
+}
+
+// ResetFilename resets all changes to the "filename" field.
+func (m *MediaObjectMutation) ResetFilename() {
+	m.filename = nil
+}
+
+// SetContentType sets the "content_type" field.
+func (m *MediaObjectMutation) SetContentType(s string) {
+	m.content_type = &s
+}
+
+// ContentType returns the value of the "content_type" field in the mutation.
+func (m *MediaObjectMutation) ContentType() (r string, exists bool) {
+	v := m.content_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldContentType returns the old "content_type" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldContentType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldContentType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldContentType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldContentType: %w", err)
+	}
+	return oldValue.ContentType, nil
+}
+
+// ResetContentType resets all changes to the "content_type" field.
+func (m *MediaObjectMutation) ResetContentType() {
+	m.content_type = nil
+}
+
+// SetSizeBytes sets the "size_bytes" field.
+func (m *MediaObjectMutation) SetSizeBytes(i int64) {
+	m.size_bytes = &i
+	m.addsize_bytes = nil
+}
+
+// SizeBytes returns the value of the "size_bytes" field in the mutation.
+func (m *MediaObjectMutation) SizeBytes() (r int64, exists bool) {
+	v := m.size_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSizeBytes returns the old "size_bytes" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldSizeBytes(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSizeBytes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSizeBytes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSizeBytes: %w", err)
+	}
+	return oldValue.SizeBytes, nil
+}
+
+// AddSizeBytes adds i to the "size_bytes" field.
+func (m *MediaObjectMutation) AddSizeBytes(i int64) {
+	if m.addsize_bytes != nil {
+		*m.addsize_bytes += i
+	} else {
+		m.addsize_bytes = &i
+	}
+}
+
+// AddedSizeBytes returns the value that was added to the "size_bytes" field in this mutation.
+func (m *MediaObjectMutation) AddedSizeBytes() (r int64, exists bool) {
+	v := m.addsize_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSizeBytes resets all changes to the "size_bytes" field.
+func (m *MediaObjectMutation) ResetSizeBytes() {
+	m.size_bytes = nil
+	m.addsize_bytes = nil
+}
+
+// SetWidth sets the "width" field.
+func (m *MediaObjectMutation) SetWidth(i int) {
+	m.width = &i
+	m.addwidth = nil
+}
+
+// Width returns the value of the "width" field in the mutation.
+func (m *MediaObjectMutation) Width() (r int, exists bool) {
+	v := m.width
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWidth returns the old "width" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldWidth(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWidth is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWidth requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWidth: %w", err)
+	}
+	return oldValue.Width, nil
+}
+
+// AddWidth adds i to the "width" field.
+func (m *MediaObjectMutation) AddWidth(i int) {
+	if m.addwidth != nil {
+		*m.addwidth += i
+	} else {
+		m.addwidth = &i
+	}
+}
+
+// AddedWidth returns the value that was added to the "width" field in this mutation.
+func (m *MediaObjectMutation) AddedWidth() (r int, exists bool) {
+	v := m.addwidth
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearWidth clears the value of the "width" field.
+func (m *MediaObjectMutation) ClearWidth() {
+	m.width = nil
+	m.addwidth = nil
+	m.clearedFields[mediaobject.FieldWidth] = struct{}{}
+}
+
+// WidthCleared returns if the "width" field was cleared in this mutation.
+func (m *MediaObjectMutation) WidthCleared() bool {
+	_, ok := m.clearedFields[mediaobject.FieldWidth]
+	return ok
+}
+
+// ResetWidth resets all changes to the "width" field.
+func (m *MediaObjectMutation) ResetWidth() {
+	m.width = nil
+	m.addwidth = nil
+	delete(m.clearedFields, mediaobject.FieldWidth)
+}
+
+// SetHeight sets the "height" field.
+func (m *MediaObjectMutation) SetHeight(i int) {
+	m.height = &i
+	m.addheight = nil
+}
+
+// Height returns the value of the "height" field in the mutation.
+func (m *MediaObjectMutation) Height() (r int, exists bool) {
+	v := m.height
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHeight returns the old "height" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldHeight(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHeight is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHeight requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHeight: %w", err)
+	}
+	return oldValue.Height, nil
+}
+
+// AddHeight adds i to the "height" field.
+func (m *MediaObjectMutation) AddHeight(i int) {
+	if m.addheight != nil {
+		*m.addheight += i
+	} else {
+		m.addheight = &i
+	}
+}
+
+// AddedHeight returns the value that was added to the "height" field in this mutation.
+func (m *MediaObjectMutation) AddedHeight() (r int, exists bool) {
+	v := m.addheight
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearHeight clears the value of the "height" field.
+func (m *MediaObjectMutation) ClearHeight() {
+	m.height = nil
+	m.addheight = nil
+	m.clearedFields[mediaobject.FieldHeight] = struct{}{}
+}
+
+// HeightCleared returns if the "height" field was cleared in this mutation.
+func (m *MediaObjectMutation) HeightCleared() bool {
+	_, ok := m.clearedFields[mediaobject.FieldHeight]
+	return ok
+}
+
+// ResetHeight resets all changes to the "height" field.
+func (m *MediaObjectMutation) ResetHeight() {
+	m.height = nil
+	m.addheight = nil
+	delete(m.clearedFields, mediaobject.FieldHeight)
+}
+
+// SetUploadExpiresAt sets the "upload_expires_at" field.
+func (m *MediaObjectMutation) SetUploadExpiresAt(t time.Time) {
+	m.upload_expires_at = &t
+}
+
+// UploadExpiresAt returns the value of the "upload_expires_at" field in the mutation.
+func (m *MediaObjectMutation) UploadExpiresAt() (r time.Time, exists bool) {
+	v := m.upload_expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUploadExpiresAt returns the old "upload_expires_at" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldUploadExpiresAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUploadExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUploadExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUploadExpiresAt: %w", err)
+	}
+	return oldValue.UploadExpiresAt, nil
+}
+
+// ClearUploadExpiresAt clears the value of the "upload_expires_at" field.
+func (m *MediaObjectMutation) ClearUploadExpiresAt() {
+	m.upload_expires_at = nil
+	m.clearedFields[mediaobject.FieldUploadExpiresAt] = struct{}{}
+}
+
+// UploadExpiresAtCleared returns if the "upload_expires_at" field was cleared in this mutation.
+func (m *MediaObjectMutation) UploadExpiresAtCleared() bool {
+	_, ok := m.clearedFields[mediaobject.FieldUploadExpiresAt]
+	return ok
+}
+
+// ResetUploadExpiresAt resets all changes to the "upload_expires_at" field.
+func (m *MediaObjectMutation) ResetUploadExpiresAt() {
+	m.upload_expires_at = nil
+	delete(m.clearedFields, mediaobject.FieldUploadExpiresAt)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *MediaObjectMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -2440,6 +2992,42 @@ func (m *MediaObjectMutation) OldCreatedAt(ctx context.Context) (v time.Time, er
 // ResetCreatedAt resets all changes to the "created_at" field.
 func (m *MediaObjectMutation) ResetCreatedAt() {
 	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *MediaObjectMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *MediaObjectMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *MediaObjectMutation) ResetUpdatedAt() {
+	m.updated_at = nil
 }
 
 // ClearEntry clears the "entry" edge to the Entry entity.
@@ -2503,12 +3091,18 @@ func (m *MediaObjectMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *MediaObjectMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 17)
+	if m.public_ref != nil {
+		fields = append(fields, mediaobject.FieldPublicRef)
+	}
 	if m.user_id != nil {
 		fields = append(fields, mediaobject.FieldUserID)
 	}
 	if m.entry != nil {
 		fields = append(fields, mediaobject.FieldEntryID)
+	}
+	if m.entry_public_ref != nil {
+		fields = append(fields, mediaobject.FieldEntryPublicRef)
 	}
 	if m.object_key != nil {
 		fields = append(fields, mediaobject.FieldObjectKey)
@@ -2519,8 +3113,35 @@ func (m *MediaObjectMutation) Fields() []string {
 	if m.upload_key != nil {
 		fields = append(fields, mediaobject.FieldUploadKey)
 	}
+	if m.state != nil {
+		fields = append(fields, mediaobject.FieldState)
+	}
+	if m.revision != nil {
+		fields = append(fields, mediaobject.FieldRevision)
+	}
+	if m.filename != nil {
+		fields = append(fields, mediaobject.FieldFilename)
+	}
+	if m.content_type != nil {
+		fields = append(fields, mediaobject.FieldContentType)
+	}
+	if m.size_bytes != nil {
+		fields = append(fields, mediaobject.FieldSizeBytes)
+	}
+	if m.width != nil {
+		fields = append(fields, mediaobject.FieldWidth)
+	}
+	if m.height != nil {
+		fields = append(fields, mediaobject.FieldHeight)
+	}
+	if m.upload_expires_at != nil {
+		fields = append(fields, mediaobject.FieldUploadExpiresAt)
+	}
 	if m.created_at != nil {
 		fields = append(fields, mediaobject.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, mediaobject.FieldUpdatedAt)
 	}
 	return fields
 }
@@ -2530,18 +3151,40 @@ func (m *MediaObjectMutation) Fields() []string {
 // schema.
 func (m *MediaObjectMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case mediaobject.FieldPublicRef:
+		return m.PublicRef()
 	case mediaobject.FieldUserID:
 		return m.UserID()
 	case mediaobject.FieldEntryID:
 		return m.EntryID()
+	case mediaobject.FieldEntryPublicRef:
+		return m.EntryPublicRef()
 	case mediaobject.FieldObjectKey:
 		return m.ObjectKey()
 	case mediaobject.FieldThumbnailKey:
 		return m.ThumbnailKey()
 	case mediaobject.FieldUploadKey:
 		return m.UploadKey()
+	case mediaobject.FieldState:
+		return m.State()
+	case mediaobject.FieldRevision:
+		return m.Revision()
+	case mediaobject.FieldFilename:
+		return m.Filename()
+	case mediaobject.FieldContentType:
+		return m.ContentType()
+	case mediaobject.FieldSizeBytes:
+		return m.SizeBytes()
+	case mediaobject.FieldWidth:
+		return m.Width()
+	case mediaobject.FieldHeight:
+		return m.Height()
+	case mediaobject.FieldUploadExpiresAt:
+		return m.UploadExpiresAt()
 	case mediaobject.FieldCreatedAt:
 		return m.CreatedAt()
+	case mediaobject.FieldUpdatedAt:
+		return m.UpdatedAt()
 	}
 	return nil, false
 }
@@ -2551,18 +3194,40 @@ func (m *MediaObjectMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *MediaObjectMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case mediaobject.FieldPublicRef:
+		return m.OldPublicRef(ctx)
 	case mediaobject.FieldUserID:
 		return m.OldUserID(ctx)
 	case mediaobject.FieldEntryID:
 		return m.OldEntryID(ctx)
+	case mediaobject.FieldEntryPublicRef:
+		return m.OldEntryPublicRef(ctx)
 	case mediaobject.FieldObjectKey:
 		return m.OldObjectKey(ctx)
 	case mediaobject.FieldThumbnailKey:
 		return m.OldThumbnailKey(ctx)
 	case mediaobject.FieldUploadKey:
 		return m.OldUploadKey(ctx)
+	case mediaobject.FieldState:
+		return m.OldState(ctx)
+	case mediaobject.FieldRevision:
+		return m.OldRevision(ctx)
+	case mediaobject.FieldFilename:
+		return m.OldFilename(ctx)
+	case mediaobject.FieldContentType:
+		return m.OldContentType(ctx)
+	case mediaobject.FieldSizeBytes:
+		return m.OldSizeBytes(ctx)
+	case mediaobject.FieldWidth:
+		return m.OldWidth(ctx)
+	case mediaobject.FieldHeight:
+		return m.OldHeight(ctx)
+	case mediaobject.FieldUploadExpiresAt:
+		return m.OldUploadExpiresAt(ctx)
 	case mediaobject.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
+	case mediaobject.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
 	}
 	return nil, fmt.Errorf("unknown MediaObject field %s", name)
 }
@@ -2572,6 +3237,13 @@ func (m *MediaObjectMutation) OldField(ctx context.Context, name string) (ent.Va
 // type.
 func (m *MediaObjectMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case mediaobject.FieldPublicRef:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPublicRef(v)
+		return nil
 	case mediaobject.FieldUserID:
 		v, ok := value.(string)
 		if !ok {
@@ -2585,6 +3257,13 @@ func (m *MediaObjectMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetEntryID(v)
+		return nil
+	case mediaobject.FieldEntryPublicRef:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEntryPublicRef(v)
 		return nil
 	case mediaobject.FieldObjectKey:
 		v, ok := value.(string)
@@ -2607,12 +3286,75 @@ func (m *MediaObjectMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetUploadKey(v)
 		return nil
+	case mediaobject.FieldState:
+		v, ok := value.(mediaobject.State)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetState(v)
+		return nil
+	case mediaobject.FieldRevision:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRevision(v)
+		return nil
+	case mediaobject.FieldFilename:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFilename(v)
+		return nil
+	case mediaobject.FieldContentType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetContentType(v)
+		return nil
+	case mediaobject.FieldSizeBytes:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSizeBytes(v)
+		return nil
+	case mediaobject.FieldWidth:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWidth(v)
+		return nil
+	case mediaobject.FieldHeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHeight(v)
+		return nil
+	case mediaobject.FieldUploadExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUploadExpiresAt(v)
+		return nil
 	case mediaobject.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCreatedAt(v)
+		return nil
+	case mediaobject.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
 		return nil
 	}
 	return fmt.Errorf("unknown MediaObject field %s", name)
@@ -2621,13 +3363,36 @@ func (m *MediaObjectMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *MediaObjectMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addrevision != nil {
+		fields = append(fields, mediaobject.FieldRevision)
+	}
+	if m.addsize_bytes != nil {
+		fields = append(fields, mediaobject.FieldSizeBytes)
+	}
+	if m.addwidth != nil {
+		fields = append(fields, mediaobject.FieldWidth)
+	}
+	if m.addheight != nil {
+		fields = append(fields, mediaobject.FieldHeight)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *MediaObjectMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case mediaobject.FieldRevision:
+		return m.AddedRevision()
+	case mediaobject.FieldSizeBytes:
+		return m.AddedSizeBytes()
+	case mediaobject.FieldWidth:
+		return m.AddedWidth()
+	case mediaobject.FieldHeight:
+		return m.AddedHeight()
+	}
 	return nil, false
 }
 
@@ -2636,6 +3401,34 @@ func (m *MediaObjectMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *MediaObjectMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case mediaobject.FieldRevision:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRevision(v)
+		return nil
+	case mediaobject.FieldSizeBytes:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSizeBytes(v)
+		return nil
+	case mediaobject.FieldWidth:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddWidth(v)
+		return nil
+	case mediaobject.FieldHeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddHeight(v)
+		return nil
 	}
 	return fmt.Errorf("unknown MediaObject numeric field %s", name)
 }
@@ -2643,7 +3436,17 @@ func (m *MediaObjectMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *MediaObjectMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(mediaobject.FieldWidth) {
+		fields = append(fields, mediaobject.FieldWidth)
+	}
+	if m.FieldCleared(mediaobject.FieldHeight) {
+		fields = append(fields, mediaobject.FieldHeight)
+	}
+	if m.FieldCleared(mediaobject.FieldUploadExpiresAt) {
+		fields = append(fields, mediaobject.FieldUploadExpiresAt)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -2656,6 +3459,17 @@ func (m *MediaObjectMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *MediaObjectMutation) ClearField(name string) error {
+	switch name {
+	case mediaobject.FieldWidth:
+		m.ClearWidth()
+		return nil
+	case mediaobject.FieldHeight:
+		m.ClearHeight()
+		return nil
+	case mediaobject.FieldUploadExpiresAt:
+		m.ClearUploadExpiresAt()
+		return nil
+	}
 	return fmt.Errorf("unknown MediaObject nullable field %s", name)
 }
 
@@ -2663,11 +3477,17 @@ func (m *MediaObjectMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *MediaObjectMutation) ResetField(name string) error {
 	switch name {
+	case mediaobject.FieldPublicRef:
+		m.ResetPublicRef()
+		return nil
 	case mediaobject.FieldUserID:
 		m.ResetUserID()
 		return nil
 	case mediaobject.FieldEntryID:
 		m.ResetEntryID()
+		return nil
+	case mediaobject.FieldEntryPublicRef:
+		m.ResetEntryPublicRef()
 		return nil
 	case mediaobject.FieldObjectKey:
 		m.ResetObjectKey()
@@ -2678,8 +3498,35 @@ func (m *MediaObjectMutation) ResetField(name string) error {
 	case mediaobject.FieldUploadKey:
 		m.ResetUploadKey()
 		return nil
+	case mediaobject.FieldState:
+		m.ResetState()
+		return nil
+	case mediaobject.FieldRevision:
+		m.ResetRevision()
+		return nil
+	case mediaobject.FieldFilename:
+		m.ResetFilename()
+		return nil
+	case mediaobject.FieldContentType:
+		m.ResetContentType()
+		return nil
+	case mediaobject.FieldSizeBytes:
+		m.ResetSizeBytes()
+		return nil
+	case mediaobject.FieldWidth:
+		m.ResetWidth()
+		return nil
+	case mediaobject.FieldHeight:
+		m.ResetHeight()
+		return nil
+	case mediaobject.FieldUploadExpiresAt:
+		m.ResetUploadExpiresAt()
+		return nil
 	case mediaobject.FieldCreatedAt:
 		m.ResetCreatedAt()
+		return nil
+	case mediaobject.FieldUpdatedAt:
+		m.ResetUpdatedAt()
 		return nil
 	}
 	return fmt.Errorf("unknown MediaObject field %s", name)
@@ -2757,4 +3604,1040 @@ func (m *MediaObjectMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown MediaObject edge %s", name)
+}
+
+// ReceiptMutation represents an operation that mutates the Receipt nodes in the graph.
+type ReceiptMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *string
+	user_id             *string
+	mutation_id         *string
+	target_kind         *string
+	operation           *string
+	request_hash        *string
+	entry_ref           *string
+	media_ref           *string
+	result_revision     *int
+	addresult_revision  *int
+	result_state        *string
+	result_snapshot     *[]byte
+	snapshot_version    *int
+	addsnapshot_version *int
+	created_at          *time.Time
+	clearedFields       map[string]struct{}
+	done                bool
+	oldValue            func(context.Context) (*Receipt, error)
+	predicates          []predicate.Receipt
+}
+
+var _ ent.Mutation = (*ReceiptMutation)(nil)
+
+// receiptOption allows management of the mutation configuration using functional options.
+type receiptOption func(*ReceiptMutation)
+
+// newReceiptMutation creates new mutation for the Receipt entity.
+func newReceiptMutation(c config, op Op, opts ...receiptOption) *ReceiptMutation {
+	m := &ReceiptMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeReceipt,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withReceiptID sets the ID field of the mutation.
+func withReceiptID(id string) receiptOption {
+	return func(m *ReceiptMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Receipt
+		)
+		m.oldValue = func(ctx context.Context) (*Receipt, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Receipt.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withReceipt sets the old Receipt of the mutation.
+func withReceipt(node *Receipt) receiptOption {
+	return func(m *ReceiptMutation) {
+		m.oldValue = func(context.Context) (*Receipt, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ReceiptMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ReceiptMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Receipt entities.
+func (m *ReceiptMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ReceiptMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ReceiptMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Receipt.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *ReceiptMutation) SetUserID(s string) {
+	m.user_id = &s
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *ReceiptMutation) UserID() (r string, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the Receipt entity.
+// If the Receipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReceiptMutation) OldUserID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *ReceiptMutation) ResetUserID() {
+	m.user_id = nil
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (m *ReceiptMutation) SetMutationID(s string) {
+	m.mutation_id = &s
+}
+
+// MutationID returns the value of the "mutation_id" field in the mutation.
+func (m *ReceiptMutation) MutationID() (r string, exists bool) {
+	v := m.mutation_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMutationID returns the old "mutation_id" field's value of the Receipt entity.
+// If the Receipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReceiptMutation) OldMutationID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMutationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMutationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMutationID: %w", err)
+	}
+	return oldValue.MutationID, nil
+}
+
+// ResetMutationID resets all changes to the "mutation_id" field.
+func (m *ReceiptMutation) ResetMutationID() {
+	m.mutation_id = nil
+}
+
+// SetTargetKind sets the "target_kind" field.
+func (m *ReceiptMutation) SetTargetKind(s string) {
+	m.target_kind = &s
+}
+
+// TargetKind returns the value of the "target_kind" field in the mutation.
+func (m *ReceiptMutation) TargetKind() (r string, exists bool) {
+	v := m.target_kind
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTargetKind returns the old "target_kind" field's value of the Receipt entity.
+// If the Receipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReceiptMutation) OldTargetKind(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTargetKind is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTargetKind requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTargetKind: %w", err)
+	}
+	return oldValue.TargetKind, nil
+}
+
+// ResetTargetKind resets all changes to the "target_kind" field.
+func (m *ReceiptMutation) ResetTargetKind() {
+	m.target_kind = nil
+}
+
+// SetOperation sets the "operation" field.
+func (m *ReceiptMutation) SetOperation(s string) {
+	m.operation = &s
+}
+
+// Operation returns the value of the "operation" field in the mutation.
+func (m *ReceiptMutation) Operation() (r string, exists bool) {
+	v := m.operation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOperation returns the old "operation" field's value of the Receipt entity.
+// If the Receipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReceiptMutation) OldOperation(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOperation is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOperation requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOperation: %w", err)
+	}
+	return oldValue.Operation, nil
+}
+
+// ResetOperation resets all changes to the "operation" field.
+func (m *ReceiptMutation) ResetOperation() {
+	m.operation = nil
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (m *ReceiptMutation) SetRequestHash(s string) {
+	m.request_hash = &s
+}
+
+// RequestHash returns the value of the "request_hash" field in the mutation.
+func (m *ReceiptMutation) RequestHash() (r string, exists bool) {
+	v := m.request_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestHash returns the old "request_hash" field's value of the Receipt entity.
+// If the Receipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReceiptMutation) OldRequestHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestHash: %w", err)
+	}
+	return oldValue.RequestHash, nil
+}
+
+// ResetRequestHash resets all changes to the "request_hash" field.
+func (m *ReceiptMutation) ResetRequestHash() {
+	m.request_hash = nil
+}
+
+// SetEntryRef sets the "entry_ref" field.
+func (m *ReceiptMutation) SetEntryRef(s string) {
+	m.entry_ref = &s
+}
+
+// EntryRef returns the value of the "entry_ref" field in the mutation.
+func (m *ReceiptMutation) EntryRef() (r string, exists bool) {
+	v := m.entry_ref
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEntryRef returns the old "entry_ref" field's value of the Receipt entity.
+// If the Receipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReceiptMutation) OldEntryRef(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEntryRef is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEntryRef requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEntryRef: %w", err)
+	}
+	return oldValue.EntryRef, nil
+}
+
+// ClearEntryRef clears the value of the "entry_ref" field.
+func (m *ReceiptMutation) ClearEntryRef() {
+	m.entry_ref = nil
+	m.clearedFields[receipt.FieldEntryRef] = struct{}{}
+}
+
+// EntryRefCleared returns if the "entry_ref" field was cleared in this mutation.
+func (m *ReceiptMutation) EntryRefCleared() bool {
+	_, ok := m.clearedFields[receipt.FieldEntryRef]
+	return ok
+}
+
+// ResetEntryRef resets all changes to the "entry_ref" field.
+func (m *ReceiptMutation) ResetEntryRef() {
+	m.entry_ref = nil
+	delete(m.clearedFields, receipt.FieldEntryRef)
+}
+
+// SetMediaRef sets the "media_ref" field.
+func (m *ReceiptMutation) SetMediaRef(s string) {
+	m.media_ref = &s
+}
+
+// MediaRef returns the value of the "media_ref" field in the mutation.
+func (m *ReceiptMutation) MediaRef() (r string, exists bool) {
+	v := m.media_ref
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMediaRef returns the old "media_ref" field's value of the Receipt entity.
+// If the Receipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReceiptMutation) OldMediaRef(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMediaRef is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMediaRef requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMediaRef: %w", err)
+	}
+	return oldValue.MediaRef, nil
+}
+
+// ClearMediaRef clears the value of the "media_ref" field.
+func (m *ReceiptMutation) ClearMediaRef() {
+	m.media_ref = nil
+	m.clearedFields[receipt.FieldMediaRef] = struct{}{}
+}
+
+// MediaRefCleared returns if the "media_ref" field was cleared in this mutation.
+func (m *ReceiptMutation) MediaRefCleared() bool {
+	_, ok := m.clearedFields[receipt.FieldMediaRef]
+	return ok
+}
+
+// ResetMediaRef resets all changes to the "media_ref" field.
+func (m *ReceiptMutation) ResetMediaRef() {
+	m.media_ref = nil
+	delete(m.clearedFields, receipt.FieldMediaRef)
+}
+
+// SetResultRevision sets the "result_revision" field.
+func (m *ReceiptMutation) SetResultRevision(i int) {
+	m.result_revision = &i
+	m.addresult_revision = nil
+}
+
+// ResultRevision returns the value of the "result_revision" field in the mutation.
+func (m *ReceiptMutation) ResultRevision() (r int, exists bool) {
+	v := m.result_revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResultRevision returns the old "result_revision" field's value of the Receipt entity.
+// If the Receipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReceiptMutation) OldResultRevision(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResultRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResultRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResultRevision: %w", err)
+	}
+	return oldValue.ResultRevision, nil
+}
+
+// AddResultRevision adds i to the "result_revision" field.
+func (m *ReceiptMutation) AddResultRevision(i int) {
+	if m.addresult_revision != nil {
+		*m.addresult_revision += i
+	} else {
+		m.addresult_revision = &i
+	}
+}
+
+// AddedResultRevision returns the value that was added to the "result_revision" field in this mutation.
+func (m *ReceiptMutation) AddedResultRevision() (r int, exists bool) {
+	v := m.addresult_revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetResultRevision resets all changes to the "result_revision" field.
+func (m *ReceiptMutation) ResetResultRevision() {
+	m.result_revision = nil
+	m.addresult_revision = nil
+}
+
+// SetResultState sets the "result_state" field.
+func (m *ReceiptMutation) SetResultState(s string) {
+	m.result_state = &s
+}
+
+// ResultState returns the value of the "result_state" field in the mutation.
+func (m *ReceiptMutation) ResultState() (r string, exists bool) {
+	v := m.result_state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResultState returns the old "result_state" field's value of the Receipt entity.
+// If the Receipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReceiptMutation) OldResultState(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResultState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResultState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResultState: %w", err)
+	}
+	return oldValue.ResultState, nil
+}
+
+// ResetResultState resets all changes to the "result_state" field.
+func (m *ReceiptMutation) ResetResultState() {
+	m.result_state = nil
+}
+
+// SetResultSnapshot sets the "result_snapshot" field.
+func (m *ReceiptMutation) SetResultSnapshot(b []byte) {
+	m.result_snapshot = &b
+}
+
+// ResultSnapshot returns the value of the "result_snapshot" field in the mutation.
+func (m *ReceiptMutation) ResultSnapshot() (r []byte, exists bool) {
+	v := m.result_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResultSnapshot returns the old "result_snapshot" field's value of the Receipt entity.
+// If the Receipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReceiptMutation) OldResultSnapshot(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResultSnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResultSnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResultSnapshot: %w", err)
+	}
+	return oldValue.ResultSnapshot, nil
+}
+
+// ResetResultSnapshot resets all changes to the "result_snapshot" field.
+func (m *ReceiptMutation) ResetResultSnapshot() {
+	m.result_snapshot = nil
+}
+
+// SetSnapshotVersion sets the "snapshot_version" field.
+func (m *ReceiptMutation) SetSnapshotVersion(i int) {
+	m.snapshot_version = &i
+	m.addsnapshot_version = nil
+}
+
+// SnapshotVersion returns the value of the "snapshot_version" field in the mutation.
+func (m *ReceiptMutation) SnapshotVersion() (r int, exists bool) {
+	v := m.snapshot_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSnapshotVersion returns the old "snapshot_version" field's value of the Receipt entity.
+// If the Receipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReceiptMutation) OldSnapshotVersion(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSnapshotVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSnapshotVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSnapshotVersion: %w", err)
+	}
+	return oldValue.SnapshotVersion, nil
+}
+
+// AddSnapshotVersion adds i to the "snapshot_version" field.
+func (m *ReceiptMutation) AddSnapshotVersion(i int) {
+	if m.addsnapshot_version != nil {
+		*m.addsnapshot_version += i
+	} else {
+		m.addsnapshot_version = &i
+	}
+}
+
+// AddedSnapshotVersion returns the value that was added to the "snapshot_version" field in this mutation.
+func (m *ReceiptMutation) AddedSnapshotVersion() (r int, exists bool) {
+	v := m.addsnapshot_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSnapshotVersion resets all changes to the "snapshot_version" field.
+func (m *ReceiptMutation) ResetSnapshotVersion() {
+	m.snapshot_version = nil
+	m.addsnapshot_version = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ReceiptMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ReceiptMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Receipt entity.
+// If the Receipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReceiptMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ReceiptMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the ReceiptMutation builder.
+func (m *ReceiptMutation) Where(ps ...predicate.Receipt) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ReceiptMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ReceiptMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Receipt, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ReceiptMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ReceiptMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Receipt).
+func (m *ReceiptMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ReceiptMutation) Fields() []string {
+	fields := make([]string, 0, 12)
+	if m.user_id != nil {
+		fields = append(fields, receipt.FieldUserID)
+	}
+	if m.mutation_id != nil {
+		fields = append(fields, receipt.FieldMutationID)
+	}
+	if m.target_kind != nil {
+		fields = append(fields, receipt.FieldTargetKind)
+	}
+	if m.operation != nil {
+		fields = append(fields, receipt.FieldOperation)
+	}
+	if m.request_hash != nil {
+		fields = append(fields, receipt.FieldRequestHash)
+	}
+	if m.entry_ref != nil {
+		fields = append(fields, receipt.FieldEntryRef)
+	}
+	if m.media_ref != nil {
+		fields = append(fields, receipt.FieldMediaRef)
+	}
+	if m.result_revision != nil {
+		fields = append(fields, receipt.FieldResultRevision)
+	}
+	if m.result_state != nil {
+		fields = append(fields, receipt.FieldResultState)
+	}
+	if m.result_snapshot != nil {
+		fields = append(fields, receipt.FieldResultSnapshot)
+	}
+	if m.snapshot_version != nil {
+		fields = append(fields, receipt.FieldSnapshotVersion)
+	}
+	if m.created_at != nil {
+		fields = append(fields, receipt.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ReceiptMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case receipt.FieldUserID:
+		return m.UserID()
+	case receipt.FieldMutationID:
+		return m.MutationID()
+	case receipt.FieldTargetKind:
+		return m.TargetKind()
+	case receipt.FieldOperation:
+		return m.Operation()
+	case receipt.FieldRequestHash:
+		return m.RequestHash()
+	case receipt.FieldEntryRef:
+		return m.EntryRef()
+	case receipt.FieldMediaRef:
+		return m.MediaRef()
+	case receipt.FieldResultRevision:
+		return m.ResultRevision()
+	case receipt.FieldResultState:
+		return m.ResultState()
+	case receipt.FieldResultSnapshot:
+		return m.ResultSnapshot()
+	case receipt.FieldSnapshotVersion:
+		return m.SnapshotVersion()
+	case receipt.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ReceiptMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case receipt.FieldUserID:
+		return m.OldUserID(ctx)
+	case receipt.FieldMutationID:
+		return m.OldMutationID(ctx)
+	case receipt.FieldTargetKind:
+		return m.OldTargetKind(ctx)
+	case receipt.FieldOperation:
+		return m.OldOperation(ctx)
+	case receipt.FieldRequestHash:
+		return m.OldRequestHash(ctx)
+	case receipt.FieldEntryRef:
+		return m.OldEntryRef(ctx)
+	case receipt.FieldMediaRef:
+		return m.OldMediaRef(ctx)
+	case receipt.FieldResultRevision:
+		return m.OldResultRevision(ctx)
+	case receipt.FieldResultState:
+		return m.OldResultState(ctx)
+	case receipt.FieldResultSnapshot:
+		return m.OldResultSnapshot(ctx)
+	case receipt.FieldSnapshotVersion:
+		return m.OldSnapshotVersion(ctx)
+	case receipt.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Receipt field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ReceiptMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case receipt.FieldUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case receipt.FieldMutationID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMutationID(v)
+		return nil
+	case receipt.FieldTargetKind:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTargetKind(v)
+		return nil
+	case receipt.FieldOperation:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOperation(v)
+		return nil
+	case receipt.FieldRequestHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestHash(v)
+		return nil
+	case receipt.FieldEntryRef:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEntryRef(v)
+		return nil
+	case receipt.FieldMediaRef:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMediaRef(v)
+		return nil
+	case receipt.FieldResultRevision:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResultRevision(v)
+		return nil
+	case receipt.FieldResultState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResultState(v)
+		return nil
+	case receipt.FieldResultSnapshot:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResultSnapshot(v)
+		return nil
+	case receipt.FieldSnapshotVersion:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSnapshotVersion(v)
+		return nil
+	case receipt.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Receipt field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ReceiptMutation) AddedFields() []string {
+	var fields []string
+	if m.addresult_revision != nil {
+		fields = append(fields, receipt.FieldResultRevision)
+	}
+	if m.addsnapshot_version != nil {
+		fields = append(fields, receipt.FieldSnapshotVersion)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ReceiptMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case receipt.FieldResultRevision:
+		return m.AddedResultRevision()
+	case receipt.FieldSnapshotVersion:
+		return m.AddedSnapshotVersion()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ReceiptMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case receipt.FieldResultRevision:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddResultRevision(v)
+		return nil
+	case receipt.FieldSnapshotVersion:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSnapshotVersion(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Receipt numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ReceiptMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(receipt.FieldEntryRef) {
+		fields = append(fields, receipt.FieldEntryRef)
+	}
+	if m.FieldCleared(receipt.FieldMediaRef) {
+		fields = append(fields, receipt.FieldMediaRef)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ReceiptMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ReceiptMutation) ClearField(name string) error {
+	switch name {
+	case receipt.FieldEntryRef:
+		m.ClearEntryRef()
+		return nil
+	case receipt.FieldMediaRef:
+		m.ClearMediaRef()
+		return nil
+	}
+	return fmt.Errorf("unknown Receipt nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ReceiptMutation) ResetField(name string) error {
+	switch name {
+	case receipt.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case receipt.FieldMutationID:
+		m.ResetMutationID()
+		return nil
+	case receipt.FieldTargetKind:
+		m.ResetTargetKind()
+		return nil
+	case receipt.FieldOperation:
+		m.ResetOperation()
+		return nil
+	case receipt.FieldRequestHash:
+		m.ResetRequestHash()
+		return nil
+	case receipt.FieldEntryRef:
+		m.ResetEntryRef()
+		return nil
+	case receipt.FieldMediaRef:
+		m.ResetMediaRef()
+		return nil
+	case receipt.FieldResultRevision:
+		m.ResetResultRevision()
+		return nil
+	case receipt.FieldResultState:
+		m.ResetResultState()
+		return nil
+	case receipt.FieldResultSnapshot:
+		m.ResetResultSnapshot()
+		return nil
+	case receipt.FieldSnapshotVersion:
+		m.ResetSnapshotVersion()
+		return nil
+	case receipt.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Receipt field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ReceiptMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ReceiptMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ReceiptMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ReceiptMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ReceiptMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ReceiptMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ReceiptMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown Receipt unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ReceiptMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown Receipt edge %s", name)
 }

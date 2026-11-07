@@ -18,6 +18,7 @@ import (
 	"github.com/kongken/mono/internal/timeline/ent/cleanupobject"
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
+	"github.com/kongken/mono/internal/timeline/ent/receipt"
 )
 
 // Client is the client that holds all ent builders.
@@ -31,6 +32,8 @@ type Client struct {
 	Entry *EntryClient
 	// MediaObject is the client for interacting with the MediaObject builders.
 	MediaObject *MediaObjectClient
+	// Receipt is the client for interacting with the Receipt builders.
+	Receipt *ReceiptClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -45,6 +48,7 @@ func (c *Client) init() {
 	c.CleanupObject = NewCleanupObjectClient(c.config)
 	c.Entry = NewEntryClient(c.config)
 	c.MediaObject = NewMediaObjectClient(c.config)
+	c.Receipt = NewReceiptClient(c.config)
 }
 
 type (
@@ -140,6 +144,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		CleanupObject: NewCleanupObjectClient(cfg),
 		Entry:         NewEntryClient(cfg),
 		MediaObject:   NewMediaObjectClient(cfg),
+		Receipt:       NewReceiptClient(cfg),
 	}, nil
 }
 
@@ -162,6 +167,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		CleanupObject: NewCleanupObjectClient(cfg),
 		Entry:         NewEntryClient(cfg),
 		MediaObject:   NewMediaObjectClient(cfg),
+		Receipt:       NewReceiptClient(cfg),
 	}, nil
 }
 
@@ -193,6 +199,7 @@ func (c *Client) Use(hooks ...Hook) {
 	c.CleanupObject.Use(hooks...)
 	c.Entry.Use(hooks...)
 	c.MediaObject.Use(hooks...)
+	c.Receipt.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
@@ -201,6 +208,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.CleanupObject.Intercept(interceptors...)
 	c.Entry.Intercept(interceptors...)
 	c.MediaObject.Intercept(interceptors...)
+	c.Receipt.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -212,6 +220,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Entry.mutate(ctx, m)
 	case *MediaObjectMutation:
 		return c.MediaObject.mutate(ctx, m)
+	case *ReceiptMutation:
+		return c.Receipt.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -648,12 +658,145 @@ func (c *MediaObjectClient) mutate(ctx context.Context, m *MediaObjectMutation) 
 	}
 }
 
+// ReceiptClient is a client for the Receipt schema.
+type ReceiptClient struct {
+	config
+}
+
+// NewReceiptClient returns a client for the Receipt from the given config.
+func NewReceiptClient(c config) *ReceiptClient {
+	return &ReceiptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `receipt.Hooks(f(g(h())))`.
+func (c *ReceiptClient) Use(hooks ...Hook) {
+	c.hooks.Receipt = append(c.hooks.Receipt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `receipt.Intercept(f(g(h())))`.
+func (c *ReceiptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Receipt = append(c.inters.Receipt, interceptors...)
+}
+
+// Create returns a builder for creating a Receipt entity.
+func (c *ReceiptClient) Create() *ReceiptCreate {
+	mutation := newReceiptMutation(c.config, OpCreate)
+	return &ReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Receipt entities.
+func (c *ReceiptClient) CreateBulk(builders ...*ReceiptCreate) *ReceiptCreateBulk {
+	return &ReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ReceiptClient) MapCreateBulk(slice any, setFunc func(*ReceiptCreate, int)) *ReceiptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ReceiptCreateBulk{err: fmt.Errorf("calling to ReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ReceiptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Receipt.
+func (c *ReceiptClient) Update() *ReceiptUpdate {
+	mutation := newReceiptMutation(c.config, OpUpdate)
+	return &ReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ReceiptClient) UpdateOne(_m *Receipt) *ReceiptUpdateOne {
+	mutation := newReceiptMutation(c.config, OpUpdateOne, withReceipt(_m))
+	return &ReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ReceiptClient) UpdateOneID(id string) *ReceiptUpdateOne {
+	mutation := newReceiptMutation(c.config, OpUpdateOne, withReceiptID(id))
+	return &ReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Receipt.
+func (c *ReceiptClient) Delete() *ReceiptDelete {
+	mutation := newReceiptMutation(c.config, OpDelete)
+	return &ReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ReceiptClient) DeleteOne(_m *Receipt) *ReceiptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ReceiptClient) DeleteOneID(id string) *ReceiptDeleteOne {
+	builder := c.Delete().Where(receipt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ReceiptDeleteOne{builder}
+}
+
+// Query returns a query builder for Receipt.
+func (c *ReceiptClient) Query() *ReceiptQuery {
+	return &ReceiptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeReceipt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Receipt entity by its id.
+func (c *ReceiptClient) Get(ctx context.Context, id string) (*Receipt, error) {
+	return c.Query().Where(receipt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ReceiptClient) GetX(ctx context.Context, id string) *Receipt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ReceiptClient) Hooks() []Hook {
+	return c.hooks.Receipt
+}
+
+// Interceptors returns the client interceptors.
+func (c *ReceiptClient) Interceptors() []Interceptor {
+	return c.inters.Receipt
+}
+
+func (c *ReceiptClient) mutate(ctx context.Context, m *ReceiptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Receipt mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		CleanupObject, Entry, MediaObject []ent.Hook
+		CleanupObject, Entry, MediaObject, Receipt []ent.Hook
 	}
 	inters struct {
-		CleanupObject, Entry, MediaObject []ent.Interceptor
+		CleanupObject, Entry, MediaObject, Receipt []ent.Interceptor
 	}
 )

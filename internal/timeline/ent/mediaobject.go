@@ -18,18 +18,40 @@ type MediaObject struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID string `json:"id,omitempty"`
+	// PublicRef holds the value of the "public_ref" field.
+	PublicRef string `json:"public_ref,omitempty"`
 	// UserID holds the value of the "user_id" field.
 	UserID string `json:"user_id,omitempty"`
 	// EntryID holds the value of the "entry_id" field.
 	EntryID string `json:"entry_id,omitempty"`
+	// EntryPublicRef holds the value of the "entry_public_ref" field.
+	EntryPublicRef string `json:"entry_public_ref,omitempty"`
 	// ObjectKey holds the value of the "object_key" field.
 	ObjectKey string `json:"object_key,omitempty"`
 	// ThumbnailKey holds the value of the "thumbnail_key" field.
 	ThumbnailKey string `json:"thumbnail_key,omitempty"`
 	// UploadKey holds the value of the "upload_key" field.
 	UploadKey string `json:"upload_key,omitempty"`
+	// State holds the value of the "state" field.
+	State mediaobject.State `json:"state,omitempty"`
+	// Revision holds the value of the "revision" field.
+	Revision int `json:"revision,omitempty"`
+	// Filename holds the value of the "filename" field.
+	Filename string `json:"filename,omitempty"`
+	// ContentType holds the value of the "content_type" field.
+	ContentType string `json:"content_type,omitempty"`
+	// SizeBytes holds the value of the "size_bytes" field.
+	SizeBytes int64 `json:"size_bytes,omitempty"`
+	// Width holds the value of the "width" field.
+	Width *int `json:"width,omitempty"`
+	// Height holds the value of the "height" field.
+	Height *int `json:"height,omitempty"`
+	// UploadExpiresAt holds the value of the "upload_expires_at" field.
+	UploadExpiresAt *time.Time `json:"upload_expires_at,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
+	// UpdatedAt holds the value of the "updated_at" field.
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the MediaObjectQuery when eager-loading is set.
 	Edges        MediaObjectEdges `json:"edges"`
@@ -61,9 +83,11 @@ func (*MediaObject) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case mediaobject.FieldID, mediaobject.FieldUserID, mediaobject.FieldEntryID, mediaobject.FieldObjectKey, mediaobject.FieldThumbnailKey, mediaobject.FieldUploadKey:
+		case mediaobject.FieldRevision, mediaobject.FieldSizeBytes, mediaobject.FieldWidth, mediaobject.FieldHeight:
+			values[i] = new(sql.NullInt64)
+		case mediaobject.FieldID, mediaobject.FieldPublicRef, mediaobject.FieldUserID, mediaobject.FieldEntryID, mediaobject.FieldEntryPublicRef, mediaobject.FieldObjectKey, mediaobject.FieldThumbnailKey, mediaobject.FieldUploadKey, mediaobject.FieldState, mediaobject.FieldFilename, mediaobject.FieldContentType:
 			values[i] = new(sql.NullString)
-		case mediaobject.FieldCreatedAt:
+		case mediaobject.FieldUploadExpiresAt, mediaobject.FieldCreatedAt, mediaobject.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -86,6 +110,12 @@ func (_m *MediaObject) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ID = value.String
 			}
+		case mediaobject.FieldPublicRef:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field public_ref", values[i])
+			} else if value.Valid {
+				_m.PublicRef = value.String
+			}
 		case mediaobject.FieldUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field user_id", values[i])
@@ -97,6 +127,12 @@ func (_m *MediaObject) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field entry_id", values[i])
 			} else if value.Valid {
 				_m.EntryID = value.String
+			}
+		case mediaobject.FieldEntryPublicRef:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field entry_public_ref", values[i])
+			} else if value.Valid {
+				_m.EntryPublicRef = value.String
 			}
 		case mediaobject.FieldObjectKey:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -116,11 +152,68 @@ func (_m *MediaObject) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.UploadKey = value.String
 			}
+		case mediaobject.FieldState:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field state", values[i])
+			} else if value.Valid {
+				_m.State = mediaobject.State(value.String)
+			}
+		case mediaobject.FieldRevision:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field revision", values[i])
+			} else if value.Valid {
+				_m.Revision = int(value.Int64)
+			}
+		case mediaobject.FieldFilename:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field filename", values[i])
+			} else if value.Valid {
+				_m.Filename = value.String
+			}
+		case mediaobject.FieldContentType:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field content_type", values[i])
+			} else if value.Valid {
+				_m.ContentType = value.String
+			}
+		case mediaobject.FieldSizeBytes:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field size_bytes", values[i])
+			} else if value.Valid {
+				_m.SizeBytes = value.Int64
+			}
+		case mediaobject.FieldWidth:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field width", values[i])
+			} else if value.Valid {
+				_m.Width = new(int)
+				*_m.Width = int(value.Int64)
+			}
+		case mediaobject.FieldHeight:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field height", values[i])
+			} else if value.Valid {
+				_m.Height = new(int)
+				*_m.Height = int(value.Int64)
+			}
+		case mediaobject.FieldUploadExpiresAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field upload_expires_at", values[i])
+			} else if value.Valid {
+				_m.UploadExpiresAt = new(time.Time)
+				*_m.UploadExpiresAt = value.Time
+			}
 		case mediaobject.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
 			} else if value.Valid {
 				_m.CreatedAt = value.Time
+			}
+		case mediaobject.FieldUpdatedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field updated_at", values[i])
+			} else if value.Valid {
+				_m.UpdatedAt = value.Time
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -163,11 +256,17 @@ func (_m *MediaObject) String() string {
 	var builder strings.Builder
 	builder.WriteString("MediaObject(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	builder.WriteString("public_ref=")
+	builder.WriteString(_m.PublicRef)
+	builder.WriteString(", ")
 	builder.WriteString("user_id=")
 	builder.WriteString(_m.UserID)
 	builder.WriteString(", ")
 	builder.WriteString("entry_id=")
 	builder.WriteString(_m.EntryID)
+	builder.WriteString(", ")
+	builder.WriteString("entry_public_ref=")
+	builder.WriteString(_m.EntryPublicRef)
 	builder.WriteString(", ")
 	builder.WriteString("object_key=")
 	builder.WriteString(_m.ObjectKey)
@@ -178,8 +277,41 @@ func (_m *MediaObject) String() string {
 	builder.WriteString("upload_key=")
 	builder.WriteString(_m.UploadKey)
 	builder.WriteString(", ")
+	builder.WriteString("state=")
+	builder.WriteString(fmt.Sprintf("%v", _m.State))
+	builder.WriteString(", ")
+	builder.WriteString("revision=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Revision))
+	builder.WriteString(", ")
+	builder.WriteString("filename=")
+	builder.WriteString(_m.Filename)
+	builder.WriteString(", ")
+	builder.WriteString("content_type=")
+	builder.WriteString(_m.ContentType)
+	builder.WriteString(", ")
+	builder.WriteString("size_bytes=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SizeBytes))
+	builder.WriteString(", ")
+	if v := _m.Width; v != nil {
+		builder.WriteString("width=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.Height; v != nil {
+		builder.WriteString("height=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.UploadExpiresAt; v != nil {
+		builder.WriteString("upload_expires_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("updated_at=")
+	builder.WriteString(_m.UpdatedAt.Format(time.ANSIC))
 	builder.WriteByte(')')
 	return builder.String()
 }

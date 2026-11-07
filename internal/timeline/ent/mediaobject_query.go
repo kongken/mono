@@ -300,12 +300,12 @@ func (_q *MediaObjectQuery) WithEntry(opts ...func(*EntryQuery)) *MediaObjectQue
 // Example:
 //
 //	var v []struct {
-//		UserID string `json:"user_id,omitempty"`
+//		PublicRef string `json:"public_ref,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.MediaObject.Query().
-//		GroupBy(mediaobject.FieldUserID).
+//		GroupBy(mediaobject.FieldPublicRef).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
 func (_q *MediaObjectQuery) GroupBy(field string, fields ...string) *MediaObjectGroupBy {
@@ -323,11 +323,11 @@ func (_q *MediaObjectQuery) GroupBy(field string, fields ...string) *MediaObject
 // Example:
 //
 //	var v []struct {
-//		UserID string `json:"user_id,omitempty"`
+//		PublicRef string `json:"public_ref,omitempty"`
 //	}
 //
 //	client.MediaObject.Query().
-//		Select(mediaobject.FieldUserID).
+//		Select(mediaobject.FieldPublicRef).
 //		Scan(ctx, &v)
 func (_q *MediaObjectQuery) Select(fields ...string) *MediaObjectSelect {
 	_q.ctx.Fields = append(_q.ctx.Fields, fields...)

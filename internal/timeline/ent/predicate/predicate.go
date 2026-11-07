@@ -14,3 +14,6 @@ type Entry func(*sql.Selector)
 
 // MediaObject is the predicate function for mediaobject builders.
 type MediaObject func(*sql.Selector)
+
+// Receipt is the predicate function for receipt builders.
+type Receipt func(*sql.Selector)

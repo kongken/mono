@@ -15,6 +15,7 @@ import (
 	"github.com/kongken/mono/internal/timeline/ent/cleanupobject"
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
+	"github.com/kongken/mono/internal/timeline/ent/receipt"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -78,6 +79,7 @@ func checkColumn(t, c string) error {
 			cleanupobject.Table: cleanupobject.ValidColumn,
 			entry.Table:         entry.ValidColumn,
 			mediaobject.Table:   mediaobject.ValidColumn,
+			receipt.Table:       receipt.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

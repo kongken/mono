@@ -34,9 +34,9 @@ type TimelineServiceClient interface {
 	ListEntries(ctx context.Context, in *ListEntriesRequest, opts ...grpc.CallOption) (*ListEntriesResponse, error)
 	CreateEntry(ctx context.Context, in *CreateEntryRequest, opts ...grpc.CallOption) (*EntryResponse, error)
 	UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*EntryResponse, error)
-	DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*Empty, error)
+	DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*DeleteEntryResponse, error)
 	RestoreEntry(ctx context.Context, in *RestoreEntryRequest, opts ...grpc.CallOption) (*EntryResponse, error)
-	PurgeEntry(ctx context.Context, in *PurgeEntryRequest, opts ...grpc.CallOption) (*Empty, error)
+	PurgeEntry(ctx context.Context, in *PurgeEntryRequest, opts ...grpc.CallOption) (*PurgeEntryResponse, error)
 }
 
 type timelineServiceClient struct {
@@ -77,9 +77,9 @@ func (c *timelineServiceClient) UpdateEntry(ctx context.Context, in *UpdateEntry
 	return out, nil
 }
 
-func (c *timelineServiceClient) DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*Empty, error) {
+func (c *timelineServiceClient) DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*DeleteEntryResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Empty)
+	out := new(DeleteEntryResponse)
 	err := c.cc.Invoke(ctx, TimelineService_DeleteEntry_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -97,9 +97,9 @@ func (c *timelineServiceClient) RestoreEntry(ctx context.Context, in *RestoreEnt
 	return out, nil
 }
 
-func (c *timelineServiceClient) PurgeEntry(ctx context.Context, in *PurgeEntryRequest, opts ...grpc.CallOption) (*Empty, error) {
+func (c *timelineServiceClient) PurgeEntry(ctx context.Context, in *PurgeEntryRequest, opts ...grpc.CallOption) (*PurgeEntryResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Empty)
+	out := new(PurgeEntryResponse)
 	err := c.cc.Invoke(ctx, TimelineService_PurgeEntry_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -114,9 +114,9 @@ type TimelineServiceServer interface {
 	ListEntries(context.Context, *ListEntriesRequest) (*ListEntriesResponse, error)
 	CreateEntry(context.Context, *CreateEntryRequest) (*EntryResponse, error)
 	UpdateEntry(context.Context, *UpdateEntryRequest) (*EntryResponse, error)
-	DeleteEntry(context.Context, *DeleteEntryRequest) (*Empty, error)
+	DeleteEntry(context.Context, *DeleteEntryRequest) (*DeleteEntryResponse, error)
 	RestoreEntry(context.Context, *RestoreEntryRequest) (*EntryResponse, error)
-	PurgeEntry(context.Context, *PurgeEntryRequest) (*Empty, error)
+	PurgeEntry(context.Context, *PurgeEntryRequest) (*PurgeEntryResponse, error)
 	mustEmbedUnimplementedTimelineServiceServer()
 }
 
@@ -136,13 +136,13 @@ func (UnimplementedTimelineServiceServer) CreateEntry(context.Context, *CreateEn
 func (UnimplementedTimelineServiceServer) UpdateEntry(context.Context, *UpdateEntryRequest) (*EntryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateEntry not implemented")
 }
-func (UnimplementedTimelineServiceServer) DeleteEntry(context.Context, *DeleteEntryRequest) (*Empty, error) {
+func (UnimplementedTimelineServiceServer) DeleteEntry(context.Context, *DeleteEntryRequest) (*DeleteEntryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteEntry not implemented")
 }
 func (UnimplementedTimelineServiceServer) RestoreEntry(context.Context, *RestoreEntryRequest) (*EntryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RestoreEntry not implemented")
 }
-func (UnimplementedTimelineServiceServer) PurgeEntry(context.Context, *PurgeEntryRequest) (*Empty, error) {
+func (UnimplementedTimelineServiceServer) PurgeEntry(context.Context, *PurgeEntryRequest) (*PurgeEntryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PurgeEntry not implemented")
 }
 func (UnimplementedTimelineServiceServer) mustEmbedUnimplementedTimelineServiceServer() {}

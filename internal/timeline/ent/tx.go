@@ -18,6 +18,8 @@ type Tx struct {
 	Entry *EntryClient
 	// MediaObject is the client for interacting with the MediaObject builders.
 	MediaObject *MediaObjectClient
+	// Receipt is the client for interacting with the Receipt builders.
+	Receipt *ReceiptClient
 
 	// lazily loaded.
 	client     *Client
@@ -152,6 +154,7 @@ func (tx *Tx) init() {
 	tx.CleanupObject = NewCleanupObjectClient(tx.config)
 	tx.Entry = NewEntryClient(tx.config)
 	tx.MediaObject = NewMediaObjectClient(tx.config)
+	tx.Receipt = NewReceiptClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

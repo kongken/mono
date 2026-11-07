@@ -1,0 +1,55 @@
+-- Timeline opaque refs and durable mutation receipts.
+-- Ref backfill order is deliberate: entries first, then media snapshots, then receipts.
+ALTER TABLE "timeline_entries" ADD COLUMN "public_ref" character varying;
+UPDATE "timeline_entries" SET "public_ref" = 'ent_' || translate(substr(md5('entry:' || "id"), 1, 26), 'ilo', 'jkm');
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM timeline_entries WHERE public_ref IS NULL OR public_ref !~ '^ent_[0-9a-hjkmnp-tv-z]{26}$') THEN RAISE EXCEPTION 'unresolvable timeline entry public_ref'; END IF;
+END $$;
+CREATE UNIQUE INDEX "timeline_entries_public_ref_key" ON "timeline_entries" ("public_ref");
+ALTER TABLE "timeline_entries" ALTER COLUMN "public_ref" SET NOT NULL;
+
+ALTER TABLE "timeline_media_objects"
+  ADD COLUMN "public_ref" character varying,
+  ADD COLUMN "entry_public_ref" character varying,
+  ADD COLUMN "state" character varying NOT NULL DEFAULT 'pending',
+  ADD COLUMN "revision" bigint NOT NULL DEFAULT 1,
+  ADD COLUMN "filename" character varying NOT NULL DEFAULT '',
+  ADD COLUMN "content_type" character varying NOT NULL DEFAULT '',
+  ADD COLUMN "size_bytes" bigint NOT NULL DEFAULT 0,
+  ADD COLUMN "width" bigint NULL,
+  ADD COLUMN "height" bigint NULL,
+  ADD COLUMN "upload_expires_at" timestamptz NULL,
+  ADD COLUMN "updated_at" timestamptz NOT NULL DEFAULT now();
+UPDATE "timeline_media_objects" m SET
+  "public_ref" = 'med_' || translate(substr(md5('media:' || m."id"), 1, 26), 'ilo', 'jkm'),
+  "entry_public_ref" = e."public_ref"
+FROM "timeline_entries" e WHERE e."id" = m."entry_id";
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM timeline_media_objects WHERE public_ref IS NULL OR entry_public_ref IS NULL) THEN RAISE EXCEPTION 'unresolvable timeline media entry ref'; END IF;
+END $$;
+CREATE UNIQUE INDEX "timeline_media_objects_public_ref_key" ON "timeline_media_objects" ("public_ref");
+ALTER TABLE "timeline_media_objects" ALTER COLUMN "public_ref" SET NOT NULL, ALTER COLUMN "entry_public_ref" SET NOT NULL;
+ALTER TABLE "timeline_media_objects" ADD CONSTRAINT "timeline_media_objects_state" CHECK (state IN ('pending','ready','deleting'));
+
+CREATE TABLE "timeline_mutations" (
+  "id" character varying NOT NULL,
+  "user_id" character varying NOT NULL,
+  "mutation_id" character varying NOT NULL,
+  "target_kind" character varying NOT NULL,
+  "operation" character varying NOT NULL,
+  "request_hash" character varying NOT NULL,
+  "entry_ref" character varying NULL,
+  "media_ref" character varying NULL,
+  "result_revision" bigint NOT NULL,
+  "result_state" character varying NOT NULL,
+  "result_snapshot" jsonb NOT NULL,
+  "snapshot_version" bigint NOT NULL DEFAULT 1,
+  "created_at" timestamptz NOT NULL,
+  PRIMARY KEY ("id"),
+  CONSTRAINT "timeline_mutations_target" CHECK ((target_kind = 'entry' AND entry_ref IS NOT NULL AND media_ref IS NULL) OR (target_kind = 'media' AND media_ref IS NOT NULL AND entry_ref IS NOT NULL)),
+  CONSTRAINT "timeline_mutations_operation" CHECK ((target_kind = 'entry' AND operation IN ('create','update','trash','restore','purge')) OR (target_kind = 'media' AND operation = 'media_delete')),
+  CONSTRAINT "timeline_mutations_hash" CHECK (length(request_hash) = 64),
+  CONSTRAINT "timeline_mutations_state" CHECK (result_state IN ('active','trashed','purged','deleting'))
+);
+CREATE UNIQUE INDEX "timeline_mutations_user_id_mutation_id" ON "timeline_mutations" ("user_id", "mutation_id");
+CREATE INDEX "timeline_mutations_created_at" ON "timeline_mutations" ("created_at");

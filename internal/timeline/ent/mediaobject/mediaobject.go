@@ -3,6 +3,7 @@
 package mediaobject
 
 import (
+	"fmt"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
@@ -14,18 +15,40 @@ const (
 	Label = "media_object"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldPublicRef holds the string denoting the public_ref field in the database.
+	FieldPublicRef = "public_ref"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
 	// FieldEntryID holds the string denoting the entry_id field in the database.
 	FieldEntryID = "entry_id"
+	// FieldEntryPublicRef holds the string denoting the entry_public_ref field in the database.
+	FieldEntryPublicRef = "entry_public_ref"
 	// FieldObjectKey holds the string denoting the object_key field in the database.
 	FieldObjectKey = "object_key"
 	// FieldThumbnailKey holds the string denoting the thumbnail_key field in the database.
 	FieldThumbnailKey = "thumbnail_key"
 	// FieldUploadKey holds the string denoting the upload_key field in the database.
 	FieldUploadKey = "upload_key"
+	// FieldState holds the string denoting the state field in the database.
+	FieldState = "state"
+	// FieldRevision holds the string denoting the revision field in the database.
+	FieldRevision = "revision"
+	// FieldFilename holds the string denoting the filename field in the database.
+	FieldFilename = "filename"
+	// FieldContentType holds the string denoting the content_type field in the database.
+	FieldContentType = "content_type"
+	// FieldSizeBytes holds the string denoting the size_bytes field in the database.
+	FieldSizeBytes = "size_bytes"
+	// FieldWidth holds the string denoting the width field in the database.
+	FieldWidth = "width"
+	// FieldHeight holds the string denoting the height field in the database.
+	FieldHeight = "height"
+	// FieldUploadExpiresAt holds the string denoting the upload_expires_at field in the database.
+	FieldUploadExpiresAt = "upload_expires_at"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
+	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
+	FieldUpdatedAt = "updated_at"
 	// EdgeEntry holds the string denoting the entry edge name in mutations.
 	EdgeEntry = "entry"
 	// Table holds the table name of the mediaobject in the database.
@@ -42,12 +65,23 @@ const (
 // Columns holds all SQL columns for mediaobject fields.
 var Columns = []string{
 	FieldID,
+	FieldPublicRef,
 	FieldUserID,
 	FieldEntryID,
+	FieldEntryPublicRef,
 	FieldObjectKey,
 	FieldThumbnailKey,
 	FieldUploadKey,
+	FieldState,
+	FieldRevision,
+	FieldFilename,
+	FieldContentType,
+	FieldSizeBytes,
+	FieldWidth,
+	FieldHeight,
+	FieldUploadExpiresAt,
 	FieldCreatedAt,
+	FieldUpdatedAt,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -61,21 +95,66 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// PublicRefValidator is a validator for the "public_ref" field. It is called by the builders before save.
+	PublicRefValidator func(string) error
 	// UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
 	UserIDValidator func(string) error
 	// EntryIDValidator is a validator for the "entry_id" field. It is called by the builders before save.
 	EntryIDValidator func(string) error
+	// EntryPublicRefValidator is a validator for the "entry_public_ref" field. It is called by the builders before save.
+	EntryPublicRefValidator func(string) error
 	// ObjectKeyValidator is a validator for the "object_key" field. It is called by the builders before save.
 	ObjectKeyValidator func(string) error
 	// DefaultThumbnailKey holds the default value on creation for the "thumbnail_key" field.
 	DefaultThumbnailKey string
 	// DefaultUploadKey holds the default value on creation for the "upload_key" field.
 	DefaultUploadKey string
+	// DefaultRevision holds the default value on creation for the "revision" field.
+	DefaultRevision int
+	// RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
+	RevisionValidator func(int) error
+	// DefaultFilename holds the default value on creation for the "filename" field.
+	DefaultFilename string
+	// DefaultContentType holds the default value on creation for the "content_type" field.
+	DefaultContentType string
+	// DefaultSizeBytes holds the default value on creation for the "size_bytes" field.
+	DefaultSizeBytes int64
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
+	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
+	DefaultUpdatedAt func() time.Time
+	// UpdateDefaultUpdatedAt holds the default value on update for the "updated_at" field.
+	UpdateDefaultUpdatedAt func() time.Time
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() string
 )
+
+// State defines the type for the "state" enum field.
+type State string
+
+// StatePending is the default value of the State enum.
+const DefaultState = StatePending
+
+// State values.
+const (
+	StatePending  State = "pending"
+	StateReady    State = "ready"
+	StateDeleting State = "deleting"
+)
+
+func (s State) String() string {
+	return string(s)
+}
+
+// StateValidator is a validator for the "state" field enum values. It is called by the builders before save.
+func StateValidator(s State) error {
+	switch s {
+	case StatePending, StateReady, StateDeleting:
+		return nil
+	default:
+		return fmt.Errorf("mediaobject: invalid enum value for state field: %q", s)
+	}
+}
 
 // OrderOption defines the ordering options for the MediaObject queries.
 type OrderOption func(*sql.Selector)
@@ -83,6 +162,11 @@ type OrderOption func(*sql.Selector)
 // ByID orders the results by the id field.
 func ByID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByPublicRef orders the results by the public_ref field.
+func ByPublicRef(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPublicRef, opts...).ToFunc()
 }
 
 // ByUserID orders the results by the user_id field.
@@ -93,6 +177,11 @@ func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 // ByEntryID orders the results by the entry_id field.
 func ByEntryID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldEntryID, opts...).ToFunc()
+}
+
+// ByEntryPublicRef orders the results by the entry_public_ref field.
+func ByEntryPublicRef(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldEntryPublicRef, opts...).ToFunc()
 }
 
 // ByObjectKey orders the results by the object_key field.
@@ -110,9 +199,54 @@ func ByUploadKey(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUploadKey, opts...).ToFunc()
 }
 
+// ByState orders the results by the state field.
+func ByState(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldState, opts...).ToFunc()
+}
+
+// ByRevision orders the results by the revision field.
+func ByRevision(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRevision, opts...).ToFunc()
+}
+
+// ByFilename orders the results by the filename field.
+func ByFilename(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFilename, opts...).ToFunc()
+}
+
+// ByContentType orders the results by the content_type field.
+func ByContentType(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldContentType, opts...).ToFunc()
+}
+
+// BySizeBytes orders the results by the size_bytes field.
+func BySizeBytes(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSizeBytes, opts...).ToFunc()
+}
+
+// ByWidth orders the results by the width field.
+func ByWidth(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldWidth, opts...).ToFunc()
+}
+
+// ByHeight orders the results by the height field.
+func ByHeight(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldHeight, opts...).ToFunc()
+}
+
+// ByUploadExpiresAt orders the results by the upload_expires_at field.
+func ByUploadExpiresAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUploadExpiresAt, opts...).ToFunc()
+}
+
 // ByCreatedAt orders the results by the created_at field.
 func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
+}
+
+// ByUpdatedAt orders the results by the updated_at field.
+func ByUpdatedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpdatedAt, opts...).ToFunc()
 }
 
 // ByEntryField orders the results by entry field.
