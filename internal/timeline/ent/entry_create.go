@@ -24,6 +24,20 @@ type EntryCreate struct {
 	conflict []sql.ConflictOption
 }
 
+// SetPublicRef sets the "public_ref" field.
+func (_c *EntryCreate) SetPublicRef(v string) *EntryCreate {
+	_c.mutation.SetPublicRef(v)
+	return _c
+}
+
+// SetNillablePublicRef sets the "public_ref" field if the given value is not nil.
+func (_c *EntryCreate) SetNillablePublicRef(v *string) *EntryCreate {
+	if v != nil {
+		_c.SetPublicRef(*v)
+	}
+	return _c
+}
+
 // SetUserID sets the "user_id" field.
 func (_c *EntryCreate) SetUserID(v string) *EntryCreate {
 	_c.mutation.SetUserID(v)
@@ -314,6 +328,10 @@ func (_c *EntryCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *EntryCreate) defaults() {
+	if _, ok := _c.mutation.PublicRef(); !ok {
+		v := entry.DefaultPublicRef()
+		_c.mutation.SetPublicRef(v)
+	}
 	if _, ok := _c.mutation.Body(); !ok {
 		v := entry.DefaultBody
 		_c.mutation.SetBody(v)
@@ -374,6 +392,9 @@ func (_c *EntryCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_c *EntryCreate) check() error {
+	if _, ok := _c.mutation.PublicRef(); !ok {
+		return &ValidationError{Name: "public_ref", err: errors.New(`ent: missing required field "Entry.public_ref"`)}
+	}
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "Entry.user_id"`)}
 	}
@@ -489,6 +510,10 @@ func (_c *EntryCreate) createSpec() (*Entry, *sqlgraph.CreateSpec) {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
+	if value, ok := _c.mutation.PublicRef(); ok {
+		_spec.SetField(entry.FieldPublicRef, field.TypeString, value)
+		_node.PublicRef = value
+	}
 	if value, ok := _c.mutation.UserID(); ok {
 		_spec.SetField(entry.FieldUserID, field.TypeString, value)
 		_node.UserID = value
@@ -588,7 +613,7 @@ func (_c *EntryCreate) createSpec() (*Entry, *sqlgraph.CreateSpec) {
 // of the `INSERT` statement. For example:
 //
 //	client.Entry.Create().
-//		SetUserID(v).
+//		SetPublicRef(v).
 //		OnConflict(
 //			// Update the row with the new values
 //			// the was proposed for insertion.
@@ -597,7 +622,7 @@ func (_c *EntryCreate) createSpec() (*Entry, *sqlgraph.CreateSpec) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.EntryUpsert) {
-//			SetUserID(v+v).
+//			SetPublicRef(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *EntryCreate) OnConflict(opts ...sql.ConflictOption) *EntryUpsertOne {
@@ -871,6 +896,9 @@ func (u *EntryUpsertOne) UpdateNewValues() *EntryUpsertOne {
 	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
 		if _, exists := u.create.mutation.ID(); exists {
 			s.SetIgnore(entry.FieldID)
+		}
+		if _, exists := u.create.mutation.PublicRef(); exists {
+			s.SetIgnore(entry.FieldPublicRef)
 		}
 		if _, exists := u.create.mutation.UserID(); exists {
 			s.SetIgnore(entry.FieldUserID)
@@ -1304,7 +1332,7 @@ func (_c *EntryCreateBulk) ExecX(ctx context.Context) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.EntryUpsert) {
-//			SetUserID(v+v).
+//			SetPublicRef(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *EntryCreateBulk) OnConflict(opts ...sql.ConflictOption) *EntryUpsertBulk {
@@ -1350,6 +1378,9 @@ func (u *EntryUpsertBulk) UpdateNewValues() *EntryUpsertBulk {
 		for _, b := range u.create.builders {
 			if _, exists := b.mutation.ID(); exists {
 				s.SetIgnore(entry.FieldID)
+			}
+			if _, exists := b.mutation.PublicRef(); exists {
+				s.SetIgnore(entry.FieldPublicRef)
 			}
 			if _, exists := b.mutation.UserID(); exists {
 				s.SetIgnore(entry.FieldUserID)

@@ -27,6 +27,7 @@ var (
 	// TimelineEntriesColumns holds the columns for the "timeline_entries" table.
 	TimelineEntriesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
+		{Name: "public_ref", Type: field.TypeString, Unique: true},
 		{Name: "user_id", Type: field.TypeString},
 		{Name: "title", Type: field.TypeString},
 		{Name: "body", Type: field.TypeString, Default: ""},
@@ -56,7 +57,7 @@ var (
 			{
 				Name:    "entry_user_id_occurred_at_id",
 				Unique:  false,
-				Columns: []*schema.Column{TimelineEntriesColumns[1], TimelineEntriesColumns[14], TimelineEntriesColumns[0]},
+				Columns: []*schema.Column{TimelineEntriesColumns[2], TimelineEntriesColumns[15], TimelineEntriesColumns[0]},
 			},
 		},
 	}
@@ -96,11 +97,40 @@ var (
 			},
 		},
 	}
+	// TimelineMutationsColumns holds the columns for the "timeline_mutations" table.
+	TimelineMutationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeString},
+		{Name: "mutation_id", Type: field.TypeString},
+		{Name: "target_kind", Type: field.TypeString},
+		{Name: "operation", Type: field.TypeString},
+		{Name: "entry_ref", Type: field.TypeString, Default: ""},
+		{Name: "request_hash", Type: field.TypeString},
+		{Name: "result_revision", Type: field.TypeInt},
+		{Name: "result_state", Type: field.TypeString},
+		{Name: "result_snapshot", Type: field.TypeJSON},
+		{Name: "snapshot_version", Type: field.TypeInt, Default: 1},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// TimelineMutationsTable holds the schema information for the "timeline_mutations" table.
+	TimelineMutationsTable = &schema.Table{
+		Name:       "timeline_mutations",
+		Columns:    TimelineMutationsColumns,
+		PrimaryKey: []*schema.Column{TimelineMutationsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "timelinemutation_user_id_mutation_id",
+				Unique:  true,
+				Columns: []*schema.Column{TimelineMutationsColumns[1], TimelineMutationsColumns[2]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		TimelineCleanupObjectsTable,
 		TimelineEntriesTable,
 		TimelineMediaObjectsTable,
+		TimelineMutationsTable,
 	}
 )
 
@@ -114,5 +144,8 @@ func init() {
 	TimelineMediaObjectsTable.ForeignKeys[0].RefTable = TimelineEntriesTable
 	TimelineMediaObjectsTable.Annotation = &entsql.Annotation{
 		Table: "timeline_media_objects",
+	}
+	TimelineMutationsTable.Annotation = &entsql.Annotation{
+		Table: "timeline_mutations",
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/kongken/mono/internal/timeline/ent/cleanupobject"
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
+	"github.com/kongken/mono/internal/timeline/ent/timelinemutation"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -75,9 +76,10 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			cleanupobject.Table: cleanupobject.ValidColumn,
-			entry.Table:         entry.ValidColumn,
-			mediaobject.Table:   mediaobject.ValidColumn,
+			cleanupobject.Table:    cleanupobject.ValidColumn,
+			entry.Table:            entry.ValidColumn,
+			mediaobject.Table:      mediaobject.ValidColumn,
+			timelinemutation.Table: timelinemutation.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

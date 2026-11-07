@@ -58,9 +58,9 @@ type TimelineServiceClient interface {
 	ListEntries(context.Context, *connect.Request[v1.ListEntriesRequest]) (*connect.Response[v1.ListEntriesResponse], error)
 	CreateEntry(context.Context, *connect.Request[v1.CreateEntryRequest]) (*connect.Response[v1.EntryResponse], error)
 	UpdateEntry(context.Context, *connect.Request[v1.UpdateEntryRequest]) (*connect.Response[v1.EntryResponse], error)
-	DeleteEntry(context.Context, *connect.Request[v1.DeleteEntryRequest]) (*connect.Response[v1.Empty], error)
+	DeleteEntry(context.Context, *connect.Request[v1.DeleteEntryRequest]) (*connect.Response[v1.DeleteEntryResponse], error)
 	RestoreEntry(context.Context, *connect.Request[v1.RestoreEntryRequest]) (*connect.Response[v1.EntryResponse], error)
-	PurgeEntry(context.Context, *connect.Request[v1.PurgeEntryRequest]) (*connect.Response[v1.Empty], error)
+	PurgeEntry(context.Context, *connect.Request[v1.PurgeEntryRequest]) (*connect.Response[v1.PurgeEntryResponse], error)
 }
 
 // NewTimelineServiceClient constructs a client for the bff.timeline.v1.TimelineService service. By
@@ -92,7 +92,7 @@ func NewTimelineServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(timelineServiceMethods.ByName("UpdateEntry")),
 			connect.WithClientOptions(opts...),
 		),
-		deleteEntry: connect.NewClient[v1.DeleteEntryRequest, v1.Empty](
+		deleteEntry: connect.NewClient[v1.DeleteEntryRequest, v1.DeleteEntryResponse](
 			httpClient,
 			baseURL+TimelineServiceDeleteEntryProcedure,
 			connect.WithSchema(timelineServiceMethods.ByName("DeleteEntry")),
@@ -104,7 +104,7 @@ func NewTimelineServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(timelineServiceMethods.ByName("RestoreEntry")),
 			connect.WithClientOptions(opts...),
 		),
-		purgeEntry: connect.NewClient[v1.PurgeEntryRequest, v1.Empty](
+		purgeEntry: connect.NewClient[v1.PurgeEntryRequest, v1.PurgeEntryResponse](
 			httpClient,
 			baseURL+TimelineServicePurgeEntryProcedure,
 			connect.WithSchema(timelineServiceMethods.ByName("PurgeEntry")),
@@ -118,9 +118,9 @@ type timelineServiceClient struct {
 	listEntries  *connect.Client[v1.ListEntriesRequest, v1.ListEntriesResponse]
 	createEntry  *connect.Client[v1.CreateEntryRequest, v1.EntryResponse]
 	updateEntry  *connect.Client[v1.UpdateEntryRequest, v1.EntryResponse]
-	deleteEntry  *connect.Client[v1.DeleteEntryRequest, v1.Empty]
+	deleteEntry  *connect.Client[v1.DeleteEntryRequest, v1.DeleteEntryResponse]
 	restoreEntry *connect.Client[v1.RestoreEntryRequest, v1.EntryResponse]
-	purgeEntry   *connect.Client[v1.PurgeEntryRequest, v1.Empty]
+	purgeEntry   *connect.Client[v1.PurgeEntryRequest, v1.PurgeEntryResponse]
 }
 
 // ListEntries calls bff.timeline.v1.TimelineService.ListEntries.
@@ -139,7 +139,7 @@ func (c *timelineServiceClient) UpdateEntry(ctx context.Context, req *connect.Re
 }
 
 // DeleteEntry calls bff.timeline.v1.TimelineService.DeleteEntry.
-func (c *timelineServiceClient) DeleteEntry(ctx context.Context, req *connect.Request[v1.DeleteEntryRequest]) (*connect.Response[v1.Empty], error) {
+func (c *timelineServiceClient) DeleteEntry(ctx context.Context, req *connect.Request[v1.DeleteEntryRequest]) (*connect.Response[v1.DeleteEntryResponse], error) {
 	return c.deleteEntry.CallUnary(ctx, req)
 }
 
@@ -149,7 +149,7 @@ func (c *timelineServiceClient) RestoreEntry(ctx context.Context, req *connect.R
 }
 
 // PurgeEntry calls bff.timeline.v1.TimelineService.PurgeEntry.
-func (c *timelineServiceClient) PurgeEntry(ctx context.Context, req *connect.Request[v1.PurgeEntryRequest]) (*connect.Response[v1.Empty], error) {
+func (c *timelineServiceClient) PurgeEntry(ctx context.Context, req *connect.Request[v1.PurgeEntryRequest]) (*connect.Response[v1.PurgeEntryResponse], error) {
 	return c.purgeEntry.CallUnary(ctx, req)
 }
 
@@ -158,9 +158,9 @@ type TimelineServiceHandler interface {
 	ListEntries(context.Context, *connect.Request[v1.ListEntriesRequest]) (*connect.Response[v1.ListEntriesResponse], error)
 	CreateEntry(context.Context, *connect.Request[v1.CreateEntryRequest]) (*connect.Response[v1.EntryResponse], error)
 	UpdateEntry(context.Context, *connect.Request[v1.UpdateEntryRequest]) (*connect.Response[v1.EntryResponse], error)
-	DeleteEntry(context.Context, *connect.Request[v1.DeleteEntryRequest]) (*connect.Response[v1.Empty], error)
+	DeleteEntry(context.Context, *connect.Request[v1.DeleteEntryRequest]) (*connect.Response[v1.DeleteEntryResponse], error)
 	RestoreEntry(context.Context, *connect.Request[v1.RestoreEntryRequest]) (*connect.Response[v1.EntryResponse], error)
-	PurgeEntry(context.Context, *connect.Request[v1.PurgeEntryRequest]) (*connect.Response[v1.Empty], error)
+	PurgeEntry(context.Context, *connect.Request[v1.PurgeEntryRequest]) (*connect.Response[v1.PurgeEntryResponse], error)
 }
 
 // NewTimelineServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -241,7 +241,7 @@ func (UnimplementedTimelineServiceHandler) UpdateEntry(context.Context, *connect
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.timeline.v1.TimelineService.UpdateEntry is not implemented"))
 }
 
-func (UnimplementedTimelineServiceHandler) DeleteEntry(context.Context, *connect.Request[v1.DeleteEntryRequest]) (*connect.Response[v1.Empty], error) {
+func (UnimplementedTimelineServiceHandler) DeleteEntry(context.Context, *connect.Request[v1.DeleteEntryRequest]) (*connect.Response[v1.DeleteEntryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.timeline.v1.TimelineService.DeleteEntry is not implemented"))
 }
 
@@ -249,6 +249,6 @@ func (UnimplementedTimelineServiceHandler) RestoreEntry(context.Context, *connec
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.timeline.v1.TimelineService.RestoreEntry is not implemented"))
 }
 
-func (UnimplementedTimelineServiceHandler) PurgeEntry(context.Context, *connect.Request[v1.PurgeEntryRequest]) (*connect.Response[v1.Empty], error) {
+func (UnimplementedTimelineServiceHandler) PurgeEntry(context.Context, *connect.Request[v1.PurgeEntryRequest]) (*connect.Response[v1.PurgeEntryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bff.timeline.v1.TimelineService.PurgeEntry is not implemented"))
 }

@@ -17,6 +17,8 @@ type Entry struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID string `json:"id,omitempty"`
+	// PublicRef holds the value of the "public_ref" field.
+	PublicRef string `json:"public_ref,omitempty"`
 	// UserID holds the value of the "user_id" field.
 	UserID string `json:"user_id,omitempty"`
 	// Title holds the value of the "title" field.
@@ -86,7 +88,7 @@ func (*Entry) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case entry.FieldAmountMinor, entry.FieldRevision:
 			values[i] = new(sql.NullInt64)
-		case entry.FieldID, entry.FieldUserID, entry.FieldTitle, entry.FieldBody, entry.FieldOccurredDate, entry.FieldOccurredTime, entry.FieldTimezone, entry.FieldCategory, entry.FieldLocation, entry.FieldCurrency, entry.FieldURL, entry.FieldURLTitle, entry.FieldURLNote, entry.FieldMutationID:
+		case entry.FieldID, entry.FieldPublicRef, entry.FieldUserID, entry.FieldTitle, entry.FieldBody, entry.FieldOccurredDate, entry.FieldOccurredTime, entry.FieldTimezone, entry.FieldCategory, entry.FieldLocation, entry.FieldCurrency, entry.FieldURL, entry.FieldURLTitle, entry.FieldURLNote, entry.FieldMutationID:
 			values[i] = new(sql.NullString)
 		case entry.FieldOccurredAt, entry.FieldDeletedAt, entry.FieldCreatedAt, entry.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -110,6 +112,12 @@ func (_m *Entry) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
 				_m.ID = value.String
+			}
+		case entry.FieldPublicRef:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field public_ref", values[i])
+			} else if value.Valid {
+				_m.PublicRef = value.String
 			}
 		case entry.FieldUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -267,6 +275,9 @@ func (_m *Entry) String() string {
 	var builder strings.Builder
 	builder.WriteString("Entry(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	builder.WriteString("public_ref=")
+	builder.WriteString(_m.PublicRef)
+	builder.WriteString(", ")
 	builder.WriteString("user_id=")
 	builder.WriteString(_m.UserID)
 	builder.WriteString(", ")

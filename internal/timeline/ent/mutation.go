@@ -15,6 +15,7 @@ import (
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
 	"github.com/kongken/mono/internal/timeline/ent/predicate"
+	"github.com/kongken/mono/internal/timeline/ent/timelinemutation"
 )
 
 const (
@@ -26,9 +27,10 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeCleanupObject = "CleanupObject"
-	TypeEntry         = "Entry"
-	TypeMediaObject   = "MediaObject"
+	TypeCleanupObject    = "CleanupObject"
+	TypeEntry            = "Entry"
+	TypeMediaObject      = "MediaObject"
+	TypeTimelineMutation = "TimelineMutation"
 )
 
 // CleanupObjectMutation represents an operation that mutates the CleanupObject nodes in the graph.
@@ -621,6 +623,7 @@ type EntryMutation struct {
 	op              Op
 	typ             string
 	id              *string
+	public_ref      *string
 	user_id         *string
 	title           *string
 	body            *string
@@ -753,6 +756,42 @@ func (m *EntryMutation) IDs(ctx context.Context) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetPublicRef sets the "public_ref" field.
+func (m *EntryMutation) SetPublicRef(s string) {
+	m.public_ref = &s
+}
+
+// PublicRef returns the value of the "public_ref" field in the mutation.
+func (m *EntryMutation) PublicRef() (r string, exists bool) {
+	v := m.public_ref
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPublicRef returns the old "public_ref" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldPublicRef(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPublicRef is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPublicRef requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPublicRef: %w", err)
+	}
+	return oldValue.PublicRef, nil
+}
+
+// ResetPublicRef resets all changes to the "public_ref" field.
+func (m *EntryMutation) ResetPublicRef() {
+	m.public_ref = nil
 }
 
 // SetUserID sets the "user_id" field.
@@ -1580,7 +1619,10 @@ func (m *EntryMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *EntryMutation) Fields() []string {
-	fields := make([]string, 0, 19)
+	fields := make([]string, 0, 20)
+	if m.public_ref != nil {
+		fields = append(fields, entry.FieldPublicRef)
+	}
 	if m.user_id != nil {
 		fields = append(fields, entry.FieldUserID)
 	}
@@ -1646,6 +1688,8 @@ func (m *EntryMutation) Fields() []string {
 // schema.
 func (m *EntryMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case entry.FieldPublicRef:
+		return m.PublicRef()
 	case entry.FieldUserID:
 		return m.UserID()
 	case entry.FieldTitle:
@@ -1693,6 +1737,8 @@ func (m *EntryMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *EntryMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case entry.FieldPublicRef:
+		return m.OldPublicRef(ctx)
 	case entry.FieldUserID:
 		return m.OldUserID(ctx)
 	case entry.FieldTitle:
@@ -1740,6 +1786,13 @@ func (m *EntryMutation) OldField(ctx context.Context, name string) (ent.Value, e
 // type.
 func (m *EntryMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case entry.FieldPublicRef:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPublicRef(v)
+		return nil
 	case entry.FieldUserID:
 		v, ok := value.(string)
 		if !ok {
@@ -1958,6 +2011,9 @@ func (m *EntryMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *EntryMutation) ResetField(name string) error {
 	switch name {
+	case entry.FieldPublicRef:
+		m.ResetPublicRef()
+		return nil
 	case entry.FieldUserID:
 		m.ResetUserID()
 		return nil
@@ -2757,4 +2813,945 @@ func (m *MediaObjectMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown MediaObject edge %s", name)
+}
+
+// TimelineMutationMutation represents an operation that mutates the TimelineMutation nodes in the graph.
+type TimelineMutationMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *string
+	user_id             *string
+	mutation_id         *string
+	target_kind         *string
+	operation           *string
+	entry_ref           *string
+	request_hash        *string
+	result_revision     *int
+	addresult_revision  *int
+	result_state        *string
+	result_snapshot     *map[string]interface{}
+	snapshot_version    *int
+	addsnapshot_version *int
+	created_at          *time.Time
+	clearedFields       map[string]struct{}
+	done                bool
+	oldValue            func(context.Context) (*TimelineMutation, error)
+	predicates          []predicate.TimelineMutation
+}
+
+var _ ent.Mutation = (*TimelineMutationMutation)(nil)
+
+// timelinemutationOption allows management of the mutation configuration using functional options.
+type timelinemutationOption func(*TimelineMutationMutation)
+
+// newTimelineMutationMutation creates new mutation for the TimelineMutation entity.
+func newTimelineMutationMutation(c config, op Op, opts ...timelinemutationOption) *TimelineMutationMutation {
+	m := &TimelineMutationMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeTimelineMutation,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withTimelineMutationID sets the ID field of the mutation.
+func withTimelineMutationID(id string) timelinemutationOption {
+	return func(m *TimelineMutationMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *TimelineMutation
+		)
+		m.oldValue = func(ctx context.Context) (*TimelineMutation, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().TimelineMutation.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withTimelineMutation sets the old TimelineMutation of the mutation.
+func withTimelineMutation(node *TimelineMutation) timelinemutationOption {
+	return func(m *TimelineMutationMutation) {
+		m.oldValue = func(context.Context) (*TimelineMutation, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m TimelineMutationMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m TimelineMutationMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of TimelineMutation entities.
+func (m *TimelineMutationMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *TimelineMutationMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *TimelineMutationMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().TimelineMutation.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *TimelineMutationMutation) SetUserID(s string) {
+	m.user_id = &s
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *TimelineMutationMutation) UserID() (r string, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the TimelineMutation entity.
+// If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TimelineMutationMutation) OldUserID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *TimelineMutationMutation) ResetUserID() {
+	m.user_id = nil
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (m *TimelineMutationMutation) SetMutationID(s string) {
+	m.mutation_id = &s
+}
+
+// MutationID returns the value of the "mutation_id" field in the mutation.
+func (m *TimelineMutationMutation) MutationID() (r string, exists bool) {
+	v := m.mutation_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMutationID returns the old "mutation_id" field's value of the TimelineMutation entity.
+// If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TimelineMutationMutation) OldMutationID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMutationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMutationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMutationID: %w", err)
+	}
+	return oldValue.MutationID, nil
+}
+
+// ResetMutationID resets all changes to the "mutation_id" field.
+func (m *TimelineMutationMutation) ResetMutationID() {
+	m.mutation_id = nil
+}
+
+// SetTargetKind sets the "target_kind" field.
+func (m *TimelineMutationMutation) SetTargetKind(s string) {
+	m.target_kind = &s
+}
+
+// TargetKind returns the value of the "target_kind" field in the mutation.
+func (m *TimelineMutationMutation) TargetKind() (r string, exists bool) {
+	v := m.target_kind
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTargetKind returns the old "target_kind" field's value of the TimelineMutation entity.
+// If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TimelineMutationMutation) OldTargetKind(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTargetKind is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTargetKind requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTargetKind: %w", err)
+	}
+	return oldValue.TargetKind, nil
+}
+
+// ResetTargetKind resets all changes to the "target_kind" field.
+func (m *TimelineMutationMutation) ResetTargetKind() {
+	m.target_kind = nil
+}
+
+// SetOperation sets the "operation" field.
+func (m *TimelineMutationMutation) SetOperation(s string) {
+	m.operation = &s
+}
+
+// Operation returns the value of the "operation" field in the mutation.
+func (m *TimelineMutationMutation) Operation() (r string, exists bool) {
+	v := m.operation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOperation returns the old "operation" field's value of the TimelineMutation entity.
+// If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TimelineMutationMutation) OldOperation(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOperation is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOperation requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOperation: %w", err)
+	}
+	return oldValue.Operation, nil
+}
+
+// ResetOperation resets all changes to the "operation" field.
+func (m *TimelineMutationMutation) ResetOperation() {
+	m.operation = nil
+}
+
+// SetEntryRef sets the "entry_ref" field.
+func (m *TimelineMutationMutation) SetEntryRef(s string) {
+	m.entry_ref = &s
+}
+
+// EntryRef returns the value of the "entry_ref" field in the mutation.
+func (m *TimelineMutationMutation) EntryRef() (r string, exists bool) {
+	v := m.entry_ref
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEntryRef returns the old "entry_ref" field's value of the TimelineMutation entity.
+// If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TimelineMutationMutation) OldEntryRef(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEntryRef is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEntryRef requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEntryRef: %w", err)
+	}
+	return oldValue.EntryRef, nil
+}
+
+// ResetEntryRef resets all changes to the "entry_ref" field.
+func (m *TimelineMutationMutation) ResetEntryRef() {
+	m.entry_ref = nil
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (m *TimelineMutationMutation) SetRequestHash(s string) {
+	m.request_hash = &s
+}
+
+// RequestHash returns the value of the "request_hash" field in the mutation.
+func (m *TimelineMutationMutation) RequestHash() (r string, exists bool) {
+	v := m.request_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestHash returns the old "request_hash" field's value of the TimelineMutation entity.
+// If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TimelineMutationMutation) OldRequestHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestHash: %w", err)
+	}
+	return oldValue.RequestHash, nil
+}
+
+// ResetRequestHash resets all changes to the "request_hash" field.
+func (m *TimelineMutationMutation) ResetRequestHash() {
+	m.request_hash = nil
+}
+
+// SetResultRevision sets the "result_revision" field.
+func (m *TimelineMutationMutation) SetResultRevision(i int) {
+	m.result_revision = &i
+	m.addresult_revision = nil
+}
+
+// ResultRevision returns the value of the "result_revision" field in the mutation.
+func (m *TimelineMutationMutation) ResultRevision() (r int, exists bool) {
+	v := m.result_revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResultRevision returns the old "result_revision" field's value of the TimelineMutation entity.
+// If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TimelineMutationMutation) OldResultRevision(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResultRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResultRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResultRevision: %w", err)
+	}
+	return oldValue.ResultRevision, nil
+}
+
+// AddResultRevision adds i to the "result_revision" field.
+func (m *TimelineMutationMutation) AddResultRevision(i int) {
+	if m.addresult_revision != nil {
+		*m.addresult_revision += i
+	} else {
+		m.addresult_revision = &i
+	}
+}
+
+// AddedResultRevision returns the value that was added to the "result_revision" field in this mutation.
+func (m *TimelineMutationMutation) AddedResultRevision() (r int, exists bool) {
+	v := m.addresult_revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetResultRevision resets all changes to the "result_revision" field.
+func (m *TimelineMutationMutation) ResetResultRevision() {
+	m.result_revision = nil
+	m.addresult_revision = nil
+}
+
+// SetResultState sets the "result_state" field.
+func (m *TimelineMutationMutation) SetResultState(s string) {
+	m.result_state = &s
+}
+
+// ResultState returns the value of the "result_state" field in the mutation.
+func (m *TimelineMutationMutation) ResultState() (r string, exists bool) {
+	v := m.result_state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResultState returns the old "result_state" field's value of the TimelineMutation entity.
+// If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TimelineMutationMutation) OldResultState(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResultState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResultState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResultState: %w", err)
+	}
+	return oldValue.ResultState, nil
+}
+
+// ResetResultState resets all changes to the "result_state" field.
+func (m *TimelineMutationMutation) ResetResultState() {
+	m.result_state = nil
+}
+
+// SetResultSnapshot sets the "result_snapshot" field.
+func (m *TimelineMutationMutation) SetResultSnapshot(value map[string]interface{}) {
+	m.result_snapshot = &value
+}
+
+// ResultSnapshot returns the value of the "result_snapshot" field in the mutation.
+func (m *TimelineMutationMutation) ResultSnapshot() (r map[string]interface{}, exists bool) {
+	v := m.result_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResultSnapshot returns the old "result_snapshot" field's value of the TimelineMutation entity.
+// If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TimelineMutationMutation) OldResultSnapshot(ctx context.Context) (v map[string]interface{}, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResultSnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResultSnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResultSnapshot: %w", err)
+	}
+	return oldValue.ResultSnapshot, nil
+}
+
+// ResetResultSnapshot resets all changes to the "result_snapshot" field.
+func (m *TimelineMutationMutation) ResetResultSnapshot() {
+	m.result_snapshot = nil
+}
+
+// SetSnapshotVersion sets the "snapshot_version" field.
+func (m *TimelineMutationMutation) SetSnapshotVersion(i int) {
+	m.snapshot_version = &i
+	m.addsnapshot_version = nil
+}
+
+// SnapshotVersion returns the value of the "snapshot_version" field in the mutation.
+func (m *TimelineMutationMutation) SnapshotVersion() (r int, exists bool) {
+	v := m.snapshot_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSnapshotVersion returns the old "snapshot_version" field's value of the TimelineMutation entity.
+// If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TimelineMutationMutation) OldSnapshotVersion(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSnapshotVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSnapshotVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSnapshotVersion: %w", err)
+	}
+	return oldValue.SnapshotVersion, nil
+}
+
+// AddSnapshotVersion adds i to the "snapshot_version" field.
+func (m *TimelineMutationMutation) AddSnapshotVersion(i int) {
+	if m.addsnapshot_version != nil {
+		*m.addsnapshot_version += i
+	} else {
+		m.addsnapshot_version = &i
+	}
+}
+
+// AddedSnapshotVersion returns the value that was added to the "snapshot_version" field in this mutation.
+func (m *TimelineMutationMutation) AddedSnapshotVersion() (r int, exists bool) {
+	v := m.addsnapshot_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSnapshotVersion resets all changes to the "snapshot_version" field.
+func (m *TimelineMutationMutation) ResetSnapshotVersion() {
+	m.snapshot_version = nil
+	m.addsnapshot_version = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *TimelineMutationMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *TimelineMutationMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the TimelineMutation entity.
+// If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TimelineMutationMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *TimelineMutationMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the TimelineMutationMutation builder.
+func (m *TimelineMutationMutation) Where(ps ...predicate.TimelineMutation) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the TimelineMutationMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *TimelineMutationMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.TimelineMutation, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *TimelineMutationMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *TimelineMutationMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (TimelineMutation).
+func (m *TimelineMutationMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *TimelineMutationMutation) Fields() []string {
+	fields := make([]string, 0, 11)
+	if m.user_id != nil {
+		fields = append(fields, timelinemutation.FieldUserID)
+	}
+	if m.mutation_id != nil {
+		fields = append(fields, timelinemutation.FieldMutationID)
+	}
+	if m.target_kind != nil {
+		fields = append(fields, timelinemutation.FieldTargetKind)
+	}
+	if m.operation != nil {
+		fields = append(fields, timelinemutation.FieldOperation)
+	}
+	if m.entry_ref != nil {
+		fields = append(fields, timelinemutation.FieldEntryRef)
+	}
+	if m.request_hash != nil {
+		fields = append(fields, timelinemutation.FieldRequestHash)
+	}
+	if m.result_revision != nil {
+		fields = append(fields, timelinemutation.FieldResultRevision)
+	}
+	if m.result_state != nil {
+		fields = append(fields, timelinemutation.FieldResultState)
+	}
+	if m.result_snapshot != nil {
+		fields = append(fields, timelinemutation.FieldResultSnapshot)
+	}
+	if m.snapshot_version != nil {
+		fields = append(fields, timelinemutation.FieldSnapshotVersion)
+	}
+	if m.created_at != nil {
+		fields = append(fields, timelinemutation.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *TimelineMutationMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case timelinemutation.FieldUserID:
+		return m.UserID()
+	case timelinemutation.FieldMutationID:
+		return m.MutationID()
+	case timelinemutation.FieldTargetKind:
+		return m.TargetKind()
+	case timelinemutation.FieldOperation:
+		return m.Operation()
+	case timelinemutation.FieldEntryRef:
+		return m.EntryRef()
+	case timelinemutation.FieldRequestHash:
+		return m.RequestHash()
+	case timelinemutation.FieldResultRevision:
+		return m.ResultRevision()
+	case timelinemutation.FieldResultState:
+		return m.ResultState()
+	case timelinemutation.FieldResultSnapshot:
+		return m.ResultSnapshot()
+	case timelinemutation.FieldSnapshotVersion:
+		return m.SnapshotVersion()
+	case timelinemutation.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *TimelineMutationMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case timelinemutation.FieldUserID:
+		return m.OldUserID(ctx)
+	case timelinemutation.FieldMutationID:
+		return m.OldMutationID(ctx)
+	case timelinemutation.FieldTargetKind:
+		return m.OldTargetKind(ctx)
+	case timelinemutation.FieldOperation:
+		return m.OldOperation(ctx)
+	case timelinemutation.FieldEntryRef:
+		return m.OldEntryRef(ctx)
+	case timelinemutation.FieldRequestHash:
+		return m.OldRequestHash(ctx)
+	case timelinemutation.FieldResultRevision:
+		return m.OldResultRevision(ctx)
+	case timelinemutation.FieldResultState:
+		return m.OldResultState(ctx)
+	case timelinemutation.FieldResultSnapshot:
+		return m.OldResultSnapshot(ctx)
+	case timelinemutation.FieldSnapshotVersion:
+		return m.OldSnapshotVersion(ctx)
+	case timelinemutation.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown TimelineMutation field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *TimelineMutationMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case timelinemutation.FieldUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case timelinemutation.FieldMutationID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMutationID(v)
+		return nil
+	case timelinemutation.FieldTargetKind:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTargetKind(v)
+		return nil
+	case timelinemutation.FieldOperation:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOperation(v)
+		return nil
+	case timelinemutation.FieldEntryRef:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEntryRef(v)
+		return nil
+	case timelinemutation.FieldRequestHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestHash(v)
+		return nil
+	case timelinemutation.FieldResultRevision:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResultRevision(v)
+		return nil
+	case timelinemutation.FieldResultState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResultState(v)
+		return nil
+	case timelinemutation.FieldResultSnapshot:
+		v, ok := value.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResultSnapshot(v)
+		return nil
+	case timelinemutation.FieldSnapshotVersion:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSnapshotVersion(v)
+		return nil
+	case timelinemutation.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown TimelineMutation field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *TimelineMutationMutation) AddedFields() []string {
+	var fields []string
+	if m.addresult_revision != nil {
+		fields = append(fields, timelinemutation.FieldResultRevision)
+	}
+	if m.addsnapshot_version != nil {
+		fields = append(fields, timelinemutation.FieldSnapshotVersion)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *TimelineMutationMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case timelinemutation.FieldResultRevision:
+		return m.AddedResultRevision()
+	case timelinemutation.FieldSnapshotVersion:
+		return m.AddedSnapshotVersion()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *TimelineMutationMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case timelinemutation.FieldResultRevision:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddResultRevision(v)
+		return nil
+	case timelinemutation.FieldSnapshotVersion:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSnapshotVersion(v)
+		return nil
+	}
+	return fmt.Errorf("unknown TimelineMutation numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *TimelineMutationMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *TimelineMutationMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *TimelineMutationMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown TimelineMutation nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *TimelineMutationMutation) ResetField(name string) error {
+	switch name {
+	case timelinemutation.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case timelinemutation.FieldMutationID:
+		m.ResetMutationID()
+		return nil
+	case timelinemutation.FieldTargetKind:
+		m.ResetTargetKind()
+		return nil
+	case timelinemutation.FieldOperation:
+		m.ResetOperation()
+		return nil
+	case timelinemutation.FieldEntryRef:
+		m.ResetEntryRef()
+		return nil
+	case timelinemutation.FieldRequestHash:
+		m.ResetRequestHash()
+		return nil
+	case timelinemutation.FieldResultRevision:
+		m.ResetResultRevision()
+		return nil
+	case timelinemutation.FieldResultState:
+		m.ResetResultState()
+		return nil
+	case timelinemutation.FieldResultSnapshot:
+		m.ResetResultSnapshot()
+		return nil
+	case timelinemutation.FieldSnapshotVersion:
+		m.ResetSnapshotVersion()
+		return nil
+	case timelinemutation.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown TimelineMutation field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *TimelineMutationMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *TimelineMutationMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *TimelineMutationMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *TimelineMutationMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *TimelineMutationMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *TimelineMutationMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *TimelineMutationMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown TimelineMutation unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *TimelineMutationMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown TimelineMutation edge %s", name)
 }

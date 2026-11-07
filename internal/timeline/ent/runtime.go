@@ -9,6 +9,7 @@ import (
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
 	"github.com/kongken/mono/internal/timeline/ent/schema"
+	"github.com/kongken/mono/internal/timeline/ent/timelinemutation"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -41,74 +42,78 @@ func init() {
 	cleanupobject.DefaultID = cleanupobjectDescID.Default.(func() string)
 	entryFields := schema.Entry{}.Fields()
 	_ = entryFields
+	// entryDescPublicRef is the schema descriptor for public_ref field.
+	entryDescPublicRef := entryFields[1].Descriptor()
+	// entry.DefaultPublicRef holds the default value on creation for the public_ref field.
+	entry.DefaultPublicRef = entryDescPublicRef.Default.(func() string)
 	// entryDescUserID is the schema descriptor for user_id field.
-	entryDescUserID := entryFields[1].Descriptor()
+	entryDescUserID := entryFields[2].Descriptor()
 	// entry.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
 	entry.UserIDValidator = entryDescUserID.Validators[0].(func(string) error)
 	// entryDescTitle is the schema descriptor for title field.
-	entryDescTitle := entryFields[2].Descriptor()
+	entryDescTitle := entryFields[3].Descriptor()
 	// entry.TitleValidator is a validator for the "title" field. It is called by the builders before save.
 	entry.TitleValidator = entryDescTitle.Validators[0].(func(string) error)
 	// entryDescBody is the schema descriptor for body field.
-	entryDescBody := entryFields[3].Descriptor()
+	entryDescBody := entryFields[4].Descriptor()
 	// entry.DefaultBody holds the default value on creation for the body field.
 	entry.DefaultBody = entryDescBody.Default.(string)
 	// entryDescOccurredDate is the schema descriptor for occurred_date field.
-	entryDescOccurredDate := entryFields[4].Descriptor()
+	entryDescOccurredDate := entryFields[5].Descriptor()
 	// entry.OccurredDateValidator is a validator for the "occurred_date" field. It is called by the builders before save.
 	entry.OccurredDateValidator = entryDescOccurredDate.Validators[0].(func(string) error)
 	// entryDescOccurredTime is the schema descriptor for occurred_time field.
-	entryDescOccurredTime := entryFields[5].Descriptor()
+	entryDescOccurredTime := entryFields[6].Descriptor()
 	// entry.DefaultOccurredTime holds the default value on creation for the occurred_time field.
 	entry.DefaultOccurredTime = entryDescOccurredTime.Default.(string)
 	// entryDescTimezone is the schema descriptor for timezone field.
-	entryDescTimezone := entryFields[6].Descriptor()
+	entryDescTimezone := entryFields[7].Descriptor()
 	// entry.TimezoneValidator is a validator for the "timezone" field. It is called by the builders before save.
 	entry.TimezoneValidator = entryDescTimezone.Validators[0].(func(string) error)
 	// entryDescCategory is the schema descriptor for category field.
-	entryDescCategory := entryFields[7].Descriptor()
+	entryDescCategory := entryFields[8].Descriptor()
 	// entry.DefaultCategory holds the default value on creation for the category field.
 	entry.DefaultCategory = entryDescCategory.Default.(string)
 	// entryDescLocation is the schema descriptor for location field.
-	entryDescLocation := entryFields[8].Descriptor()
+	entryDescLocation := entryFields[9].Descriptor()
 	// entry.DefaultLocation holds the default value on creation for the location field.
 	entry.DefaultLocation = entryDescLocation.Default.(string)
 	// entryDescAmountMinor is the schema descriptor for amount_minor field.
-	entryDescAmountMinor := entryFields[9].Descriptor()
+	entryDescAmountMinor := entryFields[10].Descriptor()
 	// entry.DefaultAmountMinor holds the default value on creation for the amount_minor field.
 	entry.DefaultAmountMinor = entryDescAmountMinor.Default.(int64)
 	// entryDescCurrency is the schema descriptor for currency field.
-	entryDescCurrency := entryFields[10].Descriptor()
+	entryDescCurrency := entryFields[11].Descriptor()
 	// entry.DefaultCurrency holds the default value on creation for the currency field.
 	entry.DefaultCurrency = entryDescCurrency.Default.(string)
 	// entryDescURL is the schema descriptor for url field.
-	entryDescURL := entryFields[11].Descriptor()
+	entryDescURL := entryFields[12].Descriptor()
 	// entry.DefaultURL holds the default value on creation for the url field.
 	entry.DefaultURL = entryDescURL.Default.(string)
 	// entryDescURLTitle is the schema descriptor for url_title field.
-	entryDescURLTitle := entryFields[12].Descriptor()
+	entryDescURLTitle := entryFields[13].Descriptor()
 	// entry.DefaultURLTitle holds the default value on creation for the url_title field.
 	entry.DefaultURLTitle = entryDescURLTitle.Default.(string)
 	// entryDescURLNote is the schema descriptor for url_note field.
-	entryDescURLNote := entryFields[13].Descriptor()
+	entryDescURLNote := entryFields[14].Descriptor()
 	// entry.DefaultURLNote holds the default value on creation for the url_note field.
 	entry.DefaultURLNote = entryDescURLNote.Default.(string)
 	// entryDescMutationID is the schema descriptor for mutation_id field.
-	entryDescMutationID := entryFields[16].Descriptor()
+	entryDescMutationID := entryFields[17].Descriptor()
 	// entry.DefaultMutationID holds the default value on creation for the mutation_id field.
 	entry.DefaultMutationID = entryDescMutationID.Default.(string)
 	// entryDescRevision is the schema descriptor for revision field.
-	entryDescRevision := entryFields[17].Descriptor()
+	entryDescRevision := entryFields[18].Descriptor()
 	// entry.DefaultRevision holds the default value on creation for the revision field.
 	entry.DefaultRevision = entryDescRevision.Default.(int)
 	// entry.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
 	entry.RevisionValidator = entryDescRevision.Validators[0].(func(int) error)
 	// entryDescCreatedAt is the schema descriptor for created_at field.
-	entryDescCreatedAt := entryFields[18].Descriptor()
+	entryDescCreatedAt := entryFields[19].Descriptor()
 	// entry.DefaultCreatedAt holds the default value on creation for the created_at field.
 	entry.DefaultCreatedAt = entryDescCreatedAt.Default.(func() time.Time)
 	// entryDescUpdatedAt is the schema descriptor for updated_at field.
-	entryDescUpdatedAt := entryFields[19].Descriptor()
+	entryDescUpdatedAt := entryFields[20].Descriptor()
 	// entry.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	entry.DefaultUpdatedAt = entryDescUpdatedAt.Default.(func() time.Time)
 	// entry.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -147,4 +152,50 @@ func init() {
 	mediaobjectDescID := mediaobjectFields[0].Descriptor()
 	// mediaobject.DefaultID holds the default value on creation for the id field.
 	mediaobject.DefaultID = mediaobjectDescID.Default.(func() string)
+	timelinemutationFields := schema.TimelineMutation{}.Fields()
+	_ = timelinemutationFields
+	// timelinemutationDescUserID is the schema descriptor for user_id field.
+	timelinemutationDescUserID := timelinemutationFields[1].Descriptor()
+	// timelinemutation.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	timelinemutation.UserIDValidator = timelinemutationDescUserID.Validators[0].(func(string) error)
+	// timelinemutationDescMutationID is the schema descriptor for mutation_id field.
+	timelinemutationDescMutationID := timelinemutationFields[2].Descriptor()
+	// timelinemutation.MutationIDValidator is a validator for the "mutation_id" field. It is called by the builders before save.
+	timelinemutation.MutationIDValidator = timelinemutationDescMutationID.Validators[0].(func(string) error)
+	// timelinemutationDescTargetKind is the schema descriptor for target_kind field.
+	timelinemutationDescTargetKind := timelinemutationFields[3].Descriptor()
+	// timelinemutation.TargetKindValidator is a validator for the "target_kind" field. It is called by the builders before save.
+	timelinemutation.TargetKindValidator = timelinemutationDescTargetKind.Validators[0].(func(string) error)
+	// timelinemutationDescOperation is the schema descriptor for operation field.
+	timelinemutationDescOperation := timelinemutationFields[4].Descriptor()
+	// timelinemutation.OperationValidator is a validator for the "operation" field. It is called by the builders before save.
+	timelinemutation.OperationValidator = timelinemutationDescOperation.Validators[0].(func(string) error)
+	// timelinemutationDescEntryRef is the schema descriptor for entry_ref field.
+	timelinemutationDescEntryRef := timelinemutationFields[5].Descriptor()
+	// timelinemutation.DefaultEntryRef holds the default value on creation for the entry_ref field.
+	timelinemutation.DefaultEntryRef = timelinemutationDescEntryRef.Default.(string)
+	// timelinemutationDescRequestHash is the schema descriptor for request_hash field.
+	timelinemutationDescRequestHash := timelinemutationFields[6].Descriptor()
+	// timelinemutation.RequestHashValidator is a validator for the "request_hash" field. It is called by the builders before save.
+	timelinemutation.RequestHashValidator = timelinemutationDescRequestHash.Validators[0].(func(string) error)
+	// timelinemutationDescResultRevision is the schema descriptor for result_revision field.
+	timelinemutationDescResultRevision := timelinemutationFields[7].Descriptor()
+	// timelinemutation.ResultRevisionValidator is a validator for the "result_revision" field. It is called by the builders before save.
+	timelinemutation.ResultRevisionValidator = timelinemutationDescResultRevision.Validators[0].(func(int) error)
+	// timelinemutationDescResultState is the schema descriptor for result_state field.
+	timelinemutationDescResultState := timelinemutationFields[8].Descriptor()
+	// timelinemutation.ResultStateValidator is a validator for the "result_state" field. It is called by the builders before save.
+	timelinemutation.ResultStateValidator = timelinemutationDescResultState.Validators[0].(func(string) error)
+	// timelinemutationDescSnapshotVersion is the schema descriptor for snapshot_version field.
+	timelinemutationDescSnapshotVersion := timelinemutationFields[10].Descriptor()
+	// timelinemutation.DefaultSnapshotVersion holds the default value on creation for the snapshot_version field.
+	timelinemutation.DefaultSnapshotVersion = timelinemutationDescSnapshotVersion.Default.(int)
+	// timelinemutationDescCreatedAt is the schema descriptor for created_at field.
+	timelinemutationDescCreatedAt := timelinemutationFields[11].Descriptor()
+	// timelinemutation.DefaultCreatedAt holds the default value on creation for the created_at field.
+	timelinemutation.DefaultCreatedAt = timelinemutationDescCreatedAt.Default.(func() time.Time)
+	// timelinemutationDescID is the schema descriptor for id field.
+	timelinemutationDescID := timelinemutationFields[0].Descriptor()
+	// timelinemutation.DefaultID holds the default value on creation for the id field.
+	timelinemutation.DefaultID = timelinemutationDescID.Default.(func() string)
 }
