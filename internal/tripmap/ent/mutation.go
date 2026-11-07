@@ -16,6 +16,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/friendship"
 	"github.com/kongken/mono/internal/tripmap/ent/itinerary"
 	"github.com/kongken/mono/internal/tripmap/ent/mediacleanup"
+	"github.com/kongken/mono/internal/tripmap/ent/mediadeletereceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationdelivery"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationprofile"
@@ -49,6 +50,7 @@ const (
 	TypeFriendship           = "Friendship"
 	TypeItinerary            = "Itinerary"
 	TypeMediaCleanup         = "MediaCleanup"
+	TypeMediaDeleteReceipt   = "MediaDeleteReceipt"
 	TypeMediaObject          = "MediaObject"
 	TypeNotificationDelivery = "NotificationDelivery"
 	TypeNotificationProfile  = "NotificationProfile"
@@ -3639,6 +3641,662 @@ func (m *MediaCleanupMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *MediaCleanupMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown MediaCleanup edge %s", name)
+}
+
+// MediaDeleteReceiptMutation represents an operation that mutates the MediaDeleteReceipt nodes in the graph.
+type MediaDeleteReceiptMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *string
+	user_id       *string
+	mutation_id   *string
+	media_id      *string
+	request_hash  *string
+	result_state  *string
+	created_at    *time.Time
+	expires_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*MediaDeleteReceipt, error)
+	predicates    []predicate.MediaDeleteReceipt
+}
+
+var _ ent.Mutation = (*MediaDeleteReceiptMutation)(nil)
+
+// mediadeletereceiptOption allows management of the mutation configuration using functional options.
+type mediadeletereceiptOption func(*MediaDeleteReceiptMutation)
+
+// newMediaDeleteReceiptMutation creates new mutation for the MediaDeleteReceipt entity.
+func newMediaDeleteReceiptMutation(c config, op Op, opts ...mediadeletereceiptOption) *MediaDeleteReceiptMutation {
+	m := &MediaDeleteReceiptMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeMediaDeleteReceipt,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withMediaDeleteReceiptID sets the ID field of the mutation.
+func withMediaDeleteReceiptID(id string) mediadeletereceiptOption {
+	return func(m *MediaDeleteReceiptMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *MediaDeleteReceipt
+		)
+		m.oldValue = func(ctx context.Context) (*MediaDeleteReceipt, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().MediaDeleteReceipt.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withMediaDeleteReceipt sets the old MediaDeleteReceipt of the mutation.
+func withMediaDeleteReceipt(node *MediaDeleteReceipt) mediadeletereceiptOption {
+	return func(m *MediaDeleteReceiptMutation) {
+		m.oldValue = func(context.Context) (*MediaDeleteReceipt, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m MediaDeleteReceiptMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m MediaDeleteReceiptMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of MediaDeleteReceipt entities.
+func (m *MediaDeleteReceiptMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *MediaDeleteReceiptMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *MediaDeleteReceiptMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().MediaDeleteReceipt.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *MediaDeleteReceiptMutation) SetUserID(s string) {
+	m.user_id = &s
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *MediaDeleteReceiptMutation) UserID() (r string, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the MediaDeleteReceipt entity.
+// If the MediaDeleteReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaDeleteReceiptMutation) OldUserID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *MediaDeleteReceiptMutation) ResetUserID() {
+	m.user_id = nil
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (m *MediaDeleteReceiptMutation) SetMutationID(s string) {
+	m.mutation_id = &s
+}
+
+// MutationID returns the value of the "mutation_id" field in the mutation.
+func (m *MediaDeleteReceiptMutation) MutationID() (r string, exists bool) {
+	v := m.mutation_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMutationID returns the old "mutation_id" field's value of the MediaDeleteReceipt entity.
+// If the MediaDeleteReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaDeleteReceiptMutation) OldMutationID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMutationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMutationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMutationID: %w", err)
+	}
+	return oldValue.MutationID, nil
+}
+
+// ResetMutationID resets all changes to the "mutation_id" field.
+func (m *MediaDeleteReceiptMutation) ResetMutationID() {
+	m.mutation_id = nil
+}
+
+// SetMediaID sets the "media_id" field.
+func (m *MediaDeleteReceiptMutation) SetMediaID(s string) {
+	m.media_id = &s
+}
+
+// MediaID returns the value of the "media_id" field in the mutation.
+func (m *MediaDeleteReceiptMutation) MediaID() (r string, exists bool) {
+	v := m.media_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMediaID returns the old "media_id" field's value of the MediaDeleteReceipt entity.
+// If the MediaDeleteReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaDeleteReceiptMutation) OldMediaID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMediaID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMediaID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMediaID: %w", err)
+	}
+	return oldValue.MediaID, nil
+}
+
+// ResetMediaID resets all changes to the "media_id" field.
+func (m *MediaDeleteReceiptMutation) ResetMediaID() {
+	m.media_id = nil
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (m *MediaDeleteReceiptMutation) SetRequestHash(s string) {
+	m.request_hash = &s
+}
+
+// RequestHash returns the value of the "request_hash" field in the mutation.
+func (m *MediaDeleteReceiptMutation) RequestHash() (r string, exists bool) {
+	v := m.request_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestHash returns the old "request_hash" field's value of the MediaDeleteReceipt entity.
+// If the MediaDeleteReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaDeleteReceiptMutation) OldRequestHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestHash: %w", err)
+	}
+	return oldValue.RequestHash, nil
+}
+
+// ResetRequestHash resets all changes to the "request_hash" field.
+func (m *MediaDeleteReceiptMutation) ResetRequestHash() {
+	m.request_hash = nil
+}
+
+// SetResultState sets the "result_state" field.
+func (m *MediaDeleteReceiptMutation) SetResultState(s string) {
+	m.result_state = &s
+}
+
+// ResultState returns the value of the "result_state" field in the mutation.
+func (m *MediaDeleteReceiptMutation) ResultState() (r string, exists bool) {
+	v := m.result_state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResultState returns the old "result_state" field's value of the MediaDeleteReceipt entity.
+// If the MediaDeleteReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaDeleteReceiptMutation) OldResultState(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResultState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResultState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResultState: %w", err)
+	}
+	return oldValue.ResultState, nil
+}
+
+// ResetResultState resets all changes to the "result_state" field.
+func (m *MediaDeleteReceiptMutation) ResetResultState() {
+	m.result_state = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *MediaDeleteReceiptMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *MediaDeleteReceiptMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the MediaDeleteReceipt entity.
+// If the MediaDeleteReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaDeleteReceiptMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *MediaDeleteReceiptMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *MediaDeleteReceiptMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *MediaDeleteReceiptMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the MediaDeleteReceipt entity.
+// If the MediaDeleteReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaDeleteReceiptMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *MediaDeleteReceiptMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// Where appends a list predicates to the MediaDeleteReceiptMutation builder.
+func (m *MediaDeleteReceiptMutation) Where(ps ...predicate.MediaDeleteReceipt) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the MediaDeleteReceiptMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *MediaDeleteReceiptMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.MediaDeleteReceipt, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *MediaDeleteReceiptMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *MediaDeleteReceiptMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (MediaDeleteReceipt).
+func (m *MediaDeleteReceiptMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *MediaDeleteReceiptMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.user_id != nil {
+		fields = append(fields, mediadeletereceipt.FieldUserID)
+	}
+	if m.mutation_id != nil {
+		fields = append(fields, mediadeletereceipt.FieldMutationID)
+	}
+	if m.media_id != nil {
+		fields = append(fields, mediadeletereceipt.FieldMediaID)
+	}
+	if m.request_hash != nil {
+		fields = append(fields, mediadeletereceipt.FieldRequestHash)
+	}
+	if m.result_state != nil {
+		fields = append(fields, mediadeletereceipt.FieldResultState)
+	}
+	if m.created_at != nil {
+		fields = append(fields, mediadeletereceipt.FieldCreatedAt)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, mediadeletereceipt.FieldExpiresAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *MediaDeleteReceiptMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case mediadeletereceipt.FieldUserID:
+		return m.UserID()
+	case mediadeletereceipt.FieldMutationID:
+		return m.MutationID()
+	case mediadeletereceipt.FieldMediaID:
+		return m.MediaID()
+	case mediadeletereceipt.FieldRequestHash:
+		return m.RequestHash()
+	case mediadeletereceipt.FieldResultState:
+		return m.ResultState()
+	case mediadeletereceipt.FieldCreatedAt:
+		return m.CreatedAt()
+	case mediadeletereceipt.FieldExpiresAt:
+		return m.ExpiresAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *MediaDeleteReceiptMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case mediadeletereceipt.FieldUserID:
+		return m.OldUserID(ctx)
+	case mediadeletereceipt.FieldMutationID:
+		return m.OldMutationID(ctx)
+	case mediadeletereceipt.FieldMediaID:
+		return m.OldMediaID(ctx)
+	case mediadeletereceipt.FieldRequestHash:
+		return m.OldRequestHash(ctx)
+	case mediadeletereceipt.FieldResultState:
+		return m.OldResultState(ctx)
+	case mediadeletereceipt.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case mediadeletereceipt.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown MediaDeleteReceipt field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MediaDeleteReceiptMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case mediadeletereceipt.FieldUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case mediadeletereceipt.FieldMutationID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMutationID(v)
+		return nil
+	case mediadeletereceipt.FieldMediaID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMediaID(v)
+		return nil
+	case mediadeletereceipt.FieldRequestHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestHash(v)
+		return nil
+	case mediadeletereceipt.FieldResultState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResultState(v)
+		return nil
+	case mediadeletereceipt.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case mediadeletereceipt.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MediaDeleteReceipt field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *MediaDeleteReceiptMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *MediaDeleteReceiptMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MediaDeleteReceiptMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown MediaDeleteReceipt numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *MediaDeleteReceiptMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *MediaDeleteReceiptMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *MediaDeleteReceiptMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown MediaDeleteReceipt nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *MediaDeleteReceiptMutation) ResetField(name string) error {
+	switch name {
+	case mediadeletereceipt.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case mediadeletereceipt.FieldMutationID:
+		m.ResetMutationID()
+		return nil
+	case mediadeletereceipt.FieldMediaID:
+		m.ResetMediaID()
+		return nil
+	case mediadeletereceipt.FieldRequestHash:
+		m.ResetRequestHash()
+		return nil
+	case mediadeletereceipt.FieldResultState:
+		m.ResetResultState()
+		return nil
+	case mediadeletereceipt.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case mediadeletereceipt.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	}
+	return fmt.Errorf("unknown MediaDeleteReceipt field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *MediaDeleteReceiptMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *MediaDeleteReceiptMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *MediaDeleteReceiptMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *MediaDeleteReceiptMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *MediaDeleteReceiptMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *MediaDeleteReceiptMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *MediaDeleteReceiptMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown MediaDeleteReceipt unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *MediaDeleteReceiptMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown MediaDeleteReceipt edge %s", name)
 }
 
 // MediaObjectMutation represents an operation that mutates the MediaObject nodes in the graph.

@@ -22,6 +22,8 @@ type Tx struct {
 	Itinerary *ItineraryClient
 	// MediaCleanup is the client for interacting with the MediaCleanup builders.
 	MediaCleanup *MediaCleanupClient
+	// MediaDeleteReceipt is the client for interacting with the MediaDeleteReceipt builders.
+	MediaDeleteReceipt *MediaDeleteReceiptClient
 	// MediaObject is the client for interacting with the MediaObject builders.
 	MediaObject *MediaObjectClient
 	// NotificationDelivery is the client for interacting with the NotificationDelivery builders.
@@ -188,6 +190,7 @@ func (tx *Tx) init() {
 	tx.Friendship = NewFriendshipClient(tx.config)
 	tx.Itinerary = NewItineraryClient(tx.config)
 	tx.MediaCleanup = NewMediaCleanupClient(tx.config)
+	tx.MediaDeleteReceipt = NewMediaDeleteReceiptClient(tx.config)
 	tx.MediaObject = NewMediaObjectClient(tx.config)
 	tx.NotificationDelivery = NewNotificationDeliveryClient(tx.config)
 	tx.NotificationProfile = NewNotificationProfileClient(tx.config)

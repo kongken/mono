@@ -10,6 +10,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/friendship"
 	"github.com/kongken/mono/internal/tripmap/ent/itinerary"
 	"github.com/kongken/mono/internal/tripmap/ent/mediacleanup"
+	"github.com/kongken/mono/internal/tripmap/ent/mediadeletereceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationdelivery"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationprofile"
@@ -190,6 +191,36 @@ func init() {
 	mediacleanupDescID := mediacleanupFields[0].Descriptor()
 	// mediacleanup.DefaultID holds the default value on creation for the id field.
 	mediacleanup.DefaultID = mediacleanupDescID.Default.(func() string)
+	mediadeletereceiptFields := schema.MediaDeleteReceipt{}.Fields()
+	_ = mediadeletereceiptFields
+	// mediadeletereceiptDescUserID is the schema descriptor for user_id field.
+	mediadeletereceiptDescUserID := mediadeletereceiptFields[1].Descriptor()
+	// mediadeletereceipt.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	mediadeletereceipt.UserIDValidator = mediadeletereceiptDescUserID.Validators[0].(func(string) error)
+	// mediadeletereceiptDescMutationID is the schema descriptor for mutation_id field.
+	mediadeletereceiptDescMutationID := mediadeletereceiptFields[2].Descriptor()
+	// mediadeletereceipt.MutationIDValidator is a validator for the "mutation_id" field. It is called by the builders before save.
+	mediadeletereceipt.MutationIDValidator = mediadeletereceiptDescMutationID.Validators[0].(func(string) error)
+	// mediadeletereceiptDescMediaID is the schema descriptor for media_id field.
+	mediadeletereceiptDescMediaID := mediadeletereceiptFields[3].Descriptor()
+	// mediadeletereceipt.MediaIDValidator is a validator for the "media_id" field. It is called by the builders before save.
+	mediadeletereceipt.MediaIDValidator = mediadeletereceiptDescMediaID.Validators[0].(func(string) error)
+	// mediadeletereceiptDescRequestHash is the schema descriptor for request_hash field.
+	mediadeletereceiptDescRequestHash := mediadeletereceiptFields[4].Descriptor()
+	// mediadeletereceipt.RequestHashValidator is a validator for the "request_hash" field. It is called by the builders before save.
+	mediadeletereceipt.RequestHashValidator = mediadeletereceiptDescRequestHash.Validators[0].(func(string) error)
+	// mediadeletereceiptDescResultState is the schema descriptor for result_state field.
+	mediadeletereceiptDescResultState := mediadeletereceiptFields[5].Descriptor()
+	// mediadeletereceipt.ResultStateValidator is a validator for the "result_state" field. It is called by the builders before save.
+	mediadeletereceipt.ResultStateValidator = mediadeletereceiptDescResultState.Validators[0].(func(string) error)
+	// mediadeletereceiptDescCreatedAt is the schema descriptor for created_at field.
+	mediadeletereceiptDescCreatedAt := mediadeletereceiptFields[6].Descriptor()
+	// mediadeletereceipt.DefaultCreatedAt holds the default value on creation for the created_at field.
+	mediadeletereceipt.DefaultCreatedAt = mediadeletereceiptDescCreatedAt.Default.(func() time.Time)
+	// mediadeletereceiptDescID is the schema descriptor for id field.
+	mediadeletereceiptDescID := mediadeletereceiptFields[0].Descriptor()
+	// mediadeletereceipt.DefaultID holds the default value on creation for the id field.
+	mediadeletereceipt.DefaultID = mediadeletereceiptDescID.Default.(func() string)
 	mediaobjectFields := schema.MediaObject{}.Fields()
 	_ = mediaobjectFields
 	// mediaobjectDescObjectKey is the schema descriptor for object_key field.

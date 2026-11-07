@@ -21,6 +21,9 @@ type Itinerary func(*sql.Selector)
 // MediaCleanup is the predicate function for mediacleanup builders.
 type MediaCleanup func(*sql.Selector)
 
+// MediaDeleteReceipt is the predicate function for mediadeletereceipt builders.
+type MediaDeleteReceipt func(*sql.Selector)
+
 // MediaObject is the predicate function for mediaobject builders.
 type MediaObject func(*sql.Selector)
 

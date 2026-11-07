@@ -184,6 +184,35 @@ var (
 			},
 		},
 	}
+	// MediaDeleteReceiptsColumns holds the columns for the "media_delete_receipts" table.
+	MediaDeleteReceiptsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeString},
+		{Name: "mutation_id", Type: field.TypeString},
+		{Name: "media_id", Type: field.TypeString},
+		{Name: "request_hash", Type: field.TypeString},
+		{Name: "result_state", Type: field.TypeString},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime},
+	}
+	// MediaDeleteReceiptsTable holds the schema information for the "media_delete_receipts" table.
+	MediaDeleteReceiptsTable = &schema.Table{
+		Name:       "media_delete_receipts",
+		Columns:    MediaDeleteReceiptsColumns,
+		PrimaryKey: []*schema.Column{MediaDeleteReceiptsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "mediadeletereceipt_user_id_mutation_id",
+				Unique:  true,
+				Columns: []*schema.Column{MediaDeleteReceiptsColumns[1], MediaDeleteReceiptsColumns[2]},
+			},
+			{
+				Name:    "mediadeletereceipt_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{MediaDeleteReceiptsColumns[7]},
+			},
+		},
+	}
 	// MediaObjectsColumns holds the columns for the "media_objects" table.
 	MediaObjectsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -734,6 +763,7 @@ var (
 		FriendshipsTable,
 		ItinerariesTable,
 		MediaCleanupsTable,
+		MediaDeleteReceiptsTable,
 		MediaObjectsTable,
 		NotificationDeliveriesTable,
 		NotificationProfilesTable,
@@ -766,6 +796,9 @@ func init() {
 	ItinerariesTable.ForeignKeys[0].RefTable = UsersTable
 	ItinerariesTable.Annotation = &entsql.Annotation{
 		Table: "itineraries",
+	}
+	MediaDeleteReceiptsTable.Annotation = &entsql.Annotation{
+		Table: "media_delete_receipts",
 	}
 	MediaObjectsTable.ForeignKeys[0].RefTable = UsersTable
 	MediaObjectsTable.Annotation = &entsql.Annotation{

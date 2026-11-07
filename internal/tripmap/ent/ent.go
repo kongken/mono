@@ -17,6 +17,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/friendship"
 	"github.com/kongken/mono/internal/tripmap/ent/itinerary"
 	"github.com/kongken/mono/internal/tripmap/ent/mediacleanup"
+	"github.com/kongken/mono/internal/tripmap/ent/mediadeletereceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationdelivery"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationprofile"
@@ -97,6 +98,7 @@ func checkColumn(t, c string) error {
 			friendship.Table:           friendship.ValidColumn,
 			itinerary.Table:            itinerary.ValidColumn,
 			mediacleanup.Table:         mediacleanup.ValidColumn,
+			mediadeletereceipt.Table:   mediadeletereceipt.ValidColumn,
 			mediaobject.Table:          mediaobject.ValidColumn,
 			notificationdelivery.Table: notificationdelivery.ValidColumn,
 			notificationprofile.Table:  notificationprofile.ValidColumn,

@@ -61,5 +61,12 @@ message ReadMediaResponse {
   // Public CDN URL when configured; data is empty. Otherwise data contains the file.
   string url = 4;
 }
-message DeleteMediaRequest { string id = 1; }
-message DeleteMediaResponse {}
+message DeleteMediaRequest { string id = 1; string mutation_id = 2; }
+message DeleteMediaResponse { MediaMutationReceipt receipt = 1; }
+message MediaMutationReceipt {
+  string mutation_id = 1;
+  string media_id = 2;
+  string result_state = 3;
+  bool replayed = 4;
+  google.protobuf.Timestamp recorded_at = 5;
+}
