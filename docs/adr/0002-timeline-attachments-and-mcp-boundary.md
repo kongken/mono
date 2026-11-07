@@ -1,6 +1,6 @@
 # Timeline 附件与 MCP 服务边界契约
 
-**状态：草案 v3（按 KON-105 两轮独立 Review 返修），基于 KON-99 已接受实现 `8c5a51592f2a34504828295e967b75d357e07761` 与 delivery branch head `cb5787e`；供后续评审和实现票使用。返修范围见 §1.4。**
+**状态：草案 v4（按 KON-105 三轮独立 Review 返修），基于 KON-99 已接受实现 `8c5a51592f2a34504828295e967b75d357e07761` 与 delivery branch head `8a111b6`；供后续评审和实现票使用。返修范围见 §1.4。**
 
 本文是 Timeline 附件服务与 Timeline MCP BFF 的唯一边界草案。它补充现有文字记录闭环，不修改 KON-99 已接受的记录实现，也不在本票启动附件或 MCP 实现。
 
@@ -64,6 +64,11 @@ KON-99 的 `bff.timeline.v1.TimelineService` 已定义文字记录的 List/Creat
 | ④ Media 删除回执无可执行持久化契约：未定义 owner/media_ref/operation/request_hash/result_revision/tombstone/保留期/唯一键与同事务关系；调用图让 Media 指向只定义记录操作的 `timeline_mutations`；判定顺序要先确认行存在，而行会被 cleanup 清理，因此 cleanup 后无法重放 | §2.5 共用表的 `target_kind`/`media_ref`/必填快照与 CHECK；§3.5 字段表、保留期与“回执不随行删除”、6 步判定顺序（回执先于可见性）；§7 调用图标注两类回执；§10 “Media 删除回执” | §10 “Media 删除回执”：首次 Delete 后 `worker` 删对象并清行，同 mutation_id 重放仍返回逐字段相等的 tombstone 与 `result_revision`、`replayed = true`，且不访问行/storage；不同 mutation_id 且行已清理 → `MEDIA_NOT_FOUND`；回执与状态变更同事务（回执写失败则状态回滚） |
 | ⑤ 记录重放响应自相矛盾：`result_snapshot` 标为“可选”但 update/trash/restore 要求逐字段重放；`MutationReceipt.operation` 枚举漏掉 create，而 create 也走同一张表 | §2.5 `result_snapshot` 改为 `NOT NULL` + `snapshot_version` + 不可变（无 UPDATE 权限）+ 每个 operation 的响应/快照表；`operation` 改为闭集并含 `create`/`media_delete`，`MutationReceipt` 增 `target_kind`；§10 “回执幂等”增 create 与快照不可变断言 | §10 “回执幂等”：create 重放返回同一 `entry_ref` 与 `revision = 1` 且不新建行；五个记录操作各自“首次响应用 = 重放响应”字节级/字段级相等，即使行随后被 update/trash 修改；`receipt.operation` 在 create 上为 `create`、在 DeleteMedia 上为 `media_delete` |
 
+| Review 发现（第三轮，基于 `8a111b6`） | 本文契约 | 可验证断言 |
+| --- | --- | --- |
+| ⑥ `target_kind`/`operation` 的 CHECK 没有真正闭合：否定式写法只要求 media 的 operation“不属于 entry 集合”，`media + garbage/unknown` 仍能入库 | §2.5 两个显式双分支 CHECK（附 SQL 原文）；§3.5 字段表 | §10 “回执表约束”：`media + garbage`、`media + unknown`、`media + create`、`media + 空串`、`entry + media_delete`、`entry` 带 `media_ref`、`media` 缺任一 ref 共 7 类非法组合的 INSERT 均被数据库拒绝，且无状态变更、无回执 |
+| ⑦ Media receipt 的 `entry_ref` 规则自相矛盾：目标引用 CHECK 要求 media 的 `entry_ref IS NULL`，§3.5 又要求填所属 Entry 的 ref | §2.2 新增 `entry_public_ref` 快照列；§2.5 target 引用 CHECK 的两个分支（media 必须同时有 `media_ref` 与 `entry_ref`）；§3.5 字段表、tombstone 快照与审计说明；§9.1 迁移 | §10 “Media 删除回执”：tombstone 与回执均含所属 `entry_ref`；Entry 已 purge 时删除仍可成功写回执（取行上快照，不回查 Entry）；cleanup 后重放逐字段包含同一 `entry_ref` |
+
 以下缺口属于**实现未闭环**，不因本文冻结而消失；每项必须在对应实现票完成并通过 §10 的发布阻断项后，才能开放 MCP 记录工具或附件入口。
 
 | 缺口 | 当前实现事实 | 闭环要求 |
@@ -72,7 +77,8 @@ KON-99 的 `bff.timeline.v1.TimelineService` 已定义文字记录的 List/Creat
 | Delete/Restore/Purge 不消费 mutation_id；`DeleteEntry` 的 `permanent = true` 另有一条绕过 purge 语义的物理删除路径 | 三个方法完全忽略请求中的 mutation_id；超时重试会再次写入并递增 revision，purge 重放返回 NOT_FOUND | 同上；purge 重放必须返回回执结果而不是 NOT_FOUND；`permanent` 按 §2.5 废弃 |
 | Create 回执不符合 §2.5 | 以 `entry.mutation_id` 查询旧行；无 operation/request_hash/结果快照，不同 payload 复用同一 mutation_id 会静默返回旧记录 | 迁移到 `timeline_mutations`，保留行级兼容读取直到迁移完成 |
 | Media 无 revision | `timeline_media_objects` 没有 revision 与状态列，Delete 返回 Empty | 按 §2.2/§3.2 增加列、响应字段与 §3.4 revision 表 |
-| Media 无删除回执 | Delete 忽略 mutation_id，也没有任何回执存储；MediaObject 行与对象被 cleanup 清理后无可重放的 tombstone | 按 §2.5/§3.5 在 `timeline_mutations` 写入 `target_kind = media` 的不可变 tombstone 快照，并使回执命中先于对象可见性 |
+| Media 无删除回执 | Delete 忽略 mutation_id，也没有任何回执存储；MediaObject 行与对象被 cleanup 清理后无可重放的 tombstone | 按 §2.5/§3.5 在 `timeline_mutations` 写入 `target_kind = media` 的不可变 tombstone 快照（含所属 `entry_ref`），并使回执命中先于对象可见性 |
+| MediaObject 无 `entry_public_ref` 快照 | 现有行只存内部 `entry_id`，Entry 被 purge 后无法再解析其公开引用 | 按 §2.2/§9.1 增加 `entry_public_ref` 并在 PrepareUpload 时写入，回执与 tombstone 从行上取 |
 | 回执快照与 operation 契约不完整（文档层面已于本轮修正） | 旧版把 `result_snapshot` 写成可空、`operation` 枚举漏掉 `create`；若照此实现，update/trash/restore/create 的重放会重新读行或缺失快照 | 实现时 `result_snapshot NOT NULL`、`snapshot_version = 1`、应用账号无 `UPDATE` 权限；`operation` 取闭集且含 `create`/`media_delete` |
 | Entry 无对外 opaque 引用 | `timeline_entries.id`（UUID）直接出现在 BFF 响应并被 MCP 复用 | 按 §2.4 增加 `public_ref` 回填、唯一索引与 MCP 输入输出约束 |
 
@@ -101,6 +107,7 @@ MediaObject --(opaque object key)--> CleanupObject 0..N（幂等合并）
 | --- | --- |
 | `media_ref` | 服务端生成并存储的对外 opaque 引用（`timeline_media_objects.public_ref`，见 §2.4）；不可当作身份或存储 key；不回显内部 UUID |
 | `entry_id` | 内部字段；创建和查询必须按当前 owner 约束；不接受跨账号引用 |
+| `entry_public_ref` | 内部字段：**PrepareUpload 时写入所属 Entry 的 `public_ref` 快照**；用于 Media 删除回执与 tombstone 的审计关联（§3.5），不对外单独返回；Entry ref 不复用，因此 Entry purge 后仍有效 |
 | `state` | `pending`、`ready`、`deleting`；禁止客户端写任意状态 |
 | `revision` | 服务端维护的单调版本号，从 1 开始；每次状态转移递增 1，重放不递增；Prepare/Complete/List/Get/Delete 对同一状态返回同一值（§3.4） |
 | `filename` | 只保留用于展示的 Unicode 文件名；规范化为 basename，去除控制字符、NUL、路径分隔符和双向控制符；最多 255 个 Unicode code point，响应可按 UTF-8 截断 |
@@ -179,25 +186,45 @@ MediaObject --(opaque object key)--> CleanupObject 0..N（幂等合并）
 | `target_kind` | `entry`、`media`；与 `operation` 组合校验（见下表） |
 | `operation` | 闭集：`create`、`update`、`trash`、`restore`、`purge`、`media_delete` |
 | `request_hash` | 规范请求摘要，SHA-256 hex；规范化字段集合见下 |
-| `entry_ref` | `target_kind = entry` 时必填；purge 后仍保留供重放返回 |
-| `media_ref` | `target_kind = media` 时必填；Media 行被 cleanup 删除后仍保留供重放返回 |
+| `entry_ref` | **两类回执都必填**：`target_kind = entry` 时为被修改 Entry 自身的 `public_ref`；`target_kind = media` 时为所属 Entry 的 `public_ref`（取 PrepareUpload 时写入的 `timeline_media_objects.entry_public_ref`，不再回查 Entry）；purge / cleanup 后仍保留供重放返回 |
+| `media_ref` | 仅 `target_kind = media` 时必填，`target_kind = entry` 时必须为 NULL；Media 行被 cleanup 删除后仍保留供重放返回 |
 | `result_revision` | 该次写入产生的 revision；重放原样返回 |
 | `result_state` | `active`、`trashed`、`purged`、`deleting` |
 | `result_snapshot` | **必填（`NOT NULL`）**：首次执行时返回给客户端的完整不可变结果，重放逐字段原样返回；编码与内容见下 |
 | `snapshot_version` | 当前为 `1`；新增字段时升版，重放按写入时的版本解码，旧回执不被新代码重新序列化 |
 | `created_at` | 服务端时间；回执不可修改，只随账号注销删除 |
 
-约束：
+约束（两个 CHECK 都是**显式双分支**，不得写成“operation 不属于某集合”的否定式：否定式会让 `target_kind = media` 配上 `garbage`/`unknown` 等任意值也通过）：
 
 - 唯一索引 `(user_id, mutation_id)`；mutation_id 按 owner 命名空间解释，两个账号可以使用相同字符串。
-- `CHECK ((target_kind = 'entry' AND entry_ref IS NOT NULL AND media_ref IS NULL) OR (target_kind = 'media' AND media_ref IS NOT NULL AND entry_ref IS NULL))`，避免出现既有 entry_ref 又有 media_ref 或两者都为空的回执行。
-- `CHECK (operation IN ('create','update','trash','restore','purge')) = (target_kind = 'entry')`，即 `media_delete` 只能配 `media`；`target_kind = media` 时 `operation` 只能是 `media_delete`。
+- 目标引用 CHECK：
+
+  ```sql
+  CHECK (
+    (target_kind = 'entry' AND entry_ref IS NOT NULL AND media_ref IS NULL)
+    OR
+    (target_kind = 'media' AND media_ref IS NOT NULL AND entry_ref IS NOT NULL)
+  )
+  ```
+
+  entry 行只能引用自身 Entry；media 行必须同时带自身 `media_ref` 与所属 Entry 的 `entry_ref`。两者都不允许出现“只填一个”或“都不填”的行。
+- kind/operation CHECK：
+
+  ```sql
+  CHECK (
+    (target_kind = 'entry' AND operation IN ('create','update','trash','restore','purge'))
+    OR
+    (target_kind = 'media' AND operation = 'media_delete')
+  )
+  ```
+
+  entry 行只能是五个记录操作之一；media 行必须精确等于 `media_delete`，`media_delete` 也不能出现在 entry 行上。任何其他组合（`media + 'garbage'`、`media + 'unknown'`、`media + 'create'`、`entry + 'media_delete'`、空字符串、NULL）都必须被数据库拒绝，而不是静默写入。
 - 回执只 INSERT、不 UPDATE：应用角色对该表只有 `INSERT`/`SELECT` 权限（无 `UPDATE`/`DELETE`，注销与保留期清理走单独角色），从数据库层保证快照不可变。
 - `result_snapshot` 大小由 Entry/Media 字段上限自然约束（Entry 完整响应或 Media tombstone 的规范 JSON），不得截断、不得只存差异；实现可压缩存储。
 
 `result_snapshot` 是“重放即原样返回”的唯一来源，**不是**对业务行的再次序列化：
 
-- 内容为首次执行时真实返回的响应负载（记录：完整 `Entry` 含 `revision`、`deleted_at`、`entry_ref`；Media：tombstone 摘要含 `media_ref`、`entry_ref`、`state`、`revision`、`filename`、`content_type`、`size_bytes`、`width`、`height`、`created_at`、`updated_at`）。
+- 内容为首次执行时真实返回的响应负载（记录：完整 `Entry` 含 `revision`、`deleted_at`、`entry_ref`；Media：tombstone 摘要含 `entry_ref`（必填，取 `entry_public_ref`）、`media_ref`、`state`、`revision`、`filename`、`content_type`、`size_bytes`、`width`、`height`、`created_at`、`updated_at`）。
 - 重放**不重新读取业务行**，因此同一 mutation_id 之后再发生 update/trash/restore/purge 也不会改变旧回执的重放结果。
 - `purge` 与 `media_delete` 的终态也要快照：`purge` 存终态记录（`entry_ref`、最终 `revision`、`purged_at`，无正文），`media_delete` 存 tombstone；两者都不得留 NULL，否则行被物理删除/清理后无法重放。
 - `create` 与其它写操作同表同判定顺序：首次执行时把新建的 Entry 写入快照，重放返回同一 Entry（同一 `entry_ref`、`revision = 1`、`replayed = true`），不会创建第二条记录。
@@ -343,7 +370,7 @@ message DeleteMediaRequest {
 }
 message MediaResponse { Media media = 1; }
 message DeleteMediaResponse {
-  Media media = 1;                   // tombstone: state=deleting + final revision
+  Media media = 1;                   // tombstone: state=deleting + final revision + entry_ref (来自行上 entry_public_ref)
   bool replayed = 2;                 // true when served from a stored receipt or an already-deleting row
   MutationReceipt receipt = 3;       // operation = media_delete, target_kind = media (见 3.5)
 }
@@ -359,7 +386,7 @@ message DeleteMediaResponse {
 - **浏览器直传**：浏览器只向签名 URL PUT，不能自选 bucket/key 或携带内部 bearer。PUT 失败由客户端重新调用 PrepareUpload 或在有效期内重试。
 - **CompleteUpload**：按 owner、media_ref、upload_id 查询 `pending`；对 staging 对象执行 Head、大小/MIME/魔数/图片尺寸检查，成功后在同一事务内 `state = ready`、`revision += 1` 并安排缩略图。相同 mutation_id 和请求哈希重放返回原 ready 摘要（原 revision，`state = ready`）；状态已 ready 且 upload_id 相同则视为重复 Complete，返回当前摘要但不递增 revision。对象不存在、过期或校验失败不会变 ready。
 - **ListMedia/GetMedia**：只返回当前 owner 对指定 Entry 的 ready 或仍可见 pending 摘要，并携带当前 revision；`deleting` 不出现在普通列表（Get 对 `deleting` 返回 `MEDIA_NOT_FOUND`）。下载 URL 是读取时签发的短期 URL，服务端先再次检查 owner 和 Entry；同一状态下的多次读取返回同一 revision。
-- **DeleteMedia**：必须按 owner 查询，返回 tombstone 与 `MutationReceipt`（`operation = media_delete`、`target_kind = media`，完整契约见 §3.5）。事务内将 ready/pending 改为 deleting、revision + 1、写 cleanup queue、写回执并提交；worker 删除原图和缩略图，Delete 调用本身不等待对象存储完成。重复 Delete 与重放均不递增 revision。
+- **DeleteMedia**：必须按 owner 查询，返回 tombstone 与 `MutationReceipt`（`operation = media_delete`、`target_kind = media`、`entry_ref` 取 MediaObject 行的 `entry_public_ref` 快照，完整契约见 §3.5）。事务内将 ready/pending 改为 deleting、revision + 1、写 cleanup queue、写回执并提交；worker 删除原图和缩略图，Delete 调用本身不等待对象存储完成。重复 Delete 与重放均不递增 revision。
 
 ### 3.4 revision 语义
 
@@ -389,14 +416,14 @@ Media 删除与记录写入共用 `timeline_mutations`（§2.5），但有自己
 | `target_kind` | `media` |
 | `operation` | `media_delete` |
 | `media_ref` | 被删除对象的 `public_ref`；行被 cleanup 删除后仍保留 |
-| `entry_ref` | 所属 Entry 的 `public_ref`，便于审计与后续关联；不参与定位 |
+| `entry_ref` | **必填**：所属 Entry 的 `public_ref`，取自 MediaObject 行的 `entry_public_ref`（PrepareUpload 时写入的快照），用于审计关联与 tombstone；不参与定位，也不要求 Entry 行仍存在 |
 | `request_hash` | `owner + target_kind + operation + media_ref + expected_revision + upload_id（若提供）` 的 SHA-256 |
 | `result_revision` | 首次执行后对象的 `revision` |
 | `result_state` | `deleting` |
 | `result_snapshot` | 首次执行返回的 tombstone 完整摘要（§2.5 字段集），**必填** |
 | `created_at` | 首次执行的服务端时间 |
 
-唯一键 `(user_id, mutation_id)` 与记录回执共用；`media_ref` 不唯一，因为同一对象可以被不同 mutation_id 重复删除（第二次起走“已 deleting”幂等分支）。保留期为 30 天（可配置、有上限）或直到账号注销，且**与 MediaObject 行、原图对象、缩略图对象的寿命无关**：
+唯一键 `(user_id, mutation_id)` 与记录回执共用；`media_ref` 不唯一，因为同一对象可以被不同 mutation_id 重复删除（第二次起走“已 deleting”幂等分支）。Media 回执的 `entry_ref` 必填且来自 MediaObject 行的 `entry_public_ref` 快照，**不是**删除时回查 Entry：Entry 可能已被 purge 或与 Media 行同批清理，回查会让合法删除无法写回执。因此 tombstone 快照与回执均包含 `entry_ref`，重放时一并原样返回。保留期为 30 天（可配置、有上限）或直到账号注销，且**与 MediaObject 行、原图对象、缩略图对象的寿命无关**：
 
 - cleanup worker 只能删除对象和 MediaObject 行（或将其转为不可恢复的清理记录），**一律不写、不删 `timeline_mutations`**。
 - MediaObject 行被清理后，同一 mutation_id 的重放仍从回执返回原 tombstone 与 `result_revision`，不查询行、不访问 storage。
@@ -407,9 +434,9 @@ Media 删除与记录写入共用 `timeline_mutations`（§2.5），但有自己
 1. 只做无 DB 校验：`media_ref` 按 `^med_[0-9a-hjkmnp-tv-z]{26}$` 校验、`mutation_id` 非空且在字符集内；不合法 → `INVALID_REFERENCE` / `INVALID_ARGUMENT`。
 2. 按 `(user_id = current owner, mutation_id)` 查回执（**不先查 MediaObject**）。命中：`target_kind = media`、`operation = media_delete`、`media_ref` 与请求一致、`request_hash` 一致 → 返回 `result_snapshot` 解码的 tombstone + `result_revision` + `replayed = true`；**不校验 `expected_revision`、不写库、不访问 storage**，因此 cleanup 完成后重放仍然成功。任一项不一致 → `MUTATION_REPLAY_MISMATCH`。
 3. 回执未命中 → 按 `(public_ref = media_ref, user_id = owner)` 查 MediaObject：不存在 → `MEDIA_NOT_FOUND`（不区分“不存在”与“不属于你”），不区分“从未存在”和“已 cleanup 且回执过期”。
-4. 行已为 `deleting` → 幂等 tombstone：由当前行构造摘要（`revision` 不变、`replayed = true`），并为该 mutation_id 写入回执（无状态变更），使后续重放不再依赖该行。本步先于步骤 5 是有意的：一旦进入 `deleting`，就不存在可冲突的后续状态转移，用陈旧 `expected_revision` 重试也应得到幂等成功而不是冲突。
+4. 行已为 `deleting` → 幂等 tombstone：由当前行（含行上 `entry_public_ref`）构造摘要（`revision` 不变、`replayed = true`），并为该 mutation_id 写入回执（无状态变更，`entry_ref` 取行上快照），使后续重放不再依赖该行。本步先于步骤 5 是有意的：一旦进入 `deleting`，就不存在可冲突的后续状态转移，用陈旧 `expected_revision` 重试也应得到幂等成功而不是冲突。
 5. `expected_revision != 0` 且不等于当前 `revision` → `MEDIA_REVISION_CONFLICT`（`ABORTED`），无副作用、不写回执。
-6. 首次执行事务：`revision += 1`、`state = deleting`、写 cleanup queue、`INSERT` 回执（含 `result_revision` 与 tombstone 快照）→ commit；worker 异步删除对象。任一步失败整体回滚，回执行一并消失，客户端可用同一 mutation_id 重试。
+6. 首次执行事务：`revision += 1`、`state = deleting`、写 cleanup queue、`INSERT` 回执（含 `result_revision`、`media_ref`、所属 `entry_ref` 与 tombstone 快照）→ commit；worker 异步删除对象。任一步失败整体回滚，回执行一并消失，客户端可用同一 mutation_id 重试。
 
 实现映射：上述步骤 2–3 落库时就是 §2.5 的 `INSERT ... ON CONFLICT (user_id, mutation_id) DO NOTHING`——冲突的插入不修改任何行，随后读取既有回执返回；“回执先于对象可见性”的语义不变，也不会在并发首写时把行当成“已存在对象”误判。
 
@@ -562,9 +589,9 @@ MCP BFF 只调用 Timeline BFF 内部服务接口，不绕过 owner checks；浏
 ### 9.1 数据迁移
 
 1. 先部署只读兼容代码和 cleanup worker，确认现有 `timeline_entries`、`timeline_media_objects`、`timeline_cleanup_objects` 可安全读取。
-2. 增量增加 MediaObject 状态、`revision`、`public_ref`、文件元数据、upload reservation、过期时间、尺寸和 request hash 字段；默认值兼容现有空字段。为 `(owner, upload_id)` 建唯一索引时先清理/隔离重复非空值，不能把旧空值误视为同一上传。
+2. 增量增加 MediaObject 状态、`revision`、`public_ref`、`entry_public_ref`、文件元数据、upload reservation、过期时间、尺寸和 request hash 字段；默认值兼容现有空字段；`entry_public_ref` 对存量行按 `entry_id` 关联回填（同一迁移窗口内完成，回填不可解析则中止发布，不能留空值）。为 `(owner, upload_id)` 建唯一索引时先清理/隔离重复非空值，不能把旧空值误视为同一上传。
 3. 为 `timeline_entries` 增加 `public_ref` 并回填历史行：在单个迁移事务内生成 ref、校对 `UNIQUE`，回填失败（碰撞）则中止发布；回填完成且代码已能两种读取后再置 `NOT NULL`。
-4. 建 `timeline_mutations`：`id`、`user_id`、`mutation_id`、`target_kind`、`operation`、`request_hash`、`entry_ref`、`media_ref`、`result_revision`、`result_state`、`result_snapshot NOT NULL`、`snapshot_version`、`created_at`；唯一索引 `(user_id, mutation_id)`；两条 `CHECK`（目标引用互斥、`target_kind` 与 `operation` 组合）；应用角色只授 `INSERT`/`SELECT`（无 `UPDATE`/`DELETE`），保留期清理与注销用单独角色。表建好后同一迁移窗口内为 Media 删除接入 `target_kind = media` 的回执写入，不另建表。
+4. 建 `timeline_mutations`：`id`、`user_id`、`mutation_id`、`target_kind`、`operation`、`request_hash`、`entry_ref`、`media_ref`、`result_revision`、`result_state`、`result_snapshot NOT NULL`、`snapshot_version`、`created_at`；唯一索引 `(user_id, mutation_id)`；两个**显式双分支** `CHECK`（目标引用：entry 只带 `entry_ref`，media 同时带 `media_ref` 与 `entry_ref`；kind/operation：entry 只能五个记录操作，media 必须精确为 `media_delete`）；应用角色只授 `INSERT`/`SELECT`（无 `UPDATE`/`DELETE`），保留期清理与注销用单独角色。建表时用真实的非法组合集验证 CHECK 真的拒绝（见 §10），不能只看约束文本。表建好后同一迁移窗口内为 Media 删除接入 `target_kind = media` 的回执写入，不另建表。
 5. 将 Create 的行内 `mutation_id` 去重迁到 `timeline_mutations`（§2.5）。迁移窗口内 Create 先查回执表、再回退旧列读取；回执写入稳定后保留旧列作为只写备份，确认无旧版本服务后删除；迁移期间不回填历史 `timeline_entries.mutation_id` 为回执行（旧行没有 `result_snapshot`，无法构造不可变重放结果）。
 6. 增加 cleanup queue 的 opaque key 约束、attempt/lease 字段和必要索引；不把 owner 或 Entry 字段加入队列。cleanup worker 不获得 `timeline_mutations` 的任何写权限。
 7. 部署 MediaService 和 BFF 路由；先关闭 MCP media scope，完成对象存储 staging prefix 的生命周期规则后再允许 PrepareUpload。
@@ -601,7 +628,8 @@ MCP BFF 只调用 Timeline BFF 内部服务接口，不绕过 owner checks；浏
 | 生命周期 | pending 过期、ready 删除、重复删除、Entry trash/restore/purge、缩略图失败 | 状态转换符合状态机；worker 可重试，删除幂等 |
 | 引用映射 | `entry_ref` 格式非法、UUID 充当 ref、两者同时不一致、他人 ref、已 purge 的 ref 重试、旧数据回填后读取 | 格式错 `INVALID_REFERENCE` 且无 DB 查询；他人/不存在统一 NOT_FOUND；旧行回填后 ref 稳定且唯一 |
 | 回执幂等 | create/update/trash/restore/purge 各自超时重试；同 mutation_id 不同 payload；两账号使用相同 mutation_id；并发双写；purge 后重试；回执过期后重试；`DeleteEntry(permanent=true)`；首次响应后行又被修改或物理删行，再用同一 mutation_id 重放 | 重放逐字段等于首次响应（取自 `result_snapshot`，不重读行）且 revision 不递增；payload 不一致返回 `MUTATION_REPLAY_MISMATCH`；并发只产生一次副作用；purge 重放返回回执而不是 NOT_FOUND；create 重放不新建行且 `operation = create`；`permanent=true` 返回 `INVALID_ARGUMENT` 且无删除 |
-| Media 删除回执 | DeleteMedia 成功后 worker 删除对象并清理 MediaObject 行，再用同一 mutation_id 重放；回执过期后的新 mutation_id；同 mutation_id 不同 expected_revision/media_ref；回执 INSERT 与状态变更的失败注入 | cleanup 后重放仍返回逐字段相等的 tombstone 与 `result_revision`、`replayed = true`，不访问行与 storage；新 mutation_id 且行已清理返回 `MEDIA_NOT_FOUND`；摘要不符返回 `MUTATION_REPLAY_MISMATCH`；任一写入失败则状态与回执同时回滚，无孤立回执或孤立状态 |
+| Media 删除回执 | DeleteMedia 成功后 worker 删除对象并清理 MediaObject 行，再用同一 mutation_id 重放；回执过期后的新 mutation_id；同 mutation_id 不同 expected_revision/media_ref；回执 INSERT 与状态变更的失败注入；Entry 先被 purge 再删附件 | cleanup 后重放仍返回逐字段相等的 tombstone（含所属 `entry_ref`）与 `result_revision`、`replayed = true`，不访问行与 storage；新 mutation_id 且行已清理返回 `MEDIA_NOT_FOUND`；摘要不符返回 `MUTATION_REPLAY_MISMATCH`；Entry 已 purge 时仍能取 `entry_public_ref` 写回执；任一写入失败则状态与回执同时回滚，无孤立回执或孤立状态 |
+| 回执表约束 | 直接用 SQL 尝试 7 类非法组合：`media + 'garbage'`、`media + 'unknown'`、`media + 'create'`、`media + ''`、`entry + 'media_delete'`、`entry` 带 `media_ref`、`media` 缺 `entry_ref` 或 `media_ref`（另加 `target_kind` 为其它值） | 每条 INSERT 均被 CHECK 拒绝并报错，事务回滚，无回执、无业务状态变更；合法组合（entry 五个操作、media + `media_delete`）均可写入；约束为显式双分支，换成否定式写法时测试必须失败 |
 | 注销 | 注销时在途上传、已 ready 媒体、队列重试、账号重新注册 | 新账号不能访问旧数据；cleanup 不依赖旧 user ID |
 | 版本并发 | stale expected_revision、同 mutation_id 不同 payload、purge 竞态 | 返回 REVISION_CONFLICT/REPLAY_MISMATCH，无静默覆盖；冲突不写回执 |
 | MCP 协议 | Streamable HTTP、来源白名单、Bearer 位置、分页 token、工具 schema、SSE 错误 | 只接受定义的传输和字段；无 cookie/query token |
@@ -610,13 +638,13 @@ MCP BFF 只调用 Timeline BFF 内部服务接口，不绕过 owner checks；浏
 | 兼容 | 老 Entry 客户端读写、迁移前空附件字段、服务降级、旧 `id` 请求 | 文字记录闭环不回归；新列可空且可回滚停写；兼容窗口内 `id` 只对浏览器 BFF 生效 |
 | 运行 | storage 404/5xx、DB 事务失败、queue worker 崩溃/重复执行 | 对象不存在视为成功；可重试；无孤儿 key 的不可控增长 |
 
-必须至少包含真实数据库/内存 storage 的服务测试、BFF 认证与错误映射测试、MCP Streamable HTTP 合同测试，以及浏览器直传的端到端测试。跨账号、注销、Complete 重放、cleanup 失败重试、MCP 撤销/版本失效、**Media revision 一致性**、**update/trash/restore/purge/create 回执重放与快照不可变**、**Media 删除回执在 cleanup 后仍可重放**和**ref 映射越权**是发布阻断项。
+必须至少包含真实数据库/内存 storage 的服务测试、BFF 认证与错误映射测试、MCP Streamable HTTP 合同测试，以及浏览器直传的端到端测试。跨账号、注销、Complete 重放、cleanup 失败重试、MCP 撤销/版本失效、**Media revision 一致性**、**update/trash/restore/purge/create 回执重放与快照不可变**、**Media 删除回执在 cleanup 后仍可重放（含所属 entry_ref）**、**回执表非法组合被拒**和**ref 映射越权**是发布阻断项。
 
 ## 11. 后续实现交付边界
 
-附件实现票应交付：migration（含 `revision`、`public_ref` 与唯一索引）、storage adapter 接入、MediaService proto 生成物、owner checks、Prepare/Complete/List/Get/Delete、**revision（§3.4）与删除回执（§3.5，写入共用表）**、缩略图和 cleanup worker（不读写回执）、错误映射及服务测试；不得自行添加 tripmap 语义或 MCP 工具。
+附件实现票应交付：migration（含 `revision`、`public_ref`、`entry_public_ref` 与唯一索引）、storage adapter 接入、MediaService proto 生成物、owner checks、Prepare/Complete/List/Get/Delete、**revision（§3.4）与删除回执（§3.5，写入共用表）**、缩略图和 cleanup worker（不读写回执）、错误映射及服务测试；不得自行添加 tripmap 语义或 MCP 工具。
 
-记录服务补票（MCP 前置）应交付：`timeline_mutations` 表与必需迁移（含 `target_kind`/`media_ref`/`NOT NULL` 快照/`CHECK`/只插不改权限）、把 Create 从行内 mutation_id 迁到回执表、为 update/trash/restore/purge 实现 §2.5 判定顺序与响应回执、为 `timeline_entries` 增加 `public_ref` 与 ref 解析入口、补齐 §10 的回执与引用测试；本票必须先建表，附件实现票才能写入 Media 删除回执（依赖顺序：记录服务补票 → 附件票 / MCP 票）。
+记录服务补票（MCP 前置）应交付：`timeline_mutations` 表与必需迁移（含 `target_kind`/`media_ref`/`entry_ref` 双分支 CHECK/`NOT NULL` 快照/只插不改权限）、把 Create 从行内 mutation_id 迁到回执表、为 update/trash/restore/purge 实现 §2.5 判定顺序与响应回执、为 `timeline_entries` 增加 `public_ref` 与 ref 解析入口、补齐 §10 的回执与引用测试；本票必须先建表，附件实现票才能写入 Media 删除回执（依赖顺序：记录服务补票 → 附件票 / MCP 票）。
 
 MCP 实现票应交付：Streamable HTTP 路由、来源白名单、Bearer/audience/scope 校验、普通账号映射、令牌撤销和 auth_version 检查、限流、审计、七个 v1 工具、`entry_ref` 输入 schema 与出站脱敏（§6.2.1）、分页和 revision/mutation 错误映射；附件工具必须另有 scope 和评审。
 
