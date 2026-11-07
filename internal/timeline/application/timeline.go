@@ -286,7 +286,17 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 		return nil, err
 	}
 	hash := requestHash(uid, "update", req.Entry.EntryRef, req.Entry.Id, req.ExpectedRevision, req.Entry)
-	old, err := s.priorReceipt(ctx, uid, req.MutationId, "update", hash)
+	tx, err := s.db.Tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	old, err := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "update", hash)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +307,7 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 		}
 		return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
 	}
-	q := s.db.Entry.Query().Where(entry.UserID(uid), entry.DeletedAtIsNil())
+	q := tx.Entry.Query().Where(entry.UserID(uid), entry.DeletedAtIsNil())
 	if req.Entry.EntryRef != "" {
 		q = q.Where(entry.PublicRefEQ(req.Entry.EntryRef))
 	} else {
@@ -318,10 +328,14 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 	if err != nil {
 		return nil, err
 	}
-	r, err := s.saveReceipt(ctx, uid, req.MutationId, "update", hash, row.PublicRef, row.Revision, "active", snap)
+	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "update", hash, row.PublicRef, row.Revision, "active", snap)
 	if err != nil {
 		return nil, err
 	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
 	return &timelinev1.EntryResponse{Entry: mapEntry(row), Receipt: receiptResponse(r, false)}, nil
 }
 func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.DeleteEntryRequest) (*timelinev1.DeleteEntryResponse, error) {
@@ -336,7 +350,17 @@ func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.Delet
 		return nil, status.Error(codes.InvalidArgument, "permanent deletion is not supported; use PurgeEntry")
 	}
 	hash := requestHash(uid, "trash", req.EntryRef, req.Id, req.ExpectedRevision, req.Permanent)
-	old, err := s.priorReceipt(ctx, uid, req.MutationId, "trash", hash)
+	tx, err := s.db.Tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	old, err := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "trash", hash)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +371,7 @@ func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.Delet
 		}
 		return &timelinev1.DeleteEntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
 	}
-	q := s.db.Entry.Query().Where(entry.UserID(uid))
+	q := tx.Entry.Query().Where(entry.UserID(uid))
 	if req.EntryRef != "" {
 		q = q.Where(entry.PublicRefEQ(req.EntryRef))
 	} else {
@@ -368,10 +392,14 @@ func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.Delet
 	if err != nil {
 		return nil, err
 	}
-	r, err := s.saveReceipt(ctx, uid, req.MutationId, "trash", hash, row.PublicRef, row.Revision, "trashed", snap)
+	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "trash", hash, row.PublicRef, row.Revision, "trashed", snap)
 	if err != nil {
 		return nil, err
 	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
 	return &timelinev1.DeleteEntryResponse{Entry: mapEntry(row), Receipt: receiptResponse(r, false)}, nil
 }
 func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.RestoreEntryRequest) (*timelinev1.EntryResponse, error) {
@@ -383,7 +411,17 @@ func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.Rest
 		return nil, err
 	}
 	hash := requestHash(uid, "restore", req.EntryRef, req.Id, req.ExpectedRevision, nil)
-	old, err := s.priorReceipt(ctx, uid, req.MutationId, "restore", hash)
+	tx, err := s.db.Tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	old, err := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "restore", hash)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +432,7 @@ func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.Rest
 		}
 		return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
 	}
-	q := s.db.Entry.Query().Where(entry.UserID(uid))
+	q := tx.Entry.Query().Where(entry.UserID(uid))
 	if req.EntryRef != "" {
 		q = q.Where(entry.PublicRefEQ(req.EntryRef))
 	} else {
@@ -417,10 +455,14 @@ func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.Rest
 	if err != nil {
 		return nil, err
 	}
-	r, err := s.saveReceipt(ctx, uid, req.MutationId, "restore", hash, row.PublicRef, row.Revision, "active", snap)
+	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "restore", hash, row.PublicRef, row.Revision, "active", snap)
 	if err != nil {
 		return nil, err
 	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
 	return &timelinev1.EntryResponse{Entry: mapEntry(row), Receipt: receiptResponse(r, false)}, nil
 }
 func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeEntryRequest) (*timelinev1.PurgeEntryResponse, error) {
@@ -432,14 +474,24 @@ func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeE
 		return nil, err
 	}
 	hash := requestHash(uid, "purge", req.EntryRef, req.Id, req.ExpectedRevision, nil)
-	old, err := s.priorReceipt(ctx, uid, req.MutationId, "purge", hash)
+	tx, err := s.db.Tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	old, err := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "purge", hash)
 	if err != nil {
 		return nil, err
 	}
 	if old != nil {
 		return &timelinev1.PurgeEntryResponse{Receipt: receiptResponse(old, true)}, nil
 	}
-	q := s.db.Entry.Query().Where(entry.UserID(uid))
+	q := tx.Entry.Query().Where(entry.UserID(uid))
 	if req.EntryRef != "" {
 		q = q.Where(entry.PublicRefEQ(req.EntryRef))
 	} else {
@@ -456,13 +508,17 @@ func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeE
 	if err != nil {
 		return nil, err
 	}
-	if _, err = s.db.Entry.Delete().Where(entry.ID(row.ID), entry.UserID(uid)).Exec(ctx); err != nil {
+	if _, err = tx.Entry.Delete().Where(entry.ID(row.ID), entry.UserID(uid)).Exec(ctx); err != nil {
 		return nil, err
 	}
-	r, err := s.saveReceipt(ctx, uid, req.MutationId, "purge", hash, row.PublicRef, row.Revision, "purged", snap)
+	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "purge", hash, row.PublicRef, row.Revision, "purged", snap)
 	if err != nil {
 		return nil, err
 	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
 	return &timelinev1.PurgeEntryResponse{Receipt: receiptResponse(r, false)}, nil
 }
 
