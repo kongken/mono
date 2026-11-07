@@ -16,6 +16,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/blobstore"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
+	"github.com/kongken/mono/internal/tripmap/ent/mediadeletereceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
 	"github.com/kongken/mono/internal/tripmap/regions"
@@ -324,35 +325,70 @@ func (s *MediaService) ReadMedia(ctx context.Context, req *connect.Request[tripm
 	return res, nil
 }
 
+func mediaDeleteReceipt(r *ent.MediaDeleteReceipt, replayed bool) *tripmapv1.MediaMutationReceipt {
+	if r == nil {
+		return nil
+	}
+	return &tripmapv1.MediaMutationReceipt{MutationId: r.MutationID, MediaId: r.MediaID, ResultState: r.ResultState, Replayed: replayed, RecordedAt: timestamppb.New(r.CreatedAt)}
+}
+
 func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tripmapv1.DeleteMediaRequest]) (*connect.Response[tripmapv1.DeleteMediaResponse], error) {
 	st, p, err := mediaStore(ctx, s.src)
 	if err != nil {
 		return nil, err
 	}
+	mutationID := req.Msg.MutationId
+	legacyCall := mutationID == ""
+	if legacyCall {
+		mutationID = uuid.NewString()
+	}
+	if len(mutationID) < 8 || len(mutationID) > 128 {
+		return nil, invalid("mutation_id must be 8-128 characters")
+	}
+	payload, _ := proto.MarshalOptions{Deterministic: true}.Marshal(&tripmapv1.DeleteMediaRequest{Id: req.Msg.Id, MutationId: mutationID})
+	digest := sha256.Sum256(payload)
+	hash := hex.EncodeToString(digest[:])
 	tx, err := mediaTx(ctx, st, p.UserID)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	prior, err := tx.MediaDeleteReceipt.Query().Where(mediadeletereceipt.UserID(p.UserID), mediadeletereceipt.MutationID(mutationID)).Only(ctx)
+	if err == nil {
+		if prior.RequestHash != hash {
+			return nil, connect.NewError(connect.CodeAlreadyExists, errors.New("mutation_id was already used for another request"))
+		}
+		return connect.NewResponse(&tripmapv1.DeleteMediaResponse{Receipt: mediaDeleteReceipt(prior, true)}), nil
+	}
+	if !ent.IsNotFound(err) {
+		return nil, internalError(err)
+	}
 	m, err := tx.MediaObject.Query().Where(mediaobject.UserID(p.UserID), mediaobject.ID(req.Msg.Id)).Only(ctx)
 	if ent.IsNotFound(err) {
-		return connect.NewResponse(&tripmapv1.DeleteMediaResponse{}), nil
+		if legacyCall {
+			return connect.NewResponse(&tripmapv1.DeleteMediaResponse{}), nil
+		}
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("media not found"))
 	}
 	if err != nil {
 		return nil, internalError(err)
 	}
-	if err = tx.MediaObject.UpdateOne(m).SetStatus(mediaobject.StatusDeleting).Exec(ctx); err != nil {
+	if m.Status != mediaobject.StatusDeleting {
+		if err = tx.MediaObject.UpdateOne(m).SetStatus(mediaobject.StatusDeleting).Exec(ctx); err != nil {
+			return nil, internalError(err)
+		}
+	}
+	r, err := tx.MediaDeleteReceipt.Create().SetUserID(p.UserID).SetMutationID(mutationID).SetMediaID(m.ID).SetRequestHash(hash).SetResultState("deleting").SetExpiresAt(time.Now().UTC().Add(30 * 24 * time.Hour)).Save(ctx)
+	if err != nil {
 		return nil, internalError(err)
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, internalError(err)
 	}
-	// Access is already revoked, even if S3 is unavailable. Retain metadata for
-	// the maintenance job and explicit retry until every key is removed.
 	if err = DeleteMediaKeys(ctx, st, m); err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("access revoked; object cleanup pending, retry deletion"))
 	}
-	return connect.NewResponse(&tripmapv1.DeleteMediaResponse{}), nil
+	return connect.NewResponse(&tripmapv1.DeleteMediaResponse{Receipt: mediaDeleteReceipt(r, false)}), nil
 }
 
 // DeleteMediaKeys removes every stored key for a media row.

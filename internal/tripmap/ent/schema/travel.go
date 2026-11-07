@@ -176,6 +176,27 @@ func (MediaObject) Indexes() []ent.Index {
 	return []ent.Index{index.Fields("user_id", "region_code"), index.Fields("user_id", "trip_id"), index.Fields("user_id", "upload_id").Unique().Annotations(entsql.IndexWhere("upload_id <> ''"))}
 }
 
+type MediaDeleteReceipt struct{ ent.Schema }
+
+func (MediaDeleteReceipt) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "media_delete_receipts"}}
+}
+func (MediaDeleteReceipt) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(),
+		field.String("user_id").NotEmpty().Immutable(),
+		field.String("mutation_id").NotEmpty().Immutable(),
+		field.String("media_id").NotEmpty().Immutable(),
+		field.String("request_hash").NotEmpty().Immutable(),
+		field.String("result_state").NotEmpty().Immutable(),
+		field.Time("created_at").Default(now).Immutable(),
+		field.Time("expires_at").Immutable(),
+	}
+}
+func (MediaDeleteReceipt) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("user_id", "mutation_id").Unique(), index.Fields("expires_at")}
+}
+
 // Upload cleanup outlives the owning account: a signed PUT can still finish
 // after account deletion. No personal information is retained here.
 type MediaCleanup struct{ ent.Schema }

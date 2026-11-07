@@ -69,9 +69,13 @@ func (h *Handler) ReadMedia(ctx context.Context, req *connect.Request[bfftripmap
 }
 
 func (h *Handler) DeleteMedia(ctx context.Context, req *connect.Request[bfftripmapv1.DeleteMediaRequest]) (*connect.Response[bfftripmapv1.DeleteMediaResponse], error) {
-	_, err := h.client.DeleteMedia(h.tripmap(ctx, req), &tripmapv1.DeleteMediaRequest{Id: req.Msg.GetId()})
+	out, err := h.client.DeleteMedia(h.tripmap(ctx, req), &tripmapv1.DeleteMediaRequest{Id: req.Msg.GetId(), MutationId: req.Msg.GetMutationId()})
 	if err != nil {
 		return nil, upstream.ToConnect("tripmap", err)
 	}
-	return connect.NewResponse(&bfftripmapv1.DeleteMediaResponse{}), nil
+	var receipt *bfftripmapv1.MediaMutationReceipt
+	if r := out.GetReceipt(); r != nil {
+		receipt = &bfftripmapv1.MediaMutationReceipt{MutationId: r.GetMutationId(), MediaId: r.GetMediaId(), ResultState: r.GetResultState(), Replayed: r.GetReplayed(), RecordedAt: r.GetRecordedAt()}
+	}
+	return connect.NewResponse(&bfftripmapv1.DeleteMediaResponse{Receipt: receipt}), nil
 }
