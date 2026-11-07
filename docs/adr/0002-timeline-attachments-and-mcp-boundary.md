@@ -81,7 +81,7 @@ MediaObject --(opaque object key)--> CleanupObject 0..N（幂等合并）
 | `thumbnail_key` | 内部 opaque key；仅图片 ready 后生成；生成失败不阻塞原图 ready，但摘要标记无缩略图并进入重试 |
 | `upload_id` | 客户端生成的幂等键，最多 128 个 ASCII 字符；只在服务端内部保存摘要或受保护值，不回显原值 |
 | `request_hash` | 对规范化的 owner、entry、文件名、声明 MIME、大小、尺寸限制和 upload_id 计算的服务端哈希；重放时必须一致 |
-| `upload_expires_at` | pending 直传凭证过期时间，默认 15 分钟，最长 1 小时；过期后 Complete 返回 `UPLOAD_EXPIRED` |
+| `upload_expires_at` | pending 直传凭证过期时间，默认 15 分钟，最长 1 小时；过期后 Complete 返回 `UPLOAD_EXPIRED`。若后台已先把 pending 转为 deleting（revision 已递增），Complete 同样固定返回 `UPLOAD_EXPIRED`（details 带 `state=deleting`、`current_revision`），不返回 `REVISION_CONFLICT`（3.4） |
 | `created_at` / `updated_at` | 服务端时间戳；不接受客户端覆盖 |
 | `deleted_at` | deleting 完成或数据库关系删除的内部时间；不向普通用户返回 |
 
@@ -104,7 +104,7 @@ MediaObject --(opaque object key)--> CleanupObject 0..N（幂等合并）
 ```
 
 - `pending → ready` 只能由 CompleteUpload 在同一 owner 和 upload_id 的预留记录上执行。
-- `pending → deleting` 由过期、拒绝、取消或账号删除触发。
+- `pending → deleting` 由过期、拒绝、取消或账号删除触发；该行保留 `state=deleting` 与递增后的 revision 供错误判定与审计，此处到达的 Complete 固定返回 `UPLOAD_EXPIRED`（3.4）。
 - `ready → deleting` 由用户删除、Entry purge 或账号注销触发。
 - `deleting` 只允许 cleanup worker 重试；客户端重复 Delete 返回原删除结果或 `NOT_FOUND` 的统一安全结果。
 - cleanup 成功后删除对象和缩略图（若有），再标记 queue done；对象不存在视为成功。数据库状态更新失败可安全重试。
@@ -200,7 +200,7 @@ message MediaMutationResult {
 
 - **PrepareUpload**：校验 Entry 属于当前 owner、文件名/MIME/大小白名单和账号配额；在数据库事务内插入 pending MediaObject 与 cleanup reservation，再由 storage 生成 staging key 和短期 PUT URL。相同 `(owner, upload_id)` 且规范请求哈希相同则返回原 pending 预留；哈希不同返回 `IDEMPOTENCY_KEY_REUSED`。
 - **浏览器直传**：浏览器只向签名 URL PUT，不能自选 bucket/key 或携带内部 bearer。PUT 失败由客户端重新调用 PrepareUpload 或在有效期内重试。
-- **CompleteUpload**：按 owner、media_ref、upload_id 查询对象，按 3.4 的优先级先查未过期回执（命中即返回回执结果并置 `replayed=true`）；无有效回执才校验非零 `expected_revision` 等于当前 revision（不匹配返回 `REVISION_CONFLICT` 并带 `current_revision`），再对 staging 对象执行 Head、大小/MIME/魔数/图片尺寸检查，成功后原子更新 ready、`revision+1` 并安排缩略图。已 ready 且 `expected_revision` 等于当前 revision 时返回当前摘要作为幂等成功（`replayed=false`），不改变状态。对象不存在、过期或校验失败不会变 ready。
+- **CompleteUpload**：按 owner、media_ref、upload_id 查询对象，按 3.4 的优先级先查未过期回执（命中即返回回执结果并置 `replayed=true`）；无有效回执时先按状态分支（对象不存在 → `MEDIA_NOT_FOUND`；已 `deleting` → 固定 `UPLOAD_EXPIRED`，均先于 revision 比较），只有 pending/ready 才校验非零 `expected_revision` 等于当前 revision（不匹配返回 `REVISION_CONFLICT` 并带 `current_revision`）。pending 通过后再检查 `upload_expires_at`、对 staging 对象执行 Head、大小/MIME/魔数/图片尺寸检查，成功后原子更新 ready、`revision+1` 并安排缩略图。已 ready 且 `expected_revision` 等于当前 revision 时返回当前摘要作为幂等成功（`replayed=false`），不改变状态。对象不存在、过期或校验失败不会变 ready。
 - **ListMedia/GetMedia**：只返回当前 owner 对指定 Entry 的 ready 或仍可见 pending 摘要；deleting 不出现在普通列表。下载 URL 是读取时签发的短期 URL，服务端先再次检查 owner 和 Entry。
 - **DeleteMedia**：必须按 owner 查询。按 3.4 的优先级先查未过期回执；无有效回执才校验非零 `expected_revision` 并执行转移：事务内将 ready/pending 改为 deleting、递增 `revision`、写 cleanup queue 和 mutation 回执，提交后返回 `MediaMutationResult{media_ref, revision, state=deleting, replayed}`；worker 删除原图和缩略图，Delete 调用本身不等待对象存储完成。相同 mutation_id 与相同请求摘要的重放返回回执里的 revision/state 并置 `replayed=true`；无有效回执但对象已 `deleting` 且 `expected_revision` 等于当前 revision 时，不改变状态、不再入队、不递增 revision，返回当前 revision/state（`replayed=false`）；stale revision 返回 `REVISION_CONFLICT`（附 `current_revision`），不会重复入队。
 
@@ -210,8 +210,13 @@ message MediaMutationResult {
 - `expected_revision` 在 v1 变更方法（Complete/Delete）中必填且必须 > 0；缺省或 0 返回 `REVISION_REQUIRED`（`INVALID_ARGUMENT`），避免与历史“0 表示不校验”的浏览器记录语义混淆。
 - 冲突响应在 error details 里带 `current_revision` 和当前 `state`；两者只对当前 owner 有效，属于公开信息，不携带内部 ID 或对象 key。
 - 重放结果只包含回执记录的结果元数据：`media_ref`、该次变更产生的 `revision`、`state`、`replayed=true`、回显的 `mutation_id`。不在回执里保存文件内容或历史摘要；需要当前字段的客户端用 `GetMedia`/`ListMedia` 重新读取（回执可能早于后续变更，返回历史快照反而会误导客户端）。
-- **执行优先级（Complete/Delete 统一，终止歧义）**：① 先按 `(owner, media_ref, operation, mutation_id)` 查未过期回执；命中且请求摘要一致即原样返回回执结果（`replayed=true`），不再比较当前 revision；摘要不同返回 `MUTATION_REPLAY_MISMATCH`。② 无有效回执才校验 `expected_revision` 与当前 revision，不匹配返回 `REVISION_CONFLICT`（error details 带 `current_revision`、`state`），不产生任何副作用。③ 通过后才执行转移、递增 revision，并在同一事务插入回执。
-- 回执窗口 24 小时（与 usersrv `auth_operation_receipts` 的窗口一致）。过期后同一 mutation_id 视为新请求，完全按 ② 判定：Complete 遇到已 ready 且 `expected_revision` 为旧值（通常 1）→ `REVISION_CONFLICT`；只有携带当前 revision（2）时才返回当前 ready 摘要且不改变状态；Delete 同理。因此过期回放不会改状态、不会重复入队、不会产生第二次副作用。
+- **执行优先级（Complete/Delete 统一，终止歧义）**：① 先按 `(owner, media_ref, operation, mutation_id)` 查未过期回执；命中且请求摘要一致即原样返回回执结果（`replayed=true`），不再比较当前 revision；摘要不同返回 `MUTATION_REPLAY_MISMATCH`。② 无有效回执则按 owner+media_ref 加载对象并先按当前状态分支（见下一条 Complete 错误优先级），只有状态允许本次操作时才校验 `expected_revision` 与当前 revision，不匹配返回 `REVISION_CONFLICT`（error details 带 `current_revision`、`state`），不产生任何副作用。③ 通过后才执行转移、递增 revision，并在同一事务插入回执。
+- **Complete 的状态与错误优先级（先于 revision 比较）**：
+  - 对象不存在、不属于当前 owner，或已被 worker 物理清除 → `MEDIA_NOT_FOUND`。
+  - 对象存在且 `state=deleting`（后台过期、校验失败、用户删除或 Entry purge 触发）→ 固定 `UPLOAD_EXPIRED`（`FAILED_PRECONDITION`），details 带 `state=deleting` 与 `current_revision`，`retryable=false`，**不**做 revision 比较，也不写客户端回执；客户端据此区分“上传已失效”与“并发冲突”。
+  - `state=ready` → 先比较 `expected_revision`：相等返回当前摘要（`replayed=false`）且不改状态；不等返回 `REVISION_CONFLICT`。
+  - `state=pending` → 先比较 `expected_revision`：不等返回 `REVISION_CONFLICT`；相等则检查 `upload_expires_at`：已过期 → 同事务转 deleting、递增 revision、写后台转移记录，返回 `UPLOAD_EXPIRED`（details 带 `state=deleting`、`current_revision`），不写客户端回执。未过期才做 staging Head/大小/MIME/魔数/尺寸校验；staging 缺失 → `UPLOAD_NOT_FOUND`，校验不符 → `UPLOAD_CONTENT_MISMATCH`，两种失败同样把 pending 转 deleting、递增 revision 并写后台转移记录，响应 details 带 `state=deleting`、`current_revision`。
+- 回执窗口 24 小时（与 usersrv `auth_operation_receipts` 的窗口一致）。过期后同一 mutation_id 视为新请求，完全按 ② 判定（含先按状态分支）：对象已 deleting → `UPLOAD_EXPIRED`；已 ready 且 `expected_revision` 为旧值（通常 1）→ `REVISION_CONFLICT`，只有携带当前 revision（2）时才返回当前 ready 摘要且不改变状态；Delete 同理。因此过期回放不会改状态、不会重复入队、不会产生第二次副作用。
 - 回执只覆盖客户端发起、带 mutation_id 的 Complete/Delete。后台转移（pending 过期、校验失败、Entry purge、账号注销、worker cleanup 重试）不写 `timeline_media_mutation_receipts`、不生成客户端回执，也不进入 24 小时窗口；它们用条件状态更新（`UPDATE ... WHERE state IN (...) AND revision = ?`）保证单次转移，并写 `actor=system|worker`、`reason`、`from_state`、`to_state`、`revision` 的状态转移记录用于审计与排障。worker 对 `deleting` 的重试只重试对象存储删除，不改变状态机 revision。
 - 回执与状态变更必须在同一数据库事务内提交；唯一约束冲突时回滚整个事务并重读回执，因此不存在“对象已变 deleting 但没有回执”的窗口。
 
@@ -240,13 +245,13 @@ KON-99 已接受实现对 update/trash/restore/purge 没有持久幂等（见 1.
 | `ACCOUNT_DISABLED` | `PERMISSION_DENIED` | 账号不可用 |
 | `AUTH_VERSION_STALE` | `UNAUTHENTICATED` | 会话/令牌版本已失效 |
 | `ENTRY_NOT_FOUND` | `NOT_FOUND` | Entry 不属于当前 owner 或不存在；统一响应避免枚举 |
-| `MEDIA_NOT_FOUND` | `NOT_FOUND` | Media 不属于当前 owner 或不存在 |
+| `MEDIA_NOT_FOUND` | `NOT_FOUND` | Media 不属于当前 owner、不存在，或已被 worker 物理清除 |
 | `INVALID_FILENAME` / `INVALID_CONTENT_TYPE` / `SIZE_LIMIT_EXCEEDED` | `INVALID_ARGUMENT` | 元数据或限制失败 |
 | `QUOTA_EXCEEDED` | `RESOURCE_EXHAUSTED` | 账号或 Entry 配额已满 |
 | `IDEMPOTENCY_KEY_REUSED` | `ALREADY_EXISTS` | upload_id/mutation_id 绑定了不同请求 |
-| `UPLOAD_EXPIRED` | `FAILED_PRECONDITION` | 预签名上传已过期 |
-| `UPLOAD_NOT_FOUND` | `FAILED_PRECONDITION` | staging 对象不存在 |
-| `UPLOAD_CONTENT_MISMATCH` | `INVALID_ARGUMENT` | 实际对象与声明不符 |
+| `UPLOAD_EXPIRED` | `FAILED_PRECONDITION` | 预签名上传已过期，或该 pending 已被后台/删除流程转为 `deleting`；details 带 `state=deleting` 与 `current_revision`，优先于 revision 冲突 |
+| `UPLOAD_NOT_FOUND` | `FAILED_PRECONDITION` | pending 仍有效但 staging 对象不存在；同一转移会把 pending 转 `deleting` |
+| `UPLOAD_CONTENT_MISMATCH` | `INVALID_ARGUMENT` | 实际对象与声明不符；同一转移会把 pending 转 `deleting`，details 带 `state=deleting`、`current_revision` |
 | `REVISION_CONFLICT` | `ABORTED` | expected_revision 不匹配；details 带 `current_revision` 与当前 state |
 | `REVISION_REQUIRED` | `INVALID_ARGUMENT` | v1 变更/删除未提供非零 expected_revision |
 | `MUTATION_REPLAY_MISMATCH` | `ALREADY_EXISTS` | mutation_id 的请求摘要/目标对象不同 |
@@ -409,13 +414,13 @@ MCP BFF 只调用 Timeline BFF 内部服务接口，不绕过 owner checks；浏
 | --- | --- | --- |
 | 身份隔离 | A 读取/改/删 B 的 Entry、Media、media_ref、entry_ref；猜测 UUID/opaque ref | 统一 NOT_FOUND；B 数据、key、ID 不泄露 |
 | 认证 | 缺 bearer、错误 audience/scope、过期/撤销令牌、auth_version 失效、disabled account | 统一拒绝；不调用业务写操作 |
-| 上传幂等 | Prepare 重放、相同 upload_id 不同请求、Complete 重放、网络超时后重试 | 相同请求返回同一结果；冲突返回稳定错误且无重复对象 |
+| 上传幂等 | Prepare 重放、相同 upload_id 不同请求、Complete 重放、网络超时后重试、后台过期/删除后迟到的 Complete | 相同请求返回同一结果；冲突返回稳定错误且无重复对象；已 deleting 的 pending 固定 `UPLOAD_EXPIRED`，不报 `REVISION_CONFLICT` |
 | 内容校验 | 超大文件、空文件、错误 MIME、扩展名伪装、坏图片、尺寸超限、PDF 超限 | 不变为 ready；staging 最终进入 cleanup |
 | 生命周期 | pending 过期、ready 删除、重复删除、Entry trash/restore/purge、缩略图失败 | 状态转换符合状态机；worker 可重试，删除幂等 |
 | 注销 | 注销时在途上传、已 ready 媒体、队列重试、账号重新注册 | 新账号不能访问旧数据；cleanup 不依赖旧 user ID |
 | 版本并发 | stale expected_revision、同 mutation_id 不同 payload、purge 竞态 | 返回 REVISION_CONFLICT/REPLAY_MISMATCH，无静默覆盖 |
-| 媒体并发 | Prepare 后并发 Complete、删除时 stale revision、无有效回执时重复 Delete、回执过期后 Complete 已 ready | 只接受一个有效转移；未过期回执优先于 revision 比较；过期后 stale revision 固定返回 REVISION_CONFLICT，当前 revision 返回同摘要且不改状态；冲突带回 current_revision |
-| 后台转移 | pending 过期、Complete 校验失败、Entry purge、账号注销、worker 重试与并发读取竞争 | 条件更新只转移一次；不写客户端回执；转移记录带 actor/reason 与 revision，不含 key/内容；worker 重试不改变 revision |
+| 媒体并发 | Prepare 后并发 Complete、删除时 stale revision、无有效回执时重复 Delete、回执过期后 Complete 已 ready、对已 deleting 的 pending 调 Complete、worker 物理清除后调 Complete | 只接受一个有效转移；未过期回执优先；状态分支优先于 revision 比较（deleting → UPLOAD_EXPIRED、物理清除 → MEDIA_NOT_FOUND）；过期后 stale revision 固定 REVISION_CONFLICT；冲突/过期 details 带 current_revision |
+| 后台转移 | pending 过期、Complete 校验失败、Entry purge、账号注销、worker 重试与并发读取竞争、转移后到达的客户端 Complete | 条件更新只转移一次；不写客户端回执；转移记录带 actor/reason 与 revision，不含 key/内容；worker 重试不改变 revision；迟到 Complete 得到 `UPLOAD_EXPIRED` 而非 revision 冲突 |
 | 引用解析 | 跨账号 ref、伪造/篡改 ref、entry_ref 当 media_ref、purge 后 ref、注销后 ref、分页 token 换筛选 | 统一 NOT_FOUND；ref 不可跨 owner/kind 复用；无内部 ID/排序键泄露；token 不可跨筛选复用 |
 | 回执重放 | update/trash/restore/purge/complete/delete 超时重试、同 mutation_id 不同摘要、回执过期后重放、并发双击、事务中断 | 只应用一次；摘要不同报 MUTATION_REPLAY_MISMATCH；过期后 stale revision 拒绝而非二次写入；无“变更成功但无回执”窗口 |
 | MCP revision | 省略/0/非整数 expected_revision、过期值、回放 | REVISION_REQUIRED / REVISION_CONFLICT 带 current_revision / 回放 replayed=true |
@@ -437,12 +442,13 @@ MCP 实现票应交付：Streamable HTTP 路由、来源白名单、Bearer/audie
 
 ## 12. 本修订处理的评审意见
 
-本 ADR 当前版本基于 KON-105 两轮评审意见修订：首轮评论 `01a1b67d`（发现 1–3），第二轮评论 `01a1b69f`（发现 4–5）。对应关系如下：
+本 ADR 当前版本基于 KON-105 三轮评审意见修订：首轮评论 `01a1b67d`（发现 1–3），第二轮评论 `01a1b69f`（发现 4–5），第三轮评论 `01a1b6a8`（发现 6）。对应关系如下：
 
 1. **Media 无法取得 expected_revision**：新增 `Media.revision`（3.2）、Complete/Delete 必填非零 `expected_revision` 与 `MediaMutationResult`（3.2、3.3、3.4），并定义冲突 details（`current_revision`）与重放返回值。
 2. **opaque 引用与已接受 Timeline 契约脱节**：新增 5.3 的 `timeline_public_refs` 映射表、owner+kind 解析规则、`Entry.entry_ref` 与请求侧 `entry_ref` 字段、响应白名单和撤销/生命周期；明确映射由 timeline 服务内部持有，MCP 不做 ID 映射（5.3、6.4、9.1、9.3）。
 3. **mutation replay 只覆盖 Create**：新增 3.5 的持久回执表、请求摘要、提交顺序与并发唯一约束，明确回执归 TimelineService（媒体归 MediaService）、MCP 透明传递；补齐 Delete/Purge 响应与 `replayed` 字段，并把回执/ref 纳入迁移、回滚、测试矩阵。
 4. **CompleteUpload 过期回放语义冲突**：3.4 增加统一执行优先级（未过期回执 → 当前 revision 校验 → 转移），并规定回执过期后按新请求判定：已 ready + stale revision 固定返回 `REVISION_CONFLICT`，仅当前 revision 返回同摘要且不改状态；同步 3.3 与 10 测试矩阵。
 5. **后台生命周期转移的回执边界**：明确回执只覆盖客户端 Complete/Delete；后台转移（过期、校验失败、Entry purge、注销、worker 重试）使用条件状态更新 + `actor=system|worker` 转移记录，不写 mutation 回执、不参与 24 小时窗口、不可重放；同步 2.3、3.4、3.5、10、11。
+6. **后台转 deleting 后 Complete 的错误语义未定义**：3.4 新增 Complete 状态/错误优先级（不存在/已清除 → `MEDIA_NOT_FOUND`；已 deleting → 固定 `UPLOAD_EXPIRED`，均先于 revision 比较；ready/pending 才比较 revision），并定义 pending 过期与校验失败转 deleting 时的 details（`state=deleting`、`current_revision`）；同步 2.2 字段说明、2.3 状态机、3.3 方法语义、4 错误表与 10 测试矩阵。
 
 验证命令（变更后应可重复执行）：`./scripts/check-doc-links.sh`；`git diff --check`。本票不修改实现代码，因此行为验证仍以父票 `8c5a51592f2a34504828295e967b75d357e07761` 的 `go test ./internal/timeline/... ./internal/bff/...` 为基线。
