@@ -19,10 +19,12 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `cmd/bff/`、`internal/bff/`（共用的账号与会话；各产品的领域适配在 `internal/bff/<产品>/`，tripmap 的在 `internal/bff/tripmap/`） | BFF：公网唯一浏览器 RPC（`bff.v1` 账号、`bff.<产品>.v1` 业务，Connect、Cookie/CSRF），经内部 gRPC（TLS / h2c）调 tripmap（[说明](bff.md)） |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `cmd/metro/`、`internal/metro/`（`app`、`application`、`config`、`ent`、`testutil`） | 地铁足迹业务服务：入口、装配与内部 gRPC、`CatalogService`/`AdminService`/`RiderService`/`AccountCleanupService`、配置、Ent 模型、隔离 schema 的测试辅助（[说明](#metro-服务地铁足迹)） |
+| `cmd/timeline/`、`internal/timeline/`（`app`、`application`、`config`、`ent`、`accountcleanup`） | Timeline 业务服务：账号归属记录、媒体元数据、无用户身份的对象清理队列与内部 `AccountCleanupService` |
 | `cmd/usersrv/`、`internal/usersrv/`（`app`、`application`、`account`、`identity`、`passwordhash`、`ratelimit`、`worker`、`mailer`、`outbox`、`config`、`ent`、`testutil`、`integration`）、`cmd/usersrv-admin/` | 自建用户系统（规格 [usersrv](usersrv/spec.md)）：服务入口、内部 gRPC `usersrv.v1`、账号与角色、Argon2id、限流、邮件 adapter 与加密 outbox、注册/登录/找回密码、运维命令；BFF 经内部 gRPC 调用（[账号核心](#usersrv-服务账号核心p1)、[邮件模块](#usersrv-邮件模块p2)、[账号流程](#usersrv-账号流程p3)） |
 | `proto/usersrv/v1/`、`migrations/usersrv/` | usersrv 的内部契约与版本化迁移 |
 | `internal/bff/metro/` | 地铁足迹的 BFF 适配（目录手写映射；管理与骑行者经 `relay` 线格式转换）与账号清理器 |
 | `proto/metro/v1/`、`proto/bff/metro/v1/`、`migrations/metro/` | metro 的内部与浏览器契约、版本化迁移 |
+| `proto/timeline/v1/`、`migrations/timeline/` | Timeline 内部账号清理契约与版本化迁移 |
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
 | `internal/tripmap/tiles/` | 可选的 Mapbox 瓦片代理：`GET /api/tiles/{z}/{x}/{y}.png` 的配置校验、请求校验、限流与上游访问（[说明](#mapbox-瓦片代理可选)） |
