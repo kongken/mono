@@ -201,6 +201,18 @@ func (f SyncReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SyncReceiptMutation", m)
 }
 
+// The TimelineMutationFunc type is an adapter to allow the use of ordinary
+// function as TimelineMutation mutator.
+type TimelineMutationFunc func(context.Context, *ent.TimelineMutationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TimelineMutationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TimelineMutationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TimelineMutationMutation", m)
+}
+
 // The TripFunc type is an adapter to allow the use of ordinary
 // function as Trip mutator.
 type TripFunc func(context.Context, *ent.TripMutation) (ent.Value, error)

@@ -17,12 +17,18 @@ const (
 	FieldID = "id"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
+	// FieldPublicRef holds the string denoting the public_ref field in the database.
+	FieldPublicRef = "public_ref"
+	// FieldEntryPublicRef holds the string denoting the entry_public_ref field in the database.
+	FieldEntryPublicRef = "entry_public_ref"
 	// FieldObjectKey holds the string denoting the object_key field in the database.
 	FieldObjectKey = "object_key"
 	// FieldContentType holds the string denoting the content_type field in the database.
 	FieldContentType = "content_type"
 	// FieldSizeBytes holds the string denoting the size_bytes field in the database.
 	FieldSizeBytes = "size_bytes"
+	// FieldRevision holds the string denoting the revision field in the database.
+	FieldRevision = "revision"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldRegionCode holds the string denoting the region_code field in the database.
@@ -66,9 +72,12 @@ const (
 var Columns = []string{
 	FieldID,
 	FieldUserID,
+	FieldPublicRef,
+	FieldEntryPublicRef,
 	FieldObjectKey,
 	FieldContentType,
 	FieldSizeBytes,
+	FieldRevision,
 	FieldStatus,
 	FieldRegionCode,
 	FieldFilename,
@@ -95,12 +104,20 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// PublicRefValidator is a validator for the "public_ref" field. It is called by the builders before save.
+	PublicRefValidator func(string) error
+	// EntryPublicRefValidator is a validator for the "entry_public_ref" field. It is called by the builders before save.
+	EntryPublicRefValidator func(string) error
 	// ObjectKeyValidator is a validator for the "object_key" field. It is called by the builders before save.
 	ObjectKeyValidator func(string) error
 	// ContentTypeValidator is a validator for the "content_type" field. It is called by the builders before save.
 	ContentTypeValidator func(string) error
 	// SizeBytesValidator is a validator for the "size_bytes" field. It is called by the builders before save.
 	SizeBytesValidator func(int64) error
+	// DefaultRevision holds the default value on creation for the "revision" field.
+	DefaultRevision int
+	// RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
+	RevisionValidator func(int) error
 	// DefaultRegionCode holds the default value on creation for the "region_code" field.
 	DefaultRegionCode string
 	// DefaultFilename holds the default value on creation for the "filename" field.
@@ -173,6 +190,16 @@ func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUserID, opts...).ToFunc()
 }
 
+// ByPublicRef orders the results by the public_ref field.
+func ByPublicRef(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPublicRef, opts...).ToFunc()
+}
+
+// ByEntryPublicRef orders the results by the entry_public_ref field.
+func ByEntryPublicRef(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldEntryPublicRef, opts...).ToFunc()
+}
+
 // ByObjectKey orders the results by the object_key field.
 func ByObjectKey(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldObjectKey, opts...).ToFunc()
@@ -186,6 +213,11 @@ func ByContentType(opts ...sql.OrderTermOption) OrderOption {
 // BySizeBytes orders the results by the size_bytes field.
 func BySizeBytes(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSizeBytes, opts...).ToFunc()
+}
+
+// ByRevision orders the results by the revision field.
+func ByRevision(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRevision, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.

@@ -54,6 +54,9 @@ type Snapshot func(*sql.Selector)
 // SyncReceipt is the predicate function for syncreceipt builders.
 type SyncReceipt func(*sql.Selector)
 
+// TimelineMutation is the predicate function for timelinemutation builders.
+type TimelineMutation func(*sql.Selector)
+
 // Trip is the predicate function for trip builders.
 type Trip func(*sql.Selector)
 

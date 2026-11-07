@@ -16,8 +16,8 @@ import (
 	"github.com/kongken/mono/internal/tripmap/blobstore"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
-	"github.com/kongken/mono/internal/tripmap/ent/mediadeletereceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
+	"github.com/kongken/mono/internal/tripmap/ent/timelinemutation"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
 	"github.com/kongken/mono/internal/tripmap/regions"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
@@ -34,8 +34,18 @@ func NewMediaService(src StoreSource, idx *regions.Index) *MediaService {
 	return &MediaService{src: src, regions: idx}
 }
 
+func mediaPublicRef(id string) string {
+	digest := sha256.Sum256([]byte(id))
+	return "med_" + hex.EncodeToString(digest[:13])
+}
+
+func entryPublicRef(userID, tripID string) string {
+	digest := sha256.Sum256([]byte(userID + "\x00" + tripID))
+	return "ent_" + hex.EncodeToString(digest[:13])
+}
+
 func mediaInfo(m *ent.MediaObject) *tripmapv1.MediaInfo {
-	return &tripmapv1.MediaInfo{Id: m.ID, RegionCode: m.RegionCode, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Width: int32(m.Width), Height: int32(m.Height), Status: string(m.Status), CreatedAt: timestamppb.New(m.CreatedAt), TripId: m.TripID}
+	return &tripmapv1.MediaInfo{Id: m.ID, MediaRef: m.PublicRef, EntryRef: m.EntryPublicRef, Revision: int64(m.Revision), RegionCode: m.RegionCode, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Width: int32(m.Width), Height: int32(m.Height), Status: string(m.Status), CreatedAt: timestamppb.New(m.CreatedAt), TripId: m.TripID}
 }
 
 func mediaStore(ctx context.Context, src StoreSource) (*Store, Caller, error) {
@@ -169,7 +179,7 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 		id := uuid.NewString()
 		raw := "media/staging/" + uuid.NewString()
 		expires := time.Now().UTC().Add(10 * time.Minute)
-		m, err = tx.MediaObject.Create().SetID(id).SetUserID(p.UserID).SetRegionCode(r.RegionCode).SetTripID(r.TripId).SetFilename(r.Filename).SetUploadID(r.UploadId).SetRequestHash(hash).SetUploadKey(raw).SetObjectKey("media/files/" + id).SetThumbnailKey("media/thumbnails/" + id).SetContentType(r.ContentType).SetSizeBytes(r.SizeBytes).SetUploadExpiresAt(expires).Save(ctx)
+		m, err = tx.MediaObject.Create().SetID(id).SetPublicRef(mediaPublicRef(id)).SetEntryPublicRef(entryPublicRef(p.UserID, r.TripId)).SetRevision(1).SetUserID(p.UserID).SetRegionCode(r.RegionCode).SetTripID(r.TripId).SetFilename(r.Filename).SetUploadID(r.UploadId).SetRequestHash(hash).SetUploadKey(raw).SetObjectKey("media/files/" + id).SetThumbnailKey("media/thumbnails/" + id).SetContentType(r.ContentType).SetSizeBytes(r.SizeBytes).SetUploadExpiresAt(expires).Save(ctx)
 		if err != nil {
 			return nil, internalError(err)
 		}
@@ -247,7 +257,7 @@ func (s *MediaService) CompleteUpload(ctx context.Context, req *connect.Request[
 			return nil, connect.NewError(connect.CodeUnavailable, errors.New("thumbnail processing failed; retry"))
 		}
 	}
-	m, err = tx.MediaObject.UpdateOne(m).SetStatus(mediaobject.StatusReady).SetContentType(mime).SetFilename(filename).SetSizeBytes(int64(len(full))).SetWidth(w).SetHeight(h).Save(ctx)
+	m, err = tx.MediaObject.UpdateOne(m).SetStatus(mediaobject.StatusReady).AddRevision(1).SetContentType(mime).SetFilename(filename).SetSizeBytes(int64(len(full))).SetWidth(w).SetHeight(h).Save(ctx)
 	if err != nil {
 		return nil, internalError(err)
 	}
@@ -325,11 +335,15 @@ func (s *MediaService) ReadMedia(ctx context.Context, req *connect.Request[tripm
 	return res, nil
 }
 
-func mediaDeleteReceipt(r *ent.MediaDeleteReceipt, replayed bool) *tripmapv1.MediaMutationReceipt {
+func mediaDeleteReceipt(r *ent.TimelineMutation, replayed bool) *tripmapv1.MediaMutationReceipt {
 	if r == nil {
 		return nil
 	}
-	return &tripmapv1.MediaMutationReceipt{MutationId: r.MutationID, MediaId: r.MediaID, ResultState: r.ResultState, Replayed: replayed, RecordedAt: timestamppb.New(r.CreatedAt)}
+	mediaRef := ""
+	if r.MediaRef != nil {
+		mediaRef = *r.MediaRef
+	}
+	return &tripmapv1.MediaMutationReceipt{MutationId: r.MutationID, MediaRef: mediaRef, EntryRef: r.EntryRef, ResultState: r.ResultState, ResultRevision: int64(r.ResultRevision), ResultSnapshot: r.ResultSnapshot, SnapshotVersion: int32(r.SnapshotVersion), Replayed: replayed, RecordedAt: timestamppb.New(r.CreatedAt)}
 }
 
 func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tripmapv1.DeleteMediaRequest]) (*connect.Response[tripmapv1.DeleteMediaResponse], error) {
@@ -345,7 +359,7 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tri
 	if len(mutationID) < 8 || len(mutationID) > 128 {
 		return nil, invalid("mutation_id must be 8-128 characters")
 	}
-	payload, _ := proto.MarshalOptions{Deterministic: true}.Marshal(&tripmapv1.DeleteMediaRequest{Id: req.Msg.Id, MutationId: mutationID})
+	payload, _ := proto.MarshalOptions{Deterministic: true}.Marshal(&tripmapv1.DeleteMediaRequest{Id: req.Msg.Id, MediaRef: req.Msg.MediaRef, MutationId: mutationID, ExpectedRevision: req.Msg.ExpectedRevision})
 	digest := sha256.Sum256(payload)
 	hash := hex.EncodeToString(digest[:])
 	tx, err := mediaTx(ctx, st, p.UserID)
@@ -353,7 +367,7 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tri
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	prior, err := tx.MediaDeleteReceipt.Query().Where(mediadeletereceipt.UserID(p.UserID), mediadeletereceipt.MutationID(mutationID)).Only(ctx)
+	prior, err := tx.TimelineMutation.Query().Where(timelinemutation.UserID(p.UserID), timelinemutation.MutationID(mutationID)).Only(ctx)
 	if err == nil {
 		if prior.RequestHash != hash {
 			return nil, connect.NewError(connect.CodeAlreadyExists, errors.New("mutation_id was already used for another request"))
@@ -363,7 +377,14 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tri
 	if !ent.IsNotFound(err) {
 		return nil, internalError(err)
 	}
-	m, err := tx.MediaObject.Query().Where(mediaobject.UserID(p.UserID), mediaobject.ID(req.Msg.Id)).Only(ctx)
+	locator := req.Msg.Id
+	if req.Msg.MediaRef != "" {
+		locator = req.Msg.MediaRef
+	}
+	m, err := tx.MediaObject.Query().Where(mediaobject.UserID(p.UserID), mediaobject.PublicRef(locator)).Only(ctx)
+	if ent.IsNotFound(err) && req.Msg.MediaRef == "" {
+		m, err = tx.MediaObject.Query().Where(mediaobject.UserID(p.UserID), mediaobject.ID(locator)).Only(ctx)
+	}
 	if ent.IsNotFound(err) {
 		if legacyCall {
 			return connect.NewResponse(&tripmapv1.DeleteMediaResponse{}), nil
@@ -373,12 +394,17 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tri
 	if err != nil {
 		return nil, internalError(err)
 	}
+	if req.Msg.ExpectedRevision != nil && int(*req.Msg.ExpectedRevision) != m.Revision {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("media revision conflict"))
+	}
 	if m.Status != mediaobject.StatusDeleting {
-		if err = tx.MediaObject.UpdateOne(m).SetStatus(mediaobject.StatusDeleting).Exec(ctx); err != nil {
+		if err = tx.MediaObject.UpdateOne(m).SetStatus(mediaobject.StatusDeleting).AddRevision(1).Exec(ctx); err != nil {
 			return nil, internalError(err)
 		}
+		m.Revision++
 	}
-	r, err := tx.MediaDeleteReceipt.Create().SetUserID(p.UserID).SetMutationID(mutationID).SetMediaID(m.ID).SetRequestHash(hash).SetResultState("deleting").SetExpiresAt(time.Now().UTC().Add(30 * 24 * time.Hour)).Save(ctx)
+	snapshot, _ := proto.MarshalOptions{Deterministic: true}.Marshal(&tripmapv1.MediaMutationReceipt{MutationId: mutationID, MediaRef: m.PublicRef, EntryRef: m.EntryPublicRef, ResultState: "deleting", ResultRevision: int64(m.Revision), SnapshotVersion: 1})
+	r, err := tx.TimelineMutation.Create().SetUserID(p.UserID).SetMutationID(mutationID).SetTargetKind("media").SetOperation("media_delete").SetRequestHash(hash).SetEntryRef(m.EntryPublicRef).SetMediaRef(m.PublicRef).SetResultRevision(m.Revision).SetResultState("deleting").SetResultSnapshot(snapshot).SetSnapshotVersion(1).SetExpiresAt(time.Now().UTC().Add(30 * 24 * time.Hour)).Save(ctx)
 	if err != nil {
 		return nil, internalError(err)
 	}

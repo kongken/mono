@@ -28,6 +28,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
 	"github.com/kongken/mono/internal/tripmap/ent/snapshot"
 	"github.com/kongken/mono/internal/tripmap/ent/syncreceipt"
+	"github.com/kongken/mono/internal/tripmap/ent/timelinemutation"
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
 	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
@@ -109,6 +110,7 @@ func checkColumn(t, c string) error {
 			sharedtrip.Table:           sharedtrip.ValidColumn,
 			snapshot.Table:             snapshot.ValidColumn,
 			syncreceipt.Table:          syncreceipt.ValidColumn,
+			timelinemutation.Table:     timelinemutation.ValidColumn,
 			trip.Table:                 trip.ValidColumn,
 			tripmember.Table:           tripmember.ValidColumn,
 			user.Table:                 user.ValidColumn,
