@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -33,6 +34,8 @@ type MediaService struct {
 func NewMediaService(src StoreSource, idx *regions.Index) *MediaService {
 	return &MediaService{src: src, regions: idx}
 }
+
+var mediaRefPattern = regexp.MustCompile(`^med_[0-9a-f]{26}$`)
 
 func mediaPublicRef(id string) string {
 	digest := sha256.Sum256([]byte(id))
@@ -359,6 +362,9 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tri
 	if len(mutationID) < 8 || len(mutationID) > 128 {
 		return nil, invalid("mutation_id must be 8-128 characters")
 	}
+	if req.Msg.MediaRef != "" && !mediaRefPattern.MatchString(req.Msg.MediaRef) {
+		return nil, invalid("invalid media reference")
+	}
 	payload, _ := proto.MarshalOptions{Deterministic: true}.Marshal(&tripmapv1.DeleteMediaRequest{Id: req.Msg.Id, MediaRef: req.Msg.MediaRef, MutationId: mutationID, ExpectedRevision: req.Msg.ExpectedRevision})
 	digest := sha256.Sum256(payload)
 	hash := hex.EncodeToString(digest[:])
@@ -376,6 +382,22 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tri
 	}
 	if !ent.IsNotFound(err) {
 		return nil, internalError(err)
+	}
+	// A second mutation for an already deleting media object returns the
+	// original tombstone. This keeps the terminal result stable even after the
+	// media row has been cleaned up and avoids creating a second receipt.
+	if req.Msg.MediaRef != "" {
+		if tombstone, findErr := tx.TimelineMutation.Query().Where(
+			timelinemutation.UserID(p.UserID), timelinemutation.TargetKind("media"),
+			timelinemutation.Operation("media_delete"), timelinemutation.MediaRef(req.Msg.MediaRef),
+		).Only(ctx); findErr == nil {
+			if req.Msg.ExpectedRevision != nil && int(*req.Msg.ExpectedRevision) != tombstone.ResultRevision {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("media revision conflict"))
+			}
+			return connect.NewResponse(&tripmapv1.DeleteMediaResponse{Receipt: mediaDeleteReceipt(tombstone, true)}), nil
+		} else if !ent.IsNotFound(findErr) {
+			return nil, internalError(findErr)
+		}
 	}
 	locator := req.Msg.Id
 	if req.Msg.MediaRef != "" {
