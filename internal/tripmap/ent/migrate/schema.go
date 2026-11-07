@@ -216,9 +216,12 @@ var (
 	// MediaObjectsColumns holds the columns for the "media_objects" table.
 	MediaObjectsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
+		{Name: "public_ref", Type: field.TypeString},
+		{Name: "entry_public_ref", Type: field.TypeString},
 		{Name: "object_key", Type: field.TypeString, Unique: true},
 		{Name: "content_type", Type: field.TypeString},
 		{Name: "size_bytes", Type: field.TypeInt64},
+		{Name: "revision", Type: field.TypeInt, Default: 1},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending", "ready", "deleting"}, Default: "pending"},
 		{Name: "region_code", Type: field.TypeString, Default: ""},
 		{Name: "filename", Type: field.TypeString, Default: ""},
@@ -242,7 +245,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "media_objects_users_media_objects",
-				Columns:    []*schema.Column{MediaObjectsColumns[17]},
+				Columns:    []*schema.Column{MediaObjectsColumns[20]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -251,17 +254,17 @@ var (
 			{
 				Name:    "mediaobject_user_id_region_code",
 				Unique:  false,
-				Columns: []*schema.Column{MediaObjectsColumns[17], MediaObjectsColumns[5]},
+				Columns: []*schema.Column{MediaObjectsColumns[20], MediaObjectsColumns[8]},
 			},
 			{
 				Name:    "mediaobject_user_id_trip_id",
 				Unique:  false,
-				Columns: []*schema.Column{MediaObjectsColumns[17], MediaObjectsColumns[14]},
+				Columns: []*schema.Column{MediaObjectsColumns[20], MediaObjectsColumns[17]},
 			},
 			{
 				Name:    "mediaobject_user_id_upload_id",
 				Unique:  true,
-				Columns: []*schema.Column{MediaObjectsColumns[17], MediaObjectsColumns[7]},
+				Columns: []*schema.Column{MediaObjectsColumns[20], MediaObjectsColumns[10]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "upload_id <> ''",
 				},
@@ -575,6 +578,41 @@ var (
 			},
 		},
 	}
+	// TimelineMutationsColumns holds the columns for the "timeline_mutations" table.
+	TimelineMutationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeString},
+		{Name: "mutation_id", Type: field.TypeString},
+		{Name: "target_kind", Type: field.TypeString},
+		{Name: "operation", Type: field.TypeString},
+		{Name: "request_hash", Type: field.TypeString},
+		{Name: "entry_ref", Type: field.TypeString},
+		{Name: "media_ref", Type: field.TypeString, Nullable: true},
+		{Name: "result_revision", Type: field.TypeInt},
+		{Name: "result_state", Type: field.TypeString},
+		{Name: "result_snapshot", Type: field.TypeBytes},
+		{Name: "snapshot_version", Type: field.TypeInt, Default: 1},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime},
+	}
+	// TimelineMutationsTable holds the schema information for the "timeline_mutations" table.
+	TimelineMutationsTable = &schema.Table{
+		Name:       "timeline_mutations",
+		Columns:    TimelineMutationsColumns,
+		PrimaryKey: []*schema.Column{TimelineMutationsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "timelinemutation_user_id_mutation_id",
+				Unique:  true,
+				Columns: []*schema.Column{TimelineMutationsColumns[1], TimelineMutationsColumns[2]},
+			},
+			{
+				Name:    "timelinemutation_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{TimelineMutationsColumns[13]},
+			},
+		},
+	}
 	// CityTripsColumns holds the columns for the "city_trips" table.
 	CityTripsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -774,6 +812,7 @@ var (
 		SharedTripsTable,
 		SnapshotsTable,
 		SyncReceiptsTable,
+		TimelineMutationsTable,
 		CityTripsTable,
 		TripMembersTable,
 		UsersTable,
@@ -834,6 +873,9 @@ func init() {
 	}
 	SnapshotsTable.ForeignKeys[0].RefTable = UsersTable
 	SyncReceiptsTable.ForeignKeys[0].RefTable = UsersTable
+	TimelineMutationsTable.Annotation = &entsql.Annotation{
+		Table: "timeline_mutations",
+	}
 	CityTripsTable.ForeignKeys[0].RefTable = CityVisitsTable
 	CityTripsTable.ForeignKeys[1].RefTable = UsersTable
 	CityTripsTable.Annotation = &entsql.Annotation{

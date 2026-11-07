@@ -156,7 +156,9 @@ func (MediaObject) Annotations() []schema.Annotation {
 func (MediaObject) Fields() []ent.Field {
 	return append([]ent.Field{
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").Immutable(),
+		field.String("public_ref").NotEmpty().Immutable(), field.String("entry_public_ref").NotEmpty(),
 		field.String("object_key").NotEmpty().Unique(), field.String("content_type").NotEmpty(), field.Int64("size_bytes").NonNegative(),
+		field.Int("revision").Positive().Default(1),
 		field.Enum("status").Values("pending", "ready", "deleting").Default("pending"),
 		field.String("region_code").Default(""), field.String("filename").Default(""),
 		field.String("upload_id").Default(""), field.String("request_hash").Default(""),
@@ -174,6 +176,24 @@ func (MediaObject) Edges() []ent.Edge {
 
 func (MediaObject) Indexes() []ent.Index {
 	return []ent.Index{index.Fields("user_id", "region_code"), index.Fields("user_id", "trip_id"), index.Fields("user_id", "upload_id").Unique().Annotations(entsql.IndexWhere("upload_id <> ''"))}
+}
+
+type TimelineMutation struct{ ent.Schema }
+
+func (TimelineMutation) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "timeline_mutations"}}
+}
+func (TimelineMutation) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").Immutable(),
+		field.String("mutation_id").Immutable(), field.String("target_kind").Immutable(), field.String("operation").Immutable(),
+		field.String("request_hash").Immutable(), field.String("entry_ref").Immutable(), field.String("media_ref").Optional().Nillable().Immutable(),
+		field.Int("result_revision").Immutable(), field.String("result_state").Immutable(), field.Bytes("result_snapshot").Immutable(),
+		field.Int("snapshot_version").Default(1).Immutable(), field.Time("created_at").Default(now).Immutable(), field.Time("expires_at").Immutable(),
+	}
+}
+func (TimelineMutation) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("user_id", "mutation_id").Unique(), index.Fields("expires_at")}
 }
 
 type MediaDeleteReceipt struct{ ent.Schema }

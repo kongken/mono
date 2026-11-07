@@ -12,6 +12,7 @@ service MediaService {
   rpc DeleteMedia(DeleteMediaRequest) returns (DeleteMediaResponse);
 }
 message MediaInfo {
+  // Deprecated internal database identifier. Use media_ref for new clients.
   string id = 1;
   string region_code = 2;
   string filename = 3;
@@ -21,9 +22,10 @@ message MediaInfo {
   int32 height = 7;
   string status = 8;
   google.protobuf.Timestamp created_at = 9;
-  // Optional trip this file belongs to; empty for city-level files. A soft
-  // reference: deleting the trip keeps the file, which stays listed for the city.
   string trip_id = 10;
+  string media_ref = 11;
+  string entry_ref = 12;
+  int64 revision = 13;
 }
 message PrepareUploadRequest {
   string region_code = 1;
@@ -61,7 +63,7 @@ message ReadMediaResponse {
   // Public CDN URL when configured; data is empty. Otherwise data contains the file.
   string url = 4;
 }
-message DeleteMediaRequest { string id = 1; string mutation_id = 2; }
+message DeleteMediaRequest { string id = 1; string mutation_id = 2; string media_ref = 3; optional int64 expected_revision = 4; }
 message DeleteMediaResponse { MediaMutationReceipt receipt = 1; }
 message MediaMutationReceipt {
   string mutation_id = 1;
@@ -69,4 +71,9 @@ message MediaMutationReceipt {
   string result_state = 3;
   bool replayed = 4;
   google.protobuf.Timestamp recorded_at = 5;
+  string media_ref = 6;
+  string entry_ref = 7;
+  int64 result_revision = 8;
+  bytes result_snapshot = 9;
+  int32 snapshot_version = 10;
 }

@@ -44,6 +44,8 @@ type Tx struct {
 	Snapshot *SnapshotClient
 	// SyncReceipt is the client for interacting with the SyncReceipt builders.
 	SyncReceipt *SyncReceiptClient
+	// TimelineMutation is the client for interacting with the TimelineMutation builders.
+	TimelineMutation *TimelineMutationClient
 	// Trip is the client for interacting with the Trip builders.
 	Trip *TripClient
 	// TripMember is the client for interacting with the TripMember builders.
@@ -201,6 +203,7 @@ func (tx *Tx) init() {
 	tx.SharedTrip = NewSharedTripClient(tx.config)
 	tx.Snapshot = NewSnapshotClient(tx.config)
 	tx.SyncReceipt = NewSyncReceiptClient(tx.config)
+	tx.TimelineMutation = NewTimelineMutationClient(tx.config)
 	tx.Trip = NewTripClient(tx.config)
 	tx.TripMember = NewTripMemberClient(tx.config)
 	tx.User = NewUserClient(tx.config)

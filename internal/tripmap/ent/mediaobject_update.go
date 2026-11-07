@@ -28,6 +28,20 @@ func (_u *MediaObjectUpdate) Where(ps ...predicate.MediaObject) *MediaObjectUpda
 	return _u
 }
 
+// SetEntryPublicRef sets the "entry_public_ref" field.
+func (_u *MediaObjectUpdate) SetEntryPublicRef(v string) *MediaObjectUpdate {
+	_u.mutation.SetEntryPublicRef(v)
+	return _u
+}
+
+// SetNillableEntryPublicRef sets the "entry_public_ref" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableEntryPublicRef(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetEntryPublicRef(*v)
+	}
+	return _u
+}
+
 // SetObjectKey sets the "object_key" field.
 func (_u *MediaObjectUpdate) SetObjectKey(v string) *MediaObjectUpdate {
 	_u.mutation.SetObjectKey(v)
@@ -74,6 +88,27 @@ func (_u *MediaObjectUpdate) SetNillableSizeBytes(v *int64) *MediaObjectUpdate {
 // AddSizeBytes adds value to the "size_bytes" field.
 func (_u *MediaObjectUpdate) AddSizeBytes(v int64) *MediaObjectUpdate {
 	_u.mutation.AddSizeBytes(v)
+	return _u
+}
+
+// SetRevision sets the "revision" field.
+func (_u *MediaObjectUpdate) SetRevision(v int) *MediaObjectUpdate {
+	_u.mutation.ResetRevision()
+	_u.mutation.SetRevision(v)
+	return _u
+}
+
+// SetNillableRevision sets the "revision" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableRevision(v *int) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetRevision(*v)
+	}
+	return _u
+}
+
+// AddRevision adds value to the "revision" field.
+func (_u *MediaObjectUpdate) AddRevision(v int) *MediaObjectUpdate {
+	_u.mutation.AddRevision(v)
 	return _u
 }
 
@@ -300,6 +335,11 @@ func (_u *MediaObjectUpdate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *MediaObjectUpdate) check() error {
+	if v, ok := _u.mutation.EntryPublicRef(); ok {
+		if err := mediaobject.EntryPublicRefValidator(v); err != nil {
+			return &ValidationError{Name: "entry_public_ref", err: fmt.Errorf(`ent: validator failed for field "MediaObject.entry_public_ref": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ObjectKey(); ok {
 		if err := mediaobject.ObjectKeyValidator(v); err != nil {
 			return &ValidationError{Name: "object_key", err: fmt.Errorf(`ent: validator failed for field "MediaObject.object_key": %w`, err)}
@@ -313,6 +353,11 @@ func (_u *MediaObjectUpdate) check() error {
 	if v, ok := _u.mutation.SizeBytes(); ok {
 		if err := mediaobject.SizeBytesValidator(v); err != nil {
 			return &ValidationError{Name: "size_bytes", err: fmt.Errorf(`ent: validator failed for field "MediaObject.size_bytes": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.Revision(); ok {
+		if err := mediaobject.RevisionValidator(v); err != nil {
+			return &ValidationError{Name: "revision", err: fmt.Errorf(`ent: validator failed for field "MediaObject.revision": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.Status(); ok {
@@ -348,6 +393,9 @@ func (_u *MediaObjectUpdate) sqlSave(ctx context.Context) (_node int, err error)
 			}
 		}
 	}
+	if value, ok := _u.mutation.EntryPublicRef(); ok {
+		_spec.SetField(mediaobject.FieldEntryPublicRef, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.ObjectKey(); ok {
 		_spec.SetField(mediaobject.FieldObjectKey, field.TypeString, value)
 	}
@@ -359,6 +407,12 @@ func (_u *MediaObjectUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if value, ok := _u.mutation.AddedSizeBytes(); ok {
 		_spec.AddField(mediaobject.FieldSizeBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.Revision(); ok {
+		_spec.SetField(mediaobject.FieldRevision, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRevision(); ok {
+		_spec.AddField(mediaobject.FieldRevision, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(mediaobject.FieldStatus, field.TypeEnum, value)
@@ -425,6 +479,20 @@ type MediaObjectUpdateOne struct {
 	mutation *MediaObjectMutation
 }
 
+// SetEntryPublicRef sets the "entry_public_ref" field.
+func (_u *MediaObjectUpdateOne) SetEntryPublicRef(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetEntryPublicRef(v)
+	return _u
+}
+
+// SetNillableEntryPublicRef sets the "entry_public_ref" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableEntryPublicRef(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetEntryPublicRef(*v)
+	}
+	return _u
+}
+
 // SetObjectKey sets the "object_key" field.
 func (_u *MediaObjectUpdateOne) SetObjectKey(v string) *MediaObjectUpdateOne {
 	_u.mutation.SetObjectKey(v)
@@ -471,6 +539,27 @@ func (_u *MediaObjectUpdateOne) SetNillableSizeBytes(v *int64) *MediaObjectUpdat
 // AddSizeBytes adds value to the "size_bytes" field.
 func (_u *MediaObjectUpdateOne) AddSizeBytes(v int64) *MediaObjectUpdateOne {
 	_u.mutation.AddSizeBytes(v)
+	return _u
+}
+
+// SetRevision sets the "revision" field.
+func (_u *MediaObjectUpdateOne) SetRevision(v int) *MediaObjectUpdateOne {
+	_u.mutation.ResetRevision()
+	_u.mutation.SetRevision(v)
+	return _u
+}
+
+// SetNillableRevision sets the "revision" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableRevision(v *int) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetRevision(*v)
+	}
+	return _u
+}
+
+// AddRevision adds value to the "revision" field.
+func (_u *MediaObjectUpdateOne) AddRevision(v int) *MediaObjectUpdateOne {
+	_u.mutation.AddRevision(v)
 	return _u
 }
 
@@ -710,6 +799,11 @@ func (_u *MediaObjectUpdateOne) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *MediaObjectUpdateOne) check() error {
+	if v, ok := _u.mutation.EntryPublicRef(); ok {
+		if err := mediaobject.EntryPublicRefValidator(v); err != nil {
+			return &ValidationError{Name: "entry_public_ref", err: fmt.Errorf(`ent: validator failed for field "MediaObject.entry_public_ref": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ObjectKey(); ok {
 		if err := mediaobject.ObjectKeyValidator(v); err != nil {
 			return &ValidationError{Name: "object_key", err: fmt.Errorf(`ent: validator failed for field "MediaObject.object_key": %w`, err)}
@@ -723,6 +817,11 @@ func (_u *MediaObjectUpdateOne) check() error {
 	if v, ok := _u.mutation.SizeBytes(); ok {
 		if err := mediaobject.SizeBytesValidator(v); err != nil {
 			return &ValidationError{Name: "size_bytes", err: fmt.Errorf(`ent: validator failed for field "MediaObject.size_bytes": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.Revision(); ok {
+		if err := mediaobject.RevisionValidator(v); err != nil {
+			return &ValidationError{Name: "revision", err: fmt.Errorf(`ent: validator failed for field "MediaObject.revision": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.Status(); ok {
@@ -775,6 +874,9 @@ func (_u *MediaObjectUpdateOne) sqlSave(ctx context.Context) (_node *MediaObject
 			}
 		}
 	}
+	if value, ok := _u.mutation.EntryPublicRef(); ok {
+		_spec.SetField(mediaobject.FieldEntryPublicRef, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.ObjectKey(); ok {
 		_spec.SetField(mediaobject.FieldObjectKey, field.TypeString, value)
 	}
@@ -786,6 +888,12 @@ func (_u *MediaObjectUpdateOne) sqlSave(ctx context.Context) (_node *MediaObject
 	}
 	if value, ok := _u.mutation.AddedSizeBytes(); ok {
 		_spec.AddField(mediaobject.FieldSizeBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.Revision(); ok {
+		_spec.SetField(mediaobject.FieldRevision, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRevision(); ok {
+		_spec.AddField(mediaobject.FieldRevision, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(mediaobject.FieldStatus, field.TypeEnum, value)

@@ -30,6 +30,18 @@ func (_c *MediaObjectCreate) SetUserID(v string) *MediaObjectCreate {
 	return _c
 }
 
+// SetPublicRef sets the "public_ref" field.
+func (_c *MediaObjectCreate) SetPublicRef(v string) *MediaObjectCreate {
+	_c.mutation.SetPublicRef(v)
+	return _c
+}
+
+// SetEntryPublicRef sets the "entry_public_ref" field.
+func (_c *MediaObjectCreate) SetEntryPublicRef(v string) *MediaObjectCreate {
+	_c.mutation.SetEntryPublicRef(v)
+	return _c
+}
+
 // SetObjectKey sets the "object_key" field.
 func (_c *MediaObjectCreate) SetObjectKey(v string) *MediaObjectCreate {
 	_c.mutation.SetObjectKey(v)
@@ -45,6 +57,20 @@ func (_c *MediaObjectCreate) SetContentType(v string) *MediaObjectCreate {
 // SetSizeBytes sets the "size_bytes" field.
 func (_c *MediaObjectCreate) SetSizeBytes(v int64) *MediaObjectCreate {
 	_c.mutation.SetSizeBytes(v)
+	return _c
+}
+
+// SetRevision sets the "revision" field.
+func (_c *MediaObjectCreate) SetRevision(v int) *MediaObjectCreate {
+	_c.mutation.SetRevision(v)
+	return _c
+}
+
+// SetNillableRevision sets the "revision" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableRevision(v *int) *MediaObjectCreate {
+	if v != nil {
+		_c.SetRevision(*v)
+	}
 	return _c
 }
 
@@ -284,6 +310,10 @@ func (_c *MediaObjectCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *MediaObjectCreate) defaults() {
+	if _, ok := _c.mutation.Revision(); !ok {
+		v := mediaobject.DefaultRevision
+		_c.mutation.SetRevision(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := mediaobject.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -343,6 +373,22 @@ func (_c *MediaObjectCreate) check() error {
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "MediaObject.user_id"`)}
 	}
+	if _, ok := _c.mutation.PublicRef(); !ok {
+		return &ValidationError{Name: "public_ref", err: errors.New(`ent: missing required field "MediaObject.public_ref"`)}
+	}
+	if v, ok := _c.mutation.PublicRef(); ok {
+		if err := mediaobject.PublicRefValidator(v); err != nil {
+			return &ValidationError{Name: "public_ref", err: fmt.Errorf(`ent: validator failed for field "MediaObject.public_ref": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.EntryPublicRef(); !ok {
+		return &ValidationError{Name: "entry_public_ref", err: errors.New(`ent: missing required field "MediaObject.entry_public_ref"`)}
+	}
+	if v, ok := _c.mutation.EntryPublicRef(); ok {
+		if err := mediaobject.EntryPublicRefValidator(v); err != nil {
+			return &ValidationError{Name: "entry_public_ref", err: fmt.Errorf(`ent: validator failed for field "MediaObject.entry_public_ref": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.ObjectKey(); !ok {
 		return &ValidationError{Name: "object_key", err: errors.New(`ent: missing required field "MediaObject.object_key"`)}
 	}
@@ -365,6 +411,14 @@ func (_c *MediaObjectCreate) check() error {
 	if v, ok := _c.mutation.SizeBytes(); ok {
 		if err := mediaobject.SizeBytesValidator(v); err != nil {
 			return &ValidationError{Name: "size_bytes", err: fmt.Errorf(`ent: validator failed for field "MediaObject.size_bytes": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.Revision(); !ok {
+		return &ValidationError{Name: "revision", err: errors.New(`ent: missing required field "MediaObject.revision"`)}
+	}
+	if v, ok := _c.mutation.Revision(); ok {
+		if err := mediaobject.RevisionValidator(v); err != nil {
+			return &ValidationError{Name: "revision", err: fmt.Errorf(`ent: validator failed for field "MediaObject.revision": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.Status(); !ok {
@@ -457,6 +511,14 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
+	if value, ok := _c.mutation.PublicRef(); ok {
+		_spec.SetField(mediaobject.FieldPublicRef, field.TypeString, value)
+		_node.PublicRef = value
+	}
+	if value, ok := _c.mutation.EntryPublicRef(); ok {
+		_spec.SetField(mediaobject.FieldEntryPublicRef, field.TypeString, value)
+		_node.EntryPublicRef = value
+	}
 	if value, ok := _c.mutation.ObjectKey(); ok {
 		_spec.SetField(mediaobject.FieldObjectKey, field.TypeString, value)
 		_node.ObjectKey = value
@@ -468,6 +530,10 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.SizeBytes(); ok {
 		_spec.SetField(mediaobject.FieldSizeBytes, field.TypeInt64, value)
 		_node.SizeBytes = value
+	}
+	if value, ok := _c.mutation.Revision(); ok {
+		_spec.SetField(mediaobject.FieldRevision, field.TypeInt, value)
+		_node.Revision = value
 	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(mediaobject.FieldStatus, field.TypeEnum, value)
@@ -590,6 +656,18 @@ type (
 	}
 )
 
+// SetEntryPublicRef sets the "entry_public_ref" field.
+func (u *MediaObjectUpsert) SetEntryPublicRef(v string) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldEntryPublicRef, v)
+	return u
+}
+
+// UpdateEntryPublicRef sets the "entry_public_ref" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateEntryPublicRef() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldEntryPublicRef)
+	return u
+}
+
 // SetObjectKey sets the "object_key" field.
 func (u *MediaObjectUpsert) SetObjectKey(v string) *MediaObjectUpsert {
 	u.Set(mediaobject.FieldObjectKey, v)
@@ -629,6 +707,24 @@ func (u *MediaObjectUpsert) UpdateSizeBytes() *MediaObjectUpsert {
 // AddSizeBytes adds v to the "size_bytes" field.
 func (u *MediaObjectUpsert) AddSizeBytes(v int64) *MediaObjectUpsert {
 	u.Add(mediaobject.FieldSizeBytes, v)
+	return u
+}
+
+// SetRevision sets the "revision" field.
+func (u *MediaObjectUpsert) SetRevision(v int) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldRevision, v)
+	return u
+}
+
+// UpdateRevision sets the "revision" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateRevision() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldRevision)
+	return u
+}
+
+// AddRevision adds v to the "revision" field.
+func (u *MediaObjectUpsert) AddRevision(v int) *MediaObjectUpsert {
+	u.Add(mediaobject.FieldRevision, v)
 	return u
 }
 
@@ -814,6 +910,9 @@ func (u *MediaObjectUpsertOne) UpdateNewValues() *MediaObjectUpsertOne {
 		if _, exists := u.create.mutation.UserID(); exists {
 			s.SetIgnore(mediaobject.FieldUserID)
 		}
+		if _, exists := u.create.mutation.PublicRef(); exists {
+			s.SetIgnore(mediaobject.FieldPublicRef)
+		}
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(mediaobject.FieldCreatedAt)
 		}
@@ -846,6 +945,20 @@ func (u *MediaObjectUpsertOne) Update(set func(*MediaObjectUpsert)) *MediaObject
 		set(&MediaObjectUpsert{UpdateSet: update})
 	}))
 	return u
+}
+
+// SetEntryPublicRef sets the "entry_public_ref" field.
+func (u *MediaObjectUpsertOne) SetEntryPublicRef(v string) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetEntryPublicRef(v)
+	})
+}
+
+// UpdateEntryPublicRef sets the "entry_public_ref" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateEntryPublicRef() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateEntryPublicRef()
+	})
 }
 
 // SetObjectKey sets the "object_key" field.
@@ -894,6 +1007,27 @@ func (u *MediaObjectUpsertOne) AddSizeBytes(v int64) *MediaObjectUpsertOne {
 func (u *MediaObjectUpsertOne) UpdateSizeBytes() *MediaObjectUpsertOne {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.UpdateSizeBytes()
+	})
+}
+
+// SetRevision sets the "revision" field.
+func (u *MediaObjectUpsertOne) SetRevision(v int) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetRevision(v)
+	})
+}
+
+// AddRevision adds v to the "revision" field.
+func (u *MediaObjectUpsertOne) AddRevision(v int) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.AddRevision(v)
+	})
+}
+
+// UpdateRevision sets the "revision" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateRevision() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateRevision()
 	})
 }
 
@@ -1272,6 +1406,9 @@ func (u *MediaObjectUpsertBulk) UpdateNewValues() *MediaObjectUpsertBulk {
 			if _, exists := b.mutation.UserID(); exists {
 				s.SetIgnore(mediaobject.FieldUserID)
 			}
+			if _, exists := b.mutation.PublicRef(); exists {
+				s.SetIgnore(mediaobject.FieldPublicRef)
+			}
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(mediaobject.FieldCreatedAt)
 			}
@@ -1305,6 +1442,20 @@ func (u *MediaObjectUpsertBulk) Update(set func(*MediaObjectUpsert)) *MediaObjec
 		set(&MediaObjectUpsert{UpdateSet: update})
 	}))
 	return u
+}
+
+// SetEntryPublicRef sets the "entry_public_ref" field.
+func (u *MediaObjectUpsertBulk) SetEntryPublicRef(v string) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetEntryPublicRef(v)
+	})
+}
+
+// UpdateEntryPublicRef sets the "entry_public_ref" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateEntryPublicRef() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateEntryPublicRef()
+	})
 }
 
 // SetObjectKey sets the "object_key" field.
@@ -1353,6 +1504,27 @@ func (u *MediaObjectUpsertBulk) AddSizeBytes(v int64) *MediaObjectUpsertBulk {
 func (u *MediaObjectUpsertBulk) UpdateSizeBytes() *MediaObjectUpsertBulk {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.UpdateSizeBytes()
+	})
+}
+
+// SetRevision sets the "revision" field.
+func (u *MediaObjectUpsertBulk) SetRevision(v int) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetRevision(v)
+	})
+}
+
+// AddRevision adds v to the "revision" field.
+func (u *MediaObjectUpsertBulk) AddRevision(v int) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.AddRevision(v)
+	})
+}
+
+// UpdateRevision sets the "revision" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateRevision() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateRevision()
 	})
 }
 
