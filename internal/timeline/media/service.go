@@ -117,13 +117,26 @@ func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID strin
 	}
 	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status}, nil
 }
-func validDeleteReceipt(old *ent.TimelineMutation, hash, mediaRef string) bool {
-	if old == nil || old.RequestHash != hash || old.TargetKind != "media" || old.Operation != "media_delete" || old.MediaRef == nil || *old.MediaRef != mediaRef || old.ResultState != "deleting" || old.SnapshotVersion != 1 {
+func validOpaqueRef(value, prefix string) bool {
+	if len(value) != len(prefix)+26 || !strings.HasPrefix(value, prefix) {
 		return false
 	}
-	_, hasMedia := old.ResultSnapshot["media_ref"]
-	_, hasEntry := old.ResultSnapshot["entry_ref"]
-	return hasMedia && hasEntry
+	for _, c := range value[len(prefix):] {
+		if !strings.ContainsRune("0123456789abcdefghjkmnpqrstvwxyz", c) {
+			return false
+		}
+	}
+	return true
+}
+
+func validDeleteReceipt(old *ent.TimelineMutation, hash, mediaRef string) bool {
+	if old == nil || old.RequestHash != hash || old.TargetKind != "media" || old.Operation != "media_delete" || old.MediaRef == nil || *old.MediaRef != mediaRef || old.EntryRef == nil || old.ResultState != "deleting" || old.SnapshotVersion != 1 {
+		return false
+	}
+	entryRef := *old.EntryRef
+	snapshotMedia, mediaOK := old.ResultSnapshot["media_ref"].(string)
+	snapshotEntry, entryOK := old.ResultSnapshot["entry_ref"].(string)
+	return mediaOK && entryOK && validOpaqueRef(mediaRef, "med_") && validOpaqueRef(entryRef, "ent_") && snapshotMedia == mediaRef && snapshotEntry == entryRef
 }
 
 func Delete(ctx context.Context, st *Store, userID, mediaRef, mutationID string, expectedRevision int) error {

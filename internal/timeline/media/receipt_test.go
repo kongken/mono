@@ -5,18 +5,26 @@ import (
 	"testing"
 )
 
-func TestValidDeleteReceiptRejectsNonMediaReceipt(t *testing.T) {
-	ref := "med_abcdefghijklmnopqrstuvwxyz"
-	base := func(target, op string) *ent.TimelineMutation {
-		return &ent.TimelineMutation{RequestHash: "h", TargetKind: target, Operation: op, MediaRef: &ref, ResultState: "deleting", SnapshotVersion: 1, ResultSnapshot: map[string]any{"media_ref": ref, "entry_ref": "ent_abcdefghijklmnopqrstuvwxyz"}}
+func TestValidDeleteReceiptStrictSnapshotRefs(t *testing.T) {
+	mediaRef := "med_0123456789abcdefghjkmnpqrs"
+	entryRef := "ent_0123456789abcdefghjkmnpqrs"
+	base := func(snapshot map[string]any) *ent.TimelineMutation {
+		return &ent.TimelineMutation{RequestHash: "h", TargetKind: "media", Operation: "media_delete", MediaRef: &mediaRef, EntryRef: &entryRef, ResultState: "deleting", SnapshotVersion: 1, ResultSnapshot: snapshot}
 	}
-	if validDeleteReceipt(base("entry", "delete"), "h", ref) {
-		t.Fatal("entry receipt accepted as media delete replay")
+	valid := map[string]any{"media_ref": mediaRef, "entry_ref": entryRef}
+	if !validDeleteReceipt(base(valid), "h", mediaRef) {
+		t.Fatal("valid receipt rejected")
 	}
-	if validDeleteReceipt(base("media", "delete"), "h", ref) {
-		t.Fatal("wrong operation accepted as media delete replay")
+	cases := []map[string]any{
+		{"media_ref": "med_0123456789abcdefghjkmnpqrr", "entry_ref": entryRef},
+		{"media_ref": mediaRef, "entry_ref": "ent_0123456789abcdefghjkmnpqrr"},
+		{"media_ref": 123, "entry_ref": entryRef},
+		{"media_ref": "", "entry_ref": entryRef},
+		{"media_ref": mediaRef, "entry_ref": nil},
 	}
-	if !validDeleteReceipt(base("media", "media_delete"), "h", ref) {
-		t.Fatal("valid media receipt rejected")
+	for i, snapshot := range cases {
+		if validDeleteReceipt(base(snapshot), "h", mediaRef) {
+			t.Fatalf("case %d accepted", i)
+		}
 	}
 }
