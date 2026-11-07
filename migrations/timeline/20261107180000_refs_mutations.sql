@@ -20,6 +20,9 @@ ALTER TABLE "timeline_media_objects"
   ADD COLUMN "height" bigint NULL,
   ADD COLUMN "upload_expires_at" timestamptz NULL,
   ADD COLUMN "updated_at" timestamptz NOT NULL DEFAULT now();
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM timeline_media_objects m JOIN timeline_entries e ON e.id = m.entry_id WHERE m.user_id <> e.user_id) THEN RAISE EXCEPTION 'timeline media owner mismatch'; END IF;
+END $$;
 UPDATE "timeline_media_objects" m SET
   "public_ref" = 'med_' || translate(substr(md5('media:' || m."id"), 1, 26), 'ilo', 'jkm'),
   "entry_public_ref" = e."public_ref"
