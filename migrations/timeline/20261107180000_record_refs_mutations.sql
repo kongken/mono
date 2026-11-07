@@ -17,7 +17,7 @@ ALTER TABLE "timeline_media_objects" ADD COLUMN "upload_expires_at" timestamptz;
 ALTER TABLE "timeline_media_objects" ADD COLUMN "public_ref" character varying;
 
 ALTER TABLE "timeline_media_objects" ADD COLUMN "entry_public_ref" character varying;
-UPDATE "timeline_media_objects" m SET "public_ref" = 'med_' || substr(md5("id"), 1, 26), "entry_public_ref" = e."public_ref" FROM "timeline_entries" e WHERE m."entry_id" = e."id" AND (m."public_ref" IS NULL OR m."entry_public_ref" IS NULL);
+UPDATE "timeline_media_objects" m SET "public_ref" = 'med_' || substr(md5(m."id"), 1, 26), "entry_public_ref" = e."public_ref" FROM "timeline_entries" e WHERE m."entry_id" = e."id" AND (m."public_ref" IS NULL OR m."entry_public_ref" IS NULL);
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM "timeline_media_objects" WHERE "public_ref" IS NULL OR "entry_public_ref" IS NULL) OR EXISTS (SELECT "public_ref" FROM "timeline_media_objects" GROUP BY "public_ref" HAVING count(*) > 1) OR EXISTS (SELECT 1 FROM "timeline_media_objects" m LEFT JOIN "timeline_entries" e ON e."id" = m."entry_id" WHERE e."public_ref" IS NULL OR m."entry_public_ref" <> e."public_ref") THEN RAISE EXCEPTION 'timeline media ref backfill incomplete, collided, or entry mismatch'; END IF;
 END $$;

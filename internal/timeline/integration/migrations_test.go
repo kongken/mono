@@ -117,15 +117,15 @@ func newMigrationDB(t *testing.T) *migrationDB {
 }
 
 // apply runs the migration files in name order, one transaction per file, the
-// way the deployment notes say to apply them. `limit` stops before that index
-// (0 applies nothing, len(files) applies everything).
-func (m *migrationDB) apply(t *testing.T, limit int) {
+// way the deployment notes say to apply them. `to` is exclusive, so m.apply(t, 0, 1)
+// is the baseline alone and m.apply(t, 1, len(files)) is the upgrade on top of it.
+func (m *migrationDB) apply(t *testing.T, from, to int) {
 	t.Helper()
 	files := migrationFiles(t)
-	if limit > len(files) {
-		limit = len(files)
+	if to > len(files) {
+		to = len(files)
 	}
-	for _, file := range files[:limit] {
+	for _, file := range files[from:to] {
 		body, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
@@ -181,9 +181,9 @@ func (m *migrationDB) insertLegacyRows(t *testing.T) {
 // database rather than by the caller.
 func TestVersionedMigrationsBackfillOpaqueRefs(t *testing.T) {
 	m := newMigrationDB(t)
-	m.apply(t, 1)
+	m.apply(t, 0, 1)
 	m.insertLegacyRows(t)
-	m.apply(t, len(migrationFiles(t)))
+	m.apply(t, 1, len(migrationFiles(t)))
 
 	for _, entry := range []struct{ id, user, title string }{
 		{"e1", "u1", "旧记录"},
@@ -287,7 +287,7 @@ func validReceipt(id, user, mutation string) receipt {
 // set below is spelled out one combination per case.
 func TestMutationReceiptConstraintsRejectIllegalRows(t *testing.T) {
 	m := newMigrationDB(t)
-	m.apply(t, len(migrationFiles(t)))
+	m.apply(t, 0, len(migrationFiles(t)))
 
 	legal := map[string]receipt{
 		"entry/create":  validReceipt("r1", "u1", "m-create"),
@@ -341,7 +341,7 @@ func TestMutationReceiptConstraintsRejectIllegalRows(t *testing.T) {
 // deletes Media and Entry rows; a replay must still find the original result).
 func TestMutationReceiptSurvivesCleanupAndIsOwnerScoped(t *testing.T) {
 	m := newMigrationDB(t)
-	m.apply(t, len(migrationFiles(t)))
+	m.apply(t, 0, len(migrationFiles(t)))
 
 	m.exec(t, `INSERT INTO timeline_entries (id, user_id, title, occurred_date, timezone, occurred_at, created_at, updated_at, public_ref)
 		VALUES ('e1','u1','带附件','2026-11-03','Asia/Shanghai','2026-11-03T09:00:00Z',now(),now(),$1)`, entryRef)
