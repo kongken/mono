@@ -24,7 +24,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `proto/usersrv/v1/`、`migrations/usersrv/` | usersrv 的内部契约与版本化迁移 |
 | `internal/bff/metro/` | 地铁足迹的 BFF 适配（目录手写映射；管理与骑行者经 `relay` 线格式转换）与账号清理器 |
 | `proto/metro/v1/`、`proto/bff/metro/v1/`、`migrations/metro/` | metro 的内部与浏览器契约、版本化迁移 |
-| `proto/timeline/v1/`、`migrations/timeline/` | Timeline 内部账号清理契约与版本化迁移 |
+| `proto/timeline/v1/`、`migrations/timeline/` | Timeline 内部账号清理契约、opaque ref 与 mutation receipt 的版本化迁移；迁移先随机回填 ref，再建立约束与回执表，失败由数据库事务回滚 |
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
 | `internal/tripmap/tiles/` | 可选的 Mapbox 瓦片代理：`GET /api/tiles/{z}/{x}/{y}.png` 的配置校验、请求校验、限流与上游访问（[说明](#mapbox-瓦片代理可选)） |

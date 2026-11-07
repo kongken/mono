@@ -24,7 +24,7 @@ func out(e *v1.Entry) *bffv1.Entry {
 	if e == nil {
 		return nil
 	}
-	return &bffv1.Entry{Id: e.Id, EntryRef: e.EntryRef, Title: e.Title, Date: e.Date, Time: e.Time, Timezone: e.Timezone, Category: e.Category, Location: e.Location, AmountMinor: e.AmountMinor, Currency: e.Currency, Note: e.Note, Url: e.Url, UrlTitle: e.UrlTitle, UrlNote: e.UrlNote, Revision: e.Revision, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt, DeletedAt: e.DeletedAt}
+	return &bffv1.Entry{EntryRef: e.EntryRef, Title: e.Title, Date: e.Date, Time: e.Time, Timezone: e.Timezone, Category: e.Category, Location: e.Location, AmountMinor: e.AmountMinor, Currency: e.Currency, Note: e.Note, Url: e.Url, UrlTitle: e.UrlTitle, UrlNote: e.UrlNote, Revision: e.Revision, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt, DeletedAt: e.DeletedAt}
 }
 func receipt(x *v1.MutationReceipt) *bffv1.MutationReceipt {
 	if x == nil {

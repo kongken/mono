@@ -28,6 +28,7 @@ import (
 var dateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 var timeRE = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$`)
 var publicRefRE = regexp.MustCompile(`^ent_[a-f0-9]{26}$`)
+var mutationIDRE = regexp.MustCompile(`^[A-Za-z0-9._:-]{8,128}$`)
 
 // TimelineService owns all record operations. The caller identity always comes
 // from the internal auth context; request messages never contain a user id.
@@ -121,8 +122,20 @@ func publicRef(prefix string) string {
 	return prefix + raw[:26]
 }
 
+func validateMutationID(id string) error {
+	if !mutationIDRE.MatchString(id) {
+		return status.Error(codes.InvalidArgument, "mutation_id must be 8-128 ASCII characters")
+	}
+	return nil
+}
+func requireRevision(revision int64) error {
+	if revision <= 0 {
+		return status.Error(codes.InvalidArgument, "expected_revision is required")
+	}
+	return nil
+}
 func mapEntry(e *ent.Entry) *timelinev1.Entry {
-	out := &timelinev1.Entry{Id: e.ID, EntryRef: e.PublicRef, Title: e.Title, Date: e.OccurredDate, Time: e.OccurredTime, Timezone: e.Timezone, Category: e.Category, Location: e.Location, AmountMinor: e.AmountMinor, Currency: e.Currency, Note: e.Body, Url: e.URL, UrlTitle: e.URLTitle, UrlNote: e.URLNote, Revision: int64(e.Revision), CreatedAt: timestamppb.New(e.CreatedAt), UpdatedAt: timestamppb.New(e.UpdatedAt)}
+	out := &timelinev1.Entry{EntryRef: e.PublicRef, Title: e.Title, Date: e.OccurredDate, Time: e.OccurredTime, Timezone: e.Timezone, Category: e.Category, Location: e.Location, AmountMinor: e.AmountMinor, Currency: e.Currency, Note: e.Body, Url: e.URL, UrlTitle: e.URLTitle, UrlNote: e.URLNote, Revision: int64(e.Revision), CreatedAt: timestamppb.New(e.CreatedAt), UpdatedAt: timestamppb.New(e.UpdatedAt)}
 	if e.DeletedAt != nil {
 		out.DeletedAt = timestamppb.New(*e.DeletedAt)
 	}
@@ -234,6 +247,10 @@ func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.Creat
 	if err = validate(req.Entry, false); err != nil {
 		return nil, err
 	}
+	if err := validateMutationID(req.MutationId); err != nil {
+		return nil, err
+	}
+
 	hash := requestHash(uid, "create", "", "", 0, req.Entry)
 	tx, err := s.db.Tx(ctx)
 	if err != nil {
@@ -285,6 +302,13 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 	if err = validateLocator(req.Entry.EntryRef, req.Entry.Id); err != nil {
 		return nil, err
 	}
+	if err := validateMutationID(req.MutationId); err != nil {
+		return nil, err
+	}
+	if err := requireRevision(req.ExpectedRevision); err != nil {
+		return nil, err
+	}
+
 	hash := requestHash(uid, "update", req.Entry.EntryRef, req.Entry.Id, req.ExpectedRevision, req.Entry)
 	tx, err := s.db.Tx(ctx)
 	if err != nil {
@@ -320,7 +344,14 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
-	row, err = row.Update().SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).SetRevision(row.Revision + 1).Save(ctx)
+	updated, err := tx.Entry.Update().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision), entry.DeletedAtIsNil()).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).SetRevision(row.Revision + 1).Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if updated != 1 {
+		return nil, status.Error(codes.Aborted, "revision conflict")
+	}
+	row, err = tx.Entry.Query().Where(entry.ID(row.ID), entry.UserID(uid)).Only(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -349,6 +380,13 @@ func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.Delet
 	if req.Permanent {
 		return nil, status.Error(codes.InvalidArgument, "permanent deletion is not supported; use PurgeEntry")
 	}
+	if err := validateMutationID(req.MutationId); err != nil {
+		return nil, err
+	}
+	if err := requireRevision(req.ExpectedRevision); err != nil {
+		return nil, err
+	}
+
 	hash := requestHash(uid, "trash", req.EntryRef, req.Id, req.ExpectedRevision, req.Permanent)
 	tx, err := s.db.Tx(ctx)
 	if err != nil {
@@ -384,7 +422,14 @@ func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.Delet
 	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
-	row, err = row.Update().SetDeletedAt(time.Now().UTC()).SetRevision(row.Revision + 1).Save(ctx)
+	updated, err := tx.Entry.Update().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision), entry.DeletedAtIsNil()).SetDeletedAt(time.Now().UTC()).SetRevision(row.Revision + 1).Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if updated != 1 {
+		return nil, status.Error(codes.Aborted, "revision conflict")
+	}
+	row, err = tx.Entry.Query().Where(entry.ID(row.ID), entry.UserID(uid)).Only(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -410,6 +455,13 @@ func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.Rest
 	if err = validateLocator(req.EntryRef, req.Id); err != nil {
 		return nil, err
 	}
+	if err := validateMutationID(req.MutationId); err != nil {
+		return nil, err
+	}
+	if err := requireRevision(req.ExpectedRevision); err != nil {
+		return nil, err
+	}
+
 	hash := requestHash(uid, "restore", req.EntryRef, req.Id, req.ExpectedRevision, nil)
 	tx, err := s.db.Tx(ctx)
 	if err != nil {
@@ -445,11 +497,16 @@ func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.Rest
 	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
-	if row.DeletedAt != nil {
-		row, err = row.Update().ClearDeletedAt().SetRevision(row.Revision + 1).Save(ctx)
-		if err != nil {
-			return nil, err
-		}
+	updated, err := tx.Entry.Update().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision)).ClearDeletedAt().SetRevision(row.Revision + 1).Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if updated != 1 {
+		return nil, status.Error(codes.Aborted, "revision conflict")
+	}
+	row, err = tx.Entry.Query().Where(entry.ID(row.ID), entry.UserID(uid)).Only(ctx)
+	if err != nil {
+		return nil, err
 	}
 	snap, err := snapshotEntry(row)
 	if err != nil {
@@ -473,6 +530,13 @@ func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeE
 	if err = validateLocator(req.EntryRef, req.Id); err != nil {
 		return nil, err
 	}
+	if err := validateMutationID(req.MutationId); err != nil {
+		return nil, err
+	}
+	if err := requireRevision(req.ExpectedRevision); err != nil {
+		return nil, err
+	}
+
 	hash := requestHash(uid, "purge", req.EntryRef, req.Id, req.ExpectedRevision, nil)
 	tx, err := s.db.Tx(ctx)
 	if err != nil {
@@ -508,8 +572,12 @@ func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeE
 	if err != nil {
 		return nil, err
 	}
-	if _, err = tx.Entry.Delete().Where(entry.ID(row.ID), entry.UserID(uid)).Exec(ctx); err != nil {
+	deleted, err := tx.Entry.Delete().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision)).Exec(ctx)
+	if err != nil {
 		return nil, err
+	}
+	if deleted != 1 {
+		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
 	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "purge", hash, row.PublicRef, row.Revision, "purged", snap)
 	if err != nil {

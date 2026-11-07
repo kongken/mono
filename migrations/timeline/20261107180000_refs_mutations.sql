@@ -1,7 +1,8 @@
 -- Timeline opaque refs and durable mutation receipts.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- Ref backfill order is deliberate: entries first, then media snapshots, then receipts.
 ALTER TABLE "timeline_entries" ADD COLUMN "public_ref" character varying;
-UPDATE "timeline_entries" SET "public_ref" = 'ent_' || translate(substr(md5('entry:' || "id"), 1, 26), 'ilo', 'jkm');
+UPDATE "timeline_entries" SET "public_ref" = 'ent_' || encode(gen_random_bytes(13), 'hex');
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM timeline_entries WHERE public_ref IS NULL OR public_ref !~ '^ent_[0-9a-hjkmnp-tv-z]{26}$') THEN RAISE EXCEPTION 'unresolvable timeline entry public_ref'; END IF;
 END $$;
@@ -24,7 +25,7 @@ DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM timeline_media_objects m JOIN timeline_entries e ON e.id = m.entry_id WHERE m.user_id <> e.user_id) THEN RAISE EXCEPTION 'timeline media owner mismatch'; END IF;
 END $$;
 UPDATE "timeline_media_objects" m SET
-  "public_ref" = 'med_' || translate(substr(md5('media:' || m."id"), 1, 26), 'ilo', 'jkm'),
+  "public_ref" = 'med_' || encode(gen_random_bytes(13), 'hex'),
   "entry_public_ref" = e."public_ref"
 FROM "timeline_entries" e WHERE e."id" = m."entry_id";
 DO $$ BEGIN

@@ -9,3 +9,9 @@ Timeline 记录属于当前 OzID 账号，浏览器通过 BFF 的 `bff.timeline.
 账号注销会删除 Timeline 记录，并把关联对象的 opaque key 放入不含用户 ID 的清理队列。清理队列可安全重试。BFF 未配置 Timeline upstream 时不会挂载入口。
 
 当前限制：Timeline 的浏览器视觉页面和附件上传将在后续切片接入；本切片提供服务端记录闭环与 BFF 合同。
+
+### 并发与重放契约
+
+除创建外，update、trash、restore、purge 必须携带正数 `expected_revision`。服务端在事务内执行带账号、opaque `entry_ref` 和当前 revision 条件的原子更新或删除；条件未命中返回冲突，事务回滚且不写 mutation receipt。响应和 replay snapshot 只含 `entry_ref`，不含内部数据库 UUID。`mutation_id` 必须是 8–128 个 ASCII 字符（`[A-Za-z0-9._:-]`），相同请求重放返回首次快照，不同请求复用同一 ID 会被拒绝。
+
+迁移先启用 `pgcrypto`，再以随机字节回填 entry/media opaque refs，随后建立唯一索引和 mutation 表；回填失败或 CHECK 约束失败会使迁移事务回滚。生产发布必须先执行 `migrations/timeline/20261107180000_refs_mutations.sql`，再部署依赖新字段的服务。
