@@ -118,7 +118,7 @@ func (s *Service) Create(ctx context.Context, owner session.BrowserSession, in C
 	if audience != AudienceMetro && audience != AudienceTimeline {
 		return nil, "", invalid("audience must be metro or timeline")
 	}
-	scopes, err := normalizeScopes(in.Scopes)
+	scopes, err := normalizeScopes(audience, in.Scopes)
 	if err != nil {
 		return nil, "", err
 	}
@@ -231,14 +231,21 @@ func (s *Service) Authenticate(ctx context.Context, secret, audience string) (Pr
 	}, nil
 }
 
-func normalizeScopes(in []string) ([]string, error) {
+func normalizeScopes(audience string, in []string) ([]string, error) {
 	if len(in) == 0 {
+		if audience == AudienceTimeline {
+			return []string{ScopeTimelineRead}, nil
+		}
 		return []string{ScopeRead}, nil
 	}
 	var out []string
 	for _, sc := range in {
-		if sc != ScopeRead && sc != ScopeWrite && sc != ScopeTimelineRead && sc != ScopeTimelineWrite {
-			return nil, invalid("scopes may only be metro:read, metro:write, timeline:read and timeline:write")
+		if audience == AudienceTimeline {
+			if sc != ScopeTimelineRead && sc != ScopeTimelineWrite {
+				return nil, invalid("timeline audience only accepts timeline:read and timeline:write scopes")
+			}
+		} else if sc != ScopeRead && sc != ScopeWrite {
+			return nil, invalid("metro audience only accepts metro:read and metro:write scopes")
 		}
 		if !slices.Contains(out, sc) {
 			out = append(out, sc)

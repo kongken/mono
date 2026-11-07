@@ -66,7 +66,7 @@ type Accounts interface {
 }
 
 // AdminRole is the role every tool of this endpoint needs.
-const AdminRole = "timeline-user"
+const AdminRole = "metro-admin"
 
 // Limiter is a fixed-window counter shared across BFF replicas.
 type Limiter interface {
