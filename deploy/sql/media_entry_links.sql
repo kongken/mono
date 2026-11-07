@@ -1,0 +1,5 @@
+-- Controlled one-time import template for cmd/migrate-shared.
+-- Replace this file with generated INSERT statements before deployment.
+-- Each row must contain media_id, user_id, and an opaque Timeline entry_ref.
+-- An empty template intentionally fails the Media backfill when existing
+-- media rows have no corresponding historical link.

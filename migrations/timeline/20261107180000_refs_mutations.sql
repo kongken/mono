@@ -6,6 +6,7 @@ UPDATE "timeline_entries" SET "public_ref" = 'ent_' || encode(gen_random_bytes(1
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM timeline_entries WHERE public_ref IS NULL OR public_ref !~ '^ent_[0-9a-f]{26}$') THEN RAISE EXCEPTION 'unresolvable timeline entry public_ref'; END IF;
 END $$;
+CREATE UNIQUE INDEX "timeline_entries_public_ref_user_key" ON "timeline_entries" ("public_ref", "user_id");
 CREATE UNIQUE INDEX "timeline_entries_public_ref_key" ON "timeline_entries" ("public_ref");
 ALTER TABLE "timeline_entries" ALTER COLUMN "public_ref" SET NOT NULL;
 

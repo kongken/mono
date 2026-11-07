@@ -4,18 +4,16 @@
 
 ## Timeline 与 Tripmap 共享迁移
 
-Timeline 和 Tripmap 的服务 baseline 必须先在同一个 PostgreSQL database 中初始化。跨服务的增量迁移使用仓库内的 `cmd/migrate-shared`，不要分别执行 Tripmap 的增量目录：
+Timeline 和 Tripmap 的 clean baseline、共享增量和一次性 import 必须在同一个 PostgreSQL database 中由仓库入口执行。不要分别执行 Tripmap 目录：
 
 ```bash
-go run ./cmd/migrate-shared -dsn "$SHARED_MIGRATION_DSN" \\
-  -root . \\
+go run ./cmd/migrate-shared -dsn "$SHARED_MIGRATION_DSN" -root . \\
   -link-import ./deploy/sql/media_entry_links.sql
 ```
 
-该入口在一个数据库事务中按以下顺序执行：Timeline `timeline_mutations`/Entry ref migration、创建 `media_entry_links` staging 表、执行一次性 link import、Tripmap Media 字段/约束/receipt migration。link import 文件必须只包含可信的 `media_id,user_id,entry_ref` 行；Media owner、link owner 和 Timeline Entry owner 会在 Tripmap migration 中同时校验。任一 link 缺失、Media 或 Entry 不存在、重复或跨 owner 都会回滚整个事务。成功阶段写入 `shared_migration_history`，重复运行会跳过已完成阶段；失败事务不会留下 staging、字段、约束或历史记录。`-link-import` 为空时只适用于已经由受控部署步骤填充 staging 表的环境。
+`cmd/migrate-shared` 按 Timeline baseline → Tripmap baseline → Timeline refs/mutations → link staging → 外部 link import → Tripmap Media/receipt 增量执行。所有阶段在一个事务中完成；首次执行创建 clean baseline，成功阶段写入 `shared_migration_history`，重复执行幂等跳过，任一 SQL/import/约束失败都会回滚本次全部变更。`deploy/sql/media_entry_links.sql` 是仓库内的受控 import 文件模板，部署前必须由一次性导出生成真实 INSERT 行；文件中的三列必须是可信的 `media_id,user_id,entry_ref`。
 
-`SHARED_MIGRATION_DSN`、link import 文件和 PostgreSQL live 验证凭据必须由部署环境提供；本地没有 DSN 时，相关 integration tests 会明确 skip，不代表迁移已通过。
-
+link staging 持久化约束同时绑定 `(entry_ref,user_id)` 到 `timeline_entries(public_ref,user_id)`，并由 Tripmap migration 绑定 `(media_id,user_id)` 到 Media。缺 link、Media 或 Entry 不存在、重复或跨 owner link 都会在迁移事务中失败。
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 

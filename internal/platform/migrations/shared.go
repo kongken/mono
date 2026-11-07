@@ -10,21 +10,23 @@ import (
 	"strings"
 )
 
-// SharedPlan is the checked-in cross-service migration path. Both service
-// baselines must already exist in the same database; this plan applies
-// Timeline's shared schema before Tripmap's link staging, import, and fields.
+// SharedPlan is the checked-in cross-service migration path. It bootstraps both
+// clean baselines in one database, then applies Timeline refs, link staging,
+// external import, and Tripmap's receipt migration.
 type SharedPlan struct {
-	TimelineRefs string
-	LinkStaging  string
-	TripmapMedia string
-	LinkImport   string
+	TimelineBaseline string
+	TripmapBaseline  string
+	TimelineRefs     string
+	LinkStaging      string
+	TripmapMedia     string
+	LinkImport       string
 }
 
 // Apply executes every phase in one database transaction. A failed import or
 // constraint check rolls back the preceding phases. The history table makes a
 // successful run idempotent on subsequent deployments.
 func (p SharedPlan) Apply(ctx context.Context, db *sql.DB) error {
-	if p.TimelineRefs == "" || p.LinkStaging == "" || p.TripmapMedia == "" {
+	if p.TimelineBaseline == "" || p.TripmapBaseline == "" || p.TimelineRefs == "" || p.LinkStaging == "" || p.TripmapMedia == "" {
 		return fmt.Errorf("shared migration plan is incomplete")
 	}
 	tx, err := db.BeginTx(ctx, nil)
@@ -36,6 +38,8 @@ func (p SharedPlan) Apply(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("create shared migration history: %w", err)
 	}
 	phases := []struct{ name, path string }{
+		{"timeline-baseline", p.TimelineBaseline},
+		{"tripmap-baseline", p.TripmapBaseline},
 		{"timeline-refs", p.TimelineRefs},
 		{"media-entry-links", p.LinkStaging},
 		{"media-entry-link-import", p.LinkImport},
@@ -74,9 +78,11 @@ func (p SharedPlan) Apply(ctx context.Context, db *sql.DB) error {
 
 func DiscoverPlan(root string) SharedPlan {
 	return SharedPlan{
-		TimelineRefs: filepath.Join(root, "migrations", "timeline", "20261107180000_refs_mutations.sql"),
-		LinkStaging:  filepath.Join(root, "migrations", "tripmap", "20261107900000_media_entry_links.sql"),
-		TripmapMedia: filepath.Join(root, "migrations", "tripmap", "20261108000000_media_delete_receipts.sql"),
+		TimelineBaseline: filepath.Join(root, "migrations", "timeline", "20261107170000_baseline.sql"),
+		TripmapBaseline:  filepath.Join(root, "migrations", "tripmap", "20261014011442_baseline.sql"),
+		TimelineRefs:     filepath.Join(root, "migrations", "timeline", "20261107180000_refs_mutations.sql"),
+		LinkStaging:      filepath.Join(root, "migrations", "tripmap", "20261107900000_media_entry_links.sql"),
+		TripmapMedia:     filepath.Join(root, "migrations", "tripmap", "20261108000000_media_delete_receipts.sql"),
 	}
 }
 
