@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/timeline/ent"
@@ -283,6 +284,19 @@ func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.Creat
 	}
 	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "create", hash, row.PublicRef, row.Revision, "active", snap)
 	if err != nil {
+		if sqlgraph.IsConstraintError(err) {
+			_ = tx.Rollback()
+			committed = true
+			if old, readErr := s.priorReceipt(ctx, uid, req.MutationId, "create", hash); readErr != nil {
+				return nil, readErr
+			} else if old != nil {
+				e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+				if eerr != nil {
+					return nil, eerr
+				}
+				return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+			}
+		}
 		return nil, err
 	}
 	if err = tx.Commit(); err != nil {
@@ -361,6 +375,19 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 	}
 	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "update", hash, row.PublicRef, row.Revision, "active", snap)
 	if err != nil {
+		if sqlgraph.IsConstraintError(err) {
+			_ = tx.Rollback()
+			committed = true
+			if old, readErr := s.priorReceipt(ctx, uid, req.MutationId, "update", hash); readErr != nil {
+				return nil, readErr
+			} else if old != nil {
+				e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+				if eerr != nil {
+					return nil, eerr
+				}
+				return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+			}
+		}
 		return nil, err
 	}
 	if err = tx.Commit(); err != nil {
@@ -439,6 +466,19 @@ func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.Delet
 	}
 	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "trash", hash, row.PublicRef, row.Revision, "trashed", snap)
 	if err != nil {
+		if sqlgraph.IsConstraintError(err) {
+			_ = tx.Rollback()
+			committed = true
+			if old, readErr := s.priorReceipt(ctx, uid, req.MutationId, "trash", hash); readErr != nil {
+				return nil, readErr
+			} else if old != nil {
+				e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+				if eerr != nil {
+					return nil, eerr
+				}
+				return &timelinev1.DeleteEntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+			}
+		}
 		return nil, err
 	}
 	if err = tx.Commit(); err != nil {
@@ -514,6 +554,19 @@ func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.Rest
 	}
 	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "restore", hash, row.PublicRef, row.Revision, "active", snap)
 	if err != nil {
+		if sqlgraph.IsConstraintError(err) {
+			_ = tx.Rollback()
+			committed = true
+			if old, readErr := s.priorReceipt(ctx, uid, req.MutationId, "restore", hash); readErr != nil {
+				return nil, readErr
+			} else if old != nil {
+				e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+				if eerr != nil {
+					return nil, eerr
+				}
+				return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+			}
+		}
 		return nil, err
 	}
 	if err = tx.Commit(); err != nil {
@@ -581,6 +634,15 @@ func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeE
 	}
 	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "purge", hash, row.PublicRef, row.Revision, "purged", snap)
 	if err != nil {
+		if sqlgraph.IsConstraintError(err) {
+			_ = tx.Rollback()
+			committed = true
+			if old, readErr := s.priorReceipt(ctx, uid, req.MutationId, "purge", hash); readErr != nil {
+				return nil, readErr
+			} else if old != nil {
+				return &timelinev1.PurgeEntryResponse{Receipt: receiptResponse(old, true)}, nil
+			}
+		}
 		return nil, err
 	}
 	if err = tx.Commit(); err != nil {

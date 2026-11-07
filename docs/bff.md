@@ -349,7 +349,7 @@ metro 的专题总览 `/topics` 是单独的登录返回页；部署注册表需
 
 Timeline 浏览器只调用 `/api/bff.timeline.v1.TimelineService/<Method>`，BFF 将认证内部 RPC 的 `entry_ref`、mutation receipt、revision 和状态字段逐项映射。响应中的 `id` 始终为空；旧 `id` 仅作为明确兼容的输入字段传入内部服务。写调用继续由 BFF 的会话、Origin 和 CSRF 策略保护，BFF 不接受客户端 user ID。
 
-update、trash、restore、purge 必须携带正数 `expected_revision`；业务服务以账号、opaque ref 和 revision 条件执行原子变更，冲突不转发成功回执。相同 `mutation_id` 的重放返回首次结果快照，快照不会暴露内部数据库 UUID。
+update、trash、restore、purge 必须携带正数 `expected_revision`；业务服务以账号、opaque ref 和 revision 条件执行原子变更，冲突不转发成功回执。相同 `mutation_id` 的重放返回首次结果快照；并发请求通过 `(user_id, mutation_id)` 唯一约束抢占，唯一键冲突会回滚业务事务并读取已提交的首次回执，因此不会返回数据库唯一键错误。快照不会暴露内部数据库 UUID。
 
 ## 集中账号的来源策略与旧邮件过渡（OzID T12）
 

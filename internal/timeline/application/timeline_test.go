@@ -106,4 +106,39 @@ func TestConcurrentExpectedRevisionAllowsOneMutation(t *testing.T) {
 	if successes != 1 || conflicts != 1 {
 		t.Fatalf("expected one success and one conflict, got successes=%d conflicts=%d", successes, conflicts)
 	}
+
+	var createWG sync.WaitGroup
+	createResults := make(chan *timelinev1.EntryResponse, 2)
+	createErrors := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		createWG.Add(1)
+		go func() {
+			defer createWG.Done()
+			response, callErr := svc.CreateEntry(ctx, &timelinev1.CreateEntryRequest{MutationId: "create-replay-race", Entry: &timelinev1.Entry{Title: "same request", Date: "2026-11-07", Timezone: "UTC"}})
+			createResults <- response
+			createErrors <- callErr
+		}()
+	}
+	createWG.Wait()
+	close(createResults)
+	close(createErrors)
+	var createSuccesses, createReplays int
+	for callErr := range createErrors {
+		if callErr != nil {
+			t.Errorf("concurrent create replay failed: %v", callErr)
+		}
+	}
+	for response := range createResults {
+		if response == nil || response.Entry == nil || response.Receipt == nil {
+			t.Fatal("concurrent create returned incomplete response")
+		}
+		if response.Receipt.Replayed {
+			createReplays++
+		} else {
+			createSuccesses++
+		}
+	}
+	if createSuccesses != 1 || createReplays != 1 {
+		t.Fatalf("expected one create and one replay, got creates=%d replays=%d", createSuccesses, createReplays)
+	}
 }
