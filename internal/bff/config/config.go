@@ -188,7 +188,7 @@ func (a *AuthConfig) AdminSessionLimit() time.Duration {
 
 // UserDataProducts are the services that keep data of an account. Closing an account must
 // remove all of it, so a deployed one can never be left out of the cleanup list.
-var UserDataProducts = []string{"tripmap", "metro"}
+var UserDataProducts = []string{"tripmap", "metro", "timeline"}
 
 // CleanupProducts returns the products whose data an account deletion removes: the
 // configured auth.account_cleanup, or by default tripmap plus every other user-data

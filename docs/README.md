@@ -9,11 +9,12 @@
 | [世界视图规格](trip-map/world-spec.md) | 已实现（W1–W7）：国家/地区着色与海外城市点位的范围、数据模型 v1、点亮与统计口径、存储键、云端并发模型、地图数据要求、分阶段交付与验收追踪；当前行为以[功能描述](trip-map/features.md)和[数据与地图说明](trip-map/data-and-maps.md)为准 | 世界视图的规格、范围或决策变化时 |
 | [公开分享页与预览图](trip-map/sharing.md) | F6 的快照模型、公开接口、隐私规则、预览图资源、部署配置、限制和测试覆盖 | 分享功能、配置或限制变化时 |
 | [前后端 monorepo 布局](monorepo.md) | 前端 workspaces（`apps/`、`packages/`）与 Go 服务的目录约定、共享包职责、新增应用步骤、Cloudflare Pages 构建设置 | 目录结构、workspace 包或静态托管构建设置变化时 |
-| [Oz Studio 站点功能描述](homepage/features.md) | `apps/homepage` 的页面（`/` 首页、`/extensions/` Chrome 插件列表）、多页构建与静态托管、插件列表数据来源与新增插件步骤、验证与限制 | 站点页面、插件列表内容或构建方式变化时 |
+| [Timeline 文字记录](timeline/features.md) | 账号隔离的记录字段、排序筛选、回收站、revision/mutation 幂等和网页书签校验边界 | Timeline 记录行为、接口或限制变化时 |
 | [Docker 镜像与 Actions](docker-images.md) | 前端、BFF、tripmap、metro 与 usersrv 镜像，构建发布触发和运行配置 | 镜像或发布流程变化时 |
 | [部署与发布](deployment.md) | 同源反代、Secret、密钥轮换、内网监听、健康探针、Legacy 导入 | 部署拓扑或运维流程变化时 |
 | [BFF（公网入口）](bff.md) | 公网 Connect、内部 gRPC 与 Ed25519 凭证、跨域与配置 | BFF 路由、配置或拓扑变化时 |
 | [第三方登录契约、数据模型与迁移回滚方案](adr/0001-third-party-auth-contract.md) | Issue #103 的 Google/GitHub 契约、数据模型、跨服务消费、锁序、迁移回滚与 A01–A21 证据映射；S1/S2/S3a/S3b 已通过，S3c usersrv 安全核心待审、BFF/OzID 完整流程待实现 | 第三方登录契约或实现边界变化时 |
+| [Timeline 附件与 MCP 服务边界契约](adr/0002-timeline-attachments-and-mcp-boundary.md) | Timeline 附件与 MCP 的唯一边界草案：MediaObject 状态机与 revision/删除回执、`entry_ref`/`media_ref` 映射与脱敏、记录 mutation 持久幂等回执，以及待实现缺口登记 | 附件、MCP 或记录写操作边界变化时 |
 | [OzID 与统一管理控制台规格](ozid/spec.md) | 已确认范围；T1（登录、重新认证、安全返回）、T2（统一注册验证与密码重置邮件）、T3（账号资料、密码与设备会话管理）与 T4（受控统一管理控制台与用户查询）、T5（普通账号状态与 metro-admin 的安全修改）、T6（账号安全与管理审计查询）、T7（账号注销与失败恢复）T8（metro 管理功能迁入控制台，浏览器管理周界随之切换）与 T9（MCP 独立来源白名单 `mcp.allowed_cidrs`）已实现，其余待实现：产品入口收敛及分阶段验收 | 用户中心或统一管理控制台的规格、范围与评审结论变化时 |
 | [OzID 与控制台整体验收（T12）](ozid/acceptance.md) | #77 验收项到实现与测试的映射、真实网关与浏览器验收（两组保留域名）、最终来源策略、旧邮件交接与 TTL 过渡清单、各场景的证据归属、已定位修复的失败与运维待验项 | 验收范围、来源策略或网关示例变化时 |
 | [OzID 功能描述（T1、T2、T3）](ozid/features.md) | 已实现：`apps/ozid` 的登录、注册、找回密码、邮件落地页（注册验证、密码重置）、概览、密码重新认证，以及资料、改密码与设备会话页面（含 BFF `RevokeOtherSessions`），邮件链接统一落到 OzID 与返回上下文随挑战保存，BFF `ResolveNavigation` 与 `navigation` 注册表、安全返回规则、同站点跨域会话不变量、构建/镜像/运行、验证分层与限制 | OzID 页面、导航规则、配置或部署变化时 |

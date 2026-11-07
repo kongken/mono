@@ -16,7 +16,7 @@
     "build:metro": "npm run build -w @kongken/metro",
     "build:ozid": "npm run build -w @kongken/ozid",
     "build:homepage": "npm run build -w @kongken/homepage",
-    "build:admin": "npm run build -w @kongken/admin",
+    "build:timeline": "npm run build -w @kongken/timeline",
     "lint": "oxlint",
     "preview:trip-map": "npm run preview -w @kongken/trip-map",
     "preview:metro": "npm run preview -w @kongken/metro",

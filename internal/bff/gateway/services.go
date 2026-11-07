@@ -56,9 +56,13 @@ var Services = []Service{{
 		{Path: "/api/tiles/", Anonymous: true},
 	},
 }, {
-	// The metro product. Its browser API is bff.metro.v1 over Connect; its MCP
-	// endpoint is a BFF-owned route (BFFOwnedRoutes).
+	// The metro product is optional.
 	Name:     "metro",
+	GRPC:     true,
+	Optional: true,
+}, {
+	// Timeline is optional until its deployment is enabled.
+	Name:     "timeline",
 	GRPC:     true,
 	Optional: true,
 }}
