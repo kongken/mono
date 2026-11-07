@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package timeline.v1;
+option go_package = "github.com/kongken/mono/pkg/proto/timeline/v1;timelinev1";
+
+import "google/protobuf/timestamp.proto";
+
+service TimelineService {
+  rpc ListEntries(ListEntriesRequest) returns (ListEntriesResponse);
+  rpc CreateEntry(CreateEntryRequest) returns (EntryResponse);
+  rpc UpdateEntry(UpdateEntryRequest) returns (EntryResponse);
+  rpc DeleteEntry(DeleteEntryRequest) returns (Empty);
+  rpc RestoreEntry(RestoreEntryRequest) returns (EntryResponse);
+  rpc PurgeEntry(PurgeEntryRequest) returns (Empty);
+}
+message Empty {}
+message Entry {
+  string id = 1;
+  string title = 2;
+  string date = 3;
+  string time = 4;
+  string timezone = 5;
+  string category = 6;
+  string location = 7;
+  int64 amount_minor = 8;
+  string currency = 9;
+  string note = 10;
+  string url = 11;
+  string url_title = 12;
+  string url_note = 13;
+  int64 revision = 14;
+  google.protobuf.Timestamp created_at = 15;
+  google.protobuf.Timestamp updated_at = 16;
+  google.protobuf.Timestamp deleted_at = 17;
+}
+message ListEntriesRequest {
+  string query = 1;
+  string category = 2;
+  string from_date = 3;
+  string to_date = 4;
+  int32 page_size = 5;
+  string page_token = 6;
+  bool include_deleted = 7;
+}
+message ListEntriesResponse { repeated Entry entries = 1; string next_page_token = 2; }
+message CreateEntryRequest { Entry entry = 1; string mutation_id = 2; }
+message UpdateEntryRequest { Entry entry = 1; int64 expected_revision = 2; string mutation_id = 3; }
+message DeleteEntryRequest { string id = 1; int64 expected_revision = 2; string mutation_id = 3; bool permanent = 4; }
+message RestoreEntryRequest { string id = 1; int64 expected_revision = 2; string mutation_id = 3; }
+message PurgeEntryRequest { string id = 1; int64 expected_revision = 2; string mutation_id = 3; }
+message EntryResponse { Entry entry = 1; }

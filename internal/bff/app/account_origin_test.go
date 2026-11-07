@@ -19,7 +19,7 @@ import (
 // service that is none of them fails here instead of silently being open to every origin.
 func TestEveryBrowserServiceHasASourceRule(t *testing.T) {
 	product := func(name string) bool {
-		return strings.HasPrefix(name, "bff.tripmap.") || strings.HasPrefix(name, "bff.metro.")
+		return strings.HasPrefix(name, "bff.tripmap.") || strings.HasPrefix(name, "bff.metro.") || strings.HasPrefix(name, "bff.timeline.")
 	}
 	isAdmin := map[string]bool{}
 	for _, s := range adminServices {

@@ -80,14 +80,69 @@ func Body(v string) predicate.Entry {
 	return predicate.Entry(sql.FieldEQ(FieldBody, v))
 }
 
-// OccurredAt applies equality check predicate on the "occurred_at" field. It's identical to OccurredAtEQ.
-func OccurredAt(v time.Time) predicate.Entry {
-	return predicate.Entry(sql.FieldEQ(FieldOccurredAt, v))
+// OccurredDate applies equality check predicate on the "occurred_date" field. It's identical to OccurredDateEQ.
+func OccurredDate(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldOccurredDate, v))
+}
+
+// OccurredTime applies equality check predicate on the "occurred_time" field. It's identical to OccurredTimeEQ.
+func OccurredTime(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldOccurredTime, v))
 }
 
 // Timezone applies equality check predicate on the "timezone" field. It's identical to TimezoneEQ.
 func Timezone(v string) predicate.Entry {
 	return predicate.Entry(sql.FieldEQ(FieldTimezone, v))
+}
+
+// Category applies equality check predicate on the "category" field. It's identical to CategoryEQ.
+func Category(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldCategory, v))
+}
+
+// Location applies equality check predicate on the "location" field. It's identical to LocationEQ.
+func Location(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldLocation, v))
+}
+
+// AmountMinor applies equality check predicate on the "amount_minor" field. It's identical to AmountMinorEQ.
+func AmountMinor(v int64) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldAmountMinor, v))
+}
+
+// Currency applies equality check predicate on the "currency" field. It's identical to CurrencyEQ.
+func Currency(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldCurrency, v))
+}
+
+// URL applies equality check predicate on the "url" field. It's identical to URLEQ.
+func URL(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldURL, v))
+}
+
+// URLTitle applies equality check predicate on the "url_title" field. It's identical to URLTitleEQ.
+func URLTitle(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldURLTitle, v))
+}
+
+// URLNote applies equality check predicate on the "url_note" field. It's identical to URLNoteEQ.
+func URLNote(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldURLNote, v))
+}
+
+// OccurredAt applies equality check predicate on the "occurred_at" field. It's identical to OccurredAtEQ.
+func OccurredAt(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldOccurredAt, v))
+}
+
+// DeletedAt applies equality check predicate on the "deleted_at" field. It's identical to DeletedAtEQ.
+func DeletedAt(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldDeletedAt, v))
+}
+
+// MutationID applies equality check predicate on the "mutation_id" field. It's identical to MutationIDEQ.
+func MutationID(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldMutationID, v))
 }
 
 // Revision applies equality check predicate on the "revision" field. It's identical to RevisionEQ.
@@ -300,44 +355,134 @@ func BodyContainsFold(v string) predicate.Entry {
 	return predicate.Entry(sql.FieldContainsFold(FieldBody, v))
 }
 
-// OccurredAtEQ applies the EQ predicate on the "occurred_at" field.
-func OccurredAtEQ(v time.Time) predicate.Entry {
-	return predicate.Entry(sql.FieldEQ(FieldOccurredAt, v))
+// OccurredDateEQ applies the EQ predicate on the "occurred_date" field.
+func OccurredDateEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldOccurredDate, v))
 }
 
-// OccurredAtNEQ applies the NEQ predicate on the "occurred_at" field.
-func OccurredAtNEQ(v time.Time) predicate.Entry {
-	return predicate.Entry(sql.FieldNEQ(FieldOccurredAt, v))
+// OccurredDateNEQ applies the NEQ predicate on the "occurred_date" field.
+func OccurredDateNEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldOccurredDate, v))
 }
 
-// OccurredAtIn applies the In predicate on the "occurred_at" field.
-func OccurredAtIn(vs ...time.Time) predicate.Entry {
-	return predicate.Entry(sql.FieldIn(FieldOccurredAt, vs...))
+// OccurredDateIn applies the In predicate on the "occurred_date" field.
+func OccurredDateIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldIn(FieldOccurredDate, vs...))
 }
 
-// OccurredAtNotIn applies the NotIn predicate on the "occurred_at" field.
-func OccurredAtNotIn(vs ...time.Time) predicate.Entry {
-	return predicate.Entry(sql.FieldNotIn(FieldOccurredAt, vs...))
+// OccurredDateNotIn applies the NotIn predicate on the "occurred_date" field.
+func OccurredDateNotIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldNotIn(FieldOccurredDate, vs...))
 }
 
-// OccurredAtGT applies the GT predicate on the "occurred_at" field.
-func OccurredAtGT(v time.Time) predicate.Entry {
-	return predicate.Entry(sql.FieldGT(FieldOccurredAt, v))
+// OccurredDateGT applies the GT predicate on the "occurred_date" field.
+func OccurredDateGT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGT(FieldOccurredDate, v))
 }
 
-// OccurredAtGTE applies the GTE predicate on the "occurred_at" field.
-func OccurredAtGTE(v time.Time) predicate.Entry {
-	return predicate.Entry(sql.FieldGTE(FieldOccurredAt, v))
+// OccurredDateGTE applies the GTE predicate on the "occurred_date" field.
+func OccurredDateGTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGTE(FieldOccurredDate, v))
 }
 
-// OccurredAtLT applies the LT predicate on the "occurred_at" field.
-func OccurredAtLT(v time.Time) predicate.Entry {
-	return predicate.Entry(sql.FieldLT(FieldOccurredAt, v))
+// OccurredDateLT applies the LT predicate on the "occurred_date" field.
+func OccurredDateLT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLT(FieldOccurredDate, v))
 }
 
-// OccurredAtLTE applies the LTE predicate on the "occurred_at" field.
-func OccurredAtLTE(v time.Time) predicate.Entry {
-	return predicate.Entry(sql.FieldLTE(FieldOccurredAt, v))
+// OccurredDateLTE applies the LTE predicate on the "occurred_date" field.
+func OccurredDateLTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLTE(FieldOccurredDate, v))
+}
+
+// OccurredDateContains applies the Contains predicate on the "occurred_date" field.
+func OccurredDateContains(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContains(FieldOccurredDate, v))
+}
+
+// OccurredDateHasPrefix applies the HasPrefix predicate on the "occurred_date" field.
+func OccurredDateHasPrefix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasPrefix(FieldOccurredDate, v))
+}
+
+// OccurredDateHasSuffix applies the HasSuffix predicate on the "occurred_date" field.
+func OccurredDateHasSuffix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasSuffix(FieldOccurredDate, v))
+}
+
+// OccurredDateEqualFold applies the EqualFold predicate on the "occurred_date" field.
+func OccurredDateEqualFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEqualFold(FieldOccurredDate, v))
+}
+
+// OccurredDateContainsFold applies the ContainsFold predicate on the "occurred_date" field.
+func OccurredDateContainsFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContainsFold(FieldOccurredDate, v))
+}
+
+// OccurredTimeEQ applies the EQ predicate on the "occurred_time" field.
+func OccurredTimeEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldOccurredTime, v))
+}
+
+// OccurredTimeNEQ applies the NEQ predicate on the "occurred_time" field.
+func OccurredTimeNEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldOccurredTime, v))
+}
+
+// OccurredTimeIn applies the In predicate on the "occurred_time" field.
+func OccurredTimeIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldIn(FieldOccurredTime, vs...))
+}
+
+// OccurredTimeNotIn applies the NotIn predicate on the "occurred_time" field.
+func OccurredTimeNotIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldNotIn(FieldOccurredTime, vs...))
+}
+
+// OccurredTimeGT applies the GT predicate on the "occurred_time" field.
+func OccurredTimeGT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGT(FieldOccurredTime, v))
+}
+
+// OccurredTimeGTE applies the GTE predicate on the "occurred_time" field.
+func OccurredTimeGTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGTE(FieldOccurredTime, v))
+}
+
+// OccurredTimeLT applies the LT predicate on the "occurred_time" field.
+func OccurredTimeLT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLT(FieldOccurredTime, v))
+}
+
+// OccurredTimeLTE applies the LTE predicate on the "occurred_time" field.
+func OccurredTimeLTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLTE(FieldOccurredTime, v))
+}
+
+// OccurredTimeContains applies the Contains predicate on the "occurred_time" field.
+func OccurredTimeContains(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContains(FieldOccurredTime, v))
+}
+
+// OccurredTimeHasPrefix applies the HasPrefix predicate on the "occurred_time" field.
+func OccurredTimeHasPrefix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasPrefix(FieldOccurredTime, v))
+}
+
+// OccurredTimeHasSuffix applies the HasSuffix predicate on the "occurred_time" field.
+func OccurredTimeHasSuffix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasSuffix(FieldOccurredTime, v))
+}
+
+// OccurredTimeEqualFold applies the EqualFold predicate on the "occurred_time" field.
+func OccurredTimeEqualFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEqualFold(FieldOccurredTime, v))
+}
+
+// OccurredTimeContainsFold applies the ContainsFold predicate on the "occurred_time" field.
+func OccurredTimeContainsFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContainsFold(FieldOccurredTime, v))
 }
 
 // TimezoneEQ applies the EQ predicate on the "timezone" field.
@@ -403,6 +548,591 @@ func TimezoneEqualFold(v string) predicate.Entry {
 // TimezoneContainsFold applies the ContainsFold predicate on the "timezone" field.
 func TimezoneContainsFold(v string) predicate.Entry {
 	return predicate.Entry(sql.FieldContainsFold(FieldTimezone, v))
+}
+
+// CategoryEQ applies the EQ predicate on the "category" field.
+func CategoryEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldCategory, v))
+}
+
+// CategoryNEQ applies the NEQ predicate on the "category" field.
+func CategoryNEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldCategory, v))
+}
+
+// CategoryIn applies the In predicate on the "category" field.
+func CategoryIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldIn(FieldCategory, vs...))
+}
+
+// CategoryNotIn applies the NotIn predicate on the "category" field.
+func CategoryNotIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldNotIn(FieldCategory, vs...))
+}
+
+// CategoryGT applies the GT predicate on the "category" field.
+func CategoryGT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGT(FieldCategory, v))
+}
+
+// CategoryGTE applies the GTE predicate on the "category" field.
+func CategoryGTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGTE(FieldCategory, v))
+}
+
+// CategoryLT applies the LT predicate on the "category" field.
+func CategoryLT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLT(FieldCategory, v))
+}
+
+// CategoryLTE applies the LTE predicate on the "category" field.
+func CategoryLTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLTE(FieldCategory, v))
+}
+
+// CategoryContains applies the Contains predicate on the "category" field.
+func CategoryContains(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContains(FieldCategory, v))
+}
+
+// CategoryHasPrefix applies the HasPrefix predicate on the "category" field.
+func CategoryHasPrefix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasPrefix(FieldCategory, v))
+}
+
+// CategoryHasSuffix applies the HasSuffix predicate on the "category" field.
+func CategoryHasSuffix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasSuffix(FieldCategory, v))
+}
+
+// CategoryEqualFold applies the EqualFold predicate on the "category" field.
+func CategoryEqualFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEqualFold(FieldCategory, v))
+}
+
+// CategoryContainsFold applies the ContainsFold predicate on the "category" field.
+func CategoryContainsFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContainsFold(FieldCategory, v))
+}
+
+// LocationEQ applies the EQ predicate on the "location" field.
+func LocationEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldLocation, v))
+}
+
+// LocationNEQ applies the NEQ predicate on the "location" field.
+func LocationNEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldLocation, v))
+}
+
+// LocationIn applies the In predicate on the "location" field.
+func LocationIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldIn(FieldLocation, vs...))
+}
+
+// LocationNotIn applies the NotIn predicate on the "location" field.
+func LocationNotIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldNotIn(FieldLocation, vs...))
+}
+
+// LocationGT applies the GT predicate on the "location" field.
+func LocationGT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGT(FieldLocation, v))
+}
+
+// LocationGTE applies the GTE predicate on the "location" field.
+func LocationGTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGTE(FieldLocation, v))
+}
+
+// LocationLT applies the LT predicate on the "location" field.
+func LocationLT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLT(FieldLocation, v))
+}
+
+// LocationLTE applies the LTE predicate on the "location" field.
+func LocationLTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLTE(FieldLocation, v))
+}
+
+// LocationContains applies the Contains predicate on the "location" field.
+func LocationContains(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContains(FieldLocation, v))
+}
+
+// LocationHasPrefix applies the HasPrefix predicate on the "location" field.
+func LocationHasPrefix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasPrefix(FieldLocation, v))
+}
+
+// LocationHasSuffix applies the HasSuffix predicate on the "location" field.
+func LocationHasSuffix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasSuffix(FieldLocation, v))
+}
+
+// LocationEqualFold applies the EqualFold predicate on the "location" field.
+func LocationEqualFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEqualFold(FieldLocation, v))
+}
+
+// LocationContainsFold applies the ContainsFold predicate on the "location" field.
+func LocationContainsFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContainsFold(FieldLocation, v))
+}
+
+// AmountMinorEQ applies the EQ predicate on the "amount_minor" field.
+func AmountMinorEQ(v int64) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldAmountMinor, v))
+}
+
+// AmountMinorNEQ applies the NEQ predicate on the "amount_minor" field.
+func AmountMinorNEQ(v int64) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldAmountMinor, v))
+}
+
+// AmountMinorIn applies the In predicate on the "amount_minor" field.
+func AmountMinorIn(vs ...int64) predicate.Entry {
+	return predicate.Entry(sql.FieldIn(FieldAmountMinor, vs...))
+}
+
+// AmountMinorNotIn applies the NotIn predicate on the "amount_minor" field.
+func AmountMinorNotIn(vs ...int64) predicate.Entry {
+	return predicate.Entry(sql.FieldNotIn(FieldAmountMinor, vs...))
+}
+
+// AmountMinorGT applies the GT predicate on the "amount_minor" field.
+func AmountMinorGT(v int64) predicate.Entry {
+	return predicate.Entry(sql.FieldGT(FieldAmountMinor, v))
+}
+
+// AmountMinorGTE applies the GTE predicate on the "amount_minor" field.
+func AmountMinorGTE(v int64) predicate.Entry {
+	return predicate.Entry(sql.FieldGTE(FieldAmountMinor, v))
+}
+
+// AmountMinorLT applies the LT predicate on the "amount_minor" field.
+func AmountMinorLT(v int64) predicate.Entry {
+	return predicate.Entry(sql.FieldLT(FieldAmountMinor, v))
+}
+
+// AmountMinorLTE applies the LTE predicate on the "amount_minor" field.
+func AmountMinorLTE(v int64) predicate.Entry {
+	return predicate.Entry(sql.FieldLTE(FieldAmountMinor, v))
+}
+
+// CurrencyEQ applies the EQ predicate on the "currency" field.
+func CurrencyEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldCurrency, v))
+}
+
+// CurrencyNEQ applies the NEQ predicate on the "currency" field.
+func CurrencyNEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldCurrency, v))
+}
+
+// CurrencyIn applies the In predicate on the "currency" field.
+func CurrencyIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldIn(FieldCurrency, vs...))
+}
+
+// CurrencyNotIn applies the NotIn predicate on the "currency" field.
+func CurrencyNotIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldNotIn(FieldCurrency, vs...))
+}
+
+// CurrencyGT applies the GT predicate on the "currency" field.
+func CurrencyGT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGT(FieldCurrency, v))
+}
+
+// CurrencyGTE applies the GTE predicate on the "currency" field.
+func CurrencyGTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGTE(FieldCurrency, v))
+}
+
+// CurrencyLT applies the LT predicate on the "currency" field.
+func CurrencyLT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLT(FieldCurrency, v))
+}
+
+// CurrencyLTE applies the LTE predicate on the "currency" field.
+func CurrencyLTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLTE(FieldCurrency, v))
+}
+
+// CurrencyContains applies the Contains predicate on the "currency" field.
+func CurrencyContains(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContains(FieldCurrency, v))
+}
+
+// CurrencyHasPrefix applies the HasPrefix predicate on the "currency" field.
+func CurrencyHasPrefix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasPrefix(FieldCurrency, v))
+}
+
+// CurrencyHasSuffix applies the HasSuffix predicate on the "currency" field.
+func CurrencyHasSuffix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasSuffix(FieldCurrency, v))
+}
+
+// CurrencyEqualFold applies the EqualFold predicate on the "currency" field.
+func CurrencyEqualFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEqualFold(FieldCurrency, v))
+}
+
+// CurrencyContainsFold applies the ContainsFold predicate on the "currency" field.
+func CurrencyContainsFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContainsFold(FieldCurrency, v))
+}
+
+// URLEQ applies the EQ predicate on the "url" field.
+func URLEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldURL, v))
+}
+
+// URLNEQ applies the NEQ predicate on the "url" field.
+func URLNEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldURL, v))
+}
+
+// URLIn applies the In predicate on the "url" field.
+func URLIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldIn(FieldURL, vs...))
+}
+
+// URLNotIn applies the NotIn predicate on the "url" field.
+func URLNotIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldNotIn(FieldURL, vs...))
+}
+
+// URLGT applies the GT predicate on the "url" field.
+func URLGT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGT(FieldURL, v))
+}
+
+// URLGTE applies the GTE predicate on the "url" field.
+func URLGTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGTE(FieldURL, v))
+}
+
+// URLLT applies the LT predicate on the "url" field.
+func URLLT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLT(FieldURL, v))
+}
+
+// URLLTE applies the LTE predicate on the "url" field.
+func URLLTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLTE(FieldURL, v))
+}
+
+// URLContains applies the Contains predicate on the "url" field.
+func URLContains(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContains(FieldURL, v))
+}
+
+// URLHasPrefix applies the HasPrefix predicate on the "url" field.
+func URLHasPrefix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasPrefix(FieldURL, v))
+}
+
+// URLHasSuffix applies the HasSuffix predicate on the "url" field.
+func URLHasSuffix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasSuffix(FieldURL, v))
+}
+
+// URLEqualFold applies the EqualFold predicate on the "url" field.
+func URLEqualFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEqualFold(FieldURL, v))
+}
+
+// URLContainsFold applies the ContainsFold predicate on the "url" field.
+func URLContainsFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContainsFold(FieldURL, v))
+}
+
+// URLTitleEQ applies the EQ predicate on the "url_title" field.
+func URLTitleEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldURLTitle, v))
+}
+
+// URLTitleNEQ applies the NEQ predicate on the "url_title" field.
+func URLTitleNEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldURLTitle, v))
+}
+
+// URLTitleIn applies the In predicate on the "url_title" field.
+func URLTitleIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldIn(FieldURLTitle, vs...))
+}
+
+// URLTitleNotIn applies the NotIn predicate on the "url_title" field.
+func URLTitleNotIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldNotIn(FieldURLTitle, vs...))
+}
+
+// URLTitleGT applies the GT predicate on the "url_title" field.
+func URLTitleGT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGT(FieldURLTitle, v))
+}
+
+// URLTitleGTE applies the GTE predicate on the "url_title" field.
+func URLTitleGTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGTE(FieldURLTitle, v))
+}
+
+// URLTitleLT applies the LT predicate on the "url_title" field.
+func URLTitleLT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLT(FieldURLTitle, v))
+}
+
+// URLTitleLTE applies the LTE predicate on the "url_title" field.
+func URLTitleLTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLTE(FieldURLTitle, v))
+}
+
+// URLTitleContains applies the Contains predicate on the "url_title" field.
+func URLTitleContains(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContains(FieldURLTitle, v))
+}
+
+// URLTitleHasPrefix applies the HasPrefix predicate on the "url_title" field.
+func URLTitleHasPrefix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasPrefix(FieldURLTitle, v))
+}
+
+// URLTitleHasSuffix applies the HasSuffix predicate on the "url_title" field.
+func URLTitleHasSuffix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasSuffix(FieldURLTitle, v))
+}
+
+// URLTitleEqualFold applies the EqualFold predicate on the "url_title" field.
+func URLTitleEqualFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEqualFold(FieldURLTitle, v))
+}
+
+// URLTitleContainsFold applies the ContainsFold predicate on the "url_title" field.
+func URLTitleContainsFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContainsFold(FieldURLTitle, v))
+}
+
+// URLNoteEQ applies the EQ predicate on the "url_note" field.
+func URLNoteEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldURLNote, v))
+}
+
+// URLNoteNEQ applies the NEQ predicate on the "url_note" field.
+func URLNoteNEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldURLNote, v))
+}
+
+// URLNoteIn applies the In predicate on the "url_note" field.
+func URLNoteIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldIn(FieldURLNote, vs...))
+}
+
+// URLNoteNotIn applies the NotIn predicate on the "url_note" field.
+func URLNoteNotIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldNotIn(FieldURLNote, vs...))
+}
+
+// URLNoteGT applies the GT predicate on the "url_note" field.
+func URLNoteGT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGT(FieldURLNote, v))
+}
+
+// URLNoteGTE applies the GTE predicate on the "url_note" field.
+func URLNoteGTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGTE(FieldURLNote, v))
+}
+
+// URLNoteLT applies the LT predicate on the "url_note" field.
+func URLNoteLT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLT(FieldURLNote, v))
+}
+
+// URLNoteLTE applies the LTE predicate on the "url_note" field.
+func URLNoteLTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLTE(FieldURLNote, v))
+}
+
+// URLNoteContains applies the Contains predicate on the "url_note" field.
+func URLNoteContains(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContains(FieldURLNote, v))
+}
+
+// URLNoteHasPrefix applies the HasPrefix predicate on the "url_note" field.
+func URLNoteHasPrefix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasPrefix(FieldURLNote, v))
+}
+
+// URLNoteHasSuffix applies the HasSuffix predicate on the "url_note" field.
+func URLNoteHasSuffix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasSuffix(FieldURLNote, v))
+}
+
+// URLNoteEqualFold applies the EqualFold predicate on the "url_note" field.
+func URLNoteEqualFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEqualFold(FieldURLNote, v))
+}
+
+// URLNoteContainsFold applies the ContainsFold predicate on the "url_note" field.
+func URLNoteContainsFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContainsFold(FieldURLNote, v))
+}
+
+// OccurredAtEQ applies the EQ predicate on the "occurred_at" field.
+func OccurredAtEQ(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldOccurredAt, v))
+}
+
+// OccurredAtNEQ applies the NEQ predicate on the "occurred_at" field.
+func OccurredAtNEQ(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldOccurredAt, v))
+}
+
+// OccurredAtIn applies the In predicate on the "occurred_at" field.
+func OccurredAtIn(vs ...time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldIn(FieldOccurredAt, vs...))
+}
+
+// OccurredAtNotIn applies the NotIn predicate on the "occurred_at" field.
+func OccurredAtNotIn(vs ...time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldNotIn(FieldOccurredAt, vs...))
+}
+
+// OccurredAtGT applies the GT predicate on the "occurred_at" field.
+func OccurredAtGT(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldGT(FieldOccurredAt, v))
+}
+
+// OccurredAtGTE applies the GTE predicate on the "occurred_at" field.
+func OccurredAtGTE(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldGTE(FieldOccurredAt, v))
+}
+
+// OccurredAtLT applies the LT predicate on the "occurred_at" field.
+func OccurredAtLT(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldLT(FieldOccurredAt, v))
+}
+
+// OccurredAtLTE applies the LTE predicate on the "occurred_at" field.
+func OccurredAtLTE(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldLTE(FieldOccurredAt, v))
+}
+
+// DeletedAtEQ applies the EQ predicate on the "deleted_at" field.
+func DeletedAtEQ(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldDeletedAt, v))
+}
+
+// DeletedAtNEQ applies the NEQ predicate on the "deleted_at" field.
+func DeletedAtNEQ(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldDeletedAt, v))
+}
+
+// DeletedAtIn applies the In predicate on the "deleted_at" field.
+func DeletedAtIn(vs ...time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldIn(FieldDeletedAt, vs...))
+}
+
+// DeletedAtNotIn applies the NotIn predicate on the "deleted_at" field.
+func DeletedAtNotIn(vs ...time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldNotIn(FieldDeletedAt, vs...))
+}
+
+// DeletedAtGT applies the GT predicate on the "deleted_at" field.
+func DeletedAtGT(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldGT(FieldDeletedAt, v))
+}
+
+// DeletedAtGTE applies the GTE predicate on the "deleted_at" field.
+func DeletedAtGTE(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldGTE(FieldDeletedAt, v))
+}
+
+// DeletedAtLT applies the LT predicate on the "deleted_at" field.
+func DeletedAtLT(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldLT(FieldDeletedAt, v))
+}
+
+// DeletedAtLTE applies the LTE predicate on the "deleted_at" field.
+func DeletedAtLTE(v time.Time) predicate.Entry {
+	return predicate.Entry(sql.FieldLTE(FieldDeletedAt, v))
+}
+
+// DeletedAtIsNil applies the IsNil predicate on the "deleted_at" field.
+func DeletedAtIsNil() predicate.Entry {
+	return predicate.Entry(sql.FieldIsNull(FieldDeletedAt))
+}
+
+// DeletedAtNotNil applies the NotNil predicate on the "deleted_at" field.
+func DeletedAtNotNil() predicate.Entry {
+	return predicate.Entry(sql.FieldNotNull(FieldDeletedAt))
+}
+
+// MutationIDEQ applies the EQ predicate on the "mutation_id" field.
+func MutationIDEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldMutationID, v))
+}
+
+// MutationIDNEQ applies the NEQ predicate on the "mutation_id" field.
+func MutationIDNEQ(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldMutationID, v))
+}
+
+// MutationIDIn applies the In predicate on the "mutation_id" field.
+func MutationIDIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldIn(FieldMutationID, vs...))
+}
+
+// MutationIDNotIn applies the NotIn predicate on the "mutation_id" field.
+func MutationIDNotIn(vs ...string) predicate.Entry {
+	return predicate.Entry(sql.FieldNotIn(FieldMutationID, vs...))
+}
+
+// MutationIDGT applies the GT predicate on the "mutation_id" field.
+func MutationIDGT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGT(FieldMutationID, v))
+}
+
+// MutationIDGTE applies the GTE predicate on the "mutation_id" field.
+func MutationIDGTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldGTE(FieldMutationID, v))
+}
+
+// MutationIDLT applies the LT predicate on the "mutation_id" field.
+func MutationIDLT(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLT(FieldMutationID, v))
+}
+
+// MutationIDLTE applies the LTE predicate on the "mutation_id" field.
+func MutationIDLTE(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldLTE(FieldMutationID, v))
+}
+
+// MutationIDContains applies the Contains predicate on the "mutation_id" field.
+func MutationIDContains(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContains(FieldMutationID, v))
+}
+
+// MutationIDHasPrefix applies the HasPrefix predicate on the "mutation_id" field.
+func MutationIDHasPrefix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasPrefix(FieldMutationID, v))
+}
+
+// MutationIDHasSuffix applies the HasSuffix predicate on the "mutation_id" field.
+func MutationIDHasSuffix(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldHasSuffix(FieldMutationID, v))
+}
+
+// MutationIDEqualFold applies the EqualFold predicate on the "mutation_id" field.
+func MutationIDEqualFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldEqualFold(FieldMutationID, v))
+}
+
+// MutationIDContainsFold applies the ContainsFold predicate on the "mutation_id" field.
+func MutationIDContainsFold(v string) predicate.Entry {
+	return predicate.Entry(sql.FieldContainsFold(FieldMutationID, v))
 }
 
 // RevisionEQ applies the EQ predicate on the "revision" field.

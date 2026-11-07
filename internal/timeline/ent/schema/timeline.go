@@ -21,7 +21,10 @@ func (Entry) Annotations() []schema.Annotation {
 func (Entry) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").NotEmpty().Immutable(),
-		field.String("title").Default(""), field.String("body").Default(""), field.Time("occurred_at"), field.String("timezone").NotEmpty(),
+		field.String("title").NotEmpty(), field.String("body").Default(""), field.String("occurred_date").NotEmpty(), field.String("occurred_time").Default(""), field.String("timezone").NotEmpty(),
+		field.String("category").Default(""), field.String("location").Default(""), field.Int64("amount_minor").Default(0), field.String("currency").Default(""),
+		field.String("url").Default(""), field.String("url_title").Default(""), field.String("url_note").Default(""), field.Time("occurred_at"),
+		field.Time("deleted_at").Optional().Nillable(), field.String("mutation_id").Default(""),
 		field.Int("revision").Default(1).Positive(), field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now),
 	}
 }

@@ -23,10 +23,32 @@ type Entry struct {
 	Title string `json:"title,omitempty"`
 	// Body holds the value of the "body" field.
 	Body string `json:"body,omitempty"`
-	// OccurredAt holds the value of the "occurred_at" field.
-	OccurredAt time.Time `json:"occurred_at,omitempty"`
+	// OccurredDate holds the value of the "occurred_date" field.
+	OccurredDate string `json:"occurred_date,omitempty"`
+	// OccurredTime holds the value of the "occurred_time" field.
+	OccurredTime string `json:"occurred_time,omitempty"`
 	// Timezone holds the value of the "timezone" field.
 	Timezone string `json:"timezone,omitempty"`
+	// Category holds the value of the "category" field.
+	Category string `json:"category,omitempty"`
+	// Location holds the value of the "location" field.
+	Location string `json:"location,omitempty"`
+	// AmountMinor holds the value of the "amount_minor" field.
+	AmountMinor int64 `json:"amount_minor,omitempty"`
+	// Currency holds the value of the "currency" field.
+	Currency string `json:"currency,omitempty"`
+	// URL holds the value of the "url" field.
+	URL string `json:"url,omitempty"`
+	// URLTitle holds the value of the "url_title" field.
+	URLTitle string `json:"url_title,omitempty"`
+	// URLNote holds the value of the "url_note" field.
+	URLNote string `json:"url_note,omitempty"`
+	// OccurredAt holds the value of the "occurred_at" field.
+	OccurredAt time.Time `json:"occurred_at,omitempty"`
+	// DeletedAt holds the value of the "deleted_at" field.
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+	// MutationID holds the value of the "mutation_id" field.
+	MutationID string `json:"mutation_id,omitempty"`
 	// Revision holds the value of the "revision" field.
 	Revision int `json:"revision,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -62,11 +84,11 @@ func (*Entry) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case entry.FieldRevision:
+		case entry.FieldAmountMinor, entry.FieldRevision:
 			values[i] = new(sql.NullInt64)
-		case entry.FieldID, entry.FieldUserID, entry.FieldTitle, entry.FieldBody, entry.FieldTimezone:
+		case entry.FieldID, entry.FieldUserID, entry.FieldTitle, entry.FieldBody, entry.FieldOccurredDate, entry.FieldOccurredTime, entry.FieldTimezone, entry.FieldCategory, entry.FieldLocation, entry.FieldCurrency, entry.FieldURL, entry.FieldURLTitle, entry.FieldURLNote, entry.FieldMutationID:
 			values[i] = new(sql.NullString)
-		case entry.FieldOccurredAt, entry.FieldCreatedAt, entry.FieldUpdatedAt:
+		case entry.FieldOccurredAt, entry.FieldDeletedAt, entry.FieldCreatedAt, entry.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -107,17 +129,84 @@ func (_m *Entry) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Body = value.String
 			}
-		case entry.FieldOccurredAt:
-			if value, ok := values[i].(*sql.NullTime); !ok {
-				return fmt.Errorf("unexpected type %T for field occurred_at", values[i])
+		case entry.FieldOccurredDate:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field occurred_date", values[i])
 			} else if value.Valid {
-				_m.OccurredAt = value.Time
+				_m.OccurredDate = value.String
+			}
+		case entry.FieldOccurredTime:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field occurred_time", values[i])
+			} else if value.Valid {
+				_m.OccurredTime = value.String
 			}
 		case entry.FieldTimezone:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field timezone", values[i])
 			} else if value.Valid {
 				_m.Timezone = value.String
+			}
+		case entry.FieldCategory:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field category", values[i])
+			} else if value.Valid {
+				_m.Category = value.String
+			}
+		case entry.FieldLocation:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field location", values[i])
+			} else if value.Valid {
+				_m.Location = value.String
+			}
+		case entry.FieldAmountMinor:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field amount_minor", values[i])
+			} else if value.Valid {
+				_m.AmountMinor = value.Int64
+			}
+		case entry.FieldCurrency:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field currency", values[i])
+			} else if value.Valid {
+				_m.Currency = value.String
+			}
+		case entry.FieldURL:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field url", values[i])
+			} else if value.Valid {
+				_m.URL = value.String
+			}
+		case entry.FieldURLTitle:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field url_title", values[i])
+			} else if value.Valid {
+				_m.URLTitle = value.String
+			}
+		case entry.FieldURLNote:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field url_note", values[i])
+			} else if value.Valid {
+				_m.URLNote = value.String
+			}
+		case entry.FieldOccurredAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field occurred_at", values[i])
+			} else if value.Valid {
+				_m.OccurredAt = value.Time
+			}
+		case entry.FieldDeletedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field deleted_at", values[i])
+			} else if value.Valid {
+				_m.DeletedAt = new(time.Time)
+				*_m.DeletedAt = value.Time
+			}
+		case entry.FieldMutationID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field mutation_id", values[i])
+			} else if value.Valid {
+				_m.MutationID = value.String
 			}
 		case entry.FieldRevision:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -187,11 +276,46 @@ func (_m *Entry) String() string {
 	builder.WriteString("body=")
 	builder.WriteString(_m.Body)
 	builder.WriteString(", ")
-	builder.WriteString("occurred_at=")
-	builder.WriteString(_m.OccurredAt.Format(time.ANSIC))
+	builder.WriteString("occurred_date=")
+	builder.WriteString(_m.OccurredDate)
+	builder.WriteString(", ")
+	builder.WriteString("occurred_time=")
+	builder.WriteString(_m.OccurredTime)
 	builder.WriteString(", ")
 	builder.WriteString("timezone=")
 	builder.WriteString(_m.Timezone)
+	builder.WriteString(", ")
+	builder.WriteString("category=")
+	builder.WriteString(_m.Category)
+	builder.WriteString(", ")
+	builder.WriteString("location=")
+	builder.WriteString(_m.Location)
+	builder.WriteString(", ")
+	builder.WriteString("amount_minor=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AmountMinor))
+	builder.WriteString(", ")
+	builder.WriteString("currency=")
+	builder.WriteString(_m.Currency)
+	builder.WriteString(", ")
+	builder.WriteString("url=")
+	builder.WriteString(_m.URL)
+	builder.WriteString(", ")
+	builder.WriteString("url_title=")
+	builder.WriteString(_m.URLTitle)
+	builder.WriteString(", ")
+	builder.WriteString("url_note=")
+	builder.WriteString(_m.URLNote)
+	builder.WriteString(", ")
+	builder.WriteString("occurred_at=")
+	builder.WriteString(_m.OccurredAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	if v := _m.DeletedAt; v != nil {
+		builder.WriteString("deleted_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("mutation_id=")
+	builder.WriteString(_m.MutationID)
 	builder.WriteString(", ")
 	builder.WriteString("revision=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Revision))
