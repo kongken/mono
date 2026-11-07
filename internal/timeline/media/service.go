@@ -117,6 +117,15 @@ func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID strin
 	}
 	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status}, nil
 }
+func validDeleteReceipt(old *ent.TimelineMutation, hash, mediaRef string) bool {
+	if old == nil || old.RequestHash != hash || old.TargetKind != "media" || old.Operation != "media_delete" || old.MediaRef == nil || *old.MediaRef != mediaRef || old.ResultState != "deleting" || old.SnapshotVersion != 1 {
+		return false
+	}
+	_, hasMedia := old.ResultSnapshot["media_ref"]
+	_, hasEntry := old.ResultSnapshot["entry_ref"]
+	return hasMedia && hasEntry
+}
+
 func Delete(ctx context.Context, st *Store, userID, mediaRef, mutationID string, expectedRevision int) error {
 	if st == nil || st.DB == nil || userID == "" || mediaRef == "" || mutationID == "" || expectedRevision <= 0 {
 		return ErrInvalid
@@ -129,7 +138,7 @@ func Delete(ctx context.Context, st *Store, userID, mediaRef, mutationID string,
 	h := sha256.Sum256([]byte(fmt.Sprintf("delete:%s:%d", mediaRef, expectedRevision)))
 	hash := hex.EncodeToString(h[:])
 	if old, e := tx.TimelineMutation.Query().Where(timelinemutation.UserID(userID), timelinemutation.MutationIDEQ(mutationID)).Only(ctx); e == nil {
-		if old.RequestHash != hash || old.MediaRef == nil || *old.MediaRef != mediaRef {
+		if !validDeleteReceipt(old, hash, mediaRef) {
 			return ErrInvalid
 		}
 		return nil
