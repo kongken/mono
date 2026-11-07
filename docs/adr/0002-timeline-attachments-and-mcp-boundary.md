@@ -10,8 +10,8 @@
 2. MediaObject 采用 `pending`、`ready`、`deleting` 三态。预签名上传只创建 `pending` 元数据和临时对象；浏览器直传成功后必须由客户端调用 CompleteUpload，服务端校验对象后才变为 `ready`。超时、校验失败和删除都进入可重试 cleanup queue。
 3. 对象 key 永远由服务端生成，使用随机 opaque ID 和固定命名空间；key 不包含 user ID、Entry ID、文件名、地区、旅行或客户端路径。对外只返回不含内部 ID、PAT 或对象 key 的媒体摘要和短期下载 URL。
 4. 用户身份只来自内部会话或内部服务令牌。任何 `user_id`、账号 UUID、PAT、对象 key 或数据库主键都不是浏览器、MCP 客户端或请求消息的替代身份输入。所有 Entry、MediaObject 和 cleanup 查询、更新、删除都带服务端归属边界。
-5. v1 附件 API 使用现有 storage 抽象，不携带 tripmap 的 region/trip 语义。Upload 的幂等键是 `(owner, upload_id)`；Complete 和删除使用 mutation_id，并绑定请求摘要、归属和目标对象。每个 MediaObject 有可读的单调 `revision`：所有变更方法要求非零 `expected_revision`，冲突返回 `REVISION_CONFLICT` 并附 `current_revision`，重放返回原结果与 `replayed=true`。
-6. 所有有副作用的记录与媒体变更由服务端（TimelineService / MediaService）在业务事务内写持久 mutation 回执，唯一键 `(owner, operation, mutation_id)`，窗口 24 小时；重放返回记录的结果元数据，请求摘要不同返回 `MUTATION_REPLAY_MISMATCH`。MCP BFF 与浏览器 BFF 都不自建回执、不生成或改写 `mutation_id`。
+5. v1 附件 API 使用现有 storage 抽象，不携带 tripmap 的 region/trip 语义。Upload 的幂等键是 `(owner, upload_id)`；Complete 和删除使用 mutation_id，并绑定请求摘要、归属和目标对象。每个 MediaObject 有可读的单调 `revision`：Complete/Delete 要求非零 `expected_revision`，冲突返回 `REVISION_CONFLICT` 并附 `current_revision`；24 小时回执窗口内的重放返回原结果与 `replayed=true`，窗口外按当前 revision 重新判定（stale revision 仍拒绝）。
+6. 客户端发起、带 mutation_id 的记录与媒体变更由服务端（TimelineService / MediaService）在业务事务内写持久 mutation 回执，唯一键 `(owner, operation, mutation_id)`，窗口 24 小时；重放返回记录的结果元数据，请求摘要不同返回 `MUTATION_REPLAY_MISMATCH`。后台生命周期转移不写客户端回执，只写带 actor 的状态转移/审计记录（3.4）。MCP BFF 与浏览器 BFF 都不自建回执、不生成或改写 `mutation_id`。
 7. Timeline MCP BFF 是独立的 Streamable HTTP 入口。它只把普通账号会话映射成内部身份，管理令牌只接受固定 audience 和 scope，并且不把 MCP 令牌、账号 ID 或 PAT 传给 Timeline 服务。v1 MCP 工具覆盖 `list`、`search`、`create`、`update`、`trash`、`restore`、`purge`；附件工具延期到附件服务完成后再单独加 scope 和契约。
 8. 对外标识是服务端签发的 opaque `entry_ref` / `media_ref`：随机 128 位值，按 `(owner, kind)` 存入 `timeline_public_refs`，解析时同时约束 owner 与 kind，失败统一返回 `NOT_FOUND`。MCP 只接受和返回 ref，绝不透传内部 ID；浏览器附件入口同样使用 ref，`Entry.id` 保留既有兼容语义。
 9. 所有有副作用的 MCP 工具要求 `mutation_id`；更新、回收站、恢复和永久删除还要求非零 `expected_revision`。账号被禁用、会话 `auth_version` 失效、令牌被撤销或 revision 冲突时拒绝操作，不进行隐式重试。
@@ -108,8 +108,8 @@ MediaObject --(opaque object key)--> CleanupObject 0..N（幂等合并）
 - `ready → deleting` 由用户删除、Entry purge 或账号注销触发。
 - `deleting` 只允许 cleanup worker 重试；客户端重复 Delete 返回原删除结果或 `NOT_FOUND` 的统一安全结果。
 - cleanup 成功后删除对象和缩略图（若有），再标记 queue done；对象不存在视为成功。数据库状态更新失败可安全重试。
-- 所有转移写入审计事件，但审计只允许 opaque media_ref、结果类别、时间和 actor 类别，不含 key、内容、文件名全文或令牌。
-- 每次转移在同一事务内递增 `revision` 并写回持久 mutation 回执（3.4、3.5），因此成功变更总有一个 `(revision, replayed)` 结果可以原样返回。
+- 每次转移在同一事务内递增 `revision`。客户端发起的 Complete/Delete 还必须在同一事务写入持久 mutation 回执（3.4）；后台转移（过期回收、校验失败、Entry purge、账号注销、worker 重试）没有客户端 mutation_id，因此不写 mutation 回执，只写状态转移记录（actor=system|worker、reason、from_state→to_state、revision），并用条件更新保证只转移一次。
+- 所有转移写入审计事件，但审计只允许 opaque media_ref、结果类别、时间和 actor 类别，不含 key、内容、文件名全文或令牌。后台转移记录不参与 24 小时回执窗口、不可重放、不产生 `replayed`。
 
 ## 3. 内部服务契约：记录补强与 MediaService
 
@@ -200,9 +200,9 @@ message MediaMutationResult {
 
 - **PrepareUpload**：校验 Entry 属于当前 owner、文件名/MIME/大小白名单和账号配额；在数据库事务内插入 pending MediaObject 与 cleanup reservation，再由 storage 生成 staging key 和短期 PUT URL。相同 `(owner, upload_id)` 且规范请求哈希相同则返回原 pending 预留；哈希不同返回 `IDEMPOTENCY_KEY_REUSED`。
 - **浏览器直传**：浏览器只向签名 URL PUT，不能自选 bucket/key 或携带内部 bearer。PUT 失败由客户端重新调用 PrepareUpload 或在有效期内重试。
-- **CompleteUpload**：按 owner、media_ref、upload_id 查询 pending，先校验非零 `expected_revision` 等于当前 revision（不匹配返回 `REVISION_CONFLICT` 并带 `current_revision`）；再对 staging 对象执行 Head、大小/MIME/魔数/图片尺寸检查，成功后原子更新 ready、`revision+1` 并安排缩略图。相同 mutation_id 和请求摘要重放返回回执里的 ready 结果（`replayed=true`）；状态已 ready 且 upload_id 相同也返回原摘要。对象不存在、过期或校验失败不会变 ready。
+- **CompleteUpload**：按 owner、media_ref、upload_id 查询对象，按 3.4 的优先级先查未过期回执（命中即返回回执结果并置 `replayed=true`）；无有效回执才校验非零 `expected_revision` 等于当前 revision（不匹配返回 `REVISION_CONFLICT` 并带 `current_revision`），再对 staging 对象执行 Head、大小/MIME/魔数/图片尺寸检查，成功后原子更新 ready、`revision+1` 并安排缩略图。已 ready 且 `expected_revision` 等于当前 revision 时返回当前摘要作为幂等成功（`replayed=false`），不改变状态。对象不存在、过期或校验失败不会变 ready。
 - **ListMedia/GetMedia**：只返回当前 owner 对指定 Entry 的 ready 或仍可见 pending 摘要；deleting 不出现在普通列表。下载 URL 是读取时签发的短期 URL，服务端先再次检查 owner 和 Entry。
-- **DeleteMedia**：必须按 owner 查询。事务内校验非零 `expected_revision`、将 ready/pending 改为 deleting、递增 `revision`、写 cleanup queue 和 mutation 回执，提交后返回 `MediaMutationResult{media_ref, revision, state=deleting, replayed}`；worker 删除原图和缩略图，Delete 调用本身不等待对象存储完成。相同 mutation_id 与相同请求摘要的重放返回回执里的 revision/state 并置 `replayed=true`；已 deleting 的对象换新 mutation_id 且带上当前 revision 时同样幂等成功；stale revision 返回 `REVISION_CONFLICT`（附 `current_revision`），不会重复入队。
+- **DeleteMedia**：必须按 owner 查询。按 3.4 的优先级先查未过期回执；无有效回执才校验非零 `expected_revision` 并执行转移：事务内将 ready/pending 改为 deleting、递增 `revision`、写 cleanup queue 和 mutation 回执，提交后返回 `MediaMutationResult{media_ref, revision, state=deleting, replayed}`；worker 删除原图和缩略图，Delete 调用本身不等待对象存储完成。相同 mutation_id 与相同请求摘要的重放返回回执里的 revision/state 并置 `replayed=true`；无有效回执但对象已 `deleting` 且 `expected_revision` 等于当前 revision 时，不改变状态、不再入队、不递增 revision，返回当前 revision/state（`replayed=false`）；stale revision 返回 `REVISION_CONFLICT`（附 `current_revision`），不会重复入队。
 
 ### 3.4 Media 的 revision、删除与重放契约
 
@@ -210,14 +210,16 @@ message MediaMutationResult {
 - `expected_revision` 在 v1 变更方法（Complete/Delete）中必填且必须 > 0；缺省或 0 返回 `REVISION_REQUIRED`（`INVALID_ARGUMENT`），避免与历史“0 表示不校验”的浏览器记录语义混淆。
 - 冲突响应在 error details 里带 `current_revision` 和当前 `state`；两者只对当前 owner 有效，属于公开信息，不携带内部 ID 或对象 key。
 - 重放结果只包含回执记录的结果元数据：`media_ref`、该次变更产生的 `revision`、`state`、`replayed=true`、回显的 `mutation_id`。不在回执里保存文件内容或历史摘要；需要当前字段的客户端用 `GetMedia`/`ListMedia` 重新读取（回执可能早于后续变更，返回历史快照反而会误导客户端）。
-- 回执窗口 24 小时（与 usersrv `auth_operation_receipts` 的窗口一致），过期后同 mutation_id 的重放按新请求执行：Complete 因对象已 ready 返回当前摘要，Delete 以 stale revision 返回 `REVISION_CONFLICT`。两种结果都不会产生第二次副作用。
+- **执行优先级（Complete/Delete 统一，终止歧义）**：① 先按 `(owner, media_ref, operation, mutation_id)` 查未过期回执；命中且请求摘要一致即原样返回回执结果（`replayed=true`），不再比较当前 revision；摘要不同返回 `MUTATION_REPLAY_MISMATCH`。② 无有效回执才校验 `expected_revision` 与当前 revision，不匹配返回 `REVISION_CONFLICT`（error details 带 `current_revision`、`state`），不产生任何副作用。③ 通过后才执行转移、递增 revision，并在同一事务插入回执。
+- 回执窗口 24 小时（与 usersrv `auth_operation_receipts` 的窗口一致）。过期后同一 mutation_id 视为新请求，完全按 ② 判定：Complete 遇到已 ready 且 `expected_revision` 为旧值（通常 1）→ `REVISION_CONFLICT`；只有携带当前 revision（2）时才返回当前 ready 摘要且不改变状态；Delete 同理。因此过期回放不会改状态、不会重复入队、不会产生第二次副作用。
+- 回执只覆盖客户端发起、带 mutation_id 的 Complete/Delete。后台转移（pending 过期、校验失败、Entry purge、账号注销、worker cleanup 重试）不写 `timeline_media_mutation_receipts`、不生成客户端回执，也不进入 24 小时窗口；它们用条件状态更新（`UPDATE ... WHERE state IN (...) AND revision = ?`）保证单次转移，并写 `actor=system|worker`、`reason`、`from_state`、`to_state`、`revision` 的状态转移记录用于审计与排障。worker 对 `deleting` 的重试只重试对象存储删除，不改变状态机 revision。
 - 回执与状态变更必须在同一数据库事务内提交；唯一约束冲突时回滚整个事务并重读回执，因此不存在“对象已变 deleting 但没有回执”的窗口。
 
 ### 3.5 记录侧的 mutation 回执与响应扩展
 
 KON-99 已接受实现对 update/trash/restore/purge 没有持久幂等（见 1.2）。后续实现必须把回执所有权固定在 **TimelineService**，MCP BFF 与浏览器 BFF 都不另建回执：
 
-- 表 `timeline_mutation_receipts` 字段：`id`、`user_id`、`operation`（`create|update|trash|restore|purge`）、`mutation_id`、`request_hash`（SHA-256，32 字节）、`result_kind`（`applied|already_applied`）、`entry_id`（内部目标，可空）、`result_revision`、`result_deleted`（bool）、`created_at`、`expires_at`；唯一索引 `(user_id, operation, mutation_id)`，普通索引 `(user_id, created_at)`、`(expires_at)`。附件服务使用独立表或同形状表（`timeline_media_mutation_receipts`），不复用记录回执。
+- 表 `timeline_mutation_receipts` 字段：`id`、`user_id`、`operation`（`create|update|trash|restore|purge`）、`mutation_id`、`request_hash`（SHA-256，32 字节）、`result_kind`（`applied|already_applied`）、`entry_id`（内部目标，可空）、`result_revision`、`result_deleted`（bool）、`created_at`、`expires_at`；唯一索引 `(user_id, operation, mutation_id)`，普通索引 `(user_id, created_at)`、`(expires_at)`。附件服务使用独立表或同形状表（`timeline_media_mutation_receipts`），不复用记录回执；该表只记录客户端 Complete/Delete，后台状态转移不写回执（3.4）。
 - 请求摘要覆盖 `operation || owner || 目标内部 id || expected_revision || 规范化后的全部可写字段`（Create 为新建字段集，Update 为完整字段集，Trash/Restore/Purge 为目标 id 与 expected_revision）。摘要不同即 `MUTATION_REPLAY_MISMATCH`（`ALREADY_EXISTS`），不能因 mutation_id 相同就返回别人的结果。
 - 提交顺序固定为：同一事务内先按 `(user_id, operation, mutation_id)` 查回执；命中且摘要一致就直接返回记录结果（此时**不再比较当前 revision**，所以超时重试不会被并发编辑影响）；未命中则校验 `expected_revision`、执行变更、插入回执，提交。插入命中唯一冲突时回滚整个事务、重读回执再返回，保证只有一次变更提交成功。
 - 回执只保存结果元数据，不保存历史快照：`create` 返回原 `entry_id`/`revision`；`update` 返回该次变更产生的 `revision`；`trash` 返回 `deleted=true` 与 `revision`；`restore` 返回 `revision`；`purge` 返回 `purged=true` 与最终 revision。所有重放响应置 `replayed=true`；客户端若需要当前字段应重新 list/get。
@@ -378,7 +380,7 @@ MCP BFF 只调用 Timeline BFF 内部服务接口，不绕过 owner checks；浏
 1. 先部署只读兼容代码和 cleanup worker，确认现有 `timeline_entries`、`timeline_media_objects`、`timeline_cleanup_objects` 可安全读取。
 2. 增量增加 MediaObject 状态、文件元数据、upload reservation、过期时间、尺寸、`revision` 和 request hash 字段；默认值兼容现有空字段（`revision` 默认 1）。为 `(owner, upload_id)` 建唯一索引时先清理/隔离重复非空值，不能把旧空值误视为同一上传。
 3. 增加 cleanup queue 的 opaque key 约束、attempt/lease 字段和必要索引；不把 owner 或 Entry 字段加入队列。
-4. 新建 `timeline_mutation_receipts`（字段与索引见 3.5）和 `timeline_public_refs`（见 5.3）；两者都只增不删，回执按 24 小时窗口清理，ref 在实体 purge/账号注销时删除。`timeline_entries.mutation_id` 保留为历史列，不再作为幂等来源，也不要求唯一索引。
+4. 新建 `timeline_mutation_receipts`（字段与索引见 3.5）和 `timeline_public_refs`（见 5.3）；两者都只增不删，回执按 24 小时窗口清理，ref 在实体 purge/账号注销时删除。后台转移记录复用现有审计事件通道，不新建客户端回执表。`timeline_entries.mutation_id` 保留为历史列，不再作为幂等来源，也不要求唯一索引。
 5. 部署 MediaService 和 BFF 路由；先关闭 MCP media scope，完成对象存储 staging prefix 的生命周期规则后再允许 PrepareUpload。
 6. 观测 pending 超时、Complete 失败、命中率（回执重放 / revision 冲突 / ref 解析失败）、cleanup 成功率和跨账号拒绝后，再开放浏览器附件入口。
 7. 最后按独立评审开放 MCP 记录工具；附件 MCP 另行发布。
@@ -412,7 +414,8 @@ MCP BFF 只调用 Timeline BFF 内部服务接口，不绕过 owner checks；浏
 | 生命周期 | pending 过期、ready 删除、重复删除、Entry trash/restore/purge、缩略图失败 | 状态转换符合状态机；worker 可重试，删除幂等 |
 | 注销 | 注销时在途上传、已 ready 媒体、队列重试、账号重新注册 | 新账号不能访问旧数据；cleanup 不依赖旧 user ID |
 | 版本并发 | stale expected_revision、同 mutation_id 不同 payload、purge 竞态 | 返回 REVISION_CONFLICT/REPLAY_MISMATCH，无静默覆盖 |
-| 媒体并发 | Prepare 后并发 Complete、删除时 stale revision、换新 mutation_id 重复删除、缩略图失败重试 | 只接受一个有效转移；冲突带回 current_revision；重放 replayed=true |
+| 媒体并发 | Prepare 后并发 Complete、删除时 stale revision、无有效回执时重复 Delete、回执过期后 Complete 已 ready | 只接受一个有效转移；未过期回执优先于 revision 比较；过期后 stale revision 固定返回 REVISION_CONFLICT，当前 revision 返回同摘要且不改状态；冲突带回 current_revision |
+| 后台转移 | pending 过期、Complete 校验失败、Entry purge、账号注销、worker 重试与并发读取竞争 | 条件更新只转移一次；不写客户端回执；转移记录带 actor/reason 与 revision，不含 key/内容；worker 重试不改变 revision |
 | 引用解析 | 跨账号 ref、伪造/篡改 ref、entry_ref 当 media_ref、purge 后 ref、注销后 ref、分页 token 换筛选 | 统一 NOT_FOUND；ref 不可跨 owner/kind 复用；无内部 ID/排序键泄露；token 不可跨筛选复用 |
 | 回执重放 | update/trash/restore/purge/complete/delete 超时重试、同 mutation_id 不同摘要、回执过期后重放、并发双击、事务中断 | 只应用一次；摘要不同报 MUTATION_REPLAY_MISMATCH；过期后 stale revision 拒绝而非二次写入；无“变更成功但无回执”窗口 |
 | MCP revision | 省略/0/非整数 expected_revision、过期值、回放 | REVISION_REQUIRED / REVISION_CONFLICT 带 current_revision / 回放 replayed=true |
@@ -422,11 +425,11 @@ MCP BFF 只调用 Timeline BFF 内部服务接口，不绕过 owner checks；浏
 | 兼容 | 老 Entry 客户端读写、迁移前空附件字段、服务降级 | 文字记录闭环不回归；新列可空且可回滚停写 |
 | 运行 | storage 404/5xx、DB 事务失败、queue worker 崩溃/重复执行 | 对象不存在视为成功；可重试；无孤儿 key 的不可控增长 |
 
-必须至少包含真实数据库/内存 storage 的服务测试、BFF 认证与错误映射测试、MCP Streamable HTTP 合同测试，以及浏览器直传的端到端测试。跨账号、注销、Complete 重放、cleanup 失败重试、ref 解析与撤销、四种记录副作用的重放、以及 MCP 撤销/版本失效是发布阻断项。
+必须至少包含真实数据库/内存 storage 的服务测试、BFF 认证与错误映射测试、MCP Streamable HTTP 合同测试，以及浏览器直传的端到端测试。跨账号、注销、Complete 重放与回执过期语义、后台转移的 actor/无回执边界、cleanup 失败重试、ref 解析与撤销、四种记录副作用的重放、以及 MCP 撤销/版本失效是发布阻断项。
 
 ## 11. 后续实现交付边界
 
-附件实现票应交付：migration（媒体字段、`revision`、upload reservation、`timeline_mutation_receipts`、`timeline_public_refs`）、storage adapter 接入、MediaService proto 生成物、owner checks、ref 签发/解析、Prepare/Complete/List/Get/Delete、缩略图和 cleanup worker、错误映射及服务测试；不得自行添加 tripmap 语义或 MCP 工具。
+附件实现票应交付：migration（媒体字段、`revision`、upload reservation、`timeline_mutation_receipts`、`timeline_public_refs`）、storage adapter 接入、MediaService proto 生成物、owner checks、ref 签发/解析、Prepare/Complete/List/Get/Delete、客户端回执与后台状态转移记录（3.4）、缩略图和 cleanup worker、错误映射及服务测试；不得自行添加 tripmap 语义或 MCP 工具。
 
 MCP 实现票应交付：Streamable HTTP 路由、来源白名单、Bearer/audience/scope 校验、普通账号映射、令牌撤销和 auth_version 检查、限流、审计、七个 v1 工具、分页和 revision/mutation 错误映射、ref 脱敏映射；记录侧回执和 `entry_ref` proto 字段由 TimelineService 实现票先交付，MCP 票不得自行实现回执或引用映射。
 
@@ -434,10 +437,12 @@ MCP 实现票应交付：Streamable HTTP 路由、来源白名单、Bearer/audie
 
 ## 12. 本修订处理的评审意见
 
-本 ADR 当前版本基于 KON-105 评审意见（KON-105 评论 `01a1b67d`）修订，对应关系如下：
+本 ADR 当前版本基于 KON-105 两轮评审意见修订：首轮评论 `01a1b67d`（发现 1–3），第二轮评论 `01a1b69f`（发现 4–5）。对应关系如下：
 
 1. **Media 无法取得 expected_revision**：新增 `Media.revision`（3.2）、Complete/Delete 必填非零 `expected_revision` 与 `MediaMutationResult`（3.2、3.3、3.4），并定义冲突 details（`current_revision`）与重放返回值。
 2. **opaque 引用与已接受 Timeline 契约脱节**：新增 5.3 的 `timeline_public_refs` 映射表、owner+kind 解析规则、`Entry.entry_ref` 与请求侧 `entry_ref` 字段、响应白名单和撤销/生命周期；明确映射由 timeline 服务内部持有，MCP 不做 ID 映射（5.3、6.4、9.1、9.3）。
 3. **mutation replay 只覆盖 Create**：新增 3.5 的持久回执表、请求摘要、提交顺序与并发唯一约束，明确回执归 TimelineService（媒体归 MediaService）、MCP 透明传递；补齐 Delete/Purge 响应与 `replayed` 字段，并把回执/ref 纳入迁移、回滚、测试矩阵。
+4. **CompleteUpload 过期回放语义冲突**：3.4 增加统一执行优先级（未过期回执 → 当前 revision 校验 → 转移），并规定回执过期后按新请求判定：已 ready + stale revision 固定返回 `REVISION_CONFLICT`，仅当前 revision 返回同摘要且不改状态；同步 3.3 与 10 测试矩阵。
+5. **后台生命周期转移的回执边界**：明确回执只覆盖客户端 Complete/Delete；后台转移（过期、校验失败、Entry purge、注销、worker 重试）使用条件状态更新 + `actor=system|worker` 转移记录，不写 mutation 回执、不参与 24 小时窗口、不可重放；同步 2.3、3.4、3.5、10、11。
 
 验证命令（变更后应可重复执行）：`./scripts/check-doc-links.sh`；`git diff --check`。本票不修改实现代码，因此行为验证仍以父票 `8c5a51592f2a34504828295e967b75d357e07761` 的 `go test ./internal/timeline/... ./internal/bff/...` 为基线。
