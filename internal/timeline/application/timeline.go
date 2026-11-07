@@ -27,6 +27,7 @@ import (
 
 var dateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 var timeRE = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$`)
+var publicRefRE = regexp.MustCompile(`^ent_[a-f0-9]{26}$`)
 
 // TimelineService owns all record operations. The caller identity always comes
 // from the internal auth context; request messages never contain a user id.
@@ -90,9 +91,10 @@ func validateLocator(ref, id string) error {
 	if ref != "" && id != "" {
 		return status.Error(codes.InvalidArgument, "provide either entry_ref or id")
 	}
-	if ref != "" && (len(ref) < 5 || !strings.HasPrefix(ref, "ent_")) {
+	if ref != "" && !publicRefRE.MatchString(ref) {
 		return status.Error(codes.InvalidArgument, "invalid entry_ref")
 	}
+
 	if ref == "" && id == "" {
 		return status.Error(codes.InvalidArgument, "entry_ref is required")
 	}
