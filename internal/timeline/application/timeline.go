@@ -86,6 +86,18 @@ func validate(in *timelinev1.Entry, requireID bool) error {
 
 	return nil
 }
+func validateLocator(ref, id string) error {
+	if ref != "" && id != "" {
+		return status.Error(codes.InvalidArgument, "provide either entry_ref or id")
+	}
+	if ref != "" && (len(ref) < 5 || !strings.HasPrefix(ref, "ent_")) {
+		return status.Error(codes.InvalidArgument, "invalid entry_ref")
+	}
+	if ref == "" && id == "" {
+		return status.Error(codes.InvalidArgument, "entry_ref is required")
+	}
+	return nil
+}
 func occurred(in *timelinev1.Entry) time.Time {
 	loc, _ := time.LoadLocation(in.Timezone)
 	value := in.Date
@@ -122,11 +134,37 @@ func mutationHash(operation string, value any) string {
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
 }
+func requestHash(owner, operation, ref, legacyID string, revision int64, value any) string {
+	return mutationHash(operation, struct {
+		Owner, Ref, ID   string
+		ExpectedRevision int64
+		Value            any
+	}{owner, ref, legacyID, revision, value})
+}
 func receiptResponse(r *ent.Receipt, replayed bool) *timelinev1.MutationReceipt {
 	if r == nil {
 		return nil
 	}
 	return &timelinev1.MutationReceipt{MutationId: r.MutationID, TargetKind: r.TargetKind, Operation: r.Operation, ResultRevision: int64(r.ResultRevision), ResultState: r.ResultState, Replayed: replayed, RecordedAt: timestamppb.New(r.CreatedAt)}
+}
+func (s *TimelineService) priorReceiptTx(ctx context.Context, tx *ent.Tx, uid, mutationID, operation, hash string) (*ent.Receipt, error) {
+	if mutationID == "" {
+		return nil, status.Error(codes.InvalidArgument, "mutation_id is required")
+	}
+	r, err := tx.Receipt.Query().Where(receipt.UserIDEQ(uid), receipt.MutationIDEQ(mutationID)).Only(ctx)
+	if ent.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.Operation != operation || r.RequestHash != hash {
+		return nil, status.Error(codes.AlreadyExists, "mutation_id was already used for a different request")
+	}
+	return r, nil
+}
+func saveReceiptTx(ctx context.Context, tx *ent.Tx, uid, mutationID, operation, hash, ref string, revision int, state string, snapshot []byte) (*ent.Receipt, error) {
+	return tx.Receipt.Create().SetUserID(uid).SetMutationID(mutationID).SetTargetKind("entry").SetOperation(operation).SetRequestHash(hash).SetEntryRef(ref).SetResultRevision(revision).SetResultState(state).SetResultSnapshot(snapshot).Save(ctx)
 }
 func (s *TimelineService) priorReceipt(ctx context.Context, uid, mutationID, operation, hash string) (*ent.Receipt, error) {
 	if mutationID == "" {
@@ -144,12 +182,14 @@ func (s *TimelineService) priorReceipt(ctx context.Context, uid, mutationID, ope
 	}
 	return r, nil
 }
+
 func snapshotEntry(e *ent.Entry) ([]byte, error) { return protojson.Marshal(mapEntry(e)) }
 func restoreEntrySnapshot(b []byte) (*timelinev1.Entry, error) {
 	e := &timelinev1.Entry{}
 	err := protojson.Unmarshal(b, e)
 	return e, err
 }
+
 func (s *TimelineService) saveReceipt(ctx context.Context, uid, mutationID, operation, hash, entryRef string, revision int, state string, snapshot []byte) (*ent.Receipt, error) {
 	return s.db.Receipt.Create().SetUserID(uid).SetMutationID(mutationID).SetTargetKind("entry").SetOperation(operation).SetRequestHash(hash).SetEntryRef(entryRef).SetResultRevision(revision).SetResultState(state).SetResultSnapshot(snapshot).Save(ctx)
 }
@@ -192,7 +232,7 @@ func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.Creat
 	if err = validate(req.Entry, false); err != nil {
 		return nil, err
 	}
-	hash := mutationHash("create", req.Entry)
+	hash := requestHash(uid, "create", "", "", 0, req.Entry)
 	old, err := s.priorReceipt(ctx, uid, req.MutationId, "create", hash)
 	if err != nil {
 		return nil, err
@@ -227,7 +267,10 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 	if err = validate(req.Entry, true); err != nil {
 		return nil, err
 	}
-	hash := mutationHash("update", req.Entry)
+	if err = validateLocator(req.Entry.EntryRef, req.Entry.Id); err != nil {
+		return nil, err
+	}
+	hash := requestHash(uid, "update", req.Entry.EntryRef, req.Entry.Id, req.ExpectedRevision, req.Entry)
 	old, err := s.priorReceipt(ctx, uid, req.MutationId, "update", hash)
 	if err != nil {
 		return nil, err
@@ -271,6 +314,24 @@ func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.Delet
 	if err != nil {
 		return nil, err
 	}
+	if err = validateLocator(req.EntryRef, req.Id); err != nil {
+		return nil, err
+	}
+	if req.Permanent {
+		return nil, status.Error(codes.InvalidArgument, "permanent deletion is not supported; use PurgeEntry")
+	}
+	hash := requestHash(uid, "trash", req.EntryRef, req.Id, req.ExpectedRevision, req.Permanent)
+	old, err := s.priorReceipt(ctx, uid, req.MutationId, "trash", hash)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil {
+		e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+		if eerr != nil {
+			return nil, eerr
+		}
+		return &timelinev1.DeleteEntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+	}
 	q := s.db.Entry.Query().Where(entry.UserID(uid))
 	if req.EntryRef != "" {
 		q = q.Where(entry.PublicRefEQ(req.EntryRef))
@@ -284,18 +345,39 @@ func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.Delet
 	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
-	if req.Permanent {
-		return nil, status.Error(codes.InvalidArgument, "permanent deletion is not supported; use PurgeEntry")
-	}
-	if _, err = row.Update().SetDeletedAt(time.Now().UTC()).SetRevision(row.Revision + 1).Save(ctx); err != nil {
+	row, err = row.Update().SetDeletedAt(time.Now().UTC()).SetRevision(row.Revision + 1).Save(ctx)
+	if err != nil {
 		return nil, err
 	}
-	return &timelinev1.DeleteEntryResponse{Entry: mapEntry(row)}, nil
+	snap, err := snapshotEntry(row)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.saveReceipt(ctx, uid, req.MutationId, "trash", hash, row.PublicRef, row.Revision, "trashed", snap)
+	if err != nil {
+		return nil, err
+	}
+	return &timelinev1.DeleteEntryResponse{Entry: mapEntry(row), Receipt: receiptResponse(r, false)}, nil
 }
 func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.RestoreEntryRequest) (*timelinev1.EntryResponse, error) {
 	uid, err := user(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if err = validateLocator(req.EntryRef, req.Id); err != nil {
+		return nil, err
+	}
+	hash := requestHash(uid, "restore", req.EntryRef, req.Id, req.ExpectedRevision, nil)
+	old, err := s.priorReceipt(ctx, uid, req.MutationId, "restore", hash)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil {
+		e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+		if eerr != nil {
+			return nil, eerr
+		}
+		return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
 	}
 	q := s.db.Entry.Query().Where(entry.UserID(uid))
 	if req.EntryRef != "" {
@@ -316,12 +398,31 @@ func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.Rest
 			return nil, err
 		}
 	}
-	return &timelinev1.EntryResponse{Entry: mapEntry(row)}, nil
+	snap, err := snapshotEntry(row)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.saveReceipt(ctx, uid, req.MutationId, "restore", hash, row.PublicRef, row.Revision, "active", snap)
+	if err != nil {
+		return nil, err
+	}
+	return &timelinev1.EntryResponse{Entry: mapEntry(row), Receipt: receiptResponse(r, false)}, nil
 }
 func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeEntryRequest) (*timelinev1.PurgeEntryResponse, error) {
 	uid, err := user(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if err = validateLocator(req.EntryRef, req.Id); err != nil {
+		return nil, err
+	}
+	hash := requestHash(uid, "purge", req.EntryRef, req.Id, req.ExpectedRevision, nil)
+	old, err := s.priorReceipt(ctx, uid, req.MutationId, "purge", hash)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil {
+		return &timelinev1.PurgeEntryResponse{Receipt: receiptResponse(old, true)}, nil
 	}
 	q := s.db.Entry.Query().Where(entry.UserID(uid))
 	if req.EntryRef != "" {
@@ -336,10 +437,18 @@ func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeE
 	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
-	if _, err := s.db.Entry.Delete().Where(entry.ID(row.ID), entry.UserID(uid)).Exec(ctx); err != nil {
+	snap, err := snapshotEntry(row)
+	if err != nil {
 		return nil, err
 	}
-	return &timelinev1.PurgeEntryResponse{}, nil
+	if _, err = s.db.Entry.Delete().Where(entry.ID(row.ID), entry.UserID(uid)).Exec(ctx); err != nil {
+		return nil, err
+	}
+	r, err := s.saveReceipt(ctx, uid, req.MutationId, "purge", hash, row.PublicRef, row.Revision, "purged", snap)
+	if err != nil {
+		return nil, err
+	}
+	return &timelinev1.PurgeEntryResponse{Receipt: receiptResponse(r, false)}, nil
 }
 
 var _ = errors.New
