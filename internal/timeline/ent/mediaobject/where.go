@@ -65,6 +65,11 @@ func IDContainsFold(id string) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldContainsFold(FieldID, id))
 }
 
+// PublicRef applies equality check predicate on the "public_ref" field. It's identical to PublicRefEQ.
+func PublicRef(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldPublicRef, v))
+}
+
 // UserID applies equality check predicate on the "user_id" field. It's identical to UserIDEQ.
 func UserID(v string) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldUserID, v))
@@ -93,6 +98,71 @@ func UploadKey(v string) predicate.MediaObject {
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldCreatedAt, v))
+}
+
+// PublicRefEQ applies the EQ predicate on the "public_ref" field.
+func PublicRefEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldPublicRef, v))
+}
+
+// PublicRefNEQ applies the NEQ predicate on the "public_ref" field.
+func PublicRefNEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldPublicRef, v))
+}
+
+// PublicRefIn applies the In predicate on the "public_ref" field.
+func PublicRefIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldPublicRef, vs...))
+}
+
+// PublicRefNotIn applies the NotIn predicate on the "public_ref" field.
+func PublicRefNotIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldPublicRef, vs...))
+}
+
+// PublicRefGT applies the GT predicate on the "public_ref" field.
+func PublicRefGT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldPublicRef, v))
+}
+
+// PublicRefGTE applies the GTE predicate on the "public_ref" field.
+func PublicRefGTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldPublicRef, v))
+}
+
+// PublicRefLT applies the LT predicate on the "public_ref" field.
+func PublicRefLT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldPublicRef, v))
+}
+
+// PublicRefLTE applies the LTE predicate on the "public_ref" field.
+func PublicRefLTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldPublicRef, v))
+}
+
+// PublicRefContains applies the Contains predicate on the "public_ref" field.
+func PublicRefContains(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContains(FieldPublicRef, v))
+}
+
+// PublicRefHasPrefix applies the HasPrefix predicate on the "public_ref" field.
+func PublicRefHasPrefix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasPrefix(FieldPublicRef, v))
+}
+
+// PublicRefHasSuffix applies the HasSuffix predicate on the "public_ref" field.
+func PublicRefHasSuffix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasSuffix(FieldPublicRef, v))
+}
+
+// PublicRefEqualFold applies the EqualFold predicate on the "public_ref" field.
+func PublicRefEqualFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEqualFold(FieldPublicRef, v))
+}
+
+// PublicRefContainsFold applies the ContainsFold predicate on the "public_ref" field.
+func PublicRefContainsFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContainsFold(FieldPublicRef, v))
 }
 
 // UserIDEQ applies the EQ predicate on the "user_id" field.

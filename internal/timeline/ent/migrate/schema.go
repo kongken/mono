@@ -64,6 +64,7 @@ var (
 	// TimelineMediaObjectsColumns holds the columns for the "timeline_media_objects" table.
 	TimelineMediaObjectsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
+		{Name: "public_ref", Type: field.TypeString, Unique: true},
 		{Name: "user_id", Type: field.TypeString},
 		{Name: "object_key", Type: field.TypeString},
 		{Name: "thumbnail_key", Type: field.TypeString, Default: ""},
@@ -79,7 +80,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "timeline_media_objects_timeline_entries_media",
-				Columns:    []*schema.Column{TimelineMediaObjectsColumns[6]},
+				Columns:    []*schema.Column{TimelineMediaObjectsColumns[7]},
 				RefColumns: []*schema.Column{TimelineEntriesColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -88,12 +89,12 @@ var (
 			{
 				Name:    "mediaobject_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{TimelineMediaObjectsColumns[1]},
+				Columns: []*schema.Column{TimelineMediaObjectsColumns[2]},
 			},
 			{
 				Name:    "mediaobject_entry_id",
 				Unique:  false,
-				Columns: []*schema.Column{TimelineMediaObjectsColumns[6]},
+				Columns: []*schema.Column{TimelineMediaObjectsColumns[7]},
 			},
 		},
 	}
@@ -104,7 +105,8 @@ var (
 		{Name: "mutation_id", Type: field.TypeString},
 		{Name: "target_kind", Type: field.TypeString},
 		{Name: "operation", Type: field.TypeString},
-		{Name: "entry_ref", Type: field.TypeString, Default: ""},
+		{Name: "entry_ref", Type: field.TypeString, Nullable: true},
+		{Name: "media_ref", Type: field.TypeString, Nullable: true},
 		{Name: "request_hash", Type: field.TypeString},
 		{Name: "result_revision", Type: field.TypeInt},
 		{Name: "result_state", Type: field.TypeString},

@@ -24,6 +24,20 @@ type MediaObjectCreate struct {
 	conflict []sql.ConflictOption
 }
 
+// SetPublicRef sets the "public_ref" field.
+func (_c *MediaObjectCreate) SetPublicRef(v string) *MediaObjectCreate {
+	_c.mutation.SetPublicRef(v)
+	return _c
+}
+
+// SetNillablePublicRef sets the "public_ref" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillablePublicRef(v *string) *MediaObjectCreate {
+	if v != nil {
+		_c.SetPublicRef(*v)
+	}
+	return _c
+}
+
 // SetUserID sets the "user_id" field.
 func (_c *MediaObjectCreate) SetUserID(v string) *MediaObjectCreate {
 	_c.mutation.SetUserID(v)
@@ -138,6 +152,10 @@ func (_c *MediaObjectCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *MediaObjectCreate) defaults() {
+	if _, ok := _c.mutation.PublicRef(); !ok {
+		v := mediaobject.DefaultPublicRef()
+		_c.mutation.SetPublicRef(v)
+	}
 	if _, ok := _c.mutation.ThumbnailKey(); !ok {
 		v := mediaobject.DefaultThumbnailKey
 		_c.mutation.SetThumbnailKey(v)
@@ -158,6 +176,9 @@ func (_c *MediaObjectCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_c *MediaObjectCreate) check() error {
+	if _, ok := _c.mutation.PublicRef(); !ok {
+		return &ValidationError{Name: "public_ref", err: errors.New(`ent: missing required field "MediaObject.public_ref"`)}
+	}
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "MediaObject.user_id"`)}
 	}
@@ -230,6 +251,10 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
+	if value, ok := _c.mutation.PublicRef(); ok {
+		_spec.SetField(mediaobject.FieldPublicRef, field.TypeString, value)
+		_node.PublicRef = value
+	}
 	if value, ok := _c.mutation.UserID(); ok {
 		_spec.SetField(mediaobject.FieldUserID, field.TypeString, value)
 		_node.UserID = value
@@ -274,7 +299,7 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 // of the `INSERT` statement. For example:
 //
 //	client.MediaObject.Create().
-//		SetUserID(v).
+//		SetPublicRef(v).
 //		OnConflict(
 //			// Update the row with the new values
 //			// the was proposed for insertion.
@@ -283,7 +308,7 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.MediaObjectUpsert) {
-//			SetUserID(v+v).
+//			SetPublicRef(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *MediaObjectCreate) OnConflict(opts ...sql.ConflictOption) *MediaObjectUpsertOne {
@@ -359,6 +384,9 @@ func (u *MediaObjectUpsertOne) UpdateNewValues() *MediaObjectUpsertOne {
 	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
 		if _, exists := u.create.mutation.ID(); exists {
 			s.SetIgnore(mediaobject.FieldID)
+		}
+		if _, exists := u.create.mutation.PublicRef(); exists {
+			s.SetIgnore(mediaobject.FieldPublicRef)
 		}
 		if _, exists := u.create.mutation.UserID(); exists {
 			s.SetIgnore(mediaobject.FieldUserID)
@@ -567,7 +595,7 @@ func (_c *MediaObjectCreateBulk) ExecX(ctx context.Context) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.MediaObjectUpsert) {
-//			SetUserID(v+v).
+//			SetPublicRef(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *MediaObjectCreateBulk) OnConflict(opts ...sql.ConflictOption) *MediaObjectUpsertBulk {
@@ -613,6 +641,9 @@ func (u *MediaObjectUpsertBulk) UpdateNewValues() *MediaObjectUpsertBulk {
 		for _, b := range u.create.builders {
 			if _, exists := b.mutation.ID(); exists {
 				s.SetIgnore(mediaobject.FieldID)
+			}
+			if _, exists := b.mutation.PublicRef(); exists {
+				s.SetIgnore(mediaobject.FieldPublicRef)
 			}
 			if _, exists := b.mutation.UserID(); exists {
 				s.SetIgnore(mediaobject.FieldUserID)

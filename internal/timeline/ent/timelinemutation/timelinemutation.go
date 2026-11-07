@@ -23,6 +23,8 @@ const (
 	FieldOperation = "operation"
 	// FieldEntryRef holds the string denoting the entry_ref field in the database.
 	FieldEntryRef = "entry_ref"
+	// FieldMediaRef holds the string denoting the media_ref field in the database.
+	FieldMediaRef = "media_ref"
 	// FieldRequestHash holds the string denoting the request_hash field in the database.
 	FieldRequestHash = "request_hash"
 	// FieldResultRevision holds the string denoting the result_revision field in the database.
@@ -47,6 +49,7 @@ var Columns = []string{
 	FieldTargetKind,
 	FieldOperation,
 	FieldEntryRef,
+	FieldMediaRef,
 	FieldRequestHash,
 	FieldResultRevision,
 	FieldResultState,
@@ -74,8 +77,6 @@ var (
 	TargetKindValidator func(string) error
 	// OperationValidator is a validator for the "operation" field. It is called by the builders before save.
 	OperationValidator func(string) error
-	// DefaultEntryRef holds the default value on creation for the "entry_ref" field.
-	DefaultEntryRef string
 	// RequestHashValidator is a validator for the "request_hash" field. It is called by the builders before save.
 	RequestHashValidator func(string) error
 	// ResultRevisionValidator is a validator for the "result_revision" field. It is called by the builders before save.
@@ -121,6 +122,11 @@ func ByOperation(opts ...sql.OrderTermOption) OrderOption {
 // ByEntryRef orders the results by the entry_ref field.
 func ByEntryRef(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldEntryRef, opts...).ToFunc()
+}
+
+// ByMediaRef orders the results by the media_ref field.
+func ByMediaRef(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMediaRef, opts...).ToFunc()
 }
 
 // ByRequestHash orders the results by the request_hash field.

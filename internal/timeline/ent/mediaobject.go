@@ -18,6 +18,8 @@ type MediaObject struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID string `json:"id,omitempty"`
+	// PublicRef holds the value of the "public_ref" field.
+	PublicRef string `json:"public_ref,omitempty"`
 	// UserID holds the value of the "user_id" field.
 	UserID string `json:"user_id,omitempty"`
 	// EntryID holds the value of the "entry_id" field.
@@ -61,7 +63,7 @@ func (*MediaObject) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case mediaobject.FieldID, mediaobject.FieldUserID, mediaobject.FieldEntryID, mediaobject.FieldObjectKey, mediaobject.FieldThumbnailKey, mediaobject.FieldUploadKey:
+		case mediaobject.FieldID, mediaobject.FieldPublicRef, mediaobject.FieldUserID, mediaobject.FieldEntryID, mediaobject.FieldObjectKey, mediaobject.FieldThumbnailKey, mediaobject.FieldUploadKey:
 			values[i] = new(sql.NullString)
 		case mediaobject.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -85,6 +87,12 @@ func (_m *MediaObject) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
 				_m.ID = value.String
+			}
+		case mediaobject.FieldPublicRef:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field public_ref", values[i])
+			} else if value.Valid {
+				_m.PublicRef = value.String
 			}
 		case mediaobject.FieldUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -163,6 +171,9 @@ func (_m *MediaObject) String() string {
 	var builder strings.Builder
 	builder.WriteString("MediaObject(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	builder.WriteString("public_ref=")
+	builder.WriteString(_m.PublicRef)
+	builder.WriteString(", ")
 	builder.WriteString("user_id=")
 	builder.WriteString(_m.UserID)
 	builder.WriteString(", ")

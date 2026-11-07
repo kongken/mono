@@ -22,6 +22,14 @@ func newEntryRef() string {
 	return "ent_" + base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b[:])[:26]
 }
 
+func newMediaRef() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic(err)
+	}
+	return "med_" + base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b[:])[:26]
+}
+
 type Entry struct{ ent.Schema }
 
 func (Entry) Annotations() []schema.Annotation {
@@ -44,7 +52,7 @@ func (MediaObject) Annotations() []schema.Annotation {
 	return []schema.Annotation{entsql.Annotation{Table: "timeline_media_objects"}}
 }
 func (MediaObject) Fields() []ent.Field {
-	return []ent.Field{field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").NotEmpty().Immutable(), field.String("entry_id").NotEmpty().Immutable(), field.String("object_key").NotEmpty().Immutable(), field.String("thumbnail_key").Default(""), field.String("upload_key").Default(""), field.Time("created_at").Default(now).Immutable()}
+	return []ent.Field{field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("public_ref").DefaultFunc(newMediaRef).Unique().Immutable(), field.String("user_id").NotEmpty().Immutable(), field.String("entry_id").NotEmpty().Immutable(), field.String("object_key").NotEmpty().Immutable(), field.String("thumbnail_key").Default(""), field.String("upload_key").Default(""), field.Time("created_at").Default(now).Immutable()}
 }
 func (MediaObject) Edges() []ent.Edge {
 	return []ent.Edge{edge.From("entry", Entry.Type).Ref("media").Field("entry_id").Unique().Required().Immutable()}

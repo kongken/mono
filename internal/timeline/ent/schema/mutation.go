@@ -17,7 +17,7 @@ func (TimelineMutation) Annotations() []schema.Annotation {
 }
 func (TimelineMutation) Fields() []ent.Field {
 	return []ent.Field{
-		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").NotEmpty().Immutable(), field.String("mutation_id").NotEmpty().Immutable(), field.String("target_kind").NotEmpty().Immutable(), field.String("operation").NotEmpty().Immutable(), field.String("entry_ref").Default("").Immutable(), field.String("request_hash").NotEmpty().Immutable(), field.Int("result_revision").Positive().Immutable(), field.String("result_state").NotEmpty().Immutable(), field.JSON("result_snapshot", map[string]any{}).Immutable(), field.Int("snapshot_version").Default(1).Immutable(), field.Time("created_at").Default(func() time.Time { return time.Now().UTC() }).Immutable(),
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").NotEmpty().Immutable(), field.String("mutation_id").NotEmpty().Immutable(), field.String("target_kind").NotEmpty().Immutable(), field.String("operation").NotEmpty().Immutable(), field.String("entry_ref").Optional().Nillable().Immutable(), field.String("media_ref").Optional().Nillable().Immutable(), field.String("request_hash").NotEmpty().Immutable(), field.Int("result_revision").Positive().Immutable(), field.String("result_state").NotEmpty().Immutable(), field.JSON("result_snapshot", map[string]any{}).Immutable(), field.Int("snapshot_version").Default(1).Immutable(), field.Time("created_at").Default(func() time.Time { return time.Now().UTC() }).Immutable(),
 	}
 }
 func (TimelineMutation) Indexes() []ent.Index {

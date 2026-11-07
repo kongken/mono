@@ -61,6 +61,20 @@ func (_c *TimelineMutationCreate) SetNillableEntryRef(v *string) *TimelineMutati
 	return _c
 }
 
+// SetMediaRef sets the "media_ref" field.
+func (_c *TimelineMutationCreate) SetMediaRef(v string) *TimelineMutationCreate {
+	_c.mutation.SetMediaRef(v)
+	return _c
+}
+
+// SetNillableMediaRef sets the "media_ref" field if the given value is not nil.
+func (_c *TimelineMutationCreate) SetNillableMediaRef(v *string) *TimelineMutationCreate {
+	if v != nil {
+		_c.SetMediaRef(*v)
+	}
+	return _c
+}
+
 // SetRequestHash sets the "request_hash" field.
 func (_c *TimelineMutationCreate) SetRequestHash(v string) *TimelineMutationCreate {
 	_c.mutation.SetRequestHash(v)
@@ -162,10 +176,6 @@ func (_c *TimelineMutationCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *TimelineMutationCreate) defaults() {
-	if _, ok := _c.mutation.EntryRef(); !ok {
-		v := timelinemutation.DefaultEntryRef
-		_c.mutation.SetEntryRef(v)
-	}
 	if _, ok := _c.mutation.SnapshotVersion(); !ok {
 		v := timelinemutation.DefaultSnapshotVersion
 		_c.mutation.SetSnapshotVersion(v)
@@ -213,9 +223,6 @@ func (_c *TimelineMutationCreate) check() error {
 		if err := timelinemutation.OperationValidator(v); err != nil {
 			return &ValidationError{Name: "operation", err: fmt.Errorf(`ent: validator failed for field "TimelineMutation.operation": %w`, err)}
 		}
-	}
-	if _, ok := _c.mutation.EntryRef(); !ok {
-		return &ValidationError{Name: "entry_ref", err: errors.New(`ent: missing required field "TimelineMutation.entry_ref"`)}
 	}
 	if _, ok := _c.mutation.RequestHash(); !ok {
 		return &ValidationError{Name: "request_hash", err: errors.New(`ent: missing required field "TimelineMutation.request_hash"`)}
@@ -304,7 +311,11 @@ func (_c *TimelineMutationCreate) createSpec() (*TimelineMutation, *sqlgraph.Cre
 	}
 	if value, ok := _c.mutation.EntryRef(); ok {
 		_spec.SetField(timelinemutation.FieldEntryRef, field.TypeString, value)
-		_node.EntryRef = value
+		_node.EntryRef = &value
+	}
+	if value, ok := _c.mutation.MediaRef(); ok {
+		_spec.SetField(timelinemutation.FieldMediaRef, field.TypeString, value)
+		_node.MediaRef = &value
 	}
 	if value, ok := _c.mutation.RequestHash(); ok {
 		_spec.SetField(timelinemutation.FieldRequestHash, field.TypeString, value)
@@ -413,6 +424,9 @@ func (u *TimelineMutationUpsertOne) UpdateNewValues() *TimelineMutationUpsertOne
 		}
 		if _, exists := u.create.mutation.EntryRef(); exists {
 			s.SetIgnore(timelinemutation.FieldEntryRef)
+		}
+		if _, exists := u.create.mutation.MediaRef(); exists {
+			s.SetIgnore(timelinemutation.FieldMediaRef)
 		}
 		if _, exists := u.create.mutation.RequestHash(); exists {
 			s.SetIgnore(timelinemutation.FieldRequestHash)
@@ -660,6 +674,9 @@ func (u *TimelineMutationUpsertBulk) UpdateNewValues() *TimelineMutationUpsertBu
 			}
 			if _, exists := b.mutation.EntryRef(); exists {
 				s.SetIgnore(timelinemutation.FieldEntryRef)
+			}
+			if _, exists := b.mutation.MediaRef(); exists {
+				s.SetIgnore(timelinemutation.FieldMediaRef)
 			}
 			if _, exists := b.mutation.RequestHash(); exists {
 				s.SetIgnore(timelinemutation.FieldRequestHash)

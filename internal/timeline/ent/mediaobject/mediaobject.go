@@ -14,6 +14,8 @@ const (
 	Label = "media_object"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldPublicRef holds the string denoting the public_ref field in the database.
+	FieldPublicRef = "public_ref"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
 	// FieldEntryID holds the string denoting the entry_id field in the database.
@@ -42,6 +44,7 @@ const (
 // Columns holds all SQL columns for mediaobject fields.
 var Columns = []string{
 	FieldID,
+	FieldPublicRef,
 	FieldUserID,
 	FieldEntryID,
 	FieldObjectKey,
@@ -61,6 +64,8 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// DefaultPublicRef holds the default value on creation for the "public_ref" field.
+	DefaultPublicRef func() string
 	// UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
 	UserIDValidator func(string) error
 	// EntryIDValidator is a validator for the "entry_id" field. It is called by the builders before save.
@@ -83,6 +88,11 @@ type OrderOption func(*sql.Selector)
 // ByID orders the results by the id field.
 func ByID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByPublicRef orders the results by the public_ref field.
+func ByPublicRef(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPublicRef, opts...).ToFunc()
 }
 
 // ByUserID orders the results by the user_id field.

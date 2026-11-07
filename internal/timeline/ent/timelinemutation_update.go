@@ -68,6 +68,12 @@ func (_u *TimelineMutationUpdate) sqlSave(ctx context.Context) (_node int, err e
 			}
 		}
 	}
+	if _u.mutation.EntryRefCleared() {
+		_spec.ClearField(timelinemutation.FieldEntryRef, field.TypeString)
+	}
+	if _u.mutation.MediaRefCleared() {
+		_spec.ClearField(timelinemutation.FieldMediaRef, field.TypeString)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{timelinemutation.Label}
@@ -158,6 +164,12 @@ func (_u *TimelineMutationUpdateOne) sqlSave(ctx context.Context) (_node *Timeli
 				ps[i](selector)
 			}
 		}
+	}
+	if _u.mutation.EntryRefCleared() {
+		_spec.ClearField(timelinemutation.FieldEntryRef, field.TypeString)
+	}
+	if _u.mutation.MediaRefCleared() {
+		_spec.ClearField(timelinemutation.FieldMediaRef, field.TypeString)
 	}
 	_node = &TimelineMutation{config: _u.config}
 	_spec.Assign = _node.assignValues

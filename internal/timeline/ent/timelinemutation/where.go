@@ -89,6 +89,11 @@ func EntryRef(v string) predicate.TimelineMutation {
 	return predicate.TimelineMutation(sql.FieldEQ(FieldEntryRef, v))
 }
 
+// MediaRef applies equality check predicate on the "media_ref" field. It's identical to MediaRefEQ.
+func MediaRef(v string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldEQ(FieldMediaRef, v))
+}
+
 // RequestHash applies equality check predicate on the "request_hash" field. It's identical to RequestHashEQ.
 func RequestHash(v string) predicate.TimelineMutation {
 	return predicate.TimelineMutation(sql.FieldEQ(FieldRequestHash, v))
@@ -429,6 +434,16 @@ func EntryRefHasSuffix(v string) predicate.TimelineMutation {
 	return predicate.TimelineMutation(sql.FieldHasSuffix(FieldEntryRef, v))
 }
 
+// EntryRefIsNil applies the IsNil predicate on the "entry_ref" field.
+func EntryRefIsNil() predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldIsNull(FieldEntryRef))
+}
+
+// EntryRefNotNil applies the NotNil predicate on the "entry_ref" field.
+func EntryRefNotNil() predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldNotNull(FieldEntryRef))
+}
+
 // EntryRefEqualFold applies the EqualFold predicate on the "entry_ref" field.
 func EntryRefEqualFold(v string) predicate.TimelineMutation {
 	return predicate.TimelineMutation(sql.FieldEqualFold(FieldEntryRef, v))
@@ -437,6 +452,81 @@ func EntryRefEqualFold(v string) predicate.TimelineMutation {
 // EntryRefContainsFold applies the ContainsFold predicate on the "entry_ref" field.
 func EntryRefContainsFold(v string) predicate.TimelineMutation {
 	return predicate.TimelineMutation(sql.FieldContainsFold(FieldEntryRef, v))
+}
+
+// MediaRefEQ applies the EQ predicate on the "media_ref" field.
+func MediaRefEQ(v string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldEQ(FieldMediaRef, v))
+}
+
+// MediaRefNEQ applies the NEQ predicate on the "media_ref" field.
+func MediaRefNEQ(v string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldNEQ(FieldMediaRef, v))
+}
+
+// MediaRefIn applies the In predicate on the "media_ref" field.
+func MediaRefIn(vs ...string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldIn(FieldMediaRef, vs...))
+}
+
+// MediaRefNotIn applies the NotIn predicate on the "media_ref" field.
+func MediaRefNotIn(vs ...string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldNotIn(FieldMediaRef, vs...))
+}
+
+// MediaRefGT applies the GT predicate on the "media_ref" field.
+func MediaRefGT(v string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldGT(FieldMediaRef, v))
+}
+
+// MediaRefGTE applies the GTE predicate on the "media_ref" field.
+func MediaRefGTE(v string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldGTE(FieldMediaRef, v))
+}
+
+// MediaRefLT applies the LT predicate on the "media_ref" field.
+func MediaRefLT(v string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldLT(FieldMediaRef, v))
+}
+
+// MediaRefLTE applies the LTE predicate on the "media_ref" field.
+func MediaRefLTE(v string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldLTE(FieldMediaRef, v))
+}
+
+// MediaRefContains applies the Contains predicate on the "media_ref" field.
+func MediaRefContains(v string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldContains(FieldMediaRef, v))
+}
+
+// MediaRefHasPrefix applies the HasPrefix predicate on the "media_ref" field.
+func MediaRefHasPrefix(v string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldHasPrefix(FieldMediaRef, v))
+}
+
+// MediaRefHasSuffix applies the HasSuffix predicate on the "media_ref" field.
+func MediaRefHasSuffix(v string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldHasSuffix(FieldMediaRef, v))
+}
+
+// MediaRefIsNil applies the IsNil predicate on the "media_ref" field.
+func MediaRefIsNil() predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldIsNull(FieldMediaRef))
+}
+
+// MediaRefNotNil applies the NotNil predicate on the "media_ref" field.
+func MediaRefNotNil() predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldNotNull(FieldMediaRef))
+}
+
+// MediaRefEqualFold applies the EqualFold predicate on the "media_ref" field.
+func MediaRefEqualFold(v string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldEqualFold(FieldMediaRef, v))
+}
+
+// MediaRefContainsFold applies the ContainsFold predicate on the "media_ref" field.
+func MediaRefContainsFold(v string) predicate.TimelineMutation {
+	return predicate.TimelineMutation(sql.FieldContainsFold(FieldMediaRef, v))
 }
 
 // RequestHashEQ applies the EQ predicate on the "request_hash" field.

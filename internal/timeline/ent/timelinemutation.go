@@ -27,7 +27,9 @@ type TimelineMutation struct {
 	// Operation holds the value of the "operation" field.
 	Operation string `json:"operation,omitempty"`
 	// EntryRef holds the value of the "entry_ref" field.
-	EntryRef string `json:"entry_ref,omitempty"`
+	EntryRef *string `json:"entry_ref,omitempty"`
+	// MediaRef holds the value of the "media_ref" field.
+	MediaRef *string `json:"media_ref,omitempty"`
 	// RequestHash holds the value of the "request_hash" field.
 	RequestHash string `json:"request_hash,omitempty"`
 	// ResultRevision holds the value of the "result_revision" field.
@@ -52,7 +54,7 @@ func (*TimelineMutation) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case timelinemutation.FieldResultRevision, timelinemutation.FieldSnapshotVersion:
 			values[i] = new(sql.NullInt64)
-		case timelinemutation.FieldID, timelinemutation.FieldUserID, timelinemutation.FieldMutationID, timelinemutation.FieldTargetKind, timelinemutation.FieldOperation, timelinemutation.FieldEntryRef, timelinemutation.FieldRequestHash, timelinemutation.FieldResultState:
+		case timelinemutation.FieldID, timelinemutation.FieldUserID, timelinemutation.FieldMutationID, timelinemutation.FieldTargetKind, timelinemutation.FieldOperation, timelinemutation.FieldEntryRef, timelinemutation.FieldMediaRef, timelinemutation.FieldRequestHash, timelinemutation.FieldResultState:
 			values[i] = new(sql.NullString)
 		case timelinemutation.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -105,7 +107,15 @@ func (_m *TimelineMutation) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field entry_ref", values[i])
 			} else if value.Valid {
-				_m.EntryRef = value.String
+				_m.EntryRef = new(string)
+				*_m.EntryRef = value.String
+			}
+		case timelinemutation.FieldMediaRef:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field media_ref", values[i])
+			} else if value.Valid {
+				_m.MediaRef = new(string)
+				*_m.MediaRef = value.String
 			}
 		case timelinemutation.FieldRequestHash:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -193,8 +203,15 @@ func (_m *TimelineMutation) String() string {
 	builder.WriteString("operation=")
 	builder.WriteString(_m.Operation)
 	builder.WriteString(", ")
-	builder.WriteString("entry_ref=")
-	builder.WriteString(_m.EntryRef)
+	if v := _m.EntryRef; v != nil {
+		builder.WriteString("entry_ref=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.MediaRef; v != nil {
+		builder.WriteString("media_ref=")
+		builder.WriteString(*v)
+	}
 	builder.WriteString(", ")
 	builder.WriteString("request_hash=")
 	builder.WriteString(_m.RequestHash)

@@ -1,15 +1,21 @@
--- KON-108: opaque entry refs and durable, immutable mutation receipts.
--- Entry refs are filled before the receipt table is enabled; the transaction aborts on any gap.
+-- KON-108: opaque refs and durable immutable mutation receipts.
 ALTER TABLE "timeline_entries" ADD COLUMN "public_ref" character varying;
 UPDATE "timeline_entries" SET "public_ref" = 'ent_' || substr(md5("id"), 1, 26) WHERE "public_ref" IS NULL;
 DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM "timeline_entries" WHERE "public_ref" IS NULL)
-     OR EXISTS (SELECT "public_ref" FROM "timeline_entries" GROUP BY "public_ref" HAVING count(*) > 1)
-  THEN RAISE EXCEPTION 'timeline entry public_ref backfill incomplete or collided'; END IF;
+  IF EXISTS (SELECT 1 FROM "timeline_entries" WHERE "public_ref" IS NULL) OR EXISTS (SELECT "public_ref" FROM "timeline_entries" GROUP BY "public_ref" HAVING count(*) > 1) THEN RAISE EXCEPTION 'timeline entry public_ref backfill incomplete or collided'; END IF;
 END $$;
 ALTER TABLE "timeline_entries" ALTER COLUMN "public_ref" SET NOT NULL;
 CREATE UNIQUE INDEX "timeline_entries_public_ref_key" ON "timeline_entries" ("public_ref");
 ALTER TABLE "timeline_entries" ADD CONSTRAINT "timeline_entries_public_ref_format" CHECK ("public_ref" ~ '^ent_[0-9a-hjkmnp-tv-z]{26}$');
+
+ALTER TABLE "timeline_media_objects" ADD COLUMN "public_ref" character varying;
+UPDATE "timeline_media_objects" SET "public_ref" = 'med_' || substr(md5("id"), 1, 26) WHERE "public_ref" IS NULL;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM "timeline_media_objects" WHERE "public_ref" IS NULL) OR EXISTS (SELECT "public_ref" FROM "timeline_media_objects" GROUP BY "public_ref" HAVING count(*) > 1) THEN RAISE EXCEPTION 'timeline media public_ref backfill incomplete or collided'; END IF;
+END $$;
+ALTER TABLE "timeline_media_objects" ALTER COLUMN "public_ref" SET NOT NULL;
+CREATE UNIQUE INDEX "timeline_media_objects_public_ref_key" ON "timeline_media_objects" ("public_ref");
+ALTER TABLE "timeline_media_objects" ADD CONSTRAINT "timeline_media_objects_public_ref_format" CHECK ("public_ref" ~ '^med_[0-9a-hjkmnp-tv-z]{26}$');
 
 CREATE TABLE "timeline_mutations" (
   "id" character varying NOT NULL,
@@ -17,7 +23,8 @@ CREATE TABLE "timeline_mutations" (
   "mutation_id" character varying NOT NULL,
   "target_kind" character varying NOT NULL,
   "operation" character varying NOT NULL,
-  "entry_ref" character varying NOT NULL,
+  "entry_ref" character varying NULL,
+  "media_ref" character varying NULL,
   "request_hash" character varying NOT NULL,
   "result_revision" bigint NOT NULL,
   "result_state" character varying NOT NULL,
@@ -25,8 +32,9 @@ CREATE TABLE "timeline_mutations" (
   "snapshot_version" bigint NOT NULL DEFAULT 1,
   "created_at" timestamptz NOT NULL,
   PRIMARY KEY ("id"),
-  CONSTRAINT "timeline_mutations_target_operation" CHECK (("target_kind" = 'entry' AND "operation" IN ('create','update','trash','restore','purge')) OR ("target_kind" = 'media' AND "operation" = 'media_delete')),
-  CONSTRAINT "timeline_mutations_target_ref" CHECK ("target_kind" = 'entry' AND "entry_ref" IS NOT NULL OR "target_kind" = 'media' AND "entry_ref" IS NOT NULL),
+  CONSTRAINT "timeline_mutations_target_operation" CHECK (("target_kind" = 'entry' AND "operation" IN ('create','update','trash','restore','purge') AND "entry_ref" IS NOT NULL AND "media_ref" IS NULL) OR ("target_kind" = 'media' AND "operation" = 'media_delete' AND "media_ref" IS NOT NULL AND "entry_ref" IS NOT NULL)),
+  CONSTRAINT "timeline_mutations_entry_ref_format" CHECK ("entry_ref" IS NULL OR "entry_ref" ~ '^ent_[0-9a-hjkmnp-tv-z]{26}$'),
+  CONSTRAINT "timeline_mutations_media_ref_format" CHECK ("media_ref" IS NULL OR "media_ref" ~ '^med_[0-9a-hjkmnp-tv-z]{26}$'),
   CONSTRAINT "timeline_mutations_hash" CHECK (length("request_hash") = 64),
   CONSTRAINT "timeline_mutations_revision" CHECK ("result_revision" >= 1)
 );

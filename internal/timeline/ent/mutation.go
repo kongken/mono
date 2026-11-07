@@ -2165,6 +2165,7 @@ type MediaObjectMutation struct {
 	op            Op
 	typ           string
 	id            *string
+	public_ref    *string
 	user_id       *string
 	object_key    *string
 	thumbnail_key *string
@@ -2280,6 +2281,42 @@ func (m *MediaObjectMutation) IDs(ctx context.Context) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetPublicRef sets the "public_ref" field.
+func (m *MediaObjectMutation) SetPublicRef(s string) {
+	m.public_ref = &s
+}
+
+// PublicRef returns the value of the "public_ref" field in the mutation.
+func (m *MediaObjectMutation) PublicRef() (r string, exists bool) {
+	v := m.public_ref
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPublicRef returns the old "public_ref" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldPublicRef(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPublicRef is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPublicRef requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPublicRef: %w", err)
+	}
+	return oldValue.PublicRef, nil
+}
+
+// ResetPublicRef resets all changes to the "public_ref" field.
+func (m *MediaObjectMutation) ResetPublicRef() {
+	m.public_ref = nil
 }
 
 // SetUserID sets the "user_id" field.
@@ -2559,7 +2596,10 @@ func (m *MediaObjectMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *MediaObjectMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 7)
+	if m.public_ref != nil {
+		fields = append(fields, mediaobject.FieldPublicRef)
+	}
 	if m.user_id != nil {
 		fields = append(fields, mediaobject.FieldUserID)
 	}
@@ -2586,6 +2626,8 @@ func (m *MediaObjectMutation) Fields() []string {
 // schema.
 func (m *MediaObjectMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case mediaobject.FieldPublicRef:
+		return m.PublicRef()
 	case mediaobject.FieldUserID:
 		return m.UserID()
 	case mediaobject.FieldEntryID:
@@ -2607,6 +2649,8 @@ func (m *MediaObjectMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *MediaObjectMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case mediaobject.FieldPublicRef:
+		return m.OldPublicRef(ctx)
 	case mediaobject.FieldUserID:
 		return m.OldUserID(ctx)
 	case mediaobject.FieldEntryID:
@@ -2628,6 +2672,13 @@ func (m *MediaObjectMutation) OldField(ctx context.Context, name string) (ent.Va
 // type.
 func (m *MediaObjectMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case mediaobject.FieldPublicRef:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPublicRef(v)
+		return nil
 	case mediaobject.FieldUserID:
 		v, ok := value.(string)
 		if !ok {
@@ -2719,6 +2770,9 @@ func (m *MediaObjectMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *MediaObjectMutation) ResetField(name string) error {
 	switch name {
+	case mediaobject.FieldPublicRef:
+		m.ResetPublicRef()
+		return nil
 	case mediaobject.FieldUserID:
 		m.ResetUserID()
 		return nil
@@ -2826,6 +2880,7 @@ type TimelineMutationMutation struct {
 	target_kind         *string
 	operation           *string
 	entry_ref           *string
+	media_ref           *string
 	request_hash        *string
 	result_revision     *int
 	addresult_revision  *int
@@ -3105,7 +3160,7 @@ func (m *TimelineMutationMutation) EntryRef() (r string, exists bool) {
 // OldEntryRef returns the old "entry_ref" field's value of the TimelineMutation entity.
 // If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *TimelineMutationMutation) OldEntryRef(ctx context.Context) (v string, err error) {
+func (m *TimelineMutationMutation) OldEntryRef(ctx context.Context) (v *string, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldEntryRef is only allowed on UpdateOne operations")
 	}
@@ -3119,9 +3174,71 @@ func (m *TimelineMutationMutation) OldEntryRef(ctx context.Context) (v string, e
 	return oldValue.EntryRef, nil
 }
 
+// ClearEntryRef clears the value of the "entry_ref" field.
+func (m *TimelineMutationMutation) ClearEntryRef() {
+	m.entry_ref = nil
+	m.clearedFields[timelinemutation.FieldEntryRef] = struct{}{}
+}
+
+// EntryRefCleared returns if the "entry_ref" field was cleared in this mutation.
+func (m *TimelineMutationMutation) EntryRefCleared() bool {
+	_, ok := m.clearedFields[timelinemutation.FieldEntryRef]
+	return ok
+}
+
 // ResetEntryRef resets all changes to the "entry_ref" field.
 func (m *TimelineMutationMutation) ResetEntryRef() {
 	m.entry_ref = nil
+	delete(m.clearedFields, timelinemutation.FieldEntryRef)
+}
+
+// SetMediaRef sets the "media_ref" field.
+func (m *TimelineMutationMutation) SetMediaRef(s string) {
+	m.media_ref = &s
+}
+
+// MediaRef returns the value of the "media_ref" field in the mutation.
+func (m *TimelineMutationMutation) MediaRef() (r string, exists bool) {
+	v := m.media_ref
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMediaRef returns the old "media_ref" field's value of the TimelineMutation entity.
+// If the TimelineMutation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TimelineMutationMutation) OldMediaRef(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMediaRef is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMediaRef requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMediaRef: %w", err)
+	}
+	return oldValue.MediaRef, nil
+}
+
+// ClearMediaRef clears the value of the "media_ref" field.
+func (m *TimelineMutationMutation) ClearMediaRef() {
+	m.media_ref = nil
+	m.clearedFields[timelinemutation.FieldMediaRef] = struct{}{}
+}
+
+// MediaRefCleared returns if the "media_ref" field was cleared in this mutation.
+func (m *TimelineMutationMutation) MediaRefCleared() bool {
+	_, ok := m.clearedFields[timelinemutation.FieldMediaRef]
+	return ok
+}
+
+// ResetMediaRef resets all changes to the "media_ref" field.
+func (m *TimelineMutationMutation) ResetMediaRef() {
+	m.media_ref = nil
+	delete(m.clearedFields, timelinemutation.FieldMediaRef)
 }
 
 // SetRequestHash sets the "request_hash" field.
@@ -3414,7 +3531,7 @@ func (m *TimelineMutationMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TimelineMutationMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.user_id != nil {
 		fields = append(fields, timelinemutation.FieldUserID)
 	}
@@ -3429,6 +3546,9 @@ func (m *TimelineMutationMutation) Fields() []string {
 	}
 	if m.entry_ref != nil {
 		fields = append(fields, timelinemutation.FieldEntryRef)
+	}
+	if m.media_ref != nil {
+		fields = append(fields, timelinemutation.FieldMediaRef)
 	}
 	if m.request_hash != nil {
 		fields = append(fields, timelinemutation.FieldRequestHash)
@@ -3466,6 +3586,8 @@ func (m *TimelineMutationMutation) Field(name string) (ent.Value, bool) {
 		return m.Operation()
 	case timelinemutation.FieldEntryRef:
 		return m.EntryRef()
+	case timelinemutation.FieldMediaRef:
+		return m.MediaRef()
 	case timelinemutation.FieldRequestHash:
 		return m.RequestHash()
 	case timelinemutation.FieldResultRevision:
@@ -3497,6 +3619,8 @@ func (m *TimelineMutationMutation) OldField(ctx context.Context, name string) (e
 		return m.OldOperation(ctx)
 	case timelinemutation.FieldEntryRef:
 		return m.OldEntryRef(ctx)
+	case timelinemutation.FieldMediaRef:
+		return m.OldMediaRef(ctx)
 	case timelinemutation.FieldRequestHash:
 		return m.OldRequestHash(ctx)
 	case timelinemutation.FieldResultRevision:
@@ -3552,6 +3676,13 @@ func (m *TimelineMutationMutation) SetField(name string, value ent.Value) error 
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetEntryRef(v)
+		return nil
+	case timelinemutation.FieldMediaRef:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMediaRef(v)
 		return nil
 	case timelinemutation.FieldRequestHash:
 		v, ok := value.(string)
@@ -3651,7 +3782,14 @@ func (m *TimelineMutationMutation) AddField(name string, value ent.Value) error 
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *TimelineMutationMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(timelinemutation.FieldEntryRef) {
+		fields = append(fields, timelinemutation.FieldEntryRef)
+	}
+	if m.FieldCleared(timelinemutation.FieldMediaRef) {
+		fields = append(fields, timelinemutation.FieldMediaRef)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -3664,6 +3802,14 @@ func (m *TimelineMutationMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *TimelineMutationMutation) ClearField(name string) error {
+	switch name {
+	case timelinemutation.FieldEntryRef:
+		m.ClearEntryRef()
+		return nil
+	case timelinemutation.FieldMediaRef:
+		m.ClearMediaRef()
+		return nil
+	}
 	return fmt.Errorf("unknown TimelineMutation nullable field %s", name)
 }
 
@@ -3685,6 +3831,9 @@ func (m *TimelineMutationMutation) ResetField(name string) error {
 		return nil
 	case timelinemutation.FieldEntryRef:
 		m.ResetEntryRef()
+		return nil
+	case timelinemutation.FieldMediaRef:
+		m.ResetMediaRef()
 		return nil
 	case timelinemutation.FieldRequestHash:
 		m.ResetRequestHash()
