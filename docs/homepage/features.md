@@ -10,13 +10,13 @@
 | `/extensions/` | Chrome 插件列表 | Oz Studio 在 Chrome 网上应用店发布的插件：安装入口、功能、权限、数据与隐私说明、商店截图和版本信息 |
 | `/privacy/` | 隐私政策 | 站点、OzID、两个足迹产品与两个插件分别收集什么、数据存在哪里、如何导出与删除；可直接作为商店列表的隐私政策地址 |
 
-三个页面共用 `src/site-chrome.tsx` 里的页头与页脚：页头导航为「探索产品 / Chrome 插件 / 关于 Oz / 隐私政策」与 OzID 入口，`current` 决定当前页的 `aria-current`（「隐私政策」在手机宽度收起，页脚入口始终可见）；页脚指向产品锚点、插件列表、隐私政策与 OzID。新增页面时先在这里加导航项，再传入新的 `current`。
+三个页面共用 `src/site-chrome.tsx` 里的页头与页脚：页头导航为「探索产品 / Chrome 插件 / 关于 Oz」与 OzID 入口，`current` 决定当前页的 `aria-current`；页脚指向产品锚点、插件列表、隐私政策与 OzID。隐私政策不进顶部导航，只在页脚（以及插件卡片里）给出入口，各页页脚都有这一项。新增页面时先在这里加导航项，再传入新的 `current`。
 
 站点是 Vite 多页构建：`index.html`、`extensions/index.html` 与 `privacy/index.html` 各自有入口脚本和标题/描述，产物为 `dist/index.html`、`dist/extensions/index.html` 与 `dist/privacy/index.html`。插件列表与隐私政策都不需要 SPA 兜底路由，分别由静态目录索引直接提供（Nginx 模板已有 `try_files $uri $uri/ /index.html`，Cloudflare Pages 默认按目录索引返回）。
 
 ## 隐私政策
 
-- 页面在 `apps/homepage/src/Privacy.tsx`，入口 `privacy/index.html`、脚本 `src/privacy-main.tsx`；`/extensions/` 的「数据与隐私」标题旁与页脚都链接到本页。
+- 页面在 `apps/homepage/src/Privacy.tsx`，入口 `privacy/index.html`、脚本 `src/privacy-main.tsx`；入口只有页脚（三个页面的页脚都有）与 `/extensions/` 每张插件卡片「数据与隐私」标题旁的链接，顶部导航不出现隐私政策。
 - 内容分节：适用范围、我们的原则、本网站、账号与 OzID、足迹与分享、Chrome 插件、第三方服务、保存与删除、你的权利、儿童、政策更新、联系我们。桌面宽度左侧是粘性目录，锚点对应各节 `id`；手机宽度只显示正文。
 - 事实来源是已实现的行为：账号与注销见 [OzID 功能描述](../ozid/features.md)，账号存储与邮件队列见 [usersrv 规格](../usersrv/spec.md)，足迹、分享与导出见 [山海足迹功能描述](../trip-map/features.md) 与 [公开分享页](../trip-map/sharing.md)，地铁公开主页见 [地铁足迹功能描述](../metro/features.md)，插件权限来自各自 manifest 与商店说明。页面只写实现得到的事，不承诺尚未实现的能力。
 - 维护：`src/Privacy.tsx` 里的 `lastUpdated` 同时用于首屏徽标与「政策更新」一节；数据范围、第三方服务或删除规则变化时，先改对应产品的功能描述，再改这一页，最后重新构建确认多页入口没有回归。
@@ -39,8 +39,8 @@
 
 ## 验证
 
-- 构建：仓库根目录 `npm run build:homepage`，产物同时包含 `/` 与 `/extensions/`。
-- 浏览器检查：桌面与手机宽度下三个页面都没有横向溢出，图标和截图正常加载，导航与页脚的 `/extensions/`、`/privacy/` 链接可互相进入，隐私政策的目录锚点可跳转，商店链接在新标签打开。
+- 构建：仓库根目录 `npm run build:homepage`，产物同时包含 `/`、`/extensions/` 与 `/privacy/`。
+- 浏览器检查：桌面与手机宽度下三个页面都没有横向溢出，图标和截图正常加载，页面间通过导航、页脚与插件卡片的链接可互相进入，顶部导航不出现隐私政策、页脚的隐私政策链接在每个页面都有，隐私政策的目录锚点可跳转，商店链接在新标签打开。
 - 只改文案或数据时，仍需构建一次以确认 TypeScript 与多页入口没有回归。
 
 ## 限制
