@@ -57,3 +57,16 @@ CREATE TABLE "timeline_mutations" (
 );
 CREATE UNIQUE INDEX "timeline_mutations_user_id_mutation_id" ON "timeline_mutations" ("user_id", "mutation_id");
 CREATE INDEX "timeline_mutations_created_at" ON "timeline_mutations" ("created_at");
+CREATE FUNCTION timeline_mutations_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.user_id <> OLD.user_id OR NEW.mutation_id <> OLD.mutation_id OR NEW.target_kind <> OLD.target_kind
+    OR NEW.operation <> OLD.operation OR NEW.request_hash <> OLD.request_hash OR NEW.entry_ref IS DISTINCT FROM OLD.entry_ref
+    OR NEW.media_ref IS DISTINCT FROM OLD.media_ref OR NEW.result_revision <> OLD.result_revision
+    OR NEW.result_state <> OLD.result_state OR NEW.result_snapshot IS DISTINCT FROM OLD.result_snapshot
+    OR NEW.snapshot_version <> OLD.snapshot_version OR NEW.created_at <> OLD.created_at THEN
+    RAISE EXCEPTION 'timeline mutation receipts are immutable';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER "timeline_mutations_immutable" BEFORE UPDATE ON "timeline_mutations"
+  FOR EACH ROW EXECUTE FUNCTION timeline_mutations_immutable();
