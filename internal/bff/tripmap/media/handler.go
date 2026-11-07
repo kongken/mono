@@ -69,13 +69,18 @@ func (h *Handler) ReadMedia(ctx context.Context, req *connect.Request[bfftripmap
 }
 
 func (h *Handler) DeleteMedia(ctx context.Context, req *connect.Request[bfftripmapv1.DeleteMediaRequest]) (*connect.Response[bfftripmapv1.DeleteMediaResponse], error) {
-	out, err := h.client.DeleteMedia(h.tripmap(ctx, req), &tripmapv1.DeleteMediaRequest{Id: req.Msg.GetId(), MutationId: req.Msg.GetMutationId()})
+	out, err := h.client.DeleteMedia(h.tripmap(ctx, req), &tripmapv1.DeleteMediaRequest{
+		Id: req.Msg.GetId(), MediaRef: req.Msg.GetMediaRef(), MutationId: req.Msg.GetMutationId(), ExpectedRevision: req.Msg.ExpectedRevision,
+	})
 	if err != nil {
 		return nil, upstream.ToConnect("tripmap", err)
 	}
 	var receipt *bfftripmapv1.MediaMutationReceipt
 	if r := out.GetReceipt(); r != nil {
-		receipt = &bfftripmapv1.MediaMutationReceipt{MutationId: r.GetMutationId(), MediaId: r.GetMediaId(), ResultState: r.GetResultState(), Replayed: r.GetReplayed(), RecordedAt: r.GetRecordedAt()}
+		receipt = &bfftripmapv1.MediaMutationReceipt{
+			MutationId: r.GetMutationId(), MediaId: r.GetMediaId(), ResultState: r.GetResultState(), Replayed: r.GetReplayed(), RecordedAt: r.GetRecordedAt(),
+			MediaRef: r.GetMediaRef(), EntryRef: r.GetEntryRef(), ResultRevision: r.GetResultRevision(), ResultSnapshot: r.GetResultSnapshot(), SnapshotVersion: r.GetSnapshotVersion(),
+		}
 	}
 	return connect.NewResponse(&bfftripmapv1.DeleteMediaResponse{Receipt: receipt}), nil
 }

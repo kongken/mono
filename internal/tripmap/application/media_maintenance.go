@@ -7,8 +7,8 @@ import (
 
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/mediacleanup"
-	"github.com/kongken/mono/internal/tripmap/ent/mediadeletereceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
+	"github.com/kongken/mono/internal/tripmap/ent/timelinemutation"
 )
 
 // RunMediaMaintenance is idempotent across replicas. Keep failed work in the
@@ -17,7 +17,7 @@ func RunMediaMaintenance(ctx context.Context, st *Store, now time.Time) error {
 	if st.Blobs == nil {
 		return errors.New("media storage unavailable")
 	}
-	if _, err := st.DB.MediaDeleteReceipt.Delete().Where(mediadeletereceipt.ExpiresAtLTE(now.UTC())).Exec(ctx); err != nil {
+	if _, err := st.DB.TimelineMutation.Delete().Where(timelinemutation.ExpiresAtLTE(now.UTC())).Exec(ctx); err != nil {
 		return err
 	}
 	rows, err := st.DB.MediaObject.Query().Where(mediaobject.Or(mediaobject.StatusEQ(mediaobject.StatusDeleting), mediaobject.And(mediaobject.StatusEQ(mediaobject.StatusPending), mediaobject.CreatedAtLTE(now.Add(-24*time.Hour))))).Limit(200).All(ctx)

@@ -431,6 +431,16 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tri
 		return nil, internalError(err)
 	}
 	if err = tx.Commit(); err != nil {
+		if ent.IsConstraintError(err) {
+			replayTx, replayErr := mediaTx(ctx, st, p.UserID)
+			if replayErr == nil {
+				defer func() { _ = replayTx.Rollback() }()
+				first, queryErr := replayTx.TimelineMutation.Query().Where(timelinemutation.UserID(p.UserID), timelinemutation.MutationID(mutationID)).Only(ctx)
+				if queryErr == nil && first.RequestHash == hash {
+					return connect.NewResponse(&tripmapv1.DeleteMediaResponse{Receipt: mediaDeleteReceipt(first, true)}), nil
+				}
+			}
+		}
 		return nil, internalError(err)
 	}
 	if err = DeleteMediaKeys(ctx, st, m); err != nil {
