@@ -29,12 +29,12 @@ import (
 )
 
 const (
-	// AudienceMetro names the metro MCP endpoint, the only audience in v1.
-	AudienceMetro = "metro"
-	// ScopeRead allows the read-only tools; ScopeWrite allows the write tools and
-	// implies ScopeRead.
-	ScopeRead  = "metro:read"
-	ScopeWrite = "metro:write"
+	AudienceMetro      = "metro"
+	AudienceTimeline   = "timeline"
+	ScopeRead          = "metro:read"
+	ScopeWrite         = "metro:write"
+	ScopeTimelineRead  = "timeline:read"
+	ScopeTimelineWrite = "timeline:write"
 
 	// MaxActivePerUser bounds the valid tokens one administrator holds.
 	MaxActivePerUser = 10
@@ -75,7 +75,7 @@ func (p Principal) Allows(scope string) bool {
 	if slices.Contains(p.Scopes, scope) {
 		return true
 	}
-	return scope == ScopeRead && slices.Contains(p.Scopes, ScopeWrite)
+	return (scope == ScopeRead && slices.Contains(p.Scopes, ScopeWrite)) || (scope == ScopeTimelineRead && slices.Contains(p.Scopes, ScopeTimelineWrite))
 }
 
 // Service stores and verifies tokens.
@@ -115,8 +115,8 @@ func (s *Service) Create(ctx context.Context, owner session.BrowserSession, in C
 	if audience == "" {
 		audience = AudienceMetro
 	}
-	if audience != AudienceMetro {
-		return nil, "", invalid("audience must be metro")
+	if audience != AudienceMetro && audience != AudienceTimeline {
+		return nil, "", invalid("audience must be metro or timeline")
 	}
 	scopes, err := normalizeScopes(in.Scopes)
 	if err != nil {
@@ -237,8 +237,8 @@ func normalizeScopes(in []string) ([]string, error) {
 	}
 	var out []string
 	for _, sc := range in {
-		if sc != ScopeRead && sc != ScopeWrite {
-			return nil, invalid("scopes may only be metro:read and metro:write")
+		if sc != ScopeRead && sc != ScopeWrite && sc != ScopeTimelineRead && sc != ScopeTimelineWrite {
+			return nil, invalid("scopes may only be metro:read, metro:write, timeline:read and timeline:write")
 		}
 		if !slices.Contains(out, sc) {
 			out = append(out, sc)

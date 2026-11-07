@@ -3,13 +3,19 @@ package timeline
 import (
 	"connectrpc.com/connect"
 	"context"
+	timelinemcp "github.com/kongken/mono/internal/bff/timeline/mcp"
 	"github.com/kongken/mono/internal/bff/upstream"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/timeline/v1"
 	v1 "github.com/kongken/mono/pkg/proto/timeline/v1"
 	"google.golang.org/grpc"
+	"net/http"
 )
 
 type Handler struct{ client v1.TimelineServiceClient }
+
+func NewMCP(conn *grpc.ClientConn, tokens timelinemcp.Authenticator, accounts timelinemcp.Accounts, limiter timelinemcp.Limiter, ratePerMinute int, perimeter timelinemcp.Perimeter) http.Handler {
+	return timelinemcp.New(timelinemcp.Config{Admin: v1.NewTimelineServiceClient(conn), Tokens: tokens, Accounts: accounts, Limiter: limiter, RatePerMinute: ratePerMinute, Perimeter: perimeter})
+}
 
 func NewHandler(c grpc.ClientConnInterface) *Handler {
 	return &Handler{client: v1.NewTimelineServiceClient(c)}

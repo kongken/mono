@@ -111,6 +111,7 @@ var BFFOwnedRoutes = []Route{
 	// The metro MCP endpoint (MCP Streamable HTTP, stateless). It takes a Bearer
 	// management token only and ignores Cookies; the handler is internal/bff/metro/mcp.
 	{Path: "/mcp/metro", Method: "POST"},
+	{Path: "/mcp/timeline", Method: "POST"},
 }
 
 // BrowserHeaders supplements the shared Connect headers for BFF clients.
