@@ -26,6 +26,7 @@ func TestRefsMigrationUsesRandomRefsAndTransactionalChecks(t *testing.T) {
 	for _, want := range []string{
 		"CREATE EXTENSION IF NOT EXISTS pgcrypto",
 		"gen_random_bytes(13)",
+		"public_ref !~ '^ent_[0-9a-f]{26}$'",
 		"timeline_entries_public_ref_key",
 		"timeline_mutations_target",
 		"timeline_mutations_operation",

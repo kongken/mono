@@ -7,8 +7,21 @@ import (
 	"github.com/kongken/mono/internal/timeline/ent/cleanupobject"
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
+	"github.com/kongken/mono/internal/timeline/ent/receipt"
 	"github.com/kongken/mono/internal/tripmap/blobstore"
+	"time"
 )
+
+const ReceiptRetention = 30 * 24 * time.Hour
+
+// ExpireReceipts removes immutable mutation receipts beyond their replay window.
+// Callers should run this from the timeline maintenance schedule.
+func ExpireReceipts(ctx context.Context, db *ent.Client, now time.Time) (int, error) {
+	if db == nil {
+		return 0, errors.New("database unavailable")
+	}
+	return db.Receipt.Delete().Where(receipt.CreatedAtLT(now.UTC().Add(-ReceiptRetention))).Exec(ctx)
+}
 
 var ErrObjectStorageUnavailable = errors.New("object storage unavailable")
 
@@ -50,6 +63,9 @@ func Run(ctx context.Context, st *Store, userID string) error {
 		return err
 	}
 	if _, err = tx.MediaObject.Delete().Where(mediaobject.UserID(userID)).Exec(ctx); err != nil {
+		return err
+	}
+	if _, err = tx.Receipt.Delete().Where(receipt.UserIDEQ(userID)).Exec(ctx); err != nil {
 		return err
 	}
 	return tx.Commit()
