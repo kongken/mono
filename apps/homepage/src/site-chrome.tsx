@@ -2,7 +2,7 @@ import { Fingerprint } from "@phosphor-icons/react";
 
 export const focus = "rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
-export type SiteSection = "home" | "extensions";
+export type SiteSection = "home" | "extensions" | "privacy";
 
 type NavItem = {
   label: string;
@@ -15,6 +15,7 @@ const navItems: NavItem[] = [
   { label: "探索产品", href: "/#products", section: "home", hideOnMobile: true },
   { label: "Chrome 插件", href: "/extensions/", section: "extensions" },
   { label: "关于 Oz", href: "/#about", hideOnMobile: true },
+  { label: "隐私政策", href: "/privacy/", section: "privacy", hideOnMobile: true },
 ];
 
 export function SiteHeader({ current }: { current: SiteSection }) {
@@ -59,6 +60,7 @@ export function SiteFooter() {
           <a className={focus} href="/#products">地铁足迹</a>
           <a className={focus} href="/extensions/">Chrome 插件</a>
           <a className={`${focus} font-mono text-[11px]`} href="https://id.orz.ee">OzID</a>
+          <a className={focus} href="/privacy/">隐私政策</a>
           <span className="font-mono text-[11px]">© 2025 Oz Studio</span>
         </div>
       </div>

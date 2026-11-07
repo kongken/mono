@@ -60,7 +60,10 @@ function ExtensionCard({ extension }: { extension: ChromeExtension }) {
           </ul>
         </div>
         <div className="rounded-lg bg-[var(--surface-lowest)] p-4">
-          <h3 className="mb-2 font-mono text-[11px] uppercase tracking-[.12em] text-[var(--secondary)]">Privacy / 数据与隐私</h3>
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="font-mono text-[11px] uppercase tracking-[.12em] text-[var(--secondary)]">Privacy / 数据与隐私</h3>
+            <a href="/privacy/" className={`${focus} font-mono text-[11px] text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground`}>完整隐私政策</a>
+          </div>
           <ul className="grid gap-1.5 text-[13px] leading-5 text-muted-foreground">
             {extension.privacy.map((item) => <li key={item}>{item}</li>)}
           </ul>
