@@ -11,7 +11,7 @@ go run ./cmd/migrate-shared -dsn "$SHARED_MIGRATION_DSN" -root . \\
   -link-import ./deploy/sql/media_entry_links.sql
 ```
 
-`cmd/migrate-shared` 按 Timeline baseline → Tripmap baseline → Timeline refs/mutations → link staging → 外部 link import → Tripmap Media/receipt 增量执行。所有阶段在一个事务中完成；首次执行创建 clean baseline，成功阶段写入 `shared_migration_history`，重复执行幂等跳过，任一 SQL/import/约束失败都会回滚本次全部变更。`deploy/sql/media_entry_links.sql` 是仓库内的受控 import 文件模板，部署前必须由一次性导出生成真实 INSERT 行；文件中的三列必须是可信的 `media_id,user_id,entry_ref`。
+`cmd/migrate-shared` 按 Timeline baseline → Tripmap baseline → Timeline refs/mutations → Tripmap 目录中 20261014 baseline 之后、20261107900000 staging 之前的全部既有增量（F5/F6/F7/F11/F12、session/index/world）→ link staging → 外部 link import → Tripmap Media/receipt 增量执行。上述文件由入口按文件名排序完整编排，部署后不应再单独执行这些 Tripmap migration。
 
 link staging 持久化约束同时绑定 `(entry_ref,user_id)` 到 `timeline_entries(public_ref,user_id)`，并由 Tripmap migration 绑定 `(media_id,user_id)` 到 Media。缺 link、Media 或 Entry 不存在、重复或跨 owner link 都会在迁移事务中失败。
 

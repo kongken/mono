@@ -14,12 +14,30 @@ import (
 // clean baselines in one database, then applies Timeline refs, link staging,
 // external import, and Tripmap's receipt migration.
 type SharedPlan struct {
-	TimelineBaseline string
-	TripmapBaseline  string
-	TimelineRefs     string
-	LinkStaging      string
-	TripmapMedia     string
-	LinkImport       string
+	TimelineBaseline  string
+	TripmapBaseline   string
+	TripmapIncrements []string
+	TimelineRefs      string
+	LinkStaging       string
+	TripmapMedia      string
+	LinkImport        string
+}
+
+func (p SharedPlan) phases() []struct{ name, path string } {
+	phases := []struct{ name, path string }{
+		{"timeline-baseline", p.TimelineBaseline},
+		{"tripmap-baseline", p.TripmapBaseline},
+		{"timeline-refs", p.TimelineRefs},
+	}
+	for i, path := range p.TripmapIncrements {
+		phases = append(phases, struct{ name, path string }{fmt.Sprintf("tripmap-increment-%02d", i), path})
+	}
+	phases = append(phases,
+		struct{ name, path string }{"media-entry-links", p.LinkStaging},
+		struct{ name, path string }{"media-entry-link-import", p.LinkImport},
+		struct{ name, path string }{"tripmap-media", p.TripmapMedia},
+	)
+	return phases
 }
 
 // Apply executes every phase in one database transaction. A failed import or
@@ -37,14 +55,7 @@ func (p SharedPlan) Apply(ctx context.Context, db *sql.DB) error {
 	if _, err = tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS shared_migration_history (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`); err != nil {
 		return fmt.Errorf("create shared migration history: %w", err)
 	}
-	phases := []struct{ name, path string }{
-		{"timeline-baseline", p.TimelineBaseline},
-		{"tripmap-baseline", p.TripmapBaseline},
-		{"timeline-refs", p.TimelineRefs},
-		{"media-entry-links", p.LinkStaging},
-		{"media-entry-link-import", p.LinkImport},
-		{"tripmap-media", p.TripmapMedia},
-	}
+	phases := p.phases()
 	for _, phase := range phases {
 		if phase.path == "" {
 			continue
@@ -77,12 +88,22 @@ func (p SharedPlan) Apply(ctx context.Context, db *sql.DB) error {
 }
 
 func DiscoverPlan(root string) SharedPlan {
+	tripmapDir := filepath.Join(root, "migrations", "tripmap")
+	allTripmap, _ := SQLFiles(tripmapDir)
+	var increments []string
+	for _, path := range allTripmap {
+		base := filepath.Base(path)
+		if base > "20261014011442_baseline.sql" && base < "20261107900000_media_entry_links.sql" {
+			increments = append(increments, path)
+		}
+	}
 	return SharedPlan{
-		TimelineBaseline: filepath.Join(root, "migrations", "timeline", "20261107170000_baseline.sql"),
-		TripmapBaseline:  filepath.Join(root, "migrations", "tripmap", "20261014011442_baseline.sql"),
-		TimelineRefs:     filepath.Join(root, "migrations", "timeline", "20261107180000_refs_mutations.sql"),
-		LinkStaging:      filepath.Join(root, "migrations", "tripmap", "20261107900000_media_entry_links.sql"),
-		TripmapMedia:     filepath.Join(root, "migrations", "tripmap", "20261108000000_media_delete_receipts.sql"),
+		TimelineBaseline:  filepath.Join(root, "migrations", "timeline", "20261107170000_baseline.sql"),
+		TripmapBaseline:   filepath.Join(tripmapDir, "20261014011442_baseline.sql"),
+		TripmapIncrements: increments,
+		TimelineRefs:      filepath.Join(root, "migrations", "timeline", "20261107180000_refs_mutations.sql"),
+		LinkStaging:       filepath.Join(tripmapDir, "20261107900000_media_entry_links.sql"),
+		TripmapMedia:      filepath.Join(tripmapDir, "20261108000000_media_delete_receipts.sql"),
 	}
 }
 
