@@ -38,6 +38,25 @@ func user(ctx context.Context) (string, error) {
 	}
 	return id, nil
 }
+func normalizedURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || strings.IndexFunc(raw, func(r rune) bool { return r < 32 || r == 127 }) >= 0 {
+		return "", status.Error(codes.InvalidArgument, "invalid URL")
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".internal") {
+		return "", status.Error(codes.InvalidArgument, "private URL is not allowed")
+	}
+	if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()) {
+		return "", status.Error(codes.InvalidArgument, "private URL is not allowed")
+	}
+	u.Scheme, u.Host = strings.ToLower(u.Scheme), strings.ToLower(u.Host)
+	if (u.Scheme == "http" && u.Port() == "80") || (u.Scheme == "https" && u.Port() == "443") {
+		u.Host = host
+	}
+	return u.String(), nil
+}
 func validate(in *timelinev1.Entry, requireID bool) error {
 	if in == nil || strings.TrimSpace(in.Title) == "" {
 		return status.Error(codes.InvalidArgument, "title is required")
@@ -63,15 +82,12 @@ func validate(in *timelinev1.Entry, requireID bool) error {
 	if in.AmountMinor < 0 || (in.Currency != "" && !regexp.MustCompile(`^[A-Z]{3}$`).MatchString(in.Currency)) {
 		return status.Error(codes.InvalidArgument, "invalid amount or currency")
 	}
+	if len([]rune(in.UrlTitle)) > 200 || len([]rune(in.UrlNote)) > 10000 || strings.IndexFunc(in.UrlTitle+in.UrlNote, func(r rune) bool { return r < 32 || r == 127 }) >= 0 {
+		return status.Error(codes.InvalidArgument, "invalid bookmark metadata")
+	}
 	if in.Url != "" {
-		u, err := url.Parse(in.Url)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || strings.IndexFunc(in.Url, func(r rune) bool { return r < 32 || r == 127 }) >= 0 {
-			return status.Error(codes.InvalidArgument, "invalid URL")
-		}
-		host := strings.ToLower(u.Hostname())
-		ip := net.ParseIP(host)
-		if ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()) {
-			return status.Error(codes.InvalidArgument, "private URL is not allowed")
+		if _, err := normalizedURL(in.Url); err != nil {
+			return err
 		}
 	}
 	if requireID && in.Id == "" {
@@ -138,7 +154,8 @@ func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.Creat
 	if err != nil {
 		return nil, err
 	}
-	if err = validate(req.Entry, false); err != nil {
+	bookmarkURL, err := normalizedURL(req.Entry.Url)
+	if err != nil && req.Entry.Url != "" {
 		return nil, err
 	}
 	if req.MutationId != "" {
@@ -146,7 +163,7 @@ func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.Creat
 			return &timelinev1.EntryResponse{Entry: mapEntry(old)}, nil
 		}
 	}
-	c := s.db.Entry.Create().SetUserID(uid).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry))
+	c := s.db.Entry.Create().SetUserID(uid).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(bookmarkURL).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry))
 	if req.MutationId != "" {
 		c.SetMutationID(req.MutationId)
 	}
@@ -161,7 +178,8 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 	if err != nil {
 		return nil, err
 	}
-	if err = validate(req.Entry, true); err != nil {
+	bookmarkURL, err := normalizedURL(req.Entry.Url)
+	if err != nil && req.Entry.Url != "" {
 		return nil, err
 	}
 	row, err := s.db.Entry.Query().Where(entry.ID(req.Entry.Id), entry.UserID(uid), entry.DeletedAtIsNil()).Only(ctx)
@@ -171,7 +189,7 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
-	u := row.Update().SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).SetRevision(row.Revision + 1)
+	u := row.Update().SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(bookmarkURL).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).SetRevision(row.Revision + 1)
 	if req.MutationId != "" {
 		u.SetMutationID(req.MutationId)
 	}
