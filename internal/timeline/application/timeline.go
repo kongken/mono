@@ -233,7 +233,17 @@ func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.Creat
 		return nil, err
 	}
 	hash := requestHash(uid, "create", "", "", 0, req.Entry)
-	old, err := s.priorReceipt(ctx, uid, req.MutationId, "create", hash)
+	tx, err := s.db.Tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	old, err := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "create", hash)
 	if err != nil {
 		return nil, err
 	}
@@ -244,8 +254,7 @@ func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.Creat
 		}
 		return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
 	}
-	c := s.db.Entry.Create().SetPublicRef(publicRef("ent_")).SetUserID(uid).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry))
-	row, err := c.Save(ctx)
+	row, err := tx.Entry.Create().SetPublicRef(publicRef("ent_")).SetUserID(uid).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).Save(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -253,10 +262,14 @@ func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.Creat
 	if err != nil {
 		return nil, err
 	}
-	r, err := s.saveReceipt(ctx, uid, req.MutationId, "create", hash, row.PublicRef, row.Revision, "active", snap)
+	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "create", hash, row.PublicRef, row.Revision, "active", snap)
 	if err != nil {
 		return nil, err
 	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
 	return &timelinev1.EntryResponse{Entry: mapEntry(row), Receipt: receiptResponse(r, false)}, nil
 }
 func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.UpdateEntryRequest) (*timelinev1.EntryResponse, error) {
