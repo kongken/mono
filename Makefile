@@ -110,7 +110,7 @@ storage-init:
 	go run ./cmd/storage-init
 
 # Only the isolated Compose development services, never a production DSN.
-.PHONY: test-integration test-integration-usersrv
+.PHONY: test-integration test-integration-usersrv test-integration-timeline
 # internal/e2e runs the real BFF, usersrv, tripmap and metro together, so it also needs the
 # USERSRV_TEST_* settings (throwaway schemas and Redis key prefixes; without them every chain
 # test skips, which is not a pass).
@@ -130,3 +130,10 @@ test-integration-usersrv:
 	USERSRV_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
 	USERSRV_TEST_REDIS_ADDR=127.0.0.1:16379 USERSRV_TEST_REDIS_PASSWORD=tripmap-local \
 	go test -count=1 -v ./internal/usersrv/... ./cmd/usersrv-admin
+
+# Timeline migrations against PostgreSQL: each test creates a throwaway schema, applies
+# migrations/timeline/*.sql the way the deployment notes say to, and checks the backfill, the
+# CHECK constraints and the receipt rules on the database itself. Plain `make test` skips them.
+test-integration-timeline:
+	TIMELINE_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
+	go test -count=1 -v ./internal/timeline/integration

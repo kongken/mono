@@ -115,10 +115,11 @@ Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:180
 | 后端 | `make test-integration-usersrv` | 用本地 PostgreSQL 与 Redis 运行 usersrv 的全部测试（独立 schema 与 key 前缀） |
 | 后端 | `make test` | 运行 Go 测试，未配置存储连接时相关集成测试跳过 |
 | 后端 | `make test-integration` | 在独立的 Compose 开发依赖上验证存储与服务链路 |
+| 后端 | `make test-integration-timeline` | 在真实 PostgreSQL 上运行 Timeline 的版本化迁移与约束测试 |
 | 服务边界 | `make check-import-boundaries` | 检查后端模块依赖边界 |
 | 文档 | `make check-docs` | 检查 Markdown 相对链接的目标路径 |
 
-修改 `proto/` 后运行 `make buf`；修改 tripmap / BFF / metro / usersrv Ent schema 后分别运行 `make ent` / `make ent-bff` / `make ent-metro` / `make ent-usersrv`，生成文件随变更一起提交。生产关闭各服务的 `auto_migrate`，使用 `migrations/<服务>/` 中评审过的迁移，详见 [版本化数据库迁移](docs/backend.md#版本化数据库迁移)。
+修改 `proto/` 后运行 `make buf`；修改 tripmap / BFF / metro / usersrv / timeline Ent schema 后分别运行 `make ent` / `make ent-bff` / `make ent-metro` / `make ent-usersrv` / `make ent-timeline`，生成文件随变更一起提交。生产关闭各服务的 `auto_migrate`，使用 `migrations/<服务>/` 中评审过的迁移，详见 [版本化数据库迁移](docs/backend.md#版本化数据库迁移)。
 
 地图文件位于 `apps/trip-map/public/maps/`，区域、坐标、搜索索引与分享预览几何的更新命令和兼容规则见 [数据与地图说明](docs/trip-map/data-and-maps.md)。
 
