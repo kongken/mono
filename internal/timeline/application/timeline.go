@@ -356,6 +356,17 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 		return nil, status.Error(codes.NotFound, "entry not found")
 	}
 	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
+		old, receiptErr := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "update", hash)
+		if receiptErr != nil {
+			return nil, receiptErr
+		}
+		if old != nil {
+			e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+			if eerr != nil {
+				return nil, eerr
+			}
+			return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+		}
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
 	updated, err := tx.Entry.Update().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision), entry.DeletedAtIsNil()).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).SetRevision(row.Revision + 1).Save(ctx)
@@ -363,6 +374,17 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 		return nil, err
 	}
 	if updated != 1 {
+		old, receiptErr := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "update", hash)
+		if receiptErr != nil {
+			return nil, receiptErr
+		}
+		if old != nil {
+			e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+			if eerr != nil {
+				return nil, eerr
+			}
+			return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+		}
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
 	row, err = tx.Entry.Query().Where(entry.ID(row.ID), entry.UserID(uid)).Only(ctx)
@@ -447,6 +469,17 @@ func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.Delet
 		return nil, status.Error(codes.NotFound, "entry not found")
 	}
 	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
+		old, receiptErr := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "trash", hash)
+		if receiptErr != nil {
+			return nil, receiptErr
+		}
+		if old != nil {
+			e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+			if eerr != nil {
+				return nil, eerr
+			}
+			return &timelinev1.DeleteEntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+		}
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
 	updated, err := tx.Entry.Update().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision), entry.DeletedAtIsNil()).SetDeletedAt(time.Now().UTC()).SetRevision(row.Revision + 1).Save(ctx)
@@ -454,6 +487,17 @@ func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.Delet
 		return nil, err
 	}
 	if updated != 1 {
+		old, receiptErr := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "trash", hash)
+		if receiptErr != nil {
+			return nil, receiptErr
+		}
+		if old != nil {
+			e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+			if eerr != nil {
+				return nil, eerr
+			}
+			return &timelinev1.DeleteEntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+		}
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
 	row, err = tx.Entry.Query().Where(entry.ID(row.ID), entry.UserID(uid)).Only(ctx)
@@ -535,6 +579,17 @@ func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.Rest
 		return nil, status.Error(codes.NotFound, "entry not found")
 	}
 	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
+		old, receiptErr := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "restore", hash)
+		if receiptErr != nil {
+			return nil, receiptErr
+		}
+		if old != nil {
+			e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+			if eerr != nil {
+				return nil, eerr
+			}
+			return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+		}
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
 	updated, err := tx.Entry.Update().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision)).ClearDeletedAt().SetRevision(row.Revision + 1).Save(ctx)
@@ -542,6 +597,17 @@ func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.Rest
 		return nil, err
 	}
 	if updated != 1 {
+		old, receiptErr := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "restore", hash)
+		if receiptErr != nil {
+			return nil, receiptErr
+		}
+		if old != nil {
+			e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+			if eerr != nil {
+				return nil, eerr
+			}
+			return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+		}
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
 	row, err = tx.Entry.Query().Where(entry.ID(row.ID), entry.UserID(uid)).Only(ctx)
@@ -619,6 +685,13 @@ func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeE
 		return nil, status.Error(codes.NotFound, "entry not found")
 	}
 	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
+		old, receiptErr := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "purge", hash)
+		if receiptErr != nil {
+			return nil, receiptErr
+		}
+		if old != nil {
+			return &timelinev1.PurgeEntryResponse{Receipt: receiptResponse(old, true)}, nil
+		}
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
 	snap, err := snapshotEntry(row)
@@ -630,6 +703,13 @@ func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeE
 		return nil, err
 	}
 	if deleted != 1 {
+		old, receiptErr := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "purge", hash)
+		if receiptErr != nil {
+			return nil, receiptErr
+		}
+		if old != nil {
+			return &timelinev1.PurgeEntryResponse{Receipt: receiptResponse(old, true)}, nil
+		}
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
 	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "purge", hash, row.PublicRef, row.Revision, "purged", snap)

@@ -141,4 +141,63 @@ func TestConcurrentExpectedRevisionAllowsOneMutation(t *testing.T) {
 	if createSuccesses != 1 || createReplays != 1 {
 		t.Fatalf("expected one create and one replay, got creates=%d replays=%d", createSuccesses, createReplays)
 	}
+
+	list, err := svc.ListEntries(ctx, &timelinev1.ListEntriesRequest{IncludeDeleted: true})
+	if err != nil || len(list.Entries) == 0 {
+		t.Fatalf("failed to load entry for lifecycle replay: %v", err)
+	}
+	ref := list.Entries[0].EntryRef
+	revision := list.Entries[0].Revision
+	runReplay := func(label string, call func() (bool, error)) {
+		t.Helper()
+		var lifecycleWG sync.WaitGroup
+		results := make(chan bool, 2)
+		errors := make(chan error, 2)
+		for i := 0; i < 2; i++ {
+			lifecycleWG.Add(1)
+			go func() { defer lifecycleWG.Done(); replayed, callErr := call(); results <- replayed; errors <- callErr }()
+		}
+		lifecycleWG.Wait()
+		close(results)
+		close(errors)
+		var completed, replayed int
+		for callErr := range errors {
+			if callErr != nil {
+				t.Errorf("%s replay failed: %v", label, callErr)
+			}
+		}
+		for isReplay := range results {
+			if isReplay {
+				replayed++
+			} else {
+				completed++
+			}
+		}
+		if completed != 1 || replayed != 1 {
+			t.Fatalf("%s expected one completion and one replay, got completions=%d replays=%d", label, completed, replayed)
+		}
+	}
+	runReplay("trash", func() (bool, error) {
+		response, callErr := svc.DeleteEntry(ctx, &timelinev1.DeleteEntryRequest{MutationId: "trash-replay-race", EntryRef: ref, ExpectedRevision: revision})
+		if response == nil {
+			return false, callErr
+		}
+		return response.Receipt != nil && response.Receipt.Replayed, callErr
+	})
+	revision++
+	runReplay("restore", func() (bool, error) {
+		response, callErr := svc.RestoreEntry(ctx, &timelinev1.RestoreEntryRequest{MutationId: "restore-replay-race", EntryRef: ref, ExpectedRevision: revision})
+		if response == nil {
+			return false, callErr
+		}
+		return response.Receipt != nil && response.Receipt.Replayed, callErr
+	})
+	revision++
+	runReplay("purge", func() (bool, error) {
+		response, callErr := svc.PurgeEntry(ctx, &timelinev1.PurgeEntryRequest{MutationId: "purge-replay-race", EntryRef: ref, ExpectedRevision: revision})
+		if response == nil {
+			return false, callErr
+		}
+		return response.Receipt != nil && response.Receipt.Replayed, callErr
+	})
 }
