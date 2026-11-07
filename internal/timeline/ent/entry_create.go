@@ -36,14 +36,6 @@ func (_c *EntryCreate) SetTitle(v string) *EntryCreate {
 	return _c
 }
 
-// SetNillableTitle sets the "title" field if the given value is not nil.
-func (_c *EntryCreate) SetNillableTitle(v *string) *EntryCreate {
-	if v != nil {
-		_c.SetTitle(*v)
-	}
-	return _c
-}
-
 // SetBody sets the "body" field.
 func (_c *EntryCreate) SetBody(v string) *EntryCreate {
 	_c.mutation.SetBody(v)
@@ -58,15 +50,161 @@ func (_c *EntryCreate) SetNillableBody(v *string) *EntryCreate {
 	return _c
 }
 
-// SetOccurredAt sets the "occurred_at" field.
-func (_c *EntryCreate) SetOccurredAt(v time.Time) *EntryCreate {
-	_c.mutation.SetOccurredAt(v)
+// SetOccurredDate sets the "occurred_date" field.
+func (_c *EntryCreate) SetOccurredDate(v string) *EntryCreate {
+	_c.mutation.SetOccurredDate(v)
+	return _c
+}
+
+// SetOccurredTime sets the "occurred_time" field.
+func (_c *EntryCreate) SetOccurredTime(v string) *EntryCreate {
+	_c.mutation.SetOccurredTime(v)
+	return _c
+}
+
+// SetNillableOccurredTime sets the "occurred_time" field if the given value is not nil.
+func (_c *EntryCreate) SetNillableOccurredTime(v *string) *EntryCreate {
+	if v != nil {
+		_c.SetOccurredTime(*v)
+	}
 	return _c
 }
 
 // SetTimezone sets the "timezone" field.
 func (_c *EntryCreate) SetTimezone(v string) *EntryCreate {
 	_c.mutation.SetTimezone(v)
+	return _c
+}
+
+// SetCategory sets the "category" field.
+func (_c *EntryCreate) SetCategory(v string) *EntryCreate {
+	_c.mutation.SetCategory(v)
+	return _c
+}
+
+// SetNillableCategory sets the "category" field if the given value is not nil.
+func (_c *EntryCreate) SetNillableCategory(v *string) *EntryCreate {
+	if v != nil {
+		_c.SetCategory(*v)
+	}
+	return _c
+}
+
+// SetLocation sets the "location" field.
+func (_c *EntryCreate) SetLocation(v string) *EntryCreate {
+	_c.mutation.SetLocation(v)
+	return _c
+}
+
+// SetNillableLocation sets the "location" field if the given value is not nil.
+func (_c *EntryCreate) SetNillableLocation(v *string) *EntryCreate {
+	if v != nil {
+		_c.SetLocation(*v)
+	}
+	return _c
+}
+
+// SetAmountMinor sets the "amount_minor" field.
+func (_c *EntryCreate) SetAmountMinor(v int64) *EntryCreate {
+	_c.mutation.SetAmountMinor(v)
+	return _c
+}
+
+// SetNillableAmountMinor sets the "amount_minor" field if the given value is not nil.
+func (_c *EntryCreate) SetNillableAmountMinor(v *int64) *EntryCreate {
+	if v != nil {
+		_c.SetAmountMinor(*v)
+	}
+	return _c
+}
+
+// SetCurrency sets the "currency" field.
+func (_c *EntryCreate) SetCurrency(v string) *EntryCreate {
+	_c.mutation.SetCurrency(v)
+	return _c
+}
+
+// SetNillableCurrency sets the "currency" field if the given value is not nil.
+func (_c *EntryCreate) SetNillableCurrency(v *string) *EntryCreate {
+	if v != nil {
+		_c.SetCurrency(*v)
+	}
+	return _c
+}
+
+// SetURL sets the "url" field.
+func (_c *EntryCreate) SetURL(v string) *EntryCreate {
+	_c.mutation.SetURL(v)
+	return _c
+}
+
+// SetNillableURL sets the "url" field if the given value is not nil.
+func (_c *EntryCreate) SetNillableURL(v *string) *EntryCreate {
+	if v != nil {
+		_c.SetURL(*v)
+	}
+	return _c
+}
+
+// SetURLTitle sets the "url_title" field.
+func (_c *EntryCreate) SetURLTitle(v string) *EntryCreate {
+	_c.mutation.SetURLTitle(v)
+	return _c
+}
+
+// SetNillableURLTitle sets the "url_title" field if the given value is not nil.
+func (_c *EntryCreate) SetNillableURLTitle(v *string) *EntryCreate {
+	if v != nil {
+		_c.SetURLTitle(*v)
+	}
+	return _c
+}
+
+// SetURLNote sets the "url_note" field.
+func (_c *EntryCreate) SetURLNote(v string) *EntryCreate {
+	_c.mutation.SetURLNote(v)
+	return _c
+}
+
+// SetNillableURLNote sets the "url_note" field if the given value is not nil.
+func (_c *EntryCreate) SetNillableURLNote(v *string) *EntryCreate {
+	if v != nil {
+		_c.SetURLNote(*v)
+	}
+	return _c
+}
+
+// SetOccurredAt sets the "occurred_at" field.
+func (_c *EntryCreate) SetOccurredAt(v time.Time) *EntryCreate {
+	_c.mutation.SetOccurredAt(v)
+	return _c
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (_c *EntryCreate) SetDeletedAt(v time.Time) *EntryCreate {
+	_c.mutation.SetDeletedAt(v)
+	return _c
+}
+
+// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
+func (_c *EntryCreate) SetNillableDeletedAt(v *time.Time) *EntryCreate {
+	if v != nil {
+		_c.SetDeletedAt(*v)
+	}
+	return _c
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (_c *EntryCreate) SetMutationID(v string) *EntryCreate {
+	_c.mutation.SetMutationID(v)
+	return _c
+}
+
+// SetNillableMutationID sets the "mutation_id" field if the given value is not nil.
+func (_c *EntryCreate) SetNillableMutationID(v *string) *EntryCreate {
+	if v != nil {
+		_c.SetMutationID(*v)
+	}
 	return _c
 }
 
@@ -176,13 +314,45 @@ func (_c *EntryCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *EntryCreate) defaults() {
-	if _, ok := _c.mutation.Title(); !ok {
-		v := entry.DefaultTitle
-		_c.mutation.SetTitle(v)
-	}
 	if _, ok := _c.mutation.Body(); !ok {
 		v := entry.DefaultBody
 		_c.mutation.SetBody(v)
+	}
+	if _, ok := _c.mutation.OccurredTime(); !ok {
+		v := entry.DefaultOccurredTime
+		_c.mutation.SetOccurredTime(v)
+	}
+	if _, ok := _c.mutation.Category(); !ok {
+		v := entry.DefaultCategory
+		_c.mutation.SetCategory(v)
+	}
+	if _, ok := _c.mutation.Location(); !ok {
+		v := entry.DefaultLocation
+		_c.mutation.SetLocation(v)
+	}
+	if _, ok := _c.mutation.AmountMinor(); !ok {
+		v := entry.DefaultAmountMinor
+		_c.mutation.SetAmountMinor(v)
+	}
+	if _, ok := _c.mutation.Currency(); !ok {
+		v := entry.DefaultCurrency
+		_c.mutation.SetCurrency(v)
+	}
+	if _, ok := _c.mutation.URL(); !ok {
+		v := entry.DefaultURL
+		_c.mutation.SetURL(v)
+	}
+	if _, ok := _c.mutation.URLTitle(); !ok {
+		v := entry.DefaultURLTitle
+		_c.mutation.SetURLTitle(v)
+	}
+	if _, ok := _c.mutation.URLNote(); !ok {
+		v := entry.DefaultURLNote
+		_c.mutation.SetURLNote(v)
+	}
+	if _, ok := _c.mutation.MutationID(); !ok {
+		v := entry.DefaultMutationID
+		_c.mutation.SetMutationID(v)
 	}
 	if _, ok := _c.mutation.Revision(); !ok {
 		v := entry.DefaultRevision
@@ -215,11 +385,24 @@ func (_c *EntryCreate) check() error {
 	if _, ok := _c.mutation.Title(); !ok {
 		return &ValidationError{Name: "title", err: errors.New(`ent: missing required field "Entry.title"`)}
 	}
+	if v, ok := _c.mutation.Title(); ok {
+		if err := entry.TitleValidator(v); err != nil {
+			return &ValidationError{Name: "title", err: fmt.Errorf(`ent: validator failed for field "Entry.title": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.Body(); !ok {
 		return &ValidationError{Name: "body", err: errors.New(`ent: missing required field "Entry.body"`)}
 	}
-	if _, ok := _c.mutation.OccurredAt(); !ok {
-		return &ValidationError{Name: "occurred_at", err: errors.New(`ent: missing required field "Entry.occurred_at"`)}
+	if _, ok := _c.mutation.OccurredDate(); !ok {
+		return &ValidationError{Name: "occurred_date", err: errors.New(`ent: missing required field "Entry.occurred_date"`)}
+	}
+	if v, ok := _c.mutation.OccurredDate(); ok {
+		if err := entry.OccurredDateValidator(v); err != nil {
+			return &ValidationError{Name: "occurred_date", err: fmt.Errorf(`ent: validator failed for field "Entry.occurred_date": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.OccurredTime(); !ok {
+		return &ValidationError{Name: "occurred_time", err: errors.New(`ent: missing required field "Entry.occurred_time"`)}
 	}
 	if _, ok := _c.mutation.Timezone(); !ok {
 		return &ValidationError{Name: "timezone", err: errors.New(`ent: missing required field "Entry.timezone"`)}
@@ -228,6 +411,33 @@ func (_c *EntryCreate) check() error {
 		if err := entry.TimezoneValidator(v); err != nil {
 			return &ValidationError{Name: "timezone", err: fmt.Errorf(`ent: validator failed for field "Entry.timezone": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.Category(); !ok {
+		return &ValidationError{Name: "category", err: errors.New(`ent: missing required field "Entry.category"`)}
+	}
+	if _, ok := _c.mutation.Location(); !ok {
+		return &ValidationError{Name: "location", err: errors.New(`ent: missing required field "Entry.location"`)}
+	}
+	if _, ok := _c.mutation.AmountMinor(); !ok {
+		return &ValidationError{Name: "amount_minor", err: errors.New(`ent: missing required field "Entry.amount_minor"`)}
+	}
+	if _, ok := _c.mutation.Currency(); !ok {
+		return &ValidationError{Name: "currency", err: errors.New(`ent: missing required field "Entry.currency"`)}
+	}
+	if _, ok := _c.mutation.URL(); !ok {
+		return &ValidationError{Name: "url", err: errors.New(`ent: missing required field "Entry.url"`)}
+	}
+	if _, ok := _c.mutation.URLTitle(); !ok {
+		return &ValidationError{Name: "url_title", err: errors.New(`ent: missing required field "Entry.url_title"`)}
+	}
+	if _, ok := _c.mutation.URLNote(); !ok {
+		return &ValidationError{Name: "url_note", err: errors.New(`ent: missing required field "Entry.url_note"`)}
+	}
+	if _, ok := _c.mutation.OccurredAt(); !ok {
+		return &ValidationError{Name: "occurred_at", err: errors.New(`ent: missing required field "Entry.occurred_at"`)}
+	}
+	if _, ok := _c.mutation.MutationID(); !ok {
+		return &ValidationError{Name: "mutation_id", err: errors.New(`ent: missing required field "Entry.mutation_id"`)}
 	}
 	if _, ok := _c.mutation.Revision(); !ok {
 		return &ValidationError{Name: "revision", err: errors.New(`ent: missing required field "Entry.revision"`)}
@@ -291,13 +501,57 @@ func (_c *EntryCreate) createSpec() (*Entry, *sqlgraph.CreateSpec) {
 		_spec.SetField(entry.FieldBody, field.TypeString, value)
 		_node.Body = value
 	}
-	if value, ok := _c.mutation.OccurredAt(); ok {
-		_spec.SetField(entry.FieldOccurredAt, field.TypeTime, value)
-		_node.OccurredAt = value
+	if value, ok := _c.mutation.OccurredDate(); ok {
+		_spec.SetField(entry.FieldOccurredDate, field.TypeString, value)
+		_node.OccurredDate = value
+	}
+	if value, ok := _c.mutation.OccurredTime(); ok {
+		_spec.SetField(entry.FieldOccurredTime, field.TypeString, value)
+		_node.OccurredTime = value
 	}
 	if value, ok := _c.mutation.Timezone(); ok {
 		_spec.SetField(entry.FieldTimezone, field.TypeString, value)
 		_node.Timezone = value
+	}
+	if value, ok := _c.mutation.Category(); ok {
+		_spec.SetField(entry.FieldCategory, field.TypeString, value)
+		_node.Category = value
+	}
+	if value, ok := _c.mutation.Location(); ok {
+		_spec.SetField(entry.FieldLocation, field.TypeString, value)
+		_node.Location = value
+	}
+	if value, ok := _c.mutation.AmountMinor(); ok {
+		_spec.SetField(entry.FieldAmountMinor, field.TypeInt64, value)
+		_node.AmountMinor = value
+	}
+	if value, ok := _c.mutation.Currency(); ok {
+		_spec.SetField(entry.FieldCurrency, field.TypeString, value)
+		_node.Currency = value
+	}
+	if value, ok := _c.mutation.URL(); ok {
+		_spec.SetField(entry.FieldURL, field.TypeString, value)
+		_node.URL = value
+	}
+	if value, ok := _c.mutation.URLTitle(); ok {
+		_spec.SetField(entry.FieldURLTitle, field.TypeString, value)
+		_node.URLTitle = value
+	}
+	if value, ok := _c.mutation.URLNote(); ok {
+		_spec.SetField(entry.FieldURLNote, field.TypeString, value)
+		_node.URLNote = value
+	}
+	if value, ok := _c.mutation.OccurredAt(); ok {
+		_spec.SetField(entry.FieldOccurredAt, field.TypeTime, value)
+		_node.OccurredAt = value
+	}
+	if value, ok := _c.mutation.DeletedAt(); ok {
+		_spec.SetField(entry.FieldDeletedAt, field.TypeTime, value)
+		_node.DeletedAt = &value
+	}
+	if value, ok := _c.mutation.MutationID(); ok {
+		_spec.SetField(entry.FieldMutationID, field.TypeString, value)
+		_node.MutationID = value
 	}
 	if value, ok := _c.mutation.Revision(); ok {
 		_spec.SetField(entry.FieldRevision, field.TypeInt, value)
@@ -403,15 +657,27 @@ func (u *EntryUpsert) UpdateBody() *EntryUpsert {
 	return u
 }
 
-// SetOccurredAt sets the "occurred_at" field.
-func (u *EntryUpsert) SetOccurredAt(v time.Time) *EntryUpsert {
-	u.Set(entry.FieldOccurredAt, v)
+// SetOccurredDate sets the "occurred_date" field.
+func (u *EntryUpsert) SetOccurredDate(v string) *EntryUpsert {
+	u.Set(entry.FieldOccurredDate, v)
 	return u
 }
 
-// UpdateOccurredAt sets the "occurred_at" field to the value that was provided on create.
-func (u *EntryUpsert) UpdateOccurredAt() *EntryUpsert {
-	u.SetExcluded(entry.FieldOccurredAt)
+// UpdateOccurredDate sets the "occurred_date" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateOccurredDate() *EntryUpsert {
+	u.SetExcluded(entry.FieldOccurredDate)
+	return u
+}
+
+// SetOccurredTime sets the "occurred_time" field.
+func (u *EntryUpsert) SetOccurredTime(v string) *EntryUpsert {
+	u.Set(entry.FieldOccurredTime, v)
+	return u
+}
+
+// UpdateOccurredTime sets the "occurred_time" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateOccurredTime() *EntryUpsert {
+	u.SetExcluded(entry.FieldOccurredTime)
 	return u
 }
 
@@ -424,6 +690,138 @@ func (u *EntryUpsert) SetTimezone(v string) *EntryUpsert {
 // UpdateTimezone sets the "timezone" field to the value that was provided on create.
 func (u *EntryUpsert) UpdateTimezone() *EntryUpsert {
 	u.SetExcluded(entry.FieldTimezone)
+	return u
+}
+
+// SetCategory sets the "category" field.
+func (u *EntryUpsert) SetCategory(v string) *EntryUpsert {
+	u.Set(entry.FieldCategory, v)
+	return u
+}
+
+// UpdateCategory sets the "category" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateCategory() *EntryUpsert {
+	u.SetExcluded(entry.FieldCategory)
+	return u
+}
+
+// SetLocation sets the "location" field.
+func (u *EntryUpsert) SetLocation(v string) *EntryUpsert {
+	u.Set(entry.FieldLocation, v)
+	return u
+}
+
+// UpdateLocation sets the "location" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateLocation() *EntryUpsert {
+	u.SetExcluded(entry.FieldLocation)
+	return u
+}
+
+// SetAmountMinor sets the "amount_minor" field.
+func (u *EntryUpsert) SetAmountMinor(v int64) *EntryUpsert {
+	u.Set(entry.FieldAmountMinor, v)
+	return u
+}
+
+// UpdateAmountMinor sets the "amount_minor" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateAmountMinor() *EntryUpsert {
+	u.SetExcluded(entry.FieldAmountMinor)
+	return u
+}
+
+// AddAmountMinor adds v to the "amount_minor" field.
+func (u *EntryUpsert) AddAmountMinor(v int64) *EntryUpsert {
+	u.Add(entry.FieldAmountMinor, v)
+	return u
+}
+
+// SetCurrency sets the "currency" field.
+func (u *EntryUpsert) SetCurrency(v string) *EntryUpsert {
+	u.Set(entry.FieldCurrency, v)
+	return u
+}
+
+// UpdateCurrency sets the "currency" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateCurrency() *EntryUpsert {
+	u.SetExcluded(entry.FieldCurrency)
+	return u
+}
+
+// SetURL sets the "url" field.
+func (u *EntryUpsert) SetURL(v string) *EntryUpsert {
+	u.Set(entry.FieldURL, v)
+	return u
+}
+
+// UpdateURL sets the "url" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateURL() *EntryUpsert {
+	u.SetExcluded(entry.FieldURL)
+	return u
+}
+
+// SetURLTitle sets the "url_title" field.
+func (u *EntryUpsert) SetURLTitle(v string) *EntryUpsert {
+	u.Set(entry.FieldURLTitle, v)
+	return u
+}
+
+// UpdateURLTitle sets the "url_title" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateURLTitle() *EntryUpsert {
+	u.SetExcluded(entry.FieldURLTitle)
+	return u
+}
+
+// SetURLNote sets the "url_note" field.
+func (u *EntryUpsert) SetURLNote(v string) *EntryUpsert {
+	u.Set(entry.FieldURLNote, v)
+	return u
+}
+
+// UpdateURLNote sets the "url_note" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateURLNote() *EntryUpsert {
+	u.SetExcluded(entry.FieldURLNote)
+	return u
+}
+
+// SetOccurredAt sets the "occurred_at" field.
+func (u *EntryUpsert) SetOccurredAt(v time.Time) *EntryUpsert {
+	u.Set(entry.FieldOccurredAt, v)
+	return u
+}
+
+// UpdateOccurredAt sets the "occurred_at" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateOccurredAt() *EntryUpsert {
+	u.SetExcluded(entry.FieldOccurredAt)
+	return u
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (u *EntryUpsert) SetDeletedAt(v time.Time) *EntryUpsert {
+	u.Set(entry.FieldDeletedAt, v)
+	return u
+}
+
+// UpdateDeletedAt sets the "deleted_at" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateDeletedAt() *EntryUpsert {
+	u.SetExcluded(entry.FieldDeletedAt)
+	return u
+}
+
+// ClearDeletedAt clears the value of the "deleted_at" field.
+func (u *EntryUpsert) ClearDeletedAt() *EntryUpsert {
+	u.SetNull(entry.FieldDeletedAt)
+	return u
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (u *EntryUpsert) SetMutationID(v string) *EntryUpsert {
+	u.Set(entry.FieldMutationID, v)
+	return u
+}
+
+// UpdateMutationID sets the "mutation_id" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateMutationID() *EntryUpsert {
+	u.SetExcluded(entry.FieldMutationID)
 	return u
 }
 
@@ -539,17 +937,31 @@ func (u *EntryUpsertOne) UpdateBody() *EntryUpsertOne {
 	})
 }
 
-// SetOccurredAt sets the "occurred_at" field.
-func (u *EntryUpsertOne) SetOccurredAt(v time.Time) *EntryUpsertOne {
+// SetOccurredDate sets the "occurred_date" field.
+func (u *EntryUpsertOne) SetOccurredDate(v string) *EntryUpsertOne {
 	return u.Update(func(s *EntryUpsert) {
-		s.SetOccurredAt(v)
+		s.SetOccurredDate(v)
 	})
 }
 
-// UpdateOccurredAt sets the "occurred_at" field to the value that was provided on create.
-func (u *EntryUpsertOne) UpdateOccurredAt() *EntryUpsertOne {
+// UpdateOccurredDate sets the "occurred_date" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateOccurredDate() *EntryUpsertOne {
 	return u.Update(func(s *EntryUpsert) {
-		s.UpdateOccurredAt()
+		s.UpdateOccurredDate()
+	})
+}
+
+// SetOccurredTime sets the "occurred_time" field.
+func (u *EntryUpsertOne) SetOccurredTime(v string) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetOccurredTime(v)
+	})
+}
+
+// UpdateOccurredTime sets the "occurred_time" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateOccurredTime() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateOccurredTime()
 	})
 }
 
@@ -564,6 +976,160 @@ func (u *EntryUpsertOne) SetTimezone(v string) *EntryUpsertOne {
 func (u *EntryUpsertOne) UpdateTimezone() *EntryUpsertOne {
 	return u.Update(func(s *EntryUpsert) {
 		s.UpdateTimezone()
+	})
+}
+
+// SetCategory sets the "category" field.
+func (u *EntryUpsertOne) SetCategory(v string) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetCategory(v)
+	})
+}
+
+// UpdateCategory sets the "category" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateCategory() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateCategory()
+	})
+}
+
+// SetLocation sets the "location" field.
+func (u *EntryUpsertOne) SetLocation(v string) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetLocation(v)
+	})
+}
+
+// UpdateLocation sets the "location" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateLocation() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateLocation()
+	})
+}
+
+// SetAmountMinor sets the "amount_minor" field.
+func (u *EntryUpsertOne) SetAmountMinor(v int64) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetAmountMinor(v)
+	})
+}
+
+// AddAmountMinor adds v to the "amount_minor" field.
+func (u *EntryUpsertOne) AddAmountMinor(v int64) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.AddAmountMinor(v)
+	})
+}
+
+// UpdateAmountMinor sets the "amount_minor" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateAmountMinor() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateAmountMinor()
+	})
+}
+
+// SetCurrency sets the "currency" field.
+func (u *EntryUpsertOne) SetCurrency(v string) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetCurrency(v)
+	})
+}
+
+// UpdateCurrency sets the "currency" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateCurrency() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateCurrency()
+	})
+}
+
+// SetURL sets the "url" field.
+func (u *EntryUpsertOne) SetURL(v string) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetURL(v)
+	})
+}
+
+// UpdateURL sets the "url" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateURL() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateURL()
+	})
+}
+
+// SetURLTitle sets the "url_title" field.
+func (u *EntryUpsertOne) SetURLTitle(v string) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetURLTitle(v)
+	})
+}
+
+// UpdateURLTitle sets the "url_title" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateURLTitle() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateURLTitle()
+	})
+}
+
+// SetURLNote sets the "url_note" field.
+func (u *EntryUpsertOne) SetURLNote(v string) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetURLNote(v)
+	})
+}
+
+// UpdateURLNote sets the "url_note" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateURLNote() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateURLNote()
+	})
+}
+
+// SetOccurredAt sets the "occurred_at" field.
+func (u *EntryUpsertOne) SetOccurredAt(v time.Time) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetOccurredAt(v)
+	})
+}
+
+// UpdateOccurredAt sets the "occurred_at" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateOccurredAt() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateOccurredAt()
+	})
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (u *EntryUpsertOne) SetDeletedAt(v time.Time) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetDeletedAt(v)
+	})
+}
+
+// UpdateDeletedAt sets the "deleted_at" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateDeletedAt() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateDeletedAt()
+	})
+}
+
+// ClearDeletedAt clears the value of the "deleted_at" field.
+func (u *EntryUpsertOne) ClearDeletedAt() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.ClearDeletedAt()
+	})
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (u *EntryUpsertOne) SetMutationID(v string) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetMutationID(v)
+	})
+}
+
+// UpdateMutationID sets the "mutation_id" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateMutationID() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateMutationID()
 	})
 }
 
@@ -851,17 +1417,31 @@ func (u *EntryUpsertBulk) UpdateBody() *EntryUpsertBulk {
 	})
 }
 
-// SetOccurredAt sets the "occurred_at" field.
-func (u *EntryUpsertBulk) SetOccurredAt(v time.Time) *EntryUpsertBulk {
+// SetOccurredDate sets the "occurred_date" field.
+func (u *EntryUpsertBulk) SetOccurredDate(v string) *EntryUpsertBulk {
 	return u.Update(func(s *EntryUpsert) {
-		s.SetOccurredAt(v)
+		s.SetOccurredDate(v)
 	})
 }
 
-// UpdateOccurredAt sets the "occurred_at" field to the value that was provided on create.
-func (u *EntryUpsertBulk) UpdateOccurredAt() *EntryUpsertBulk {
+// UpdateOccurredDate sets the "occurred_date" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateOccurredDate() *EntryUpsertBulk {
 	return u.Update(func(s *EntryUpsert) {
-		s.UpdateOccurredAt()
+		s.UpdateOccurredDate()
+	})
+}
+
+// SetOccurredTime sets the "occurred_time" field.
+func (u *EntryUpsertBulk) SetOccurredTime(v string) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetOccurredTime(v)
+	})
+}
+
+// UpdateOccurredTime sets the "occurred_time" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateOccurredTime() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateOccurredTime()
 	})
 }
 
@@ -876,6 +1456,160 @@ func (u *EntryUpsertBulk) SetTimezone(v string) *EntryUpsertBulk {
 func (u *EntryUpsertBulk) UpdateTimezone() *EntryUpsertBulk {
 	return u.Update(func(s *EntryUpsert) {
 		s.UpdateTimezone()
+	})
+}
+
+// SetCategory sets the "category" field.
+func (u *EntryUpsertBulk) SetCategory(v string) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetCategory(v)
+	})
+}
+
+// UpdateCategory sets the "category" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateCategory() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateCategory()
+	})
+}
+
+// SetLocation sets the "location" field.
+func (u *EntryUpsertBulk) SetLocation(v string) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetLocation(v)
+	})
+}
+
+// UpdateLocation sets the "location" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateLocation() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateLocation()
+	})
+}
+
+// SetAmountMinor sets the "amount_minor" field.
+func (u *EntryUpsertBulk) SetAmountMinor(v int64) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetAmountMinor(v)
+	})
+}
+
+// AddAmountMinor adds v to the "amount_minor" field.
+func (u *EntryUpsertBulk) AddAmountMinor(v int64) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.AddAmountMinor(v)
+	})
+}
+
+// UpdateAmountMinor sets the "amount_minor" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateAmountMinor() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateAmountMinor()
+	})
+}
+
+// SetCurrency sets the "currency" field.
+func (u *EntryUpsertBulk) SetCurrency(v string) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetCurrency(v)
+	})
+}
+
+// UpdateCurrency sets the "currency" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateCurrency() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateCurrency()
+	})
+}
+
+// SetURL sets the "url" field.
+func (u *EntryUpsertBulk) SetURL(v string) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetURL(v)
+	})
+}
+
+// UpdateURL sets the "url" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateURL() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateURL()
+	})
+}
+
+// SetURLTitle sets the "url_title" field.
+func (u *EntryUpsertBulk) SetURLTitle(v string) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetURLTitle(v)
+	})
+}
+
+// UpdateURLTitle sets the "url_title" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateURLTitle() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateURLTitle()
+	})
+}
+
+// SetURLNote sets the "url_note" field.
+func (u *EntryUpsertBulk) SetURLNote(v string) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetURLNote(v)
+	})
+}
+
+// UpdateURLNote sets the "url_note" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateURLNote() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateURLNote()
+	})
+}
+
+// SetOccurredAt sets the "occurred_at" field.
+func (u *EntryUpsertBulk) SetOccurredAt(v time.Time) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetOccurredAt(v)
+	})
+}
+
+// UpdateOccurredAt sets the "occurred_at" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateOccurredAt() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateOccurredAt()
+	})
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (u *EntryUpsertBulk) SetDeletedAt(v time.Time) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetDeletedAt(v)
+	})
+}
+
+// UpdateDeletedAt sets the "deleted_at" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateDeletedAt() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateDeletedAt()
+	})
+}
+
+// ClearDeletedAt clears the value of the "deleted_at" field.
+func (u *EntryUpsertBulk) ClearDeletedAt() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.ClearDeletedAt()
+	})
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (u *EntryUpsertBulk) SetMutationID(v string) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetMutationID(v)
+	})
+}
+
+// UpdateMutationID sets the "mutation_id" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateMutationID() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateMutationID()
 	})
 }
 

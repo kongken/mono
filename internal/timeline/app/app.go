@@ -71,6 +71,7 @@ func (h *Handlers) StartGRPC() error {
 	}
 	srv, err := grpcx.Start(h.cfg.GRPC, func(r grpc.ServiceRegistrar) {
 		if res := h.resources.Load(); res != nil {
+			timelinev1.RegisterTimelineServiceServer(r, application.NewTimelineService(res.DB))
 			timelinev1.RegisterAccountCleanupServiceServer(r, application.NewAccountCleanupService(&accountcleanup.Store{DB: res.DB}))
 		}
 	}, []grpc.UnaryServerInterceptor{rpcauth.UnaryServerInterceptor(v)}, []grpc.StreamServerInterceptor{rpcauth.StreamServerInterceptor(v)})

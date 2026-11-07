@@ -47,28 +47,68 @@ func init() {
 	entry.UserIDValidator = entryDescUserID.Validators[0].(func(string) error)
 	// entryDescTitle is the schema descriptor for title field.
 	entryDescTitle := entryFields[2].Descriptor()
-	// entry.DefaultTitle holds the default value on creation for the title field.
-	entry.DefaultTitle = entryDescTitle.Default.(string)
+	// entry.TitleValidator is a validator for the "title" field. It is called by the builders before save.
+	entry.TitleValidator = entryDescTitle.Validators[0].(func(string) error)
 	// entryDescBody is the schema descriptor for body field.
 	entryDescBody := entryFields[3].Descriptor()
 	// entry.DefaultBody holds the default value on creation for the body field.
 	entry.DefaultBody = entryDescBody.Default.(string)
+	// entryDescOccurredDate is the schema descriptor for occurred_date field.
+	entryDescOccurredDate := entryFields[4].Descriptor()
+	// entry.OccurredDateValidator is a validator for the "occurred_date" field. It is called by the builders before save.
+	entry.OccurredDateValidator = entryDescOccurredDate.Validators[0].(func(string) error)
+	// entryDescOccurredTime is the schema descriptor for occurred_time field.
+	entryDescOccurredTime := entryFields[5].Descriptor()
+	// entry.DefaultOccurredTime holds the default value on creation for the occurred_time field.
+	entry.DefaultOccurredTime = entryDescOccurredTime.Default.(string)
 	// entryDescTimezone is the schema descriptor for timezone field.
-	entryDescTimezone := entryFields[5].Descriptor()
+	entryDescTimezone := entryFields[6].Descriptor()
 	// entry.TimezoneValidator is a validator for the "timezone" field. It is called by the builders before save.
 	entry.TimezoneValidator = entryDescTimezone.Validators[0].(func(string) error)
+	// entryDescCategory is the schema descriptor for category field.
+	entryDescCategory := entryFields[7].Descriptor()
+	// entry.DefaultCategory holds the default value on creation for the category field.
+	entry.DefaultCategory = entryDescCategory.Default.(string)
+	// entryDescLocation is the schema descriptor for location field.
+	entryDescLocation := entryFields[8].Descriptor()
+	// entry.DefaultLocation holds the default value on creation for the location field.
+	entry.DefaultLocation = entryDescLocation.Default.(string)
+	// entryDescAmountMinor is the schema descriptor for amount_minor field.
+	entryDescAmountMinor := entryFields[9].Descriptor()
+	// entry.DefaultAmountMinor holds the default value on creation for the amount_minor field.
+	entry.DefaultAmountMinor = entryDescAmountMinor.Default.(int64)
+	// entryDescCurrency is the schema descriptor for currency field.
+	entryDescCurrency := entryFields[10].Descriptor()
+	// entry.DefaultCurrency holds the default value on creation for the currency field.
+	entry.DefaultCurrency = entryDescCurrency.Default.(string)
+	// entryDescURL is the schema descriptor for url field.
+	entryDescURL := entryFields[11].Descriptor()
+	// entry.DefaultURL holds the default value on creation for the url field.
+	entry.DefaultURL = entryDescURL.Default.(string)
+	// entryDescURLTitle is the schema descriptor for url_title field.
+	entryDescURLTitle := entryFields[12].Descriptor()
+	// entry.DefaultURLTitle holds the default value on creation for the url_title field.
+	entry.DefaultURLTitle = entryDescURLTitle.Default.(string)
+	// entryDescURLNote is the schema descriptor for url_note field.
+	entryDescURLNote := entryFields[13].Descriptor()
+	// entry.DefaultURLNote holds the default value on creation for the url_note field.
+	entry.DefaultURLNote = entryDescURLNote.Default.(string)
+	// entryDescMutationID is the schema descriptor for mutation_id field.
+	entryDescMutationID := entryFields[16].Descriptor()
+	// entry.DefaultMutationID holds the default value on creation for the mutation_id field.
+	entry.DefaultMutationID = entryDescMutationID.Default.(string)
 	// entryDescRevision is the schema descriptor for revision field.
-	entryDescRevision := entryFields[6].Descriptor()
+	entryDescRevision := entryFields[17].Descriptor()
 	// entry.DefaultRevision holds the default value on creation for the revision field.
 	entry.DefaultRevision = entryDescRevision.Default.(int)
 	// entry.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
 	entry.RevisionValidator = entryDescRevision.Validators[0].(func(int) error)
 	// entryDescCreatedAt is the schema descriptor for created_at field.
-	entryDescCreatedAt := entryFields[7].Descriptor()
+	entryDescCreatedAt := entryFields[18].Descriptor()
 	// entry.DefaultCreatedAt holds the default value on creation for the created_at field.
 	entry.DefaultCreatedAt = entryDescCreatedAt.Default.(func() time.Time)
 	// entryDescUpdatedAt is the schema descriptor for updated_at field.
-	entryDescUpdatedAt := entryFields[8].Descriptor()
+	entryDescUpdatedAt := entryFields[19].Descriptor()
 	// entry.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	entry.DefaultUpdatedAt = entryDescUpdatedAt.Default.(func() time.Time)
 	// entry.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

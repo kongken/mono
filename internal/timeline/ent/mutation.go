@@ -618,25 +618,37 @@ func (m *CleanupObjectMutation) ResetEdge(name string) error {
 // EntryMutation represents an operation that mutates the Entry nodes in the graph.
 type EntryMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *string
-	user_id       *string
-	title         *string
-	body          *string
-	occurred_at   *time.Time
-	timezone      *string
-	revision      *int
-	addrevision   *int
-	created_at    *time.Time
-	updated_at    *time.Time
-	clearedFields map[string]struct{}
-	media         map[string]struct{}
-	removedmedia  map[string]struct{}
-	clearedmedia  bool
-	done          bool
-	oldValue      func(context.Context) (*Entry, error)
-	predicates    []predicate.Entry
+	op              Op
+	typ             string
+	id              *string
+	user_id         *string
+	title           *string
+	body            *string
+	occurred_date   *string
+	occurred_time   *string
+	timezone        *string
+	category        *string
+	location        *string
+	amount_minor    *int64
+	addamount_minor *int64
+	currency        *string
+	url             *string
+	url_title       *string
+	url_note        *string
+	occurred_at     *time.Time
+	deleted_at      *time.Time
+	mutation_id     *string
+	revision        *int
+	addrevision     *int
+	created_at      *time.Time
+	updated_at      *time.Time
+	clearedFields   map[string]struct{}
+	media           map[string]struct{}
+	removedmedia    map[string]struct{}
+	clearedmedia    bool
+	done            bool
+	oldValue        func(context.Context) (*Entry, error)
+	predicates      []predicate.Entry
 }
 
 var _ ent.Mutation = (*EntryMutation)(nil)
@@ -851,40 +863,76 @@ func (m *EntryMutation) ResetBody() {
 	m.body = nil
 }
 
-// SetOccurredAt sets the "occurred_at" field.
-func (m *EntryMutation) SetOccurredAt(t time.Time) {
-	m.occurred_at = &t
+// SetOccurredDate sets the "occurred_date" field.
+func (m *EntryMutation) SetOccurredDate(s string) {
+	m.occurred_date = &s
 }
 
-// OccurredAt returns the value of the "occurred_at" field in the mutation.
-func (m *EntryMutation) OccurredAt() (r time.Time, exists bool) {
-	v := m.occurred_at
+// OccurredDate returns the value of the "occurred_date" field in the mutation.
+func (m *EntryMutation) OccurredDate() (r string, exists bool) {
+	v := m.occurred_date
 	if v == nil {
 		return
 	}
 	return *v, true
 }
 
-// OldOccurredAt returns the old "occurred_at" field's value of the Entry entity.
+// OldOccurredDate returns the old "occurred_date" field's value of the Entry entity.
 // If the Entry object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *EntryMutation) OldOccurredAt(ctx context.Context) (v time.Time, err error) {
+func (m *EntryMutation) OldOccurredDate(ctx context.Context) (v string, err error) {
 	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldOccurredAt is only allowed on UpdateOne operations")
+		return v, errors.New("OldOccurredDate is only allowed on UpdateOne operations")
 	}
 	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldOccurredAt requires an ID field in the mutation")
+		return v, errors.New("OldOccurredDate requires an ID field in the mutation")
 	}
 	oldValue, err := m.oldValue(ctx)
 	if err != nil {
-		return v, fmt.Errorf("querying old value for OldOccurredAt: %w", err)
+		return v, fmt.Errorf("querying old value for OldOccurredDate: %w", err)
 	}
-	return oldValue.OccurredAt, nil
+	return oldValue.OccurredDate, nil
 }
 
-// ResetOccurredAt resets all changes to the "occurred_at" field.
-func (m *EntryMutation) ResetOccurredAt() {
-	m.occurred_at = nil
+// ResetOccurredDate resets all changes to the "occurred_date" field.
+func (m *EntryMutation) ResetOccurredDate() {
+	m.occurred_date = nil
+}
+
+// SetOccurredTime sets the "occurred_time" field.
+func (m *EntryMutation) SetOccurredTime(s string) {
+	m.occurred_time = &s
+}
+
+// OccurredTime returns the value of the "occurred_time" field in the mutation.
+func (m *EntryMutation) OccurredTime() (r string, exists bool) {
+	v := m.occurred_time
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOccurredTime returns the old "occurred_time" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldOccurredTime(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOccurredTime is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOccurredTime requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOccurredTime: %w", err)
+	}
+	return oldValue.OccurredTime, nil
+}
+
+// ResetOccurredTime resets all changes to the "occurred_time" field.
+func (m *EntryMutation) ResetOccurredTime() {
+	m.occurred_time = nil
 }
 
 // SetTimezone sets the "timezone" field.
@@ -921,6 +969,399 @@ func (m *EntryMutation) OldTimezone(ctx context.Context) (v string, err error) {
 // ResetTimezone resets all changes to the "timezone" field.
 func (m *EntryMutation) ResetTimezone() {
 	m.timezone = nil
+}
+
+// SetCategory sets the "category" field.
+func (m *EntryMutation) SetCategory(s string) {
+	m.category = &s
+}
+
+// Category returns the value of the "category" field in the mutation.
+func (m *EntryMutation) Category() (r string, exists bool) {
+	v := m.category
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCategory returns the old "category" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldCategory(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCategory is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCategory requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCategory: %w", err)
+	}
+	return oldValue.Category, nil
+}
+
+// ResetCategory resets all changes to the "category" field.
+func (m *EntryMutation) ResetCategory() {
+	m.category = nil
+}
+
+// SetLocation sets the "location" field.
+func (m *EntryMutation) SetLocation(s string) {
+	m.location = &s
+}
+
+// Location returns the value of the "location" field in the mutation.
+func (m *EntryMutation) Location() (r string, exists bool) {
+	v := m.location
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocation returns the old "location" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldLocation(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocation is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocation requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocation: %w", err)
+	}
+	return oldValue.Location, nil
+}
+
+// ResetLocation resets all changes to the "location" field.
+func (m *EntryMutation) ResetLocation() {
+	m.location = nil
+}
+
+// SetAmountMinor sets the "amount_minor" field.
+func (m *EntryMutation) SetAmountMinor(i int64) {
+	m.amount_minor = &i
+	m.addamount_minor = nil
+}
+
+// AmountMinor returns the value of the "amount_minor" field in the mutation.
+func (m *EntryMutation) AmountMinor() (r int64, exists bool) {
+	v := m.amount_minor
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAmountMinor returns the old "amount_minor" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldAmountMinor(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAmountMinor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAmountMinor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAmountMinor: %w", err)
+	}
+	return oldValue.AmountMinor, nil
+}
+
+// AddAmountMinor adds i to the "amount_minor" field.
+func (m *EntryMutation) AddAmountMinor(i int64) {
+	if m.addamount_minor != nil {
+		*m.addamount_minor += i
+	} else {
+		m.addamount_minor = &i
+	}
+}
+
+// AddedAmountMinor returns the value that was added to the "amount_minor" field in this mutation.
+func (m *EntryMutation) AddedAmountMinor() (r int64, exists bool) {
+	v := m.addamount_minor
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAmountMinor resets all changes to the "amount_minor" field.
+func (m *EntryMutation) ResetAmountMinor() {
+	m.amount_minor = nil
+	m.addamount_minor = nil
+}
+
+// SetCurrency sets the "currency" field.
+func (m *EntryMutation) SetCurrency(s string) {
+	m.currency = &s
+}
+
+// Currency returns the value of the "currency" field in the mutation.
+func (m *EntryMutation) Currency() (r string, exists bool) {
+	v := m.currency
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCurrency returns the old "currency" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldCurrency(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCurrency is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCurrency requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCurrency: %w", err)
+	}
+	return oldValue.Currency, nil
+}
+
+// ResetCurrency resets all changes to the "currency" field.
+func (m *EntryMutation) ResetCurrency() {
+	m.currency = nil
+}
+
+// SetURL sets the "url" field.
+func (m *EntryMutation) SetURL(s string) {
+	m.url = &s
+}
+
+// URL returns the value of the "url" field in the mutation.
+func (m *EntryMutation) URL() (r string, exists bool) {
+	v := m.url
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldURL returns the old "url" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldURL(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldURL is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldURL requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldURL: %w", err)
+	}
+	return oldValue.URL, nil
+}
+
+// ResetURL resets all changes to the "url" field.
+func (m *EntryMutation) ResetURL() {
+	m.url = nil
+}
+
+// SetURLTitle sets the "url_title" field.
+func (m *EntryMutation) SetURLTitle(s string) {
+	m.url_title = &s
+}
+
+// URLTitle returns the value of the "url_title" field in the mutation.
+func (m *EntryMutation) URLTitle() (r string, exists bool) {
+	v := m.url_title
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldURLTitle returns the old "url_title" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldURLTitle(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldURLTitle is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldURLTitle requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldURLTitle: %w", err)
+	}
+	return oldValue.URLTitle, nil
+}
+
+// ResetURLTitle resets all changes to the "url_title" field.
+func (m *EntryMutation) ResetURLTitle() {
+	m.url_title = nil
+}
+
+// SetURLNote sets the "url_note" field.
+func (m *EntryMutation) SetURLNote(s string) {
+	m.url_note = &s
+}
+
+// URLNote returns the value of the "url_note" field in the mutation.
+func (m *EntryMutation) URLNote() (r string, exists bool) {
+	v := m.url_note
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldURLNote returns the old "url_note" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldURLNote(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldURLNote is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldURLNote requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldURLNote: %w", err)
+	}
+	return oldValue.URLNote, nil
+}
+
+// ResetURLNote resets all changes to the "url_note" field.
+func (m *EntryMutation) ResetURLNote() {
+	m.url_note = nil
+}
+
+// SetOccurredAt sets the "occurred_at" field.
+func (m *EntryMutation) SetOccurredAt(t time.Time) {
+	m.occurred_at = &t
+}
+
+// OccurredAt returns the value of the "occurred_at" field in the mutation.
+func (m *EntryMutation) OccurredAt() (r time.Time, exists bool) {
+	v := m.occurred_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOccurredAt returns the old "occurred_at" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldOccurredAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOccurredAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOccurredAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOccurredAt: %w", err)
+	}
+	return oldValue.OccurredAt, nil
+}
+
+// ResetOccurredAt resets all changes to the "occurred_at" field.
+func (m *EntryMutation) ResetOccurredAt() {
+	m.occurred_at = nil
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (m *EntryMutation) SetDeletedAt(t time.Time) {
+	m.deleted_at = &t
+}
+
+// DeletedAt returns the value of the "deleted_at" field in the mutation.
+func (m *EntryMutation) DeletedAt() (r time.Time, exists bool) {
+	v := m.deleted_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeletedAt returns the old "deleted_at" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldDeletedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeletedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeletedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeletedAt: %w", err)
+	}
+	return oldValue.DeletedAt, nil
+}
+
+// ClearDeletedAt clears the value of the "deleted_at" field.
+func (m *EntryMutation) ClearDeletedAt() {
+	m.deleted_at = nil
+	m.clearedFields[entry.FieldDeletedAt] = struct{}{}
+}
+
+// DeletedAtCleared returns if the "deleted_at" field was cleared in this mutation.
+func (m *EntryMutation) DeletedAtCleared() bool {
+	_, ok := m.clearedFields[entry.FieldDeletedAt]
+	return ok
+}
+
+// ResetDeletedAt resets all changes to the "deleted_at" field.
+func (m *EntryMutation) ResetDeletedAt() {
+	m.deleted_at = nil
+	delete(m.clearedFields, entry.FieldDeletedAt)
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (m *EntryMutation) SetMutationID(s string) {
+	m.mutation_id = &s
+}
+
+// MutationID returns the value of the "mutation_id" field in the mutation.
+func (m *EntryMutation) MutationID() (r string, exists bool) {
+	v := m.mutation_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMutationID returns the old "mutation_id" field's value of the Entry entity.
+// If the Entry object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *EntryMutation) OldMutationID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMutationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMutationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMutationID: %w", err)
+	}
+	return oldValue.MutationID, nil
+}
+
+// ResetMutationID resets all changes to the "mutation_id" field.
+func (m *EntryMutation) ResetMutationID() {
+	m.mutation_id = nil
 }
 
 // SetRevision sets the "revision" field.
@@ -1139,7 +1580,7 @@ func (m *EntryMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *EntryMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 19)
 	if m.user_id != nil {
 		fields = append(fields, entry.FieldUserID)
 	}
@@ -1149,11 +1590,44 @@ func (m *EntryMutation) Fields() []string {
 	if m.body != nil {
 		fields = append(fields, entry.FieldBody)
 	}
-	if m.occurred_at != nil {
-		fields = append(fields, entry.FieldOccurredAt)
+	if m.occurred_date != nil {
+		fields = append(fields, entry.FieldOccurredDate)
+	}
+	if m.occurred_time != nil {
+		fields = append(fields, entry.FieldOccurredTime)
 	}
 	if m.timezone != nil {
 		fields = append(fields, entry.FieldTimezone)
+	}
+	if m.category != nil {
+		fields = append(fields, entry.FieldCategory)
+	}
+	if m.location != nil {
+		fields = append(fields, entry.FieldLocation)
+	}
+	if m.amount_minor != nil {
+		fields = append(fields, entry.FieldAmountMinor)
+	}
+	if m.currency != nil {
+		fields = append(fields, entry.FieldCurrency)
+	}
+	if m.url != nil {
+		fields = append(fields, entry.FieldURL)
+	}
+	if m.url_title != nil {
+		fields = append(fields, entry.FieldURLTitle)
+	}
+	if m.url_note != nil {
+		fields = append(fields, entry.FieldURLNote)
+	}
+	if m.occurred_at != nil {
+		fields = append(fields, entry.FieldOccurredAt)
+	}
+	if m.deleted_at != nil {
+		fields = append(fields, entry.FieldDeletedAt)
+	}
+	if m.mutation_id != nil {
+		fields = append(fields, entry.FieldMutationID)
 	}
 	if m.revision != nil {
 		fields = append(fields, entry.FieldRevision)
@@ -1178,10 +1652,32 @@ func (m *EntryMutation) Field(name string) (ent.Value, bool) {
 		return m.Title()
 	case entry.FieldBody:
 		return m.Body()
-	case entry.FieldOccurredAt:
-		return m.OccurredAt()
+	case entry.FieldOccurredDate:
+		return m.OccurredDate()
+	case entry.FieldOccurredTime:
+		return m.OccurredTime()
 	case entry.FieldTimezone:
 		return m.Timezone()
+	case entry.FieldCategory:
+		return m.Category()
+	case entry.FieldLocation:
+		return m.Location()
+	case entry.FieldAmountMinor:
+		return m.AmountMinor()
+	case entry.FieldCurrency:
+		return m.Currency()
+	case entry.FieldURL:
+		return m.URL()
+	case entry.FieldURLTitle:
+		return m.URLTitle()
+	case entry.FieldURLNote:
+		return m.URLNote()
+	case entry.FieldOccurredAt:
+		return m.OccurredAt()
+	case entry.FieldDeletedAt:
+		return m.DeletedAt()
+	case entry.FieldMutationID:
+		return m.MutationID()
 	case entry.FieldRevision:
 		return m.Revision()
 	case entry.FieldCreatedAt:
@@ -1203,10 +1699,32 @@ func (m *EntryMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldTitle(ctx)
 	case entry.FieldBody:
 		return m.OldBody(ctx)
-	case entry.FieldOccurredAt:
-		return m.OldOccurredAt(ctx)
+	case entry.FieldOccurredDate:
+		return m.OldOccurredDate(ctx)
+	case entry.FieldOccurredTime:
+		return m.OldOccurredTime(ctx)
 	case entry.FieldTimezone:
 		return m.OldTimezone(ctx)
+	case entry.FieldCategory:
+		return m.OldCategory(ctx)
+	case entry.FieldLocation:
+		return m.OldLocation(ctx)
+	case entry.FieldAmountMinor:
+		return m.OldAmountMinor(ctx)
+	case entry.FieldCurrency:
+		return m.OldCurrency(ctx)
+	case entry.FieldURL:
+		return m.OldURL(ctx)
+	case entry.FieldURLTitle:
+		return m.OldURLTitle(ctx)
+	case entry.FieldURLNote:
+		return m.OldURLNote(ctx)
+	case entry.FieldOccurredAt:
+		return m.OldOccurredAt(ctx)
+	case entry.FieldDeletedAt:
+		return m.OldDeletedAt(ctx)
+	case entry.FieldMutationID:
+		return m.OldMutationID(ctx)
 	case entry.FieldRevision:
 		return m.OldRevision(ctx)
 	case entry.FieldCreatedAt:
@@ -1243,12 +1761,19 @@ func (m *EntryMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetBody(v)
 		return nil
-	case entry.FieldOccurredAt:
-		v, ok := value.(time.Time)
+	case entry.FieldOccurredDate:
+		v, ok := value.(string)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
-		m.SetOccurredAt(v)
+		m.SetOccurredDate(v)
+		return nil
+	case entry.FieldOccurredTime:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOccurredTime(v)
 		return nil
 	case entry.FieldTimezone:
 		v, ok := value.(string)
@@ -1256,6 +1781,76 @@ func (m *EntryMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetTimezone(v)
+		return nil
+	case entry.FieldCategory:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCategory(v)
+		return nil
+	case entry.FieldLocation:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocation(v)
+		return nil
+	case entry.FieldAmountMinor:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAmountMinor(v)
+		return nil
+	case entry.FieldCurrency:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCurrency(v)
+		return nil
+	case entry.FieldURL:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetURL(v)
+		return nil
+	case entry.FieldURLTitle:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetURLTitle(v)
+		return nil
+	case entry.FieldURLNote:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetURLNote(v)
+		return nil
+	case entry.FieldOccurredAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOccurredAt(v)
+		return nil
+	case entry.FieldDeletedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeletedAt(v)
+		return nil
+	case entry.FieldMutationID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMutationID(v)
 		return nil
 	case entry.FieldRevision:
 		v, ok := value.(int)
@@ -1286,6 +1881,9 @@ func (m *EntryMutation) SetField(name string, value ent.Value) error {
 // this mutation.
 func (m *EntryMutation) AddedFields() []string {
 	var fields []string
+	if m.addamount_minor != nil {
+		fields = append(fields, entry.FieldAmountMinor)
+	}
 	if m.addrevision != nil {
 		fields = append(fields, entry.FieldRevision)
 	}
@@ -1297,6 +1895,8 @@ func (m *EntryMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *EntryMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case entry.FieldAmountMinor:
+		return m.AddedAmountMinor()
 	case entry.FieldRevision:
 		return m.AddedRevision()
 	}
@@ -1308,6 +1908,13 @@ func (m *EntryMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *EntryMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case entry.FieldAmountMinor:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAmountMinor(v)
+		return nil
 	case entry.FieldRevision:
 		v, ok := value.(int)
 		if !ok {
@@ -1322,7 +1929,11 @@ func (m *EntryMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *EntryMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(entry.FieldDeletedAt) {
+		fields = append(fields, entry.FieldDeletedAt)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -1335,6 +1946,11 @@ func (m *EntryMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *EntryMutation) ClearField(name string) error {
+	switch name {
+	case entry.FieldDeletedAt:
+		m.ClearDeletedAt()
+		return nil
+	}
 	return fmt.Errorf("unknown Entry nullable field %s", name)
 }
 
@@ -1351,11 +1967,44 @@ func (m *EntryMutation) ResetField(name string) error {
 	case entry.FieldBody:
 		m.ResetBody()
 		return nil
-	case entry.FieldOccurredAt:
-		m.ResetOccurredAt()
+	case entry.FieldOccurredDate:
+		m.ResetOccurredDate()
+		return nil
+	case entry.FieldOccurredTime:
+		m.ResetOccurredTime()
 		return nil
 	case entry.FieldTimezone:
 		m.ResetTimezone()
+		return nil
+	case entry.FieldCategory:
+		m.ResetCategory()
+		return nil
+	case entry.FieldLocation:
+		m.ResetLocation()
+		return nil
+	case entry.FieldAmountMinor:
+		m.ResetAmountMinor()
+		return nil
+	case entry.FieldCurrency:
+		m.ResetCurrency()
+		return nil
+	case entry.FieldURL:
+		m.ResetURL()
+		return nil
+	case entry.FieldURLTitle:
+		m.ResetURLTitle()
+		return nil
+	case entry.FieldURLNote:
+		m.ResetURLNote()
+		return nil
+	case entry.FieldOccurredAt:
+		m.ResetOccurredAt()
+		return nil
+	case entry.FieldDeletedAt:
+		m.ResetDeletedAt()
+		return nil
+	case entry.FieldMutationID:
+		m.ResetMutationID()
 		return nil
 	case entry.FieldRevision:
 		m.ResetRevision()

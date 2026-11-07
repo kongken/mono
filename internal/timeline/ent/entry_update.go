@@ -57,16 +57,30 @@ func (_u *EntryUpdate) SetNillableBody(v *string) *EntryUpdate {
 	return _u
 }
 
-// SetOccurredAt sets the "occurred_at" field.
-func (_u *EntryUpdate) SetOccurredAt(v time.Time) *EntryUpdate {
-	_u.mutation.SetOccurredAt(v)
+// SetOccurredDate sets the "occurred_date" field.
+func (_u *EntryUpdate) SetOccurredDate(v string) *EntryUpdate {
+	_u.mutation.SetOccurredDate(v)
 	return _u
 }
 
-// SetNillableOccurredAt sets the "occurred_at" field if the given value is not nil.
-func (_u *EntryUpdate) SetNillableOccurredAt(v *time.Time) *EntryUpdate {
+// SetNillableOccurredDate sets the "occurred_date" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableOccurredDate(v *string) *EntryUpdate {
 	if v != nil {
-		_u.SetOccurredAt(*v)
+		_u.SetOccurredDate(*v)
+	}
+	return _u
+}
+
+// SetOccurredTime sets the "occurred_time" field.
+func (_u *EntryUpdate) SetOccurredTime(v string) *EntryUpdate {
+	_u.mutation.SetOccurredTime(v)
+	return _u
+}
+
+// SetNillableOccurredTime sets the "occurred_time" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableOccurredTime(v *string) *EntryUpdate {
+	if v != nil {
+		_u.SetOccurredTime(*v)
 	}
 	return _u
 }
@@ -81,6 +95,159 @@ func (_u *EntryUpdate) SetTimezone(v string) *EntryUpdate {
 func (_u *EntryUpdate) SetNillableTimezone(v *string) *EntryUpdate {
 	if v != nil {
 		_u.SetTimezone(*v)
+	}
+	return _u
+}
+
+// SetCategory sets the "category" field.
+func (_u *EntryUpdate) SetCategory(v string) *EntryUpdate {
+	_u.mutation.SetCategory(v)
+	return _u
+}
+
+// SetNillableCategory sets the "category" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableCategory(v *string) *EntryUpdate {
+	if v != nil {
+		_u.SetCategory(*v)
+	}
+	return _u
+}
+
+// SetLocation sets the "location" field.
+func (_u *EntryUpdate) SetLocation(v string) *EntryUpdate {
+	_u.mutation.SetLocation(v)
+	return _u
+}
+
+// SetNillableLocation sets the "location" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableLocation(v *string) *EntryUpdate {
+	if v != nil {
+		_u.SetLocation(*v)
+	}
+	return _u
+}
+
+// SetAmountMinor sets the "amount_minor" field.
+func (_u *EntryUpdate) SetAmountMinor(v int64) *EntryUpdate {
+	_u.mutation.ResetAmountMinor()
+	_u.mutation.SetAmountMinor(v)
+	return _u
+}
+
+// SetNillableAmountMinor sets the "amount_minor" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableAmountMinor(v *int64) *EntryUpdate {
+	if v != nil {
+		_u.SetAmountMinor(*v)
+	}
+	return _u
+}
+
+// AddAmountMinor adds value to the "amount_minor" field.
+func (_u *EntryUpdate) AddAmountMinor(v int64) *EntryUpdate {
+	_u.mutation.AddAmountMinor(v)
+	return _u
+}
+
+// SetCurrency sets the "currency" field.
+func (_u *EntryUpdate) SetCurrency(v string) *EntryUpdate {
+	_u.mutation.SetCurrency(v)
+	return _u
+}
+
+// SetNillableCurrency sets the "currency" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableCurrency(v *string) *EntryUpdate {
+	if v != nil {
+		_u.SetCurrency(*v)
+	}
+	return _u
+}
+
+// SetURL sets the "url" field.
+func (_u *EntryUpdate) SetURL(v string) *EntryUpdate {
+	_u.mutation.SetURL(v)
+	return _u
+}
+
+// SetNillableURL sets the "url" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableURL(v *string) *EntryUpdate {
+	if v != nil {
+		_u.SetURL(*v)
+	}
+	return _u
+}
+
+// SetURLTitle sets the "url_title" field.
+func (_u *EntryUpdate) SetURLTitle(v string) *EntryUpdate {
+	_u.mutation.SetURLTitle(v)
+	return _u
+}
+
+// SetNillableURLTitle sets the "url_title" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableURLTitle(v *string) *EntryUpdate {
+	if v != nil {
+		_u.SetURLTitle(*v)
+	}
+	return _u
+}
+
+// SetURLNote sets the "url_note" field.
+func (_u *EntryUpdate) SetURLNote(v string) *EntryUpdate {
+	_u.mutation.SetURLNote(v)
+	return _u
+}
+
+// SetNillableURLNote sets the "url_note" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableURLNote(v *string) *EntryUpdate {
+	if v != nil {
+		_u.SetURLNote(*v)
+	}
+	return _u
+}
+
+// SetOccurredAt sets the "occurred_at" field.
+func (_u *EntryUpdate) SetOccurredAt(v time.Time) *EntryUpdate {
+	_u.mutation.SetOccurredAt(v)
+	return _u
+}
+
+// SetNillableOccurredAt sets the "occurred_at" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableOccurredAt(v *time.Time) *EntryUpdate {
+	if v != nil {
+		_u.SetOccurredAt(*v)
+	}
+	return _u
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (_u *EntryUpdate) SetDeletedAt(v time.Time) *EntryUpdate {
+	_u.mutation.SetDeletedAt(v)
+	return _u
+}
+
+// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableDeletedAt(v *time.Time) *EntryUpdate {
+	if v != nil {
+		_u.SetDeletedAt(*v)
+	}
+	return _u
+}
+
+// ClearDeletedAt clears the value of the "deleted_at" field.
+func (_u *EntryUpdate) ClearDeletedAt() *EntryUpdate {
+	_u.mutation.ClearDeletedAt()
+	return _u
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (_u *EntryUpdate) SetMutationID(v string) *EntryUpdate {
+	_u.mutation.SetMutationID(v)
+	return _u
+}
+
+// SetNillableMutationID sets the "mutation_id" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableMutationID(v *string) *EntryUpdate {
+	if v != nil {
+		_u.SetMutationID(*v)
 	}
 	return _u
 }
@@ -191,6 +358,16 @@ func (_u *EntryUpdate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *EntryUpdate) check() error {
+	if v, ok := _u.mutation.Title(); ok {
+		if err := entry.TitleValidator(v); err != nil {
+			return &ValidationError{Name: "title", err: fmt.Errorf(`ent: validator failed for field "Entry.title": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.OccurredDate(); ok {
+		if err := entry.OccurredDateValidator(v); err != nil {
+			return &ValidationError{Name: "occurred_date", err: fmt.Errorf(`ent: validator failed for field "Entry.occurred_date": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Timezone(); ok {
 		if err := entry.TimezoneValidator(v); err != nil {
 			return &ValidationError{Name: "timezone", err: fmt.Errorf(`ent: validator failed for field "Entry.timezone": %w`, err)}
@@ -222,11 +399,50 @@ func (_u *EntryUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Body(); ok {
 		_spec.SetField(entry.FieldBody, field.TypeString, value)
 	}
-	if value, ok := _u.mutation.OccurredAt(); ok {
-		_spec.SetField(entry.FieldOccurredAt, field.TypeTime, value)
+	if value, ok := _u.mutation.OccurredDate(); ok {
+		_spec.SetField(entry.FieldOccurredDate, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.OccurredTime(); ok {
+		_spec.SetField(entry.FieldOccurredTime, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Timezone(); ok {
 		_spec.SetField(entry.FieldTimezone, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Category(); ok {
+		_spec.SetField(entry.FieldCategory, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Location(); ok {
+		_spec.SetField(entry.FieldLocation, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.AmountMinor(); ok {
+		_spec.SetField(entry.FieldAmountMinor, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedAmountMinor(); ok {
+		_spec.AddField(entry.FieldAmountMinor, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.Currency(); ok {
+		_spec.SetField(entry.FieldCurrency, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.URL(); ok {
+		_spec.SetField(entry.FieldURL, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.URLTitle(); ok {
+		_spec.SetField(entry.FieldURLTitle, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.URLNote(); ok {
+		_spec.SetField(entry.FieldURLNote, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.OccurredAt(); ok {
+		_spec.SetField(entry.FieldOccurredAt, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.DeletedAt(); ok {
+		_spec.SetField(entry.FieldDeletedAt, field.TypeTime, value)
+	}
+	if _u.mutation.DeletedAtCleared() {
+		_spec.ClearField(entry.FieldDeletedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.MutationID(); ok {
+		_spec.SetField(entry.FieldMutationID, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Revision(); ok {
 		_spec.SetField(entry.FieldRevision, field.TypeInt, value)
@@ -330,16 +546,30 @@ func (_u *EntryUpdateOne) SetNillableBody(v *string) *EntryUpdateOne {
 	return _u
 }
 
-// SetOccurredAt sets the "occurred_at" field.
-func (_u *EntryUpdateOne) SetOccurredAt(v time.Time) *EntryUpdateOne {
-	_u.mutation.SetOccurredAt(v)
+// SetOccurredDate sets the "occurred_date" field.
+func (_u *EntryUpdateOne) SetOccurredDate(v string) *EntryUpdateOne {
+	_u.mutation.SetOccurredDate(v)
 	return _u
 }
 
-// SetNillableOccurredAt sets the "occurred_at" field if the given value is not nil.
-func (_u *EntryUpdateOne) SetNillableOccurredAt(v *time.Time) *EntryUpdateOne {
+// SetNillableOccurredDate sets the "occurred_date" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableOccurredDate(v *string) *EntryUpdateOne {
 	if v != nil {
-		_u.SetOccurredAt(*v)
+		_u.SetOccurredDate(*v)
+	}
+	return _u
+}
+
+// SetOccurredTime sets the "occurred_time" field.
+func (_u *EntryUpdateOne) SetOccurredTime(v string) *EntryUpdateOne {
+	_u.mutation.SetOccurredTime(v)
+	return _u
+}
+
+// SetNillableOccurredTime sets the "occurred_time" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableOccurredTime(v *string) *EntryUpdateOne {
+	if v != nil {
+		_u.SetOccurredTime(*v)
 	}
 	return _u
 }
@@ -354,6 +584,159 @@ func (_u *EntryUpdateOne) SetTimezone(v string) *EntryUpdateOne {
 func (_u *EntryUpdateOne) SetNillableTimezone(v *string) *EntryUpdateOne {
 	if v != nil {
 		_u.SetTimezone(*v)
+	}
+	return _u
+}
+
+// SetCategory sets the "category" field.
+func (_u *EntryUpdateOne) SetCategory(v string) *EntryUpdateOne {
+	_u.mutation.SetCategory(v)
+	return _u
+}
+
+// SetNillableCategory sets the "category" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableCategory(v *string) *EntryUpdateOne {
+	if v != nil {
+		_u.SetCategory(*v)
+	}
+	return _u
+}
+
+// SetLocation sets the "location" field.
+func (_u *EntryUpdateOne) SetLocation(v string) *EntryUpdateOne {
+	_u.mutation.SetLocation(v)
+	return _u
+}
+
+// SetNillableLocation sets the "location" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableLocation(v *string) *EntryUpdateOne {
+	if v != nil {
+		_u.SetLocation(*v)
+	}
+	return _u
+}
+
+// SetAmountMinor sets the "amount_minor" field.
+func (_u *EntryUpdateOne) SetAmountMinor(v int64) *EntryUpdateOne {
+	_u.mutation.ResetAmountMinor()
+	_u.mutation.SetAmountMinor(v)
+	return _u
+}
+
+// SetNillableAmountMinor sets the "amount_minor" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableAmountMinor(v *int64) *EntryUpdateOne {
+	if v != nil {
+		_u.SetAmountMinor(*v)
+	}
+	return _u
+}
+
+// AddAmountMinor adds value to the "amount_minor" field.
+func (_u *EntryUpdateOne) AddAmountMinor(v int64) *EntryUpdateOne {
+	_u.mutation.AddAmountMinor(v)
+	return _u
+}
+
+// SetCurrency sets the "currency" field.
+func (_u *EntryUpdateOne) SetCurrency(v string) *EntryUpdateOne {
+	_u.mutation.SetCurrency(v)
+	return _u
+}
+
+// SetNillableCurrency sets the "currency" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableCurrency(v *string) *EntryUpdateOne {
+	if v != nil {
+		_u.SetCurrency(*v)
+	}
+	return _u
+}
+
+// SetURL sets the "url" field.
+func (_u *EntryUpdateOne) SetURL(v string) *EntryUpdateOne {
+	_u.mutation.SetURL(v)
+	return _u
+}
+
+// SetNillableURL sets the "url" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableURL(v *string) *EntryUpdateOne {
+	if v != nil {
+		_u.SetURL(*v)
+	}
+	return _u
+}
+
+// SetURLTitle sets the "url_title" field.
+func (_u *EntryUpdateOne) SetURLTitle(v string) *EntryUpdateOne {
+	_u.mutation.SetURLTitle(v)
+	return _u
+}
+
+// SetNillableURLTitle sets the "url_title" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableURLTitle(v *string) *EntryUpdateOne {
+	if v != nil {
+		_u.SetURLTitle(*v)
+	}
+	return _u
+}
+
+// SetURLNote sets the "url_note" field.
+func (_u *EntryUpdateOne) SetURLNote(v string) *EntryUpdateOne {
+	_u.mutation.SetURLNote(v)
+	return _u
+}
+
+// SetNillableURLNote sets the "url_note" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableURLNote(v *string) *EntryUpdateOne {
+	if v != nil {
+		_u.SetURLNote(*v)
+	}
+	return _u
+}
+
+// SetOccurredAt sets the "occurred_at" field.
+func (_u *EntryUpdateOne) SetOccurredAt(v time.Time) *EntryUpdateOne {
+	_u.mutation.SetOccurredAt(v)
+	return _u
+}
+
+// SetNillableOccurredAt sets the "occurred_at" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableOccurredAt(v *time.Time) *EntryUpdateOne {
+	if v != nil {
+		_u.SetOccurredAt(*v)
+	}
+	return _u
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (_u *EntryUpdateOne) SetDeletedAt(v time.Time) *EntryUpdateOne {
+	_u.mutation.SetDeletedAt(v)
+	return _u
+}
+
+// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableDeletedAt(v *time.Time) *EntryUpdateOne {
+	if v != nil {
+		_u.SetDeletedAt(*v)
+	}
+	return _u
+}
+
+// ClearDeletedAt clears the value of the "deleted_at" field.
+func (_u *EntryUpdateOne) ClearDeletedAt() *EntryUpdateOne {
+	_u.mutation.ClearDeletedAt()
+	return _u
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (_u *EntryUpdateOne) SetMutationID(v string) *EntryUpdateOne {
+	_u.mutation.SetMutationID(v)
+	return _u
+}
+
+// SetNillableMutationID sets the "mutation_id" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableMutationID(v *string) *EntryUpdateOne {
+	if v != nil {
+		_u.SetMutationID(*v)
 	}
 	return _u
 }
@@ -477,6 +860,16 @@ func (_u *EntryUpdateOne) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *EntryUpdateOne) check() error {
+	if v, ok := _u.mutation.Title(); ok {
+		if err := entry.TitleValidator(v); err != nil {
+			return &ValidationError{Name: "title", err: fmt.Errorf(`ent: validator failed for field "Entry.title": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.OccurredDate(); ok {
+		if err := entry.OccurredDateValidator(v); err != nil {
+			return &ValidationError{Name: "occurred_date", err: fmt.Errorf(`ent: validator failed for field "Entry.occurred_date": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Timezone(); ok {
 		if err := entry.TimezoneValidator(v); err != nil {
 			return &ValidationError{Name: "timezone", err: fmt.Errorf(`ent: validator failed for field "Entry.timezone": %w`, err)}
@@ -525,11 +918,50 @@ func (_u *EntryUpdateOne) sqlSave(ctx context.Context) (_node *Entry, err error)
 	if value, ok := _u.mutation.Body(); ok {
 		_spec.SetField(entry.FieldBody, field.TypeString, value)
 	}
-	if value, ok := _u.mutation.OccurredAt(); ok {
-		_spec.SetField(entry.FieldOccurredAt, field.TypeTime, value)
+	if value, ok := _u.mutation.OccurredDate(); ok {
+		_spec.SetField(entry.FieldOccurredDate, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.OccurredTime(); ok {
+		_spec.SetField(entry.FieldOccurredTime, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Timezone(); ok {
 		_spec.SetField(entry.FieldTimezone, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Category(); ok {
+		_spec.SetField(entry.FieldCategory, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Location(); ok {
+		_spec.SetField(entry.FieldLocation, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.AmountMinor(); ok {
+		_spec.SetField(entry.FieldAmountMinor, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedAmountMinor(); ok {
+		_spec.AddField(entry.FieldAmountMinor, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.Currency(); ok {
+		_spec.SetField(entry.FieldCurrency, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.URL(); ok {
+		_spec.SetField(entry.FieldURL, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.URLTitle(); ok {
+		_spec.SetField(entry.FieldURLTitle, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.URLNote(); ok {
+		_spec.SetField(entry.FieldURLNote, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.OccurredAt(); ok {
+		_spec.SetField(entry.FieldOccurredAt, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.DeletedAt(); ok {
+		_spec.SetField(entry.FieldDeletedAt, field.TypeTime, value)
+	}
+	if _u.mutation.DeletedAtCleared() {
+		_spec.ClearField(entry.FieldDeletedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.MutationID(); ok {
+		_spec.SetField(entry.FieldMutationID, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Revision(); ok {
 		_spec.SetField(entry.FieldRevision, field.TypeInt, value)

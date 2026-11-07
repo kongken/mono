@@ -20,10 +20,32 @@ const (
 	FieldTitle = "title"
 	// FieldBody holds the string denoting the body field in the database.
 	FieldBody = "body"
-	// FieldOccurredAt holds the string denoting the occurred_at field in the database.
-	FieldOccurredAt = "occurred_at"
+	// FieldOccurredDate holds the string denoting the occurred_date field in the database.
+	FieldOccurredDate = "occurred_date"
+	// FieldOccurredTime holds the string denoting the occurred_time field in the database.
+	FieldOccurredTime = "occurred_time"
 	// FieldTimezone holds the string denoting the timezone field in the database.
 	FieldTimezone = "timezone"
+	// FieldCategory holds the string denoting the category field in the database.
+	FieldCategory = "category"
+	// FieldLocation holds the string denoting the location field in the database.
+	FieldLocation = "location"
+	// FieldAmountMinor holds the string denoting the amount_minor field in the database.
+	FieldAmountMinor = "amount_minor"
+	// FieldCurrency holds the string denoting the currency field in the database.
+	FieldCurrency = "currency"
+	// FieldURL holds the string denoting the url field in the database.
+	FieldURL = "url"
+	// FieldURLTitle holds the string denoting the url_title field in the database.
+	FieldURLTitle = "url_title"
+	// FieldURLNote holds the string denoting the url_note field in the database.
+	FieldURLNote = "url_note"
+	// FieldOccurredAt holds the string denoting the occurred_at field in the database.
+	FieldOccurredAt = "occurred_at"
+	// FieldDeletedAt holds the string denoting the deleted_at field in the database.
+	FieldDeletedAt = "deleted_at"
+	// FieldMutationID holds the string denoting the mutation_id field in the database.
+	FieldMutationID = "mutation_id"
 	// FieldRevision holds the string denoting the revision field in the database.
 	FieldRevision = "revision"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -49,8 +71,19 @@ var Columns = []string{
 	FieldUserID,
 	FieldTitle,
 	FieldBody,
-	FieldOccurredAt,
+	FieldOccurredDate,
+	FieldOccurredTime,
 	FieldTimezone,
+	FieldCategory,
+	FieldLocation,
+	FieldAmountMinor,
+	FieldCurrency,
+	FieldURL,
+	FieldURLTitle,
+	FieldURLNote,
+	FieldOccurredAt,
+	FieldDeletedAt,
+	FieldMutationID,
 	FieldRevision,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -69,12 +102,32 @@ func ValidColumn(column string) bool {
 var (
 	// UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
 	UserIDValidator func(string) error
-	// DefaultTitle holds the default value on creation for the "title" field.
-	DefaultTitle string
+	// TitleValidator is a validator for the "title" field. It is called by the builders before save.
+	TitleValidator func(string) error
 	// DefaultBody holds the default value on creation for the "body" field.
 	DefaultBody string
+	// OccurredDateValidator is a validator for the "occurred_date" field. It is called by the builders before save.
+	OccurredDateValidator func(string) error
+	// DefaultOccurredTime holds the default value on creation for the "occurred_time" field.
+	DefaultOccurredTime string
 	// TimezoneValidator is a validator for the "timezone" field. It is called by the builders before save.
 	TimezoneValidator func(string) error
+	// DefaultCategory holds the default value on creation for the "category" field.
+	DefaultCategory string
+	// DefaultLocation holds the default value on creation for the "location" field.
+	DefaultLocation string
+	// DefaultAmountMinor holds the default value on creation for the "amount_minor" field.
+	DefaultAmountMinor int64
+	// DefaultCurrency holds the default value on creation for the "currency" field.
+	DefaultCurrency string
+	// DefaultURL holds the default value on creation for the "url" field.
+	DefaultURL string
+	// DefaultURLTitle holds the default value on creation for the "url_title" field.
+	DefaultURLTitle string
+	// DefaultURLNote holds the default value on creation for the "url_note" field.
+	DefaultURLNote string
+	// DefaultMutationID holds the default value on creation for the "mutation_id" field.
+	DefaultMutationID string
 	// DefaultRevision holds the default value on creation for the "revision" field.
 	DefaultRevision int
 	// RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
@@ -112,14 +165,69 @@ func ByBody(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBody, opts...).ToFunc()
 }
 
-// ByOccurredAt orders the results by the occurred_at field.
-func ByOccurredAt(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldOccurredAt, opts...).ToFunc()
+// ByOccurredDate orders the results by the occurred_date field.
+func ByOccurredDate(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOccurredDate, opts...).ToFunc()
+}
+
+// ByOccurredTime orders the results by the occurred_time field.
+func ByOccurredTime(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOccurredTime, opts...).ToFunc()
 }
 
 // ByTimezone orders the results by the timezone field.
 func ByTimezone(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTimezone, opts...).ToFunc()
+}
+
+// ByCategory orders the results by the category field.
+func ByCategory(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCategory, opts...).ToFunc()
+}
+
+// ByLocation orders the results by the location field.
+func ByLocation(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLocation, opts...).ToFunc()
+}
+
+// ByAmountMinor orders the results by the amount_minor field.
+func ByAmountMinor(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAmountMinor, opts...).ToFunc()
+}
+
+// ByCurrency orders the results by the currency field.
+func ByCurrency(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCurrency, opts...).ToFunc()
+}
+
+// ByURL orders the results by the url field.
+func ByURL(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldURL, opts...).ToFunc()
+}
+
+// ByURLTitle orders the results by the url_title field.
+func ByURLTitle(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldURLTitle, opts...).ToFunc()
+}
+
+// ByURLNote orders the results by the url_note field.
+func ByURLNote(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldURLNote, opts...).ToFunc()
+}
+
+// ByOccurredAt orders the results by the occurred_at field.
+func ByOccurredAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOccurredAt, opts...).ToFunc()
+}
+
+// ByDeletedAt orders the results by the deleted_at field.
+func ByDeletedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDeletedAt, opts...).ToFunc()
+}
+
+// ByMutationID orders the results by the mutation_id field.
+func ByMutationID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMutationID, opts...).ToFunc()
 }
 
 // ByRevision orders the results by the revision field.

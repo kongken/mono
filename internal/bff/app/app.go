@@ -39,6 +39,7 @@ import (
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
 	"github.com/kongken/mono/internal/platform/httpx"
+	bfftimelinev1connect "github.com/kongken/mono/pkg/proto/bff/timeline/v1/bfftimelinev1connect"
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	redisclient "github.com/redis/go-redis/v9"
@@ -291,6 +292,10 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 		}
 		if metroConn := clients.Conn(bffmetro.Service); metroConn != nil {
 			bffmetro.MountRPC(mux, metroConn, opts)
+		}
+		if timelineConn := clients.Conn(bfftimeline.Service); timelineConn != nil {
+			route, handler := bfftimelinev1connect.NewTimelineServiceHandler(bfftimeline.NewHandler(timelineConn), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
 		}
 	}
 	return http.StripPrefix("/api", mux), nil
