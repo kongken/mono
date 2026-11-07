@@ -2,7 +2,20 @@
 
 > **后续扩展，待实现：** [OzID 与统一管理控制台规格](ozid/spec.md) 在现有 usersrv 上规划平台管理员角色、受限用户管理与审计，并复用现有 BFF 会话承载两个独立前端。平台管理员角色 `ozid-admin`、用户查询（`usersrv.v1.UserAdminService`）与注销保护已由 T4 实现，普通账号状态与 `metro-admin` 的受限修改由 T5 实现，见 [控制台功能描述](admin/features.md)；审计页等其余部分仍只有规格，本文的接口、模型、配置和命令以代码为准。
 
-## 当前状态与技术栈
+## Timeline 与 Tripmap 共享迁移
+
+Timeline 和 Tripmap 的服务 baseline 必须先在同一个 PostgreSQL database 中初始化。跨服务的增量迁移使用仓库内的 `cmd/migrate-shared`，不要分别执行 Tripmap 的增量目录：
+
+```bash
+go run ./cmd/migrate-shared -dsn "$SHARED_MIGRATION_DSN" \\
+  -root . \\
+  -link-import ./deploy/sql/media_entry_links.sql
+```
+
+该入口在一个数据库事务中按以下顺序执行：Timeline `timeline_mutations`/Entry ref migration、创建 `media_entry_links` staging 表、执行一次性 link import、Tripmap Media 字段/约束/receipt migration。link import 文件必须只包含可信的 `media_id,user_id,entry_ref` 行；Media owner、link owner 和 Timeline Entry owner 会在 Tripmap migration 中同时校验。任一 link 缺失、Media 或 Entry 不存在、重复或跨 owner 都会回滚整个事务。成功阶段写入 `shared_migration_history`，重复运行会跳过已完成阶段；失败事务不会留下 staging、字段、约束或历史记录。`-link-import` 为空时只适用于已经由受控部署步骤填充 staging 表的环境。
+
+`SHARED_MIGRATION_DSN`、link import 文件和 PostgreSQL live 验证凭据必须由部署环境提供；本地没有 DSN 时，相关 integration tests 会明确 skip，不代表迁移已通过。
+
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
