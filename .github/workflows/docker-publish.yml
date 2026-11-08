@@ -35,6 +35,9 @@ jobs:
           - image: trip-map-web
             suffix: '-trip-map-web'
             dockerfile: deploy/trip-map-web/Dockerfile
+          - image: bff
+            suffix: '-bff'
+            dockerfile: deploy/bff/Dockerfile
           - image: timeline
             suffix: '-timeline'
             dockerfile: deploy/timeline/Dockerfile

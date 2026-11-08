@@ -71,6 +71,17 @@ jobs:
           go run ./cmd/storage-init -config /tmp/tripmap-ci.yaml
       - name: Vet
         run: go vet ./...
+      # The matrix is data no Go build compiles: this check reads the real
+      # jobs.build.strategy.matrix.include from docker-publish.yml and fails when an image is missing,
+      # substituted, duplicated or mapped to another suffix/Dockerfile. The BFF was silently dropped
+      # from the matrix once while this workflow stayed green (kongken/mono#113), so the step is named
+      # and verbose: a green run shows every image, the BFF included, is in the publication set.
+      - name: Docker publish matrix (required, never skipped)
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./internal/release -count=1 -v -run '^TestDockerPublishMatrix$' | tee /tmp/docker-publish-matrix.log
+          grep -q -- '--- PASS: TestDockerPublishMatrix ' /tmp/docker-publish-matrix.log || { echo "the publish matrix check did not run and pass"; exit 1; }
       # The Timeline release examples (its own config, the two image contexts, the compose stack, the
       # Caddy site and the publish matrix's build arguments) are compiled nowhere, so this script is
       # their check. It also rejects a Caddy block written on one line, which Caddy refuses to adapt:
