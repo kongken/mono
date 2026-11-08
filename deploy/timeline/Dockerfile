@@ -6,6 +6,7 @@ RUN go mod download
 # imports another service or the BFF.
 COPY cmd/timeline cmd/timeline
 COPY internal/timeline internal/timeline
+COPY internal/tripmap/blobstore internal/tripmap/blobstore
 COPY internal/platform internal/platform
 COPY pkg pkg
 COPY migrations/timeline migrations/timeline
