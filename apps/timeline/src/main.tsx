@@ -1,4 +1,13 @@
-import React, {useEffect, useState} from "react"; import {createRoot} from "react-dom/client"; import {createClient} from "@connectrpc/connect"; import {createConnectTransport} from "@connectrpc/connect-web"; import {TimelineService} from "@kongken/api-client/bff/timeline/v1/timeline_pb";
-import "./style.css";
-const base=import.meta.env.VITE_API_BASE_URL||"/api"; const client=createClient(TimelineService,createConnectTransport({baseUrl:base}));
-function App(){const [rows,setRows]=useState<any[]>([]),[open,setOpen]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(""),[title,setTitle]=useState(""),[date,setDate]=useState(new Date().toISOString().slice(0,10)); const load=async()=>{setLoading(true);setError("");try{const x=await client.listEntries({pageSize:50});setRows(x.entries)}catch(e){setError("时间线暂时无法加载，请稍后重试")}finally{setLoading(false)}};useEffect(()=>{load()},[]);const save=async(e:React.FormEvent)=>{e.preventDefault();try{await client.createEntry({entry:{title,date,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone},mutationId:crypto.randomUUID()});setOpen(false);setTitle("");await load()}catch(e){setError("保存失败，请检查标题和日期")}};return <main><header><div><p className="eyebrow">OZ / TIMELINE</p><h1>时间线</h1><p className="muted">把值得记住的日子，留在自己的时间里。</p></div><button onClick={()=>setOpen(true)}>＋ 记一笔</button></header><section className="toolbar"><input aria-label="搜索记录" placeholder="搜索标题、地点或备注"/><select aria-label="分类"><option>全部分类</option></select></section>{error&&<div className="error" role="alert">{error}<button onClick={load}>重试</button></div>}{loading?<p className="state">正在加载…</p>:rows.length===0?<div className="empty"><h2>还没有记录</h2><p>从今天开始，记下一个值得回看的瞬间。</p><button onClick={()=>setOpen(true)}>记下第一笔</button></div>:<div className="timeline">{rows.map((r:any)=><article className="card" key={r.id}><time>{r.date}</time><div><h2>{r.title}</h2>{r.location&&<p>{r.location}</p>}{r.note&&<p className="muted">{r.note}</p>}</div></article>)}</div>}{open&&<div className="backdrop" onMouseDown={()=>setOpen(false)}><form className="drawer" onSubmit={save} onMouseDown={e=>e.stopPropagation()}><div className="drawerHead"><h2>记一笔</h2><button type="button" aria-label="关闭" onClick={()=>setOpen(false)}>×</button></div><label>标题<span>*</span><input autoFocus value={title} onChange={e=>setTitle(e.target.value)} required maxLength={200}/></label><label>日期<span>*</span><input type="date" value={date} onChange={e=>setDate(e.target.value)} required/></label><div className="drawerActions"><button type="button" onClick={()=>setOpen(false)}>取消</button><button type="submit">保存</button></div></form></div>}</main>}createRoot(document.getElementById("root")!).render(<App/>);
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App.tsx";
+import "./index.css";
+
+const root = document.getElementById("root");
+if (root === null) throw new Error("@kongken/timeline cannot start: #root is missing");
+
+createRoot(root).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
