@@ -31,6 +31,8 @@ import (
 	"github.com/kongken/mono/internal/bff/navigation"
 	"github.com/kongken/mono/internal/bff/ratelimit"
 	"github.com/kongken/mono/internal/bff/session"
+	bfftimeline "github.com/kongken/mono/internal/bff/timeline"
+	timelinemcp "github.com/kongken/mono/internal/bff/timeline/mcp"
 	bfftripmap "github.com/kongken/mono/internal/bff/tripmap"
 	"github.com/kongken/mono/internal/bff/upstream"
 	"github.com/kongken/mono/internal/bff/useradmin"
@@ -38,6 +40,7 @@ import (
 	"github.com/kongken/mono/internal/platform/grpcx"
 	"github.com/kongken/mono/internal/platform/health"
 	"github.com/kongken/mono/internal/platform/httpx"
+	bfftimelinev1connect "github.com/kongken/mono/pkg/proto/bff/timeline/v1/bfftimelinev1connect"
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
 	redisclient "github.com/redis/go-redis/v9"
@@ -291,6 +294,10 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 		if metroConn := clients.Conn(bffmetro.Service); metroConn != nil {
 			bffmetro.MountRPC(mux, metroConn, opts)
 		}
+		if timelineConn := clients.Conn(bfftimeline.Service); timelineConn != nil {
+			route, handler := bfftimelinev1connect.NewTimelineServiceHandler(bfftimeline.NewHandler(timelineConn), opts...)
+			mux.Handle(route, ingress.ConnectOnly(handler))
+		}
 	}
 	return http.StripPrefix("/api", mux), nil
 }
@@ -309,6 +316,8 @@ func (h *Handlers) cleaners(clients *upstream.Clients) []bffauth.UserDataCleaner
 			out = append(out, bfftripmap.NewCleaner(conn))
 		case bffmetro.Service:
 			out = append(out, bffmetro.NewCleaner(conn))
+		case bfftimeline.Service:
+			out = append(out, bfftimeline.NewCleaner(conn))
 		}
 	}
 	return out
@@ -354,7 +363,8 @@ func (h *Handlers) mountMCP(r *gin.Engine) {
 		return
 	}
 	conn := clients.Conn(bffmetro.Service)
-	if conn == nil {
+	connTimeline := clients.Conn(bfftimeline.Service)
+	if conn == nil && connTimeline == nil {
 		return
 	}
 	users := h.usersClient.Load()
@@ -372,12 +382,16 @@ func (h *Handlers) mountMCP(r *gin.Engine) {
 		}
 		perimeter = src
 	}
-	handler := bffmetro.NewMCP(conn, accesstoken.New(res.DB), users, ratelimit.New(res.Redis, res.KeyPrefix),
-		h.cfg.MCP.RateLimit(), perimeter)
-	// The trailing-slash spelling is served by the same handler, so the source perimeter answers it too: left
-	// to the router it would be an unauthenticated 307 that tells a caller outside the allowlist the route exists.
-	r.Any(mcp.Path, gin.WrapH(handler))
-	r.Any(mcp.Path+"/", gin.WrapH(handler))
+	if conn != nil {
+		handler := bffmetro.NewMCP(conn, accesstoken.New(res.DB), users, ratelimit.New(res.Redis, res.KeyPrefix), h.cfg.MCP.RateLimit(), perimeter)
+		r.Any(mcp.Path, gin.WrapH(handler))
+		r.Any(mcp.Path+"/", gin.WrapH(handler))
+	}
+	if connTimeline != nil {
+		handler := bfftimeline.NewMCP(connTimeline, accesstoken.New(res.DB), users, ratelimit.New(res.Redis, res.KeyPrefix), h.cfg.MCP.RateLimit(), perimeter)
+		r.Any(timelinemcp.Path, gin.WrapH(handler))
+		r.Any(timelinemcp.Path+"/", gin.WrapH(handler))
+	}
 }
 
 func (h *Handlers) mountPublicHTTP(r *gin.Engine) {

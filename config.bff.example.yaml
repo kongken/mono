@@ -17,6 +17,7 @@ upstreams:
   # metro (the second product) is optional: remove this line, grpc.services.metro and
   # auth.account_cleanup's metro entry to run the BFF without it.
   metro: http://127.0.0.1:18084
+  timeline: http://127.0.0.1:18088
 
 grpc:
   # Local loopback uses h2c: no CA or server_name. For TLS, run
@@ -34,6 +35,9 @@ grpc:
       transport: h2c
     metro:
       address: 127.0.0.1:18085
+      transport: h2c
+    timeline:
+      address: 127.0.0.1:18089
       transport: h2c
 
 internal_auth:
@@ -95,9 +99,9 @@ auth:
   # itself is read from usersrv on every request. Default 12h.
   admin_session_max_age: 12h
   # Products whose data account deletion removes; each needs its upstream.
-  # Default when unset: tripmap, plus metro when upstreams.metro is configured. A configured
-  # tripmap or metro upstream missing from this list makes the BFF refuse to start.
-  account_cleanup: [tripmap, metro]
+  # Default when unset: tripmap, plus metro and timeline when their upstreams are configured. A configured
+  # product upstream missing from this list makes the BFF refuse to start.
+  account_cleanup: [tripmap, metro, timeline]
   csrf_token_ttl: 24h    # optional; default 24h when unset
   cookie_secure: false   # true in production (HTTPS); Vite dev proxy is same-origin HTTP
   cookie_domain: ""      # default host-only; opt-in shared domain requires cookie_secure: true
@@ -127,6 +131,7 @@ cors_allowed_origins:
   - http://localhost:5174
   - http://localhost:5175   # OzID
   - http://localhost:5176   # admin console
+  - http://localhost:5178   # timeline
 
 # OzID (the user center) and the apps it may send the browser back to after sign-in or password
 # confirmation. A request names an app ID and a path; the server builds the address from this
@@ -141,6 +146,7 @@ cors_allowed_origins:
 #     trip-map: {origin: https://trip.example.com, paths: ["/status"]}   # /status: the public status page, a page a sign-in may return to
 #     metro:    {origin: https://metro.example.com, paths: ["/me", "/cities/*", "/topics", "/topics/*", "/u/*"]}   # the pages a sign-in may return to: personal page, city, topic and public profile pages
 #     admin:    {origin: https://admin.example.com, paths: ["/users", "/users/*", "/audit/users", "/metro", "/metro/*"]}
+#     timeline: {origin: https://timeline.example.com, paths: ["/", "/trash"]}   # the pages a sign-in may return to
 # Required while upstreams.usersrv is configured (api_origin and apps.ozid); a BFF without accounts may omit it.
 navigation:
   api_origin: http://localhost:18081
@@ -149,6 +155,7 @@ navigation:
     trip-map: {origin: http://localhost:5173, paths: ["/status"]}
     metro:    {origin: http://localhost:5174, paths: ["/me", "/cities/*", "/topics", "/topics/*", "/u/*"]}
     admin:    {origin: http://localhost:5176, paths: ["/users", "/users/*", "/audit/users", "/metro", "/metro/*"]}
+    timeline: {origin: http://localhost:5178, paths: ["/", "/trash"]}
 
 # The unified management console's perimeter (apps/admin, deploy/admin-web, docs/admin/features.md).
 # It guards every browser management API (user administration, the metro catalogue administration

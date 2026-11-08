@@ -19,10 +19,12 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `cmd/bff/`、`internal/bff/`（共用的账号与会话；各产品的领域适配在 `internal/bff/<产品>/`，tripmap 的在 `internal/bff/tripmap/`） | BFF：公网唯一浏览器 RPC（`bff.v1` 账号、`bff.<产品>.v1` 业务，Connect、Cookie/CSRF），经内部 gRPC（TLS / h2c）调 tripmap（[说明](bff.md)） |
 | `cmd/tripmap/` | Butterfly 服务入口，配置加载、启动、退出资源清理 |
 | `cmd/metro/`、`internal/metro/`（`app`、`application`、`config`、`ent`、`testutil`） | 地铁足迹业务服务：入口、装配与内部 gRPC、`CatalogService`/`AdminService`/`RiderService`/`AccountCleanupService`、配置、Ent 模型、隔离 schema 的测试辅助（[说明](#metro-服务地铁足迹)） |
+| `cmd/timeline/`、`internal/timeline/`（`app`、`application`、`config`、`ent`、`accountcleanup`） | Timeline 业务服务：账号归属记录、媒体元数据、无用户身份的对象清理队列与内部 `AccountCleanupService` |
 | `cmd/usersrv/`、`internal/usersrv/`（`app`、`application`、`account`、`identity`、`passwordhash`、`ratelimit`、`worker`、`mailer`、`outbox`、`config`、`ent`、`testutil`、`integration`）、`cmd/usersrv-admin/` | 自建用户系统（规格 [usersrv](usersrv/spec.md)）：服务入口、内部 gRPC `usersrv.v1`、账号与角色、Argon2id、限流、邮件 adapter 与加密 outbox、注册/登录/找回密码、运维命令；BFF 经内部 gRPC 调用（[账号核心](#usersrv-服务账号核心p1)、[邮件模块](#usersrv-邮件模块p2)、[账号流程](#usersrv-账号流程p3)） |
 | `proto/usersrv/v1/`、`migrations/usersrv/` | usersrv 的内部契约与版本化迁移 |
 | `internal/bff/metro/` | 地铁足迹的 BFF 适配（目录手写映射；管理与骑行者经 `relay` 线格式转换）与账号清理器 |
 | `proto/metro/v1/`、`proto/bff/metro/v1/`、`migrations/metro/` | metro 的内部与浏览器契约、版本化迁移 |
+| `proto/timeline/v1/`、`migrations/timeline/` | Timeline 内部账号清理契约与版本化迁移 |
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
 | `internal/tripmap/tiles/` | 可选的 Mapbox 瓦片代理：`GET /api/tiles/{z}/{x}/{y}.png` 的配置校验、请求校验、限流与上游访问（[说明](#mapbox-瓦片代理可选)） |
@@ -555,6 +557,14 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 **验证。** `internal/tripmap/integration/migrations_test.go`（随 `make test-integration` 和 CI 的 `go test ./...` 运行，需要 `TRIPMAP_TEST_POSTGRES_DSN`）在随机 schema 里先应用 baseline 并插入旧用户、城市足迹、快照和媒体行，再按上面的方式应用后续文件：检查旧行数据不变且新列取默认值、`city_trips` 为空，并要求迁移后的库与 `Schema.Create` 建出的库对 Ent 报告的待执行差异完全一致（Ent 对两条部分唯一索引的谓词文本有恒定的重建提示，两边同样出现，因此按“完全相同”比较）；另一个测试校验 `atlas.sum` 与文件一致。CI 与实际 PostgreSQL 一起运行这些测试。
 
+### Timeline 的版本化迁移
+
+Timeline（KON-90）的迁移按业务单独放在 `migrations/timeline/`：`20261107170000_baseline.sql` 是全新数据库的完整结构，`20261107180000_record_refs_mutations.sql` 是 KON-108 的纯新增变更（记录与媒体的不透明引用 `public_ref`、`entry_public_ref` 回填与格式约束，以及 `timeline_mutations` 变更回执表及其约束）。两个文件都只新增：回填用 `UPDATE` 加 `DO` 块检查，不删列、不改写既有行。开发时服务仍按 `auto_migrate` 从 Ent schema 建表，部署时按文件名顺序每个文件一个事务手工执行。
+
+**验证。** `internal/timeline/integration/migrations_test.go` 是这些文件唯一的实际执行点：开发环境的 `Schema.Create` 走的是 Ent 而不是这些 SQL，所以没有它，迁移与其中的 CHECK 约束就会在从未运行过的情况下发布。测试在随机 schema 里按部署顺序应用文件（需要 `TIMELINE_TEST_POSTGRES_DSN`，`make test-integration-timeline` 或 CI 的 `timeline-db` 任务）：先应用 baseline 并写入旧 Entry / Media 行再应用后续文件，检查旧行数据不变、引用格式正确且唯一、Media 行取自已经回填的 Entry 行（两步顺序不能对调），并检查 `timeline_mutations` 上每一种合法与非法 `target_kind` / `operation` / 引用组合（非法组合必须被 CHECK 以 `23514` 拒绝）、`(user_id, mutation_id)` 唯一（重放不能写出第二个结果）、回执在关联行被清理后仍然可读且快照不被改写；另一个测试校验 `atlas.sum` 与文件一致，并拒绝 `DROP` / `TRUNCATE` 类语句。CI 的 `Timeline migrations and receipts on PostgreSQL` 任务带真实 PostgreSQL 17 运行这些测试，并在任一场景被跳过时判定失败。
+
+**限制。** 与 tripmap 相同，没有内置的迁移执行器或版本表：部署时人工执行并记录已执行的版本，回滚依赖数据库备份。回执快照的“只写不改”由应用角色只被授予 `INSERT` / `SELECT` 保证，属于部署配置，不由 schema 强制，因此测试里只记录提示而不判定失败。
+
 **限制。** 迁移流水线只覆盖 PostgreSQL 结构；部署时仍需人工执行并记录已执行的版本（没有内置的迁移执行器或版本表）；回滚依赖数据库备份。
 
 ## metro 服务（地铁足迹）
@@ -760,6 +770,8 @@ npm run build
 ```bash
 make test-integration
 ```
+
+Timeline 的版本化迁移只在 PostgreSQL 上运行：`make test-integration-timeline` 使用同一套本地地址运行 `internal/timeline/integration`（每个测试独立 schema，只连接 PostgreSQL）；未设置 `TIMELINE_TEST_POSTGRES_DSN` 时这些场景跳过，CI 的 `timeline-db` 任务则必须全部通过。
 
 该命令使用 Compose 示例的本地地址和开发凭据，运行 `internal/tripmap/integration`、`internal/tripmap/application` 与 `internal/e2e`；同时设置 `USERSRV_TEST_POSTGRES_DSN`、`USERSRV_TEST_REDIS_ADDR`、`USERSRV_TEST_REDIS_PASSWORD`，因为 `internal/e2e` 的真实账号链需要 usersrv——**没有这些变量时账号链的测试会整体跳过（不算通过）**。使用其他测试环境时，设置 `TRIPMAP_TEST_POSTGRES_DSN`、`TRIPMAP_TEST_REDIS_ADDR`、`TRIPMAP_TEST_REDIS_PASSWORD`、`TRIPMAP_TEST_S3_ENDPOINT`、`TRIPMAP_TEST_S3_ACCESS_KEY`、`TRIPMAP_TEST_S3_SECRET_KEY`、`TRIPMAP_TEST_S3_BUCKET` 与上述 `USERSRV_TEST_*`，运行 `go test -v ./internal/tripmap/integration ./internal/tripmap/application ./internal/e2e`。**Redis 必须是真实的 Redis**：限流窗口过期（`ratelimit.TestWindowExpires`）依赖真实的 TTL，用内存模拟的 Redis 会让它失败；PostgreSQL 与 S3 也用与 CI 相同的版本（PostgreSQL 17、`rustfs/rustfs:1.0.1`）验证过。`internal/e2e` 另有真实 S3 的注销清理测试（`real_s3_deletion_chain_test.go`，设置 `TRIPMAP_TEST_S3_*` 时运行，带照片与未完成上传的账号注销后对象全部删除、他人对象保留）。设置 `E2E_REQUIRE_REAL_S3=1`（`make test-integration` 与 CI 的 Backend 任务已设置）后，这个测试与 `TestChainCloseAccountRecoversFromAnObjectStoreOutage` 在缺少任何 `TRIPMAP_TEST_S3_*` 变量时直接失败，而不是跳过或回退到内存存储；不设置时本地保持默认（内存存储 / 跳过）。
 

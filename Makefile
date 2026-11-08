@@ -1,9 +1,10 @@
-.PHONY: metro-migration bff-migration usersrv-migration build test ent ent-bff ent-metro ent-usersrv buf dev dev-bff dev-tripmap dev-metro dev-usersrv dev-metro-web dev-secrets deps-up deps-down storage-init migration vapid-keys check-import-boundaries check-docs
+.PHONY: metro-migration timeline-migration bff-migration usersrv-migration build test ent ent-bff ent-metro ent-timeline ent-usersrv buf dev dev-bff dev-tripmap dev-metro dev-timeline dev-usersrv dev-metro-web dev-secrets deps-up deps-down storage-init migration vapid-keys check-import-boundaries check-docs
 
 build:
 	go build -o bin/bff ./cmd/bff
 	go build -o bin/tripmap ./cmd/tripmap
 	go build -o bin/metro ./cmd/metro
+	go build -o bin/timeline ./cmd/timeline
 	go build -o bin/usersrv ./cmd/usersrv
 	go build -o bin/usersrv-admin ./cmd/usersrv-admin
 
@@ -24,6 +25,9 @@ ent-bff:
 
 ent-metro:
 	go generate ./internal/metro/ent
+
+ent-timeline:
+	go generate ./internal/timeline/ent
 
 ent-usersrv:
 	go generate ./internal/usersrv/ent
@@ -49,6 +53,9 @@ metro-migration:
 usersrv-migration:
 	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations/usersrv
 
+timeline-migration:
+	go run ./cmd/migrate-gen -name "$(NAME)" -dev "$(DEV_DSN)" -dir migrations/timeline
+
 # Writes dev-secrets/: the BFF's Ed25519 signing key pair (kid dev-1).
 # Local examples use h2c, so no TLS certificates are generated. For TLS use
 # `go run ./cmd/dev-secrets -tls`; add -force to explicitly rotate existing files.
@@ -61,7 +68,7 @@ dev-secrets:
 # product: 18084 (HTTP) and 18085 (gRPC); it needs its own database (see config.metro.example.yaml).
 # Run `make dev-secrets` first, or configure matching inline signing keys.
 dev:
-	$(MAKE) -j4 dev-bff dev-tripmap dev-metro dev-usersrv
+	$(MAKE) -j4 dev-bff dev-tripmap dev-metro dev-timeline dev-usersrv
 
 dev-bff:
 	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.bff.yaml PORT=18081 go run ./cmd/bff
@@ -77,6 +84,9 @@ dev-metro:
 # so `make dev` starts it too.
 dev-usersrv:
 	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.usersrv.yaml PORT=18086 go run ./cmd/usersrv
+
+dev-timeline:
+	BUTTERFLY_CONFIG_TYPE=file BUTTERFLY_CONFIG_FILE_PATH=./config.timeline.yaml PORT=18088 go run ./cmd/timeline
 
 # The metro web app (Vite on 5174, proxying /api to the BFF on 18081 for browsing the catalogue).
 # Signing in needs apps/metro/.env.local with VITE_API_BASE_URL (the BFF's public API base, e.g.
@@ -100,7 +110,7 @@ storage-init:
 	go run ./cmd/storage-init
 
 # Only the isolated Compose development services, never a production DSN.
-.PHONY: test-integration test-integration-usersrv
+.PHONY: test-integration test-integration-usersrv test-integration-timeline
 # internal/e2e runs the real BFF, usersrv, tripmap and metro together, so it also needs the
 # USERSRV_TEST_* settings (throwaway schemas and Redis key prefixes; without them every chain
 # test skips, which is not a pass).
@@ -120,3 +130,10 @@ test-integration-usersrv:
 	USERSRV_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
 	USERSRV_TEST_REDIS_ADDR=127.0.0.1:16379 USERSRV_TEST_REDIS_PASSWORD=tripmap-local \
 	go test -count=1 -v ./internal/usersrv/... ./cmd/usersrv-admin
+
+# Timeline migrations against PostgreSQL: each test creates a throwaway schema, applies
+# migrations/timeline/*.sql the way the deployment notes say to, and checks the backfill, the
+# CHECK constraints and the receipt rules on the database itself. Plain `make test` skips them.
+test-integration-timeline:
+	TIMELINE_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
+	go test -count=1 -v ./internal/timeline/integration

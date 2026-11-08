@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package timeline.v1;
+
+option go_package = "github.com/kongken/mono/pkg/proto/timeline/v1;timelinev1";
+
+service AccountCleanupService {
+  rpc CleanupUserData(CleanupUserDataRequest) returns (CleanupUserDataResponse);
+}
+
+message CleanupUserDataRequest { string user_id = 1; }
+message CleanupUserDataResponse {}

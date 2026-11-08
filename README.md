@@ -16,6 +16,7 @@
 | tripmap | `cmd/tripmap/`、`internal/tripmap/` | 足迹、行程、媒体、分享等旅行领域业务 | 内网 HTTP `127.0.0.1:18082`；内部 gRPC `127.0.0.1:18083`（默认 TLS，可显式选 h2c） |
 | usersrv（自建用户系统，P1–P6 已实现） | `cmd/usersrv/`、`internal/usersrv/`、`cmd/usersrv-admin/` | 邮箱＋密码账号、注册验证与找回密码流程、角色与账号安全状态、邮件发送模块（四种 adapter）；只有内部 gRPC，由 BFF 调用；登录、注册、找回密码与账号设置都在 OzID（P5 最初在 metro 实现，共用代码在 `packages/account`；T2 起新邮件统一落到 OzID，T10、T11 起 trip-map 与 metro 没有账号表单，只保留 OzID 入口和旧邮件的落地页），有镜像 `mono-usersrv` 与部署示例（[部署](docs/deployment.md#usersrv-的部署)）；真实邮件厂商没有实测，开放前须手动冒烟（见 [规格](docs/usersrv/spec.md#验证状态)） | 仅内网：HTTP `127.0.0.1:18086`、gRPC `127.0.0.1:18087`（需自己的数据库与 Redis） |
 | metro（地铁足迹，第二个产品，可选） | `apps/metro/`、`cmd/metro/`、`internal/metro/` | 城市、线路、车型目录与骑行者记录；管理后台；BFF 上的 MCP 端点（见 [功能描述](docs/metro/features.md)） | 前端 `http://localhost:5174`；内网 HTTP `127.0.0.1:18084`、gRPC `127.0.0.1:18085` |
+| timeline（Timeline 手账，KON-90） | `apps/timeline/`、`cmd/timeline/`、`internal/timeline/` | 按 Stitch 设计稿实现的记录页与“记一笔”抽屉、时间线（按月份与日期分节、检索与筛选、回收站）、BFF 上的 MCP 端点；附件区待附件服务接入（见 [功能描述](docs/timeline/features.md)） | 前端 `http://localhost:5178`；内网 HTTP `127.0.0.1:18088`、内部 gRPC |
 
 浏览器经 BFF 的 Connect 接口访问后端（账号与会话是共用的 `bff.v1`，山海足迹业务是 `bff.tripmap.v1`）；BFF 使用内部凭证，通过内部 gRPC（默认 TLS；可信内网可显式配置 h2c，见 [BFF](docs/bff.md#内部-grpc-与凭证)）调用 tripmap。tripmap 的 HTTP 端口提供 `/ping`、`/readyz` 健康检查；启用 Mapbox 底图时还提供匿名的 `GET /api/tiles/…`，由 BFF 转发。账号与会话保存在 BFF 的独立数据库，旅行数据由 tripmap 管理。当前有两个后端服务，其中 tripmap 是唯一的业务服务，详见 [BFF](docs/bff.md)。
 
@@ -27,6 +28,7 @@ apps/metro/           地铁足迹前端应用（含管理后台）
 apps/ozid/            OzID 用户中心前端应用
 apps/admin/           统一管理控制台前端应用（受控入口，T4；T8 起含 metro 目录管理）
 apps/homepage/        Oz Studio 站点前端应用（首页与 Chrome 插件列表）
+apps/timeline/        Timeline 手账前端应用（记录与时间线）
 packages/
   ui/                 共享 shadcn/ui 组件
   api-client/         Buf 生成的 TypeScript RPC 契约
@@ -38,6 +40,7 @@ cmd/
   bff/                BFF 服务入口
   tripmap/            旅行业务服务入口
   metro/              地铁足迹业务服务入口
+  timeline/           Timeline 记录业务服务入口
   usersrv/            用户系统账号核心（由 BFF 经内部 gRPC 调用）
   usersrv-admin/      usersrv 的角色与账号状态运维命令
   ...                 数据迁移、存储初始化与密钥生成工具
@@ -48,7 +51,7 @@ internal/
   e2e/                BFF → tripmap 端到端测试
 proto/                bff、tripmap 与 platform 的 Protobuf 契约
 pkg/proto/            生成的 Go RPC 代码
-migrations/           按 bff、tripmap、metro、usersrv 分开的版本化数据库迁移
+migrations/           按 bff、tripmap、metro、timeline、usersrv 分开的版本化数据库迁移
 deploy/               镜像构建、反向代理与部署示例
 docs/                 功能、数据、开发与部署文档
 ```
@@ -110,15 +113,17 @@ Vite 将 `/api`、`/s/` 和健康检查请求代理到 BFF `http://127.0.0.1:180
 | 前端 | `npm test` | 运行所有前端应用的脚本与业务逻辑测试（`npm run test:trip-map` 只跑山海足迹） |
 | 前端 | `npm run test:e2e:trip-map` | 运行 Playwright 浏览器测试 |
 | 前端 | `npm run build:metro`、`npm run test:metro`、`npm run test:e2e:metro` | 构建（需 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`）、单元测试与 Playwright 测试地铁足迹（浏览器测试使用模拟 BFF；真实跨 origin 链路 `METRO_BROWSER_E2E=1 go test ./internal/e2e -run TestMetroBrowserChain`） |
+| 前端 | `npm run build:timeline`、`npm run test:timeline`、`npm run test:e2e:timeline` | 构建（需 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`）、纯规则单元测试与按设计稿的 Playwright 验收（模拟 BFF）Timeline 手账 |
 | 地图与数据 | `npm run check:maps` | 检查地图、区域索引及前后端数据副本 |
 | 后端 | `make build` | 构建 BFF、tripmap、metro、usersrv 与 usersrv-admin 至 `bin/` |
 | 后端 | `make test-integration-usersrv` | 用本地 PostgreSQL 与 Redis 运行 usersrv 的全部测试（独立 schema 与 key 前缀） |
 | 后端 | `make test` | 运行 Go 测试，未配置存储连接时相关集成测试跳过 |
 | 后端 | `make test-integration` | 在独立的 Compose 开发依赖上验证存储与服务链路 |
+| 后端 | `make test-integration-timeline` | 在真实 PostgreSQL 上运行 Timeline 的版本化迁移与约束测试 |
 | 服务边界 | `make check-import-boundaries` | 检查后端模块依赖边界 |
 | 文档 | `make check-docs` | 检查 Markdown 相对链接的目标路径 |
 
-修改 `proto/` 后运行 `make buf`；修改 tripmap / BFF / metro / usersrv Ent schema 后分别运行 `make ent` / `make ent-bff` / `make ent-metro` / `make ent-usersrv`，生成文件随变更一起提交。生产关闭各服务的 `auto_migrate`，使用 `migrations/<服务>/` 中评审过的迁移，详见 [版本化数据库迁移](docs/backend.md#版本化数据库迁移)。
+修改 `proto/` 后运行 `make buf`；修改 tripmap / BFF / metro / usersrv / timeline Ent schema 后分别运行 `make ent` / `make ent-bff` / `make ent-metro` / `make ent-usersrv` / `make ent-timeline`，生成文件随变更一起提交。生产关闭各服务的 `auto_migrate`，使用 `migrations/<服务>/` 中评审过的迁移，详见 [版本化数据库迁移](docs/backend.md#版本化数据库迁移)。
 
 地图文件位于 `apps/trip-map/public/maps/`，区域、坐标、搜索索引与分享预览几何的更新命令和兼容规则见 [数据与地图说明](docs/trip-map/data-and-maps.md)。
 
@@ -148,6 +153,7 @@ usersrv 是唯一账号来源，运行时已没有 Logto，旧的 Logto 账号�
 - [功能描述](docs/trip-map/features.md)：山海足迹的功能规则、验收场景与当前限制。
 - [数据与地图说明](docs/trip-map/data-and-maps.md)：存储、备份、区域版本和地图维护。
 - [地铁足迹功能描述](docs/metro/features.md)：第二个产品的页面、管理后台、管理令牌与 MCP。
+- [Timeline 功能描述](docs/timeline/features.md)：记录与时间线契约、按设计稿实现的浏览器页面与当前限制。
 - [后端初始化](docs/backend.md)：依赖、配置、媒体直传、通知、模型与迁移。
 - [BFF](docs/bff.md)：认证、浏览器契约、内部 gRPC 与服务边界。
 - [usersrv 规格](docs/usersrv/spec.md)：自建用户系统的目标、分阶段交付与各阶段实现状态（P1–P6 已实现）。

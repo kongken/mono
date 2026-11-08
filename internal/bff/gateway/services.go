@@ -56,9 +56,13 @@ var Services = []Service{{
 		{Path: "/api/tiles/", Anonymous: true},
 	},
 }, {
-	// The metro product. Its browser API is bff.metro.v1 over Connect; its MCP
-	// endpoint is a BFF-owned route (BFFOwnedRoutes).
+	// The metro product is optional.
 	Name:     "metro",
+	GRPC:     true,
+	Optional: true,
+}, {
+	// Timeline is optional until its deployment is enabled.
+	Name:     "timeline",
 	GRPC:     true,
 	Optional: true,
 }}
@@ -107,6 +111,7 @@ var BFFOwnedRoutes = []Route{
 	// The metro MCP endpoint (MCP Streamable HTTP, stateless). It takes a Bearer
 	// management token only and ignores Cookies; the handler is internal/bff/metro/mcp.
 	{Path: "/mcp/metro", Method: "POST"},
+	{Path: "/mcp/timeline", Method: "POST"},
 }
 
 // BrowserHeaders supplements the shared Connect headers for BFF clients.

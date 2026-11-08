@@ -10,6 +10,7 @@ apps/
   metro/                前端应用“地铁足迹”：Vite + React，自己的路由与内存目录缓存，tests/（Playwright，模拟 BFF；`tests/real-stack` 是 `internal/e2e` `TestMetroBrowserChain` 的真实跨 origin 用例），没有账号表单（T11：账号入口都去 OzID），不含地图资源脚本
   admin/                前端应用“统一管理控制台”（T4）：Vite + React，匿名跳 OzID 登录、按真实角色分区、用户查询、（T5）普通账号状态/`metro-admin` 的受限修改与（T6）账号安全与管理审计查询页、（T8）metro 目录管理（城市、线路、车型、专题、导入/导出、目录审计、管理令牌，已从 `apps/metro` 迁入）；没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`；tests/ 有模拟 BFF 的 Playwright 与真实 BFF 的 real-stack 用例（由 internal/e2e 的 `TestAdminBrowserChain` 启动）
   ozid/                 前端应用“OzID 用户中心”：Vite + React，登录、注册、找回密码、邮件落地页（注册验证、密码重置）、概览、密码重新认证，以及资料、改密码与设备会话页面（T3）；没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL`；tests/ 有模拟 BFF 的 Playwright 与真实 BFF 的 real-stack 用例（由 internal/e2e 启动）
+  timeline/             前端应用“Timeline 手账”：Vite + React，按 Stitch 设计稿（项目 11000415110204392416，屏“Timeline 时间线与记一笔抽屉 - 桌面端”）实现时间线与“记一笔”抽屉；只调用 BFF 的 `bff.timeline.v1.TimelineService`，账号入口都去 OzID，没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`；tests/ 有模拟 BFF 的 Playwright（含按设计稿的版式与交互用例）；附件区已按设计稿画出，接入附件服务前不可用
   homepage/             前端应用“Oz Studio 站点”：Vite + React 多页构建（`index.html` 首页与 `extensions/index.html` 插件列表），没有账号或接口依赖，可独立部署到 Cloudflare Pages；页面与插件列表维护见 [站点功能描述](homepage/features.md)
 packages/
   ui/                   shadcn 组件与 cn()：@kongken/ui/button、dialog、input、utils
