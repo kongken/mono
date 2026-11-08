@@ -199,10 +199,12 @@ jobs:
           VITE_API_BASE_URL: https://api.example.com/api
       - run: npm run build:homepage
       # Timeline is the KON-90 application: it calls the BFF at the public origin like trip-map and
-      # metro, so it needs the same reserved example address (nothing is deployed from CI).
+      # metro, and sends every account page to OzID, so it needs both reserved example addresses
+      # (nothing is deployed from CI).
       - run: npm run build:timeline
         env:
           VITE_API_BASE_URL: https://api.example.com/api
+          VITE_OZID_ORIGIN: https://id.example.com
       # The console needs two public addresses and has no defaults (reserved example names).
       - run: npm run build:admin
         env:
@@ -218,6 +220,10 @@ jobs:
         run: npm run test:e2e:ozid
       - name: Browser acceptance for the admin console (mocked BFF)
         run: npm run test:e2e:admin
+      # The design's own screens, driven against a fake RecordService: the rail, the month and day
+      # rules, 检索/筛选, the 记一笔 drawer (including the refusal of an empty title) and 回收站.
+      - name: Browser acceptance for Timeline (mocked BFF, the design's screen)
+        run: npm run test:e2e:timeline
 
   # OzID in a real browser against the real BFF and usersrv: HTTPS, sibling sub-domains of a
   # reserved test site, the host-only Cookie, exact CORS/CSRF/Origin checks. It builds the OzID
