@@ -75,17 +75,23 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 
 ### Timeline
 
-Timeline 不能把根目录留空：仓库根的 `wrangler.json` 属于 homepage，Pages 会读到它并把构建目录固定为 `apps/homepage/dist`（这个文件就是这些字段的唯一来源，dashboard 里改不了）。它同样接管构建变量：文件里没有 `vars`，构建就看得到零变量，所以在 dashboard 里配的 `VITE_*` 也不会进入构建——日志里的 `Build environment variables: (none found)` 就是这个状态。于是 timeline 的产物不会被上传，变量也进不来。给 Timeline 建自己的 Pages 项目（项目名无关，关键是**根目录**），根目录指向应用目录，再用 `--prefix` 回到仓库根安装：
+Timeline 不能把根目录留空：仓库根的 `wrangler.json` 属于 homepage，Pages 会读到它并把构建目录固定为 `apps/homepage/dist`（这个文件就是这些字段的唯一来源，dashboard 里改不了）。它同样接管构建变量：文件里没有 `vars`，构建就看得到零变量，所以在 dashboard 里配的 `VITE_*` 也不会进入构建——日志里的 `Build environment variables: (none found)` 就是这个状态。于是 timeline 的产物不会被上传，变量也进不来。给 Timeline 建自己的 Pages 项目（项目名无关，关键是**根目录**），根目录指向应用目录，构建命令用应用自己的脚本：
 
 | 设置 | 值 |
 | --- | --- |
 | Root directory（根目录） | `apps/timeline` |
-| Install command | `npm ci --prefix ../..` |
+| Install command | 留空（默认 `npm ci`） |
 | Build command | `npm run build` |
 | Build output directory | `dist` |
 | `NODE_VERSION` | `24` |
 
-`apps/timeline` 下没有 wrangler 文件，所以这个项目的构建命令、输出目录和变量都由 dashboard 决定。workspace 依赖、根锁文件和 `packages/` 都在仓库根（构建时 `../..` 就是仓库根）：`npm ci --prefix ../..` 按根 `package-lock.json` 安装，`npm run build` 在 `apps/timeline` 里执行 `tsc -b && vite build`（用根 `node_modules` 的工具链），产物落在 `apps/timeline/dist`。这两个命令在本地按同样顺序验证过。想统一用根脚本时，Build command 写 `npm --prefix ../.. run build:timeline` 也一样。
+`apps/timeline` 下没有 wrangler 文件，所以这个项目的构建命令、输出目录和变量都由 dashboard 决定。三个字段都跟根目录绑定，很容易写错：
+
+- **Build command 必须是 `npm run build`**，不是根脚本 `npm run build:timeline`——`apps/timeline/package.json` 里只有 `build`，写根脚本会 `Missing script: "build:timeline"`。（改在仓库根执行也行，那就写 `npm --prefix apps/timeline run build`。）
+- **Build output directory 是相对根目录的 `dist`**，不是 `apps/timeline/dist`（那会变成 `apps/timeline/apps/timeline/dist`）。日志报 `Output directory ... not found` 时先看这个。
+- **Install command 可以留空**：npm 在 workspace 子目录里会按仓库根的 `package-lock.json` 安装（只在根 `node_modules` 里装 timeline 的依赖，本地用 npm 10.9.9 和 11.19.1 都验证过）。如果遇到 `npm ci` 报找不到 lockfile，改成 `npm ci --prefix ../..` 装全量 workspace。
+
+完整的命令序列在本地按同样顺序验证过：在 `apps/timeline` 里 `npm ci` → `VITE_API_BASE_URL=... VITE_OZID_ORIGIN=... npm run build` → `✓ built`，产物为 `apps/timeline/dist/{index.html,assets,favicon.svg}`。
 
 如果构建日志仍然显示读了 `wrangler.json` 并打印 `pages_build_output_dir: apps/homepage/dist` 或 `Build environment variables: (none found)`，说明这个 Pages 项目依旧从仓库根取配置——这两行出现时，dashboard 里写的构建命令、输出目录和变量都不生效。要么把根目录改成 `apps/timeline`，要么改用 GitHub Actions 跑 `npm run build:timeline`，再用 `wrangler pages deploy apps/timeline/dist --project-name <项目>` 直接上传（这条路径不经过 Pages 的构建环境，变量由 workflow 提供）。
 
