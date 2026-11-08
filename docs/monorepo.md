@@ -75,7 +75,7 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 
 ### Timeline
 
-Timeline 不能把根目录留空：仓库根的 `wrangler.json` 属于 homepage，Pages 会读到它并把构建目录固定为 `apps/homepage/dist`（这个文件就是这些字段的唯一来源，dashboard 里改不了），于是 timeline 的产物永远不会被上传。给 Timeline 建自己的 Pages 项目，根目录指向应用目录，再用 `--prefix` 回到仓库根安装：
+Timeline 不能把根目录留空：仓库根的 `wrangler.json` 属于 homepage，Pages 会读到它并把构建目录固定为 `apps/homepage/dist`（这个文件就是这些字段的唯一来源，dashboard 里改不了）。它同样接管构建变量：文件里没有 `vars`，构建就看得到零变量，所以在 dashboard 里配的 `VITE_*` 也不会进入构建——日志里的 `Build environment variables: (none found)` 就是这个状态。于是 timeline 的产物不会被上传，变量也进不来。给 Timeline 建自己的 Pages 项目（项目名无关，关键是**根目录**），根目录指向应用目录，再用 `--prefix` 回到仓库根安装：
 
 | 设置 | 值 |
 | --- | --- |
@@ -87,7 +87,7 @@ Timeline 不能把根目录留空：仓库根的 `wrangler.json` 属于 homepage
 
 `apps/timeline` 下没有 wrangler 文件，所以这个项目的构建命令、输出目录和变量都由 dashboard 决定。workspace 依赖、根锁文件和 `packages/` 都在仓库根（构建时 `../..` 就是仓库根）：`npm ci --prefix ../..` 按根 `package-lock.json` 安装，`npm run build` 在 `apps/timeline` 里执行 `tsc -b && vite build`（用根 `node_modules` 的工具链），产物落在 `apps/timeline/dist`。这两个命令在本地按同样顺序验证过。想统一用根脚本时，Build command 写 `npm --prefix ../.. run build:timeline` 也一样。
 
-如果构建日志仍然显示读到了 `wrangler.json` 并把输出目录写成 `apps/homepage/dist`，说明这个 Pages 项目没有按 `apps/timeline` 解析根目录：改用 GitHub Actions 跑 `npm run build:timeline`，再用 `wrangler pages deploy apps/timeline/dist --project-name <项目>` 直接上传。
+如果构建日志仍然显示读了 `wrangler.json` 并打印 `pages_build_output_dir: apps/homepage/dist` 或 `Build environment variables: (none found)`，说明这个 Pages 项目依旧从仓库根取配置——这两行出现时，dashboard 里写的构建命令、输出目录和变量都不生效。要么把根目录改成 `apps/timeline`，要么改用 GitHub Actions 跑 `npm run build:timeline`，再用 `wrangler pages deploy apps/timeline/dist --project-name <项目>` 直接上传（这条路径不经过 Pages 的构建环境，变量由 workflow 提供）。
 
 `VITE_API_BASE_URL`（BFF 的绝对公开地址，例如 `https://api.example.com/api`）与 `VITE_OZID_ORIGIN`（OzID 的 origin，例如 `https://id.example.com`）**都是必需的**：Timeline 与其他产品一样没有同源 `/api` 代理，会话 Cookie 属于 API 主机，所以缺少任一个时 `apps/timeline/vite.config.ts` 的构建门会让构建失败，而不是发布一个连不上自己数据的页面。
 
