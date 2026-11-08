@@ -59,7 +59,7 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 
 ## Cloudflare Pages 构建设置
 
-静态托管的前端应用各自一个 Pages 项目，构建根目录都留空（仓库根目录），因为 workspace 依赖和 `packages/` 在应用目录之外的位置。Pages 不运行前端镜像的 Nginx，所以页面只按下面的方式找到后端。
+静态托管的前端应用各自一个 Pages 项目。Pages 不运行前端镜像的 Nginx，所以页面只按下面的方式找到后端。根目录的选择不是任意的：仓库根的 `wrangler.json` 属于 homepage，被 Pages 读到就会接管构建目录（见下“Timeline”）；只有不把它拖进来的项目才能让 dashboard 决定这些字段。
 
 ### 山海足迹
 
@@ -75,17 +75,23 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 
 ### Timeline
 
+Timeline 不能把根目录留空：仓库根的 `wrangler.json` 属于 homepage，Pages 会读到它并把构建目录固定为 `apps/homepage/dist`（这个文件就是这些字段的唯一来源，dashboard 里改不了），于是 timeline 的产物永远不会被上传。给 Timeline 建自己的 Pages 项目，根目录指向应用目录，再用 `--prefix` 回到仓库根安装：
+
 | 设置 | 值 |
 | --- | --- |
-| Root directory（根目录） | 留空（仓库根目录） |
-| Build command | `npm run build:timeline` |
-| Build output directory | `apps/timeline/dist` |
-| Install command | 默认（在根目录执行） |
+| Root directory（根目录） | `apps/timeline` |
+| Install command | `npm ci --prefix ../..` |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
 | `NODE_VERSION` | `24` |
+
+`apps/timeline` 下没有 wrangler 文件，所以这个项目的构建命令、输出目录和变量都由 dashboard 决定。workspace 依赖、根锁文件和 `packages/` 都在仓库根（构建时 `../..` 就是仓库根）：`npm ci --prefix ../..` 按根 `package-lock.json` 安装，`npm run build` 在 `apps/timeline` 里执行 `tsc -b && vite build`（用根 `node_modules` 的工具链），产物落在 `apps/timeline/dist`。这两个命令在本地按同样顺序验证过。想统一用根脚本时，Build command 写 `npm --prefix ../.. run build:timeline` 也一样。
+
+如果构建日志仍然显示读到了 `wrangler.json` 并把输出目录写成 `apps/homepage/dist`，说明这个 Pages 项目没有按 `apps/timeline` 解析根目录：改用 GitHub Actions 跑 `npm run build:timeline`，再用 `wrangler pages deploy apps/timeline/dist --project-name <项目>` 直接上传。
 
 `VITE_API_BASE_URL`（BFF 的绝对公开地址，例如 `https://api.example.com/api`）与 `VITE_OZID_ORIGIN`（OzID 的 origin，例如 `https://id.example.com`）**都是必需的**：Timeline 与其他产品一样没有同源 `/api` 代理，会话 Cookie 属于 API 主机，所以缺少任一个时 `apps/timeline/vite.config.ts` 的构建门会让构建失败，而不是发布一个连不上自己数据的页面。
 
-Pages 的变量是项目的**构建时**变量（Pages 项目：Settings → Variables and secrets；Workers Builds：Settings → Build → Variables and secrets），**Production 与 Preview 是两套**：只保存在 Production 下的变量，预览分支的部署看不到。变量保存后也不会补进已有的构建，需要重新部署一次。构建失败时会打印这次构建实际能看到的 `VITE_*` 变量名（只有名字，不含值），可据此区分“变量没进这次构建”（环境选错、项目不对、保存后没重新部署）与“名字或值不对”。
+Pages 的变量是项目的**构建时**变量（Settings → Environment variables，新版界面叫 Variables and secrets），**Production 与 Preview 是两套**：只保存在 Production 下的变量，预览分支的部署看不到。变量保存后也不会补进已有的构建，需要重新部署一次。构建失败时会打印这次构建实际能看到的 `VITE_*` 变量名（只有名字，不含值），可据此区分“变量没进这次构建”（环境选错、项目不对、保存后没重新部署）与“名字或值不对”。构建日志开头 `Detected the following tools from environment` 应显示 `nodejs@24`——仓库 CI 用的就是 Node 24，报 22 说明 `NODE_VERSION` 没生效。
 
 Timeline 是单屏应用、没有前端路由，Pages 不需要额外的 SPA 回退规则。页面直接跨站点调用 BFF：`cors_allowed_origins` 必须包含该 Pages 域名，`navigation.apps.timeline` 用同一个 origin 登记（见 [Timeline 的部署](deployment.md#timeline-的部署)）。
 
