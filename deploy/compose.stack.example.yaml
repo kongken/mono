@@ -21,7 +21,7 @@ services:
       POSTGRES_PASSWORD: change-me
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # Creates the separate bff, usersrv and metro databases on the first start of an empty
+      # Creates the separate bff, usersrv, metro and timeline databases on the first start of an empty
       # volume (tripmap uses POSTGRES_DB's default, "tripmap"). Existing volumes: create them by hand.
       - ./postgres/init-databases.sql:/docker-entrypoint-initdb.d/10-init-databases.sql:ro
     healthcheck:
@@ -89,6 +89,20 @@ services:
       postgres: { condition: service_healthy }
     networks: [internal]
 
+  timeline:
+    image: ghcr.io/kongken/mono-timeline:main
+    volumes:
+      - ./config.timeline.yaml:/config/config.yaml:ro
+      - ./secrets/bff.pub:/secrets/bff.pub:ro
+    environment:
+      BUTTERFLY_CONFIG_TYPE: file
+      BUTTERFLY_CONFIG_FILE_PATH: /config/config.yaml
+      PORT: "18088"
+    expose: ["18088", "18089"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [internal]
+
   bff:
     image: ghcr.io/kongken/mono-bff:main
     volumes:
@@ -102,7 +116,7 @@ services:
       BUTTERFLY_CONFIG_FILE_PATH: /config/config.yaml
       PORT: "18081"
     expose: ["18081"]
-    depends_on: [usersrv, tripmap, metro, postgres, redis]
+    depends_on: [usersrv, tripmap, metro, timeline, postgres, redis]
     networks: [internal]
 
   # metro needs its own database (see config.metro.example.yaml) in the same
@@ -144,6 +158,13 @@ services:
   # It no longer proxies /api (answered 404); /mcp/metro and the health probes still go to the BFF.
   metro-web:
     image: ghcr.io/kongken/mono-metro-web:main
+    environment:
+      BACKEND_UPSTREAM: bff:18081
+    depends_on: [bff]
+    networks: [internal, edge]
+
+  timeline-web:
+    image: ghcr.io/kongken/mono-timeline-web:main
     environment:
       BACKEND_UPSTREAM: bff:18081
     depends_on: [bff]

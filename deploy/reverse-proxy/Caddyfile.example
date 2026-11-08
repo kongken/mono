@@ -165,6 +165,26 @@ metro.example.com {
 	}
 }
 
+# Timeline on its own host. Build deploy/timeline-web with the canonical API and OzID origins.
+timeline.example.com {
+	encode gzip zstd
+	header -Server
+	handle /mcp/timeline {
+		log_skip
+		request_body { max_size 2MB }
+		reverse_proxy bff:18081 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+	handle /api/* { respond 404 }
+	@probes path /ping /readyz
+	handle @probes { reverse_proxy bff:18081 }
+	handle { reverse_proxy timeline-web:80 }
+}
+
 # OzID (user center) on the three sibling hosts of one site. The session Cookie is host-only on
 # the API host: it is never given a Domain, and the browser sends it only to api.example.com.
 # id.example.com and the product hosts call that API origin with credentials (the BFF's exact

@@ -5,6 +5,7 @@ log:
   add_source: false
 
 db_store: timeline
+
 auto_migrate: true
 
 grpc:
@@ -16,4 +17,15 @@ internal_auth:
   audience: timeline
   trusted_keys:
     - kid: dev-1
-      file: dev-secrets/bff.pub
+      public_key_file: dev-secrets/bff.pub
+
+store:
+  db:
+    timeline:
+      driver: postgres
+      host: 127.0.0.1
+      port: 15432
+      user: tripmap
+      password: tripmap-local
+      db_name: timeline
+      ssl_mode: disable
