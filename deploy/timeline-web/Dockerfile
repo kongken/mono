@@ -27,7 +27,7 @@ COPY apps/timeline/scripts apps/timeline/scripts
 ARG VITE_API_BASE_URL
 ARG VITE_OZID_ORIGIN
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL VITE_OZID_ORIGIN=$VITE_OZID_ORIGIN
-RUN npm run test && npm run build
+RUN npm run test:timeline && npm run build:timeline
 
 FROM nginx:stable-alpine
 ENV BACKEND_UPSTREAM=bff:18081 NGINX_ENVSUBST_FILTER=BACKEND_UPSTREAM
