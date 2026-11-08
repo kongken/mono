@@ -59,7 +59,9 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 
 ## Cloudflare Pages 构建设置
 
-静态托管 `apps/trip-map`。仓库根目录需要保持为构建根目录，因为 workspace 依赖和 `packages/` 在根目录之外的位置：
+静态托管的前端应用各自一个 Pages 项目，构建根目录都留空（仓库根目录），因为 workspace 依赖和 `packages/` 在应用目录之外的位置。Pages 不运行前端镜像的 Nginx，所以页面只按下面的方式找到后端。
+
+### 山海足迹
 
 | 设置 | 值 |
 | --- | --- |
@@ -69,7 +71,23 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 | Install command | 默认（`npm ci` 或 `npm install`，在根目录执行） |
 | `NODE_VERSION` | `24` |
 
-构建时变量沿用原有名称：`VITE_API_BASE_URL`、`VITE_OSM_TILE_URL`、`VITE_OSM_TILE_MAX_ZOOM`、`VITE_OSM_TILE_ATTRIBUTION`、`VITE_OSM_TILE_PROVIDER`。Pages 不会运行前端镜像的 Nginx，因此 `/api/`、`/s/` 的同源转发不会自动存在：纯本地模式无需处理；启用后端时，`VITE_API_BASE_URL` 填 BFF 的绝对地址（BFF 负责跨域），分享链接的 OG 标签需要另行把 `/s/` 转发到 BFF（当前仓库没有提供 Pages 的转发配置）。
+构建时变量沿用原有名称：`VITE_API_BASE_URL`、`VITE_OSM_TILE_URL`、`VITE_OSM_TILE_MAX_ZOOM`、`VITE_OSM_TILE_ATTRIBUTION`、`VITE_OSM_TILE_PROVIDER`。`/api/`、`/s/` 的同源转发不会在 Pages 上自动存在：纯本地模式无需处理；启用后端时，`VITE_API_BASE_URL` 填 BFF 的绝对地址（BFF 负责跨域），分享链接的 OG 标签需要另行把 `/s/` 转发到 BFF（当前仓库没有提供 Pages 的转发配置）。
+
+### Timeline
+
+| 设置 | 值 |
+| --- | --- |
+| Root directory（根目录） | 留空（仓库根目录） |
+| Build command | `npm run build:timeline` |
+| Build output directory | `apps/timeline/dist` |
+| Install command | 默认（在根目录执行） |
+| `NODE_VERSION` | `24` |
+
+`VITE_API_BASE_URL`（BFF 的绝对公开地址，例如 `https://api.example.com/api`）与 `VITE_OZID_ORIGIN`（OzID 的 origin，例如 `https://id.example.com`）**都是必需的**：Timeline 与其他产品一样没有同源 `/api` 代理，会话 Cookie 属于 API 主机，所以缺少任一个时 `apps/timeline/vite.config.ts` 的构建门会让构建失败，而不是发布一个连不上自己数据的页面。
+
+Pages 的变量是项目的**构建时**变量（Pages 项目：Settings → Variables and secrets；Workers Builds：Settings → Build → Variables and secrets），**Production 与 Preview 是两套**：只保存在 Production 下的变量，预览分支的部署看不到。变量保存后也不会补进已有的构建，需要重新部署一次。构建失败时会打印这次构建实际能看到的 `VITE_*` 变量名（只有名字，不含值），可据此区分“变量没进这次构建”（环境选错、项目不对、保存后没重新部署）与“名字或值不对”。
+
+Timeline 是单屏应用、没有前端路由，Pages 不需要额外的 SPA 回退规则。页面直接跨站点调用 BFF：`cors_allowed_origins` 必须包含该 Pages 域名，`navigation.apps.timeline` 用同一个 origin 登记（见 [Timeline 的部署](deployment.md#timeline-的部署)）。
 
 ## 当前限制
 
