@@ -20,11 +20,20 @@ const proxy = {
 // records.
 export default defineConfig(({ command, mode }) => {
   if (command === "build") {
-    const env = loadEnv(mode, process.cwd(), "VITE_");
+    const envDir = process.cwd();
+    const env = loadEnv(mode, envDir, "VITE_");
+    // A host that hands its build settings over in the process environment (CI, Docker, Cloudflare Pages) is the
+    // normal case. A failed build says which `VITE_*` names it could actually see — names only, never values — so
+    // a variable that never reached this build is told apart from a misspelled one in the same log line.
+    const visible = Object.keys(env).sort().join(", ") || "none";
+    const sources =
+      `Vite read ${envDir} for mode "${mode}" and the process environment; the VITE_* names this build could see were: ${visible}. ` +
+      "On Cloudflare Pages the variables are the project's build-time variables (Settings → Build → Variables and secrets; " +
+      "Pages projects: Settings → Variables and secrets), Production and Preview are separate sets, and a saved variable only reaches the builds started after it.";
     const api = parseApiBase(env.VITE_API_BASE_URL);
-    if (!api.ok) throw new Error(`@kongken/timeline cannot be built: ${api.error}. Set it to the BFF's public API base (example: https://api.example.com/api).`);
+    if (!api.ok) throw new Error(`@kongken/timeline cannot be built: ${api.error}. Set it to the BFF's public API base (example: https://api.example.com/api). ${sources}`);
     const ozid = parseOrigin(env.VITE_OZID_ORIGIN, "VITE_OZID_ORIGIN");
-    if (!ozid.ok) throw new Error(`@kongken/timeline cannot be built: ${ozid.error}. Set it to the OzID origin (example: https://id.example.com).`);
+    if (!ozid.ok) throw new Error(`@kongken/timeline cannot be built: ${ozid.error}. Set it to the OzID origin (example: https://id.example.com). ${sources}`);
   }
   return {
     // The port matches the Timeline origin in the BFF's CORS list (config.bff.example.yaml).
