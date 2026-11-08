@@ -54,7 +54,7 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 1. 建 `apps/<名称>/`，带 `package.json`（`name` 取 `@kongken/<名称>`，依赖用到的 `@kongken/*` 包，版本写 `*`）。
 2. 复制 `apps/trip-map` 的 Vite、TypeScript 配置，在 CSS 入口加 `@source "…/packages/ui/src"`。
 3. 在根 `package.json` 增加按应用命名的转发脚本（`dev:<名称>`、`build:<名称>`、`test:<名称>` 等），或直接使用 `npm run <脚本> -w @kongken/<名称>`；根 `test` 会自动覆盖所有应用；根 `build` 只构建 trip-map（本地模式可无后端），metro、OzID 与控制台必须带绝对地址单独构建（`npm run build:metro`、`build:ozid`、`build:admin`）。
-4. 新增 `deploy/<名称>-web/Dockerfile`（镜像后缀 `-<名称>-web`），先复制各 workspace 的 `package.json` 再 `npm ci`，并在 `.github/workflows/docker-publish.yml` 的矩阵中登记；`.github/workflows/ci.yml` 增加对应测试。
+4. 新增 `deploy/<名称>-web/Dockerfile`（镜像后缀 `-<名称>-web`），先复制各 workspace 的 `package.json` 再 `npm ci`，并在 `.github/workflows/docker-publish.yml` 的矩阵中登记、在 `internal/release/publish_matrix_test.go` 的 `publishedMatrix` 中列出（该测试会拒绝缺失、重复或被替换的矩阵项）；`.github/workflows/ci.yml` 增加对应测试。
 5. 如需访问后端，在 BFF 路由表登记浏览器请求头（见 [BFF](bff.md)），应用只使用 `@kongken/api-client`。
 
 ## Cloudflare Pages 构建设置
