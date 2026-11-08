@@ -71,6 +71,12 @@ jobs:
           go run ./cmd/storage-init -config /tmp/tripmap-ci.yaml
       - name: Vet
         run: go vet ./...
+      # The Timeline release examples (its own config, the two image contexts, the compose stack, the
+      # Caddy site and the publish matrix's build arguments) are compiled nowhere, so this script is
+      # their check. It also rejects a Caddy block written on one line, which Caddy refuses to adapt:
+      # that shape broke the two-domain-set acceptance once, and the guard names the line.
+      - name: Timeline release examples (required)
+        run: ./deploy/validate-timeline.sh
       # Includes the PostgreSQL/Redis-backed auth and footprint tests, which are
       # skipped when the TRIPMAP_TEST_* variables are absent.
       - name: Test

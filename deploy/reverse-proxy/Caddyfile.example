@@ -166,12 +166,19 @@ metro.example.com {
 }
 
 # Timeline on its own host. Build deploy/timeline-web with the canonical API and OzID origins.
+# Every block is written out on its own lines: Caddy's adaptor refuses a block whose first token
+# shares the line with the opening brace, so `handle /api/* { respond 404 }` is not valid here
+# (deploy/validate-timeline.sh checks this, and the two-domain-set acceptance adapts this file).
 timeline.example.com {
 	encode gzip zstd
 	header -Server
+
+	# The MCP endpoint takes a Bearer token; keep it out of the access log.
 	handle /mcp/timeline {
 		log_skip
-		request_body { max_size 2MB }
+		request_body {
+			max_size 2MB
+		}
 		reverse_proxy bff:18081 {
 			header_up Host {host}
 			header_up X-Real-IP {remote_host}
@@ -179,10 +186,20 @@ timeline.example.com {
 			header_up X-Forwarded-Proto {scheme}
 		}
 	}
-	handle /api/* { respond 404 }
+
+	# The page calls the BFF's canonical public address, never a same-origin proxy of this site.
+	handle /api/* {
+		respond 404
+	}
+
 	@probes path /ping /readyz
-	handle @probes { reverse_proxy bff:18081 }
-	handle { reverse_proxy timeline-web:80 }
+	handle @probes {
+		reverse_proxy bff:18081
+	}
+
+	handle {
+		reverse_proxy timeline-web:80
+	}
 }
 
 # OzID (user center) on the three sibling hosts of one site. The session Cookie is host-only on
