@@ -14,7 +14,6 @@ type NavItem = {
 const navItems: NavItem[] = [
   { label: "探索产品", href: "/#products", section: "home", hideOnMobile: true },
   { label: "Chrome 插件", href: "/extensions/", section: "extensions" },
-  { label: "关于 Oz", href: "/#about", hideOnMobile: true },
 ];
 
 export function SiteHeader({ current }: { current: SiteSection }) {
