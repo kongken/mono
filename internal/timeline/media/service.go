@@ -17,6 +17,7 @@ import (
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
 	"github.com/kongken/mono/internal/timeline/ent/timelinemutation"
+	"github.com/kongken/mono/internal/timeline/refs"
 	"github.com/kongken/mono/internal/tripmap/blobstore"
 )
 
@@ -142,18 +143,6 @@ func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID strin
 	}
 	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, CreatedAt: m.CreatedAt}, nil
 }
-func validOpaqueRef(value, prefix string) bool {
-	if len(value) != len(prefix)+26 || !strings.HasPrefix(value, prefix) {
-		return false
-	}
-	for _, c := range value[len(prefix):] {
-		if !strings.ContainsRune("0123456789abcdefghjkmnpqrstvwxyz", c) {
-			return false
-		}
-	}
-	return true
-}
-
 func snapshotRef(snapshot map[string]any, key string) (string, bool) {
 	value, ok := snapshot[key]
 	if !ok {
@@ -176,7 +165,7 @@ func validDeleteReceipt(old *ent.TimelineMutation, hash, mediaRef string) bool {
 	entryRef := *old.EntryRef
 	snapshotMedia, mediaOK := snapshotRef(old.ResultSnapshot, "media_ref")
 	snapshotEntry, entryOK := snapshotRef(old.ResultSnapshot, "entry_ref")
-	return mediaOK && entryOK && validOpaqueRef(mediaRef, "med_") && validOpaqueRef(entryRef, "ent_") && snapshotMedia == mediaRef && snapshotEntry == entryRef
+	return mediaOK && entryOK && refs.Valid(mediaRef, "med_") && refs.Valid(entryRef, "ent_") && snapshotMedia == mediaRef && snapshotEntry == entryRef
 }
 
 func Delete(ctx context.Context, st *Store, userID, mediaRef, mutationID string, expectedRevision int) error {
