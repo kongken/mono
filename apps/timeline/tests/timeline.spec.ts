@@ -150,6 +150,23 @@ test("attachments upload, retry after direct upload failure, and remain listed a
   expect(fake.state.calls).toContain("bff.timeline.v1.MediaService/DeleteMedia");
 });
 
+test("same filename attachments stay isolated between records", async ({ page }) => {
+  const { today } = seed();
+  const fake = await fakeBackend(page, { entries: [] });
+  await page.goto("/");
+  for (const title of ["记录 A", "记录 B"]) {
+    await page.getByRole("button", { name: "写手账" }).click();
+    const drawer = page.getByRole("dialog", { name: "记一笔" });
+    await drawer.getByLabel(/今天发生了什么/).fill(title);
+    await drawer.getByLabel("日期").fill(today);
+    await drawer.locator("#timeline-attachments").setInputFiles({ name: "receipt.pdf", mimeType: "application/pdf", buffer: Buffer.from(title) });
+    await drawer.getByRole("button", { name: "保存记录" }).click();
+    await expect(drawer).not.toBeVisible();
+  }
+  expect(fake.state.media.filter((item) => item.status === "ready")).toHaveLength(2);
+  expect(new Set(fake.state.media.map((item) => item.entryRef))).toHaveSize(2);
+});
+
 
   const { today } = seed();
   const fake = await fakeBackend(page, { entries: [entryJson({ id: "e1", title: "和朋友吃午饭", date: today, category: "外出就餐" })] });

@@ -19,14 +19,14 @@ func (m *MediaHandler) PrepareUpload(c context.Context, r *connect.Request[bff.P
 	if e != nil {
 		return nil, upstream.ToConnect("timeline", e)
 	}
-	return connect.NewResponse(&bff.PrepareUploadResponse{UploadUrl: x.UploadUrl, Headers: x.Headers, ExpiresAt: x.ExpiresAt, Media: &bff.MediaInfo{MediaRef: x.Media.MediaRef, EntryRef: x.Media.EntryRef, Filename: x.Media.Filename, ContentType: x.Media.ContentType, SizeBytes: x.Media.SizeBytes, Status: x.Media.Status}}), nil
+	return connect.NewResponse(&bff.PrepareUploadResponse{UploadUrl: x.UploadUrl, Headers: x.Headers, ExpiresAt: x.ExpiresAt, Media: &bff.MediaInfo{MediaRef: x.Media.MediaRef, EntryRef: x.Media.EntryRef, Filename: x.Media.Filename, ContentType: x.Media.ContentType, SizeBytes: x.Media.SizeBytes, Status: x.Media.Status, CreatedAt: x.Media.CreatedAt}}), nil
 }
 func (m *MediaHandler) CompleteUpload(c context.Context, r *connect.Request[bff.CompleteUploadRequest]) (*connect.Response[bff.CompleteUploadResponse], error) {
 	x, e := m.client.CompleteUpload(c, &v1.CompleteUploadRequest{MediaRef: r.Msg.MediaRef, MutationId: r.Msg.MutationId})
 	if e != nil {
 		return nil, upstream.ToConnect("timeline", e)
 	}
-	return connect.NewResponse(&bff.CompleteUploadResponse{Media: &bff.MediaInfo{MediaRef: x.Media.MediaRef, EntryRef: x.Media.EntryRef, Filename: x.Media.Filename, ContentType: x.Media.ContentType, SizeBytes: x.Media.SizeBytes, Status: x.Media.Status}}), nil
+	return connect.NewResponse(&bff.CompleteUploadResponse{Media: &bff.MediaInfo{MediaRef: x.Media.MediaRef, EntryRef: x.Media.EntryRef, Filename: x.Media.Filename, ContentType: x.Media.ContentType, SizeBytes: x.Media.SizeBytes, Status: x.Media.Status, CreatedAt: x.Media.CreatedAt}}), nil
 }
 func (m *MediaHandler) ListMedia(c context.Context, r *connect.Request[bff.ListMediaRequest]) (*connect.Response[bff.ListMediaResponse], error) {
 	x, e := m.client.ListMedia(c, &v1.ListMediaRequest{EntryRef: r.Msg.EntryRef})
@@ -35,7 +35,7 @@ func (m *MediaHandler) ListMedia(c context.Context, r *connect.Request[bff.ListM
 	}
 	o := &bff.ListMediaResponse{}
 	for _, v := range x.Media {
-		o.Media = append(o.Media, &bff.MediaInfo{MediaRef: v.MediaRef, EntryRef: v.EntryRef, Filename: v.Filename, ContentType: v.ContentType, SizeBytes: v.SizeBytes, Status: v.Status})
+		o.Media = append(o.Media, &bff.MediaInfo{MediaRef: v.MediaRef, EntryRef: v.EntryRef, Filename: v.Filename, ContentType: v.ContentType, SizeBytes: v.SizeBytes, Status: v.Status, CreatedAt: v.CreatedAt})
 	}
 	return connect.NewResponse(o), nil
 }

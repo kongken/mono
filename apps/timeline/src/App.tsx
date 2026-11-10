@@ -53,6 +53,14 @@ function putUpload(url: string, file: File, headers: Record<string, string>, onP
   });
 }
 
+function fileIdentity(file: File): string {
+  return `${file.name}:${file.size}:${file.lastModified}:${file.type}`;
+}
+
+function uploadSessionKey(entryRef: string, file: File): string {
+  return `${entryRef}:${fileIdentity(file)}`;
+}
+
 export default function App() {
   const [view, setView] = useState<View>("timeline");
   const [pending, setPending] = useState<FilterState>(EMPTY_FILTERS);
@@ -167,6 +175,14 @@ export default function App() {
     setComposerOpen(true);
   };
 
+  const closeComposer = () => {
+    setComposerOpen(false);
+    setPendingEntryRef(null);
+    uploadedFiles.current.clear();
+    uploadSessions.current.clear();
+    setUploadStatus({});
+  };
+
   const submitDraft = async (draft: DraftEntry, files: File[] = []) => {
     const checked = validateDraft(draft);
     if (checked.ok === false) {
@@ -195,9 +211,10 @@ export default function App() {
       );
       entryRef = pendingEntryRef ?? created?.entry?.entryRef ?? created?.entry?.id;
       for (const file of files) {
-        if (uploadedFiles.current.has(file.name)) continue;
+        const sessionKey = uploadSessionKey(entryRef ?? "", file);
+        if (uploadedFiles.current.has(sessionKey)) continue;
         setUploadStatus((current) => ({ ...current, [file.name]: { progress: 0 } }));
-        const session = uploadSessions.current.get(file.name);
+        const session = uploadSessions.current.get(sessionKey);
         const uploadMutationId = session?.mutationId ?? mutationID();
         let uploadUrl = session?.uploadUrl ?? "";
         let uploadHeaders = session?.headers ?? {};
@@ -207,14 +224,17 @@ export default function App() {
           uploadUrl = prepared.uploadUrl;
           uploadHeaders = prepared.headers;
           mediaRef = prepared.media?.mediaRef ?? "";
-          uploadSessions.current.set(file.name, { mutationId: uploadMutationId, mediaRef, uploadUrl, headers: uploadHeaders });
+          uploadSessions.current.set(sessionKey, { mutationId: uploadMutationId, mediaRef, uploadUrl, headers: uploadHeaders });
         }
         await putUpload(uploadUrl, file, uploadHeaders, (progress) => setUploadStatus((current) => ({ ...current, [file.name]: { progress } })));
         await write(() => media.completeUpload({ mediaRef, mutationId: uploadMutationId }));
         setUploadStatus((current) => ({ ...current, [file.name]: { progress: 100 } }));
-        uploadedFiles.current.add(file.name);
+        uploadedFiles.current.add(sessionKey);
       }
       setPendingEntryRef(null);
+      uploadedFiles.current.clear();
+      uploadSessions.current.clear();
+      setUploadStatus({});
       setComposerOpen(false);
       await load(view === "trash");
     } catch (error) {
@@ -398,7 +418,7 @@ export default function App() {
           saving={saving}
           error={saveError}
           uploadStatus={uploadStatus}
-          onClose={() => setComposerOpen(false)}
+          onClose={closeComposer}
           onSubmit={(draft, files) => void submitDraft(draft, files)}
           onRetryFile={(draft, file) => void submitDraft(draft, [file])}
         />
