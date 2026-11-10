@@ -36,6 +36,10 @@ type Media struct {
 	Ref, EntryRef, Filename, ContentType, Status string
 	SizeBytes                                    int64
 	UploadURL                                    string
+	// Headers the client must send with the PUT: the signature covers Content-Type, so a browser that sets its own
+	// breaks the signature. Dropping them here is what makes a presigned upload fail with SignatureDoesNotMatch.
+	Headers   map[string]string
+	ExpiresAt time.Time
 }
 
 func validate(u Upload) error {
@@ -74,14 +78,14 @@ func Prepare(ctx context.Context, st *Store, userID string, u Upload) (*Media, e
 	if err != nil {
 		return nil, err
 	}
-	url, _, err := signer.SignUpload(ctx, key, u.SizeBytes, u.ContentType, 10*time.Minute)
+	url, headers, err := signer.SignUpload(ctx, key, u.SizeBytes, u.ContentType, 10*time.Minute)
 	if err != nil {
 		return nil, err
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, UploadURL: url}, nil
+	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, UploadURL: url, Headers: headers, ExpiresAt: exp}, nil
 }
 func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID string) (*Media, error) {
 	if st == nil || st.DB == nil || st.Blobs == nil || userID == "" || mediaRef == "" || mutationID == "" {

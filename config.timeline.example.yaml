@@ -16,6 +16,7 @@ storage:
   s3_store: timeline
   key_prefix: timeline/
 
+internal_auth:
   issuer: tripmap-bff
   audience: timeline
   trusted_keys:
@@ -32,3 +33,12 @@ store:
       password: tripmap-local
       db_name: timeline
       ssl_mode: disable
+  s3:
+    timeline:
+      endpoint: http://127.0.0.1:19000
+      region: us-east-1
+      bucket: timeline
+      access_key_id: timeline-local
+      secret_access_key: timeline-local-secret
+      use_path_style: true
+      use_ssl: false

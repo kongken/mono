@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Code, ConnectError } from "@connectrpc/connect";
 import { Plus, WarningCircle } from "@phosphor-icons/react";
 import type { AccountProfile } from "@kongken/account/api";
 import type { Entry } from "@kongken/api-client/bff/timeline/v1/timeline_pb";
@@ -10,6 +9,7 @@ import { Sidebar } from "@/components/Sidebar.tsx";
 import { Timeline } from "@/components/Timeline.tsx";
 import { TopBar } from "@/components/TopBar.tsx";
 import { Trash } from "@/components/Trash.tsx";
+import { explainUploadFailure, type UploadItem } from "@/lib/attachments.ts";
 import { resolveOzid } from "@/lib/config.ts";
 import {
   EMPTY_FILTERS,
@@ -22,24 +22,8 @@ import {
   type FilterState,
   type View,
 } from "@/lib/entries.ts";
+import { describeError, isUnauthenticated } from "@/lib/errors.ts";
 import { account, media, mutationID, setTransportAccount, timeline, write } from "@/lib/rpc.ts";
-
-/** One sentence a person can act on, whatever the transport threw. */
-function describeError(error: unknown, fallback: string): string {
-  const e = ConnectError.from(error);
-  switch (e.code) {
-    case Code.Unauthenticated:
-      return "登录已失效，请重新登录后再试。";
-    case Code.PermissionDenied:
-      return "请求被拒绝：可能是登录状态或来源校验过期，刷新页面后重试。";
-    case Code.Aborted:
-      return "这条记录刚在别处改过，刷新后再试。";
-    case Code.NotFound:
-      return "这条记录已经不在了。";
-    default:
-      return e.rawMessage === "" ? fallback : e.rawMessage;
-  }
-}
 
 export default function App() {
   const [view, setView] = useState<View>("timeline");
@@ -59,6 +43,11 @@ export default function App() {
   const [composerSeed, setComposerSeed] = useState<DraftEntry>(() => emptyDraft());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // The files of the record currently being saved, and which record they belong to: a retry uploads the failed ones
+  // into the record already written instead of writing a second one.
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const pendingEntryRef = useRef<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Only the newest list answer may land: typing in the search box must not let an older page overwrite a newer one.
   const sequence = useRef(0);
@@ -91,7 +80,7 @@ export default function App() {
         setTransportAccount(me.user.id);
       } catch (error) {
         if (cancelled) return;
-        if (ConnectError.from(error).code === Code.Unauthenticated) {
+        if (isUnauthenticated(error)) {
           setSignedOut(true);
           setProfile(null);
           setEntries([]);
@@ -115,7 +104,18 @@ export default function App() {
         const response = await timeline.listEntries({ ...listRequest(applied, includeDeleted), pageToken, pageSize: 100 });
         if (mine !== sequence.current) return;
         setEntries((current) => (pageToken === "" ? response.entries : [...current, ...response.entries]));
-        const listed = await Promise.all(response.entries.map(async (entry) => [entry.entryRef, (await media.listMedia({ entryRef: entry.entryRef })).media] as const));
+        // One list per record; a failed media read is reported as "no attachments" for that record rather than
+        // blanking the timeline: the records are the page, the attachments hang off them.
+        const listed = await Promise.all(
+          response.entries.map(async (entry) => {
+            try {
+              const answer = await media.listMedia({ entryRef: entry.entryRef });
+              return [entry.entryRef, answer.media] as const;
+            } catch {
+              return [entry.entryRef, [] as MediaInfo[]] as const;
+            }
+          }),
+        );
         setAttachments((current) => ({ ...current, ...Object.fromEntries(listed) }));
         setNextToken(response.nextPageToken);
       } catch (error) {
@@ -143,12 +143,67 @@ export default function App() {
     [entries, view],
   );
   const months = useMemo(() => groupEntries(visible), [visible]);
+  // A failed read is an error, not an empty record book: with nothing loaded the error is the whole page; a
+  // refresh that fails over records already on screen keeps them and shows the error above.
+  const readFailed = listError !== null && visible.length === 0;
+
   const today = localToday();
 
   const openComposer = () => {
     setComposerSeed(emptyDraft());
     setSaveError(null);
+    setUploads([]);
+    pendingEntryRef.current = null;
     setComposerOpen(true);
+  };
+
+  const closeComposer = () => {
+    setComposerOpen(false);
+    setUploads([]);
+    pendingEntryRef.current = null;
+  };
+
+  /**
+   * Signs, uploads and completes one file, straight to the object store: three steps the server checks in order
+   * (size, type and the document's own bytes at Complete). Nothing here retries by itself — the caller decides.
+   */
+  const uploadOne = async (entryRef: string, file: File) => {
+    const uploadMutationId = mutationID();
+    const prepared = await write(() =>
+      media.prepareUpload({ entryRef, filename: file.name, contentType: file.type, sizeBytes: BigInt(file.size), mutationId: uploadMutationId }),
+    );
+    if (prepared.uploadUrl === "" || prepared.media === undefined) throw new Error("服务端没有给出上传地址");
+    const answer = await fetch(prepared.uploadUrl, {
+      method: "PUT",
+      // The presigned URL signs Content-Type: the server's own headers win, and the file's type is only a fallback.
+      headers: { "Content-Type": file.type, ...prepared.headers },
+      body: file,
+      // The signed URL carries its own authorisation: the session Cookie is not sent to the object store.
+      credentials: "omit",
+    });
+    if (!answer.ok) throw new Error(`上传失败（HTTP ${answer.status}）`);
+    await write(() => media.completeUpload({ mediaRef: prepared.media!.mediaRef, mutationId: uploadMutationId }));
+  };
+
+  /**
+   * Runs the queue of files against an already-written record, one at a time, and reports how many failed. The
+   * record is never written again: a retry only re-signs the files that did not make it.
+   */
+  const runUploads = async (entryRef: string, items: UploadItem[], queue: number[]): Promise<number> => {
+    setUploads(items);
+    let failed = 0;
+    for (const index of queue) {
+      setUploads((current) => current.map((item, at) => (at === index ? { ...item, status: "uploading", message: undefined } : item)));
+      try {
+        await uploadOne(entryRef, items[index]!.file);
+        setUploads((current) => current.map((item, at) => (at === index ? { ...item, status: "done" } : item)));
+      } catch (error) {
+        failed += 1;
+        const message = explainUploadFailure(describeError(error, "上传失败"));
+        setUploads((current) => current.map((item, at) => (at === index ? { ...item, status: "failed", message } : item)));
+      }
+    }
+    return failed;
   };
 
   const submitDraft = async (draft: DraftEntry, files: File[] = []) => {
@@ -159,33 +214,63 @@ export default function App() {
     }
     setSaving(true);
     setSaveError(null);
+    setNotice(null);
     try {
-      const created = await write(() =>
-        timeline.createEntry({
-          mutationId: mutationID(),
-          entry: {
-            title: draft.title.trim(),
-            date: draft.date,
-            time: draft.time,
-            timezone: draft.timezone,
-            category: draft.category.trim(),
-            location: draft.location.trim(),
-            amountMinor: checked.amountMinor,
-            currency: draft.amount.trim() === "" ? "" : draft.currency,
-            note: draft.note.trim(),
-          },
-        }),
-      );
-      for (const file of files) {
-        const uploadMutationId = mutationID();
-        const prepared = await write(() => media.prepareUpload({ entryRef: created.entry?.entryRef ?? "", filename: file.name, contentType: file.type, sizeBytes: BigInt(file.size), mutationId: uploadMutationId }));
-        await fetch(prepared.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
-        await write(() => media.completeUpload({ mediaRef: prepared.media?.mediaRef ?? "", mutationId: uploadMutationId }));
+      let entryRef = pendingEntryRef.current;
+      if (entryRef === null) {
+        const created = await write(() =>
+          timeline.createEntry({
+            mutationId: mutationID(),
+            entry: {
+              title: draft.title.trim(),
+              date: draft.date,
+              time: draft.time,
+              timezone: draft.timezone,
+              category: draft.category.trim(),
+              location: draft.location.trim(),
+              amountMinor: checked.amountMinor,
+              currency: draft.amount.trim() === "" ? "" : draft.currency,
+              note: draft.note.trim(),
+            },
+          }),
+        );
+        entryRef = created.entry?.entryRef ?? "";
+        if (entryRef === "") throw new Error("记录已保存，但没有拿到它的引用");
+        pendingEntryRef.current = entryRef;
       }
-      setComposerOpen(false);
+
+      const items: UploadItem[] = files.map((file) => ({ file, status: "pending" }));
+      const failed = await runUploads(entryRef, items, items.map((_item, index) => index));
+      if (failed > 0) {
+        setSaveError(`记录已经保存，但有 ${failed} 个附件没传上去。点「重试上传」只补传这些附件，记录不会再写一次。`);
+        return;
+      }
+      closeComposer();
       await load(view === "trash");
     } catch (error) {
       setSaveError(describeError(error, "保存失败"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** Retries only the files that failed, against the record the first attempt already wrote. */
+  const retryUploads = async () => {
+    const entryRef = pendingEntryRef.current;
+    if (entryRef === null) return;
+    const queue = uploads.flatMap((item, index) => (item.status === "failed" ? [index] : []));
+    if (queue.length === 0) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const items = uploads.map((item) => (item.status === "failed" ? { ...item, status: "pending" as const, message: undefined } : item));
+      const failed = await runUploads(entryRef, items, queue);
+      if (failed > 0) {
+        setSaveError(`还有 ${failed} 个附件没传上去。可以再试一次，或者先关掉这里，记录已经保存了。`);
+        return;
+      }
+      closeComposer();
+      await load(view === "trash");
     } finally {
       setSaving(false);
     }
@@ -291,6 +376,10 @@ export default function App() {
               </p>
             )}
 
+            {notice !== null && (
+              <p className="mt-6 rounded-md bg-surface-container px-3 py-2 text-xs text-primary">{notice}</p>
+            )}
+
             {signedOut && (
               <div className="mt-10 rounded-card border border-outline-variant bg-card px-8 py-12 text-center">
                 <p className="text-[15px] font-medium text-card-foreground">请先登录</p>
@@ -318,7 +407,7 @@ export default function App() {
 
             {!signedOut && loading && visible.length === 0 && <p className="mt-10 text-sm text-muted-foreground">正在读取记录…</p>}
 
-            {!signedOut && !loading && view === "timeline" && (
+            {!signedOut && !loading && !readFailed && view === "timeline" && (
               <Timeline
                 months={months}
                 empty={visible.length === 0}
@@ -327,10 +416,15 @@ export default function App() {
                 onLoadMore={() => void load(false, nextToken)}
                 media={attachments}
                 onDelete={(entry) => void removeEntry(entry)}
+                onMediaDeleted={(entryRef, mediaRef) => {
+                  setAttachments((current) => ({ ...current, [entryRef]: (current[entryRef] ?? []).filter((item) => item.mediaRef !== mediaRef) }));
+                  setNotice("附件已删除，存储空间会在后台回收。");
+                }}
+                onMediaError={setActionError}
               />
             )}
 
-            {!signedOut && !loading && view === "trash" && (
+            {!signedOut && !loading && !readFailed && view === "trash" && (
               <Trash entries={visible} onRestore={(entry) => void restoreEntry(entry)} onPurge={(entry) => void purgeEntry(entry)} />
             )}
           </div>
@@ -344,7 +438,9 @@ export default function App() {
           categories={categories}
           saving={saving}
           error={saveError}
-          onClose={() => setComposerOpen(false)}
+          uploads={uploads}
+          onRetry={() => void retryUploads()}
+          onClose={closeComposer}
           onSubmit={(draft, files) => void submitDraft(draft, files)}
         />
       )}
