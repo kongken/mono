@@ -71,6 +71,7 @@ export async function fakeBackend(page: Page, opts: { signedIn?: boolean; entrie
     writes: [] as { procedure: string; csrf: string | undefined; body: Record<string, any> }[],
     entries: [...(opts.entries ?? [])],
     media: [] as MediaJson[],
+    uploadFailures: 0,
   };
 
   const failure = (status: number, code: string, message: string) => ({ status, body: { code, message } });
@@ -160,6 +161,11 @@ export async function fakeBackend(page: Page, opts: { signedIn?: boolean; entrie
   async function answer(route: Route) {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname.startsWith("/api/upload/")) {
+      if (state.uploadFailures > 0) {
+        state.uploadFailures -= 1;
+        await route.fulfill({ status: 503, body: "upload failed" });
+        return;
+      }
       await route.fulfill({ status: 200, body: "" });
       return;
     }

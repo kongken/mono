@@ -125,7 +125,32 @@ test("记一笔 refuses an empty title, then saves the design's fields in one wr
   await expect(page.getByText("1 条记录")).toBeVisible();
 });
 
-test("a record moved to 回收站 can be restored from there", async ({ page }) => {
+test("attachments upload, retry after direct upload failure, and remain listed after refresh", async ({ page }) => {
+  const { today } = seed();
+  const fake = await fakeBackend(page, { entries: [] });
+  fake.state.uploadFailures = 1;
+  await page.goto("/");
+  await page.getByRole("button", { name: "写手账" }).click();
+  const drawer = page.getByRole("dialog", { name: "记一笔" });
+  await drawer.getByLabel(/今天发生了什么/).fill("带附件的记录");
+  await drawer.getByLabel("日期").fill(today);
+  await drawer.locator("#timeline-attachments").setInputFiles({ name: "receipt.pdf", mimeType: "application/pdf", buffer: Buffer.from("pdf") });
+  await drawer.getByRole("button", { name: "保存记录" }).click();
+  await expect(drawer.getByText("上传失败，可重试")).toBeVisible();
+  await drawer.getByRole("button", { name: "保存记录" }).click();
+  await expect(drawer).not.toBeVisible();
+  await expect(page.locator("article", { hasText: "带附件的记录" })).toContainText("receipt.pdf");
+  expect(fake.state.media.filter((item) => item.status === "ready")).toHaveLength(1);
+  await page.reload();
+  await expect(page.locator("article", { hasText: "带附件的记录" })).toContainText("receipt.pdf");
+  await page.getByRole("button", { name: "receipt.pdf" }).click();
+  expect(fake.state.calls).toContain("bff.timeline.v1.MediaService/ReadMedia");
+  await page.getByRole("button", { name: "删除附件 receipt.pdf" }).click();
+  await expect(page.locator("article", { hasText: "带附件的记录" })).not.toContainText("receipt.pdf");
+  expect(fake.state.calls).toContain("bff.timeline.v1.MediaService/DeleteMedia");
+});
+
+
   const { today } = seed();
   const fake = await fakeBackend(page, { entries: [entryJson({ id: "e1", title: "和朋友吃午饭", date: today, category: "外出就餐" })] });
   await page.goto("/");
