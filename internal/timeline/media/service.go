@@ -154,13 +154,28 @@ func validOpaqueRef(value, prefix string) bool {
 	return true
 }
 
+func snapshotRef(snapshot map[string]any, key string) (string, bool) {
+	value, ok := snapshot[key]
+	if !ok {
+		return "", false
+	}
+	switch value := value.(type) {
+	case string:
+		return value, true
+	case []byte:
+		return string(value), true
+	default:
+		return "", false
+	}
+}
+
 func validDeleteReceipt(old *ent.TimelineMutation, hash, mediaRef string) bool {
 	if old == nil || old.RequestHash != hash || old.TargetKind != "media" || old.Operation != "media_delete" || old.MediaRef == nil || *old.MediaRef != mediaRef || old.EntryRef == nil || old.ResultState != "deleting" || old.SnapshotVersion != 1 {
 		return false
 	}
 	entryRef := *old.EntryRef
-	snapshotMedia, mediaOK := old.ResultSnapshot["media_ref"].(string)
-	snapshotEntry, entryOK := old.ResultSnapshot["entry_ref"].(string)
+	snapshotMedia, mediaOK := snapshotRef(old.ResultSnapshot, "media_ref")
+	snapshotEntry, entryOK := snapshotRef(old.ResultSnapshot, "entry_ref")
 	return mediaOK && entryOK && validOpaqueRef(mediaRef, "med_") && validOpaqueRef(entryRef, "ent_") && snapshotMedia == mediaRef && snapshotEntry == entryRef
 }
 
