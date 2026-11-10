@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"entgo.io/ent/dialect/sql"
 	"errors"
 	"github.com/kongken/mono/internal/timeline/ent"
 	"github.com/kongken/mono/internal/timeline/ent/cleanupobject"
@@ -73,9 +74,7 @@ func Run(ctx context.Context, st *Store, userID string) error {
 			if key == "" {
 				continue
 			}
-			// DoNothing, not Ignore: ent's Ignore() drops fields from the DO UPDATE clause, which on
-			// PostgreSQL needs a conflict target it never gets (42601); the whole delete failed.
-			if err = tx.CleanupObject.Create().SetObjectKey(key).OnConflict().DoNothing().Exec(ctx); err != nil {
+			if err = QueueObject(ctx, tx, key); err != nil {
 				return err
 			}
 		}
@@ -87,6 +86,24 @@ func Run(ctx context.Context, st *Store, userID string) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+// QueueObject records an object for deletion, ignoring a key that is already
+// queued. Neither ent shortcut works here: Ignore() only drops fields from the DO
+// UPDATE clause, so PostgreSQL rejects the statement for a missing conflict target
+// (42601), and DoNothing() asks for `RETURNING "id"`, which comes back empty when
+// the key is already queued, failing the whole delete with sql.ErrNoRows. A
+// conflict on the unique object_key therefore updates the row with its own values:
+// no change to status or attempts, no extra row, and the transaction stays usable.
+func QueueObject(ctx context.Context, tx *ent.Tx, key string) error {
+	if tx == nil || key == "" {
+		return errors.New("cleanup object requires a key")
+	}
+	return tx.CleanupObject.Create().
+		SetObjectKey(key).
+		OnConflict(sql.ConflictColumns(cleanupobject.FieldObjectKey)).
+		Ignore().
+		Exec(ctx)
 }
 
 // Drain deletes queued objects and marks successful rows. A missing object is treated as success by the blob store.
