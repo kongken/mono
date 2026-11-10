@@ -28,7 +28,7 @@ type ComposerProps = {
   saving: boolean;
   error: string | null;
   onClose: () => void;
-  onSubmit: (draft: DraftEntry) => void;
+  onSubmit: (draft: DraftEntry, files: File[]) => void;
 };
 
 /**
@@ -41,6 +41,7 @@ export function Composer({ open, initial, categories, saving, error, onClose, on
   const [draft, setDraft] = useState<DraftEntry>(initial);
   const [errors, setErrors] = useState<DraftErrors>({});
   const [zoneEditing, setZoneEditing] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
 
   const zone = useMemo(() => timezoneLabel(draft.timezone), [draft.timezone]);
   const digits = currencyDigits(draft.currency);
@@ -60,7 +61,12 @@ export function Composer({ open, initial, categories, saving, error, onClose, on
       setErrors(checked.errors);
       return;
     }
-    onSubmit(draft);
+    const invalid = files.find((file) => !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(file.type) || file.size > 10 * 1024 * 1024);
+    if (invalid !== undefined || files.length > 20) {
+      setErrors((current) => ({ ...current, note: "附件必须是 JPEG、PNG、WebP 或 PDF，单个不超过 10 MiB，最多 20 个。" }));
+      return;
+    }
+    onSubmit(draft, files);
   };
 
   return (
@@ -210,15 +216,20 @@ export function Composer({ open, initial, categories, saving, error, onClose, on
 
               <div>
                 <p className="mb-2 text-xs font-medium text-muted-foreground">附件</p>
-                <div
-                  aria-disabled="true"
-                  title="附件服务未接入，本切片不能上传"
-                  className="flex flex-col items-center gap-1.5 rounded-md border border-dashed border-outline-variant bg-muted/60 px-4 py-6 text-center"
+                <label
+                  htmlFor="timeline-attachments"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setFiles((current) => [...current, ...Array.from(event.dataTransfer.files)].slice(0, 20));
+                  }}
+                  className="flex cursor-pointer flex-col items-center gap-1.5 rounded-md border border-dashed border-outline-variant bg-muted/60 px-4 py-6 text-center hover:border-primary"
                 >
-                  <Paperclip size={18} className="text-muted-foreground/70" />
-                  <p className="text-xs text-muted-foreground">图片或 PDF，单个不超过 10 MiB，最多 20 个</p>
-                  <p className="text-[11px] text-muted-foreground/80">附件服务接入后可拖拽上传（当前不可用）</p>
-                </div>
+                  <Paperclip size={18} className="text-primary" />
+                  <p className="text-xs text-muted-foreground">拖拽或选择图片 / PDF，单个不超过 10 MiB，最多 20 个</p>
+                  <input id="timeline-attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" className="sr-only" onChange={(event) => setFiles((current) => [...current, ...Array.from(event.target.files ?? [])].slice(0, 20))} />
+                </label>
+                {files.length > 0 && <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{files.map((file, index) => <li key={`${file.name}-${index}`} className="flex justify-between"><span className="truncate">{file.name}</span><span>{Math.ceil(file.size / 1024)} KiB</span></li>)}</ul>}
               </div>
             </div>
           </div>

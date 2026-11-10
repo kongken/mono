@@ -12,6 +12,7 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import type { Entry } from "@kongken/api-client/bff/timeline/v1/timeline_pb";
+import type { MediaInfo } from "@kongken/api-client/bff/timeline/v1/media_pb";
 import { formatAmount } from "@/lib/entries.ts";
 
 /** The record's category as an icon: a known word gets its own glyph, anything else the plain tag. */
@@ -38,9 +39,10 @@ type EntryCardProps = {
   onDelete?: (entry: Entry) => void;
   onRestore?: (entry: Entry) => void;
   onPurge?: (entry: Entry) => void;
+  media?: MediaInfo[];
 };
 
-export function EntryCard({ entry, onDelete, onRestore, onPurge }: EntryCardProps) {
+export function EntryCard({ entry, onDelete, onRestore, onPurge, media = [] }: EntryCardProps) {
   const amount = formatAmount(entry.amountMinor, entry.currency);
 
   return (
@@ -67,6 +69,7 @@ export function EntryCard({ entry, onDelete, onRestore, onPurge }: EntryCardProp
           </div>
         )}
         {entry.note !== "" && <p className="mt-2 text-sm leading-relaxed whitespace-pre-line text-on-surface-variant">{entry.note}</p>}
+        {media.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{media.map((item) => <a key={item.mediaRef} href="#" className="rounded bg-surface-container px-2 py-1 text-xs text-primary" title="读取私有附件">📎 {item.filename}</a>)}</div>}
         {entry.url !== "" && (
           <a
             href={entry.url}
