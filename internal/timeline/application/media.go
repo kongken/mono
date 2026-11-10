@@ -28,7 +28,7 @@ func (s *MediaService) PrepareUpload(c context.Context, r *timelinev1.PrepareUpl
 	if e != nil {
 		return nil, status.Error(codes.InvalidArgument, e.Error())
 	}
-	return &timelinev1.PrepareUploadResponse{Media: &timelinev1.MediaInfo{MediaRef: x.Ref, EntryRef: x.EntryRef, Filename: x.Filename, ContentType: x.ContentType, SizeBytes: x.SizeBytes, Status: x.Status}, UploadUrl: x.UploadURL}, nil
+	return &timelinev1.PrepareUploadResponse{Media: &timelinev1.MediaInfo{MediaRef: x.Ref, EntryRef: x.EntryRef, Filename: x.Filename, ContentType: x.ContentType, SizeBytes: x.SizeBytes, Status: x.Status}, UploadUrl: x.UploadURL, Headers: x.UploadHeaders, ExpiresAt: timestamppb.New(x.UploadExpiresAt)}, nil
 }
 func (s *MediaService) CompleteUpload(c context.Context, r *timelinev1.CompleteUploadRequest) (*timelinev1.CompleteUploadResponse, error) {
 	x, e := media.Complete(c, s.store, rpcauth.CallFrom(c).UserID, r.MediaRef, r.MutationId)

@@ -27,7 +27,7 @@ export type EntryJson = {
   deletedAt?: string;
 };
 
-export type MediaJson = { mediaRef: string; entryRef: string; filename: string; contentType: string; sizeBytes: string; status: string };
+export type MediaJson = { mediaRef: string; entryRef: string; filename: string; contentType: string; sizeBytes: string; status: string; ownerId: string; revision: string; mutationId: string };
 
 export type FakeTimeline = ReturnType<typeof fakeBackend>["state"];
 
@@ -101,14 +101,16 @@ export async function fakeBackend(page: Page, opts: { signedIn?: boolean; entrie
       return unauth() ?? { body: { entries: sorted().filter((row) => matches(row, body)), nextPageToken: "" } };
     },
     "bff.timeline.v1.MediaService/PrepareUpload": (body) => {
-      const item = { mediaRef: `med-${state.media.length + 1}`, entryRef: String(body.entryRef ?? ""), filename: String(body.filename ?? ""), contentType: String(body.contentType ?? ""), sizeBytes: String(body.sizeBytes ?? "0"), status: "pending" };
+      const existing = state.media.find((candidate) => candidate.ownerId === state.user?.id && candidate.entryRef === body.entryRef && candidate.mutationId === body.mutationId);
+      if (existing) return { body: { media: existing, uploadUrl: `/api/upload/${existing.mediaRef}`, headers: { "Content-Type": existing.contentType }, expiresAt: "2026-11-07T05:00:00Z" } };
+      const item = { mediaRef: `med-${state.media.length + 1}`, entryRef: String(body.entryRef ?? ""), filename: String(body.filename ?? ""), contentType: String(body.contentType ?? ""), sizeBytes: String(body.sizeBytes ?? "0"), status: "pending", ownerId: state.user?.id ?? "", revision: "1", mutationId: String(body.mutationId ?? "") };
       state.media.push(item);
       return { body: { media: item, uploadUrl: `/api/upload/${item.mediaRef}`, headers: {} } };
     },
-    "bff.timeline.v1.MediaService/CompleteUpload": (body) => { const item = state.media.find((candidate) => candidate.mediaRef === body.mediaRef); if (!item) return failure(404, "not_found", "media not found"); item.status = "ready"; return { body: { media: item } }; },
-    "bff.timeline.v1.MediaService/ListMedia": (body) => unauth() ?? { body: { media: state.media.filter((item) => item.entryRef === body.entryRef && item.status === "ready") } },
-    "bff.timeline.v1.MediaService/ReadMedia": (body) => { const item = state.media.find((candidate) => candidate.mediaRef === body.mediaRef && candidate.status === "ready"); return item ? { body: { data: "", contentType: item.contentType, filename: item.filename } } : failure(404, "not_found", "media not found"); },
-    "bff.timeline.v1.MediaService/DeleteMedia": (body) => { const index = state.media.findIndex((candidate) => candidate.mediaRef === body.mediaRef); if (index < 0) return failure(404, "not_found", "media not found"); state.media.splice(index, 1); return { body: { receipt: { mutationId: body.mutationId ?? "", operation: "media_delete", resultRevision: "1", replayed: false } } }; },
+    "bff.timeline.v1.MediaService/CompleteUpload": (body) => { const item = state.media.find((candidate) => candidate.ownerId === state.user?.id && candidate.mediaRef === body.mediaRef && candidate.mutationId === body.mutationId); if (!item) return failure(404, "not_found", "media not found"); item.status = "ready"; return { body: { media: item } }; },
+    "bff.timeline.v1.MediaService/ListMedia": (body) => unauth() ?? { body: { media: state.media.filter((item) => item.ownerId === state.user?.id && item.entryRef === body.entryRef && item.status === "ready") } },
+    "bff.timeline.v1.MediaService/ReadMedia": (body) => { const item = state.media.find((candidate) => candidate.ownerId === state.user?.id && candidate.mediaRef === body.mediaRef && candidate.status === "ready"); return item ? { body: { data: "", contentType: item.contentType, filename: item.filename } } : failure(404, "not_found", "media not found"); },
+    "bff.timeline.v1.MediaService/DeleteMedia": (body) => { const item = state.media.find((candidate) => candidate.ownerId === state.user?.id && candidate.mediaRef === body.mediaRef); if (!item) return failure(404, "not_found", "media not found"); if (String(body.expectedRevision) !== item.revision) return failure(409, "aborted", "revision mismatch"); if (item.status === "deleting") return { body: { receipt: { mutationId: body.mutationId ?? "", operation: "media_delete", resultRevision: item.revision, replayed: true } } }; item.status = "deleting"; return { body: { receipt: { mutationId: body.mutationId ?? "", operation: "media_delete", resultRevision: item.revision, replayed: false } } }; },
     "bff.timeline.v1.TimelineService/CreateEntry": (body) => {
       const denied = unauth();
       if (denied) return denied;

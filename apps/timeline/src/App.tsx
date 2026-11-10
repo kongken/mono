@@ -74,6 +74,7 @@ export default function App() {
   const [pendingEntryRef, setPendingEntryRef] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<Record<string, { progress: number; error?: string }>>({});
   const uploadedFiles = useRef(new Set<string>());
+  const uploadSessions = useRef(new Map<string, { mutationId: string; mediaRef: string; uploadUrl: string; headers: Record<string, string> }>());
 
   // Only the newest list answer may land: typing in the search box must not let an older page overwrite a newer one.
   const sequence = useRef(0);
@@ -196,10 +197,20 @@ export default function App() {
       for (const file of files) {
         if (uploadedFiles.current.has(file.name)) continue;
         setUploadStatus((current) => ({ ...current, [file.name]: { progress: 0 } }));
-        const uploadMutationId = mutationID();
-        const prepared = await write(() => media.prepareUpload({ entryRef: entryRef ?? "", filename: file.name, contentType: file.type, sizeBytes: BigInt(file.size), mutationId: uploadMutationId }));
-        await putUpload(prepared.uploadUrl, file, prepared.headers, (progress) => setUploadStatus((current) => ({ ...current, [file.name]: { progress } })));
-        await write(() => media.completeUpload({ mediaRef: prepared.media?.mediaRef ?? "", mutationId: uploadMutationId }));
+        const session = uploadSessions.current.get(file.name);
+        const uploadMutationId = session?.mutationId ?? mutationID();
+        let uploadUrl = session?.uploadUrl ?? "";
+        let uploadHeaders = session?.headers ?? {};
+        let mediaRef = session?.mediaRef ?? "";
+        if (session === undefined) {
+          const prepared = await write(() => media.prepareUpload({ entryRef: entryRef ?? "", filename: file.name, contentType: file.type, sizeBytes: BigInt(file.size), mutationId: uploadMutationId }));
+          uploadUrl = prepared.uploadUrl;
+          uploadHeaders = prepared.headers;
+          mediaRef = prepared.media?.mediaRef ?? "";
+          uploadSessions.current.set(file.name, { mutationId: uploadMutationId, mediaRef, uploadUrl, headers: uploadHeaders });
+        }
+        await putUpload(uploadUrl, file, uploadHeaders, (progress) => setUploadStatus((current) => ({ ...current, [file.name]: { progress } })));
+        await write(() => media.completeUpload({ mediaRef, mutationId: uploadMutationId }));
         setUploadStatus((current) => ({ ...current, [file.name]: { progress: 100 } }));
         uploadedFiles.current.add(file.name);
       }
@@ -263,7 +274,7 @@ export default function App() {
   };
 
   const deleteMedia = (item: MediaInfo) => mutate(
-    () => media.deleteMedia({ mediaRef: item.mediaRef, mutationId: mutationID(), expectedRevision: 0n }),
+    () => media.deleteMedia({ mediaRef: item.mediaRef, mutationId: mutationID(), expectedRevision: 1n }),
     async () => { setAttachments((current) => Object.fromEntries(Object.entries(current).map(([key, items]) => [key, items.filter((candidate) => candidate.mediaRef !== item.mediaRef)]))); await load(view === "trash"); },
   );
 
@@ -389,6 +400,7 @@ export default function App() {
           uploadStatus={uploadStatus}
           onClose={() => setComposerOpen(false)}
           onSubmit={(draft, files) => void submitDraft(draft, files)}
+          onRetryFile={(draft, file) => void submitDraft(draft, [file])}
         />
       )}
     </div>

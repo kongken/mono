@@ -36,6 +36,8 @@ type Media struct {
 	Ref, EntryRef, Filename, ContentType, Status string
 	SizeBytes                                    int64
 	UploadURL                                    string
+	UploadHeaders                                map[string]string
+	UploadExpiresAt                              time.Time
 }
 
 func validate(u Upload) error {
@@ -64,6 +66,20 @@ func Prepare(ctx context.Context, st *Store, userID string, u Upload) (*Media, e
 	if err != nil {
 		return nil, ErrNotFound
 	}
+	if existing, queryErr := tx.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.EntryID(e.ID), mediaobject.MutationIDEQ(u.MutationID)).Only(ctx); queryErr == nil {
+		url, headers, signErr := signer.SignUpload(ctx, existing.UploadKey, existing.SizeBytes, existing.ContentType, 10*time.Minute)
+		if signErr != nil {
+			return nil, signErr
+		}
+		expires := time.Now().UTC().Add(10 * time.Minute)
+		if _, updateErr := existing.Update().SetUploadExpiresAt(expires).Save(ctx); updateErr != nil {
+			return nil, updateErr
+		}
+		if commitErr := tx.Commit(); commitErr != nil {
+			return nil, commitErr
+		}
+		return &Media{Ref: existing.PublicRef, EntryRef: existing.EntryPublicRef, Filename: existing.Filename, ContentType: existing.ContentType, SizeBytes: existing.SizeBytes, Status: existing.Status, UploadURL: url, UploadHeaders: headers, UploadExpiresAt: expires}, nil
+	}
 	if n, _ := tx.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.EntryID(e.ID), mediaobject.StatusNEQ("deleting")).Count(ctx); n >= 20 {
 		return nil, ErrInvalid
 	}
@@ -74,14 +90,14 @@ func Prepare(ctx context.Context, st *Store, userID string, u Upload) (*Media, e
 	if err != nil {
 		return nil, err
 	}
-	url, _, err := signer.SignUpload(ctx, key, u.SizeBytes, u.ContentType, 10*time.Minute)
+	url, headers, err := signer.SignUpload(ctx, key, u.SizeBytes, u.ContentType, 10*time.Minute)
 	if err != nil {
 		return nil, err
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, UploadURL: url}, nil
+	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, UploadURL: url, UploadHeaders: headers, UploadExpiresAt: exp}, nil
 }
 func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID string) (*Media, error) {
 	if st == nil || st.DB == nil || st.Blobs == nil || userID == "" || mediaRef == "" || mutationID == "" {
@@ -95,6 +111,12 @@ func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID strin
 	m, err := tx.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.PublicRefEQ(mediaRef), mediaobject.MutationIDEQ(mutationID)).Only(ctx)
 	if err != nil {
 		return nil, ErrNotFound
+	}
+	if m.Status == "ready" {
+		if err = tx.Commit(); err != nil {
+			return nil, err
+		}
+		return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status}, nil
 	}
 	if m.Status != "pending" || m.UploadExpiresAt == nil || !m.UploadExpiresAt.After(time.Now().UTC()) {
 		return nil, ErrInvalid

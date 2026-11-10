@@ -19,7 +19,7 @@ func (m *MediaHandler) PrepareUpload(c context.Context, r *connect.Request[bff.P
 	if e != nil {
 		return nil, upstream.ToConnect("timeline", e)
 	}
-	return connect.NewResponse(&bff.PrepareUploadResponse{UploadUrl: x.UploadUrl, Media: &bff.MediaInfo{MediaRef: x.Media.MediaRef, EntryRef: x.Media.EntryRef, Filename: x.Media.Filename, ContentType: x.Media.ContentType, SizeBytes: x.Media.SizeBytes, Status: x.Media.Status}}), nil
+	return connect.NewResponse(&bff.PrepareUploadResponse{UploadUrl: x.UploadUrl, Headers: x.Headers, ExpiresAt: x.ExpiresAt, Media: &bff.MediaInfo{MediaRef: x.Media.MediaRef, EntryRef: x.Media.EntryRef, Filename: x.Media.Filename, ContentType: x.Media.ContentType, SizeBytes: x.Media.SizeBytes, Status: x.Media.Status}}), nil
 }
 func (m *MediaHandler) CompleteUpload(c context.Context, r *connect.Request[bff.CompleteUploadRequest]) (*connect.Response[bff.CompleteUploadResponse], error) {
 	x, e := m.client.CompleteUpload(c, &v1.CompleteUploadRequest{MediaRef: r.Msg.MediaRef, MutationId: r.Msg.MutationId})
