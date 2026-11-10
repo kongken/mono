@@ -21,6 +21,9 @@ func TestValidDeleteReceiptStrictSnapshotRefs(t *testing.T) {
 		{"media_ref": 123, "entry_ref": entryRef},
 		{"media_ref": "", "entry_ref": entryRef},
 		{"media_ref": mediaRef, "entry_ref": nil},
+		// The columns only accept lowercase: a receipt naming a reference the
+		// database could never hold is not this mutation's receipt.
+		{"media_ref": "MED_0123456789ABCDEFGHJKMNPQRS", "entry_ref": entryRef},
 	}
 	for i, snapshot := range cases {
 		if validDeleteReceipt(base(snapshot), "h", mediaRef) {

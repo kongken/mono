@@ -1,8 +1,6 @@
 package schema
 
 import (
-	"crypto/rand"
-	"encoding/base32"
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/schema"
@@ -10,25 +8,17 @@ import (
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
 	"github.com/google/uuid"
+	"github.com/kongken/mono/internal/timeline/refs"
 	"time"
 )
 
 func now() time.Time { return time.Now().UTC() }
-func newEntryRef() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
-	}
-	return "ent_" + base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b[:])[:26]
-}
 
-func newMediaRef() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
-	}
-	return "med_" + base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b[:])[:26]
-}
+// Entry and media references are generated in the alphabet the column CHECK
+// constraints and the delete-receipt validator both use; see package refs.
+func newEntryRef() string { return refs.New("ent_") }
+
+func newMediaRef() string { return refs.New("med_") }
 
 type Entry struct{ ent.Schema }
 
