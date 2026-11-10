@@ -23,6 +23,8 @@ grep -qF 'test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9000/health/ready >/de
 grep -qF 's3-init:' "$stack"
 grep -qF 's3-init: { condition: service_completed_successfully }' "$stack"
 grep -qF 's3: { condition: service_healthy }' "$stack"
+grep -qF '      - s3-data:/data' "$stack"
+grep -qF '  s3-data:' "$stack"
 
 caddyfile=$root/deploy/reverse-proxy/Caddyfile.example
 grep -qF 'timeline.example.com' "$caddyfile"

@@ -43,6 +43,8 @@ services:
       RUSTFS_ACCESS_KEY: tripmap
       RUSTFS_SECRET_KEY: change-me-secret
       RUSTFS_ADDRESS: ":9000"
+    volumes:
+      - s3-data:/data
     healthcheck:
       # RustFS exposes an S3-compatible readiness endpoint; this keeps dependents from
       # starting while the API listener or metadata store is still coming up.
