@@ -96,6 +96,7 @@ export async function fakeBackend(page: Page, opts: { signedIn?: boolean; entrie
       }
       return unauth() ?? { body: { entries: sorted().filter((row) => matches(row, body)), nextPageToken: "" } };
     },
+    "bff.timeline.v1.MediaService/ListMedia": () => unauth() ?? { body: { media: [] } },
     "bff.timeline.v1.TimelineService/CreateEntry": (body) => {
       const denied = unauth();
       if (denied) return denied;

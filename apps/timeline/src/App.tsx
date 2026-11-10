@@ -3,6 +3,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Plus, WarningCircle } from "@phosphor-icons/react";
 import type { AccountProfile } from "@kongken/account/api";
 import type { Entry } from "@kongken/api-client/bff/timeline/v1/timeline_pb";
+import type { MediaInfo } from "@kongken/api-client/bff/timeline/v1/media_pb";
 import { Composer } from "@/components/Composer.tsx";
 import { FilterBar } from "@/components/FilterBar.tsx";
 import { Sidebar } from "@/components/Sidebar.tsx";
@@ -10,7 +11,6 @@ import { Timeline } from "@/components/Timeline.tsx";
 import { TopBar } from "@/components/TopBar.tsx";
 import { Trash } from "@/components/Trash.tsx";
 import { resolveOzid } from "@/lib/config.ts";
-import type { Attachment } from "@/lib/attachments.ts";
 import {
   EMPTY_FILTERS,
   emptyDraft,
@@ -22,7 +22,7 @@ import {
   type FilterState,
   type View,
 } from "@/lib/entries.ts";
-import { account, mutationID, setTransportAccount, timeline, uploadTimelineAttachment, write } from "@/lib/rpc.ts";
+import { account, media, mutationID, setTransportAccount, timeline, write } from "@/lib/rpc.ts";
 
 /** One sentence a person can act on, whatever the transport threw. */
 function describeError(error: unknown, fallback: string): string {
@@ -46,6 +46,7 @@ export default function App() {
   const [pending, setPending] = useState<FilterState>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<FilterState>(EMPTY_FILTERS);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [attachments, setAttachments] = useState<Record<string, MediaInfo[]>>({});
   const [nextToken, setNextToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -58,7 +59,6 @@ export default function App() {
   const [composerSeed, setComposerSeed] = useState<DraftEntry>(() => emptyDraft());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [pendingEntryRef, setPendingEntryRef] = useState<string | null>(null);
 
   // Only the newest list answer may land: typing in the search box must not let an older page overwrite a newer one.
   const sequence = useRef(0);
@@ -115,6 +115,8 @@ export default function App() {
         const response = await timeline.listEntries({ ...listRequest(applied, includeDeleted), pageToken, pageSize: 100 });
         if (mine !== sequence.current) return;
         setEntries((current) => (pageToken === "" ? response.entries : [...current, ...response.entries]));
+        const listed = await Promise.all(response.entries.map(async (entry) => [entry.entryRef, (await media.listMedia({ entryRef: entry.entryRef })).media] as const));
+        setAttachments((current) => ({ ...current, ...Object.fromEntries(listed) }));
         setNextToken(response.nextPageToken);
       } catch (error) {
         if (mine === sequence.current) setListError(describeError(error, "读取时间线失败"));
@@ -149,7 +151,7 @@ export default function App() {
     setComposerOpen(true);
   };
 
-  const submitDraft = async (draft: DraftEntry, attachments: Attachment[] = []) => {
+  const submitDraft = async (draft: DraftEntry, files: File[] = []) => {
     const checked = validateDraft(draft);
     if (checked.ok === false) {
       setSaveError("请检查标红的字段。");
@@ -157,9 +159,8 @@ export default function App() {
     }
     setSaving(true);
     setSaveError(null);
-    let entryRef = pendingEntryRef;
     try {
-      const created = pendingEntryRef === null ? await write(() =>
+      const created = await write(() =>
         timeline.createEntry({
           mutationId: mutationID(),
           entry: {
@@ -175,17 +176,15 @@ export default function App() {
           },
         }),
       );
-      entryRef = pendingEntryRef ?? created?.entry?.entryRef ?? created?.entry?.id;
-      if (entryRef !== undefined) {
-        for (const attachment of attachments) {
-          if (attachment.file !== undefined) await uploadTimelineAttachment(entryRef, attachment.file);
-        }
+      for (const file of files) {
+        const uploadMutationId = mutationID();
+        const prepared = await write(() => media.prepareUpload({ entryRef: created.entry?.entryRef ?? "", filename: file.name, contentType: file.type, sizeBytes: BigInt(file.size), mutationId: uploadMutationId }));
+        await fetch(prepared.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+        await write(() => media.completeUpload({ mediaRef: prepared.media?.mediaRef ?? "", mutationId: uploadMutationId }));
       }
-      setPendingEntryRef(null);
       setComposerOpen(false);
       await load(view === "trash");
     } catch (error) {
-      setPendingEntryRef(entryRef ?? null);
       setSaveError(describeError(error, "保存失败"));
     } finally {
       setSaving(false);
@@ -326,6 +325,7 @@ export default function App() {
                 loadingMore={loadingMore}
                 canLoadMore={nextToken !== ""}
                 onLoadMore={() => void load(false, nextToken)}
+                media={attachments}
                 onDelete={(entry) => void removeEntry(entry)}
               />
             )}
@@ -345,7 +345,7 @@ export default function App() {
           saving={saving}
           error={saveError}
           onClose={() => setComposerOpen(false)}
-          onSubmit={(draft, attachments) => void submitDraft(draft, attachments)}
+          onSubmit={(draft, files) => void submitDraft(draft, files)}
         />
       )}
     </div>

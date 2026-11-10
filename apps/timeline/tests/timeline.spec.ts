@@ -98,8 +98,7 @@ test("记一笔 refuses an empty title, then saves the design's fields in one wr
   await page.getByRole("button", { name: "写手账" }).click();
   const drawer = page.getByRole("dialog", { name: "记一笔" });
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByRole("button", { name: "添加附件" })).toBeVisible();
-  await expect(drawer.getByText("JPEG、PNG、WebP 或 PDF，单个不超过 10 MiB，最多 20 个")).toBeVisible();
+  await expect(drawer.getByText("拖拽或选择图片 / PDF，单个不超过 10 MiB，最多 20 个")).toBeVisible();
 
   await drawer.getByRole("button", { name: "保存记录" }).click();
   await expect(drawer.getByLabel(/今天发生了什么/)).toHaveAttribute("aria-invalid", "true");

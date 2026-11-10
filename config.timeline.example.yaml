@@ -12,7 +12,10 @@ grpc:
   listen: 127.0.0.1:18089
   transport: h2c
 
-internal_auth:
+storage:
+  s3_store: timeline
+  key_prefix: timeline/
+
   issuer: tripmap-bff
   audience: timeline
   trusted_keys:

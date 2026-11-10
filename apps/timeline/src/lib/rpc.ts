@@ -3,6 +3,7 @@ import { createConnectTransport } from "@connectrpc/connect-web";
 import { createAccountApi } from "@kongken/account/api";
 import { AuthService } from "@kongken/api-client/bff/v1/auth_pb";
 import { TimelineService } from "@kongken/api-client/bff/timeline/v1/timeline_pb";
+import { MediaService } from "@kongken/api-client/bff/timeline/v1/media_pb";
 import { APP_ID, resolveApiBase } from "./config.ts";
 import { createApiTransport } from "./transport.ts";
 
@@ -42,6 +43,7 @@ export const auth = createClient(AuthService, transport);
 /** The shared account client. Timeline only reads Me and ends its own session; every other account step is OzID's. */
 export const account = createAccountApi({ transport, appId: APP_ID, ensureCsrf });
 export const timeline = createClient(TimelineService, transport);
+export const media = createClient(MediaService, transport);
 
 /**
  * Runs a state-changing call with a fresh CSRF token (the BFF double-submit check). Reads never need it. A token
