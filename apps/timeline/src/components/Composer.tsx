@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { Paperclip, SlidersHorizontal, WarningCircle, X } from "@phosphor-icons/react";
+import { SlidersHorizontal, WarningCircle, X } from "@phosphor-icons/react";
+import { AttachmentPicker } from "@/components/AttachmentPicker.tsx";
+import type { Attachment } from "@/lib/attachments.ts";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@kongken/ui/dialog";
 import { Input } from "@kongken/ui/input";
 import { amountPlaceholder, currencyDigits, timezoneLabel, validateDraft, type DraftEntry, type DraftErrors } from "@/lib/entries.ts";
@@ -28,19 +30,18 @@ type ComposerProps = {
   saving: boolean;
   error: string | null;
   onClose: () => void;
-  onSubmit: (draft: DraftEntry) => void;
+  onSubmit: (draft: DraftEntry, attachments: Attachment[]) => void;
 };
 
 /**
- * 记一笔: the design's right-hand drawer. Title, date and time with the record's own time zone, category,
- * place, amount and currency, note — the fields the records API actually has. The design's attachment drop zone
- * is drawn as it is but stays disabled: the records service has no attachment RPC yet, so a file dropped here
- * would have nowhere to go (docs/timeline/features.md).
+ * 记一笔: the design's right-hand drawer. The attachment picker keeps file validation and selection in the UI;
+ * the parent owns the MediaService upload lifecycle so a failed upload can be retried without duplicating the entry.
  */
 export function Composer({ open, initial, categories, saving, error, onClose, onSubmit }: ComposerProps) {
   const [draft, setDraft] = useState<DraftEntry>(initial);
   const [errors, setErrors] = useState<DraftErrors>({});
   const [zoneEditing, setZoneEditing] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   const zone = useMemo(() => timezoneLabel(draft.timezone), [draft.timezone]);
   const digits = currencyDigits(draft.currency);
@@ -60,7 +61,7 @@ export function Composer({ open, initial, categories, saving, error, onClose, on
       setErrors(checked.errors);
       return;
     }
-    onSubmit(draft);
+    onSubmit(draft, attachments);
   };
 
   return (
@@ -210,15 +211,7 @@ export function Composer({ open, initial, categories, saving, error, onClose, on
 
               <div>
                 <p className="mb-2 text-xs font-medium text-muted-foreground">附件</p>
-                <div
-                  aria-disabled="true"
-                  title="附件服务未接入，本切片不能上传"
-                  className="flex flex-col items-center gap-1.5 rounded-md border border-dashed border-outline-variant bg-muted/60 px-4 py-6 text-center"
-                >
-                  <Paperclip size={18} className="text-muted-foreground/70" />
-                  <p className="text-xs text-muted-foreground">图片或 PDF，单个不超过 10 MiB，最多 20 个</p>
-                  <p className="text-[11px] text-muted-foreground/80">附件服务接入后可拖拽上传（当前不可用）</p>
-                </div>
+                <AttachmentPicker value={attachments} onChange={setAttachments} disabled={saving} />
               </div>
             </div>
           </div>

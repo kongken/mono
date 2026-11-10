@@ -10,6 +10,7 @@ import { Timeline } from "@/components/Timeline.tsx";
 import { TopBar } from "@/components/TopBar.tsx";
 import { Trash } from "@/components/Trash.tsx";
 import { resolveOzid } from "@/lib/config.ts";
+import type { Attachment } from "@/lib/attachments.ts";
 import {
   EMPTY_FILTERS,
   emptyDraft,
@@ -21,7 +22,7 @@ import {
   type FilterState,
   type View,
 } from "@/lib/entries.ts";
-import { account, mutationID, setTransportAccount, timeline, write } from "@/lib/rpc.ts";
+import { account, mutationID, setTransportAccount, timeline, uploadTimelineAttachment, write } from "@/lib/rpc.ts";
 
 /** One sentence a person can act on, whatever the transport threw. */
 function describeError(error: unknown, fallback: string): string {
@@ -57,6 +58,7 @@ export default function App() {
   const [composerSeed, setComposerSeed] = useState<DraftEntry>(() => emptyDraft());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [pendingEntryRef, setPendingEntryRef] = useState<string | null>(null);
 
   // Only the newest list answer may land: typing in the search box must not let an older page overwrite a newer one.
   const sequence = useRef(0);
@@ -147,7 +149,7 @@ export default function App() {
     setComposerOpen(true);
   };
 
-  const submitDraft = async (draft: DraftEntry) => {
+  const submitDraft = async (draft: DraftEntry, attachments: Attachment[] = []) => {
     const checked = validateDraft(draft);
     if (checked.ok === false) {
       setSaveError("请检查标红的字段。");
@@ -155,8 +157,9 @@ export default function App() {
     }
     setSaving(true);
     setSaveError(null);
+    let entryRef = pendingEntryRef;
     try {
-      await write(() =>
+      const created = pendingEntryRef === null ? await write(() =>
         timeline.createEntry({
           mutationId: mutationID(),
           entry: {
@@ -172,9 +175,17 @@ export default function App() {
           },
         }),
       );
+      entryRef = pendingEntryRef ?? created?.entry?.entryRef ?? created?.entry?.id;
+      if (entryRef !== undefined) {
+        for (const attachment of attachments) {
+          if (attachment.file !== undefined) await uploadTimelineAttachment(entryRef, attachment.file);
+        }
+      }
+      setPendingEntryRef(null);
       setComposerOpen(false);
       await load(view === "trash");
     } catch (error) {
+      setPendingEntryRef(entryRef ?? null);
       setSaveError(describeError(error, "保存失败"));
     } finally {
       setSaving(false);
@@ -334,7 +345,7 @@ export default function App() {
           saving={saving}
           error={saveError}
           onClose={() => setComposerOpen(false)}
-          onSubmit={(draft) => void submitDraft(draft)}
+          onSubmit={(draft, attachments) => void submitDraft(draft, attachments)}
         />
       )}
     </div>

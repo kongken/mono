@@ -52,6 +52,24 @@ export async function write<T>(call: () => Promise<T>): Promise<T> {
   return call();
 }
 
+export async function uploadTimelineAttachment(entryRef: string, file: File): Promise<void> {
+  await write(async () => {
+    const headers = new Headers({ "content-type": "application/json", "x-csrf-token": csrf ?? "" });
+    if (expectedAccount) headers.set("x-kongken-user", expectedAccount);
+    const prepared = await (await fetch(`${apiBase}/bff.timeline.v1.MediaService/PrepareUpload`, {
+      method: "POST", credentials: "include", headers, body: JSON.stringify({ entryRef, filename: file.name, contentType: file.type, sizeBytes: String(file.size), uploadId: crypto.randomUUID() }),
+    })).json() as { media?: { id?: string }; uploadUrl?: string; headers?: Record<string, string> };
+    if (!prepared.uploadUrl || !prepared.media?.id) throw new Error("附件上传准备失败");
+    const uploadHeaders = new Headers(prepared.headers);
+    const uploaded = await fetch(prepared.uploadUrl, { method: "PUT", headers: uploadHeaders, body: file });
+    if (!uploaded.ok) throw new Error("附件直传失败，请重试");
+    const completeHeaders = new Headers({ "content-type": "application/json", "x-csrf-token": csrf ?? "" });
+    if (expectedAccount) completeHeaders.set("x-kongken-user", expectedAccount);
+    const completed = await fetch(`${apiBase}/bff.timeline.v1.MediaService/CompleteUpload`, { method: "POST", credentials: "include", headers: completeHeaders, body: JSON.stringify({ id: prepared.media.id }) });
+    if (!completed.ok) throw new Error("附件确认失败，请重试");
+  });
+}
+
 /** A mutation ID for one user intent; a repeat of the same intent keeps it, so the server deduplicates. */
 export function mutationID(): string {
   return crypto.randomUUID();
