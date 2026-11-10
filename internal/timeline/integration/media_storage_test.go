@@ -288,8 +288,13 @@ func TestDeleteQueuesTheObjectForCleanup(t *testing.T) {
 	if queued, err = f.cleanupKeys(); err != nil {
 		t.Fatal(err)
 	}
-	if len(queued) == 0 || !contains(queued, row.ObjectKey) {
+	if !contains(queued, row.ObjectKey) {
 		t.Fatalf("the uploaded object is not queued for cleanup: %v", queued)
+	}
+	// Pending media carry object_key and upload_key with the same value, so the
+	// second enqueue must be ignored rather than rejected or duplicated.
+	if n := count(queued, row.ObjectKey); n != 1 {
+		t.Fatalf("the object is queued %d times, want exactly one row: %v", n, queued)
 	}
 	snapshot, err := media.Replay(f.ctx, f.client, f.user, "mutation-delete-1", object.Ref)
 	if err != nil || snapshot["media_ref"] != object.Ref {
@@ -335,6 +340,16 @@ func (f *mediaFixture) cleanupKeys() ([]string, error) {
 		keys = append(keys, row.ObjectKey)
 	}
 	return keys, nil
+}
+
+func count(values []string, want string) int {
+	found := 0
+	for _, value := range values {
+		if value == want {
+			found++
+		}
+	}
+	return found
 }
 
 func contains(values []string, want string) bool {
