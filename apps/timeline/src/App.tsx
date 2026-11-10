@@ -330,11 +330,11 @@ export default function App() {
         <TopBar query={pending.query} onQuery={(query) => changeFilters({ ...pending, query })} onWrite={openComposer} total={visible.length} />
 
         <main className="flex-1 px-10 pt-8 pb-16">
-          <div className="mx-auto w-full max-w-[860px]">
+          <div className="mx-auto w-full max-w-[740px]">
             <div className="flex items-start justify-between gap-6">
               <div>
                 <p className="text-[11px] font-semibold tracking-[0.2em] text-muted-foreground uppercase">Timeline</p>
-                <h1 className="mt-1.5 text-[32px] leading-tight font-semibold tracking-tight text-on-surface">
+                <h1 className="mt-1.5 text-[22px] leading-8 font-semibold tracking-tight text-on-surface">
                   {view === "trash" ? "回收站" : `${today.slice(0, 4)} 年 阳历记录本`}
                 </h1>
                 <p className="mt-2 text-sm text-muted-foreground">

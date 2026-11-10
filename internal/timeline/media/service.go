@@ -35,6 +35,7 @@ type Upload struct {
 type Media struct {
 	Ref, EntryRef, Filename, ContentType, Status string
 	SizeBytes                                    int64
+	CreatedAt                                    time.Time
 	UploadURL                                    string
 	UploadHeaders                                map[string]string
 	UploadExpiresAt                              time.Time
@@ -78,7 +79,7 @@ func Prepare(ctx context.Context, st *Store, userID string, u Upload) (*Media, e
 		if commitErr := tx.Commit(); commitErr != nil {
 			return nil, commitErr
 		}
-		return &Media{Ref: existing.PublicRef, EntryRef: existing.EntryPublicRef, Filename: existing.Filename, ContentType: existing.ContentType, SizeBytes: existing.SizeBytes, Status: existing.Status, UploadURL: url, UploadHeaders: headers, UploadExpiresAt: expires}, nil
+		return &Media{Ref: existing.PublicRef, EntryRef: existing.EntryPublicRef, Filename: existing.Filename, ContentType: existing.ContentType, SizeBytes: existing.SizeBytes, Status: existing.Status, CreatedAt: existing.CreatedAt, UploadURL: url, UploadHeaders: headers, UploadExpiresAt: expires}, nil
 	}
 	if n, _ := tx.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.EntryID(e.ID), mediaobject.StatusNEQ("deleting")).Count(ctx); n >= 20 {
 		return nil, ErrInvalid
@@ -97,7 +98,7 @@ func Prepare(ctx context.Context, st *Store, userID string, u Upload) (*Media, e
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, UploadURL: url, UploadHeaders: headers, UploadExpiresAt: exp}, nil
+	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, CreatedAt: m.CreatedAt, UploadURL: url, UploadHeaders: headers, UploadExpiresAt: exp}, nil
 }
 func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID string) (*Media, error) {
 	if st == nil || st.DB == nil || st.Blobs == nil || userID == "" || mediaRef == "" || mutationID == "" {
@@ -116,7 +117,7 @@ func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID strin
 		if err = tx.Commit(); err != nil {
 			return nil, err
 		}
-		return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status}, nil
+		return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, CreatedAt: m.CreatedAt}, nil
 	}
 	if m.Status != "pending" || m.UploadExpiresAt == nil || !m.UploadExpiresAt.After(time.Now().UTC()) {
 		return nil, ErrInvalid
@@ -137,7 +138,7 @@ func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID strin
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status}, nil
+	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, CreatedAt: m.CreatedAt}, nil
 }
 func validOpaqueRef(value, prefix string) bool {
 	if len(value) != len(prefix)+26 || !strings.HasPrefix(value, prefix) {

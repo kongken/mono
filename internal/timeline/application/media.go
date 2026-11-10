@@ -22,20 +22,23 @@ func NewMediaService(s *media.Store) *MediaService { return &MediaService{store:
 func info(m *ent.MediaObject) *timelinev1.MediaInfo {
 	return &timelinev1.MediaInfo{MediaRef: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, CreatedAt: timestamppb.New(m.CreatedAt)}
 }
+func mediaInfo(x *media.Media) *timelinev1.MediaInfo {
+	return &timelinev1.MediaInfo{MediaRef: x.Ref, EntryRef: x.EntryRef, Filename: x.Filename, ContentType: x.ContentType, SizeBytes: x.SizeBytes, Status: x.Status, CreatedAt: timestamppb.New(x.CreatedAt)}
+}
 func (s *MediaService) PrepareUpload(c context.Context, r *timelinev1.PrepareUploadRequest) (*timelinev1.PrepareUploadResponse, error) {
 	u := rpcauth.CallFrom(c).UserID
 	x, e := media.Prepare(c, s.store, u, media.Upload{EntryRef: r.EntryRef, Filename: r.Filename, ContentType: r.ContentType, SizeBytes: r.SizeBytes, MutationID: r.MutationId})
 	if e != nil {
 		return nil, status.Error(codes.InvalidArgument, e.Error())
 	}
-	return &timelinev1.PrepareUploadResponse{Media: &timelinev1.MediaInfo{MediaRef: x.Ref, EntryRef: x.EntryRef, Filename: x.Filename, ContentType: x.ContentType, SizeBytes: x.SizeBytes, Status: x.Status}, UploadUrl: x.UploadURL, Headers: x.UploadHeaders, ExpiresAt: timestamppb.New(x.UploadExpiresAt)}, nil
+	return &timelinev1.PrepareUploadResponse{Media: mediaInfo(x), UploadUrl: x.UploadURL, Headers: x.UploadHeaders, ExpiresAt: timestamppb.New(x.UploadExpiresAt)}, nil
 }
 func (s *MediaService) CompleteUpload(c context.Context, r *timelinev1.CompleteUploadRequest) (*timelinev1.CompleteUploadResponse, error) {
 	x, e := media.Complete(c, s.store, rpcauth.CallFrom(c).UserID, r.MediaRef, r.MutationId)
 	if e != nil {
 		return nil, status.Error(codes.InvalidArgument, e.Error())
 	}
-	return &timelinev1.CompleteUploadResponse{Media: &timelinev1.MediaInfo{MediaRef: x.Ref, EntryRef: x.EntryRef, Filename: x.Filename, ContentType: x.ContentType, SizeBytes: x.SizeBytes, Status: x.Status}}, nil
+	return &timelinev1.CompleteUploadResponse{Media: mediaInfo(x)}, nil
 }
 func (s *MediaService) ListMedia(c context.Context, r *timelinev1.ListMediaRequest) (*timelinev1.ListMediaResponse, error) {
 	if s.store == nil || s.store.DB == nil {

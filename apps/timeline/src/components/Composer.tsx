@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Paperclip, SlidersHorizontal, WarningCircle, X } from "@phosphor-icons/react";
+import { FilePdf, ImageSquare, CloudArrowUp, SlidersHorizontal, WarningCircle, X } from "@phosphor-icons/react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@kongken/ui/dialog";
 import { Input } from "@kongken/ui/input";
 import { amountPlaceholder, currencyDigits, timezoneLabel, validateDraft, type DraftEntry, type DraftErrors } from "@/lib/entries.ts";
@@ -35,9 +35,7 @@ type ComposerProps = {
 
 /**
  * 记一笔: the design's right-hand drawer. Title, date and time with the record's own time zone, category,
- * place, amount and currency, note — the fields the records API actually has. The design's attachment drop zone
- * is drawn as it is but stays disabled: the records service has no attachment RPC yet, so a file dropped here
- * would have nowhere to go (docs/timeline/features.md).
+ * place, amount, currency, note, and the interactive attachment drop zone.
  */
 export function Composer({ open, initial, categories, saving, error, onClose, onSubmit, onRetryFile, uploadStatus = {} }: ComposerProps) {
   const [draft, setDraft] = useState<DraftEntry>(initial);
@@ -227,11 +225,28 @@ export function Composer({ open, initial, categories, saving, error, onClose, on
                   }}
                   className="flex cursor-pointer flex-col items-center gap-1.5 rounded-md border border-dashed border-outline-variant bg-muted/60 px-4 py-6 text-center hover:border-primary"
                 >
-                  <Paperclip size={18} className="text-primary" />
-                  <p className="text-xs text-muted-foreground">拖拽或选择图片 / PDF，单个不超过 10 MiB，最多 20 个</p>
+                  <CloudArrowUp size={19} className="text-primary" />
+                  <p className="text-xs font-medium text-card-foreground">点击或拖拽文件添加附件</p>
+                  <p className="text-[11px] text-muted-foreground">JPEG、PNG、WebP 或 PDF，单个不超过 10 MiB，最多 20 个</p>
                   <input id="timeline-attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" className="sr-only" onChange={(event) => setFiles((current) => [...current, ...Array.from(event.target.files ?? [])].slice(0, 20))} />
                 </label>
-                {files.length > 0 && <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{files.map((file, index) => { const status = uploadStatus[file.name]; return <li key={`${file.name}-${index}`} className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate">{file.name}</span><span>{status?.error ?? (status === undefined ? `${Math.ceil(file.size / 1024)} KiB` : `${status.progress}%`)}</span>{status?.error && <button type="button" onClick={() => onRetryFile?.(draft, file)} className="text-primary underline">重试</button>}</li>; })}</ul>}
+                {files.length > 0 && (
+                  <ul className="mt-2 grid grid-cols-2 gap-2" aria-label="附件列表">
+                    {files.map((file, index) => {
+                      const status = uploadStatus[file.name];
+                      const Icon = file.type === "application/pdf" ? FilePdf : ImageSquare;
+                      return (
+                        <li key={`${file.name}-${index}`} className="flex min-w-0 items-center gap-2 rounded-md border border-outline-variant bg-white px-2.5 py-2 text-xs">
+                          <Icon size={17} className="shrink-0 text-primary" />
+                          <span className="min-w-0 flex-1 truncate" title={file.name}>{file.name}</span>
+                          <span className={status?.error ? "text-destructive" : "text-muted-foreground"}>{status?.error ?? (status === undefined ? `${Math.ceil(file.size / 1024)} KiB` : `${status.progress}%`)}</span>
+                          {status?.error && <button type="button" onClick={() => onRetryFile?.(draft, file)} className="text-primary underline">重试</button>}
+                          <button type="button" aria-label={`移除附件 ${file.name}`} onClick={() => setFiles((current) => current.filter((_, candidate) => candidate !== index))} className="rounded p-1 text-muted-foreground hover:bg-muted"><X size={14} /></button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
             </div>
           </div>
