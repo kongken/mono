@@ -43,7 +43,28 @@ services:
       RUSTFS_ACCESS_KEY: tripmap
       RUSTFS_SECRET_KEY: change-me-secret
       RUSTFS_ADDRESS: ":9000"
-    volumes: [s3-data:/data]
+    healthcheck:
+      # RustFS exposes an S3-compatible readiness endpoint; this keeps dependents from
+      # starting while the API listener or metadata store is still coming up.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9000/health/ready >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+    networks: [internal]
+
+  s3-init:
+    image: amazon/aws-cli:2.27.41
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["aws s3api create-bucket --bucket timeline --endpoint-url http://s3:9000 || test \"$$(aws s3api head-bucket --bucket timeline --endpoint-url http://s3:9000 2>&1)\" = \"\""]
+    environment:
+      AWS_ACCESS_KEY_ID: tripmap
+      AWS_SECRET_ACCESS_KEY: change-me-secret
+      AWS_DEFAULT_REGION: us-east-1
+    depends_on:
+      s3: { condition: service_healthy }
+    restart: "no"
     networks: [internal]
 
   # usersrv owns the accounts: its own database (`usersrv`), the shared Redis (own key prefix),
@@ -99,11 +120,11 @@ services:
       BUTTERFLY_CONFIG_FILE_PATH: /config/config.yaml
       PORT: "18088"
     expose: ["18088", "18089"]
-    # Attachments (KON-106) live in the object store: the service refuses to start without the bucket
-    # it is configured to upload to, so it waits for the store, not just the database.
+    restart: unless-stopped
     depends_on:
       postgres: { condition: service_healthy }
-      s3: { condition: service_started }
+      s3: { condition: service_healthy }
+      s3-init: { condition: service_completed_successfully }
     networks: [internal]
 
   bff:
