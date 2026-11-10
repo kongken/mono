@@ -7,8 +7,9 @@
 // schema and drops it again.
 //
 // Set TIMELINE_TEST_POSTGRES_DSN (`make test-integration-timeline`) to run the
-// database scenarios; CI's "Timeline migrations and receipts on PostgreSQL" job
-// always does, and fails when a scenario is skipped instead of passing silently.
+// database scenarios; CI's "Timeline migrations, receipts and attachments on
+// PostgreSQL" job always does, and fails when a scenario is skipped instead of
+// passing silently.
 package integration
 
 import (
