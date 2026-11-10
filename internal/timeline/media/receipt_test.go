@@ -15,6 +15,12 @@ func TestValidDeleteReceiptStrictSnapshotRefs(t *testing.T) {
 	if !validDeleteReceipt(base(valid), "h", mediaRef) {
 		t.Fatal("valid receipt rejected")
 	}
+	// PostgreSQL hands a json text value back as []byte, so the snapshot of a receipt written by
+	// one request must still compare equal when the same mutation is replayed from the database.
+	asBytes := map[string]any{"media_ref": []byte(mediaRef), "entry_ref": []byte(entryRef)}
+	if !validDeleteReceipt(base(asBytes), "h", mediaRef) {
+		t.Fatal("[]byte snapshot refs rejected")
+	}
 	cases := []map[string]any{
 		{"media_ref": "med_0123456789abcdefghjkmnpqrr", "entry_ref": entryRef},
 		{"media_ref": mediaRef, "entry_ref": "ent_0123456789abcdefghjkmnpqrr"},

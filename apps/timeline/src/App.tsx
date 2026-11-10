@@ -25,6 +25,25 @@ import {
 import { describeError, isUnauthenticated } from "@/lib/errors.ts";
 import { account, media, mutationID, setTransportAccount, timeline, write } from "@/lib/rpc.ts";
 
+function uploadSessionKey(entryRef: string, file: File): string {
+  return `${entryRef}:${file.name}:${file.size}:${file.lastModified}:${file.type}`;
+}
+
+function putUpload(url: string, file: File, headers: Record<string, string>, onProgress: (progress: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("PUT", url);
+    for (const [name, value] of Object.entries(headers)) request.setRequestHeader(name, value);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onload = () => request.status >= 200 && request.status < 300 ? resolve() : reject(new Error(`上传失败（HTTP ${request.status}）`));
+    request.onerror = () => reject(new Error("上传失败，请重试"));
+    onProgress(1);
+    request.send(file);
+  });
+}
+
 export default function App() {
   const [view, setView] = useState<View>("timeline");
   const [pending, setPending] = useState<FilterState>(EMPTY_FILTERS);
@@ -48,6 +67,7 @@ export default function App() {
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const pendingEntryRef = useRef<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const uploadSessions = useRef(new Map<string, { mutationId: string; mediaRef: string }>());
 
   // Only the newest list answer may land: typing in the search box must not let an older page overwrite a newer one.
   const sequence = useRef(0);
@@ -154,6 +174,7 @@ export default function App() {
     setSaveError(null);
     setUploads([]);
     pendingEntryRef.current = null;
+    uploadSessions.current.clear();
     setComposerOpen(true);
   };
 
@@ -161,29 +182,24 @@ export default function App() {
     setComposerOpen(false);
     setUploads([]);
     pendingEntryRef.current = null;
+    uploadSessions.current.clear();
   };
 
-  /**
-   * Signs, uploads and completes one file, straight to the object store: three steps the server checks in order
-   * (size, type and the document's own bytes at Complete). Nothing here retries by itself — the caller decides.
-   */
-  const uploadOne = async (entryRef: string, file: File) => {
-    const uploadMutationId = mutationID();
+  const uploadOne = async (entryRef: string, file: File, index: number) => {
+    const key = uploadSessionKey(entryRef, file);
+    const session = uploadSessions.current.get(key);
+    const uploadMutationId = session?.mutationId ?? mutationID();
     const prepared = await write(() =>
       media.prepareUpload({ entryRef, filename: file.name, contentType: file.type, sizeBytes: BigInt(file.size), mutationId: uploadMutationId }),
     );
     if (prepared.uploadUrl === "" || prepared.media === undefined) throw new Error("服务端没有给出上传地址");
-    const answer = await fetch(prepared.uploadUrl, {
-      method: "PUT",
-      // The presigned URL signs Content-Type: the server's own headers win, and the file's type is only a fallback.
-      headers: { "Content-Type": file.type, ...prepared.headers },
-      body: file,
-      // The signed URL carries its own authorisation: the session Cookie is not sent to the object store.
-      credentials: "omit",
-    });
-    if (!answer.ok) throw new Error(`上传失败（HTTP ${answer.status}）`);
+    uploadSessions.current.set(key, { mutationId: uploadMutationId, mediaRef: prepared.media.mediaRef });
+    const setProgress = (progress: number) => setUploads((current) => current.map((item, at) => (at === index ? { ...item, progress } : item)));
+    await putUpload(prepared.uploadUrl, file, { "Content-Type": file.type, ...prepared.headers }, setProgress);
     await write(() => media.completeUpload({ mediaRef: prepared.media!.mediaRef, mutationId: uploadMutationId }));
   };
+
+
 
   /**
    * Runs the queue of files against an already-written record, one at a time, and reports how many failed. The
@@ -193,9 +209,9 @@ export default function App() {
     setUploads(items);
     let failed = 0;
     for (const index of queue) {
-      setUploads((current) => current.map((item, at) => (at === index ? { ...item, status: "uploading", message: undefined } : item)));
+      setUploads((current) => current.map((item, at) => (at === index ? { ...item, status: "uploading", progress: 0, message: undefined } : item)));
       try {
-        await uploadOne(entryRef, items[index]!.file);
+        await uploadOne(entryRef, items[index]!.file, index);
         setUploads((current) => current.map((item, at) => (at === index ? { ...item, status: "done" } : item)));
       } catch (error) {
         failed += 1;
@@ -344,11 +360,11 @@ export default function App() {
         <TopBar query={pending.query} onQuery={(query) => changeFilters({ ...pending, query })} onWrite={openComposer} total={visible.length} />
 
         <main className="flex-1 px-10 pt-8 pb-16">
-          <div className="mx-auto w-full max-w-[860px]">
+          <div className="mx-auto w-full max-w-[740px]">
             <div className="flex items-start justify-between gap-6">
               <div>
                 <p className="text-[11px] font-semibold tracking-[0.2em] text-muted-foreground uppercase">Timeline</p>
-                <h1 className="mt-1.5 text-[32px] leading-tight font-semibold tracking-tight text-on-surface">
+                <h1 className="mt-1.5 text-[22px] leading-8 font-semibold tracking-tight text-on-surface">
                   {view === "trash" ? "回收站" : `${today.slice(0, 4)} 年 阳历记录本`}
                 </h1>
                 <p className="mt-2 text-sm text-muted-foreground">

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Paperclip, SlidersHorizontal, WarningCircle, X } from "@phosphor-icons/react";
+import { CloudArrowUp, SlidersHorizontal, WarningCircle, X } from "@phosphor-icons/react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@kongken/ui/dialog";
 import { Input } from "@kongken/ui/input";
 import { ACCEPTED_TYPES, refuseFiles, uploadStatusText, type UploadItem } from "@/lib/attachments.ts";
@@ -268,8 +268,9 @@ export function Composer({ open, initial, categories, saving, error, uploads = [
                   }}
                   className="flex cursor-pointer flex-col items-center gap-1.5 rounded-md border border-dashed border-outline-variant bg-muted/60 px-4 py-6 text-center hover:border-primary"
                 >
-                  <Paperclip size={18} className="text-primary" />
-                  <p className="text-xs text-muted-foreground">拖拽或选择图片 / PDF，单个不超过 10 MiB，最多 20 个</p>
+                  <CloudArrowUp size={19} className="text-primary" />
+                  <p className="text-xs font-medium text-card-foreground">点击或拖拽文件添加附件</p>
+                  <p className="text-[11px] text-muted-foreground">JPEG、PNG、WebP 或 PDF，单个不超过 10 MiB，最多 20 个</p>
                   <input
                     id="timeline-attachments"
                     type="file"

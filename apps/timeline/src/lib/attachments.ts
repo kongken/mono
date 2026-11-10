@@ -43,6 +43,7 @@ export function refuseFiles(chosen: File[], alreadyAttached: number): string | n
 export type UploadItem = {
   file: File;
   status: "pending" | "uploading" | "done" | "failed";
+  progress?: number;
   message?: string;
 };
 
@@ -55,7 +56,7 @@ export function fileSize(bytes: number): string {
 
 /** The line under a file: its size while it waits, what happened to it once it has an outcome. */
 export function uploadStatusText(item: UploadItem): string {
-  if (item.status === "uploading") return "上传中…";
+  if (item.status === "uploading") return item.progress === undefined ? "上传中…" : `上传中 ${item.progress}%`;
   if (item.status === "done") return "已附上";
   if (item.status === "failed") return item.message === undefined ? "没传上去" : `没传上去：${item.message}`;
   return `${fileSize(item.file.size)} · 待上传`;

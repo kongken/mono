@@ -159,6 +159,10 @@ export async function fakeBackend(page: Page, opts: { signedIn?: boolean; entrie
       }
       const size = Number(body.sizeBytes);
       if (!Number.isFinite(size) || size <= 0 || size > 10 * 1024 * 1024) return failure(400, "invalid_argument", "invalid media request");
+      const replay = state.media.find((row) => row.entryRef === body.entryRef && row.status !== "deleting" && mutationIDs.get(row.mediaRef) === body.mutationId);
+      if (replay !== undefined) {
+        return { body: { media: publicMedia(replay), uploadUrl: `${state.origin}/upload/${replay.mediaRef}`, headers: { "Content-Type": replay.contentType }, expiresAt: new Date(Date.now() + 600_000).toISOString() } };
+      }
       if (state.media.filter((row) => row.entryRef === body.entryRef && row.status !== "deleting").length >= 20) {
         return failure(400, "invalid_argument", "invalid media request");
       }
@@ -185,6 +189,7 @@ export async function fakeBackend(page: Page, opts: { signedIn?: boolean; entrie
       }
       const row = state.media.find((candidate) => candidate.mediaRef === body.mediaRef);
       if (!row || mutationIDs.get(row.mediaRef) !== body.mutationId) return failure(404, "not_found", "media not found");
+      if (row.status === "ready") return { body: { media: publicMedia(row) } };
       if (row.status !== "pending") return failure(400, "invalid_argument", "invalid media request");
       if (row.body === undefined) return failure(404, "not_found", "media not found");
       row.status = "ready";
@@ -274,6 +279,7 @@ export async function fakeBackend(page: Page, opts: { signedIn?: boolean; entrie
       bytes: request.postDataBuffer()?.length ?? 0,
       signature: new URL(request.url()).searchParams.get("signature") ?? undefined,
     });
+    await new Promise((resolve) => setTimeout(resolve, 250));
     if (state.uploadFailures > 0) {
       state.uploadFailures -= 1;
       await route.fulfill({ status: 500, body: "the object store refused the PUT" });

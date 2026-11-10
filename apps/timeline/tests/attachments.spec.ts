@@ -59,6 +59,14 @@ test("a chosen file is signed, uploaded straight to the store, completed, and th
   await expect(page.getByRole("button", { name: "打开附件「receipt.png」" })).toBeVisible();
 });
 
+test("shows nonzero byte upload progress while a large attachment is uploading", async ({ page }) => {
+  await fakeBackend(page, { entries: [] });
+  await page.goto("/");
+  const drawer = await draftWithFile(page, "large.png", "image/png", Buffer.alloc(8 * 1024 * 1024, 7));
+  await drawer.getByRole("button", { name: "保存记录" }).click();
+  await expect(drawer.getByText(/上传中 [1-9][0-9]*%/)).toBeVisible();
+  await expect(drawer).not.toBeVisible();
+});
 test("a refused PUT keeps the record and re-uploads only the file, never the record twice", async ({ page }) => {
   const fake = await fakeBackend(page, { entries: [] });
   fake.state.uploadFailures = 1;
