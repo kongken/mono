@@ -27,6 +27,8 @@ export type EntryJson = {
   deletedAt?: string;
 };
 
+export type MediaJson = { mediaRef: string; entryRef: string; filename: string; contentType: string; sizeBytes: string; status: string };
+
 export type FakeTimeline = ReturnType<typeof fakeBackend>["state"];
 
 /** A record with every field the server always sets, so a test only writes what it cares about. */
@@ -68,6 +70,7 @@ export async function fakeBackend(page: Page, opts: { signedIn?: boolean; entrie
     /** Every write that reached the service: the CSRF header and the message. */
     writes: [] as { procedure: string; csrf: string | undefined; body: Record<string, any> }[],
     entries: [...(opts.entries ?? [])],
+    media: [] as MediaJson[],
   };
 
   const failure = (status: number, code: string, message: string) => ({ status, body: { code, message } });
@@ -96,7 +99,15 @@ export async function fakeBackend(page: Page, opts: { signedIn?: boolean; entrie
       }
       return unauth() ?? { body: { entries: sorted().filter((row) => matches(row, body)), nextPageToken: "" } };
     },
-    "bff.timeline.v1.MediaService/ListMedia": () => unauth() ?? { body: { media: [] } },
+    "bff.timeline.v1.MediaService/PrepareUpload": (body) => {
+      const item = { mediaRef: `med-${state.media.length + 1}`, entryRef: String(body.entryRef ?? ""), filename: String(body.filename ?? ""), contentType: String(body.contentType ?? ""), sizeBytes: String(body.sizeBytes ?? "0"), status: "pending" };
+      state.media.push(item);
+      return { body: { media: item, uploadUrl: `/api/upload/${item.mediaRef}`, headers: {} } };
+    },
+    "bff.timeline.v1.MediaService/CompleteUpload": (body) => { const item = state.media.find((candidate) => candidate.mediaRef === body.mediaRef); if (!item) return failure(404, "not_found", "media not found"); item.status = "ready"; return { body: { media: item } }; },
+    "bff.timeline.v1.MediaService/ListMedia": (body) => unauth() ?? { body: { media: state.media.filter((item) => item.entryRef === body.entryRef && item.status === "ready") } },
+    "bff.timeline.v1.MediaService/ReadMedia": (body) => { const item = state.media.find((candidate) => candidate.mediaRef === body.mediaRef && candidate.status === "ready"); return item ? { body: { data: "", contentType: item.contentType, filename: item.filename } } : failure(404, "not_found", "media not found"); },
+    "bff.timeline.v1.MediaService/DeleteMedia": (body) => { const index = state.media.findIndex((candidate) => candidate.mediaRef === body.mediaRef); if (index < 0) return failure(404, "not_found", "media not found"); state.media.splice(index, 1); return { body: { receipt: { mutationId: body.mutationId ?? "", operation: "media_delete", resultRevision: "1", replayed: false } } }; },
     "bff.timeline.v1.TimelineService/CreateEntry": (body) => {
       const denied = unauth();
       if (denied) return denied;
@@ -147,7 +158,12 @@ export async function fakeBackend(page: Page, opts: { signedIn?: boolean; entrie
   await page.route("**/api/**", (route) => answer(route));
 
   async function answer(route: Route) {
-    const match = /^\/api\/([\w.]+)\/(\w+)$/.exec(new URL(route.request().url()).pathname);
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname.startsWith("/api/upload/")) {
+      await route.fulfill({ status: 200, body: "" });
+      return;
+    }
+    const match = /^\/api\/([\w.]+)\/(\w+)$/.exec(pathname);
     if (match === null) {
       await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ code: "unimplemented", message: "not found" }) });
       return;

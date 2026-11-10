@@ -11,6 +11,8 @@ type TimelineProps = {
   onLoadMore: () => void;
   onDelete: (entry: Entry) => void;
   media?: Record<string, MediaInfo[]>;
+  onReadMedia?: (media: MediaInfo) => void;
+  onDeleteMedia?: (media: MediaInfo) => void;
   children?: React.ReactNode;
 };
 
@@ -18,7 +20,7 @@ type TimelineProps = {
  * The list itself: a month rule, then a day rule (with 今天 on today), then that day's records. Groups follow the
  * order the server returned, so nothing is re-sorted here.
  */
-export function Timeline({ months, empty, loadingMore, canLoadMore, onLoadMore, onDelete, media = {}, children }: TimelineProps) {
+export function Timeline({ months, empty, loadingMore, canLoadMore, onLoadMore, onDelete, media = {}, onReadMedia, onDeleteMedia, children }: TimelineProps) {
   if (empty) {
     return (
       <div className="mt-10 rounded-card border border-dashed border-outline-variant bg-card/70 px-8 py-16 text-center">
@@ -43,7 +45,7 @@ export function Timeline({ months, empty, loadingMore, canLoadMore, onLoadMore, 
               </div>
               <div className="flex flex-col gap-2">
                 {day.entries.map((entry) => (
-                  <EntryCard key={entry.id} entry={entry} onDelete={onDelete} media={media[entry.entryRef]} />
+                  <EntryCard key={entry.id} entry={entry} onDelete={onDelete} media={media[entry.entryRef]} onReadMedia={onReadMedia} onDeleteMedia={onDeleteMedia} />
                 ))}
               </div>
             </div>

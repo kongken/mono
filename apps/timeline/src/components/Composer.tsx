@@ -29,6 +29,7 @@ type ComposerProps = {
   error: string | null;
   onClose: () => void;
   onSubmit: (draft: DraftEntry, files: File[]) => void;
+  uploadStatus?: Record<string, { progress: number; error?: string }>;
 };
 
 /**
@@ -37,7 +38,7 @@ type ComposerProps = {
  * is drawn as it is but stays disabled: the records service has no attachment RPC yet, so a file dropped here
  * would have nowhere to go (docs/timeline/features.md).
  */
-export function Composer({ open, initial, categories, saving, error, onClose, onSubmit }: ComposerProps) {
+export function Composer({ open, initial, categories, saving, error, onClose, onSubmit, uploadStatus = {} }: ComposerProps) {
   const [draft, setDraft] = useState<DraftEntry>(initial);
   const [errors, setErrors] = useState<DraftErrors>({});
   const [zoneEditing, setZoneEditing] = useState(false);
@@ -229,7 +230,7 @@ export function Composer({ open, initial, categories, saving, error, onClose, on
                   <p className="text-xs text-muted-foreground">拖拽或选择图片 / PDF，单个不超过 10 MiB，最多 20 个</p>
                   <input id="timeline-attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" className="sr-only" onChange={(event) => setFiles((current) => [...current, ...Array.from(event.target.files ?? [])].slice(0, 20))} />
                 </label>
-                {files.length > 0 && <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{files.map((file, index) => <li key={`${file.name}-${index}`} className="flex justify-between"><span className="truncate">{file.name}</span><span>{Math.ceil(file.size / 1024)} KiB</span></li>)}</ul>}
+                {files.length > 0 && <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{files.map((file, index) => { const status = uploadStatus[file.name]; return <li key={`${file.name}-${index}`} className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate">{file.name}</span><span>{status?.error ?? (status === undefined ? `${Math.ceil(file.size / 1024)} KiB` : `${status.progress}%`)}</span></li>; })}</ul>}
               </div>
             </div>
           </div>

@@ -40,9 +40,11 @@ type EntryCardProps = {
   onRestore?: (entry: Entry) => void;
   onPurge?: (entry: Entry) => void;
   media?: MediaInfo[];
+  onReadMedia?: (media: MediaInfo) => void;
+  onDeleteMedia?: (media: MediaInfo) => void;
 };
 
-export function EntryCard({ entry, onDelete, onRestore, onPurge, media = [] }: EntryCardProps) {
+export function EntryCard({ entry, onDelete, onRestore, onPurge, media = [], onReadMedia, onDeleteMedia }: EntryCardProps) {
   const amount = formatAmount(entry.amountMinor, entry.currency);
 
   return (
@@ -69,7 +71,7 @@ export function EntryCard({ entry, onDelete, onRestore, onPurge, media = [] }: E
           </div>
         )}
         {entry.note !== "" && <p className="mt-2 text-sm leading-relaxed whitespace-pre-line text-on-surface-variant">{entry.note}</p>}
-        {media.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{media.map((item) => <a key={item.mediaRef} href="#" className="rounded bg-surface-container px-2 py-1 text-xs text-primary" title="读取私有附件">📎 {item.filename}</a>)}</div>}
+        {media.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{media.map((item) => <span key={item.mediaRef} className="inline-flex items-center gap-1 rounded bg-surface-container px-2 py-1 text-xs text-primary"><button type="button" onClick={() => onReadMedia?.(item)} title="读取私有附件">📎 {item.filename}</button><button type="button" onClick={() => onDeleteMedia?.(item)} aria-label={`删除附件 ${item.filename}`} className="text-muted-foreground hover:text-destructive">×</button></span>)}</div>}
         {entry.url !== "" && (
           <a
             href={entry.url}

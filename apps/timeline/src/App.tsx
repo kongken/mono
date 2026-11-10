@@ -41,6 +41,18 @@ function describeError(error: unknown, fallback: string): string {
   }
 }
 
+function putUpload(url: string, file: File, headers: Record<string, string>, onProgress: (progress: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("PUT", url);
+    for (const [name, value] of Object.entries(headers)) request.setRequestHeader(name, value);
+    request.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100)); };
+    request.onload = () => request.status >= 200 && request.status < 300 ? resolve() : reject(new Error("附件直传失败，请重试"));
+    request.onerror = () => reject(new Error("附件直传失败，请重试"));
+    request.send(file);
+  });
+}
+
 export default function App() {
   const [view, setView] = useState<View>("timeline");
   const [pending, setPending] = useState<FilterState>(EMPTY_FILTERS);
@@ -59,6 +71,9 @@ export default function App() {
   const [composerSeed, setComposerSeed] = useState<DraftEntry>(() => emptyDraft());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [pendingEntryRef, setPendingEntryRef] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<Record<string, { progress: number; error?: string }>>({});
+  const uploadedFiles = useRef(new Set<string>());
 
   // Only the newest list answer may land: typing in the search box must not let an older page overwrite a newer one.
   const sequence = useRef(0);
@@ -159,8 +174,9 @@ export default function App() {
     }
     setSaving(true);
     setSaveError(null);
+    let entryRef = pendingEntryRef;
     try {
-      const created = await write(() =>
+      const created = pendingEntryRef === null ? await write(() =>
         timeline.createEntry({
           mutationId: mutationID(),
           entry: {
@@ -176,15 +192,23 @@ export default function App() {
           },
         }),
       );
+      entryRef = pendingEntryRef ?? created?.entry?.entryRef ?? created?.entry?.id;
       for (const file of files) {
+        if (uploadedFiles.current.has(file.name)) continue;
+        setUploadStatus((current) => ({ ...current, [file.name]: { progress: 0 } }));
         const uploadMutationId = mutationID();
-        const prepared = await write(() => media.prepareUpload({ entryRef: created.entry?.entryRef ?? "", filename: file.name, contentType: file.type, sizeBytes: BigInt(file.size), mutationId: uploadMutationId }));
-        await fetch(prepared.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+        const prepared = await write(() => media.prepareUpload({ entryRef: entryRef ?? "", filename: file.name, contentType: file.type, sizeBytes: BigInt(file.size), mutationId: uploadMutationId }));
+        await putUpload(prepared.uploadUrl, file, prepared.headers, (progress) => setUploadStatus((current) => ({ ...current, [file.name]: { progress } })));
         await write(() => media.completeUpload({ mediaRef: prepared.media?.mediaRef ?? "", mutationId: uploadMutationId }));
+        setUploadStatus((current) => ({ ...current, [file.name]: { progress: 100 } }));
+        uploadedFiles.current.add(file.name);
       }
+      setPendingEntryRef(null);
       setComposerOpen(false);
       await load(view === "trash");
     } catch (error) {
+      setPendingEntryRef(entryRef);
+      if (entryRef !== null) setUploadStatus((current) => ({ ...current, [files.find((file) => current[file.name]?.progress !== 100)?.name ?? "attachment"]: { progress: 0, error: "上传失败，可重试" } }));
       setSaveError(describeError(error, "保存失败"));
     } finally {
       setSaving(false);
@@ -226,6 +250,22 @@ export default function App() {
       () => timeline.purgeEntry({ id: entry.id, entryRef: entry.entryRef, expectedRevision: entry.revision, mutationId: mutationID() }),
       () => load(true),
     );
+
+  const readMedia = async (item: MediaInfo) => {
+    try {
+      const response = await media.readMedia({ mediaRef: item.mediaRef });
+      const url = URL.createObjectURL(new Blob([response.data], { type: response.contentType }));
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      setActionError(describeError(error, "读取附件失败"));
+    }
+  };
+
+  const deleteMedia = (item: MediaInfo) => mutate(
+    () => media.deleteMedia({ mediaRef: item.mediaRef, mutationId: mutationID(), expectedRevision: 0n }),
+    async () => { setAttachments((current) => Object.fromEntries(Object.entries(current).map(([key, items]) => [key, items.filter((candidate) => candidate.mediaRef !== item.mediaRef)]))); await load(view === "trash"); },
+  );
 
   const signOut = async () => {
     setSigningOut(true);
@@ -326,6 +366,8 @@ export default function App() {
                 canLoadMore={nextToken !== ""}
                 onLoadMore={() => void load(false, nextToken)}
                 media={attachments}
+                onReadMedia={(item) => void readMedia(item)}
+                onDeleteMedia={(item) => void deleteMedia(item)}
                 onDelete={(entry) => void removeEntry(entry)}
               />
             )}
@@ -344,6 +386,7 @@ export default function App() {
           categories={categories}
           saving={saving}
           error={saveError}
+          uploadStatus={uploadStatus}
           onClose={() => setComposerOpen(false)}
           onSubmit={(draft, files) => void submitDraft(draft, files)}
         />
