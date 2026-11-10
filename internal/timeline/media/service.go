@@ -35,6 +35,7 @@ type Upload struct {
 type Media struct {
 	Ref, EntryRef, Filename, ContentType, Status string
 	SizeBytes                                    int64
+	CreatedAt                                    time.Time
 	UploadURL                                    string
 	// Headers the client must send with the PUT: the signature covers Content-Type, so a browser that sets its own
 	// breaks the signature. Dropping them here is what makes a presigned upload fail with SignatureDoesNotMatch.
@@ -68,6 +69,20 @@ func Prepare(ctx context.Context, st *Store, userID string, u Upload) (*Media, e
 	if err != nil {
 		return nil, ErrNotFound
 	}
+	if existing, queryErr := tx.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.EntryID(e.ID), mediaobject.MutationIDEQ(u.MutationID)).Only(ctx); queryErr == nil {
+		url, headers, signErr := signer.SignUpload(ctx, existing.UploadKey, existing.SizeBytes, existing.ContentType, 10*time.Minute)
+		if signErr != nil {
+			return nil, signErr
+		}
+		expires := time.Now().UTC().Add(10 * time.Minute)
+		if _, updateErr := existing.Update().SetUploadExpiresAt(expires).Save(ctx); updateErr != nil {
+			return nil, updateErr
+		}
+		if commitErr := tx.Commit(); commitErr != nil {
+			return nil, commitErr
+		}
+		return &Media{Ref: existing.PublicRef, EntryRef: existing.EntryPublicRef, Filename: existing.Filename, ContentType: existing.ContentType, SizeBytes: existing.SizeBytes, Status: existing.Status, CreatedAt: existing.CreatedAt, UploadURL: url, Headers: headers, ExpiresAt: expires}, nil
+	}
 	if n, _ := tx.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.EntryID(e.ID), mediaobject.StatusNEQ("deleting")).Count(ctx); n >= 20 {
 		return nil, ErrInvalid
 	}
@@ -85,7 +100,7 @@ func Prepare(ctx context.Context, st *Store, userID string, u Upload) (*Media, e
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, UploadURL: url, Headers: headers, ExpiresAt: exp}, nil
+	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, CreatedAt: m.CreatedAt, UploadURL: url, Headers: headers, ExpiresAt: exp}, nil
 }
 func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID string) (*Media, error) {
 	if st == nil || st.DB == nil || st.Blobs == nil || userID == "" || mediaRef == "" || mutationID == "" {
@@ -99,6 +114,12 @@ func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID strin
 	m, err := tx.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.PublicRefEQ(mediaRef), mediaobject.MutationIDEQ(mutationID)).Only(ctx)
 	if err != nil {
 		return nil, ErrNotFound
+	}
+	if m.Status == "ready" {
+		if err = tx.Commit(); err != nil {
+			return nil, err
+		}
+		return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, CreatedAt: m.CreatedAt}, nil
 	}
 	if m.Status != "pending" || m.UploadExpiresAt == nil || !m.UploadExpiresAt.After(time.Now().UTC()) {
 		return nil, ErrInvalid
@@ -119,7 +140,7 @@ func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID strin
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status}, nil
+	return &Media{Ref: m.PublicRef, EntryRef: m.EntryPublicRef, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Status: m.Status, CreatedAt: m.CreatedAt}, nil
 }
 func validOpaqueRef(value, prefix string) bool {
 	if len(value) != len(prefix)+26 || !strings.HasPrefix(value, prefix) {
