@@ -12,6 +12,8 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import type { Entry } from "@kongken/api-client/bff/timeline/v1/timeline_pb";
+import type { MediaInfo } from "@kongken/api-client/bff/timeline/v1/media_pb";
+import { Attachments } from "@/components/Attachments.tsx";
 import { formatAmount } from "@/lib/entries.ts";
 
 /** The record's category as an icon: a known word gets its own glyph, anything else the plain tag. */
@@ -38,9 +40,12 @@ type EntryCardProps = {
   onDelete?: (entry: Entry) => void;
   onRestore?: (entry: Entry) => void;
   onPurge?: (entry: Entry) => void;
+  media?: MediaInfo[];
+  onMediaDeleted?: (mediaRef: string) => void;
+  onMediaError?: (message: string) => void;
 };
 
-export function EntryCard({ entry, onDelete, onRestore, onPurge }: EntryCardProps) {
+export function EntryCard({ entry, onDelete, onRestore, onPurge, media = [], onMediaDeleted = () => {}, onMediaError = () => {} }: EntryCardProps) {
   const amount = formatAmount(entry.amountMinor, entry.currency);
 
   return (
@@ -67,6 +72,7 @@ export function EntryCard({ entry, onDelete, onRestore, onPurge }: EntryCardProp
           </div>
         )}
         {entry.note !== "" && <p className="mt-2 text-sm leading-relaxed whitespace-pre-line text-on-surface-variant">{entry.note}</p>}
+        <Attachments items={media} readOnly={entry.deletedAt !== undefined} onDeleted={onMediaDeleted} onError={onMediaError} />
         {entry.url !== "" && (
           <a
             href={entry.url}

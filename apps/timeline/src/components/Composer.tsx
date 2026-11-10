@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Paperclip, SlidersHorizontal, WarningCircle, X } from "@phosphor-icons/react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@kongken/ui/dialog";
 import { Input } from "@kongken/ui/input";
+import { ACCEPTED_TYPES, refuseFiles, uploadStatusText, type UploadItem } from "@/lib/attachments.ts";
 import { amountPlaceholder, currencyDigits, timezoneLabel, validateDraft, type DraftEntry, type DraftErrors } from "@/lib/entries.ts";
 import { cn } from "@kongken/ui/utils";
 
@@ -21,26 +22,42 @@ const COMMON_ZONES = [
   "UTC",
 ];
 
+/** One line of the attachment list: what was chosen, what happened to it, and whether it can still be dropped. */
+type AttachmentRow = {
+  key: string;
+  name: string;
+  status: string;
+  tone: "muted" | "ok" | "error";
+  remove?: () => void;
+};
+
 type ComposerProps = {
   open: boolean;
   initial: DraftEntry;
   categories: string[];
   saving: boolean;
   error: string | null;
+  /** The files of the record being saved, with what happened to each: only set once a save has started. */
+  uploads?: UploadItem[];
+  onRetry?: () => void;
   onClose: () => void;
-  onSubmit: (draft: DraftEntry) => void;
+  onSubmit: (draft: DraftEntry, files: File[]) => void;
 };
 
 /**
  * 记一笔: the design's right-hand drawer. Title, date and time with the record's own time zone, category,
- * place, amount and currency, note — the fields the records API actually has. The design's attachment drop zone
- * is drawn as it is but stays disabled: the records service has no attachment RPC yet, so a file dropped here
- * would have nowhere to go (docs/timeline/features.md).
+ * place, amount and currency, note, and attachments — the fields the records and media APIs actually have. The
+ * record is written first, then each file is signed, uploaded straight to the object store, and completed; a file
+ * that fails leaves the record saved and offers a retry, so a retry never writes the record twice.
  */
-export function Composer({ open, initial, categories, saving, error, onClose, onSubmit }: ComposerProps) {
+export function Composer({ open, initial, categories, saving, error, uploads = [], onRetry, onClose, onSubmit }: ComposerProps) {
   const [draft, setDraft] = useState<DraftEntry>(initial);
   const [errors, setErrors] = useState<DraftErrors>({});
   const [zoneEditing, setZoneEditing] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  // What is wrong with the chosen files, kept apart from the field errors: the note field's error slot is the
+  // note's, and a file refusal printed there would point at the wrong box.
+  const [fileError, setFileError] = useState<string | null>(null);
 
   const zone = useMemo(() => timezoneLabel(draft.timezone), [draft.timezone]);
   const digits = currencyDigits(draft.currency);
@@ -60,8 +77,40 @@ export function Composer({ open, initial, categories, saving, error, onClose, on
       setErrors(checked.errors);
       return;
     }
-    onSubmit(draft);
+    const refusal = refuseFiles(files, 0);
+    if (refusal !== null) {
+      setFileError(refusal);
+      return;
+    }
+    setFileError(null);
+    onSubmit(draft, files);
   };
+
+  const addFiles = (chosen: File[]) => {
+    const merged = [...files, ...chosen].slice(0, 20);
+    const refusal = refuseFiles(chosen, files.length);
+    setFileError(refusal);
+    if (refusal === null) setFiles(merged);
+  };
+
+  // While a save is running the list is the server's story (pending → uploading → done / failed); before that it is
+  // simply what was chosen. Both are drawn the same way so the drawer does not jump when the save starts.
+  const failed = uploads.filter((item) => item.status === "failed").length;
+  const rows: AttachmentRow[] =
+    uploads.length > 0
+      ? uploads.map((item) => ({
+          key: `${item.file.name}-${item.file.size}-${item.file.lastModified}`,
+          name: item.file.name,
+          status: uploadStatusText(item),
+          tone: item.status === "failed" ? "error" : item.status === "done" ? "ok" : "muted",
+        }))
+      : files.map((file, index) => ({
+          key: `${file.name}-${index}`,
+          name: file.name,
+          status: uploadStatusText({ file, status: "pending" }),
+          tone: "muted",
+          remove: () => setFiles((current) => current.filter((_unused, at) => at !== index)),
+        }));
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
@@ -209,16 +258,65 @@ export function Composer({ open, initial, categories, saving, error, onClose, on
               </Field>
 
               <div>
-                <p className="mb-2 text-xs font-medium text-muted-foreground">附件</p>
-                <div
-                  aria-disabled="true"
-                  title="附件服务未接入，本切片不能上传"
-                  className="flex flex-col items-center gap-1.5 rounded-md border border-dashed border-outline-variant bg-muted/60 px-4 py-6 text-center"
+                <p className="mb-2 text-xs font-medium text-muted-foreground">附件（可选）</p>
+                <label
+                  htmlFor="timeline-attachments"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    addFiles(Array.from(event.dataTransfer.files));
+                  }}
+                  className="flex cursor-pointer flex-col items-center gap-1.5 rounded-md border border-dashed border-outline-variant bg-muted/60 px-4 py-6 text-center hover:border-primary"
                 >
-                  <Paperclip size={18} className="text-muted-foreground/70" />
-                  <p className="text-xs text-muted-foreground">图片或 PDF，单个不超过 10 MiB，最多 20 个</p>
-                  <p className="text-[11px] text-muted-foreground/80">附件服务接入后可拖拽上传（当前不可用）</p>
-                </div>
+                  <Paperclip size={18} className="text-primary" />
+                  <p className="text-xs text-muted-foreground">拖拽或选择图片 / PDF，单个不超过 10 MiB，最多 20 个</p>
+                  <input
+                    id="timeline-attachments"
+                    type="file"
+                    multiple
+                    accept={ACCEPTED_TYPES.join(",")}
+                    disabled={saving}
+                    className="sr-only"
+                    onChange={(event) => {
+                      addFiles(Array.from(event.target.files ?? []));
+                      // Clearing the input lets the same file be chosen again after a refusal.
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+                {fileError !== null && <p className="mt-1.5 text-[11px] text-destructive">{fileError}</p>}
+                {rows.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    {rows.map((row) => (
+                      <li key={row.key} className="flex items-center justify-between gap-2">
+                        <span className="truncate">{row.name}</span>
+                        <span className="flex shrink-0 items-center gap-1">
+                          <span className={cn(row.tone === "error" && "text-destructive", row.tone === "ok" && "text-primary")}>{row.status}</span>
+                          {row.remove !== undefined && !saving && (
+                            <button
+                              type="button"
+                              onClick={row.remove}
+                              aria-label={`移除附件「${row.name}」`}
+                              className="rounded p-0.5 transition-colors hover:bg-error-container hover:text-destructive"
+                            >
+                              <X size={11} />
+                            </button>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {failed > 0 && onRetry !== undefined && (
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    disabled={saving}
+                    className="mt-2 rounded-md border border-outline-variant bg-white px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-surface-container disabled:opacity-60"
+                  >
+                    重试上传（{failed} 个）
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -253,8 +351,7 @@ export function Composer({ open, initial, categories, saving, error, onClose, on
   );
 }
 
-function Field({ label, required = false, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
-  return (
+function Field({ label, required = false, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {  return (
     <label className="flex flex-col gap-1.5">
       <span className="text-xs font-medium text-muted-foreground">
         {label}

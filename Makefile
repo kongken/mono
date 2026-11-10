@@ -133,7 +133,13 @@ test-integration-usersrv:
 
 # Timeline migrations against PostgreSQL: each test creates a throwaway schema, applies
 # migrations/timeline/*.sql the way the deployment notes say to, and checks the backfill, the
-# CHECK constraints and the receipt rules on the database itself. Plain `make test` skips them.
+# CHECK constraints and the receipt rules on the database itself. The attachment scenarios also
+# need the Compose S3 service and its `timeline` bucket (`make storage-init` creates the tripmap
+# one; create this one with `go run ./cmd/storage-init -config <timeline config pointing at
+# 127.0.0.1:19000>`), because they upload through a real presigned URL. Plain `make test` skips them.
 test-integration-timeline:
 	TIMELINE_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
+	TIMELINE_TEST_S3_ENDPOINT='http://127.0.0.1:19000' \
+	TIMELINE_TEST_S3_ACCESS_KEY='tripmap-local' TIMELINE_TEST_S3_SECRET_KEY='tripmap-local-secret' \
+	TIMELINE_TEST_S3_BUCKET='timeline' \
 	go test -count=1 -v ./internal/timeline/integration

@@ -13,10 +13,18 @@ timeline_config=$root/config.timeline.example.yaml
 grep -qx 'db_store: timeline' "$timeline_config"
 grep -qx '    timeline:' "$timeline_config"
 grep -qF 'public_key_file: dev-secrets/bff.pub' "$timeline_config"
+grep -qF 's3_store: timeline' "$timeline_config"
+grep -qF 'bucket: timeline' "$timeline_config"
 
 stack=$root/deploy/compose.stack.example.yaml
 grep -qF 'image: ghcr.io/kongken/mono-timeline:main' "$stack"
 grep -qF 'image: ghcr.io/kongken/mono-timeline-web:main' "$stack"
+grep -qF 'test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9000/health/ready >/dev/null"]' "$stack"
+grep -qF 's3-init:' "$stack"
+grep -qF 's3-init: { condition: service_completed_successfully }' "$stack"
+grep -qF 's3: { condition: service_healthy }' "$stack"
+grep -qF '      - s3-data:/data' "$stack"
+grep -qF '  s3-data:' "$stack"
 
 caddyfile=$root/deploy/reverse-proxy/Caddyfile.example
 grep -qF 'timeline.example.com' "$caddyfile"
