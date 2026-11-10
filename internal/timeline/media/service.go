@@ -173,7 +173,9 @@ func Delete(ctx context.Context, st *Store, userID, mediaRef, mutationID string,
 	}
 	for _, key := range []string{m.ObjectKey, m.UploadKey, m.ThumbnailKey} {
 		if key != "" {
-			if err = tx.CleanupObject.Create().SetObjectKey(key).OnConflict().Ignore().Exec(ctx); err != nil {
+			// DoNothing, not Ignore: ent's Ignore() drops fields from the DO UPDATE clause, which on
+			// PostgreSQL needs a conflict target it never gets (42601); the whole delete failed.
+			if err = tx.CleanupObject.Create().SetObjectKey(key).OnConflict().DoNothing().Exec(ctx); err != nil {
 				return err
 			}
 		}

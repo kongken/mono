@@ -73,7 +73,9 @@ func Run(ctx context.Context, st *Store, userID string) error {
 			if key == "" {
 				continue
 			}
-			if err = tx.CleanupObject.Create().SetObjectKey(key).OnConflict().Ignore().Exec(ctx); err != nil {
+			// DoNothing, not Ignore: ent's Ignore() drops fields from the DO UPDATE clause, which on
+			// PostgreSQL needs a conflict target it never gets (42601); the whole delete failed.
+			if err = tx.CleanupObject.Create().SetObjectKey(key).OnConflict().DoNothing().Exec(ctx); err != nil {
 				return err
 			}
 		}
