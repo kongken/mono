@@ -59,7 +59,9 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 
 ## Cloudflare Pages 构建设置
 
-静态托管的前端应用各自一个 Pages 项目。Pages 不运行前端镜像的 Nginx，所以页面只按下面的方式找到后端。根目录的选择不是任意的：仓库根的 `wrangler.json` 属于 homepage，被 Pages 读到就会接管构建目录（见下“Timeline”）；只有不把它拖进来的项目才能让 dashboard 决定这些字段。
+静态托管的前端应用各自一个 Pages 项目，配置完全一样：构建根目录留空（仓库根目录），构建命令是根脚本 `npm run build:<应用>`，输出目录是 `apps/<应用>/dist`，构建时变量写在各自项目的 dashboard 里。workspace 依赖和 `packages/` 在应用目录之外，所以构建只能从仓库根跑；Pages 不运行前端镜像的 Nginx，所以页面只按下面的方式找到后端。
+
+**仓库根目录不能放 `wrangler.json`。** Pages 从项目根目录读 Wrangler 配置文件，读到之后就把文件里的 `pages_build_output_dir` 和 `vars` 当成这两个字段的唯一来源：根目录留空的项目全都会被它接管，dashboard 里填的输出目录和变量不再生效。这个状态在构建日志里很显眼——`Found wrangler.json file … pages_build_output_dir: …` 和 `Build environment variables: (none found)`。homepage 的配置因此放在 `apps/homepage/wrangler.json`（输出 `./dist`，只在从该目录直接 deploy 时用），仓库根不再有这份文件。
 
 ### 山海足迹
 
@@ -73,25 +75,31 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 
 构建时变量沿用原有名称：`VITE_API_BASE_URL`、`VITE_OSM_TILE_URL`、`VITE_OSM_TILE_MAX_ZOOM`、`VITE_OSM_TILE_ATTRIBUTION`、`VITE_OSM_TILE_PROVIDER`。`/api/`、`/s/` 的同源转发不会在 Pages 上自动存在：纯本地模式无需处理；启用后端时，`VITE_API_BASE_URL` 填 BFF 的绝对地址（BFF 负责跨域），分享链接的 OG 标签需要另行把 `/s/` 转发到 BFF（当前仓库没有提供 Pages 的转发配置）。
 
-### Timeline
-
-Timeline 不能把根目录留空：仓库根的 `wrangler.json` 属于 homepage，Pages 会读到它并把构建目录固定为 `apps/homepage/dist`（这个文件就是这些字段的唯一来源，dashboard 里改不了）。它同样接管构建变量：文件里没有 `vars`，构建就看得到零变量，所以在 dashboard 里配的 `VITE_*` 也不会进入构建——日志里的 `Build environment variables: (none found)` 就是这个状态。于是 timeline 的产物不会被上传，变量也进不来。给 Timeline 建自己的 Pages 项目（项目名无关，关键是**根目录**），根目录指向应用目录，再用 `--prefix` 回到仓库根安装：
+### Oz 主页
 
 | 设置 | 值 |
 | --- | --- |
-| Root directory（根目录） | `apps/timeline` |
-| Install command | `npm ci --prefix ../..` |
-| Build command | `npm run build` |
-| Build output directory | `dist` |
+| Root directory（根目录） | 留空（仓库根目录） |
+| Build command | `npm run build:homepage` |
+| Build output directory | `apps/homepage/dist` |
+| Install command | 默认（在根目录执行） |
 | `NODE_VERSION` | `24` |
 
-`apps/timeline` 下没有 wrangler 文件，所以这个项目的构建命令、输出目录和变量都由 dashboard 决定。workspace 依赖、根锁文件和 `packages/` 都在仓库根（构建时 `../..` 就是仓库根）：`npm ci --prefix ../..` 按根 `package-lock.json` 安装，`npm run build` 在 `apps/timeline` 里执行 `tsc -b && vite build`（用根 `node_modules` 的工具链），产物落在 `apps/timeline/dist`。这两个命令在本地按同样顺序验证过。想统一用根脚本时，Build command 写 `npm --prefix ../.. run build:timeline` 也一样。
+### Timeline
 
-如果构建日志仍然显示读了 `wrangler.json` 并打印 `pages_build_output_dir: apps/homepage/dist` 或 `Build environment variables: (none found)`，说明这个 Pages 项目依旧从仓库根取配置——这两行出现时，dashboard 里写的构建命令、输出目录和变量都不生效。要么把根目录改成 `apps/timeline`，要么改用 GitHub Actions 跑 `npm run build:timeline`，再用 `wrangler pages deploy apps/timeline/dist --project-name <项目>` 直接上传（这条路径不经过 Pages 的构建环境，变量由 workflow 提供）。
+| 设置 | 值 |
+| --- | --- |
+| Root directory（根目录） | 留空（仓库根目录） |
+| Build command | `npm run build:timeline` |
+| Build output directory | `apps/timeline/dist` |
+| Install command | 默认（在根目录执行） |
+| `NODE_VERSION` | `24` |
 
 `VITE_API_BASE_URL`（BFF 的绝对公开地址，例如 `https://api.example.com/api`）与 `VITE_OZID_ORIGIN`（OzID 的 origin，例如 `https://id.example.com`）**都是必需的**：Timeline 与其他产品一样没有同源 `/api` 代理，会话 Cookie 属于 API 主机，所以缺少任一个时 `apps/timeline/vite.config.ts` 的构建门会让构建失败，而不是发布一个连不上自己数据的页面。
 
 Pages 的变量是项目的**构建时**变量（Settings → Environment variables，新版界面叫 Variables and secrets），**Production 与 Preview 是两套**：只保存在 Production 下的变量，预览分支的部署看不到。变量保存后也不会补进已有的构建，需要重新部署一次。构建失败时会打印这次构建实际能看到的 `VITE_*` 变量名（只有名字，不含值），可据此区分“变量没进这次构建”（环境选错、项目不对、保存后没重新部署）与“名字或值不对”。构建日志开头 `Detected the following tools from environment` 应显示 `nodejs@24`——仓库 CI 用的就是 Node 24，报 22 说明 `NODE_VERSION` 没生效。
+
+如果日志里出现 `Found wrangler.json file … pages_build_output_dir: apps/homepage/dist`，说明这次构建的项目读到了仓库根的旧配置：确认分支已包含把该文件移到 `apps/homepage/` 的提交，或者把根目录指向 `apps/timeline` 并按应用目录的脚本构建（`npm run build`、输出 `dist`）绕开它。走 CI 直传也可以完全绕开 Pages 的构建环境：GitHub Actions 里跑 `npm run build:timeline`，再 `wrangler pages deploy apps/timeline/dist --project-name <项目>`。
 
 Timeline 是单屏应用、没有前端路由，Pages 不需要额外的 SPA 回退规则。页面直接跨站点调用 BFF：`cors_allowed_origins` 必须包含该 Pages 域名，`navigation.apps.timeline` 用同一个 origin 登记（见 [Timeline 的部署](deployment.md#timeline-的部署)）。
 
