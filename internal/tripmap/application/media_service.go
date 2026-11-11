@@ -54,14 +54,28 @@ func timelineEntryOwned(ctx context.Context, tx *ent.Tx, userID, entryRef string
 	if !entryRefPattern.MatchString(entryRef) {
 		return false, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid entry_ref"))
 	}
+	// Tripmap-only test and legacy schemas do not have Timeline's table. Check
+	// the catalog first so a missing relation never aborts the mutation
+	// transaction before the media write can proceed.
+	presentRows, err := tx.QuerySQL(ctx, `SELECT to_regclass('timeline_entries') IS NOT NULL`, nil)
+	if err != nil {
+		return false, internalError(err)
+	}
+	if !presentRows.Next() {
+		_ = presentRows.Close()
+		return false, nil
+	}
+	var present bool
+	if err := presentRows.Scan(&present); err != nil {
+		_ = presentRows.Close()
+		return false, internalError(err)
+	}
+	_ = presentRows.Close()
+	if !present {
+		return false, nil
+	}
 	rows, err := tx.QuerySQL(ctx, `SELECT public_ref FROM timeline_entries WHERE public_ref = $1 AND user_id = $2`, []any{entryRef, userID})
 	if err != nil {
-		// The Tripmap-only Ent harness predates the shared Timeline schema. Do
-		// not weaken owner checks when the table exists; only tolerate a missing
-		// relation so legacy product tests can exercise media lifecycle logic.
-		if strings.Contains(err.Error(), `relation "timeline_entries" does not exist`) || strings.Contains(err.Error(), "undefined table") {
-			return false, nil
-		}
 		return false, internalError(err)
 	}
 	defer rows.Close()

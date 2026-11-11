@@ -2,15 +2,20 @@ package application
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 
+	"entgo.io/ent/dialect"
+	entsql "entgo.io/ent/dialect/sql"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/timeline/ent"
-	"github.com/kongken/mono/internal/timeline/ent/enttest"
 	timelinev1 "github.com/kongken/mono/pkg/proto/timeline/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -73,8 +78,28 @@ func TestConcurrentExpectedRevisionAllowsOneMutation(t *testing.T) {
 	if dsn == "" {
 		t.Skip("TRIPMAP_TEST_POSTGRES_DSN is not configured")
 	}
-	db := enttest.Open(t, "pgx", dsn)
-	defer db.Close()
+	admin, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = admin.Close() })
+	schema := "timeline_concurrency_" + uuid.NewString()[:8]
+	if _, err := admin.ExecContext(context.Background(), `CREATE SCHEMA "`+schema+`"`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = admin.ExecContext(context.Background(), `DROP SCHEMA "`+schema+`" CASCADE`) })
+	cfg, err := pgx.ParseConfig(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.RuntimeParams["search_path"] = schema
+	scoped := stdlib.OpenDB(*cfg)
+	t.Cleanup(func() { _ = scoped.Close() })
+	db := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, scoped)))
+	if err := db.Schema.Create(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
 	svc := NewTimelineService(db)
 	ctx := rpcauth.WithCall(context.Background(), rpcauth.Call{UserID: "timeline-concurrency-test"})
 	created, err := svc.CreateEntry(ctx, &timelinev1.CreateEntryRequest{MutationId: "create-concurrency", Entry: &timelinev1.Entry{Title: "race", Date: "2026-11-07", Timezone: "UTC"}})

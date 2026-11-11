@@ -109,8 +109,8 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 		VALUES ('s1','manual',7,1,0,'\x7b7d',now(),'u1')`)
 	exec(`INSERT INTO media_objects (id, object_key, content_type, size_bytes, status, region_code, created_at, updated_at, user_id)
 		VALUES ('m1','k','image/jpeg',10,'ready','330100',now(),now(),'u1')`)
-	exec(`INSERT INTO timeline_entries (id, user_id, title, occurred_date, timezone, occurred_at, created_at, updated_at)
-		VALUES ('e1','u1','entry','2026-10-12','UTC',now(),now(),now())`)
+	exec(`INSERT INTO timeline_entries (id, user_id, public_ref, title, occurred_date, timezone, occurred_at, created_at, updated_at)
+		VALUES ('e1','u1','ent_0123456789abcdef0123456789','entry','2026-10-12','UTC',now(),now(),now())`)
 	for _, f := range files[1:] {
 		apply(f)
 		if filepath.Base(f) == "20261107900000_media_entry_links.sql" {
