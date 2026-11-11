@@ -26,9 +26,3 @@ END $$;
 ALTER TABLE "media_objects" ALTER COLUMN "public_ref" SET NOT NULL, ALTER COLUMN "entry_public_ref" SET NOT NULL;
 CREATE UNIQUE INDEX "media_objects_public_ref_key" ON "media_objects" ("public_ref");
 CREATE INDEX "media_entry_links_entry_ref" ON "media_entry_links" ("entry_ref");
-
-ALTER TABLE "timeline_mutations" ADD COLUMN "expires_at" timestamptz;
-UPDATE "timeline_mutations" SET "expires_at" = "created_at" + interval '30 days' WHERE "expires_at" IS NULL;
-ALTER TABLE "timeline_mutations" ALTER COLUMN "expires_at" SET NOT NULL;
-ALTER TABLE "timeline_mutations" ADD CONSTRAINT "timeline_mutations_expiry" CHECK (expires_at > created_at);
-CREATE INDEX "timeline_mutations_expires_at" ON "timeline_mutations" ("expires_at");
