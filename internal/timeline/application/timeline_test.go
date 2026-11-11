@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -70,6 +71,23 @@ func TestPublicResponsesAndSnapshotsUseOpaqueRef(t *testing.T) {
 	}
 	if len(snapshot) == 0 || strings.Contains(string(snapshot), "internal-uuid") {
 		t.Fatal("snapshot contains internal database id")
+	}
+}
+
+func TestListCursorRoundTripAndValidation(t *testing.T) {
+	at := time.Date(2026, 11, 7, 4, 30, 0, 123000000, time.UTC)
+	token := encodeListCursor(at, "internal-uuid")
+	got, err := decodeListCursor(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.OccurredAt.Equal(at) || got.ID != "internal-uuid" {
+		t.Fatalf("cursor changed: %#v", got)
+	}
+	for _, invalid := range []string{"!", "", encodeListCursor(time.Time{}, "id")} {
+		if _, err := decodeListCursor(invalid); err == nil {
+			t.Fatalf("cursor %q unexpectedly accepted", invalid)
+		}
 	}
 }
 

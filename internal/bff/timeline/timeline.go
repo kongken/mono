@@ -3,13 +3,22 @@ package timeline
 import (
 	"connectrpc.com/connect"
 	"context"
+	"github.com/kongken/mono/internal/bff/timeline/mcp"
 	"github.com/kongken/mono/internal/bff/upstream"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/timeline/v1"
 	v1 "github.com/kongken/mono/pkg/proto/timeline/v1"
 	"google.golang.org/grpc"
+	"net/http"
 )
 
 type Handler struct{ client v1.TimelineServiceClient }
+
+// NewMCP mounts the Timeline Streamable HTTP endpoint with the same internal
+// Timeline service used by the browser API. Authentication, account state and
+// source perimeter remain owned by the BFF MCP wrapper.
+func NewMCP(conn *grpc.ClientConn, tokens mcp.Authenticator, accounts mcp.Accounts, limiter mcp.Limiter, ratePerMinute int, perimeter mcp.Perimeter) http.Handler {
+	return mcp.New(mcp.Config{Admin: v1.NewTimelineServiceClient(conn), Tokens: tokens, Accounts: accounts, Limiter: limiter, RatePerMinute: ratePerMinute, Perimeter: perimeter})
+}
 
 func NewHandler(conn grpc.ClientConnInterface) *Handler {
 	return &Handler{client: v1.NewTimelineServiceClient(conn)}

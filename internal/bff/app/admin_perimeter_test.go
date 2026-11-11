@@ -57,7 +57,7 @@ func TestAdminPerimeterMatchesOnlyAdminServices(t *testing.T) {
 	for procedure, want := range map[string]bool{
 		"/bff.v1.UserAdminService/ListUsers":              true,
 		"/bff.metro.v1.AdminService/ListAdminCities":      true,
-		"/bff.v1.AccessTokenService/CreateAccessToken":    true,
+		"/bff.v1.AccessTokenService/CreateAccessToken":    false,
 		"/bff.metro.v1.CatalogService/ListCities":         false,
 		"/bff.metro.v1.RiderService/MarkLine":             false,
 		"/bff.v1.AuthService/Me":                          false,

@@ -91,6 +91,20 @@ func (_u *MediaObjectUpdate) AddRevision(v int) *MediaObjectUpdate {
 	return _u
 }
 
+// SetMutationID sets the "mutation_id" field.
+func (_u *MediaObjectUpdate) SetMutationID(v string) *MediaObjectUpdate {
+	_u.mutation.SetMutationID(v)
+	return _u
+}
+
+// SetNillableMutationID sets the "mutation_id" field if the given value is not nil.
+func (_u *MediaObjectUpdate) SetNillableMutationID(v *string) *MediaObjectUpdate {
+	if v != nil {
+		_u.SetMutationID(*v)
+	}
+	return _u
+}
+
 // SetFilename sets the "filename" field.
 func (_u *MediaObjectUpdate) SetFilename(v string) *MediaObjectUpdate {
 	_u.mutation.SetFilename(v)
@@ -306,6 +320,9 @@ func (_u *MediaObjectUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	if value, ok := _u.mutation.AddedRevision(); ok {
 		_spec.AddField(mediaobject.FieldRevision, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.MutationID(); ok {
+		_spec.SetField(mediaobject.FieldMutationID, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.Filename(); ok {
 		_spec.SetField(mediaobject.FieldFilename, field.TypeString, value)
 	}
@@ -425,6 +442,20 @@ func (_u *MediaObjectUpdateOne) SetNillableRevision(v *int) *MediaObjectUpdateOn
 // AddRevision adds value to the "revision" field.
 func (_u *MediaObjectUpdateOne) AddRevision(v int) *MediaObjectUpdateOne {
 	_u.mutation.AddRevision(v)
+	return _u
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (_u *MediaObjectUpdateOne) SetMutationID(v string) *MediaObjectUpdateOne {
+	_u.mutation.SetMutationID(v)
+	return _u
+}
+
+// SetNillableMutationID sets the "mutation_id" field if the given value is not nil.
+func (_u *MediaObjectUpdateOne) SetNillableMutationID(v *string) *MediaObjectUpdateOne {
+	if v != nil {
+		_u.SetMutationID(*v)
+	}
 	return _u
 }
 
@@ -672,6 +703,9 @@ func (_u *MediaObjectUpdateOne) sqlSave(ctx context.Context) (_node *MediaObject
 	}
 	if value, ok := _u.mutation.AddedRevision(); ok {
 		_spec.AddField(mediaobject.FieldRevision, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MutationID(); ok {
+		_spec.SetField(mediaobject.FieldMutationID, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Filename(); ok {
 		_spec.SetField(mediaobject.FieldFilename, field.TypeString, value)

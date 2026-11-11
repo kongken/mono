@@ -42,7 +42,7 @@ func (MediaObject) Annotations() []schema.Annotation {
 func (MediaObject) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("public_ref").NotEmpty().Immutable(), field.String("user_id").NotEmpty().Immutable(), field.String("entry_id").NotEmpty().Immutable(), field.String("entry_public_ref").NotEmpty().Immutable(), field.String("object_key").NotEmpty().Immutable(), field.String("thumbnail_key").Default(""), field.String("upload_key").Default(""),
-		field.Enum("state").Values("pending", "ready", "deleting").Default("pending"), field.Int("revision").Default(1).Positive(), field.String("filename").Default(""), field.String("content_type").Default(""), field.Int64("size_bytes").Default(0), field.Int("width").Optional().Nillable(), field.Int("height").Optional().Nillable(), field.Time("upload_expires_at").Optional().Nillable(), field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now),
+		field.Enum("state").Values("pending", "ready", "deleting").Default("pending"), field.Int("revision").Default(1).Positive(), field.String("mutation_id").Default(""), field.String("filename").Default(""), field.String("content_type").Default(""), field.Int64("size_bytes").Default(0), field.Int("width").Optional().Nillable(), field.Int("height").Optional().Nillable(), field.Time("upload_expires_at").Optional().Nillable(), field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now),
 	}
 }
 func (MediaObject) Edges() []ent.Edge {

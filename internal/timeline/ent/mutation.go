@@ -2174,6 +2174,7 @@ type MediaObjectMutation struct {
 	state             *mediaobject.State
 	revision          *int
 	addrevision       *int
+	mutation_id       *string
 	filename          *string
 	content_type      *string
 	size_bytes        *int64
@@ -2641,6 +2642,42 @@ func (m *MediaObjectMutation) ResetRevision() {
 	m.addrevision = nil
 }
 
+// SetMutationID sets the "mutation_id" field.
+func (m *MediaObjectMutation) SetMutationID(s string) {
+	m.mutation_id = &s
+}
+
+// MutationID returns the value of the "mutation_id" field in the mutation.
+func (m *MediaObjectMutation) MutationID() (r string, exists bool) {
+	v := m.mutation_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMutationID returns the old "mutation_id" field's value of the MediaObject entity.
+// If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MediaObjectMutation) OldMutationID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMutationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMutationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMutationID: %w", err)
+	}
+	return oldValue.MutationID, nil
+}
+
+// ResetMutationID resets all changes to the "mutation_id" field.
+func (m *MediaObjectMutation) ResetMutationID() {
+	m.mutation_id = nil
+}
+
 // SetFilename sets the "filename" field.
 func (m *MediaObjectMutation) SetFilename(s string) {
 	m.filename = &s
@@ -3091,7 +3128,7 @@ func (m *MediaObjectMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *MediaObjectMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 18)
 	if m.public_ref != nil {
 		fields = append(fields, mediaobject.FieldPublicRef)
 	}
@@ -3118,6 +3155,9 @@ func (m *MediaObjectMutation) Fields() []string {
 	}
 	if m.revision != nil {
 		fields = append(fields, mediaobject.FieldRevision)
+	}
+	if m.mutation_id != nil {
+		fields = append(fields, mediaobject.FieldMutationID)
 	}
 	if m.filename != nil {
 		fields = append(fields, mediaobject.FieldFilename)
@@ -3169,6 +3209,8 @@ func (m *MediaObjectMutation) Field(name string) (ent.Value, bool) {
 		return m.State()
 	case mediaobject.FieldRevision:
 		return m.Revision()
+	case mediaobject.FieldMutationID:
+		return m.MutationID()
 	case mediaobject.FieldFilename:
 		return m.Filename()
 	case mediaobject.FieldContentType:
@@ -3212,6 +3254,8 @@ func (m *MediaObjectMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldState(ctx)
 	case mediaobject.FieldRevision:
 		return m.OldRevision(ctx)
+	case mediaobject.FieldMutationID:
+		return m.OldMutationID(ctx)
 	case mediaobject.FieldFilename:
 		return m.OldFilename(ctx)
 	case mediaobject.FieldContentType:
@@ -3299,6 +3343,13 @@ func (m *MediaObjectMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetRevision(v)
+		return nil
+	case mediaobject.FieldMutationID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMutationID(v)
 		return nil
 	case mediaobject.FieldFilename:
 		v, ok := value.(string)
@@ -3503,6 +3554,9 @@ func (m *MediaObjectMutation) ResetField(name string) error {
 		return nil
 	case mediaobject.FieldRevision:
 		m.ResetRevision()
+		return nil
+	case mediaobject.FieldMutationID:
+		m.ResetMutationID()
 		return nil
 	case mediaobject.FieldFilename:
 		m.ResetFilename()

@@ -77,6 +77,7 @@ var (
 		{Name: "upload_key", Type: field.TypeString, Default: ""},
 		{Name: "state", Type: field.TypeEnum, Enums: []string{"pending", "ready", "deleting"}, Default: "pending"},
 		{Name: "revision", Type: field.TypeInt, Default: 1},
+		{Name: "mutation_id", Type: field.TypeString, Default: ""},
 		{Name: "filename", Type: field.TypeString, Default: ""},
 		{Name: "content_type", Type: field.TypeString, Default: ""},
 		{Name: "size_bytes", Type: field.TypeInt64, Default: 0},
@@ -95,7 +96,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "timeline_media_objects_timeline_entries_media",
-				Columns:    []*schema.Column{TimelineMediaObjectsColumns[17]},
+				Columns:    []*schema.Column{TimelineMediaObjectsColumns[18]},
 				RefColumns: []*schema.Column{TimelineEntriesColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -109,7 +110,7 @@ var (
 			{
 				Name:    "mediaobject_entry_id",
 				Unique:  false,
-				Columns: []*schema.Column{TimelineMediaObjectsColumns[17]},
+				Columns: []*schema.Column{TimelineMediaObjectsColumns[18]},
 			},
 			{
 				Name:    "mediaobject_public_ref",

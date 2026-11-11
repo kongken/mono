@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -230,15 +231,56 @@ func (s *TimelineService) ListEntries(ctx context.Context, req *timelinev1.ListE
 	if req.ToDate != "" {
 		q = q.Where(entry.OccurredDateLTE(req.ToDate))
 	}
-	rows, err := q.Order(ent.Desc(entry.FieldOccurredAt), ent.Asc(entry.FieldID)).Limit(100).All(ctx)
+	pageSize := int(req.PageSize)
+	if pageSize == 0 {
+		pageSize = 50
+	}
+	if pageSize < 1 || pageSize > 100 {
+		return nil, status.Error(codes.InvalidArgument, "page_size must be between 1 and 100")
+	}
+	if req.PageToken != "" {
+		cursor, err := decodeListCursor(req.PageToken)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid page_token")
+		}
+		q = q.Where(entry.Or(entry.OccurredAtLT(cursor.OccurredAt), entry.And(entry.OccurredAtEQ(cursor.OccurredAt), entry.IDGT(cursor.ID))))
+	}
+	rows, err := q.Order(ent.Desc(entry.FieldOccurredAt), ent.Asc(entry.FieldID)).Limit(pageSize + 1).All(ctx)
 	if err != nil {
 		return nil, err
 	}
 	out := &timelinev1.ListEntriesResponse{}
+	if len(rows) > pageSize {
+		last := rows[pageSize-1]
+		out.NextPageToken = encodeListCursor(last.OccurredAt, last.ID)
+		rows = rows[:pageSize]
+	}
 	for _, row := range rows {
 		out.Entries = append(out.Entries, mapEntry(row))
 	}
 	return out, nil
+}
+
+type listCursor struct {
+	OccurredAt time.Time `json:"occurred_at"`
+	ID         string    `json:"id"`
+}
+
+func encodeListCursor(occurredAt time.Time, id string) string {
+	b, _ := json.Marshal(listCursor{OccurredAt: occurredAt.UTC(), ID: id})
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func decodeListCursor(token string) (listCursor, error) {
+	b, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return listCursor{}, err
+	}
+	var c listCursor
+	if err := json.Unmarshal(b, &c); err != nil || c.ID == "" || c.OccurredAt.IsZero() {
+		return listCursor{}, errors.New("invalid cursor")
+	}
+	return c, nil
 }
 func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.CreateEntryRequest) (*timelinev1.EntryResponse, error) {
 	uid, err := user(ctx)
