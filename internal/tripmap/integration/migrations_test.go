@@ -286,7 +286,8 @@ func pendingChanges(t *testing.T, ctx context.Context, c *ent.Client) string {
 	// retained only for generated client compatibility after receipts were unified.
 	var owned []string
 	for _, line := range strings.Split(b.String(), "\n") {
-		if strings.Contains(line, "timeline_mutation") || strings.Contains(line, "media_delete_receipt") {
+		if strings.Contains(line, "timeline_mutation") || strings.Contains(line, "timelinemutation") ||
+			strings.Contains(line, "media_delete_receipt") || strings.Contains(line, "mediadeletereceipt") {
 			continue
 		}
 		owned = append(owned, line)
