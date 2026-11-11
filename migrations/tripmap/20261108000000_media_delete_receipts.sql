@@ -9,7 +9,7 @@ ALTER TABLE "media_entry_links" ADD CONSTRAINT "media_entry_links_entry_ref_form
   CHECK ("entry_ref" ~ '^ent_[0-9a-f]{26}$');
 ALTER TABLE "media_objects" ADD COLUMN "public_ref" character varying;
 ALTER TABLE "media_objects" ADD COLUMN "entry_public_ref" character varying;
-ALTER TABLE "media_objects" ADD COLUMN "revision" integer NOT NULL DEFAULT 1;
+ALTER TABLE "media_objects" ADD COLUMN "revision" bigint NOT NULL DEFAULT 1;
 UPDATE "media_objects" m SET
   "public_ref" = COALESCE(m."public_ref", 'med_' || encode(gen_random_bytes(13), 'hex')),
   "entry_public_ref" = l."entry_ref"
