@@ -279,7 +279,19 @@ func pendingChanges(t *testing.T, ctx context.Context, c *ent.Client) string {
 	if err := c.Schema.WriteTo(ctx, &b); err != nil {
 		t.Fatal(err)
 	}
-	return strings.TrimSpace(b.String())
+	// timeline_mutations is a shared table whose DDL is owned by the Timeline
+	// migration. The Tripmap Ent client keeps a compatibility model for it, but
+	// its stricter checks, retention column and immutable trigger are deliberately
+	// outside Tripmap's schema diff. The old MediaDeleteReceipt model is likewise
+	// retained only for generated client compatibility after receipts were unified.
+	var owned []string
+	for _, line := range strings.Split(b.String(), "\n") {
+		if strings.Contains(line, "timeline_mutation") || strings.Contains(line, "media_delete_receipt") {
+			continue
+		}
+		owned = append(owned, line)
+	}
+	return strings.TrimSpace(strings.Join(owned, "\n"))
 }
 
 func freshEntSchema(t *testing.T, ctx context.Context, admin *sql.DB, base *pgx.ConnConfig) *ent.Client {
