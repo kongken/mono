@@ -158,7 +158,7 @@ func (MediaObject) Fields() []ent.Field {
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").Immutable(),
 		field.String("public_ref").NotEmpty().Immutable(), field.String("entry_public_ref").NotEmpty(),
 		field.String("object_key").NotEmpty().Unique(), field.String("content_type").NotEmpty(), field.Int64("size_bytes").NonNegative(),
-		field.Int("revision").Positive().Default(1),
+		field.Int64("revision").Positive().Default(1),
 		field.Enum("status").Values("pending", "ready", "deleting").Default("pending"),
 		field.String("region_code").Default(""), field.String("filename").Default(""),
 		field.String("upload_id").Default(""), field.String("request_hash").Default(""),

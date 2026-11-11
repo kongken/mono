@@ -4313,8 +4313,8 @@ type MediaObjectMutation struct {
 	content_type      *string
 	size_bytes        *int64
 	addsize_bytes     *int64
-	revision          *int
-	addrevision       *int
+	revision          *int64
+	addrevision       *int64
 	status            *mediaobject.Status
 	region_code       *string
 	filename          *string
@@ -4679,13 +4679,13 @@ func (m *MediaObjectMutation) ResetSizeBytes() {
 }
 
 // SetRevision sets the "revision" field.
-func (m *MediaObjectMutation) SetRevision(i int) {
+func (m *MediaObjectMutation) SetRevision(i int64) {
 	m.revision = &i
 	m.addrevision = nil
 }
 
 // Revision returns the value of the "revision" field in the mutation.
-func (m *MediaObjectMutation) Revision() (r int, exists bool) {
+func (m *MediaObjectMutation) Revision() (r int64, exists bool) {
 	v := m.revision
 	if v == nil {
 		return
@@ -4696,7 +4696,7 @@ func (m *MediaObjectMutation) Revision() (r int, exists bool) {
 // OldRevision returns the old "revision" field's value of the MediaObject entity.
 // If the MediaObject object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *MediaObjectMutation) OldRevision(ctx context.Context) (v int, err error) {
+func (m *MediaObjectMutation) OldRevision(ctx context.Context) (v int64, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldRevision is only allowed on UpdateOne operations")
 	}
@@ -4711,7 +4711,7 @@ func (m *MediaObjectMutation) OldRevision(ctx context.Context) (v int, err error
 }
 
 // AddRevision adds i to the "revision" field.
-func (m *MediaObjectMutation) AddRevision(i int) {
+func (m *MediaObjectMutation) AddRevision(i int64) {
 	if m.addrevision != nil {
 		*m.addrevision += i
 	} else {
@@ -4720,7 +4720,7 @@ func (m *MediaObjectMutation) AddRevision(i int) {
 }
 
 // AddedRevision returns the value that was added to the "revision" field in this mutation.
-func (m *MediaObjectMutation) AddedRevision() (r int, exists bool) {
+func (m *MediaObjectMutation) AddedRevision() (r int64, exists bool) {
 	v := m.addrevision
 	if v == nil {
 		return
@@ -5526,7 +5526,7 @@ func (m *MediaObjectMutation) SetField(name string, value ent.Value) error {
 		m.SetSizeBytes(v)
 		return nil
 	case mediaobject.FieldRevision:
-		v, ok := value.(int)
+		v, ok := value.(int64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -5676,7 +5676,7 @@ func (m *MediaObjectMutation) AddField(name string, value ent.Value) error {
 		m.AddSizeBytes(v)
 		return nil
 	case mediaobject.FieldRevision:
-		v, ok := value.(int)
+		v, ok := value.(int64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}

@@ -61,13 +61,13 @@ func (_c *MediaObjectCreate) SetSizeBytes(v int64) *MediaObjectCreate {
 }
 
 // SetRevision sets the "revision" field.
-func (_c *MediaObjectCreate) SetRevision(v int) *MediaObjectCreate {
+func (_c *MediaObjectCreate) SetRevision(v int64) *MediaObjectCreate {
 	_c.mutation.SetRevision(v)
 	return _c
 }
 
 // SetNillableRevision sets the "revision" field if the given value is not nil.
-func (_c *MediaObjectCreate) SetNillableRevision(v *int) *MediaObjectCreate {
+func (_c *MediaObjectCreate) SetNillableRevision(v *int64) *MediaObjectCreate {
 	if v != nil {
 		_c.SetRevision(*v)
 	}
@@ -532,7 +532,7 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 		_node.SizeBytes = value
 	}
 	if value, ok := _c.mutation.Revision(); ok {
-		_spec.SetField(mediaobject.FieldRevision, field.TypeInt, value)
+		_spec.SetField(mediaobject.FieldRevision, field.TypeInt64, value)
 		_node.Revision = value
 	}
 	if value, ok := _c.mutation.Status(); ok {
@@ -711,7 +711,7 @@ func (u *MediaObjectUpsert) AddSizeBytes(v int64) *MediaObjectUpsert {
 }
 
 // SetRevision sets the "revision" field.
-func (u *MediaObjectUpsert) SetRevision(v int) *MediaObjectUpsert {
+func (u *MediaObjectUpsert) SetRevision(v int64) *MediaObjectUpsert {
 	u.Set(mediaobject.FieldRevision, v)
 	return u
 }
@@ -723,7 +723,7 @@ func (u *MediaObjectUpsert) UpdateRevision() *MediaObjectUpsert {
 }
 
 // AddRevision adds v to the "revision" field.
-func (u *MediaObjectUpsert) AddRevision(v int) *MediaObjectUpsert {
+func (u *MediaObjectUpsert) AddRevision(v int64) *MediaObjectUpsert {
 	u.Add(mediaobject.FieldRevision, v)
 	return u
 }
@@ -1011,14 +1011,14 @@ func (u *MediaObjectUpsertOne) UpdateSizeBytes() *MediaObjectUpsertOne {
 }
 
 // SetRevision sets the "revision" field.
-func (u *MediaObjectUpsertOne) SetRevision(v int) *MediaObjectUpsertOne {
+func (u *MediaObjectUpsertOne) SetRevision(v int64) *MediaObjectUpsertOne {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.SetRevision(v)
 	})
 }
 
 // AddRevision adds v to the "revision" field.
-func (u *MediaObjectUpsertOne) AddRevision(v int) *MediaObjectUpsertOne {
+func (u *MediaObjectUpsertOne) AddRevision(v int64) *MediaObjectUpsertOne {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.AddRevision(v)
 	})
@@ -1508,14 +1508,14 @@ func (u *MediaObjectUpsertBulk) UpdateSizeBytes() *MediaObjectUpsertBulk {
 }
 
 // SetRevision sets the "revision" field.
-func (u *MediaObjectUpsertBulk) SetRevision(v int) *MediaObjectUpsertBulk {
+func (u *MediaObjectUpsertBulk) SetRevision(v int64) *MediaObjectUpsertBulk {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.SetRevision(v)
 	})
 }
 
 // AddRevision adds v to the "revision" field.
-func (u *MediaObjectUpsertBulk) AddRevision(v int) *MediaObjectUpsertBulk {
+func (u *MediaObjectUpsertBulk) AddRevision(v int64) *MediaObjectUpsertBulk {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.AddRevision(v)
 	})

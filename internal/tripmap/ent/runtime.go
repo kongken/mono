@@ -247,9 +247,9 @@ func init() {
 	// mediaobjectDescRevision is the schema descriptor for revision field.
 	mediaobjectDescRevision := mediaobjectFields[7].Descriptor()
 	// mediaobject.DefaultRevision holds the default value on creation for the revision field.
-	mediaobject.DefaultRevision = mediaobjectDescRevision.Default.(int)
+	mediaobject.DefaultRevision = mediaobjectDescRevision.Default.(int64)
 	// mediaobject.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
-	mediaobject.RevisionValidator = mediaobjectDescRevision.Validators[0].(func(int) error)
+	mediaobject.RevisionValidator = mediaobjectDescRevision.Validators[0].(func(int64) error)
 	// mediaobjectDescRegionCode is the schema descriptor for region_code field.
 	mediaobjectDescRegionCode := mediaobjectFields[9].Descriptor()
 	// mediaobject.DefaultRegionCode holds the default value on creation for the region_code field.

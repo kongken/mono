@@ -92,14 +92,14 @@ func (_u *MediaObjectUpdate) AddSizeBytes(v int64) *MediaObjectUpdate {
 }
 
 // SetRevision sets the "revision" field.
-func (_u *MediaObjectUpdate) SetRevision(v int) *MediaObjectUpdate {
+func (_u *MediaObjectUpdate) SetRevision(v int64) *MediaObjectUpdate {
 	_u.mutation.ResetRevision()
 	_u.mutation.SetRevision(v)
 	return _u
 }
 
 // SetNillableRevision sets the "revision" field if the given value is not nil.
-func (_u *MediaObjectUpdate) SetNillableRevision(v *int) *MediaObjectUpdate {
+func (_u *MediaObjectUpdate) SetNillableRevision(v *int64) *MediaObjectUpdate {
 	if v != nil {
 		_u.SetRevision(*v)
 	}
@@ -107,7 +107,7 @@ func (_u *MediaObjectUpdate) SetNillableRevision(v *int) *MediaObjectUpdate {
 }
 
 // AddRevision adds value to the "revision" field.
-func (_u *MediaObjectUpdate) AddRevision(v int) *MediaObjectUpdate {
+func (_u *MediaObjectUpdate) AddRevision(v int64) *MediaObjectUpdate {
 	_u.mutation.AddRevision(v)
 	return _u
 }
@@ -409,10 +409,10 @@ func (_u *MediaObjectUpdate) sqlSave(ctx context.Context) (_node int, err error)
 		_spec.AddField(mediaobject.FieldSizeBytes, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Revision(); ok {
-		_spec.SetField(mediaobject.FieldRevision, field.TypeInt, value)
+		_spec.SetField(mediaobject.FieldRevision, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AddedRevision(); ok {
-		_spec.AddField(mediaobject.FieldRevision, field.TypeInt, value)
+		_spec.AddField(mediaobject.FieldRevision, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(mediaobject.FieldStatus, field.TypeEnum, value)
@@ -543,14 +543,14 @@ func (_u *MediaObjectUpdateOne) AddSizeBytes(v int64) *MediaObjectUpdateOne {
 }
 
 // SetRevision sets the "revision" field.
-func (_u *MediaObjectUpdateOne) SetRevision(v int) *MediaObjectUpdateOne {
+func (_u *MediaObjectUpdateOne) SetRevision(v int64) *MediaObjectUpdateOne {
 	_u.mutation.ResetRevision()
 	_u.mutation.SetRevision(v)
 	return _u
 }
 
 // SetNillableRevision sets the "revision" field if the given value is not nil.
-func (_u *MediaObjectUpdateOne) SetNillableRevision(v *int) *MediaObjectUpdateOne {
+func (_u *MediaObjectUpdateOne) SetNillableRevision(v *int64) *MediaObjectUpdateOne {
 	if v != nil {
 		_u.SetRevision(*v)
 	}
@@ -558,7 +558,7 @@ func (_u *MediaObjectUpdateOne) SetNillableRevision(v *int) *MediaObjectUpdateOn
 }
 
 // AddRevision adds value to the "revision" field.
-func (_u *MediaObjectUpdateOne) AddRevision(v int) *MediaObjectUpdateOne {
+func (_u *MediaObjectUpdateOne) AddRevision(v int64) *MediaObjectUpdateOne {
 	_u.mutation.AddRevision(v)
 	return _u
 }
@@ -890,10 +890,10 @@ func (_u *MediaObjectUpdateOne) sqlSave(ctx context.Context) (_node *MediaObject
 		_spec.AddField(mediaobject.FieldSizeBytes, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Revision(); ok {
-		_spec.SetField(mediaobject.FieldRevision, field.TypeInt, value)
+		_spec.SetField(mediaobject.FieldRevision, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AddedRevision(); ok {
-		_spec.AddField(mediaobject.FieldRevision, field.TypeInt, value)
+		_spec.AddField(mediaobject.FieldRevision, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(mediaobject.FieldStatus, field.TypeEnum, value)

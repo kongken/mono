@@ -115,9 +115,9 @@ var (
 	// SizeBytesValidator is a validator for the "size_bytes" field. It is called by the builders before save.
 	SizeBytesValidator func(int64) error
 	// DefaultRevision holds the default value on creation for the "revision" field.
-	DefaultRevision int
+	DefaultRevision int64
 	// RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
-	RevisionValidator func(int) error
+	RevisionValidator func(int64) error
 	// DefaultRegionCode holds the default value on creation for the "region_code" field.
 	DefaultRegionCode string
 	// DefaultFilename holds the default value on creation for the "filename" field.

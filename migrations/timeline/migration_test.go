@@ -21,6 +21,15 @@ func TestMigrationDirectoryChecksum(t *testing.T) {
 		t.Fatalf("atlas.sum does not match timeline SQL: %v", err)
 	}
 }
+func TestReceiptCleanupIndexIsTimelineOwned(t *testing.T) {
+	body, err := os.ReadFile("20261107180000_refs_mutations.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), `CREATE INDEX "timeline_mutations_expires_at" ON "timeline_mutations" ("expires_at")`) {
+		t.Fatal("timeline-owned receipt migration must provide the expires_at cleanup index")
+	}
+}
 func TestRefsMigrationPostgreSQL(t *testing.T) {
 	dsn := os.Getenv("TIMELINE_TEST_POSTGRES_DSN")
 	if dsn == "" {

@@ -96,7 +96,7 @@ func SizeBytes(v int64) predicate.MediaObject {
 }
 
 // Revision applies equality check predicate on the "revision" field. It's identical to RevisionEQ.
-func Revision(v int) predicate.MediaObject {
+func Revision(v int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldRevision, v))
 }
 
@@ -526,42 +526,42 @@ func SizeBytesLTE(v int64) predicate.MediaObject {
 }
 
 // RevisionEQ applies the EQ predicate on the "revision" field.
-func RevisionEQ(v int) predicate.MediaObject {
+func RevisionEQ(v int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldRevision, v))
 }
 
 // RevisionNEQ applies the NEQ predicate on the "revision" field.
-func RevisionNEQ(v int) predicate.MediaObject {
+func RevisionNEQ(v int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldNEQ(FieldRevision, v))
 }
 
 // RevisionIn applies the In predicate on the "revision" field.
-func RevisionIn(vs ...int) predicate.MediaObject {
+func RevisionIn(vs ...int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldIn(FieldRevision, vs...))
 }
 
 // RevisionNotIn applies the NotIn predicate on the "revision" field.
-func RevisionNotIn(vs ...int) predicate.MediaObject {
+func RevisionNotIn(vs ...int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldNotIn(FieldRevision, vs...))
 }
 
 // RevisionGT applies the GT predicate on the "revision" field.
-func RevisionGT(v int) predicate.MediaObject {
+func RevisionGT(v int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldGT(FieldRevision, v))
 }
 
 // RevisionGTE applies the GTE predicate on the "revision" field.
-func RevisionGTE(v int) predicate.MediaObject {
+func RevisionGTE(v int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldGTE(FieldRevision, v))
 }
 
 // RevisionLT applies the LT predicate on the "revision" field.
-func RevisionLT(v int) predicate.MediaObject {
+func RevisionLT(v int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldLT(FieldRevision, v))
 }
 
 // RevisionLTE applies the LTE predicate on the "revision" field.
-func RevisionLTE(v int) predicate.MediaObject {
+func RevisionLTE(v int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldLTE(FieldRevision, v))
 }
 

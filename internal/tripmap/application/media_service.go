@@ -478,7 +478,7 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tri
 	if err != nil {
 		return nil, internalError(err)
 	}
-	if req.Msg.ExpectedRevision != nil && int(*req.Msg.ExpectedRevision) != m.Revision {
+	if req.Msg.ExpectedRevision != nil && *req.Msg.ExpectedRevision != m.Revision {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("media revision conflict"))
 	}
 	if m.Status != mediaobject.StatusDeleting {
@@ -488,7 +488,7 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tri
 		m.Revision++
 	}
 	snapshot, _ := proto.MarshalOptions{Deterministic: true}.Marshal(&tripmapv1.MediaMutationReceipt{MutationId: mutationID, MediaRef: m.PublicRef, EntryRef: m.EntryPublicRef, ResultState: "deleting", ResultRevision: int64(m.Revision), SnapshotVersion: 1})
-	r, err := tx.TimelineMutation.Create().SetUserID(p.UserID).SetMutationID(mutationID).SetTargetKind("media").SetOperation("media_delete").SetRequestHash(hash).SetEntryRef(m.EntryPublicRef).SetMediaRef(m.PublicRef).SetResultRevision(m.Revision).SetResultState("deleting").SetResultSnapshot(snapshot).SetSnapshotVersion(1).SetExpiresAt(time.Now().UTC().Add(30 * 24 * time.Hour)).Save(ctx)
+	r, err := tx.TimelineMutation.Create().SetUserID(p.UserID).SetMutationID(mutationID).SetTargetKind("media").SetOperation("media_delete").SetRequestHash(hash).SetEntryRef(m.EntryPublicRef).SetMediaRef(m.PublicRef).SetResultRevision(int(m.Revision)).SetResultState("deleting").SetResultSnapshot(snapshot).SetSnapshotVersion(1).SetExpiresAt(time.Now().UTC().Add(30 * 24 * time.Hour)).Save(ctx)
 	if err != nil {
 		return nil, internalError(err)
 	}

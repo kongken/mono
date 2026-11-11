@@ -31,7 +31,7 @@ type MediaObject struct {
 	// SizeBytes holds the value of the "size_bytes" field.
 	SizeBytes int64 `json:"size_bytes,omitempty"`
 	// Revision holds the value of the "revision" field.
-	Revision int `json:"revision,omitempty"`
+	Revision int64 `json:"revision,omitempty"`
 	// Status holds the value of the "status" field.
 	Status mediaobject.Status `json:"status,omitempty"`
 	// RegionCode holds the value of the "region_code" field.
@@ -156,7 +156,7 @@ func (_m *MediaObject) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field revision", values[i])
 			} else if value.Valid {
-				_m.Revision = int(value.Int64)
+				_m.Revision = value.Int64
 			}
 		case mediaobject.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {

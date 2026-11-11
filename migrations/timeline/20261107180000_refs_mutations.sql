@@ -60,6 +60,7 @@ CREATE TABLE "timeline_mutations" (
 );
 CREATE UNIQUE INDEX "timeline_mutations_user_id_mutation_id" ON "timeline_mutations" ("user_id", "mutation_id");
 CREATE INDEX "timeline_mutations_created_at" ON "timeline_mutations" ("created_at");
+CREATE INDEX "timeline_mutations_expires_at" ON "timeline_mutations" ("expires_at");
 CREATE FUNCTION timeline_mutations_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.id IS DISTINCT FROM OLD.id

@@ -221,7 +221,7 @@ var (
 		{Name: "object_key", Type: field.TypeString, Unique: true},
 		{Name: "content_type", Type: field.TypeString},
 		{Name: "size_bytes", Type: field.TypeInt64},
-		{Name: "revision", Type: field.TypeInt, Default: 1},
+		{Name: "revision", Type: field.TypeInt64, Default: 1},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending", "ready", "deleting"}, Default: "pending"},
 		{Name: "region_code", Type: field.TypeString, Default: ""},
 		{Name: "filename", Type: field.TypeString, Default: ""},
