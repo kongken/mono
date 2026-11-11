@@ -69,7 +69,7 @@ func TestChainAccountDeletionRetryReceiptAndIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.TripmapDB.CityVisit.Create().SetUserID(aID).SetRegionCode("330100").SetRegionName("杭州市").SetProvinceCode("330000").SetColor("#4b937d").SaveX(ctx)
-	h.TripmapDB.MediaObject.Create().SetUserID(aID).SetObjectKey("owned/photo.jpg").SetContentType("image/jpeg").SetSizeBytes(10).ExecX(ctx)
+	h.TripmapDB.MediaObject.Create().SetUserID(aID).SetPublicRef("med_00000000000000000000000000").SetEntryPublicRef("ent_00000000000000000000000000").SetRevision(1).SetObjectKey("owned/photo.jpg").SetContentType("image/jpeg").SetSizeBytes(10).ExecX(ctx)
 	h.TripmapDB.CityVisit.Create().SetUserID(bID).SetRegionCode("330200").SetRegionName("宁波市").SetProvinceCode("330000").SetColor("#4b937d").SaveX(ctx)
 	if _, err = a.GetFootprints(ctx); err != nil {
 		t.Fatal(err)

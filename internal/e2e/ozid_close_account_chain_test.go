@@ -88,7 +88,7 @@ func (s *closeAccountStack) account(subject string) (*Browser, string, string) {
 			s.T.Fatal(err)
 		}
 	}
-	s.TripmapDB.MediaObject.Create().SetUserID(id).SetObjectKey(key).SetThumbnailKey(thumbOf(key)).SetContentType("image/jpeg").SetSizeBytes(4).ExecX(ctx)
+	s.TripmapDB.MediaObject.Create().SetUserID(id).SetPublicRef("med_" + subject).SetEntryPublicRef("ent_" + subject).SetRevision(1).SetObjectKey(key).SetThumbnailKey(thumbOf(key)).SetContentType("image/jpeg").SetSizeBytes(4).ExecX(ctx)
 	s.TripmapDB.CityVisit.Create().SetUserID(id).SetRegionCode("330100").SetRegionName("杭州市").SetProvinceCode("330000").SetColor("#4b937d").ExecX(ctx)
 	if _, err = b.MetroRider.MarkLine(ctx, riderWrite(b, &bffmetrov1.MarkLineRequest{LineCode: "sh-1"})); err != nil {
 		s.T.Fatal(err)

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/tripmap/application"
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
@@ -185,7 +186,7 @@ func TestRetiredRegionUpgradePreservesTripIDsMediaAndSnapshotBytes(t *testing.T)
 	client, snapshots, footprints := serveRegionIndex(t, e, idx)
 	ctx := t.Context()
 	visit := regionCity(t, e, u.ID, "old-hangzhou", "旧杭州", "330000")
-	media, err := e.store.DB.MediaObject.Create().SetUserID(u.ID).SetRegionCode(visit.RegionCode).SetTripID("legacy-old-hangzhou").SetObjectKey("region-test/" + u.ID).SetContentType("image/jpeg").SetSizeBytes(3).SetStatus(mediaobject.StatusReady).Save(ctx)
+	media, err := e.store.DB.MediaObject.Create().SetUserID(u.ID).SetPublicRef("med_" + uuid.NewString()).SetEntryPublicRef("ent_" + uuid.NewString()).SetRevision(1).SetRegionCode(visit.RegionCode).SetTripID("legacy-old-hangzhou").SetObjectKey("region-test/" + u.ID).SetContentType("image/jpeg").SetSizeBytes(3).SetStatus(mediaobject.StatusReady).Save(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +330,7 @@ func TestRegionUpgradeOrphanMediaReferences(t *testing.T) {
 	idx := retiredIndex(t)
 	client, _, _ := serveRegionIndex(t, e, idx)
 	ctx := t.Context()
-	media, err := e.store.DB.MediaObject.Create().SetUserID(u.ID).SetRegionCode("old-hangzhou").SetObjectKey("orphan-region/" + u.ID).SetContentType("application/pdf").SetSizeBytes(2).Save(ctx)
+	media, err := e.store.DB.MediaObject.Create().SetUserID(u.ID).SetPublicRef("med_" + uuid.NewString()).SetEntryPublicRef("ent_" + uuid.NewString()).SetRevision(1).SetRegionCode("old-hangzhou").SetObjectKey("orphan-region/" + u.ID).SetContentType("application/pdf").SetSizeBytes(2).Save(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

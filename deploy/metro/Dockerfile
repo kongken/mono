@@ -7,6 +7,9 @@ RUN go mod download
 COPY cmd/metro cmd/metro
 COPY internal/metro internal/metro
 COPY internal/platform internal/platform
+# Shared migration discovery is tested during the isolated Metro image build.
+COPY migrations/timeline migrations/timeline
+COPY migrations/tripmap migrations/tripmap
 COPY pkg pkg
 COPY migrations/metro migrations/metro
 RUN go test ./internal/metro/... ./internal/platform/... ./cmd/metro/...
