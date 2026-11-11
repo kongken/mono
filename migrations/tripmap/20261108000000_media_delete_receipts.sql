@@ -11,7 +11,7 @@ ALTER TABLE "media_objects" ADD COLUMN "public_ref" character varying;
 ALTER TABLE "media_objects" ADD COLUMN "entry_public_ref" character varying;
 ALTER TABLE "media_objects" ADD COLUMN "revision" integer NOT NULL DEFAULT 1;
 UPDATE "media_objects" m SET
-  "public_ref" = COALESCE("public_ref", 'med_' || encode(gen_random_bytes(13), 'hex')),
+  "public_ref" = COALESCE(m."public_ref", 'med_' || encode(gen_random_bytes(13), 'hex')),
   "entry_public_ref" = l."entry_ref"
 FROM "media_entry_links" l
 JOIN "timeline_entries" e ON e."public_ref" = l."entry_ref"
