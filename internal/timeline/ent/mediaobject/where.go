@@ -100,6 +100,11 @@ func UploadKey(v string) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldUploadKey, v))
 }
 
+// Revision applies equality check predicate on the "revision" field. It's identical to RevisionEQ.
+func Revision(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldRevision, v))
+}
+
 // Filename applies equality check predicate on the "filename" field. It's identical to FilenameEQ.
 func Filename(v string) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldFilename, v))
@@ -115,14 +120,14 @@ func SizeBytes(v int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldSizeBytes, v))
 }
 
-// Status applies equality check predicate on the "status" field. It's identical to StatusEQ.
-func Status(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldEQ(FieldStatus, v))
+// Width applies equality check predicate on the "width" field. It's identical to WidthEQ.
+func Width(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldWidth, v))
 }
 
-// MutationID applies equality check predicate on the "mutation_id" field. It's identical to MutationIDEQ.
-func MutationID(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldEQ(FieldMutationID, v))
+// Height applies equality check predicate on the "height" field. It's identical to HeightEQ.
+func Height(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldHeight, v))
 }
 
 // UploadExpiresAt applies equality check predicate on the "upload_expires_at" field. It's identical to UploadExpiresAtEQ.
@@ -133,6 +138,11 @@ func UploadExpiresAt(v time.Time) predicate.MediaObject {
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldCreatedAt, v))
+}
+
+// UpdatedAt applies equality check predicate on the "updated_at" field. It's identical to UpdatedAtEQ.
+func UpdatedAt(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldUpdatedAt, v))
 }
 
 // PublicRefEQ applies the EQ predicate on the "public_ref" field.
@@ -590,6 +600,66 @@ func UploadKeyContainsFold(v string) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldContainsFold(FieldUploadKey, v))
 }
 
+// StateEQ applies the EQ predicate on the "state" field.
+func StateEQ(v State) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldState, v))
+}
+
+// StateNEQ applies the NEQ predicate on the "state" field.
+func StateNEQ(v State) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldState, v))
+}
+
+// StateIn applies the In predicate on the "state" field.
+func StateIn(vs ...State) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldState, vs...))
+}
+
+// StateNotIn applies the NotIn predicate on the "state" field.
+func StateNotIn(vs ...State) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldState, vs...))
+}
+
+// RevisionEQ applies the EQ predicate on the "revision" field.
+func RevisionEQ(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldRevision, v))
+}
+
+// RevisionNEQ applies the NEQ predicate on the "revision" field.
+func RevisionNEQ(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldRevision, v))
+}
+
+// RevisionIn applies the In predicate on the "revision" field.
+func RevisionIn(vs ...int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldRevision, vs...))
+}
+
+// RevisionNotIn applies the NotIn predicate on the "revision" field.
+func RevisionNotIn(vs ...int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldRevision, vs...))
+}
+
+// RevisionGT applies the GT predicate on the "revision" field.
+func RevisionGT(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldRevision, v))
+}
+
+// RevisionGTE applies the GTE predicate on the "revision" field.
+func RevisionGTE(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldRevision, v))
+}
+
+// RevisionLT applies the LT predicate on the "revision" field.
+func RevisionLT(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldRevision, v))
+}
+
+// RevisionLTE applies the LTE predicate on the "revision" field.
+func RevisionLTE(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldRevision, v))
+}
+
 // FilenameEQ applies the EQ predicate on the "filename" field.
 func FilenameEQ(v string) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldFilename, v))
@@ -760,134 +830,104 @@ func SizeBytesLTE(v int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldLTE(FieldSizeBytes, v))
 }
 
-// StatusEQ applies the EQ predicate on the "status" field.
-func StatusEQ(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldEQ(FieldStatus, v))
+// WidthEQ applies the EQ predicate on the "width" field.
+func WidthEQ(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldWidth, v))
 }
 
-// StatusNEQ applies the NEQ predicate on the "status" field.
-func StatusNEQ(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldNEQ(FieldStatus, v))
+// WidthNEQ applies the NEQ predicate on the "width" field.
+func WidthNEQ(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldWidth, v))
 }
 
-// StatusIn applies the In predicate on the "status" field.
-func StatusIn(vs ...string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldIn(FieldStatus, vs...))
+// WidthIn applies the In predicate on the "width" field.
+func WidthIn(vs ...int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldWidth, vs...))
 }
 
-// StatusNotIn applies the NotIn predicate on the "status" field.
-func StatusNotIn(vs ...string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldNotIn(FieldStatus, vs...))
+// WidthNotIn applies the NotIn predicate on the "width" field.
+func WidthNotIn(vs ...int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldWidth, vs...))
 }
 
-// StatusGT applies the GT predicate on the "status" field.
-func StatusGT(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldGT(FieldStatus, v))
+// WidthGT applies the GT predicate on the "width" field.
+func WidthGT(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldWidth, v))
 }
 
-// StatusGTE applies the GTE predicate on the "status" field.
-func StatusGTE(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldGTE(FieldStatus, v))
+// WidthGTE applies the GTE predicate on the "width" field.
+func WidthGTE(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldWidth, v))
 }
 
-// StatusLT applies the LT predicate on the "status" field.
-func StatusLT(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldLT(FieldStatus, v))
+// WidthLT applies the LT predicate on the "width" field.
+func WidthLT(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldWidth, v))
 }
 
-// StatusLTE applies the LTE predicate on the "status" field.
-func StatusLTE(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldLTE(FieldStatus, v))
+// WidthLTE applies the LTE predicate on the "width" field.
+func WidthLTE(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldWidth, v))
 }
 
-// StatusContains applies the Contains predicate on the "status" field.
-func StatusContains(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldContains(FieldStatus, v))
+// WidthIsNil applies the IsNil predicate on the "width" field.
+func WidthIsNil() predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIsNull(FieldWidth))
 }
 
-// StatusHasPrefix applies the HasPrefix predicate on the "status" field.
-func StatusHasPrefix(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldHasPrefix(FieldStatus, v))
+// WidthNotNil applies the NotNil predicate on the "width" field.
+func WidthNotNil() predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotNull(FieldWidth))
 }
 
-// StatusHasSuffix applies the HasSuffix predicate on the "status" field.
-func StatusHasSuffix(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldHasSuffix(FieldStatus, v))
+// HeightEQ applies the EQ predicate on the "height" field.
+func HeightEQ(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldHeight, v))
 }
 
-// StatusEqualFold applies the EqualFold predicate on the "status" field.
-func StatusEqualFold(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldEqualFold(FieldStatus, v))
+// HeightNEQ applies the NEQ predicate on the "height" field.
+func HeightNEQ(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldHeight, v))
 }
 
-// StatusContainsFold applies the ContainsFold predicate on the "status" field.
-func StatusContainsFold(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldContainsFold(FieldStatus, v))
+// HeightIn applies the In predicate on the "height" field.
+func HeightIn(vs ...int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldHeight, vs...))
 }
 
-// MutationIDEQ applies the EQ predicate on the "mutation_id" field.
-func MutationIDEQ(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldEQ(FieldMutationID, v))
+// HeightNotIn applies the NotIn predicate on the "height" field.
+func HeightNotIn(vs ...int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldHeight, vs...))
 }
 
-// MutationIDNEQ applies the NEQ predicate on the "mutation_id" field.
-func MutationIDNEQ(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldNEQ(FieldMutationID, v))
+// HeightGT applies the GT predicate on the "height" field.
+func HeightGT(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldHeight, v))
 }
 
-// MutationIDIn applies the In predicate on the "mutation_id" field.
-func MutationIDIn(vs ...string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldIn(FieldMutationID, vs...))
+// HeightGTE applies the GTE predicate on the "height" field.
+func HeightGTE(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldHeight, v))
 }
 
-// MutationIDNotIn applies the NotIn predicate on the "mutation_id" field.
-func MutationIDNotIn(vs ...string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldNotIn(FieldMutationID, vs...))
+// HeightLT applies the LT predicate on the "height" field.
+func HeightLT(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldHeight, v))
 }
 
-// MutationIDGT applies the GT predicate on the "mutation_id" field.
-func MutationIDGT(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldGT(FieldMutationID, v))
+// HeightLTE applies the LTE predicate on the "height" field.
+func HeightLTE(v int) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldHeight, v))
 }
 
-// MutationIDGTE applies the GTE predicate on the "mutation_id" field.
-func MutationIDGTE(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldGTE(FieldMutationID, v))
+// HeightIsNil applies the IsNil predicate on the "height" field.
+func HeightIsNil() predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIsNull(FieldHeight))
 }
 
-// MutationIDLT applies the LT predicate on the "mutation_id" field.
-func MutationIDLT(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldLT(FieldMutationID, v))
-}
-
-// MutationIDLTE applies the LTE predicate on the "mutation_id" field.
-func MutationIDLTE(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldLTE(FieldMutationID, v))
-}
-
-// MutationIDContains applies the Contains predicate on the "mutation_id" field.
-func MutationIDContains(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldContains(FieldMutationID, v))
-}
-
-// MutationIDHasPrefix applies the HasPrefix predicate on the "mutation_id" field.
-func MutationIDHasPrefix(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldHasPrefix(FieldMutationID, v))
-}
-
-// MutationIDHasSuffix applies the HasSuffix predicate on the "mutation_id" field.
-func MutationIDHasSuffix(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldHasSuffix(FieldMutationID, v))
-}
-
-// MutationIDEqualFold applies the EqualFold predicate on the "mutation_id" field.
-func MutationIDEqualFold(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldEqualFold(FieldMutationID, v))
-}
-
-// MutationIDContainsFold applies the ContainsFold predicate on the "mutation_id" field.
-func MutationIDContainsFold(v string) predicate.MediaObject {
-	return predicate.MediaObject(sql.FieldContainsFold(FieldMutationID, v))
+// HeightNotNil applies the NotNil predicate on the "height" field.
+func HeightNotNil() predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotNull(FieldHeight))
 }
 
 // UploadExpiresAtEQ applies the EQ predicate on the "upload_expires_at" field.
@@ -978,6 +1018,46 @@ func CreatedAtLT(v time.Time) predicate.MediaObject {
 // CreatedAtLTE applies the LTE predicate on the "created_at" field.
 func CreatedAtLTE(v time.Time) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldLTE(FieldCreatedAt, v))
+}
+
+// UpdatedAtEQ applies the EQ predicate on the "updated_at" field.
+func UpdatedAtEQ(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldUpdatedAt, v))
+}
+
+// UpdatedAtNEQ applies the NEQ predicate on the "updated_at" field.
+func UpdatedAtNEQ(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldUpdatedAt, v))
+}
+
+// UpdatedAtIn applies the In predicate on the "updated_at" field.
+func UpdatedAtIn(vs ...time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldUpdatedAt, vs...))
+}
+
+// UpdatedAtNotIn applies the NotIn predicate on the "updated_at" field.
+func UpdatedAtNotIn(vs ...time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldUpdatedAt, vs...))
+}
+
+// UpdatedAtGT applies the GT predicate on the "updated_at" field.
+func UpdatedAtGT(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldUpdatedAt, v))
+}
+
+// UpdatedAtGTE applies the GTE predicate on the "updated_at" field.
+func UpdatedAtGTE(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldUpdatedAt, v))
+}
+
+// UpdatedAtLT applies the LT predicate on the "updated_at" field.
+func UpdatedAtLT(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldUpdatedAt, v))
+}
+
+// UpdatedAtLTE applies the LTE predicate on the "updated_at" field.
+func UpdatedAtLTE(v time.Time) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldUpdatedAt, v))
 }
 
 // HasEntry applies the HasEdge predicate on the "entry" edge.

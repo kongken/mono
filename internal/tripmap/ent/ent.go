@@ -17,6 +17,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/friendship"
 	"github.com/kongken/mono/internal/tripmap/ent/itinerary"
 	"github.com/kongken/mono/internal/tripmap/ent/mediacleanup"
+	"github.com/kongken/mono/internal/tripmap/ent/mediadeletereceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationdelivery"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationprofile"
@@ -27,6 +28,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
 	"github.com/kongken/mono/internal/tripmap/ent/snapshot"
 	"github.com/kongken/mono/internal/tripmap/ent/syncreceipt"
+	"github.com/kongken/mono/internal/tripmap/ent/timelinemutation"
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
 	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
@@ -97,6 +99,7 @@ func checkColumn(t, c string) error {
 			friendship.Table:           friendship.ValidColumn,
 			itinerary.Table:            itinerary.ValidColumn,
 			mediacleanup.Table:         mediacleanup.ValidColumn,
+			mediadeletereceipt.Table:   mediadeletereceipt.ValidColumn,
 			mediaobject.Table:          mediaobject.ValidColumn,
 			notificationdelivery.Table: notificationdelivery.ValidColumn,
 			notificationprofile.Table:  notificationprofile.ValidColumn,
@@ -107,6 +110,7 @@ func checkColumn(t, c string) error {
 			sharedtrip.Table:           sharedtrip.ValidColumn,
 			snapshot.Table:             snapshot.ValidColumn,
 			syncreceipt.Table:          syncreceipt.ValidColumn,
+			timelinemutation.Table:     timelinemutation.ValidColumn,
 			trip.Table:                 trip.ValidColumn,
 			tripmember.Table:           tripmember.ValidColumn,
 			user.Table:                 user.ValidColumn,

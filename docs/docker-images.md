@@ -57,8 +57,6 @@ usersrv 镜像复制 `cmd/usersrv`、`cmd/usersrv-admin`、`internal/usersrv`、
 
 metro 镜像同样只复制 `cmd/metro`、`internal/metro`、`internal/platform`、`pkg/` 与 `migrations/metro`，只运行这些包的 Go 单元测试（没有测试数据库时集成测试跳过）；`metro-web` 镜像先复制全部 workspace 的 `package.json` 再 `npm ci`，构建阶段运行 `npm run test:metro` 与 `npm run build:metro`（T11 起必须传 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`，没有同源 `/api` 的默认值），不含浏览器测试（Playwright 在 CI 的前端任务中运行）。Docker 守护进程在编写这些 Dockerfile 的环境中不可用，镜像按同样的输入文件在临时目录里验证了 Go 测试/构建与 npm 构建，但没有实际执行 `docker build`（usersrv 镜像同样没有）；以 CI 的镜像矩阵为准。
 
-发布矩阵本身也受回归校验：`internal/release/publish_matrix_test.go` 解析 `docker-publish.yml` 真实的 `jobs.build.strategy.matrix.include`（不把注释或构建参数里的 `bff` 文本当作通过条件），要求每个镜像项唯一、BFF 恰好一项且 suffix 与 Dockerfile 精确匹配、任何既有镜像都不被新品替换；CI 的 `Docker publish matrix` 步骤以详细日志运行它，所以矩阵缺少某个镜像会使 CI 失败，而不是只在某个总体绿色的 workflow 里消失。新增或删除镜像时同步更新测试中的 `publishedMatrix`。
-
 本地构建：
 
 ```bash

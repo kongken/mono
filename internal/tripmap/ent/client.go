@@ -20,6 +20,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/friendship"
 	"github.com/kongken/mono/internal/tripmap/ent/itinerary"
 	"github.com/kongken/mono/internal/tripmap/ent/mediacleanup"
+	"github.com/kongken/mono/internal/tripmap/ent/mediadeletereceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationdelivery"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationprofile"
@@ -30,6 +31,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
 	"github.com/kongken/mono/internal/tripmap/ent/snapshot"
 	"github.com/kongken/mono/internal/tripmap/ent/syncreceipt"
+	"github.com/kongken/mono/internal/tripmap/ent/timelinemutation"
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
 	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
@@ -52,6 +54,8 @@ type Client struct {
 	Itinerary *ItineraryClient
 	// MediaCleanup is the client for interacting with the MediaCleanup builders.
 	MediaCleanup *MediaCleanupClient
+	// MediaDeleteReceipt is the client for interacting with the MediaDeleteReceipt builders.
+	MediaDeleteReceipt *MediaDeleteReceiptClient
 	// MediaObject is the client for interacting with the MediaObject builders.
 	MediaObject *MediaObjectClient
 	// NotificationDelivery is the client for interacting with the NotificationDelivery builders.
@@ -72,6 +76,8 @@ type Client struct {
 	Snapshot *SnapshotClient
 	// SyncReceipt is the client for interacting with the SyncReceipt builders.
 	SyncReceipt *SyncReceiptClient
+	// TimelineMutation is the client for interacting with the TimelineMutation builders.
+	TimelineMutation *TimelineMutationClient
 	// Trip is the client for interacting with the Trip builders.
 	Trip *TripClient
 	// TripMember is the client for interacting with the TripMember builders.
@@ -98,6 +104,7 @@ func (c *Client) init() {
 	c.Friendship = NewFriendshipClient(c.config)
 	c.Itinerary = NewItineraryClient(c.config)
 	c.MediaCleanup = NewMediaCleanupClient(c.config)
+	c.MediaDeleteReceipt = NewMediaDeleteReceiptClient(c.config)
 	c.MediaObject = NewMediaObjectClient(c.config)
 	c.NotificationDelivery = NewNotificationDeliveryClient(c.config)
 	c.NotificationProfile = NewNotificationProfileClient(c.config)
@@ -108,6 +115,7 @@ func (c *Client) init() {
 	c.SharedTrip = NewSharedTripClient(c.config)
 	c.Snapshot = NewSnapshotClient(c.config)
 	c.SyncReceipt = NewSyncReceiptClient(c.config)
+	c.TimelineMutation = NewTimelineMutationClient(c.config)
 	c.Trip = NewTripClient(c.config)
 	c.TripMember = NewTripMemberClient(c.config)
 	c.User = NewUserClient(c.config)
@@ -210,6 +218,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Friendship:           NewFriendshipClient(cfg),
 		Itinerary:            NewItineraryClient(cfg),
 		MediaCleanup:         NewMediaCleanupClient(cfg),
+		MediaDeleteReceipt:   NewMediaDeleteReceiptClient(cfg),
 		MediaObject:          NewMediaObjectClient(cfg),
 		NotificationDelivery: NewNotificationDeliveryClient(cfg),
 		NotificationProfile:  NewNotificationProfileClient(cfg),
@@ -220,6 +229,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		SharedTrip:           NewSharedTripClient(cfg),
 		Snapshot:             NewSnapshotClient(cfg),
 		SyncReceipt:          NewSyncReceiptClient(cfg),
+		TimelineMutation:     NewTimelineMutationClient(cfg),
 		Trip:                 NewTripClient(cfg),
 		TripMember:           NewTripMemberClient(cfg),
 		User:                 NewUserClient(cfg),
@@ -249,6 +259,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Friendship:           NewFriendshipClient(cfg),
 		Itinerary:            NewItineraryClient(cfg),
 		MediaCleanup:         NewMediaCleanupClient(cfg),
+		MediaDeleteReceipt:   NewMediaDeleteReceiptClient(cfg),
 		MediaObject:          NewMediaObjectClient(cfg),
 		NotificationDelivery: NewNotificationDeliveryClient(cfg),
 		NotificationProfile:  NewNotificationProfileClient(cfg),
@@ -259,6 +270,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		SharedTrip:           NewSharedTripClient(cfg),
 		Snapshot:             NewSnapshotClient(cfg),
 		SyncReceipt:          NewSyncReceiptClient(cfg),
+		TimelineMutation:     NewTimelineMutationClient(cfg),
 		Trip:                 NewTripClient(cfg),
 		TripMember:           NewTripMemberClient(cfg),
 		User:                 NewUserClient(cfg),
@@ -294,10 +306,11 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.CityVisit, c.FootprintChange, c.Friendship, c.Itinerary, c.MediaCleanup,
-		c.MediaObject, c.NotificationDelivery, c.NotificationProfile,
-		c.NotificationSetting, c.ProvinceMark, c.PushSubscription, c.Share,
-		c.SharedTrip, c.Snapshot, c.SyncReceipt, c.Trip, c.TripMember, c.User,
-		c.WorldDocument, c.WorldReceipt,
+		c.MediaDeleteReceipt, c.MediaObject, c.NotificationDelivery,
+		c.NotificationProfile, c.NotificationSetting, c.ProvinceMark,
+		c.PushSubscription, c.Share, c.SharedTrip, c.Snapshot, c.SyncReceipt,
+		c.TimelineMutation, c.Trip, c.TripMember, c.User, c.WorldDocument,
+		c.WorldReceipt,
 	} {
 		n.Use(hooks...)
 	}
@@ -308,10 +321,11 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.CityVisit, c.FootprintChange, c.Friendship, c.Itinerary, c.MediaCleanup,
-		c.MediaObject, c.NotificationDelivery, c.NotificationProfile,
-		c.NotificationSetting, c.ProvinceMark, c.PushSubscription, c.Share,
-		c.SharedTrip, c.Snapshot, c.SyncReceipt, c.Trip, c.TripMember, c.User,
-		c.WorldDocument, c.WorldReceipt,
+		c.MediaDeleteReceipt, c.MediaObject, c.NotificationDelivery,
+		c.NotificationProfile, c.NotificationSetting, c.ProvinceMark,
+		c.PushSubscription, c.Share, c.SharedTrip, c.Snapshot, c.SyncReceipt,
+		c.TimelineMutation, c.Trip, c.TripMember, c.User, c.WorldDocument,
+		c.WorldReceipt,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -330,6 +344,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Itinerary.mutate(ctx, m)
 	case *MediaCleanupMutation:
 		return c.MediaCleanup.mutate(ctx, m)
+	case *MediaDeleteReceiptMutation:
+		return c.MediaDeleteReceipt.mutate(ctx, m)
 	case *MediaObjectMutation:
 		return c.MediaObject.mutate(ctx, m)
 	case *NotificationDeliveryMutation:
@@ -350,6 +366,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Snapshot.mutate(ctx, m)
 	case *SyncReceiptMutation:
 		return c.SyncReceipt.mutate(ctx, m)
+	case *TimelineMutationMutation:
+		return c.TimelineMutation.mutate(ctx, m)
 	case *TripMutation:
 		return c.Trip.mutate(ctx, m)
 	case *TripMemberMutation:
@@ -1123,6 +1141,139 @@ func (c *MediaCleanupClient) mutate(ctx context.Context, m *MediaCleanupMutation
 		return (&MediaCleanupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown MediaCleanup mutation op: %q", m.Op())
+	}
+}
+
+// MediaDeleteReceiptClient is a client for the MediaDeleteReceipt schema.
+type MediaDeleteReceiptClient struct {
+	config
+}
+
+// NewMediaDeleteReceiptClient returns a client for the MediaDeleteReceipt from the given config.
+func NewMediaDeleteReceiptClient(c config) *MediaDeleteReceiptClient {
+	return &MediaDeleteReceiptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `mediadeletereceipt.Hooks(f(g(h())))`.
+func (c *MediaDeleteReceiptClient) Use(hooks ...Hook) {
+	c.hooks.MediaDeleteReceipt = append(c.hooks.MediaDeleteReceipt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `mediadeletereceipt.Intercept(f(g(h())))`.
+func (c *MediaDeleteReceiptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MediaDeleteReceipt = append(c.inters.MediaDeleteReceipt, interceptors...)
+}
+
+// Create returns a builder for creating a MediaDeleteReceipt entity.
+func (c *MediaDeleteReceiptClient) Create() *MediaDeleteReceiptCreate {
+	mutation := newMediaDeleteReceiptMutation(c.config, OpCreate)
+	return &MediaDeleteReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MediaDeleteReceipt entities.
+func (c *MediaDeleteReceiptClient) CreateBulk(builders ...*MediaDeleteReceiptCreate) *MediaDeleteReceiptCreateBulk {
+	return &MediaDeleteReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MediaDeleteReceiptClient) MapCreateBulk(slice any, setFunc func(*MediaDeleteReceiptCreate, int)) *MediaDeleteReceiptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MediaDeleteReceiptCreateBulk{err: fmt.Errorf("calling to MediaDeleteReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MediaDeleteReceiptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MediaDeleteReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MediaDeleteReceipt.
+func (c *MediaDeleteReceiptClient) Update() *MediaDeleteReceiptUpdate {
+	mutation := newMediaDeleteReceiptMutation(c.config, OpUpdate)
+	return &MediaDeleteReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MediaDeleteReceiptClient) UpdateOne(_m *MediaDeleteReceipt) *MediaDeleteReceiptUpdateOne {
+	mutation := newMediaDeleteReceiptMutation(c.config, OpUpdateOne, withMediaDeleteReceipt(_m))
+	return &MediaDeleteReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MediaDeleteReceiptClient) UpdateOneID(id string) *MediaDeleteReceiptUpdateOne {
+	mutation := newMediaDeleteReceiptMutation(c.config, OpUpdateOne, withMediaDeleteReceiptID(id))
+	return &MediaDeleteReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MediaDeleteReceipt.
+func (c *MediaDeleteReceiptClient) Delete() *MediaDeleteReceiptDelete {
+	mutation := newMediaDeleteReceiptMutation(c.config, OpDelete)
+	return &MediaDeleteReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MediaDeleteReceiptClient) DeleteOne(_m *MediaDeleteReceipt) *MediaDeleteReceiptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MediaDeleteReceiptClient) DeleteOneID(id string) *MediaDeleteReceiptDeleteOne {
+	builder := c.Delete().Where(mediadeletereceipt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MediaDeleteReceiptDeleteOne{builder}
+}
+
+// Query returns a query builder for MediaDeleteReceipt.
+func (c *MediaDeleteReceiptClient) Query() *MediaDeleteReceiptQuery {
+	return &MediaDeleteReceiptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMediaDeleteReceipt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MediaDeleteReceipt entity by its id.
+func (c *MediaDeleteReceiptClient) Get(ctx context.Context, id string) (*MediaDeleteReceipt, error) {
+	return c.Query().Where(mediadeletereceipt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MediaDeleteReceiptClient) GetX(ctx context.Context, id string) *MediaDeleteReceipt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *MediaDeleteReceiptClient) Hooks() []Hook {
+	return c.hooks.MediaDeleteReceipt
+}
+
+// Interceptors returns the client interceptors.
+func (c *MediaDeleteReceiptClient) Interceptors() []Interceptor {
+	return c.inters.MediaDeleteReceipt
+}
+
+func (c *MediaDeleteReceiptClient) mutate(ctx context.Context, m *MediaDeleteReceiptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MediaDeleteReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MediaDeleteReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MediaDeleteReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MediaDeleteReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MediaDeleteReceipt mutation op: %q", m.Op())
 	}
 }
 
@@ -2632,6 +2783,139 @@ func (c *SyncReceiptClient) mutate(ctx context.Context, m *SyncReceiptMutation) 
 	}
 }
 
+// TimelineMutationClient is a client for the TimelineMutation schema.
+type TimelineMutationClient struct {
+	config
+}
+
+// NewTimelineMutationClient returns a client for the TimelineMutation from the given config.
+func NewTimelineMutationClient(c config) *TimelineMutationClient {
+	return &TimelineMutationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `timelinemutation.Hooks(f(g(h())))`.
+func (c *TimelineMutationClient) Use(hooks ...Hook) {
+	c.hooks.TimelineMutation = append(c.hooks.TimelineMutation, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `timelinemutation.Intercept(f(g(h())))`.
+func (c *TimelineMutationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TimelineMutation = append(c.inters.TimelineMutation, interceptors...)
+}
+
+// Create returns a builder for creating a TimelineMutation entity.
+func (c *TimelineMutationClient) Create() *TimelineMutationCreate {
+	mutation := newTimelineMutationMutation(c.config, OpCreate)
+	return &TimelineMutationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TimelineMutation entities.
+func (c *TimelineMutationClient) CreateBulk(builders ...*TimelineMutationCreate) *TimelineMutationCreateBulk {
+	return &TimelineMutationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TimelineMutationClient) MapCreateBulk(slice any, setFunc func(*TimelineMutationCreate, int)) *TimelineMutationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TimelineMutationCreateBulk{err: fmt.Errorf("calling to TimelineMutationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TimelineMutationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TimelineMutationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TimelineMutation.
+func (c *TimelineMutationClient) Update() *TimelineMutationUpdate {
+	mutation := newTimelineMutationMutation(c.config, OpUpdate)
+	return &TimelineMutationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TimelineMutationClient) UpdateOne(_m *TimelineMutation) *TimelineMutationUpdateOne {
+	mutation := newTimelineMutationMutation(c.config, OpUpdateOne, withTimelineMutation(_m))
+	return &TimelineMutationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TimelineMutationClient) UpdateOneID(id string) *TimelineMutationUpdateOne {
+	mutation := newTimelineMutationMutation(c.config, OpUpdateOne, withTimelineMutationID(id))
+	return &TimelineMutationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TimelineMutation.
+func (c *TimelineMutationClient) Delete() *TimelineMutationDelete {
+	mutation := newTimelineMutationMutation(c.config, OpDelete)
+	return &TimelineMutationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TimelineMutationClient) DeleteOne(_m *TimelineMutation) *TimelineMutationDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TimelineMutationClient) DeleteOneID(id string) *TimelineMutationDeleteOne {
+	builder := c.Delete().Where(timelinemutation.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TimelineMutationDeleteOne{builder}
+}
+
+// Query returns a query builder for TimelineMutation.
+func (c *TimelineMutationClient) Query() *TimelineMutationQuery {
+	return &TimelineMutationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTimelineMutation},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TimelineMutation entity by its id.
+func (c *TimelineMutationClient) Get(ctx context.Context, id string) (*TimelineMutation, error) {
+	return c.Query().Where(timelinemutation.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TimelineMutationClient) GetX(ctx context.Context, id string) *TimelineMutation {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *TimelineMutationClient) Hooks() []Hook {
+	return c.hooks.TimelineMutation
+}
+
+// Interceptors returns the client interceptors.
+func (c *TimelineMutationClient) Interceptors() []Interceptor {
+	return c.inters.TimelineMutation
+}
+
+func (c *TimelineMutationClient) mutate(ctx context.Context, m *TimelineMutationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TimelineMutationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TimelineMutationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TimelineMutationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TimelineMutationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TimelineMutation mutation op: %q", m.Op())
+	}
+}
+
 // TripClient is a client for the Trip schema.
 type TripClient struct {
 	config
@@ -3700,15 +3984,17 @@ func (c *WorldReceiptClient) mutate(ctx context.Context, m *WorldReceiptMutation
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		CityVisit, FootprintChange, Friendship, Itinerary, MediaCleanup, MediaObject,
-		NotificationDelivery, NotificationProfile, NotificationSetting, ProvinceMark,
-		PushSubscription, Share, SharedTrip, Snapshot, SyncReceipt, Trip, TripMember,
-		User, WorldDocument, WorldReceipt []ent.Hook
+		CityVisit, FootprintChange, Friendship, Itinerary, MediaCleanup,
+		MediaDeleteReceipt, MediaObject, NotificationDelivery, NotificationProfile,
+		NotificationSetting, ProvinceMark, PushSubscription, Share, SharedTrip,
+		Snapshot, SyncReceipt, TimelineMutation, Trip, TripMember, User, WorldDocument,
+		WorldReceipt []ent.Hook
 	}
 	inters struct {
-		CityVisit, FootprintChange, Friendship, Itinerary, MediaCleanup, MediaObject,
-		NotificationDelivery, NotificationProfile, NotificationSetting, ProvinceMark,
-		PushSubscription, Share, SharedTrip, Snapshot, SyncReceipt, Trip, TripMember,
-		User, WorldDocument, WorldReceipt []ent.Interceptor
+		CityVisit, FootprintChange, Friendship, Itinerary, MediaCleanup,
+		MediaDeleteReceipt, MediaObject, NotificationDelivery, NotificationProfile,
+		NotificationSetting, ProvinceMark, PushSubscription, Share, SharedTrip,
+		Snapshot, SyncReceipt, TimelineMutation, Trip, TripMember, User, WorldDocument,
+		WorldReceipt []ent.Interceptor
 	}
 )

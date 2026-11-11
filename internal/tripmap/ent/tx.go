@@ -22,6 +22,8 @@ type Tx struct {
 	Itinerary *ItineraryClient
 	// MediaCleanup is the client for interacting with the MediaCleanup builders.
 	MediaCleanup *MediaCleanupClient
+	// MediaDeleteReceipt is the client for interacting with the MediaDeleteReceipt builders.
+	MediaDeleteReceipt *MediaDeleteReceiptClient
 	// MediaObject is the client for interacting with the MediaObject builders.
 	MediaObject *MediaObjectClient
 	// NotificationDelivery is the client for interacting with the NotificationDelivery builders.
@@ -42,6 +44,8 @@ type Tx struct {
 	Snapshot *SnapshotClient
 	// SyncReceipt is the client for interacting with the SyncReceipt builders.
 	SyncReceipt *SyncReceiptClient
+	// TimelineMutation is the client for interacting with the TimelineMutation builders.
+	TimelineMutation *TimelineMutationClient
 	// Trip is the client for interacting with the Trip builders.
 	Trip *TripClient
 	// TripMember is the client for interacting with the TripMember builders.
@@ -188,6 +192,7 @@ func (tx *Tx) init() {
 	tx.Friendship = NewFriendshipClient(tx.config)
 	tx.Itinerary = NewItineraryClient(tx.config)
 	tx.MediaCleanup = NewMediaCleanupClient(tx.config)
+	tx.MediaDeleteReceipt = NewMediaDeleteReceiptClient(tx.config)
 	tx.MediaObject = NewMediaObjectClient(tx.config)
 	tx.NotificationDelivery = NewNotificationDeliveryClient(tx.config)
 	tx.NotificationProfile = NewNotificationProfileClient(tx.config)
@@ -198,6 +203,7 @@ func (tx *Tx) init() {
 	tx.SharedTrip = NewSharedTripClient(tx.config)
 	tx.Snapshot = NewSnapshotClient(tx.config)
 	tx.SyncReceipt = NewSyncReceiptClient(tx.config)
+	tx.TimelineMutation = NewTimelineMutationClient(tx.config)
 	tx.Trip = NewTripClient(tx.config)
 	tx.TripMember = NewTripMemberClient(tx.config)
 	tx.User = NewUserClient(tx.config)

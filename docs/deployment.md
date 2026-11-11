@@ -229,14 +229,3 @@ OzID（`apps/ozid`，镜像 `ozid-web`）是纯静态站点，没有同源 `/api
 8. **配置错配检查**：启动时 BFF 校验注册表与 `api_origin` 同站点、应用 origin 都在 CORS 列表里、管理周界两份名单不重叠；`admin-web` 与 `ozid-web` 入口在缺少 `API_ORIGIN` 或名单重叠时拒绝启动；提供账号服务的 BFF 缺少注册表或 OzID origin 同样拒绝启动。上线前再跑一遍 [整体验收](ozid/acceptance.md) 里的网关测试（用保留域名），并用真实域名做一次人工的登录、邮件、返回、控制台与 MCP 冒烟。
 
 运维仍须自行确认真实 DNS、证书、来源地址与 CDN 链路、邮件厂商；本阶段不自动部署，也不清理任何数据。
-
-## Timeline 的部署
-
-Timeline 使用独立的 PostgreSQL 数据库和 gRPC 服务。Compose 示例提供 `timeline`（`18088/18089`，仅内网）与 `timeline-web`（Nginx SPA）；边缘 Caddy 用 `timeline.example.com` 提供 SPA，`/mcp/timeline` 转发到 BFF。公开 API 地址固定为 `https://api.example.com`，OzID 地址为 `https://id.example.com`，这些是保留示例值，私有部署应整体替换。
-
-1. 在 PostgreSQL 创建独立的 `timeline` 库（空卷首次启动时 `deploy/postgres/init-databases.sql` 会创建它），并在 S3/RustFS 中准备 `timeline` bucket。Compose 示例通过 `s3-init` 使用 S3 API 幂等创建 bucket：它等待 RustFS 的 `/health/ready` healthcheck，Timeline 同时要求 `s3: service_healthy` 与 `s3-init: service_completed_successfully`，并设置 `restart: unless-stopped`。复制 `config.timeline.example.yaml` 为 `config.timeline.yaml`，将 `store.db.timeline` 和 `store.s3.timeline` 的连接凭据替换为 Secret。生产关闭 `auto_migrate`，按文件名顺序执行 `migrations/timeline/*.sql`。如果使用外部 S3，必须在发布前创建 bucket，并把 `store.s3.timeline` 指向该 bucket；不要跳过 bucket provisioning。
-2. 将 BFF 配置的 `upstreams.timeline` 指向 `timeline:18088`，`grpc.services.timeline.address` 指向 `timeline:18089`，并保留 `auth.account_cleanup: [tripmap, metro, timeline]`。`cors_allowed_origins` 必须包含 `https://timeline.example.com`，`navigation.apps.timeline` 使用该 origin 与 `paths: ["/", "/trash"]`；`navigation.api_origin` 为 `https://api.example.com`。Timeline 配置中的 `internal_auth.trusted_keys[].public_key_file` 必须挂载 BFF 的公钥。
-3. 用 `deploy/timeline/Dockerfile` 构建服务镜像，用 `deploy/timeline-web/Dockerfile` 构建前端镜像：`docker build -f deploy/timeline-web/Dockerfile --build-arg VITE_API_BASE_URL=https://api.example.com/api --build-arg VITE_OZID_ORIGIN=https://id.example.com .` 两个变量都是必需的，缺失或地址格式错误会使构建失败。发布工作流的 `timeline` 与 `timeline-web` 条目使用相同的保留地址执行构建检查。前端也可以托管在 Cloudflare Pages：和其他前端一样，根目录留空、构建命令 `npm run build:timeline`、输出目录 `apps/timeline/dist`，两个变量同样必需且写在那个项目的变量里（按 Production/Preview 分套，见 [monorepo 的 Pages 设置](monorepo.md#timeline)）。
-4. 在 BFF 上线前设置生产 `auth.cookie_secure: true`，并确认页面、API、OzID 使用 HTTPS 且处于同一 schemeful site。Caddy 必须覆盖/追加 `X-Real-IP`、`X-Forwarded-For` 和 `X-Forwarded-Proto`；Bearer MCP 请求不写访问日志，`/mcp/timeline` 的请求体限制为 2 MiB。
-
-上线顺序是：先建库并执行 Timeline 迁移；部署 Timeline 服务和公钥 Secret；更新 BFF 的 upstream、gRPC、CORS、navigation 与 `cookie_secure` 配置并确认 `/readyz`；发布 Timeline Web 镜像与 Caddy 路由；最后用登录、创建、筛选、回收站恢复和 `/mcp/timeline` 做冒烟验证；附件还要在真实域名下上传一次，因为桶的 CORS 是按 origin 授权的，而签名 PUT、拒绝改 `Content-Type`、删除后排队回收这几条已由 CI 的 `timeline-db` 任务在真实 RustFS 上覆盖。回滚时先恢复旧的 BFF 配置/镜像和旧的 Timeline Web 镜像，再移除 Caddy 路由；不要回退已执行的迁移，业务数据保留。若仅 Web 发布失败，直接恢复 `timeline-web` 镜像即可，BFF 配置无需回滚。

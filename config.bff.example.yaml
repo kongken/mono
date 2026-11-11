@@ -131,7 +131,6 @@ cors_allowed_origins:
   - http://localhost:5174
   - http://localhost:5175   # OzID
   - http://localhost:5176   # admin console
-  - http://localhost:5178   # timeline
 
 # OzID (the user center) and the apps it may send the browser back to after sign-in or password
 # confirmation. A request names an app ID and a path; the server builds the address from this
@@ -146,7 +145,6 @@ cors_allowed_origins:
 #     trip-map: {origin: https://trip.example.com, paths: ["/status"]}   # /status: the public status page, a page a sign-in may return to
 #     metro:    {origin: https://metro.example.com, paths: ["/me", "/cities/*", "/topics", "/topics/*", "/u/*"]}   # the pages a sign-in may return to: personal page, city, topic and public profile pages
 #     admin:    {origin: https://admin.example.com, paths: ["/users", "/users/*", "/audit/users", "/metro", "/metro/*"]}
-#     timeline: {origin: https://timeline.example.com, paths: ["/", "/trash"]}   # the pages a sign-in may return to
 # Required while upstreams.usersrv is configured (api_origin and apps.ozid); a BFF without accounts may omit it.
 navigation:
   api_origin: http://localhost:18081
@@ -155,7 +153,6 @@ navigation:
     trip-map: {origin: http://localhost:5173, paths: ["/status"]}
     metro:    {origin: http://localhost:5174, paths: ["/me", "/cities/*", "/topics", "/topics/*", "/u/*"]}
     admin:    {origin: http://localhost:5176, paths: ["/users", "/users/*", "/audit/users", "/metro", "/metro/*"]}
-    timeline: {origin: http://localhost:5178, paths: ["/", "/trash"]}
 
 # The unified management console's perimeter (apps/admin, deploy/admin-web, docs/admin/features.md).
 # It guards every browser management API (user administration, the metro catalogue administration

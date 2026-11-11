@@ -30,14 +30,6 @@ func (_c *MediaObjectCreate) SetPublicRef(v string) *MediaObjectCreate {
 	return _c
 }
 
-// SetNillablePublicRef sets the "public_ref" field if the given value is not nil.
-func (_c *MediaObjectCreate) SetNillablePublicRef(v *string) *MediaObjectCreate {
-	if v != nil {
-		_c.SetPublicRef(*v)
-	}
-	return _c
-}
-
 // SetUserID sets the "user_id" field.
 func (_c *MediaObjectCreate) SetUserID(v string) *MediaObjectCreate {
 	_c.mutation.SetUserID(v)
@@ -90,9 +82,45 @@ func (_c *MediaObjectCreate) SetNillableUploadKey(v *string) *MediaObjectCreate 
 	return _c
 }
 
+// SetState sets the "state" field.
+func (_c *MediaObjectCreate) SetState(v mediaobject.State) *MediaObjectCreate {
+	_c.mutation.SetState(v)
+	return _c
+}
+
+// SetNillableState sets the "state" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableState(v *mediaobject.State) *MediaObjectCreate {
+	if v != nil {
+		_c.SetState(*v)
+	}
+	return _c
+}
+
+// SetRevision sets the "revision" field.
+func (_c *MediaObjectCreate) SetRevision(v int) *MediaObjectCreate {
+	_c.mutation.SetRevision(v)
+	return _c
+}
+
+// SetNillableRevision sets the "revision" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableRevision(v *int) *MediaObjectCreate {
+	if v != nil {
+		_c.SetRevision(*v)
+	}
+	return _c
+}
+
 // SetFilename sets the "filename" field.
 func (_c *MediaObjectCreate) SetFilename(v string) *MediaObjectCreate {
 	_c.mutation.SetFilename(v)
+	return _c
+}
+
+// SetNillableFilename sets the "filename" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableFilename(v *string) *MediaObjectCreate {
+	if v != nil {
+		_c.SetFilename(*v)
+	}
 	return _c
 }
 
@@ -102,36 +130,52 @@ func (_c *MediaObjectCreate) SetContentType(v string) *MediaObjectCreate {
 	return _c
 }
 
+// SetNillableContentType sets the "content_type" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableContentType(v *string) *MediaObjectCreate {
+	if v != nil {
+		_c.SetContentType(*v)
+	}
+	return _c
+}
+
 // SetSizeBytes sets the "size_bytes" field.
 func (_c *MediaObjectCreate) SetSizeBytes(v int64) *MediaObjectCreate {
 	_c.mutation.SetSizeBytes(v)
 	return _c
 }
 
-// SetStatus sets the "status" field.
-func (_c *MediaObjectCreate) SetStatus(v string) *MediaObjectCreate {
-	_c.mutation.SetStatus(v)
-	return _c
-}
-
-// SetNillableStatus sets the "status" field if the given value is not nil.
-func (_c *MediaObjectCreate) SetNillableStatus(v *string) *MediaObjectCreate {
+// SetNillableSizeBytes sets the "size_bytes" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableSizeBytes(v *int64) *MediaObjectCreate {
 	if v != nil {
-		_c.SetStatus(*v)
+		_c.SetSizeBytes(*v)
 	}
 	return _c
 }
 
-// SetMutationID sets the "mutation_id" field.
-func (_c *MediaObjectCreate) SetMutationID(v string) *MediaObjectCreate {
-	_c.mutation.SetMutationID(v)
+// SetWidth sets the "width" field.
+func (_c *MediaObjectCreate) SetWidth(v int) *MediaObjectCreate {
+	_c.mutation.SetWidth(v)
 	return _c
 }
 
-// SetNillableMutationID sets the "mutation_id" field if the given value is not nil.
-func (_c *MediaObjectCreate) SetNillableMutationID(v *string) *MediaObjectCreate {
+// SetNillableWidth sets the "width" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableWidth(v *int) *MediaObjectCreate {
 	if v != nil {
-		_c.SetMutationID(*v)
+		_c.SetWidth(*v)
+	}
+	return _c
+}
+
+// SetHeight sets the "height" field.
+func (_c *MediaObjectCreate) SetHeight(v int) *MediaObjectCreate {
+	_c.mutation.SetHeight(v)
+	return _c
+}
+
+// SetNillableHeight sets the "height" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableHeight(v *int) *MediaObjectCreate {
+	if v != nil {
+		_c.SetHeight(*v)
 	}
 	return _c
 }
@@ -160,6 +204,20 @@ func (_c *MediaObjectCreate) SetCreatedAt(v time.Time) *MediaObjectCreate {
 func (_c *MediaObjectCreate) SetNillableCreatedAt(v *time.Time) *MediaObjectCreate {
 	if v != nil {
 		_c.SetCreatedAt(*v)
+	}
+	return _c
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (_c *MediaObjectCreate) SetUpdatedAt(v time.Time) *MediaObjectCreate {
+	_c.mutation.SetUpdatedAt(v)
+	return _c
+}
+
+// SetNillableUpdatedAt sets the "updated_at" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableUpdatedAt(v *time.Time) *MediaObjectCreate {
+	if v != nil {
+		_c.SetUpdatedAt(*v)
 	}
 	return _c
 }
@@ -218,10 +276,6 @@ func (_c *MediaObjectCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *MediaObjectCreate) defaults() {
-	if _, ok := _c.mutation.PublicRef(); !ok {
-		v := mediaobject.DefaultPublicRef()
-		_c.mutation.SetPublicRef(v)
-	}
 	if _, ok := _c.mutation.ThumbnailKey(); !ok {
 		v := mediaobject.DefaultThumbnailKey
 		_c.mutation.SetThumbnailKey(v)
@@ -230,17 +284,33 @@ func (_c *MediaObjectCreate) defaults() {
 		v := mediaobject.DefaultUploadKey
 		_c.mutation.SetUploadKey(v)
 	}
-	if _, ok := _c.mutation.Status(); !ok {
-		v := mediaobject.DefaultStatus
-		_c.mutation.SetStatus(v)
+	if _, ok := _c.mutation.State(); !ok {
+		v := mediaobject.DefaultState
+		_c.mutation.SetState(v)
 	}
-	if _, ok := _c.mutation.MutationID(); !ok {
-		v := mediaobject.DefaultMutationID
-		_c.mutation.SetMutationID(v)
+	if _, ok := _c.mutation.Revision(); !ok {
+		v := mediaobject.DefaultRevision
+		_c.mutation.SetRevision(v)
+	}
+	if _, ok := _c.mutation.Filename(); !ok {
+		v := mediaobject.DefaultFilename
+		_c.mutation.SetFilename(v)
+	}
+	if _, ok := _c.mutation.ContentType(); !ok {
+		v := mediaobject.DefaultContentType
+		_c.mutation.SetContentType(v)
+	}
+	if _, ok := _c.mutation.SizeBytes(); !ok {
+		v := mediaobject.DefaultSizeBytes
+		_c.mutation.SetSizeBytes(v)
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := mediaobject.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
+	}
+	if _, ok := _c.mutation.UpdatedAt(); !ok {
+		v := mediaobject.DefaultUpdatedAt()
+		_c.mutation.SetUpdatedAt(v)
 	}
 	if _, ok := _c.mutation.ID(); !ok {
 		v := mediaobject.DefaultID()
@@ -252,6 +322,11 @@ func (_c *MediaObjectCreate) defaults() {
 func (_c *MediaObjectCreate) check() error {
 	if _, ok := _c.mutation.PublicRef(); !ok {
 		return &ValidationError{Name: "public_ref", err: errors.New(`ent: missing required field "MediaObject.public_ref"`)}
+	}
+	if v, ok := _c.mutation.PublicRef(); ok {
+		if err := mediaobject.PublicRefValidator(v); err != nil {
+			return &ValidationError{Name: "public_ref", err: fmt.Errorf(`ent: validator failed for field "MediaObject.public_ref": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "MediaObject.user_id"`)}
@@ -291,38 +366,36 @@ func (_c *MediaObjectCreate) check() error {
 	if _, ok := _c.mutation.UploadKey(); !ok {
 		return &ValidationError{Name: "upload_key", err: errors.New(`ent: missing required field "MediaObject.upload_key"`)}
 	}
+	if _, ok := _c.mutation.State(); !ok {
+		return &ValidationError{Name: "state", err: errors.New(`ent: missing required field "MediaObject.state"`)}
+	}
+	if v, ok := _c.mutation.State(); ok {
+		if err := mediaobject.StateValidator(v); err != nil {
+			return &ValidationError{Name: "state", err: fmt.Errorf(`ent: validator failed for field "MediaObject.state": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.Revision(); !ok {
+		return &ValidationError{Name: "revision", err: errors.New(`ent: missing required field "MediaObject.revision"`)}
+	}
+	if v, ok := _c.mutation.Revision(); ok {
+		if err := mediaobject.RevisionValidator(v); err != nil {
+			return &ValidationError{Name: "revision", err: fmt.Errorf(`ent: validator failed for field "MediaObject.revision": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.Filename(); !ok {
 		return &ValidationError{Name: "filename", err: errors.New(`ent: missing required field "MediaObject.filename"`)}
-	}
-	if v, ok := _c.mutation.Filename(); ok {
-		if err := mediaobject.FilenameValidator(v); err != nil {
-			return &ValidationError{Name: "filename", err: fmt.Errorf(`ent: validator failed for field "MediaObject.filename": %w`, err)}
-		}
 	}
 	if _, ok := _c.mutation.ContentType(); !ok {
 		return &ValidationError{Name: "content_type", err: errors.New(`ent: missing required field "MediaObject.content_type"`)}
 	}
-	if v, ok := _c.mutation.ContentType(); ok {
-		if err := mediaobject.ContentTypeValidator(v); err != nil {
-			return &ValidationError{Name: "content_type", err: fmt.Errorf(`ent: validator failed for field "MediaObject.content_type": %w`, err)}
-		}
-	}
 	if _, ok := _c.mutation.SizeBytes(); !ok {
 		return &ValidationError{Name: "size_bytes", err: errors.New(`ent: missing required field "MediaObject.size_bytes"`)}
 	}
-	if v, ok := _c.mutation.SizeBytes(); ok {
-		if err := mediaobject.SizeBytesValidator(v); err != nil {
-			return &ValidationError{Name: "size_bytes", err: fmt.Errorf(`ent: validator failed for field "MediaObject.size_bytes": %w`, err)}
-		}
-	}
-	if _, ok := _c.mutation.Status(); !ok {
-		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "MediaObject.status"`)}
-	}
-	if _, ok := _c.mutation.MutationID(); !ok {
-		return &ValidationError{Name: "mutation_id", err: errors.New(`ent: missing required field "MediaObject.mutation_id"`)}
-	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "MediaObject.created_at"`)}
+	}
+	if _, ok := _c.mutation.UpdatedAt(); !ok {
+		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "MediaObject.updated_at"`)}
 	}
 	if len(_c.mutation.EntryIDs()) == 0 {
 		return &ValidationError{Name: "entry", err: errors.New(`ent: missing required edge "MediaObject.entry"`)}
@@ -387,6 +460,14 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 		_spec.SetField(mediaobject.FieldUploadKey, field.TypeString, value)
 		_node.UploadKey = value
 	}
+	if value, ok := _c.mutation.State(); ok {
+		_spec.SetField(mediaobject.FieldState, field.TypeEnum, value)
+		_node.State = value
+	}
+	if value, ok := _c.mutation.Revision(); ok {
+		_spec.SetField(mediaobject.FieldRevision, field.TypeInt, value)
+		_node.Revision = value
+	}
 	if value, ok := _c.mutation.Filename(); ok {
 		_spec.SetField(mediaobject.FieldFilename, field.TypeString, value)
 		_node.Filename = value
@@ -399,13 +480,13 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 		_spec.SetField(mediaobject.FieldSizeBytes, field.TypeInt64, value)
 		_node.SizeBytes = value
 	}
-	if value, ok := _c.mutation.Status(); ok {
-		_spec.SetField(mediaobject.FieldStatus, field.TypeString, value)
-		_node.Status = value
+	if value, ok := _c.mutation.Width(); ok {
+		_spec.SetField(mediaobject.FieldWidth, field.TypeInt, value)
+		_node.Width = &value
 	}
-	if value, ok := _c.mutation.MutationID(); ok {
-		_spec.SetField(mediaobject.FieldMutationID, field.TypeString, value)
-		_node.MutationID = value
+	if value, ok := _c.mutation.Height(); ok {
+		_spec.SetField(mediaobject.FieldHeight, field.TypeInt, value)
+		_node.Height = &value
 	}
 	if value, ok := _c.mutation.UploadExpiresAt(); ok {
 		_spec.SetField(mediaobject.FieldUploadExpiresAt, field.TypeTime, value)
@@ -414,6 +495,10 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(mediaobject.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
+	}
+	if value, ok := _c.mutation.UpdatedAt(); ok {
+		_spec.SetField(mediaobject.FieldUpdatedAt, field.TypeTime, value)
+		_node.UpdatedAt = value
 	}
 	if nodes := _c.mutation.EntryIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -508,6 +593,36 @@ func (u *MediaObjectUpsert) UpdateUploadKey() *MediaObjectUpsert {
 	return u
 }
 
+// SetState sets the "state" field.
+func (u *MediaObjectUpsert) SetState(v mediaobject.State) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldState, v)
+	return u
+}
+
+// UpdateState sets the "state" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateState() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldState)
+	return u
+}
+
+// SetRevision sets the "revision" field.
+func (u *MediaObjectUpsert) SetRevision(v int) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldRevision, v)
+	return u
+}
+
+// UpdateRevision sets the "revision" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateRevision() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldRevision)
+	return u
+}
+
+// AddRevision adds v to the "revision" field.
+func (u *MediaObjectUpsert) AddRevision(v int) *MediaObjectUpsert {
+	u.Add(mediaobject.FieldRevision, v)
+	return u
+}
+
 // SetFilename sets the "filename" field.
 func (u *MediaObjectUpsert) SetFilename(v string) *MediaObjectUpsert {
 	u.Set(mediaobject.FieldFilename, v)
@@ -550,27 +665,51 @@ func (u *MediaObjectUpsert) AddSizeBytes(v int64) *MediaObjectUpsert {
 	return u
 }
 
-// SetStatus sets the "status" field.
-func (u *MediaObjectUpsert) SetStatus(v string) *MediaObjectUpsert {
-	u.Set(mediaobject.FieldStatus, v)
+// SetWidth sets the "width" field.
+func (u *MediaObjectUpsert) SetWidth(v int) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldWidth, v)
 	return u
 }
 
-// UpdateStatus sets the "status" field to the value that was provided on create.
-func (u *MediaObjectUpsert) UpdateStatus() *MediaObjectUpsert {
-	u.SetExcluded(mediaobject.FieldStatus)
+// UpdateWidth sets the "width" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateWidth() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldWidth)
 	return u
 }
 
-// SetMutationID sets the "mutation_id" field.
-func (u *MediaObjectUpsert) SetMutationID(v string) *MediaObjectUpsert {
-	u.Set(mediaobject.FieldMutationID, v)
+// AddWidth adds v to the "width" field.
+func (u *MediaObjectUpsert) AddWidth(v int) *MediaObjectUpsert {
+	u.Add(mediaobject.FieldWidth, v)
 	return u
 }
 
-// UpdateMutationID sets the "mutation_id" field to the value that was provided on create.
-func (u *MediaObjectUpsert) UpdateMutationID() *MediaObjectUpsert {
-	u.SetExcluded(mediaobject.FieldMutationID)
+// ClearWidth clears the value of the "width" field.
+func (u *MediaObjectUpsert) ClearWidth() *MediaObjectUpsert {
+	u.SetNull(mediaobject.FieldWidth)
+	return u
+}
+
+// SetHeight sets the "height" field.
+func (u *MediaObjectUpsert) SetHeight(v int) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldHeight, v)
+	return u
+}
+
+// UpdateHeight sets the "height" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateHeight() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldHeight)
+	return u
+}
+
+// AddHeight adds v to the "height" field.
+func (u *MediaObjectUpsert) AddHeight(v int) *MediaObjectUpsert {
+	u.Add(mediaobject.FieldHeight, v)
+	return u
+}
+
+// ClearHeight clears the value of the "height" field.
+func (u *MediaObjectUpsert) ClearHeight() *MediaObjectUpsert {
+	u.SetNull(mediaobject.FieldHeight)
 	return u
 }
 
@@ -589,6 +728,18 @@ func (u *MediaObjectUpsert) UpdateUploadExpiresAt() *MediaObjectUpsert {
 // ClearUploadExpiresAt clears the value of the "upload_expires_at" field.
 func (u *MediaObjectUpsert) ClearUploadExpiresAt() *MediaObjectUpsert {
 	u.SetNull(mediaobject.FieldUploadExpiresAt)
+	return u
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *MediaObjectUpsert) SetUpdatedAt(v time.Time) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldUpdatedAt, v)
+	return u
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateUpdatedAt() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldUpdatedAt)
 	return u
 }
 
@@ -686,6 +837,41 @@ func (u *MediaObjectUpsertOne) UpdateUploadKey() *MediaObjectUpsertOne {
 	})
 }
 
+// SetState sets the "state" field.
+func (u *MediaObjectUpsertOne) SetState(v mediaobject.State) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetState(v)
+	})
+}
+
+// UpdateState sets the "state" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateState() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateState()
+	})
+}
+
+// SetRevision sets the "revision" field.
+func (u *MediaObjectUpsertOne) SetRevision(v int) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetRevision(v)
+	})
+}
+
+// AddRevision adds v to the "revision" field.
+func (u *MediaObjectUpsertOne) AddRevision(v int) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.AddRevision(v)
+	})
+}
+
+// UpdateRevision sets the "revision" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateRevision() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateRevision()
+	})
+}
+
 // SetFilename sets the "filename" field.
 func (u *MediaObjectUpsertOne) SetFilename(v string) *MediaObjectUpsertOne {
 	return u.Update(func(s *MediaObjectUpsert) {
@@ -735,31 +921,59 @@ func (u *MediaObjectUpsertOne) UpdateSizeBytes() *MediaObjectUpsertOne {
 	})
 }
 
-// SetStatus sets the "status" field.
-func (u *MediaObjectUpsertOne) SetStatus(v string) *MediaObjectUpsertOne {
+// SetWidth sets the "width" field.
+func (u *MediaObjectUpsertOne) SetWidth(v int) *MediaObjectUpsertOne {
 	return u.Update(func(s *MediaObjectUpsert) {
-		s.SetStatus(v)
+		s.SetWidth(v)
 	})
 }
 
-// UpdateStatus sets the "status" field to the value that was provided on create.
-func (u *MediaObjectUpsertOne) UpdateStatus() *MediaObjectUpsertOne {
+// AddWidth adds v to the "width" field.
+func (u *MediaObjectUpsertOne) AddWidth(v int) *MediaObjectUpsertOne {
 	return u.Update(func(s *MediaObjectUpsert) {
-		s.UpdateStatus()
+		s.AddWidth(v)
 	})
 }
 
-// SetMutationID sets the "mutation_id" field.
-func (u *MediaObjectUpsertOne) SetMutationID(v string) *MediaObjectUpsertOne {
+// UpdateWidth sets the "width" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateWidth() *MediaObjectUpsertOne {
 	return u.Update(func(s *MediaObjectUpsert) {
-		s.SetMutationID(v)
+		s.UpdateWidth()
 	})
 }
 
-// UpdateMutationID sets the "mutation_id" field to the value that was provided on create.
-func (u *MediaObjectUpsertOne) UpdateMutationID() *MediaObjectUpsertOne {
+// ClearWidth clears the value of the "width" field.
+func (u *MediaObjectUpsertOne) ClearWidth() *MediaObjectUpsertOne {
 	return u.Update(func(s *MediaObjectUpsert) {
-		s.UpdateMutationID()
+		s.ClearWidth()
+	})
+}
+
+// SetHeight sets the "height" field.
+func (u *MediaObjectUpsertOne) SetHeight(v int) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetHeight(v)
+	})
+}
+
+// AddHeight adds v to the "height" field.
+func (u *MediaObjectUpsertOne) AddHeight(v int) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.AddHeight(v)
+	})
+}
+
+// UpdateHeight sets the "height" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateHeight() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateHeight()
+	})
+}
+
+// ClearHeight clears the value of the "height" field.
+func (u *MediaObjectUpsertOne) ClearHeight() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.ClearHeight()
 	})
 }
 
@@ -781,6 +995,20 @@ func (u *MediaObjectUpsertOne) UpdateUploadExpiresAt() *MediaObjectUpsertOne {
 func (u *MediaObjectUpsertOne) ClearUploadExpiresAt() *MediaObjectUpsertOne {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.ClearUploadExpiresAt()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *MediaObjectUpsertOne) SetUpdatedAt(v time.Time) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateUpdatedAt() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateUpdatedAt()
 	})
 }
 
@@ -1045,6 +1273,41 @@ func (u *MediaObjectUpsertBulk) UpdateUploadKey() *MediaObjectUpsertBulk {
 	})
 }
 
+// SetState sets the "state" field.
+func (u *MediaObjectUpsertBulk) SetState(v mediaobject.State) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetState(v)
+	})
+}
+
+// UpdateState sets the "state" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateState() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateState()
+	})
+}
+
+// SetRevision sets the "revision" field.
+func (u *MediaObjectUpsertBulk) SetRevision(v int) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetRevision(v)
+	})
+}
+
+// AddRevision adds v to the "revision" field.
+func (u *MediaObjectUpsertBulk) AddRevision(v int) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.AddRevision(v)
+	})
+}
+
+// UpdateRevision sets the "revision" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateRevision() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateRevision()
+	})
+}
+
 // SetFilename sets the "filename" field.
 func (u *MediaObjectUpsertBulk) SetFilename(v string) *MediaObjectUpsertBulk {
 	return u.Update(func(s *MediaObjectUpsert) {
@@ -1094,31 +1357,59 @@ func (u *MediaObjectUpsertBulk) UpdateSizeBytes() *MediaObjectUpsertBulk {
 	})
 }
 
-// SetStatus sets the "status" field.
-func (u *MediaObjectUpsertBulk) SetStatus(v string) *MediaObjectUpsertBulk {
+// SetWidth sets the "width" field.
+func (u *MediaObjectUpsertBulk) SetWidth(v int) *MediaObjectUpsertBulk {
 	return u.Update(func(s *MediaObjectUpsert) {
-		s.SetStatus(v)
+		s.SetWidth(v)
 	})
 }
 
-// UpdateStatus sets the "status" field to the value that was provided on create.
-func (u *MediaObjectUpsertBulk) UpdateStatus() *MediaObjectUpsertBulk {
+// AddWidth adds v to the "width" field.
+func (u *MediaObjectUpsertBulk) AddWidth(v int) *MediaObjectUpsertBulk {
 	return u.Update(func(s *MediaObjectUpsert) {
-		s.UpdateStatus()
+		s.AddWidth(v)
 	})
 }
 
-// SetMutationID sets the "mutation_id" field.
-func (u *MediaObjectUpsertBulk) SetMutationID(v string) *MediaObjectUpsertBulk {
+// UpdateWidth sets the "width" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateWidth() *MediaObjectUpsertBulk {
 	return u.Update(func(s *MediaObjectUpsert) {
-		s.SetMutationID(v)
+		s.UpdateWidth()
 	})
 }
 
-// UpdateMutationID sets the "mutation_id" field to the value that was provided on create.
-func (u *MediaObjectUpsertBulk) UpdateMutationID() *MediaObjectUpsertBulk {
+// ClearWidth clears the value of the "width" field.
+func (u *MediaObjectUpsertBulk) ClearWidth() *MediaObjectUpsertBulk {
 	return u.Update(func(s *MediaObjectUpsert) {
-		s.UpdateMutationID()
+		s.ClearWidth()
+	})
+}
+
+// SetHeight sets the "height" field.
+func (u *MediaObjectUpsertBulk) SetHeight(v int) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetHeight(v)
+	})
+}
+
+// AddHeight adds v to the "height" field.
+func (u *MediaObjectUpsertBulk) AddHeight(v int) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.AddHeight(v)
+	})
+}
+
+// UpdateHeight sets the "height" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateHeight() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateHeight()
+	})
+}
+
+// ClearHeight clears the value of the "height" field.
+func (u *MediaObjectUpsertBulk) ClearHeight() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.ClearHeight()
 	})
 }
 
@@ -1140,6 +1431,20 @@ func (u *MediaObjectUpsertBulk) UpdateUploadExpiresAt() *MediaObjectUpsertBulk {
 func (u *MediaObjectUpsertBulk) ClearUploadExpiresAt() *MediaObjectUpsertBulk {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.ClearUploadExpiresAt()
+	})
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (u *MediaObjectUpsertBulk) SetUpdatedAt(v time.Time) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetUpdatedAt(v)
+	})
+}
+
+// UpdateUpdatedAt sets the "updated_at" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateUpdatedAt() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateUpdatedAt()
 	})
 }
 

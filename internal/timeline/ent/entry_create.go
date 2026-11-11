@@ -30,14 +30,6 @@ func (_c *EntryCreate) SetPublicRef(v string) *EntryCreate {
 	return _c
 }
 
-// SetNillablePublicRef sets the "public_ref" field if the given value is not nil.
-func (_c *EntryCreate) SetNillablePublicRef(v *string) *EntryCreate {
-	if v != nil {
-		_c.SetPublicRef(*v)
-	}
-	return _c
-}
-
 // SetUserID sets the "user_id" field.
 func (_c *EntryCreate) SetUserID(v string) *EntryCreate {
 	_c.mutation.SetUserID(v)
@@ -328,10 +320,6 @@ func (_c *EntryCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *EntryCreate) defaults() {
-	if _, ok := _c.mutation.PublicRef(); !ok {
-		v := entry.DefaultPublicRef()
-		_c.mutation.SetPublicRef(v)
-	}
 	if _, ok := _c.mutation.Body(); !ok {
 		v := entry.DefaultBody
 		_c.mutation.SetBody(v)
@@ -394,6 +382,11 @@ func (_c *EntryCreate) defaults() {
 func (_c *EntryCreate) check() error {
 	if _, ok := _c.mutation.PublicRef(); !ok {
 		return &ValidationError{Name: "public_ref", err: errors.New(`ent: missing required field "Entry.public_ref"`)}
+	}
+	if v, ok := _c.mutation.PublicRef(); ok {
+		if err := entry.PublicRefValidator(v); err != nil {
+			return &ValidationError{Name: "public_ref", err: fmt.Errorf(`ent: validator failed for field "Entry.public_ref": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "Entry.user_id"`)}

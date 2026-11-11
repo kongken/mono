@@ -8,6 +8,9 @@ COPY cmd/usersrv cmd/usersrv
 COPY cmd/usersrv-admin cmd/usersrv-admin
 COPY internal/usersrv internal/usersrv
 COPY internal/platform internal/platform
+# Shared migration discovery is tested during the isolated usersrv image build.
+COPY migrations/timeline migrations/timeline
+COPY migrations/tripmap migrations/tripmap
 # Generated gRPC contracts shared with the BFF.
 COPY pkg pkg
 COPY migrations/usersrv migrations/usersrv

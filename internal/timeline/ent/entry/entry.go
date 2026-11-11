@@ -103,8 +103,8 @@ func ValidColumn(column string) bool {
 }
 
 var (
-	// DefaultPublicRef holds the default value on creation for the "public_ref" field.
-	DefaultPublicRef func() string
+	// PublicRefValidator is a validator for the "public_ref" field. It is called by the builders before save.
+	PublicRefValidator func(string) error
 	// UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
 	UserIDValidator func(string) error
 	// TitleValidator is a validator for the "title" field. It is called by the builders before save.

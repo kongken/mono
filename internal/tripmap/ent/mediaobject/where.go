@@ -70,6 +70,16 @@ func UserID(v string) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldUserID, v))
 }
 
+// PublicRef applies equality check predicate on the "public_ref" field. It's identical to PublicRefEQ.
+func PublicRef(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldPublicRef, v))
+}
+
+// EntryPublicRef applies equality check predicate on the "entry_public_ref" field. It's identical to EntryPublicRefEQ.
+func EntryPublicRef(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldEntryPublicRef, v))
+}
+
 // ObjectKey applies equality check predicate on the "object_key" field. It's identical to ObjectKeyEQ.
 func ObjectKey(v string) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldObjectKey, v))
@@ -83,6 +93,11 @@ func ContentType(v string) predicate.MediaObject {
 // SizeBytes applies equality check predicate on the "size_bytes" field. It's identical to SizeBytesEQ.
 func SizeBytes(v int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldSizeBytes, v))
+}
+
+// Revision applies equality check predicate on the "revision" field. It's identical to RevisionEQ.
+func Revision(v int64) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldRevision, v))
 }
 
 // RegionCode applies equality check predicate on the "region_code" field. It's identical to RegionCodeEQ.
@@ -208,6 +223,136 @@ func UserIDEqualFold(v string) predicate.MediaObject {
 // UserIDContainsFold applies the ContainsFold predicate on the "user_id" field.
 func UserIDContainsFold(v string) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldContainsFold(FieldUserID, v))
+}
+
+// PublicRefEQ applies the EQ predicate on the "public_ref" field.
+func PublicRefEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldPublicRef, v))
+}
+
+// PublicRefNEQ applies the NEQ predicate on the "public_ref" field.
+func PublicRefNEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldPublicRef, v))
+}
+
+// PublicRefIn applies the In predicate on the "public_ref" field.
+func PublicRefIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldPublicRef, vs...))
+}
+
+// PublicRefNotIn applies the NotIn predicate on the "public_ref" field.
+func PublicRefNotIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldPublicRef, vs...))
+}
+
+// PublicRefGT applies the GT predicate on the "public_ref" field.
+func PublicRefGT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldPublicRef, v))
+}
+
+// PublicRefGTE applies the GTE predicate on the "public_ref" field.
+func PublicRefGTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldPublicRef, v))
+}
+
+// PublicRefLT applies the LT predicate on the "public_ref" field.
+func PublicRefLT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldPublicRef, v))
+}
+
+// PublicRefLTE applies the LTE predicate on the "public_ref" field.
+func PublicRefLTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldPublicRef, v))
+}
+
+// PublicRefContains applies the Contains predicate on the "public_ref" field.
+func PublicRefContains(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContains(FieldPublicRef, v))
+}
+
+// PublicRefHasPrefix applies the HasPrefix predicate on the "public_ref" field.
+func PublicRefHasPrefix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasPrefix(FieldPublicRef, v))
+}
+
+// PublicRefHasSuffix applies the HasSuffix predicate on the "public_ref" field.
+func PublicRefHasSuffix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasSuffix(FieldPublicRef, v))
+}
+
+// PublicRefEqualFold applies the EqualFold predicate on the "public_ref" field.
+func PublicRefEqualFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEqualFold(FieldPublicRef, v))
+}
+
+// PublicRefContainsFold applies the ContainsFold predicate on the "public_ref" field.
+func PublicRefContainsFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContainsFold(FieldPublicRef, v))
+}
+
+// EntryPublicRefEQ applies the EQ predicate on the "entry_public_ref" field.
+func EntryPublicRefEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldEntryPublicRef, v))
+}
+
+// EntryPublicRefNEQ applies the NEQ predicate on the "entry_public_ref" field.
+func EntryPublicRefNEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldEntryPublicRef, v))
+}
+
+// EntryPublicRefIn applies the In predicate on the "entry_public_ref" field.
+func EntryPublicRefIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldEntryPublicRef, vs...))
+}
+
+// EntryPublicRefNotIn applies the NotIn predicate on the "entry_public_ref" field.
+func EntryPublicRefNotIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldEntryPublicRef, vs...))
+}
+
+// EntryPublicRefGT applies the GT predicate on the "entry_public_ref" field.
+func EntryPublicRefGT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldEntryPublicRef, v))
+}
+
+// EntryPublicRefGTE applies the GTE predicate on the "entry_public_ref" field.
+func EntryPublicRefGTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldEntryPublicRef, v))
+}
+
+// EntryPublicRefLT applies the LT predicate on the "entry_public_ref" field.
+func EntryPublicRefLT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldEntryPublicRef, v))
+}
+
+// EntryPublicRefLTE applies the LTE predicate on the "entry_public_ref" field.
+func EntryPublicRefLTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldEntryPublicRef, v))
+}
+
+// EntryPublicRefContains applies the Contains predicate on the "entry_public_ref" field.
+func EntryPublicRefContains(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContains(FieldEntryPublicRef, v))
+}
+
+// EntryPublicRefHasPrefix applies the HasPrefix predicate on the "entry_public_ref" field.
+func EntryPublicRefHasPrefix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasPrefix(FieldEntryPublicRef, v))
+}
+
+// EntryPublicRefHasSuffix applies the HasSuffix predicate on the "entry_public_ref" field.
+func EntryPublicRefHasSuffix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasSuffix(FieldEntryPublicRef, v))
+}
+
+// EntryPublicRefEqualFold applies the EqualFold predicate on the "entry_public_ref" field.
+func EntryPublicRefEqualFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEqualFold(FieldEntryPublicRef, v))
+}
+
+// EntryPublicRefContainsFold applies the ContainsFold predicate on the "entry_public_ref" field.
+func EntryPublicRefContainsFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContainsFold(FieldEntryPublicRef, v))
 }
 
 // ObjectKeyEQ applies the EQ predicate on the "object_key" field.
@@ -378,6 +523,46 @@ func SizeBytesLT(v int64) predicate.MediaObject {
 // SizeBytesLTE applies the LTE predicate on the "size_bytes" field.
 func SizeBytesLTE(v int64) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldLTE(FieldSizeBytes, v))
+}
+
+// RevisionEQ applies the EQ predicate on the "revision" field.
+func RevisionEQ(v int64) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldRevision, v))
+}
+
+// RevisionNEQ applies the NEQ predicate on the "revision" field.
+func RevisionNEQ(v int64) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldRevision, v))
+}
+
+// RevisionIn applies the In predicate on the "revision" field.
+func RevisionIn(vs ...int64) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldRevision, vs...))
+}
+
+// RevisionNotIn applies the NotIn predicate on the "revision" field.
+func RevisionNotIn(vs ...int64) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldRevision, vs...))
+}
+
+// RevisionGT applies the GT predicate on the "revision" field.
+func RevisionGT(v int64) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldRevision, v))
+}
+
+// RevisionGTE applies the GTE predicate on the "revision" field.
+func RevisionGTE(v int64) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldRevision, v))
+}
+
+// RevisionLT applies the LT predicate on the "revision" field.
+func RevisionLT(v int64) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldRevision, v))
+}
+
+// RevisionLTE applies the LTE predicate on the "revision" field.
+func RevisionLTE(v int64) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldRevision, v))
 }
 
 // StatusEQ applies the EQ predicate on the "status" field.

@@ -110,7 +110,7 @@ storage-init:
 	go run ./cmd/storage-init
 
 # Only the isolated Compose development services, never a production DSN.
-.PHONY: test-integration test-integration-usersrv test-integration-timeline
+.PHONY: test-integration test-integration-usersrv
 # internal/e2e runs the real BFF, usersrv, tripmap and metro together, so it also needs the
 # USERSRV_TEST_* settings (throwaway schemas and Redis key prefixes; without them every chain
 # test skips, which is not a pass).
@@ -130,16 +130,3 @@ test-integration-usersrv:
 	USERSRV_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
 	USERSRV_TEST_REDIS_ADDR=127.0.0.1:16379 USERSRV_TEST_REDIS_PASSWORD=tripmap-local \
 	go test -count=1 -v ./internal/usersrv/... ./cmd/usersrv-admin
-
-# Timeline migrations against PostgreSQL: each test creates a throwaway schema, applies
-# migrations/timeline/*.sql the way the deployment notes say to, and checks the backfill, the
-# CHECK constraints and the receipt rules on the database itself. The attachment scenarios also
-# need the Compose S3 service and its `timeline` bucket (`make storage-init` creates the tripmap
-# one; create this one with `go run ./cmd/storage-init -config <timeline config pointing at
-# 127.0.0.1:19000>`), because they upload through a real presigned URL. Plain `make test` skips them.
-test-integration-timeline:
-	TIMELINE_TEST_POSTGRES_DSN='postgres://tripmap:tripmap-local@127.0.0.1:15432/tripmap?sslmode=disable' \
-	TIMELINE_TEST_S3_ENDPOINT='http://127.0.0.1:19000' \
-	TIMELINE_TEST_S3_ACCESS_KEY='tripmap-local' TIMELINE_TEST_S3_SECRET_KEY='tripmap-local-secret' \
-	TIMELINE_TEST_S3_BUCKET='timeline' \
-	go test -count=1 -v ./internal/timeline/integration

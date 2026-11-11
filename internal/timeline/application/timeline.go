@@ -5,16 +5,21 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"google.golang.org/protobuf/encoding/protojson"
 	"net"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/timeline/ent"
 	"github.com/kongken/mono/internal/timeline/ent/entry"
-	"github.com/kongken/mono/internal/timeline/ent/timelinemutation"
+	"github.com/kongken/mono/internal/timeline/ent/receipt"
 	timelinev1 "github.com/kongken/mono/pkg/proto/timeline/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -23,6 +28,8 @@ import (
 
 var dateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 var timeRE = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$`)
+var publicRefRE = regexp.MustCompile(`^ent_[a-f0-9]{26}$`)
+var mutationIDRE = regexp.MustCompile(`^[A-Za-z0-9._:-]{8,128}$`)
 
 // TimelineService owns all record operations. The caller identity always comes
 // from the internal auth context; request messages never contain a user id.
@@ -32,120 +39,6 @@ type TimelineService struct {
 }
 
 func NewTimelineService(db *ent.Client) *TimelineService { return &TimelineService{db: db} }
-
-func requestHash(operation string, req any) string {
-	b, _ := json.Marshal(struct {
-		Operation string `json:"operation"`
-		Request   any    `json:"request"`
-	}{operation, req})
-	h := sha256.Sum256(b)
-	return hex.EncodeToString(h[:])
-}
-func (s *TimelineService) receipt(ctx context.Context, db *ent.Client, uid, mutationID, operation, targetKind, entryRef, mediaRef, hash string, revision int, state string, snapshot map[string]any) (*timelinev1.MutationReceipt, error) {
-	if mutationID == "" {
-		return nil, status.Error(codes.InvalidArgument, "mutation_id is required")
-	}
-	b, err := db.TimelineMutation.Create().SetUserID(uid).SetMutationID(mutationID).SetTargetKind(targetKind).SetOperation(operation).SetNillableEntryRef(nonEmpty(entryRef)).SetNillableMediaRef(nonEmpty(mediaRef)).SetRequestHash(hash).SetResultRevision(revision).SetResultState(state).SetResultSnapshot(snapshot).Save(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &timelinev1.MutationReceipt{MutationId: b.MutationID, Operation: b.Operation, ResultRevision: int64(b.ResultRevision)}, nil
-}
-
-func nonEmpty(v string) *string {
-	if v == "" {
-		return nil
-	}
-	return &v
-}
-
-// mutateEntry makes receipt lookup, the domain mutation, and receipt creation one
-// database transaction. The callback must use the supplied transactional client.
-func (s *TimelineService) mutateEntry(ctx context.Context, uid, mutationID, operation, hash string, fn func(*ent.Client) (*ent.Entry, string, error)) (*ent.Entry, *timelinev1.MutationReceipt, error) {
-	if mutationID == "" {
-		return nil, nil, status.Error(codes.InvalidArgument, "mutation_id is required")
-	}
-	tx, err := s.db.Tx(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	rollback := func(e error) (*ent.Entry, *timelinev1.MutationReceipt, error) { _ = tx.Rollback(); return nil, nil, e }
-	old, err := tx.TimelineMutation.Query().Where(timelinemutation.UserID(uid), timelinemutation.MutationIDEQ(mutationID)).Only(ctx)
-	if err == nil {
-		if old.RequestHash != hash {
-			return rollback(status.Error(codes.Aborted, "MUTATION_REPLAY_MISMATCH"))
-		}
-		if err := tx.Rollback(); err != nil {
-			return nil, nil, err
-		}
-		row := snapshotEntry(old.ResultSnapshot)
-		return row, &timelinev1.MutationReceipt{MutationId: old.MutationID, Operation: old.Operation, ResultRevision: int64(old.ResultRevision), Replayed: true}, nil
-	}
-	if !ent.IsNotFound(err) {
-		return rollback(err)
-	}
-	row, state, err := fn(tx.Client())
-	if err != nil {
-		return rollback(err)
-	}
-	r, err := s.receipt(ctx, tx.Client(), uid, mutationID, operation, "entry", row.PublicRef, "", hash, row.Revision, state, snapshot(row))
-	if err != nil {
-		_ = tx.Rollback()
-		if old, qerr := s.db.TimelineMutation.Query().Where(timelinemutation.UserID(uid), timelinemutation.MutationIDEQ(mutationID)).Only(ctx); qerr == nil {
-			if old.RequestHash != hash {
-				return nil, nil, status.Error(codes.Aborted, "MUTATION_REPLAY_MISMATCH")
-			}
-			return snapshotEntry(old.ResultSnapshot), &timelinev1.MutationReceipt{MutationId: old.MutationID, Operation: old.Operation, ResultRevision: int64(old.ResultRevision), Replayed: true}, nil
-		}
-		return nil, nil, err
-	}
-	if err = tx.Commit(); err != nil {
-		return nil, nil, err
-	}
-	return row, r, nil
-}
-
-func snapshot(e *ent.Entry) map[string]any {
-	deletedAt := ""
-	if e.DeletedAt != nil {
-		deletedAt = e.DeletedAt.UTC().Format(time.RFC3339Nano)
-	}
-	return map[string]any{"id": e.ID, "entry_ref": e.PublicRef, "revision": e.Revision, "title": e.Title, "body": e.Body, "occurred_date": e.OccurredDate, "occurred_time": e.OccurredTime, "timezone": e.Timezone, "category": e.Category, "location": e.Location, "amount_minor": e.AmountMinor, "currency": e.Currency, "url": e.URL, "url_title": e.URLTitle, "url_note": e.URLNote, "deleted": e.DeletedAt != nil, "deleted_at": deletedAt, "created_at": e.CreatedAt.UTC().Format(time.RFC3339Nano), "updated_at": e.UpdatedAt.UTC().Format(time.RFC3339Nano)}
-}
-
-func snapshotEntry(v map[string]any) *ent.Entry {
-	get := func(k string) string {
-		if x, ok := v[k].(string); ok {
-			return x
-		}
-		return ""
-	}
-	integer := func(k string) int {
-		if x, ok := v[k].(float64); ok {
-			return int(x)
-		}
-		if x, ok := v[k].(int); ok {
-			return x
-		}
-		return 0
-	}
-	row := &ent.Entry{ID: get("id"), PublicRef: get("entry_ref"), Title: get("title"), Body: get("body"), OccurredDate: get("occurred_date"), OccurredTime: get("occurred_time"), Timezone: get("timezone"), Category: get("category"), Location: get("location"), AmountMinor: int64(integer("amount_minor")), Currency: get("currency"), URL: get("url"), URLTitle: get("url_title"), URLNote: get("url_note"), Revision: integer("revision")}
-	if value, ok := v["created_at"].(string); ok {
-		row.CreatedAt, _ = time.Parse(time.RFC3339Nano, value)
-	}
-	if value, ok := v["updated_at"].(string); ok {
-		row.UpdatedAt, _ = time.Parse(time.RFC3339Nano, value)
-	}
-	if value, ok := v["deleted_at"].(string); ok && value != "" {
-		t, _ := time.Parse(time.RFC3339Nano, value)
-		row.DeletedAt = &t
-	}
-	if deleted, ok := v["deleted"].(bool); ok && deleted && row.DeletedAt == nil {
-		t := time.Unix(0, 1).UTC()
-		row.DeletedAt = &t
-	}
-	return row
-}
 
 func user(ctx context.Context) (string, error) {
 	id := rpcauth.CallFrom(ctx).UserID
@@ -190,8 +83,22 @@ func validate(in *timelinev1.Entry, requireID bool) error {
 			return status.Error(codes.InvalidArgument, "private URL is not allowed")
 		}
 	}
-	if requireID && in.Id == "" {
-		return status.Error(codes.InvalidArgument, "id is required")
+	if requireID && in.Id == "" && in.EntryRef == "" {
+		return status.Error(codes.InvalidArgument, "entry_ref is required")
+	}
+
+	return nil
+}
+func validateLocator(ref, id string) error {
+	if ref != "" && id != "" {
+		return status.Error(codes.InvalidArgument, "provide either entry_ref or id")
+	}
+	if ref != "" && !publicRefRE.MatchString(ref) {
+		return status.Error(codes.InvalidArgument, "invalid entry_ref")
+	}
+
+	if ref == "" && id == "" {
+		return status.Error(codes.InvalidArgument, "entry_ref is required")
 	}
 	return nil
 }
@@ -211,12 +118,96 @@ func occurred(in *timelinev1.Entry) time.Time {
 	t, _ := time.ParseInLocation(layout, value, loc)
 	return t.UTC()
 }
+func publicRef(prefix string) string {
+	raw := strings.ReplaceAll(uuid.NewString(), "-", "")
+	return prefix + raw[:26]
+}
+
+func validateMutationID(id string) error {
+	if !mutationIDRE.MatchString(id) {
+		return status.Error(codes.InvalidArgument, "mutation_id must be 8-128 ASCII characters")
+	}
+	return nil
+}
+func requireRevision(revision int64) error {
+	if revision <= 0 {
+		return status.Error(codes.InvalidArgument, "expected_revision is required")
+	}
+	return nil
+}
 func mapEntry(e *ent.Entry) *timelinev1.Entry {
-	out := &timelinev1.Entry{Id: e.ID, EntryRef: e.PublicRef, Title: e.Title, Date: e.OccurredDate, Time: e.OccurredTime, Timezone: e.Timezone, Category: e.Category, Location: e.Location, AmountMinor: e.AmountMinor, Currency: e.Currency, Note: e.Body, Url: e.URL, UrlTitle: e.URLTitle, UrlNote: e.URLNote, Revision: int64(e.Revision), CreatedAt: timestamppb.New(e.CreatedAt), UpdatedAt: timestamppb.New(e.UpdatedAt)}
+	out := &timelinev1.Entry{EntryRef: e.PublicRef, Title: e.Title, Date: e.OccurredDate, Time: e.OccurredTime, Timezone: e.Timezone, Category: e.Category, Location: e.Location, AmountMinor: e.AmountMinor, Currency: e.Currency, Note: e.Body, Url: e.URL, UrlTitle: e.URLTitle, UrlNote: e.URLNote, Revision: int64(e.Revision), CreatedAt: timestamppb.New(e.CreatedAt), UpdatedAt: timestamppb.New(e.UpdatedAt)}
 	if e.DeletedAt != nil {
 		out.DeletedAt = timestamppb.New(*e.DeletedAt)
 	}
 	return out
+}
+func mutationHash(operation string, value any) string {
+	b, _ := json.Marshal(struct {
+		Operation string `json:"operation"`
+		Value     any    `json:"value"`
+	}{operation, value})
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
+}
+func requestHash(owner, operation, ref, legacyID string, revision int64, value any) string {
+	return mutationHash(operation, struct {
+		Owner, Ref, ID   string
+		ExpectedRevision int64
+		Value            any
+	}{owner, ref, legacyID, revision, value})
+}
+func receiptResponse(r *ent.Receipt, replayed bool) *timelinev1.MutationReceipt {
+	if r == nil {
+		return nil
+	}
+	return &timelinev1.MutationReceipt{MutationId: r.MutationID, TargetKind: r.TargetKind, Operation: r.Operation, ResultRevision: int64(r.ResultRevision), ResultState: r.ResultState, Replayed: replayed, RecordedAt: timestamppb.New(r.CreatedAt)}
+}
+func (s *TimelineService) priorReceiptTx(ctx context.Context, tx *ent.Tx, uid, mutationID, operation, hash string) (*ent.Receipt, error) {
+	if mutationID == "" {
+		return nil, status.Error(codes.InvalidArgument, "mutation_id is required")
+	}
+	r, err := tx.Receipt.Query().Where(receipt.UserIDEQ(uid), receipt.MutationIDEQ(mutationID)).Only(ctx)
+	if ent.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.Operation != operation || r.RequestHash != hash {
+		return nil, status.Error(codes.AlreadyExists, "mutation_id was already used for a different request")
+	}
+	return r, nil
+}
+func saveReceiptTx(ctx context.Context, tx *ent.Tx, uid, mutationID, operation, hash, ref string, revision int, state string, snapshot []byte) (*ent.Receipt, error) {
+	return tx.Receipt.Create().SetUserID(uid).SetMutationID(mutationID).SetTargetKind("entry").SetOperation(operation).SetRequestHash(hash).SetEntryRef(ref).SetResultRevision(revision).SetResultState(state).SetResultSnapshot(snapshot).Save(ctx)
+}
+func (s *TimelineService) priorReceipt(ctx context.Context, uid, mutationID, operation, hash string) (*ent.Receipt, error) {
+	if mutationID == "" {
+		return nil, status.Error(codes.InvalidArgument, "mutation_id is required")
+	}
+	r, err := s.db.Receipt.Query().Where(receipt.UserIDEQ(uid), receipt.MutationIDEQ(mutationID)).Only(ctx)
+	if ent.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.Operation != operation || r.RequestHash != hash {
+		return nil, status.Error(codes.AlreadyExists, "mutation_id was already used for a different request")
+	}
+	return r, nil
+}
+
+func snapshotEntry(e *ent.Entry) ([]byte, error) { return protojson.Marshal(mapEntry(e)) }
+func restoreEntrySnapshot(b []byte) (*timelinev1.Entry, error) {
+	e := &timelinev1.Entry{}
+	err := protojson.Unmarshal(b, e)
+	return e, err
+}
+
+func (s *TimelineService) saveReceipt(ctx context.Context, uid, mutationID, operation, hash, entryRef string, revision int, state string, snapshot []byte) (*ent.Receipt, error) {
+	return s.db.Receipt.Create().SetUserID(uid).SetMutationID(mutationID).SetTargetKind("entry").SetOperation(operation).SetRequestHash(hash).SetEntryRef(entryRef).SetResultRevision(revision).SetResultState(state).SetResultSnapshot(snapshot).Save(ctx)
 }
 func (s *TimelineService) ListEntries(ctx context.Context, req *timelinev1.ListEntriesRequest) (*timelinev1.ListEntriesResponse, error) {
 	uid, err := user(ctx)
@@ -257,14 +248,62 @@ func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.Creat
 	if err = validate(req.Entry, false); err != nil {
 		return nil, err
 	}
-	row, r, err := s.mutateEntry(ctx, uid, req.MutationId, "create", requestHash("create", req), func(db *ent.Client) (*ent.Entry, string, error) {
-		row, e := db.Entry.Create().SetUserID(uid).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).SetMutationID(req.MutationId).Save(ctx)
-		return row, "active", e
-	})
+	if err := validateMutationID(req.MutationId); err != nil {
+		return nil, err
+	}
+
+	hash := requestHash(uid, "create", "", "", 0, req.Entry)
+	tx, err := s.db.Tx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &timelinev1.EntryResponse{Entry: mapEntry(row), Receipt: r}, nil
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	old, err := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "create", hash)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil {
+		e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+		if eerr != nil {
+			return nil, eerr
+		}
+		return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+	}
+	row, err := tx.Entry.Create().SetPublicRef(publicRef("ent_")).SetUserID(uid).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	snap, err := snapshotEntry(row)
+	if err != nil {
+		return nil, err
+	}
+	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "create", hash, row.PublicRef, row.Revision, "active", snap)
+	if err != nil {
+		if sqlgraph.IsConstraintError(err) {
+			_ = tx.Rollback()
+			committed = true
+			if old, readErr := s.priorReceipt(ctx, uid, req.MutationId, "create", hash); readErr != nil {
+				return nil, readErr
+			} else if old != nil {
+				e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+				if eerr != nil {
+					return nil, eerr
+				}
+				return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+			}
+		}
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
+	return &timelinev1.EntryResponse{Entry: mapEntry(row), Receipt: receiptResponse(r, false)}, nil
 }
 func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.UpdateEntryRequest) (*timelinev1.EntryResponse, error) {
 	uid, err := user(ctx)
@@ -274,99 +313,344 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 	if err = validate(req.Entry, true); err != nil {
 		return nil, err
 	}
-	row, r, err := s.mutateEntry(ctx, uid, req.MutationId, "update", requestHash("update", req), func(db *ent.Client) (*ent.Entry, string, error) {
-		row, e := db.Entry.Query().Where(entry.ID(req.Entry.Id), entry.UserID(uid), entry.DeletedAtIsNil()).Only(ctx)
-		if e != nil {
-			return nil, "", status.Error(codes.NotFound, "entry not found")
-		}
-		if req.EntryRef != "" && req.EntryRef != row.PublicRef {
-			return nil, "", status.Error(codes.NotFound, "entry not found")
-		}
-		if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
-			return nil, "", status.Error(codes.Aborted, "revision conflict")
-		}
-		row, e = row.Update().SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).SetRevision(row.Revision + 1).SetMutationID(req.MutationId).Save(ctx)
-		return row, "active", e
-	})
+	if err = validateLocator(req.Entry.EntryRef, req.Entry.Id); err != nil {
+		return nil, err
+	}
+	if err := validateMutationID(req.MutationId); err != nil {
+		return nil, err
+	}
+	if err := requireRevision(req.ExpectedRevision); err != nil {
+		return nil, err
+	}
+
+	hash := requestHash(uid, "update", req.Entry.EntryRef, req.Entry.Id, req.ExpectedRevision, req.Entry)
+	tx, err := s.db.Tx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &timelinev1.EntryResponse{Entry: mapEntry(row), Receipt: r}, nil
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	old, err := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "update", hash)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil {
+		e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+		if eerr != nil {
+			return nil, eerr
+		}
+		return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+	}
+	q := tx.Entry.Query().Where(entry.UserID(uid), entry.DeletedAtIsNil())
+	if req.Entry.EntryRef != "" {
+		q = q.Where(entry.PublicRefEQ(req.Entry.EntryRef))
+	} else {
+		q = q.Where(entry.ID(req.Entry.Id))
+	}
+	row, err := q.Only(ctx)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "entry not found")
+	}
+	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
+		return nil, status.Error(codes.Aborted, "revision conflict")
+	}
+	updated, err := tx.Entry.Update().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision), entry.DeletedAtIsNil()).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).SetRevision(row.Revision + 1).Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if updated != 1 {
+		return nil, status.Error(codes.Aborted, "revision conflict")
+	}
+	row, err = tx.Entry.Query().Where(entry.ID(row.ID), entry.UserID(uid)).Only(ctx)
+	if err != nil {
+		return nil, err
+	}
+	snap, err := snapshotEntry(row)
+	if err != nil {
+		return nil, err
+	}
+	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "update", hash, row.PublicRef, row.Revision, "active", snap)
+	if err != nil {
+		if sqlgraph.IsConstraintError(err) {
+			_ = tx.Rollback()
+			committed = true
+			if old, readErr := s.priorReceipt(ctx, uid, req.MutationId, "update", hash); readErr != nil {
+				return nil, readErr
+			} else if old != nil {
+				e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+				if eerr != nil {
+					return nil, eerr
+				}
+				return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+			}
+		}
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
+	return &timelinev1.EntryResponse{Entry: mapEntry(row), Receipt: receiptResponse(r, false)}, nil
 }
 func (s *TimelineService) DeleteEntry(ctx context.Context, req *timelinev1.DeleteEntryRequest) (*timelinev1.DeleteEntryResponse, error) {
 	uid, err := user(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if req.Permanent {
-		return nil, status.Error(codes.InvalidArgument, "permanent is deprecated; use PurgeEntry")
+	if err = validateLocator(req.EntryRef, req.Id); err != nil {
+		return nil, err
 	}
-	row, r, err := s.mutateEntry(ctx, uid, req.MutationId, "trash", requestHash("trash", req), func(db *ent.Client) (*ent.Entry, string, error) {
-		row, e := db.Entry.Query().Where(entry.ID(req.Id), entry.UserID(uid)).Only(ctx)
-		if e != nil {
-			return nil, "", status.Error(codes.NotFound, "entry not found")
-		}
-		if req.EntryRef != "" && req.EntryRef != row.PublicRef {
-			return nil, "", status.Error(codes.NotFound, "entry not found")
-		}
-		if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
-			return nil, "", status.Error(codes.Aborted, "revision conflict")
-		}
-		row, e = row.Update().SetDeletedAt(time.Now().UTC()).SetRevision(row.Revision + 1).SetMutationID(req.MutationId).Save(ctx)
-		return row, "deleted", e
-	})
+	if req.Permanent {
+		return nil, status.Error(codes.InvalidArgument, "permanent deletion is not supported; use PurgeEntry")
+	}
+	if err := validateMutationID(req.MutationId); err != nil {
+		return nil, err
+	}
+	if err := requireRevision(req.ExpectedRevision); err != nil {
+		return nil, err
+	}
+
+	hash := requestHash(uid, "trash", req.EntryRef, req.Id, req.ExpectedRevision, req.Permanent)
+	tx, err := s.db.Tx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &timelinev1.DeleteEntryResponse{Receipt: r, Entry: mapEntry(row)}, nil
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	old, err := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "trash", hash)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil {
+		e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+		if eerr != nil {
+			return nil, eerr
+		}
+		return &timelinev1.DeleteEntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+	}
+	q := tx.Entry.Query().Where(entry.UserID(uid))
+	if req.EntryRef != "" {
+		q = q.Where(entry.PublicRefEQ(req.EntryRef))
+	} else {
+		q = q.Where(entry.ID(req.Id))
+	}
+	row, err := q.Only(ctx)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "entry not found")
+	}
+	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
+		return nil, status.Error(codes.Aborted, "revision conflict")
+	}
+	updated, err := tx.Entry.Update().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision), entry.DeletedAtIsNil()).SetDeletedAt(time.Now().UTC()).SetRevision(row.Revision + 1).Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if updated != 1 {
+		return nil, status.Error(codes.Aborted, "revision conflict")
+	}
+	row, err = tx.Entry.Query().Where(entry.ID(row.ID), entry.UserID(uid)).Only(ctx)
+	if err != nil {
+		return nil, err
+	}
+	snap, err := snapshotEntry(row)
+	if err != nil {
+		return nil, err
+	}
+	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "trash", hash, row.PublicRef, row.Revision, "trashed", snap)
+	if err != nil {
+		if sqlgraph.IsConstraintError(err) {
+			_ = tx.Rollback()
+			committed = true
+			if old, readErr := s.priorReceipt(ctx, uid, req.MutationId, "trash", hash); readErr != nil {
+				return nil, readErr
+			} else if old != nil {
+				e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+				if eerr != nil {
+					return nil, eerr
+				}
+				return &timelinev1.DeleteEntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+			}
+		}
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
+	return &timelinev1.DeleteEntryResponse{Entry: mapEntry(row), Receipt: receiptResponse(r, false)}, nil
 }
 func (s *TimelineService) RestoreEntry(ctx context.Context, req *timelinev1.RestoreEntryRequest) (*timelinev1.EntryResponse, error) {
 	uid, err := user(ctx)
 	if err != nil {
 		return nil, err
 	}
-	row, r, err := s.mutateEntry(ctx, uid, req.MutationId, "restore", requestHash("restore", req), func(db *ent.Client) (*ent.Entry, string, error) {
-		row, e := db.Entry.Query().Where(entry.ID(req.Id), entry.UserID(uid)).Only(ctx)
-		if e != nil {
-			return nil, "", status.Error(codes.NotFound, "entry not found")
-		}
-		if req.EntryRef != "" && req.EntryRef != row.PublicRef {
-			return nil, "", status.Error(codes.NotFound, "entry not found")
-		}
-		if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
-			return nil, "", status.Error(codes.Aborted, "revision conflict")
-		}
-		row, e = row.Update().ClearDeletedAt().SetRevision(row.Revision + 1).SetMutationID(req.MutationId).Save(ctx)
-		return row, "active", e
-	})
+	if err = validateLocator(req.EntryRef, req.Id); err != nil {
+		return nil, err
+	}
+	if err := validateMutationID(req.MutationId); err != nil {
+		return nil, err
+	}
+	if err := requireRevision(req.ExpectedRevision); err != nil {
+		return nil, err
+	}
+
+	hash := requestHash(uid, "restore", req.EntryRef, req.Id, req.ExpectedRevision, nil)
+	tx, err := s.db.Tx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &timelinev1.EntryResponse{Entry: mapEntry(row), Receipt: r}, nil
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	old, err := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "restore", hash)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil {
+		e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+		if eerr != nil {
+			return nil, eerr
+		}
+		return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+	}
+	q := tx.Entry.Query().Where(entry.UserID(uid))
+	if req.EntryRef != "" {
+		q = q.Where(entry.PublicRefEQ(req.EntryRef))
+	} else {
+		q = q.Where(entry.ID(req.Id))
+	}
+	row, err := q.Only(ctx)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "entry not found")
+	}
+	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
+		return nil, status.Error(codes.Aborted, "revision conflict")
+	}
+	updated, err := tx.Entry.Update().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision)).ClearDeletedAt().SetRevision(row.Revision + 1).Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if updated != 1 {
+		return nil, status.Error(codes.Aborted, "revision conflict")
+	}
+	row, err = tx.Entry.Query().Where(entry.ID(row.ID), entry.UserID(uid)).Only(ctx)
+	if err != nil {
+		return nil, err
+	}
+	snap, err := snapshotEntry(row)
+	if err != nil {
+		return nil, err
+	}
+	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "restore", hash, row.PublicRef, row.Revision, "active", snap)
+	if err != nil {
+		if sqlgraph.IsConstraintError(err) {
+			_ = tx.Rollback()
+			committed = true
+			if old, readErr := s.priorReceipt(ctx, uid, req.MutationId, "restore", hash); readErr != nil {
+				return nil, readErr
+			} else if old != nil {
+				e, eerr := restoreEntrySnapshot(old.ResultSnapshot)
+				if eerr != nil {
+					return nil, eerr
+				}
+				return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
+			}
+		}
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
+	return &timelinev1.EntryResponse{Entry: mapEntry(row), Receipt: receiptResponse(r, false)}, nil
 }
 func (s *TimelineService) PurgeEntry(ctx context.Context, req *timelinev1.PurgeEntryRequest) (*timelinev1.PurgeEntryResponse, error) {
 	uid, err := user(ctx)
 	if err != nil {
 		return nil, err
 	}
-	_, r, err := s.mutateEntry(ctx, uid, req.MutationId, "purge", requestHash("purge", req), func(db *ent.Client) (*ent.Entry, string, error) {
-		row, e := db.Entry.Query().Where(entry.ID(req.Id), entry.UserID(uid)).Only(ctx)
-		if e != nil {
-			return nil, "", status.Error(codes.NotFound, "entry not found")
-		}
-		if req.EntryRef != "" && req.EntryRef != row.PublicRef {
-			return nil, "", status.Error(codes.NotFound, "entry not found")
-		}
-		if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
-			return nil, "", status.Error(codes.Aborted, "revision conflict")
-		}
-		if _, e = db.Entry.Delete().Where(entry.ID(row.ID), entry.UserID(uid)).Exec(ctx); e != nil {
-			return nil, "", e
-		}
-		return row, "purged", nil
-	})
+	if err = validateLocator(req.EntryRef, req.Id); err != nil {
+		return nil, err
+	}
+	if err := validateMutationID(req.MutationId); err != nil {
+		return nil, err
+	}
+	if err := requireRevision(req.ExpectedRevision); err != nil {
+		return nil, err
+	}
+
+	hash := requestHash(uid, "purge", req.EntryRef, req.Id, req.ExpectedRevision, nil)
+	tx, err := s.db.Tx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &timelinev1.PurgeEntryResponse{Receipt: r}, nil
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	old, err := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "purge", hash)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil {
+		return &timelinev1.PurgeEntryResponse{Receipt: receiptResponse(old, true)}, nil
+	}
+	q := tx.Entry.Query().Where(entry.UserID(uid))
+	if req.EntryRef != "" {
+		q = q.Where(entry.PublicRefEQ(req.EntryRef))
+	} else {
+		q = q.Where(entry.ID(req.Id))
+	}
+	row, err := q.Only(ctx)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "entry not found")
+	}
+	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
+		return nil, status.Error(codes.Aborted, "revision conflict")
+	}
+	snap, err := snapshotEntry(row)
+	if err != nil {
+		return nil, err
+	}
+	deleted, err := tx.Entry.Delete().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision)).Exec(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if deleted != 1 {
+		return nil, status.Error(codes.Aborted, "revision conflict")
+	}
+	r, err := saveReceiptTx(ctx, tx, uid, req.MutationId, "purge", hash, row.PublicRef, row.Revision, "purged", snap)
+	if err != nil {
+		if sqlgraph.IsConstraintError(err) {
+			_ = tx.Rollback()
+			committed = true
+			if old, readErr := s.priorReceipt(ctx, uid, req.MutationId, "purge", hash); readErr != nil {
+				return nil, readErr
+			} else if old != nil {
+				return &timelinev1.PurgeEntryResponse{Receipt: receiptResponse(old, true)}, nil
+			}
+		}
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
+	return &timelinev1.PurgeEntryResponse{Receipt: receiptResponse(r, false)}, nil
 }
+
+var _ = errors.New
+var _ = fmt.Sprintf

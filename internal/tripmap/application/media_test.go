@@ -69,7 +69,7 @@ func photo(t *testing.T) []byte {
 	return b.Bytes()
 }
 func preparePhoto(data []byte) *tripmapv1.PrepareUploadRequest {
-	return &tripmapv1.PrepareUploadRequest{RegionCode: "330100", Filename: "西湖.png", ContentType: "image/png", SizeBytes: int64(len(data)), UploadId: uuid.NewString()}
+	return &tripmapv1.PrepareUploadRequest{RegionCode: "330100", EntryRef: "ent_00000000000000000000000000", Filename: "西湖.png", ContentType: "image/png", SizeBytes: int64(len(data)), UploadId: uuid.NewString()}
 }
 
 func TestMediaOwnershipValidationReplayAndDeletionFailure(t *testing.T) {
@@ -176,7 +176,7 @@ func TestMediaQuotaAtomicReservationsAndCleanupOutlivesAccount(t *testing.T) {
 	data := photo(t)
 	uid := e.store.DB.User.Query().Where(user.UsernameEQ("media_quota")).OnlyX(ctx).ID
 	for i := 0; i < 19; i++ {
-		e.store.DB.MediaObject.Create().SetUserID(uid).SetRegionCode("330100").SetObjectKey(uuid.NewString()).SetContentType("image/png").SetSizeBytes(1).SaveX(ctx)
+		e.store.DB.MediaObject.Create().SetUserID(uid).SetPublicRef("med_" + uuid.NewString()).SetEntryPublicRef("ent_" + uuid.NewString()).SetRevision(1).SetRegionCode("330100").SetObjectKey(uuid.NewString()).SetContentType("image/png").SetSizeBytes(1).SaveX(ctx)
 	}
 	var wg sync.WaitGroup
 	results := make(chan error, 2)

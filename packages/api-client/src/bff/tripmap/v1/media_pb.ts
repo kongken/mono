@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file bff/tripmap/v1/media.proto.
  */
 export const file_bff_tripmap_v1_media: GenFile = /*@__PURE__*/
-  fileDesc("ChpiZmYvdHJpcG1hcC92MS9tZWRpYS5wcm90bxIOYmZmLnRyaXBtYXAudjEi2AEKCU1lZGlhSW5mbxIKCgJpZBgBIAEoCRITCgtyZWdpb25fY29kZRgCIAEoCRIQCghmaWxlbmFtZRgDIAEoCRIUCgxjb250ZW50X3R5cGUYBCABKAkSEgoKc2l6ZV9ieXRlcxgFIAEoAxINCgV3aWR0aBgGIAEoBRIOCgZoZWlnaHQYByABKAUSDgoGc3RhdHVzGAggASgJEi4KCmNyZWF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB3RyaXBfaWQYCiABKAkiiwEKFFByZXBhcmVVcGxvYWRSZXF1ZXN0EhMKC3JlZ2lvbl9jb2RlGAEgASgJEhAKCGZpbGVuYW1lGAIgASgJEhQKDGNvbnRlbnRfdHlwZRgDIAEoCRISCgpzaXplX2J5dGVzGAQgASgDEhEKCXVwbG9hZF9pZBgFIAEoCRIPCgd0cmlwX2lkGAYgASgJIvoBChVQcmVwYXJlVXBsb2FkUmVzcG9uc2USKAoFbWVkaWEYASABKAsyGS5iZmYudHJpcG1hcC52MS5NZWRpYUluZm8SEgoKdXBsb2FkX3VybBgCIAEoCRJDCgdoZWFkZXJzGAMgAygLMjIuYmZmLnRyaXBtYXAudjEuUHJlcGFyZVVwbG9hZFJlc3BvbnNlLkhlYWRlcnNFbnRyeRIuCgpleHBpcmVzX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBouCgxIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASIjChVDb21wbGV0ZVVwbG9hZFJlcXVlc3QSCgoCaWQYASABKAkiQgoWQ29tcGxldGVVcGxvYWRSZXNwb25zZRIoCgVtZWRpYRgBIAEoCzIZLmJmZi50cmlwbWFwLnYxLk1lZGlhSW5mbyI4ChBMaXN0TWVkaWFSZXF1ZXN0EhMKC3JlZ2lvbl9jb2RlGAEgASgJEg8KB3RyaXBfaWQYAiABKAkiPQoRTGlzdE1lZGlhUmVzcG9uc2USKAoFbWVkaWEYASADKAsyGS5iZmYudHJpcG1hcC52MS5NZWRpYUluZm8iMQoQUmVhZE1lZGlhUmVxdWVzdBIKCgJpZBgBIAEoCRIRCgl0aHVtYm5haWwYAiABKAgiVgoRUmVhZE1lZGlhUmVzcG9uc2USDAoEZGF0YRgBIAEoDBIUCgxjb250ZW50X3R5cGUYAiABKAkSEAoIZmlsZW5hbWUYAyABKAkSCwoDdXJsGAQgASgJIiAKEkRlbGV0ZU1lZGlhUmVxdWVzdBIKCgJpZBgBIAEoCSIVChNEZWxldGVNZWRpYVJlc3BvbnNlMskDCgxNZWRpYVNlcnZpY2USXAoNUHJlcGFyZVVwbG9hZBIkLmJmZi50cmlwbWFwLnYxLlByZXBhcmVVcGxvYWRSZXF1ZXN0GiUuYmZmLnRyaXBtYXAudjEuUHJlcGFyZVVwbG9hZFJlc3BvbnNlEl8KDkNvbXBsZXRlVXBsb2FkEiUuYmZmLnRyaXBtYXAudjEuQ29tcGxldGVVcGxvYWRSZXF1ZXN0GiYuYmZmLnRyaXBtYXAudjEuQ29tcGxldGVVcGxvYWRSZXNwb25zZRJQCglMaXN0TWVkaWESIC5iZmYudHJpcG1hcC52MS5MaXN0TWVkaWFSZXF1ZXN0GiEuYmZmLnRyaXBtYXAudjEuTGlzdE1lZGlhUmVzcG9uc2USUAoJUmVhZE1lZGlhEiAuYmZmLnRyaXBtYXAudjEuUmVhZE1lZGlhUmVxdWVzdBohLmJmZi50cmlwbWFwLnYxLlJlYWRNZWRpYVJlc3BvbnNlElYKC0RlbGV0ZU1lZGlhEiIuYmZmLnRyaXBtYXAudjEuRGVsZXRlTWVkaWFSZXF1ZXN0GiMuYmZmLnRyaXBtYXAudjEuRGVsZXRlTWVkaWFSZXNwb25zZUI/Wj1naXRodWIuY29tL2tvbmdrZW4vbW9uby9wa2cvcHJvdG8vYmZmL3RyaXBtYXAvdjE7YmZmdHJpcG1hcHYxYgZwcm90bzM", [file_google_protobuf_timestamp]);
+  fileDesc("ChpiZmYvdHJpcG1hcC92MS9tZWRpYS5wcm90bxIOYmZmLnRyaXBtYXAudjEikAIKCU1lZGlhSW5mbxIKCgJpZBgBIAEoCRITCgtyZWdpb25fY29kZRgCIAEoCRIQCghmaWxlbmFtZRgDIAEoCRIUCgxjb250ZW50X3R5cGUYBCABKAkSEgoKc2l6ZV9ieXRlcxgFIAEoAxINCgV3aWR0aBgGIAEoBRIOCgZoZWlnaHQYByABKAUSDgoGc3RhdHVzGAggASgJEi4KCmNyZWF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB3RyaXBfaWQYCiABKAkSEQoJbWVkaWFfcmVmGAsgASgJEhEKCWVudHJ5X3JlZhgMIAEoCRIQCghyZXZpc2lvbhgNIAEoAyKeAQoUUHJlcGFyZVVwbG9hZFJlcXVlc3QSEwoLcmVnaW9uX2NvZGUYASABKAkSEAoIZmlsZW5hbWUYAiABKAkSFAoMY29udGVudF90eXBlGAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAMSEQoJdXBsb2FkX2lkGAUgASgJEg8KB3RyaXBfaWQYBiABKAkSEQoJZW50cnlfcmVmGAcgASgJIvoBChVQcmVwYXJlVXBsb2FkUmVzcG9uc2USKAoFbWVkaWEYASABKAsyGS5iZmYudHJpcG1hcC52MS5NZWRpYUluZm8SEgoKdXBsb2FkX3VybBgCIAEoCRJDCgdoZWFkZXJzGAMgAygLMjIuYmZmLnRyaXBtYXAudjEuUHJlcGFyZVVwbG9hZFJlc3BvbnNlLkhlYWRlcnNFbnRyeRIuCgpleHBpcmVzX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBouCgxIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASIjChVDb21wbGV0ZVVwbG9hZFJlcXVlc3QSCgoCaWQYASABKAkiQgoWQ29tcGxldGVVcGxvYWRSZXNwb25zZRIoCgVtZWRpYRgBIAEoCzIZLmJmZi50cmlwbWFwLnYxLk1lZGlhSW5mbyI4ChBMaXN0TWVkaWFSZXF1ZXN0EhMKC3JlZ2lvbl9jb2RlGAEgASgJEg8KB3RyaXBfaWQYAiABKAkiPQoRTGlzdE1lZGlhUmVzcG9uc2USKAoFbWVkaWEYASADKAsyGS5iZmYudHJpcG1hcC52MS5NZWRpYUluZm8iMQoQUmVhZE1lZGlhUmVxdWVzdBIKCgJpZBgBIAEoCRIRCgl0aHVtYm5haWwYAiABKAgiVgoRUmVhZE1lZGlhUmVzcG9uc2USDAoEZGF0YRgBIAEoDBIUCgxjb250ZW50X3R5cGUYAiABKAkSEAoIZmlsZW5hbWUYAyABKAkSCwoDdXJsGAQgASgJIn4KEkRlbGV0ZU1lZGlhUmVxdWVzdBIKCgJpZBgBIAEoCRITCgttdXRhdGlvbl9pZBgCIAEoCRIRCgltZWRpYV9yZWYYAyABKAkSHgoRZXhwZWN0ZWRfcmV2aXNpb24YBCABKANIAIgBAUIUChJfZXhwZWN0ZWRfcmV2aXNpb24iTAoTRGVsZXRlTWVkaWFSZXNwb25zZRI1CgdyZWNlaXB0GAEgASgLMiQuYmZmLnRyaXBtYXAudjEuTWVkaWFNdXRhdGlvblJlY2VpcHQiiAIKFE1lZGlhTXV0YXRpb25SZWNlaXB0EhMKC211dGF0aW9uX2lkGAEgASgJEhAKCG1lZGlhX2lkGAIgASgJEhQKDHJlc3VsdF9zdGF0ZRgDIAEoCRIQCghyZXBsYXllZBgEIAEoCBIvCgtyZWNvcmRlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJbWVkaWFfcmVmGAYgASgJEhEKCWVudHJ5X3JlZhgHIAEoCRIXCg9yZXN1bHRfcmV2aXNpb24YCCABKAMSFwoPcmVzdWx0X3NuYXBzaG90GAkgASgMEhgKEHNuYXBzaG90X3ZlcnNpb24YCiABKAUyyQMKDE1lZGlhU2VydmljZRJcCg1QcmVwYXJlVXBsb2FkEiQuYmZmLnRyaXBtYXAudjEuUHJlcGFyZVVwbG9hZFJlcXVlc3QaJS5iZmYudHJpcG1hcC52MS5QcmVwYXJlVXBsb2FkUmVzcG9uc2USXwoOQ29tcGxldGVVcGxvYWQSJS5iZmYudHJpcG1hcC52MS5Db21wbGV0ZVVwbG9hZFJlcXVlc3QaJi5iZmYudHJpcG1hcC52MS5Db21wbGV0ZVVwbG9hZFJlc3BvbnNlElAKCUxpc3RNZWRpYRIgLmJmZi50cmlwbWFwLnYxLkxpc3RNZWRpYVJlcXVlc3QaIS5iZmYudHJpcG1hcC52MS5MaXN0TWVkaWFSZXNwb25zZRJQCglSZWFkTWVkaWESIC5iZmYudHJpcG1hcC52MS5SZWFkTWVkaWFSZXF1ZXN0GiEuYmZmLnRyaXBtYXAudjEuUmVhZE1lZGlhUmVzcG9uc2USVgoLRGVsZXRlTWVkaWESIi5iZmYudHJpcG1hcC52MS5EZWxldGVNZWRpYVJlcXVlc3QaIy5iZmYudHJpcG1hcC52MS5EZWxldGVNZWRpYVJlc3BvbnNlQj9aPWdpdGh1Yi5jb20va29uZ2tlbi9tb25vL3BrZy9wcm90by9iZmYvdHJpcG1hcC92MTtiZmZ0cmlwbWFwdjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message bff.tripmap.v1.MediaInfo
@@ -67,6 +67,21 @@ export type MediaInfo = Message<"bff.tripmap.v1.MediaInfo"> & {
    * @generated from field: string trip_id = 10;
    */
   tripId: string;
+
+  /**
+   * @generated from field: string media_ref = 11;
+   */
+  mediaRef: string;
+
+  /**
+   * @generated from field: string entry_ref = 12;
+   */
+  entryRef: string;
+
+  /**
+   * @generated from field: int64 revision = 13;
+   */
+  revision: bigint;
 };
 
 /**
@@ -109,6 +124,13 @@ export type PrepareUploadRequest = Message<"bff.tripmap.v1.PrepareUploadRequest"
    * @generated from field: string trip_id = 6;
    */
   tripId: string;
+
+  /**
+   * Required opaque public_ref of the owning Timeline Entry.
+   *
+   * @generated from field: string entry_ref = 7;
+   */
+  entryRef: string;
 };
 
 /**
@@ -287,6 +309,21 @@ export type DeleteMediaRequest = Message<"bff.tripmap.v1.DeleteMediaRequest"> & 
    * @generated from field: string id = 1;
    */
   id: string;
+
+  /**
+   * @generated from field: string mutation_id = 2;
+   */
+  mutationId: string;
+
+  /**
+   * @generated from field: string media_ref = 3;
+   */
+  mediaRef: string;
+
+  /**
+   * @generated from field: optional int64 expected_revision = 4;
+   */
+  expectedRevision?: bigint;
 };
 
 /**
@@ -300,6 +337,10 @@ export const DeleteMediaRequestSchema: GenMessage<DeleteMediaRequest> = /*@__PUR
  * @generated from message bff.tripmap.v1.DeleteMediaResponse
  */
 export type DeleteMediaResponse = Message<"bff.tripmap.v1.DeleteMediaResponse"> & {
+  /**
+   * @generated from field: bff.tripmap.v1.MediaMutationReceipt receipt = 1;
+   */
+  receipt?: MediaMutationReceipt;
 };
 
 /**
@@ -308,6 +349,68 @@ export type DeleteMediaResponse = Message<"bff.tripmap.v1.DeleteMediaResponse"> 
  */
 export const DeleteMediaResponseSchema: GenMessage<DeleteMediaResponse> = /*@__PURE__*/
   messageDesc(file_bff_tripmap_v1_media, 10);
+
+/**
+ * @generated from message bff.tripmap.v1.MediaMutationReceipt
+ */
+export type MediaMutationReceipt = Message<"bff.tripmap.v1.MediaMutationReceipt"> & {
+  /**
+   * @generated from field: string mutation_id = 1;
+   */
+  mutationId: string;
+
+  /**
+   * @generated from field: string media_id = 2;
+   */
+  mediaId: string;
+
+  /**
+   * @generated from field: string result_state = 3;
+   */
+  resultState: string;
+
+  /**
+   * @generated from field: bool replayed = 4;
+   */
+  replayed: boolean;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp recorded_at = 5;
+   */
+  recordedAt?: Timestamp;
+
+  /**
+   * @generated from field: string media_ref = 6;
+   */
+  mediaRef: string;
+
+  /**
+   * @generated from field: string entry_ref = 7;
+   */
+  entryRef: string;
+
+  /**
+   * @generated from field: int64 result_revision = 8;
+   */
+  resultRevision: bigint;
+
+  /**
+   * @generated from field: bytes result_snapshot = 9;
+   */
+  resultSnapshot: Uint8Array;
+
+  /**
+   * @generated from field: int32 snapshot_version = 10;
+   */
+  snapshotVersion: number;
+};
+
+/**
+ * Describes the message bff.tripmap.v1.MediaMutationReceipt.
+ * Use `create(MediaMutationReceiptSchema)` to create a new message.
+ */
+export const MediaMutationReceiptSchema: GenMessage<MediaMutationReceipt> = /*@__PURE__*/
+  messageDesc(file_bff_tripmap_v1_media, 11);
 
 /**
  * MediaService exposes signed-in city and trip media via the BFF.

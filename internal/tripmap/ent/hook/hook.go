@@ -69,6 +69,18 @@ func (f MediaCleanupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MediaCleanupMutation", m)
 }
 
+// The MediaDeleteReceiptFunc type is an adapter to allow the use of ordinary
+// function as MediaDeleteReceipt mutator.
+type MediaDeleteReceiptFunc func(context.Context, *ent.MediaDeleteReceiptMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MediaDeleteReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MediaDeleteReceiptMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MediaDeleteReceiptMutation", m)
+}
+
 // The MediaObjectFunc type is an adapter to allow the use of ordinary
 // function as MediaObject mutator.
 type MediaObjectFunc func(context.Context, *ent.MediaObjectMutation) (ent.Value, error)
@@ -187,6 +199,18 @@ func (f SyncReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SyncReceiptMutation", m)
+}
+
+// The TimelineMutationFunc type is an adapter to allow the use of ordinary
+// function as TimelineMutation mutator.
+type TimelineMutationFunc func(context.Context, *ent.TimelineMutationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TimelineMutationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TimelineMutationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TimelineMutationMutation", m)
 }
 
 // The TripFunc type is an adapter to allow the use of ordinary

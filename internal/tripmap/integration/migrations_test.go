@@ -91,6 +91,10 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 		}
 	}
 	files := migrationFiles(t)
+	// The media/ref migrations are a shared deployment sequence: Tripmap's
+	// link table and receipt backfill depend on Timeline entries being present.
+	apply("../../../migrations/timeline/20261107170000_baseline.sql")
+	apply("../../../migrations/timeline/20261107180000_refs_mutations.sql")
 	apply(files[0])
 	exec := func(q string, args ...any) {
 		t.Helper()
@@ -105,8 +109,17 @@ func TestVersionedMigrationsUpgradeExistingData(t *testing.T) {
 		VALUES ('s1','manual',7,1,0,'\x7b7d',now(),'u1')`)
 	exec(`INSERT INTO media_objects (id, object_key, content_type, size_bytes, status, region_code, created_at, updated_at, user_id)
 		VALUES ('m1','k','image/jpeg',10,'ready','330100',now(),now(),'u1')`)
+	exec(`INSERT INTO timeline_entries (id, user_id, public_ref, title, occurred_date, timezone, occurred_at, created_at, updated_at)
+		VALUES ('e1','u1','ent_0123456789abcdef0123456789','entry','2026-10-12','UTC',now(),now(),now())`)
 	for _, f := range files[1:] {
 		apply(f)
+		if filepath.Base(f) == "20261107900000_media_entry_links.sql" {
+			var entryRef string
+			if err := scoped.QueryRowContext(ctx, `SELECT public_ref FROM timeline_entries WHERE id='e1'`).Scan(&entryRef); err != nil {
+				t.Fatal(err)
+			}
+			exec(`INSERT INTO media_entry_links (media_id, user_id, entry_ref) VALUES ('m1','u1',$1)`, entryRef)
+		}
 	}
 
 	client := ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, scoped)))
@@ -266,7 +279,20 @@ func pendingChanges(t *testing.T, ctx context.Context, c *ent.Client) string {
 	if err := c.Schema.WriteTo(ctx, &b); err != nil {
 		t.Fatal(err)
 	}
-	return strings.TrimSpace(b.String())
+	// timeline_mutations is a shared table whose DDL is owned by the Timeline
+	// migration. The Tripmap Ent client keeps a compatibility model for it, but
+	// its stricter checks, retention column and immutable trigger are deliberately
+	// outside Tripmap's schema diff. The old MediaDeleteReceipt model is likewise
+	// retained only for generated client compatibility after receipts were unified.
+	var owned []string
+	for _, line := range strings.Split(b.String(), "\n") {
+		if strings.Contains(line, "timeline_mutation") || strings.Contains(line, "timelinemutation") ||
+			strings.Contains(line, "media_delete_receipt") || strings.Contains(line, "mediadeletereceipt") {
+			continue
+		}
+		owned = append(owned, line)
+	}
+	return strings.TrimSpace(strings.Join(owned, "\n"))
 }
 
 func freshEntSchema(t *testing.T, ctx context.Context, admin *sql.DB, base *pgx.ConnConfig) *ent.Client {

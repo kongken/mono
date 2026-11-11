@@ -15,5 +15,5 @@ type Entry func(*sql.Selector)
 // MediaObject is the predicate function for mediaobject builders.
 type MediaObject func(*sql.Selector)
 
-// TimelineMutation is the predicate function for timelinemutation builders.
-type TimelineMutation func(*sql.Selector)
+// Receipt is the predicate function for receipt builders.
+type Receipt func(*sql.Selector)

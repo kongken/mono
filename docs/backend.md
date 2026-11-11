@@ -2,7 +2,18 @@
 
 > **后续扩展，待实现：** [OzID 与统一管理控制台规格](ozid/spec.md) 在现有 usersrv 上规划平台管理员角色、受限用户管理与审计，并复用现有 BFF 会话承载两个独立前端。平台管理员角色 `ozid-admin`、用户查询（`usersrv.v1.UserAdminService`）与注销保护已由 T4 实现，普通账号状态与 `metro-admin` 的受限修改由 T5 实现，见 [控制台功能描述](admin/features.md)；审计页等其余部分仍只有规格，本文的接口、模型、配置和命令以代码为准。
 
-## 当前状态与技术栈
+## Timeline 与 Tripmap 共享迁移
+
+Timeline 和 Tripmap 的 clean baseline、共享增量和一次性 import 必须在同一个 PostgreSQL database 中由仓库入口执行。不要分别执行 Tripmap 目录：
+
+```bash
+go run ./cmd/migrate-shared -dsn "$SHARED_MIGRATION_DSN" -root . \\
+  -link-import ./deploy/sql/media_entry_links.sql
+```
+
+`cmd/migrate-shared` 按 Timeline baseline → Tripmap baseline → Timeline refs/mutations → Tripmap 目录中 20261014 baseline 之后、20261107900000 staging 之前的全部既有增量（F5/F6/F7/F11/F12、session/index/world）→ link staging → 外部 link import → Tripmap Media/receipt 增量执行。上述文件由入口按文件名排序完整编排，部署后不应再单独执行这些 Tripmap migration。
+
+link staging 持久化约束同时绑定 `(entry_ref,user_id)` 到 `timeline_entries(public_ref,user_id)`，并由 Tripmap migration 绑定 `(media_id,user_id)` 到 Media。缺 link、Media 或 Entry 不存在、重复或跨 owner link 都会在迁移事务中失败。
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
@@ -24,7 +35,7 @@ Redis 客户端已接入，后续用于会话、缓存或限流；本次没有�
 | `proto/usersrv/v1/`、`migrations/usersrv/` | usersrv 的内部契约与版本化迁移 |
 | `internal/bff/metro/` | 地铁足迹的 BFF 适配（目录手写映射；管理与骑行者经 `relay` 线格式转换）与账号清理器 |
 | `proto/metro/v1/`、`proto/bff/metro/v1/`、`migrations/metro/` | metro 的内部与浏览器契约、版本化迁移 |
-| `proto/timeline/v1/`、`migrations/timeline/` | Timeline 内部账号清理契约与版本化迁移 |
+| `proto/timeline/v1/`、`migrations/timeline/` | Timeline 内部账号清理契约、opaque ref 与 mutation receipt 的版本化迁移；迁移先随机回填 ref，再建立约束与回执表，失败由数据库事务回滚 |
 | `internal/tripmap/app/` | Bootstrap、依赖注入、Gin 路由、内部 gRPC 服务装配（`grpc.go`） |
 | `internal/tripmap/config/` | 业务配置及必填存储名称校验 |
 | `internal/tripmap/tiles/` | 可选的 Mapbox 瓦片代理：`GET /api/tiles/{z}/{x}/{y}.png` 的配置校验、请求校验、限流与上游访问（[说明](#mapbox-瓦片代理可选)） |
@@ -557,16 +568,6 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 **验证。** `internal/tripmap/integration/migrations_test.go`（随 `make test-integration` 和 CI 的 `go test ./...` 运行，需要 `TRIPMAP_TEST_POSTGRES_DSN`）在随机 schema 里先应用 baseline 并插入旧用户、城市足迹、快照和媒体行，再按上面的方式应用后续文件：检查旧行数据不变且新列取默认值、`city_trips` 为空，并要求迁移后的库与 `Schema.Create` 建出的库对 Ent 报告的待执行差异完全一致（Ent 对两条部分唯一索引的谓词文本有恒定的重建提示，两边同样出现，因此按“完全相同”比较）；另一个测试校验 `atlas.sum` 与文件一致。CI 与实际 PostgreSQL 一起运行这些测试。
 
-### Timeline 的版本化迁移
-
-Timeline（KON-90）的迁移按业务单独放在 `migrations/timeline/`：`20261107170000_baseline.sql` 是全新数据库的完整结构，`20261107180000_record_refs_mutations.sql` 是 KON-108 的纯新增变更（记录与媒体的不透明引用 `public_ref`、`entry_public_ref` 回填与格式约束，以及 `timeline_mutations` 变更回执表及其约束）。两个文件都只新增：回填用 `UPDATE` 加 `DO` 块检查，不删列、不改写既有行。开发时服务仍按 `auto_migrate` 从 Ent schema 建表，部署时按文件名顺序每个文件一个事务手工执行。
-
-**验证。** `internal/timeline/integration/migrations_test.go` 是这些文件唯一的实际执行点：开发环境的 `Schema.Create` 走的是 Ent 而不是这些 SQL，所以没有它，迁移与其中的 CHECK 约束就会在从未运行过的情况下发布。测试在随机 schema 里按部署顺序应用文件（需要 `TIMELINE_TEST_POSTGRES_DSN`，`make test-integration-timeline` 或 CI 的 `timeline-db` 任务）：先应用 baseline 并写入旧 Entry / Media 行再应用后续文件，检查旧行数据不变、引用格式正确且唯一、Media 行取自已经回填的 Entry 行（两步顺序不能对调），并检查 `timeline_mutations` 上每一种合法与非法 `target_kind` / `operation` / 引用组合（非法组合必须被 CHECK 以 `23514` 拒绝）、`(user_id, mutation_id)` 唯一（重放不能写出第二个结果）、回执在关联行被清理后仍然可读且快照不被改写；另一个测试校验 `atlas.sum` 与文件一致，并拒绝 `DROP` / `TRUNCATE` 类语句。CI 的 `Timeline migrations, receipts and attachments on PostgreSQL` 任务带真实 PostgreSQL 17 与 RustFS 运行这些测试，并在任一场景被跳过时判定失败。
-
-**验证（附件）。** `internal/timeline/integration/media_storage_test.go` 是附件上传路径唯一的真实执行点：其余测试都用假的 blob store，看不出签名与真实请求是否一致，而线上失败正是这一类（`PrepareUpload` 丢掉了签名覆盖的请求头，浏览器每次 PUT 都是 `SignatureDoesNotMatch`）。测试需要 `TIMELINE_TEST_POSTGRES_DSN` 与 `TIMELINE_TEST_S3_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` （`_BUCKET` 默认 `timeline`），在随机 schema 与真实 bucket 上跑三步：用 `PrepareUpload` 返回的请求头照原样 PUT 后再 `CompleteUpload`，要求对象在 bucket 里字节一致；PUT 时把 `Content-Type` 换成别的值必须被拒（签名覆盖了类型，页面不能自己设置它），并且 `CompleteUpload` 不得接受 bucket 里没有的对象；`DeleteMedia` 必须把行留成 `deleting` 墓碑、把 `object_key` / `upload_key` / `thumbnail_key` 全部写入 `timeline_cleanup_objects`、回执可重放且未知 revision 被拒，以及第 21 个附件被拒（上限按行数判定，只有真实数据库能证明）。CI 的 `timeline-db` 任务先用 `go run ./cmd/storage-init -config /tmp/timeline-ci.yaml` 建好 bucket（服务本身从不建桶），再运行这些场景；它的服务 healthcheck 用的就是 compose 里那条 `wget /health/ready`，基础镜像没有 `wget` 会在这里失败，而不是在部署主机上。
-
-**限制。** 与 tripmap 相同，没有内置的迁移执行器或版本表：部署时人工执行并记录已执行的版本，回滚依赖数据库备份。回执快照的“只写不改”由应用角色只被授予 `INSERT` / `SELECT` 保证，属于部署配置，不由 schema 强制，因此测试里只记录提示而不判定失败。
-
 **限制。** 迁移流水线只覆盖 PostgreSQL 结构；部署时仍需人工执行并记录已执行的版本（没有内置的迁移执行器或版本表）；回滚依赖数据库备份。
 
 ## metro 服务（地铁足迹）
@@ -772,8 +773,6 @@ npm run build
 ```bash
 make test-integration
 ```
-
-Timeline 的版本化迁移只在 PostgreSQL 上运行：`make test-integration-timeline` 使用同一套本地地址运行 `internal/timeline/integration`（每个测试独立 schema，只连接 PostgreSQL）；未设置 `TIMELINE_TEST_POSTGRES_DSN` 时这些场景跳过，CI 的 `timeline-db` 任务则必须全部通过。
 
 该命令使用 Compose 示例的本地地址和开发凭据，运行 `internal/tripmap/integration`、`internal/tripmap/application` 与 `internal/e2e`；同时设置 `USERSRV_TEST_POSTGRES_DSN`、`USERSRV_TEST_REDIS_ADDR`、`USERSRV_TEST_REDIS_PASSWORD`，因为 `internal/e2e` 的真实账号链需要 usersrv——**没有这些变量时账号链的测试会整体跳过（不算通过）**。使用其他测试环境时，设置 `TRIPMAP_TEST_POSTGRES_DSN`、`TRIPMAP_TEST_REDIS_ADDR`、`TRIPMAP_TEST_REDIS_PASSWORD`、`TRIPMAP_TEST_S3_ENDPOINT`、`TRIPMAP_TEST_S3_ACCESS_KEY`、`TRIPMAP_TEST_S3_SECRET_KEY`、`TRIPMAP_TEST_S3_BUCKET` 与上述 `USERSRV_TEST_*`，运行 `go test -v ./internal/tripmap/integration ./internal/tripmap/application ./internal/e2e`。**Redis 必须是真实的 Redis**：限流窗口过期（`ratelimit.TestWindowExpires`）依赖真实的 TTL，用内存模拟的 Redis 会让它失败；PostgreSQL 与 S3 也用与 CI 相同的版本（PostgreSQL 17、`rustfs/rustfs:1.0.1`）验证过。`internal/e2e` 另有真实 S3 的注销清理测试（`real_s3_deletion_chain_test.go`，设置 `TRIPMAP_TEST_S3_*` 时运行，带照片与未完成上传的账号注销后对象全部删除、他人对象保留）。设置 `E2E_REQUIRE_REAL_S3=1`（`make test-integration` 与 CI 的 Backend 任务已设置）后，这个测试与 `TestChainCloseAccountRecoversFromAnObjectStoreOutage` 在缺少任何 `TRIPMAP_TEST_S3_*` 变量时直接失败，而不是跳过或回退到内存存储；不设置时本地保持默认（内存存储 / 跳过）。
 

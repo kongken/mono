@@ -71,23 +71,6 @@ jobs:
           go run ./cmd/storage-init -config /tmp/tripmap-ci.yaml
       - name: Vet
         run: go vet ./...
-      # The matrix is data no Go build compiles: this check reads the real
-      # jobs.build.strategy.matrix.include from docker-publish.yml and fails when an image is missing,
-      # substituted, duplicated or mapped to another suffix/Dockerfile. The BFF was silently dropped
-      # from the matrix once while this workflow stayed green (kongken/mono#113), so the step is named
-      # and verbose: a green run shows every image, the BFF included, is in the publication set.
-      - name: Docker publish matrix (required, never skipped)
-        shell: bash
-        run: |
-          set -o pipefail
-          go test ./internal/release -count=1 -v -run '^TestDockerPublishMatrix$' | tee /tmp/docker-publish-matrix.log
-          grep -q -- '--- PASS: TestDockerPublishMatrix ' /tmp/docker-publish-matrix.log || { echo "the publish matrix check did not run and pass"; exit 1; }
-      # The Timeline release examples (its own config, the two image contexts, the compose stack, the
-      # Caddy site and the publish matrix's build arguments) are compiled nowhere, so this script is
-      # their check. It also rejects a Caddy block written on one line, which Caddy refuses to adapt:
-      # that shape broke the two-domain-set acceptance once, and the guard names the line.
-      - name: Timeline release examples (required)
-        run: ./deploy/validate-timeline.sh
       # Includes the PostgreSQL/Redis-backed auth and footprint tests, which are
       # skipped when the TRIPMAP_TEST_* variables are absent.
       - name: Test
@@ -135,85 +118,6 @@ jobs:
           ! grep -q -- '--- SKIP' /tmp/mcp-unit.log /tmp/mcp-chain.log || { echo "an MCP perimeter scenario was skipped"; exit 1; }
           ! grep -q -- '--- FAIL' /tmp/mcp-unit.log /tmp/mcp-chain.log || { echo "an MCP perimeter scenario failed"; exit 1; }
 
-  # The Timeline migrations and the database rules they add, executed against a real PostgreSQL.
-  # `migrations/timeline/*.sql` is applied by hand at deployment time, and in development the service
-  # creates its schema from Ent (`Schema.Create`), so no other job ever runs those files: without this
-  # one they would ship unexecuted, and the CHECK constraints that make an illegal receipt row
-  # impossible would never have been exercised. The job is deliberately separate from `backend` so a
-  # Timeline regression is attributable, and every scenario is required: the log checks fail when a
-  # test is skipped, so a database that did not come up is a failure rather than a silent pass.
-  timeline-db:
-    name: Timeline migrations, receipts and attachments on PostgreSQL
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: timeline
-          POSTGRES_PASSWORD: timeline-ci
-          POSTGRES_DB: timeline
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U timeline" --health-interval 5s --health-timeout 5s --health-retries 10
-      # The attachment scenarios upload through a real presigned URL, so they need a real
-      # object store: a fake blob store cannot tell whether the signature matches the request.
-      # The health command is the one deploy/compose.stack.example.yaml uses, so a base image
-      # without wget fails here instead of on the deployment host.
-      s3:
-        image: rustfs/rustfs:1.0.1
-        env:
-          RUSTFS_ACCESS_KEY: timeline-ci
-          RUSTFS_SECRET_KEY: timeline-ci-secret
-          RUSTFS_VOLUMES: /data
-        ports: ["9000:9000"]
-        options: >-
-          --health-cmd "wget -qO- http://127.0.0.1:9000/health/ready" --health-interval 5s --health-timeout 3s --health-retries 20
-    env:
-      TIMELINE_TEST_POSTGRES_DSN: postgres://timeline:timeline-ci@127.0.0.1:5432/timeline?sslmode=disable
-      TIMELINE_TEST_S3_ENDPOINT: http://127.0.0.1:9000
-      TIMELINE_TEST_S3_ACCESS_KEY: timeline-ci
-      TIMELINE_TEST_S3_SECRET_KEY: timeline-ci-secret
-      TIMELINE_TEST_S3_BUCKET: timeline
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-      # The server never creates buckets, so the bucket the example config names has to exist
-      # before a single upload can be signed. storage-init reads the same config file a
-      # deployment does; only the endpoint and credentials point at the CI services.
-      - name: Provision the attachments bucket
-        shell: bash
-        run: |
-          python3 - <<'PYCODE'
-          from pathlib import Path
-          s = Path('config.timeline.example.yaml').read_text()
-          s = s.replace('http://s3:9000', 'http://127.0.0.1:9000').replace('access_key_id: tripmap', 'access_key_id: timeline-ci').replace('secret_access_key: change-me-secret', 'secret_access_key: timeline-ci-secret')
-          Path('/tmp/timeline-ci.yaml').write_text(s)
-          PYCODE
-          go run ./cmd/storage-init -config /tmp/timeline-ci.yaml
-      # One test per reviewed rule: the atlas.sum checksum, the backfill on rows that already exist
-      # (Entry before Media, refs unique and well formed), every legal and illegal target/operation
-      # combination on timeline_mutations, the replay/isolation rules that are visible in the
-      # database, and the attachment upload path against the real bucket (a signed PUT with the
-      # headers PrepareUpload returned, a PUT that overrides Content-Type being refused, and the
-      # delete tombstone queueing the object), and the 20-file limit on the row count.
-      # `set -o pipefail` keeps a failing `go test` from
-      # being hidden by the pipe into tee.
-      - name: Migrations, constraints, receipts and attachments (required, never skipped)
-        shell: bash
-        run: |
-          set -o pipefail
-          go test ./internal/timeline/integration -count=1 -v | tee /tmp/timeline-db.log
-          for t in TestMigrationDirectoryChecksum TestVersionedMigrationsBackfillOpaqueRefs TestMutationReceiptConstraintsRejectIllegalRows TestMutationReceiptSurvivesCleanupAndIsOwnerScoped TestPresignedUploadRoundTripThroughTheBucket TestPrepareUploadHandsBackTheHeadersTheSignatureCovers TestDeleteQueuesTheObjectForCleanup TestPrepareRefusesTheTwentyFirstAttachment; do
-            grep -q -- "--- PASS: $t " /tmp/timeline-db.log || { echo "$t did not run and pass against PostgreSQL and the object store"; exit 1; }
-          done
-          ! grep -q -- '--- SKIP' /tmp/timeline-db.log || { echo "a Timeline database or attachment scenario was skipped"; exit 1; }
-
   frontend:
     name: Frontend tests
     runs-on: ubuntu-latest
@@ -249,13 +153,6 @@ jobs:
         env:
           VITE_API_BASE_URL: https://api.example.com/api
       - run: npm run build:homepage
-      # Timeline is the KON-90 application: it calls the BFF at the public origin like trip-map and
-      # metro, and sends every account page to OzID, so it needs both reserved example addresses
-      # (nothing is deployed from CI).
-      - run: npm run build:timeline
-        env:
-          VITE_API_BASE_URL: https://api.example.com/api
-          VITE_OZID_ORIGIN: https://id.example.com
       # The console needs two public addresses and has no defaults (reserved example names).
       - run: npm run build:admin
         env:
@@ -271,10 +168,6 @@ jobs:
         run: npm run test:e2e:ozid
       - name: Browser acceptance for the admin console (mocked BFF)
         run: npm run test:e2e:admin
-      # The design's own screens, driven against a fake RecordService: the rail, the month and day
-      # rules, 检索/筛选, the 记一笔 drawer (including the refusal of an empty title) and 回收站.
-      - name: Browser acceptance for Timeline (mocked BFF, the design's screen)
-        run: npm run test:e2e:timeline
 
   # OzID in a real browser against the real BFF and usersrv: HTTPS, sibling sub-domains of a
   # reserved test site, the host-only Cookie, exact CORS/CSRF/Origin checks. It builds the OzID

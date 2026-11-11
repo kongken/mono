@@ -29,12 +29,12 @@ import (
 )
 
 const (
-	AudienceMetro      = "metro"
-	AudienceTimeline   = "timeline"
-	ScopeRead          = "metro:read"
-	ScopeWrite         = "metro:write"
-	ScopeTimelineRead  = "timeline:read"
-	ScopeTimelineWrite = "timeline:write"
+	// AudienceMetro names the metro MCP endpoint, the only audience in v1.
+	AudienceMetro = "metro"
+	// ScopeRead allows the read-only tools; ScopeWrite allows the write tools and
+	// implies ScopeRead.
+	ScopeRead  = "metro:read"
+	ScopeWrite = "metro:write"
 
 	// MaxActivePerUser bounds the valid tokens one administrator holds.
 	MaxActivePerUser = 10
@@ -75,7 +75,7 @@ func (p Principal) Allows(scope string) bool {
 	if slices.Contains(p.Scopes, scope) {
 		return true
 	}
-	return (scope == ScopeRead && slices.Contains(p.Scopes, ScopeWrite)) || (scope == ScopeTimelineRead && slices.Contains(p.Scopes, ScopeTimelineWrite))
+	return scope == ScopeRead && slices.Contains(p.Scopes, ScopeWrite)
 }
 
 // Service stores and verifies tokens.
@@ -115,10 +115,10 @@ func (s *Service) Create(ctx context.Context, owner session.BrowserSession, in C
 	if audience == "" {
 		audience = AudienceMetro
 	}
-	if audience != AudienceMetro && audience != AudienceTimeline {
-		return nil, "", invalid("audience must be metro or timeline")
+	if audience != AudienceMetro {
+		return nil, "", invalid("audience must be metro")
 	}
-	scopes, err := normalizeScopes(audience, in.Scopes)
+	scopes, err := normalizeScopes(in.Scopes)
 	if err != nil {
 		return nil, "", err
 	}
@@ -231,21 +231,14 @@ func (s *Service) Authenticate(ctx context.Context, secret, audience string) (Pr
 	}, nil
 }
 
-func normalizeScopes(audience string, in []string) ([]string, error) {
+func normalizeScopes(in []string) ([]string, error) {
 	if len(in) == 0 {
-		if audience == AudienceTimeline {
-			return []string{ScopeTimelineRead}, nil
-		}
 		return []string{ScopeRead}, nil
 	}
 	var out []string
 	for _, sc := range in {
-		if audience == AudienceTimeline {
-			if sc != ScopeTimelineRead && sc != ScopeTimelineWrite {
-				return nil, invalid("timeline audience only accepts timeline:read and timeline:write scopes")
-			}
-		} else if sc != ScopeRead && sc != ScopeWrite {
-			return nil, invalid("metro audience only accepts metro:read and metro:write scopes")
+		if sc != ScopeRead && sc != ScopeWrite {
+			return nil, invalid("scopes may only be metro:read and metro:write")
 		}
 		if !slices.Contains(out, sc) {
 			out = append(out, sc)

@@ -8,17 +8,10 @@ import (
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
 	"github.com/google/uuid"
-	"github.com/kongken/mono/internal/timeline/refs"
 	"time"
 )
 
 func now() time.Time { return time.Now().UTC() }
-
-// Entry and media references are generated in the alphabet the column CHECK
-// constraints and the delete-receipt validator both use; see package refs.
-func newEntryRef() string { return refs.New("ent_") }
-
-func newMediaRef() string { return refs.New("med_") }
 
 type Entry struct{ ent.Schema }
 
@@ -27,14 +20,19 @@ func (Entry) Annotations() []schema.Annotation {
 }
 func (Entry) Fields() []ent.Field {
 	return []ent.Field{
-		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("public_ref").DefaultFunc(newEntryRef).Unique().Immutable(), field.String("user_id").NotEmpty().Immutable(),
-		field.String("title").NotEmpty(), field.String("body").Default(""), field.String("occurred_date").NotEmpty(), field.String("occurred_time").Default(""), field.String("timezone").NotEmpty(), field.String("category").Default(""), field.String("location").Default(""), field.Int64("amount_minor").Default(0), field.String("currency").Default(""), field.String("url").Default(""), field.String("url_title").Default(""), field.String("url_note").Default(""), field.Time("occurred_at"), field.Time("deleted_at").Optional().Nillable(), field.String("mutation_id").Default(""), field.Int("revision").Default(1).Positive(), field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now),
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("public_ref").NotEmpty().Immutable(), field.String("user_id").NotEmpty().Immutable(),
+		field.String("title").NotEmpty(), field.String("body").Default(""), field.String("occurred_date").NotEmpty(), field.String("occurred_time").Default(""), field.String("timezone").NotEmpty(),
+		field.String("category").Default(""), field.String("location").Default(""), field.Int64("amount_minor").Default(0), field.String("currency").Default(""),
+		field.String("url").Default(""), field.String("url_title").Default(""), field.String("url_note").Default(""), field.Time("occurred_at"), field.Time("deleted_at").Optional().Nillable(),
+		field.String("mutation_id").Default(""), field.Int("revision").Default(1).Positive(), field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now),
 	}
 }
 func (Entry) Edges() []ent.Edge {
 	return []ent.Edge{edge.To("media", MediaObject.Type).Annotations(entsql.OnDelete(entsql.Cascade))}
 }
-func (Entry) Indexes() []ent.Index { return []ent.Index{index.Fields("user_id", "occurred_at", "id")} }
+func (Entry) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("user_id", "occurred_at", "id"), index.Fields("public_ref").Unique()}
+}
 
 type MediaObject struct{ ent.Schema }
 
@@ -42,13 +40,30 @@ func (MediaObject) Annotations() []schema.Annotation {
 	return []schema.Annotation{entsql.Annotation{Table: "timeline_media_objects"}}
 }
 func (MediaObject) Fields() []ent.Field {
-	return []ent.Field{field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("public_ref").DefaultFunc(newMediaRef).Unique().Immutable(), field.String("user_id").NotEmpty().Immutable(), field.String("entry_id").NotEmpty().Immutable(), field.String("entry_public_ref").NotEmpty().Immutable(), field.String("object_key").NotEmpty().Immutable(), field.String("thumbnail_key").Default(""), field.String("upload_key").Default(""), field.String("filename").NotEmpty(), field.String("content_type").NotEmpty(), field.Int64("size_bytes").Positive(), field.String("status").Default("pending"), field.String("mutation_id").Default(""), field.Time("upload_expires_at").Optional().Nillable(), field.Time("created_at").Default(now).Immutable()}
+	return []ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("public_ref").NotEmpty().Immutable(), field.String("user_id").NotEmpty().Immutable(), field.String("entry_id").NotEmpty().Immutable(), field.String("entry_public_ref").NotEmpty().Immutable(), field.String("object_key").NotEmpty().Immutable(), field.String("thumbnail_key").Default(""), field.String("upload_key").Default(""),
+		field.Enum("state").Values("pending", "ready", "deleting").Default("pending"), field.Int("revision").Default(1).Positive(), field.String("filename").Default(""), field.String("content_type").Default(""), field.Int64("size_bytes").Default(0), field.Int("width").Optional().Nillable(), field.Int("height").Optional().Nillable(), field.Time("upload_expires_at").Optional().Nillable(), field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now),
+	}
 }
 func (MediaObject) Edges() []ent.Edge {
 	return []ent.Edge{edge.From("entry", Entry.Type).Ref("media").Field("entry_id").Unique().Required().Immutable()}
 }
 func (MediaObject) Indexes() []ent.Index {
-	return []ent.Index{index.Fields("user_id"), index.Fields("entry_id")}
+	return []ent.Index{index.Fields("user_id"), index.Fields("entry_id"), index.Fields("public_ref").Unique()}
+}
+
+type Receipt struct{ ent.Schema }
+
+func (Receipt) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "timeline_mutations"}}
+}
+func (Receipt) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("user_id").NotEmpty().Immutable(), field.String("mutation_id").NotEmpty().Immutable(), field.String("target_kind").NotEmpty(), field.String("operation").NotEmpty(), field.String("request_hash").NotEmpty().Immutable(), field.String("entry_ref").Optional().Nillable().Immutable(), field.String("media_ref").Optional().Nillable().Immutable(), field.Int("result_revision").Positive().Immutable(), field.String("result_state").NotEmpty().Immutable(), field.Bytes("result_snapshot").NotEmpty().Immutable(), field.Int("snapshot_version").Default(1).Positive().Immutable(), field.Time("created_at").Default(now).Immutable(),
+	}
+}
+func (Receipt) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("user_id", "mutation_id").Unique()}
 }
 
 type CleanupObject struct{ ent.Schema }

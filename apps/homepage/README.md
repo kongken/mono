@@ -25,7 +25,7 @@ The production domain mapping is:
 - 地铁足迹: `https://metro.orz.ee`
 - OzID: `https://id.orz.ee`
 
-The Cloudflare Pages entry point is `apps/homepage/wrangler.json` (output `./dist` relative to `apps/homepage`). It is deliberately **not** at the repository root: Pages reads a Wrangler configuration file from the project's root directory and then treats it as the source of truth for the output directory and for `vars`, so a file at the repository root would silently reconfigure every project that keeps its root directory blank — the homepage included, but also 山海足迹 and Timeline. The homepage's Pages project keeps its root directory at the repository root, where the dashboard is authoritative:
+The Cloudflare Pages entry point is `wrangler.json`, which uses `apps/homepage/dist` as the Pages output directory. In the Cloudflare Pages dashboard, use:
 
 - Build command: `npm run build:homepage`
 - Build output directory: `apps/homepage/dist`

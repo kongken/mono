@@ -45,16 +45,16 @@ func (f MediaObjectFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MediaObjectMutation", m)
 }
 
-// The TimelineMutationFunc type is an adapter to allow the use of ordinary
-// function as TimelineMutation mutator.
-type TimelineMutationFunc func(context.Context, *ent.TimelineMutationMutation) (ent.Value, error)
+// The ReceiptFunc type is an adapter to allow the use of ordinary
+// function as Receipt mutator.
+type ReceiptFunc func(context.Context, *ent.ReceiptMutation) (ent.Value, error)
 
 // Mutate calls f(ctx, m).
-func (f TimelineMutationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	if mv, ok := m.(*ent.TimelineMutationMutation); ok {
+func (f ReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ReceiptMutation); ok {
 		return f(ctx, mv)
 	}
-	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TimelineMutationMutation", m)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ReceiptMutation", m)
 }
 
 // Condition is a hook condition function.

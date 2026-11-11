@@ -10,7 +10,6 @@ apps/
   metro/                前端应用“地铁足迹”：Vite + React，自己的路由与内存目录缓存，tests/（Playwright，模拟 BFF；`tests/real-stack` 是 `internal/e2e` `TestMetroBrowserChain` 的真实跨 origin 用例），没有账号表单（T11：账号入口都去 OzID），不含地图资源脚本
   admin/                前端应用“统一管理控制台”（T4）：Vite + React，匿名跳 OzID 登录、按真实角色分区、用户查询、（T5）普通账号状态/`metro-admin` 的受限修改与（T6）账号安全与管理审计查询页、（T8）metro 目录管理（城市、线路、车型、专题、导入/导出、目录审计、管理令牌，已从 `apps/metro` 迁入）；没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`；tests/ 有模拟 BFF 的 Playwright 与真实 BFF 的 real-stack 用例（由 internal/e2e 的 `TestAdminBrowserChain` 启动）
   ozid/                 前端应用“OzID 用户中心”：Vite + React，登录、注册、找回密码、邮件落地页（注册验证、密码重置）、概览、密码重新认证，以及资料、改密码与设备会话页面（T3）；没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL`；tests/ 有模拟 BFF 的 Playwright 与真实 BFF 的 real-stack 用例（由 internal/e2e 启动）
-  timeline/             前端应用“Timeline 手账”：Vite + React，按 Stitch 设计稿（项目 11000415110204392416，屏“Timeline 时间线与记一笔抽屉 - 桌面端”）实现时间线与“记一笔”抽屉；只调用 BFF 的 `bff.timeline.v1.TimelineService`，账号入口都去 OzID，没有同源代理，构建必须给出绝对 `VITE_API_BASE_URL` 与 `VITE_OZID_ORIGIN`；tests/ 有模拟 BFF 的 Playwright（含按设计稿的版式与交互用例）；附件区已按设计稿画出，接入附件服务前不可用
   homepage/             前端应用“Oz Studio 站点”：Vite + React 多页构建（`index.html` 首页与 `extensions/index.html` 插件列表），没有账号或接口依赖，可独立部署到 Cloudflare Pages；页面与插件列表维护见 [站点功能描述](homepage/features.md)
 packages/
   ui/                   shadcn 组件与 cn()：@kongken/ui/button、dialog、input、utils
@@ -54,16 +53,12 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 1. 建 `apps/<名称>/`，带 `package.json`（`name` 取 `@kongken/<名称>`，依赖用到的 `@kongken/*` 包，版本写 `*`）。
 2. 复制 `apps/trip-map` 的 Vite、TypeScript 配置，在 CSS 入口加 `@source "…/packages/ui/src"`。
 3. 在根 `package.json` 增加按应用命名的转发脚本（`dev:<名称>`、`build:<名称>`、`test:<名称>` 等），或直接使用 `npm run <脚本> -w @kongken/<名称>`；根 `test` 会自动覆盖所有应用；根 `build` 只构建 trip-map（本地模式可无后端），metro、OzID 与控制台必须带绝对地址单独构建（`npm run build:metro`、`build:ozid`、`build:admin`）。
-4. 新增 `deploy/<名称>-web/Dockerfile`（镜像后缀 `-<名称>-web`），先复制各 workspace 的 `package.json` 再 `npm ci`，并在 `.github/workflows/docker-publish.yml` 的矩阵中登记、在 `internal/release/publish_matrix_test.go` 的 `publishedMatrix` 中列出（该测试会拒绝缺失、重复或被替换的矩阵项）；`.github/workflows/ci.yml` 增加对应测试。
+4. 新增 `deploy/<名称>-web/Dockerfile`（镜像后缀 `-<名称>-web`），先复制各 workspace 的 `package.json` 再 `npm ci`，并在 `.github/workflows/docker-publish.yml` 的矩阵中登记；`.github/workflows/ci.yml` 增加对应测试。
 5. 如需访问后端，在 BFF 路由表登记浏览器请求头（见 [BFF](bff.md)），应用只使用 `@kongken/api-client`。
 
 ## Cloudflare Pages 构建设置
 
-静态托管的前端应用各自一个 Pages 项目，配置完全一样：构建根目录留空（仓库根目录），构建命令是根脚本 `npm run build:<应用>`，输出目录是 `apps/<应用>/dist`，构建时变量写在各自项目的 dashboard 里。workspace 依赖和 `packages/` 在应用目录之外，所以构建只能从仓库根跑；Pages 不运行前端镜像的 Nginx，所以页面只按下面的方式找到后端。
-
-**仓库根目录不能放 `wrangler.json`。** Pages 从项目根目录读 Wrangler 配置文件，读到之后就把文件里的 `pages_build_output_dir` 和 `vars` 当成这两个字段的唯一来源：根目录留空的项目全都会被它接管，dashboard 里填的输出目录和变量不再生效。这个状态在构建日志里很显眼——`Found wrangler.json file … pages_build_output_dir: …` 和 `Build environment variables: (none found)`。homepage 的配置因此放在 `apps/homepage/wrangler.json`（输出 `./dist`，只在从该目录直接 deploy 时用），仓库根不再有这份文件。
-
-### 山海足迹
+静态托管 `apps/trip-map`。仓库根目录需要保持为构建根目录，因为 workspace 依赖和 `packages/` 在根目录之外的位置：
 
 | 设置 | 值 |
 | --- | --- |
@@ -73,35 +68,7 @@ deploy/                 Dockerfile、Nginx 与 Compose/K8s/反代示例（deploy
 | Install command | 默认（`npm ci` 或 `npm install`，在根目录执行） |
 | `NODE_VERSION` | `24` |
 
-构建时变量沿用原有名称：`VITE_API_BASE_URL`、`VITE_OSM_TILE_URL`、`VITE_OSM_TILE_MAX_ZOOM`、`VITE_OSM_TILE_ATTRIBUTION`、`VITE_OSM_TILE_PROVIDER`。`/api/`、`/s/` 的同源转发不会在 Pages 上自动存在：纯本地模式无需处理；启用后端时，`VITE_API_BASE_URL` 填 BFF 的绝对地址（BFF 负责跨域），分享链接的 OG 标签需要另行把 `/s/` 转发到 BFF（当前仓库没有提供 Pages 的转发配置）。
-
-### Oz 主页
-
-| 设置 | 值 |
-| --- | --- |
-| Root directory（根目录） | 留空（仓库根目录） |
-| Build command | `npm run build:homepage` |
-| Build output directory | `apps/homepage/dist` |
-| Install command | 默认（在根目录执行） |
-| `NODE_VERSION` | `24` |
-
-### Timeline
-
-| 设置 | 值 |
-| --- | --- |
-| Root directory（根目录） | 留空（仓库根目录） |
-| Build command | `npm run build:timeline` |
-| Build output directory | `apps/timeline/dist` |
-| Install command | 默认（在根目录执行） |
-| `NODE_VERSION` | `24` |
-
-`VITE_API_BASE_URL`（BFF 的绝对公开地址，例如 `https://api.example.com/api`）与 `VITE_OZID_ORIGIN`（OzID 的 origin，例如 `https://id.example.com`）**都是必需的**：Timeline 与其他产品一样没有同源 `/api` 代理，会话 Cookie 属于 API 主机，所以缺少任一个时 `apps/timeline/vite.config.ts` 的构建门会让构建失败，而不是发布一个连不上自己数据的页面。
-
-Pages 的变量是项目的**构建时**变量（Settings → Environment variables，新版界面叫 Variables and secrets），**Production 与 Preview 是两套**：只保存在 Production 下的变量，预览分支的部署看不到。变量保存后也不会补进已有的构建，需要重新部署一次。构建失败时会打印这次构建实际能看到的 `VITE_*` 变量名（只有名字，不含值），可据此区分“变量没进这次构建”（环境选错、项目不对、保存后没重新部署）与“名字或值不对”。构建日志开头 `Detected the following tools from environment` 应显示 `nodejs@24`——仓库 CI 用的就是 Node 24，报 22 说明 `NODE_VERSION` 没生效。
-
-如果日志里出现 `Found wrangler.json file … pages_build_output_dir: apps/homepage/dist`，说明这次构建的项目读到了仓库根的旧配置：确认分支已包含把该文件移到 `apps/homepage/` 的提交，或者把根目录指向 `apps/timeline` 并按应用目录的脚本构建（`npm run build`、输出 `dist`）绕开它。走 CI 直传也可以完全绕开 Pages 的构建环境：GitHub Actions 里跑 `npm run build:timeline`，再 `wrangler pages deploy apps/timeline/dist --project-name <项目>`。
-
-Timeline 是单屏应用、没有前端路由，Pages 不需要额外的 SPA 回退规则。页面直接跨站点调用 BFF：`cors_allowed_origins` 必须包含该 Pages 域名，`navigation.apps.timeline` 用同一个 origin 登记（见 [Timeline 的部署](deployment.md#timeline-的部署)）。
+构建时变量沿用原有名称：`VITE_API_BASE_URL`、`VITE_OSM_TILE_URL`、`VITE_OSM_TILE_MAX_ZOOM`、`VITE_OSM_TILE_ATTRIBUTION`、`VITE_OSM_TILE_PROVIDER`。Pages 不会运行前端镜像的 Nginx，因此 `/api/`、`/s/` 的同源转发不会自动存在：纯本地模式无需处理；启用后端时，`VITE_API_BASE_URL` 填 BFF 的绝对地址（BFF 负责跨域），分享链接的 OG 标签需要另行把 `/s/` 转发到 BFF（当前仓库没有提供 Pages 的转发配置）。
 
 ## 当前限制
 

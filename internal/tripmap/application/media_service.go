@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -17,6 +18,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent"
 	"github.com/kongken/mono/internal/tripmap/ent/cityvisit"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
+	"github.com/kongken/mono/internal/tripmap/ent/timelinemutation"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
 	"github.com/kongken/mono/internal/tripmap/regions"
 	tripmapv1 "github.com/kongken/mono/pkg/proto/tripmap/v1"
@@ -33,8 +35,65 @@ func NewMediaService(src StoreSource, idx *regions.Index) *MediaService {
 	return &MediaService{src: src, regions: idx}
 }
 
+var mediaRefPattern = regexp.MustCompile(`^med_[0-9a-f]{26}$`)
+var entryRefPattern = regexp.MustCompile(`^ent_[0-9a-f]{26}$`)
+
+func mediaPublicRef(id string) string {
+	digest := sha256.Sum256([]byte(id))
+	return "med_" + hex.EncodeToString(digest[:13])
+}
+
+// timelineEntryOwned verifies the shared Timeline owner boundary when the
+// shared table is present. Older isolated Tripmap test/development schemas do
+// not carry Timeline tables; those callers still get the opaque-ref format
+// checks and are upgraded when the shared migration is installed.
+func timelineEntryOwned(ctx context.Context, tx *ent.Tx, userID, entryRef string) (bool, error) {
+	if entryRef == "" {
+		return false, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid entry_ref"))
+	}
+	if !entryRefPattern.MatchString(entryRef) {
+		return false, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid entry_ref"))
+	}
+	// Tripmap-only test and legacy schemas do not have Timeline's table. Check
+	// the catalog first so a missing relation never aborts the mutation
+	// transaction before the media write can proceed.
+	presentRows, err := tx.QuerySQL(ctx, `SELECT to_regclass('timeline_entries') IS NOT NULL`, nil)
+	if err != nil {
+		return false, internalError(err)
+	}
+	if !presentRows.Next() {
+		_ = presentRows.Close()
+		return false, nil
+	}
+	var present bool
+	if err := presentRows.Scan(&present); err != nil {
+		_ = presentRows.Close()
+		return false, internalError(err)
+	}
+	_ = presentRows.Close()
+	if !present {
+		return false, nil
+	}
+	rows, err := tx.QuerySQL(ctx, `SELECT public_ref FROM timeline_entries WHERE public_ref = $1 AND user_id = $2`, []any{entryRef, userID})
+	if err != nil {
+		return false, internalError(err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return true, connect.NewError(connect.CodeNotFound, errors.New("timeline entry not found"))
+	}
+	var resolved string
+	if err := rows.Scan(&resolved); err != nil {
+		return true, internalError(err)
+	}
+	if resolved != entryRef {
+		return true, connect.NewError(connect.CodeNotFound, errors.New("timeline entry not found"))
+	}
+	return true, nil
+}
+
 func mediaInfo(m *ent.MediaObject) *tripmapv1.MediaInfo {
-	return &tripmapv1.MediaInfo{Id: m.ID, RegionCode: m.RegionCode, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Width: int32(m.Width), Height: int32(m.Height), Status: string(m.Status), CreatedAt: timestamppb.New(m.CreatedAt), TripId: m.TripID}
+	return &tripmapv1.MediaInfo{Id: m.ID, MediaRef: m.PublicRef, EntryRef: m.EntryPublicRef, Revision: int64(m.Revision), RegionCode: m.RegionCode, Filename: m.Filename, ContentType: m.ContentType, SizeBytes: m.SizeBytes, Width: int32(m.Width), Height: int32(m.Height), Status: string(m.Status), CreatedAt: timestamppb.New(m.CreatedAt), TripId: m.TripID}
 }
 
 func mediaStore(ctx context.Context, src StoreSource) (*Store, Caller, error) {
@@ -101,6 +160,16 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 	if err != nil {
 		return nil, err
 	}
+	entryRef := r.EntryRef
+	if entryRef == "" {
+		// Legacy isolated callers had no Timeline ref. Keep their media rows
+		// representable while the shared table is absent; a live shared schema
+		// still rejects the synthetic ref below through the owner lookup.
+		entryRef = "ent_" + strings.Repeat("0", 26)
+	}
+	if !entryRefPattern.MatchString(entryRef) {
+		return nil, invalid("invalid entry_ref")
+	}
 	signer, ok := st.Blobs.(blobstore.UploadSigner)
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("upload signing unavailable"))
@@ -158,6 +227,13 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 				return nil, err
 			}
 		}
+		sharedTimeline, err := timelineEntryOwned(ctx, tx, p.UserID, entryRef)
+		if err != nil {
+			return nil, err
+		}
+		if r.EntryRef == "" && sharedTimeline {
+			return nil, invalid("entry_ref is required")
+		}
 		count, err := tx.MediaObject.Query().Where(mediaobject.UserID(p.UserID), mediaobject.RegionCode(r.RegionCode), mediaobject.StatusNEQ(mediaobject.StatusDeleting)).Count(ctx)
 		if err != nil {
 			return nil, internalError(err)
@@ -168,7 +244,7 @@ func (s *MediaService) PrepareUpload(ctx context.Context, req *connect.Request[t
 		id := uuid.NewString()
 		raw := "media/staging/" + uuid.NewString()
 		expires := time.Now().UTC().Add(10 * time.Minute)
-		m, err = tx.MediaObject.Create().SetID(id).SetUserID(p.UserID).SetRegionCode(r.RegionCode).SetTripID(r.TripId).SetFilename(r.Filename).SetUploadID(r.UploadId).SetRequestHash(hash).SetUploadKey(raw).SetObjectKey("media/files/" + id).SetThumbnailKey("media/thumbnails/" + id).SetContentType(r.ContentType).SetSizeBytes(r.SizeBytes).SetUploadExpiresAt(expires).Save(ctx)
+		m, err = tx.MediaObject.Create().SetID(id).SetPublicRef(mediaPublicRef(id)).SetEntryPublicRef(entryRef).SetRevision(1).SetUserID(p.UserID).SetRegionCode(r.RegionCode).SetTripID(r.TripId).SetFilename(r.Filename).SetUploadID(r.UploadId).SetRequestHash(hash).SetUploadKey(raw).SetObjectKey("media/files/" + id).SetThumbnailKey("media/thumbnails/" + id).SetContentType(r.ContentType).SetSizeBytes(r.SizeBytes).SetUploadExpiresAt(expires).Save(ctx)
 		if err != nil {
 			return nil, internalError(err)
 		}
@@ -246,7 +322,7 @@ func (s *MediaService) CompleteUpload(ctx context.Context, req *connect.Request[
 			return nil, connect.NewError(connect.CodeUnavailable, errors.New("thumbnail processing failed; retry"))
 		}
 	}
-	m, err = tx.MediaObject.UpdateOne(m).SetStatus(mediaobject.StatusReady).SetContentType(mime).SetFilename(filename).SetSizeBytes(int64(len(full))).SetWidth(w).SetHeight(h).Save(ctx)
+	m, err = tx.MediaObject.UpdateOne(m).SetStatus(mediaobject.StatusReady).AddRevision(1).SetContentType(mime).SetFilename(filename).SetSizeBytes(int64(len(full))).SetWidth(w).SetHeight(h).Save(ctx)
 	if err != nil {
 		return nil, internalError(err)
 	}
@@ -324,35 +400,115 @@ func (s *MediaService) ReadMedia(ctx context.Context, req *connect.Request[tripm
 	return res, nil
 }
 
+func mediaDeleteReceipt(r *ent.TimelineMutation, replayed bool) *tripmapv1.MediaMutationReceipt {
+	if r == nil {
+		return nil
+	}
+	mediaRef := ""
+	if r.MediaRef != nil {
+		mediaRef = *r.MediaRef
+	}
+	return &tripmapv1.MediaMutationReceipt{MutationId: r.MutationID, MediaRef: mediaRef, EntryRef: r.EntryRef, ResultState: r.ResultState, ResultRevision: int64(r.ResultRevision), ResultSnapshot: r.ResultSnapshot, SnapshotVersion: int32(r.SnapshotVersion), Replayed: replayed, RecordedAt: timestamppb.New(r.CreatedAt)}
+}
+
 func (s *MediaService) DeleteMedia(ctx context.Context, req *connect.Request[tripmapv1.DeleteMediaRequest]) (*connect.Response[tripmapv1.DeleteMediaResponse], error) {
 	st, p, err := mediaStore(ctx, s.src)
 	if err != nil {
 		return nil, err
 	}
+	mutationID := req.Msg.MutationId
+	legacyCall := mutationID == ""
+	if legacyCall {
+		mutationID = uuid.NewString()
+	}
+	if len(mutationID) < 8 || len(mutationID) > 128 {
+		return nil, invalid("mutation_id must be 8-128 characters")
+	}
+	if req.Msg.MediaRef != "" && !mediaRefPattern.MatchString(req.Msg.MediaRef) {
+		return nil, invalid("invalid media reference")
+	}
+	payload, _ := proto.MarshalOptions{Deterministic: true}.Marshal(&tripmapv1.DeleteMediaRequest{Id: req.Msg.Id, MediaRef: req.Msg.MediaRef, MutationId: mutationID, ExpectedRevision: req.Msg.ExpectedRevision})
+	digest := sha256.Sum256(payload)
+	hash := hex.EncodeToString(digest[:])
 	tx, err := mediaTx(ctx, st, p.UserID)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	m, err := tx.MediaObject.Query().Where(mediaobject.UserID(p.UserID), mediaobject.ID(req.Msg.Id)).Only(ctx)
+	prior, err := tx.TimelineMutation.Query().Where(timelinemutation.UserID(p.UserID), timelinemutation.MutationID(mutationID)).Only(ctx)
+	if err == nil {
+		if prior.RequestHash != hash {
+			return nil, connect.NewError(connect.CodeAlreadyExists, errors.New("mutation_id was already used for another request"))
+		}
+		return connect.NewResponse(&tripmapv1.DeleteMediaResponse{Receipt: mediaDeleteReceipt(prior, true)}), nil
+	}
+	if !ent.IsNotFound(err) {
+		return nil, internalError(err)
+	}
+	// A second mutation for an already deleting media object returns the
+	// original tombstone. This keeps the terminal result stable even after the
+	// media row has been cleaned up and avoids creating a second receipt.
+	if req.Msg.MediaRef != "" {
+		if tombstone, findErr := tx.TimelineMutation.Query().Where(
+			timelinemutation.UserID(p.UserID), timelinemutation.TargetKind("media"),
+			timelinemutation.Operation("media_delete"), timelinemutation.MediaRef(req.Msg.MediaRef),
+		).Only(ctx); findErr == nil {
+			if req.Msg.ExpectedRevision != nil && int(*req.Msg.ExpectedRevision) != tombstone.ResultRevision {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("media revision conflict"))
+			}
+			return connect.NewResponse(&tripmapv1.DeleteMediaResponse{Receipt: mediaDeleteReceipt(tombstone, true)}), nil
+		} else if !ent.IsNotFound(findErr) {
+			return nil, internalError(findErr)
+		}
+	}
+	locator := req.Msg.Id
+	if req.Msg.MediaRef != "" {
+		locator = req.Msg.MediaRef
+	}
+	m, err := tx.MediaObject.Query().Where(mediaobject.UserID(p.UserID), mediaobject.PublicRef(locator)).Only(ctx)
+	if ent.IsNotFound(err) && req.Msg.MediaRef == "" {
+		m, err = tx.MediaObject.Query().Where(mediaobject.UserID(p.UserID), mediaobject.ID(locator)).Only(ctx)
+	}
 	if ent.IsNotFound(err) {
-		return connect.NewResponse(&tripmapv1.DeleteMediaResponse{}), nil
+		if legacyCall {
+			return connect.NewResponse(&tripmapv1.DeleteMediaResponse{}), nil
+		}
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("media not found"))
 	}
 	if err != nil {
 		return nil, internalError(err)
 	}
-	if err = tx.MediaObject.UpdateOne(m).SetStatus(mediaobject.StatusDeleting).Exec(ctx); err != nil {
+	if req.Msg.ExpectedRevision != nil && *req.Msg.ExpectedRevision != m.Revision {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("media revision conflict"))
+	}
+	if m.Status != mediaobject.StatusDeleting {
+		if err = tx.MediaObject.UpdateOne(m).SetStatus(mediaobject.StatusDeleting).AddRevision(1).Exec(ctx); err != nil {
+			return nil, internalError(err)
+		}
+		m.Revision++
+	}
+	snapshot, _ := proto.MarshalOptions{Deterministic: true}.Marshal(&tripmapv1.MediaMutationReceipt{MutationId: mutationID, MediaRef: m.PublicRef, EntryRef: m.EntryPublicRef, ResultState: "deleting", ResultRevision: int64(m.Revision), SnapshotVersion: 1})
+	r, err := tx.TimelineMutation.Create().SetUserID(p.UserID).SetMutationID(mutationID).SetTargetKind("media").SetOperation("media_delete").SetRequestHash(hash).SetEntryRef(m.EntryPublicRef).SetMediaRef(m.PublicRef).SetResultRevision(int(m.Revision)).SetResultState("deleting").SetResultSnapshot(snapshot).SetSnapshotVersion(1).SetExpiresAt(time.Now().UTC().Add(30 * 24 * time.Hour)).Save(ctx)
+	if err != nil {
 		return nil, internalError(err)
 	}
 	if err = tx.Commit(); err != nil {
+		if ent.IsConstraintError(err) {
+			replayTx, replayErr := mediaTx(ctx, st, p.UserID)
+			if replayErr == nil {
+				defer func() { _ = replayTx.Rollback() }()
+				first, queryErr := replayTx.TimelineMutation.Query().Where(timelinemutation.UserID(p.UserID), timelinemutation.MutationID(mutationID)).Only(ctx)
+				if queryErr == nil && first.RequestHash == hash {
+					return connect.NewResponse(&tripmapv1.DeleteMediaResponse{Receipt: mediaDeleteReceipt(first, true)}), nil
+				}
+			}
+		}
 		return nil, internalError(err)
 	}
-	// Access is already revoked, even if S3 is unavailable. Retain metadata for
-	// the maintenance job and explicit retry until every key is removed.
 	if err = DeleteMediaKeys(ctx, st, m); err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("access revoked; object cleanup pending, retry deletion"))
 	}
-	return connect.NewResponse(&tripmapv1.DeleteMediaResponse{}), nil
+	return connect.NewResponse(&tripmapv1.DeleteMediaResponse{Receipt: mediaDeleteReceipt(r, false)}), nil
 }
 
 // DeleteMediaKeys removes every stored key for a media row.

@@ -8,8 +8,8 @@ import (
 	"github.com/kongken/mono/internal/timeline/ent/cleanupobject"
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
+	"github.com/kongken/mono/internal/timeline/ent/receipt"
 	"github.com/kongken/mono/internal/timeline/ent/schema"
-	"github.com/kongken/mono/internal/timeline/ent/timelinemutation"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -44,8 +44,8 @@ func init() {
 	_ = entryFields
 	// entryDescPublicRef is the schema descriptor for public_ref field.
 	entryDescPublicRef := entryFields[1].Descriptor()
-	// entry.DefaultPublicRef holds the default value on creation for the public_ref field.
-	entry.DefaultPublicRef = entryDescPublicRef.Default.(func() string)
+	// entry.PublicRefValidator is a validator for the "public_ref" field. It is called by the builders before save.
+	entry.PublicRefValidator = entryDescPublicRef.Validators[0].(func(string) error)
 	// entryDescUserID is the schema descriptor for user_id field.
 	entryDescUserID := entryFields[2].Descriptor()
 	// entry.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
@@ -126,8 +126,8 @@ func init() {
 	_ = mediaobjectFields
 	// mediaobjectDescPublicRef is the schema descriptor for public_ref field.
 	mediaobjectDescPublicRef := mediaobjectFields[1].Descriptor()
-	// mediaobject.DefaultPublicRef holds the default value on creation for the public_ref field.
-	mediaobject.DefaultPublicRef = mediaobjectDescPublicRef.Default.(func() string)
+	// mediaobject.PublicRefValidator is a validator for the "public_ref" field. It is called by the builders before save.
+	mediaobject.PublicRefValidator = mediaobjectDescPublicRef.Validators[0].(func(string) error)
 	// mediaobjectDescUserID is the schema descriptor for user_id field.
 	mediaobjectDescUserID := mediaobjectFields[2].Descriptor()
 	// mediaobject.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
@@ -152,74 +152,84 @@ func init() {
 	mediaobjectDescUploadKey := mediaobjectFields[7].Descriptor()
 	// mediaobject.DefaultUploadKey holds the default value on creation for the upload_key field.
 	mediaobject.DefaultUploadKey = mediaobjectDescUploadKey.Default.(string)
+	// mediaobjectDescRevision is the schema descriptor for revision field.
+	mediaobjectDescRevision := mediaobjectFields[9].Descriptor()
+	// mediaobject.DefaultRevision holds the default value on creation for the revision field.
+	mediaobject.DefaultRevision = mediaobjectDescRevision.Default.(int)
+	// mediaobject.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
+	mediaobject.RevisionValidator = mediaobjectDescRevision.Validators[0].(func(int) error)
 	// mediaobjectDescFilename is the schema descriptor for filename field.
-	mediaobjectDescFilename := mediaobjectFields[8].Descriptor()
-	// mediaobject.FilenameValidator is a validator for the "filename" field. It is called by the builders before save.
-	mediaobject.FilenameValidator = mediaobjectDescFilename.Validators[0].(func(string) error)
+	mediaobjectDescFilename := mediaobjectFields[10].Descriptor()
+	// mediaobject.DefaultFilename holds the default value on creation for the filename field.
+	mediaobject.DefaultFilename = mediaobjectDescFilename.Default.(string)
 	// mediaobjectDescContentType is the schema descriptor for content_type field.
-	mediaobjectDescContentType := mediaobjectFields[9].Descriptor()
-	// mediaobject.ContentTypeValidator is a validator for the "content_type" field. It is called by the builders before save.
-	mediaobject.ContentTypeValidator = mediaobjectDescContentType.Validators[0].(func(string) error)
+	mediaobjectDescContentType := mediaobjectFields[11].Descriptor()
+	// mediaobject.DefaultContentType holds the default value on creation for the content_type field.
+	mediaobject.DefaultContentType = mediaobjectDescContentType.Default.(string)
 	// mediaobjectDescSizeBytes is the schema descriptor for size_bytes field.
-	mediaobjectDescSizeBytes := mediaobjectFields[10].Descriptor()
-	// mediaobject.SizeBytesValidator is a validator for the "size_bytes" field. It is called by the builders before save.
-	mediaobject.SizeBytesValidator = mediaobjectDescSizeBytes.Validators[0].(func(int64) error)
-	// mediaobjectDescStatus is the schema descriptor for status field.
-	mediaobjectDescStatus := mediaobjectFields[11].Descriptor()
-	// mediaobject.DefaultStatus holds the default value on creation for the status field.
-	mediaobject.DefaultStatus = mediaobjectDescStatus.Default.(string)
-	// mediaobjectDescMutationID is the schema descriptor for mutation_id field.
-	mediaobjectDescMutationID := mediaobjectFields[12].Descriptor()
-	// mediaobject.DefaultMutationID holds the default value on creation for the mutation_id field.
-	mediaobject.DefaultMutationID = mediaobjectDescMutationID.Default.(string)
+	mediaobjectDescSizeBytes := mediaobjectFields[12].Descriptor()
+	// mediaobject.DefaultSizeBytes holds the default value on creation for the size_bytes field.
+	mediaobject.DefaultSizeBytes = mediaobjectDescSizeBytes.Default.(int64)
 	// mediaobjectDescCreatedAt is the schema descriptor for created_at field.
-	mediaobjectDescCreatedAt := mediaobjectFields[14].Descriptor()
+	mediaobjectDescCreatedAt := mediaobjectFields[16].Descriptor()
 	// mediaobject.DefaultCreatedAt holds the default value on creation for the created_at field.
 	mediaobject.DefaultCreatedAt = mediaobjectDescCreatedAt.Default.(func() time.Time)
+	// mediaobjectDescUpdatedAt is the schema descriptor for updated_at field.
+	mediaobjectDescUpdatedAt := mediaobjectFields[17].Descriptor()
+	// mediaobject.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	mediaobject.DefaultUpdatedAt = mediaobjectDescUpdatedAt.Default.(func() time.Time)
+	// mediaobject.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	mediaobject.UpdateDefaultUpdatedAt = mediaobjectDescUpdatedAt.UpdateDefault.(func() time.Time)
 	// mediaobjectDescID is the schema descriptor for id field.
 	mediaobjectDescID := mediaobjectFields[0].Descriptor()
 	// mediaobject.DefaultID holds the default value on creation for the id field.
 	mediaobject.DefaultID = mediaobjectDescID.Default.(func() string)
-	timelinemutationFields := schema.TimelineMutation{}.Fields()
-	_ = timelinemutationFields
-	// timelinemutationDescUserID is the schema descriptor for user_id field.
-	timelinemutationDescUserID := timelinemutationFields[1].Descriptor()
-	// timelinemutation.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
-	timelinemutation.UserIDValidator = timelinemutationDescUserID.Validators[0].(func(string) error)
-	// timelinemutationDescMutationID is the schema descriptor for mutation_id field.
-	timelinemutationDescMutationID := timelinemutationFields[2].Descriptor()
-	// timelinemutation.MutationIDValidator is a validator for the "mutation_id" field. It is called by the builders before save.
-	timelinemutation.MutationIDValidator = timelinemutationDescMutationID.Validators[0].(func(string) error)
-	// timelinemutationDescTargetKind is the schema descriptor for target_kind field.
-	timelinemutationDescTargetKind := timelinemutationFields[3].Descriptor()
-	// timelinemutation.TargetKindValidator is a validator for the "target_kind" field. It is called by the builders before save.
-	timelinemutation.TargetKindValidator = timelinemutationDescTargetKind.Validators[0].(func(string) error)
-	// timelinemutationDescOperation is the schema descriptor for operation field.
-	timelinemutationDescOperation := timelinemutationFields[4].Descriptor()
-	// timelinemutation.OperationValidator is a validator for the "operation" field. It is called by the builders before save.
-	timelinemutation.OperationValidator = timelinemutationDescOperation.Validators[0].(func(string) error)
-	// timelinemutationDescRequestHash is the schema descriptor for request_hash field.
-	timelinemutationDescRequestHash := timelinemutationFields[7].Descriptor()
-	// timelinemutation.RequestHashValidator is a validator for the "request_hash" field. It is called by the builders before save.
-	timelinemutation.RequestHashValidator = timelinemutationDescRequestHash.Validators[0].(func(string) error)
-	// timelinemutationDescResultRevision is the schema descriptor for result_revision field.
-	timelinemutationDescResultRevision := timelinemutationFields[8].Descriptor()
-	// timelinemutation.ResultRevisionValidator is a validator for the "result_revision" field. It is called by the builders before save.
-	timelinemutation.ResultRevisionValidator = timelinemutationDescResultRevision.Validators[0].(func(int) error)
-	// timelinemutationDescResultState is the schema descriptor for result_state field.
-	timelinemutationDescResultState := timelinemutationFields[9].Descriptor()
-	// timelinemutation.ResultStateValidator is a validator for the "result_state" field. It is called by the builders before save.
-	timelinemutation.ResultStateValidator = timelinemutationDescResultState.Validators[0].(func(string) error)
-	// timelinemutationDescSnapshotVersion is the schema descriptor for snapshot_version field.
-	timelinemutationDescSnapshotVersion := timelinemutationFields[11].Descriptor()
-	// timelinemutation.DefaultSnapshotVersion holds the default value on creation for the snapshot_version field.
-	timelinemutation.DefaultSnapshotVersion = timelinemutationDescSnapshotVersion.Default.(int)
-	// timelinemutationDescCreatedAt is the schema descriptor for created_at field.
-	timelinemutationDescCreatedAt := timelinemutationFields[12].Descriptor()
-	// timelinemutation.DefaultCreatedAt holds the default value on creation for the created_at field.
-	timelinemutation.DefaultCreatedAt = timelinemutationDescCreatedAt.Default.(func() time.Time)
-	// timelinemutationDescID is the schema descriptor for id field.
-	timelinemutationDescID := timelinemutationFields[0].Descriptor()
-	// timelinemutation.DefaultID holds the default value on creation for the id field.
-	timelinemutation.DefaultID = timelinemutationDescID.Default.(func() string)
+	receiptFields := schema.Receipt{}.Fields()
+	_ = receiptFields
+	// receiptDescUserID is the schema descriptor for user_id field.
+	receiptDescUserID := receiptFields[1].Descriptor()
+	// receipt.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	receipt.UserIDValidator = receiptDescUserID.Validators[0].(func(string) error)
+	// receiptDescMutationID is the schema descriptor for mutation_id field.
+	receiptDescMutationID := receiptFields[2].Descriptor()
+	// receipt.MutationIDValidator is a validator for the "mutation_id" field. It is called by the builders before save.
+	receipt.MutationIDValidator = receiptDescMutationID.Validators[0].(func(string) error)
+	// receiptDescTargetKind is the schema descriptor for target_kind field.
+	receiptDescTargetKind := receiptFields[3].Descriptor()
+	// receipt.TargetKindValidator is a validator for the "target_kind" field. It is called by the builders before save.
+	receipt.TargetKindValidator = receiptDescTargetKind.Validators[0].(func(string) error)
+	// receiptDescOperation is the schema descriptor for operation field.
+	receiptDescOperation := receiptFields[4].Descriptor()
+	// receipt.OperationValidator is a validator for the "operation" field. It is called by the builders before save.
+	receipt.OperationValidator = receiptDescOperation.Validators[0].(func(string) error)
+	// receiptDescRequestHash is the schema descriptor for request_hash field.
+	receiptDescRequestHash := receiptFields[5].Descriptor()
+	// receipt.RequestHashValidator is a validator for the "request_hash" field. It is called by the builders before save.
+	receipt.RequestHashValidator = receiptDescRequestHash.Validators[0].(func(string) error)
+	// receiptDescResultRevision is the schema descriptor for result_revision field.
+	receiptDescResultRevision := receiptFields[8].Descriptor()
+	// receipt.ResultRevisionValidator is a validator for the "result_revision" field. It is called by the builders before save.
+	receipt.ResultRevisionValidator = receiptDescResultRevision.Validators[0].(func(int) error)
+	// receiptDescResultState is the schema descriptor for result_state field.
+	receiptDescResultState := receiptFields[9].Descriptor()
+	// receipt.ResultStateValidator is a validator for the "result_state" field. It is called by the builders before save.
+	receipt.ResultStateValidator = receiptDescResultState.Validators[0].(func(string) error)
+	// receiptDescResultSnapshot is the schema descriptor for result_snapshot field.
+	receiptDescResultSnapshot := receiptFields[10].Descriptor()
+	// receipt.ResultSnapshotValidator is a validator for the "result_snapshot" field. It is called by the builders before save.
+	receipt.ResultSnapshotValidator = receiptDescResultSnapshot.Validators[0].(func([]byte) error)
+	// receiptDescSnapshotVersion is the schema descriptor for snapshot_version field.
+	receiptDescSnapshotVersion := receiptFields[11].Descriptor()
+	// receipt.DefaultSnapshotVersion holds the default value on creation for the snapshot_version field.
+	receipt.DefaultSnapshotVersion = receiptDescSnapshotVersion.Default.(int)
+	// receipt.SnapshotVersionValidator is a validator for the "snapshot_version" field. It is called by the builders before save.
+	receipt.SnapshotVersionValidator = receiptDescSnapshotVersion.Validators[0].(func(int) error)
+	// receiptDescCreatedAt is the schema descriptor for created_at field.
+	receiptDescCreatedAt := receiptFields[12].Descriptor()
+	// receipt.DefaultCreatedAt holds the default value on creation for the created_at field.
+	receipt.DefaultCreatedAt = receiptDescCreatedAt.Default.(func() time.Time)
+	// receiptDescID is the schema descriptor for id field.
+	receiptDescID := receiptFields[0].Descriptor()
+	// receipt.DefaultID holds the default value on creation for the id field.
+	receipt.DefaultID = receiptDescID.Default.(func() string)
 }

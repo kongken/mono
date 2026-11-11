@@ -8,6 +8,9 @@ COPY cmd/bff cmd/bff
 COPY internal/bff internal/bff
 COPY migrations/bff migrations/bff
 COPY internal/platform internal/platform
+# Shared migration discovery is tested during the isolated BFF image build.
+COPY migrations/timeline migrations/timeline
+COPY migrations/tripmap migrations/tripmap
 # Generated gRPC and Connect contracts shared with the services.
 COPY pkg pkg
 # The example configuration is checked against the route table.

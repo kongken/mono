@@ -27,7 +27,7 @@ var (
 	// TimelineEntriesColumns holds the columns for the "timeline_entries" table.
 	TimelineEntriesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
-		{Name: "public_ref", Type: field.TypeString, Unique: true},
+		{Name: "public_ref", Type: field.TypeString},
 		{Name: "user_id", Type: field.TypeString},
 		{Name: "title", Type: field.TypeString},
 		{Name: "body", Type: field.TypeString, Default: ""},
@@ -59,24 +59,32 @@ var (
 				Unique:  false,
 				Columns: []*schema.Column{TimelineEntriesColumns[2], TimelineEntriesColumns[15], TimelineEntriesColumns[0]},
 			},
+			{
+				Name:    "entry_public_ref",
+				Unique:  true,
+				Columns: []*schema.Column{TimelineEntriesColumns[1]},
+			},
 		},
 	}
 	// TimelineMediaObjectsColumns holds the columns for the "timeline_media_objects" table.
 	TimelineMediaObjectsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
-		{Name: "public_ref", Type: field.TypeString, Unique: true},
+		{Name: "public_ref", Type: field.TypeString},
 		{Name: "user_id", Type: field.TypeString},
 		{Name: "entry_public_ref", Type: field.TypeString},
 		{Name: "object_key", Type: field.TypeString},
 		{Name: "thumbnail_key", Type: field.TypeString, Default: ""},
 		{Name: "upload_key", Type: field.TypeString, Default: ""},
-		{Name: "filename", Type: field.TypeString},
-		{Name: "content_type", Type: field.TypeString},
-		{Name: "size_bytes", Type: field.TypeInt64},
-		{Name: "status", Type: field.TypeString, Default: "pending"},
-		{Name: "mutation_id", Type: field.TypeString, Default: ""},
+		{Name: "state", Type: field.TypeEnum, Enums: []string{"pending", "ready", "deleting"}, Default: "pending"},
+		{Name: "revision", Type: field.TypeInt, Default: 1},
+		{Name: "filename", Type: field.TypeString, Default: ""},
+		{Name: "content_type", Type: field.TypeString, Default: ""},
+		{Name: "size_bytes", Type: field.TypeInt64, Default: 0},
+		{Name: "width", Type: field.TypeInt, Nullable: true},
+		{Name: "height", Type: field.TypeInt, Nullable: true},
 		{Name: "upload_expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "entry_id", Type: field.TypeString},
 	}
 	// TimelineMediaObjectsTable holds the schema information for the "timeline_media_objects" table.
@@ -87,7 +95,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "timeline_media_objects_timeline_entries_media",
-				Columns:    []*schema.Column{TimelineMediaObjectsColumns[14]},
+				Columns:    []*schema.Column{TimelineMediaObjectsColumns[17]},
 				RefColumns: []*schema.Column{TimelineEntriesColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -101,7 +109,12 @@ var (
 			{
 				Name:    "mediaobject_entry_id",
 				Unique:  false,
-				Columns: []*schema.Column{TimelineMediaObjectsColumns[14]},
+				Columns: []*schema.Column{TimelineMediaObjectsColumns[17]},
+			},
+			{
+				Name:    "mediaobject_public_ref",
+				Unique:  true,
+				Columns: []*schema.Column{TimelineMediaObjectsColumns[1]},
 			},
 		},
 	}
@@ -112,12 +125,12 @@ var (
 		{Name: "mutation_id", Type: field.TypeString},
 		{Name: "target_kind", Type: field.TypeString},
 		{Name: "operation", Type: field.TypeString},
+		{Name: "request_hash", Type: field.TypeString},
 		{Name: "entry_ref", Type: field.TypeString, Nullable: true},
 		{Name: "media_ref", Type: field.TypeString, Nullable: true},
-		{Name: "request_hash", Type: field.TypeString},
 		{Name: "result_revision", Type: field.TypeInt},
 		{Name: "result_state", Type: field.TypeString},
-		{Name: "result_snapshot", Type: field.TypeJSON},
+		{Name: "result_snapshot", Type: field.TypeBytes},
 		{Name: "snapshot_version", Type: field.TypeInt, Default: 1},
 		{Name: "created_at", Type: field.TypeTime},
 	}
@@ -128,7 +141,7 @@ var (
 		PrimaryKey: []*schema.Column{TimelineMutationsColumns[0]},
 		Indexes: []*schema.Index{
 			{
-				Name:    "timelinemutation_user_id_mutation_id",
+				Name:    "receipt_user_id_mutation_id",
 				Unique:  true,
 				Columns: []*schema.Column{TimelineMutationsColumns[1], TimelineMutationsColumns[2]},
 			},

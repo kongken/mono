@@ -10,6 +10,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/friendship"
 	"github.com/kongken/mono/internal/tripmap/ent/itinerary"
 	"github.com/kongken/mono/internal/tripmap/ent/mediacleanup"
+	"github.com/kongken/mono/internal/tripmap/ent/mediadeletereceipt"
 	"github.com/kongken/mono/internal/tripmap/ent/mediaobject"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationdelivery"
 	"github.com/kongken/mono/internal/tripmap/ent/notificationprofile"
@@ -21,6 +22,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/ent/sharedtrip"
 	"github.com/kongken/mono/internal/tripmap/ent/snapshot"
 	"github.com/kongken/mono/internal/tripmap/ent/syncreceipt"
+	"github.com/kongken/mono/internal/tripmap/ent/timelinemutation"
 	"github.com/kongken/mono/internal/tripmap/ent/trip"
 	"github.com/kongken/mono/internal/tripmap/ent/tripmember"
 	"github.com/kongken/mono/internal/tripmap/ent/user"
@@ -190,66 +192,110 @@ func init() {
 	mediacleanupDescID := mediacleanupFields[0].Descriptor()
 	// mediacleanup.DefaultID holds the default value on creation for the id field.
 	mediacleanup.DefaultID = mediacleanupDescID.Default.(func() string)
+	mediadeletereceiptFields := schema.MediaDeleteReceipt{}.Fields()
+	_ = mediadeletereceiptFields
+	// mediadeletereceiptDescUserID is the schema descriptor for user_id field.
+	mediadeletereceiptDescUserID := mediadeletereceiptFields[1].Descriptor()
+	// mediadeletereceipt.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	mediadeletereceipt.UserIDValidator = mediadeletereceiptDescUserID.Validators[0].(func(string) error)
+	// mediadeletereceiptDescMutationID is the schema descriptor for mutation_id field.
+	mediadeletereceiptDescMutationID := mediadeletereceiptFields[2].Descriptor()
+	// mediadeletereceipt.MutationIDValidator is a validator for the "mutation_id" field. It is called by the builders before save.
+	mediadeletereceipt.MutationIDValidator = mediadeletereceiptDescMutationID.Validators[0].(func(string) error)
+	// mediadeletereceiptDescMediaID is the schema descriptor for media_id field.
+	mediadeletereceiptDescMediaID := mediadeletereceiptFields[3].Descriptor()
+	// mediadeletereceipt.MediaIDValidator is a validator for the "media_id" field. It is called by the builders before save.
+	mediadeletereceipt.MediaIDValidator = mediadeletereceiptDescMediaID.Validators[0].(func(string) error)
+	// mediadeletereceiptDescRequestHash is the schema descriptor for request_hash field.
+	mediadeletereceiptDescRequestHash := mediadeletereceiptFields[4].Descriptor()
+	// mediadeletereceipt.RequestHashValidator is a validator for the "request_hash" field. It is called by the builders before save.
+	mediadeletereceipt.RequestHashValidator = mediadeletereceiptDescRequestHash.Validators[0].(func(string) error)
+	// mediadeletereceiptDescResultState is the schema descriptor for result_state field.
+	mediadeletereceiptDescResultState := mediadeletereceiptFields[5].Descriptor()
+	// mediadeletereceipt.ResultStateValidator is a validator for the "result_state" field. It is called by the builders before save.
+	mediadeletereceipt.ResultStateValidator = mediadeletereceiptDescResultState.Validators[0].(func(string) error)
+	// mediadeletereceiptDescCreatedAt is the schema descriptor for created_at field.
+	mediadeletereceiptDescCreatedAt := mediadeletereceiptFields[6].Descriptor()
+	// mediadeletereceipt.DefaultCreatedAt holds the default value on creation for the created_at field.
+	mediadeletereceipt.DefaultCreatedAt = mediadeletereceiptDescCreatedAt.Default.(func() time.Time)
+	// mediadeletereceiptDescID is the schema descriptor for id field.
+	mediadeletereceiptDescID := mediadeletereceiptFields[0].Descriptor()
+	// mediadeletereceipt.DefaultID holds the default value on creation for the id field.
+	mediadeletereceipt.DefaultID = mediadeletereceiptDescID.Default.(func() string)
 	mediaobjectFields := schema.MediaObject{}.Fields()
 	_ = mediaobjectFields
+	// mediaobjectDescPublicRef is the schema descriptor for public_ref field.
+	mediaobjectDescPublicRef := mediaobjectFields[2].Descriptor()
+	// mediaobject.PublicRefValidator is a validator for the "public_ref" field. It is called by the builders before save.
+	mediaobject.PublicRefValidator = mediaobjectDescPublicRef.Validators[0].(func(string) error)
+	// mediaobjectDescEntryPublicRef is the schema descriptor for entry_public_ref field.
+	mediaobjectDescEntryPublicRef := mediaobjectFields[3].Descriptor()
+	// mediaobject.EntryPublicRefValidator is a validator for the "entry_public_ref" field. It is called by the builders before save.
+	mediaobject.EntryPublicRefValidator = mediaobjectDescEntryPublicRef.Validators[0].(func(string) error)
 	// mediaobjectDescObjectKey is the schema descriptor for object_key field.
-	mediaobjectDescObjectKey := mediaobjectFields[2].Descriptor()
+	mediaobjectDescObjectKey := mediaobjectFields[4].Descriptor()
 	// mediaobject.ObjectKeyValidator is a validator for the "object_key" field. It is called by the builders before save.
 	mediaobject.ObjectKeyValidator = mediaobjectDescObjectKey.Validators[0].(func(string) error)
 	// mediaobjectDescContentType is the schema descriptor for content_type field.
-	mediaobjectDescContentType := mediaobjectFields[3].Descriptor()
+	mediaobjectDescContentType := mediaobjectFields[5].Descriptor()
 	// mediaobject.ContentTypeValidator is a validator for the "content_type" field. It is called by the builders before save.
 	mediaobject.ContentTypeValidator = mediaobjectDescContentType.Validators[0].(func(string) error)
 	// mediaobjectDescSizeBytes is the schema descriptor for size_bytes field.
-	mediaobjectDescSizeBytes := mediaobjectFields[4].Descriptor()
+	mediaobjectDescSizeBytes := mediaobjectFields[6].Descriptor()
 	// mediaobject.SizeBytesValidator is a validator for the "size_bytes" field. It is called by the builders before save.
 	mediaobject.SizeBytesValidator = mediaobjectDescSizeBytes.Validators[0].(func(int64) error)
+	// mediaobjectDescRevision is the schema descriptor for revision field.
+	mediaobjectDescRevision := mediaobjectFields[7].Descriptor()
+	// mediaobject.DefaultRevision holds the default value on creation for the revision field.
+	mediaobject.DefaultRevision = mediaobjectDescRevision.Default.(int64)
+	// mediaobject.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
+	mediaobject.RevisionValidator = mediaobjectDescRevision.Validators[0].(func(int64) error)
 	// mediaobjectDescRegionCode is the schema descriptor for region_code field.
-	mediaobjectDescRegionCode := mediaobjectFields[6].Descriptor()
+	mediaobjectDescRegionCode := mediaobjectFields[9].Descriptor()
 	// mediaobject.DefaultRegionCode holds the default value on creation for the region_code field.
 	mediaobject.DefaultRegionCode = mediaobjectDescRegionCode.Default.(string)
 	// mediaobjectDescFilename is the schema descriptor for filename field.
-	mediaobjectDescFilename := mediaobjectFields[7].Descriptor()
+	mediaobjectDescFilename := mediaobjectFields[10].Descriptor()
 	// mediaobject.DefaultFilename holds the default value on creation for the filename field.
 	mediaobject.DefaultFilename = mediaobjectDescFilename.Default.(string)
 	// mediaobjectDescUploadID is the schema descriptor for upload_id field.
-	mediaobjectDescUploadID := mediaobjectFields[8].Descriptor()
+	mediaobjectDescUploadID := mediaobjectFields[11].Descriptor()
 	// mediaobject.DefaultUploadID holds the default value on creation for the upload_id field.
 	mediaobject.DefaultUploadID = mediaobjectDescUploadID.Default.(string)
 	// mediaobjectDescRequestHash is the schema descriptor for request_hash field.
-	mediaobjectDescRequestHash := mediaobjectFields[9].Descriptor()
+	mediaobjectDescRequestHash := mediaobjectFields[12].Descriptor()
 	// mediaobject.DefaultRequestHash holds the default value on creation for the request_hash field.
 	mediaobject.DefaultRequestHash = mediaobjectDescRequestHash.Default.(string)
 	// mediaobjectDescUploadKey is the schema descriptor for upload_key field.
-	mediaobjectDescUploadKey := mediaobjectFields[10].Descriptor()
+	mediaobjectDescUploadKey := mediaobjectFields[13].Descriptor()
 	// mediaobject.DefaultUploadKey holds the default value on creation for the upload_key field.
 	mediaobject.DefaultUploadKey = mediaobjectDescUploadKey.Default.(string)
 	// mediaobjectDescThumbnailKey is the schema descriptor for thumbnail_key field.
-	mediaobjectDescThumbnailKey := mediaobjectFields[11].Descriptor()
+	mediaobjectDescThumbnailKey := mediaobjectFields[14].Descriptor()
 	// mediaobject.DefaultThumbnailKey holds the default value on creation for the thumbnail_key field.
 	mediaobject.DefaultThumbnailKey = mediaobjectDescThumbnailKey.Default.(string)
 	// mediaobjectDescWidth is the schema descriptor for width field.
-	mediaobjectDescWidth := mediaobjectFields[13].Descriptor()
+	mediaobjectDescWidth := mediaobjectFields[16].Descriptor()
 	// mediaobject.DefaultWidth holds the default value on creation for the width field.
 	mediaobject.DefaultWidth = mediaobjectDescWidth.Default.(int)
 	// mediaobject.WidthValidator is a validator for the "width" field. It is called by the builders before save.
 	mediaobject.WidthValidator = mediaobjectDescWidth.Validators[0].(func(int) error)
 	// mediaobjectDescHeight is the schema descriptor for height field.
-	mediaobjectDescHeight := mediaobjectFields[14].Descriptor()
+	mediaobjectDescHeight := mediaobjectFields[17].Descriptor()
 	// mediaobject.DefaultHeight holds the default value on creation for the height field.
 	mediaobject.DefaultHeight = mediaobjectDescHeight.Default.(int)
 	// mediaobject.HeightValidator is a validator for the "height" field. It is called by the builders before save.
 	mediaobject.HeightValidator = mediaobjectDescHeight.Validators[0].(func(int) error)
 	// mediaobjectDescTripID is the schema descriptor for trip_id field.
-	mediaobjectDescTripID := mediaobjectFields[15].Descriptor()
+	mediaobjectDescTripID := mediaobjectFields[18].Descriptor()
 	// mediaobject.DefaultTripID holds the default value on creation for the trip_id field.
 	mediaobject.DefaultTripID = mediaobjectDescTripID.Default.(string)
 	// mediaobjectDescCreatedAt is the schema descriptor for created_at field.
-	mediaobjectDescCreatedAt := mediaobjectFields[16].Descriptor()
+	mediaobjectDescCreatedAt := mediaobjectFields[19].Descriptor()
 	// mediaobject.DefaultCreatedAt holds the default value on creation for the created_at field.
 	mediaobject.DefaultCreatedAt = mediaobjectDescCreatedAt.Default.(func() time.Time)
 	// mediaobjectDescUpdatedAt is the schema descriptor for updated_at field.
-	mediaobjectDescUpdatedAt := mediaobjectFields[17].Descriptor()
+	mediaobjectDescUpdatedAt := mediaobjectFields[20].Descriptor()
 	// mediaobject.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	mediaobject.DefaultUpdatedAt = mediaobjectDescUpdatedAt.Default.(func() time.Time)
 	// mediaobject.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -576,6 +622,20 @@ func init() {
 	syncreceiptDescID := syncreceiptFields[0].Descriptor()
 	// syncreceipt.DefaultID holds the default value on creation for the id field.
 	syncreceipt.DefaultID = syncreceiptDescID.Default.(func() string)
+	timelinemutationFields := schema.TimelineMutation{}.Fields()
+	_ = timelinemutationFields
+	// timelinemutationDescSnapshotVersion is the schema descriptor for snapshot_version field.
+	timelinemutationDescSnapshotVersion := timelinemutationFields[11].Descriptor()
+	// timelinemutation.DefaultSnapshotVersion holds the default value on creation for the snapshot_version field.
+	timelinemutation.DefaultSnapshotVersion = timelinemutationDescSnapshotVersion.Default.(int)
+	// timelinemutationDescCreatedAt is the schema descriptor for created_at field.
+	timelinemutationDescCreatedAt := timelinemutationFields[12].Descriptor()
+	// timelinemutation.DefaultCreatedAt holds the default value on creation for the created_at field.
+	timelinemutation.DefaultCreatedAt = timelinemutationDescCreatedAt.Default.(func() time.Time)
+	// timelinemutationDescID is the schema descriptor for id field.
+	timelinemutationDescID := timelinemutationFields[0].Descriptor()
+	// timelinemutation.DefaultID holds the default value on creation for the id field.
+	timelinemutation.DefaultID = timelinemutationDescID.Default.(func() string)
 	tripFields := schema.Trip{}.Fields()
 	_ = tripFields
 	// tripDescTripID is the schema descriptor for trip_id field.

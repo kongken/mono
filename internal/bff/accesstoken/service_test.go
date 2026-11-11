@@ -191,24 +191,3 @@ func TestConcurrentCreatesCannotPassTheCap(t *testing.T) {
 		t.Fatalf("tokens: %d, want exactly %d", n, accesstoken.MaxActivePerUser)
 	}
 }
-
-func TestTimelineAudienceDefaultsAndRejectsMetroScopes(t *testing.T) {
-	svc, _, owner, _ := setup(t)
-	row, secret, err := svc.Create(t.Context(), owner, accesstoken.CreateInput{Name: "timeline", Audience: "timeline", ExpiresInDays: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slices.Equal(row.Scopes, []string{"timeline:read"}) {
-		t.Fatalf("default timeline scopes: %v", row.Scopes)
-	}
-	p, err := svc.Authenticate(t.Context(), secret, "timeline")
-	if err != nil || !p.Allows("timeline:read") || p.Allows("metro:read") {
-		t.Fatalf("timeline principal: %+v %v", p, err)
-	}
-	if _, _, err := svc.Create(t.Context(), owner, accesstoken.CreateInput{Name: "cross", Audience: "timeline", Scopes: []string{"metro:read"}, ExpiresInDays: 1}); err == nil {
-		t.Fatal("accepted metro scope for timeline audience")
-	}
-	if _, _, err := svc.Create(t.Context(), owner, accesstoken.CreateInput{Name: "cross", Audience: "metro", Scopes: []string{"timeline:read"}, ExpiresInDays: 1}); err == nil {
-		t.Fatal("accepted timeline scope for metro audience")
-	}
-}

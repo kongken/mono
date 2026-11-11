@@ -6,11 +6,11 @@
 
 | 路径 | 页面 | 内容 |
 | --- | --- | --- |
-| `/` | 首页 | 工作室介绍、两个 Web 产品（山海足迹、地铁足迹）卡片与 OzID 说明 |
+| `/` | 首页 | 工作室介绍、两个 Web 产品（山海足迹、地铁足迹）卡片、OzID 说明与设计理念 |
 | `/extensions/` | Chrome 插件列表 | Oz Studio 在 Chrome 网上应用店发布的插件：安装入口、功能、权限、数据与隐私说明、商店截图和版本信息 |
 | `/privacy/` | 隐私政策 | 站点、OzID、两个足迹产品与两个插件分别收集什么、数据存在哪里、如何导出与删除；可直接作为商店列表的隐私政策地址 |
 
-三个页面共用 `src/site-chrome.tsx` 里的页头与页脚：页头导航为「探索产品 / Chrome 插件」与 OzID 入口，`current` 决定当前页的 `aria-current`；页脚指向产品锚点、插件列表、隐私政策与 OzID。隐私政策不进顶部导航，只在页脚（以及插件卡片里）给出入口，各页页脚都有这一项。新增页面时先在这里加导航项，再传入新的 `current`。
+三个页面共用 `src/site-chrome.tsx` 里的页头与页脚：页头导航为「探索产品 / Chrome 插件 / 关于 Oz」与 OzID 入口，`current` 决定当前页的 `aria-current`；页脚指向产品锚点、插件列表、隐私政策与 OzID。隐私政策不进顶部导航，只在页脚（以及插件卡片里）给出入口，各页页脚都有这一项。新增页面时先在这里加导航项，再传入新的 `current`。
 
 站点是 Vite 多页构建：`index.html`、`extensions/index.html` 与 `privacy/index.html` 各自有入口脚本和标题/描述，产物为 `dist/index.html`、`dist/extensions/index.html` 与 `dist/privacy/index.html`。插件列表与隐私政策都不需要 SPA 兜底路由，分别由静态目录索引直接提供（Nginx 模板已有 `try_files $uri $uri/ /index.html`，Cloudflare Pages 默认按目录索引返回）。
 

@@ -20,12 +20,18 @@ type MediaObject struct {
 	ID string `json:"id,omitempty"`
 	// UserID holds the value of the "user_id" field.
 	UserID string `json:"user_id,omitempty"`
+	// PublicRef holds the value of the "public_ref" field.
+	PublicRef string `json:"public_ref,omitempty"`
+	// EntryPublicRef holds the value of the "entry_public_ref" field.
+	EntryPublicRef string `json:"entry_public_ref,omitempty"`
 	// ObjectKey holds the value of the "object_key" field.
 	ObjectKey string `json:"object_key,omitempty"`
 	// ContentType holds the value of the "content_type" field.
 	ContentType string `json:"content_type,omitempty"`
 	// SizeBytes holds the value of the "size_bytes" field.
 	SizeBytes int64 `json:"size_bytes,omitempty"`
+	// Revision holds the value of the "revision" field.
+	Revision int64 `json:"revision,omitempty"`
 	// Status holds the value of the "status" field.
 	Status mediaobject.Status `json:"status,omitempty"`
 	// RegionCode holds the value of the "region_code" field.
@@ -83,9 +89,9 @@ func (*MediaObject) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case mediaobject.FieldSizeBytes, mediaobject.FieldWidth, mediaobject.FieldHeight:
+		case mediaobject.FieldSizeBytes, mediaobject.FieldRevision, mediaobject.FieldWidth, mediaobject.FieldHeight:
 			values[i] = new(sql.NullInt64)
-		case mediaobject.FieldID, mediaobject.FieldUserID, mediaobject.FieldObjectKey, mediaobject.FieldContentType, mediaobject.FieldStatus, mediaobject.FieldRegionCode, mediaobject.FieldFilename, mediaobject.FieldUploadID, mediaobject.FieldRequestHash, mediaobject.FieldUploadKey, mediaobject.FieldThumbnailKey, mediaobject.FieldTripID:
+		case mediaobject.FieldID, mediaobject.FieldUserID, mediaobject.FieldPublicRef, mediaobject.FieldEntryPublicRef, mediaobject.FieldObjectKey, mediaobject.FieldContentType, mediaobject.FieldStatus, mediaobject.FieldRegionCode, mediaobject.FieldFilename, mediaobject.FieldUploadID, mediaobject.FieldRequestHash, mediaobject.FieldUploadKey, mediaobject.FieldThumbnailKey, mediaobject.FieldTripID:
 			values[i] = new(sql.NullString)
 		case mediaobject.FieldUploadExpiresAt, mediaobject.FieldCreatedAt, mediaobject.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -116,6 +122,18 @@ func (_m *MediaObject) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.UserID = value.String
 			}
+		case mediaobject.FieldPublicRef:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field public_ref", values[i])
+			} else if value.Valid {
+				_m.PublicRef = value.String
+			}
+		case mediaobject.FieldEntryPublicRef:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field entry_public_ref", values[i])
+			} else if value.Valid {
+				_m.EntryPublicRef = value.String
+			}
 		case mediaobject.FieldObjectKey:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field object_key", values[i])
@@ -133,6 +151,12 @@ func (_m *MediaObject) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field size_bytes", values[i])
 			} else if value.Valid {
 				_m.SizeBytes = value.Int64
+			}
+		case mediaobject.FieldRevision:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field revision", values[i])
+			} else if value.Valid {
+				_m.Revision = value.Int64
 			}
 		case mediaobject.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -257,6 +281,12 @@ func (_m *MediaObject) String() string {
 	builder.WriteString("user_id=")
 	builder.WriteString(_m.UserID)
 	builder.WriteString(", ")
+	builder.WriteString("public_ref=")
+	builder.WriteString(_m.PublicRef)
+	builder.WriteString(", ")
+	builder.WriteString("entry_public_ref=")
+	builder.WriteString(_m.EntryPublicRef)
+	builder.WriteString(", ")
 	builder.WriteString("object_key=")
 	builder.WriteString(_m.ObjectKey)
 	builder.WriteString(", ")
@@ -265,6 +295,9 @@ func (_m *MediaObject) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("size_bytes=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SizeBytes))
+	builder.WriteString(", ")
+	builder.WriteString("revision=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Revision))
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Status))

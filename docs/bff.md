@@ -43,7 +43,6 @@ KON-38 仅为后续第三方登录加入 usersrv 基础模型和内部契约。`
 - `bff.tripmap.v1.SharedTripService`（#38）：共同旅行邀请/响应、更新、角色与成员管理、解散/退出及共享媒体列表/读取 → tripmap gRPC `CollaborationService` 对应方法；写操作校验 CSRF；`ReadSharedTripMedia` 登记 25 秒重任务。tripmap 公网 Connect 上的 `CollaborationService` 已移除。
 - `bff.tripmap.v1.ItineraryService`（#41：`ListItineraries`、`GetItinerary`、`SaveItinerary`、`DeleteItinerary`）→ tripmap gRPC `ItineraryService` 同名方法；写操作校验 Origin/CSRF。tripmap 公网 Connect 上的 `ItineraryService` 已移除。
 - `bff.tripmap.v1.SnapshotService`（#34：`ListSnapshots`、`CreateSnapshot`、`GetSnapshot`、`RestoreSnapshot`）→ tripmap gRPC `SnapshotService` 同名方法；`X-Tripmap-Schema` / `X-Tripmap-Regions` 白名单下传。`CreateSnapshot` / `RestoreSnapshot` 写操作校验 Origin/CSRF；`RestoreSnapshot` 登记为 25 秒重任务。tripmap 公网 Connect 上的 `SnapshotService` 已移除。
-- `bff.timeline.v1.MediaService`（KON-106：`PrepareUpload`、`CompleteUpload`、`ListMedia`、`ReadMedia`、`DeleteMedia`）→ timeline gRPC `MediaService`；写操作校验 CSRF；`PrepareUpload` 把对象存储签名产生的 `headers` 与 `expires_at` 原样透传（签名覆盖 `Content-Type`，丢掉头会让浏览器上传全部失败），`ReadMedia` 透传 bytes 与内容类型，桶保持私有、只经 BFF 读取；附件不可变，`DeleteMedia` 的 `expected_revision` 目前恒为 1。
 - `bff.tripmap.v1.MediaService`（#35：`PrepareUpload`、`CompleteUpload`、`ListMedia`、`ReadMedia`、`DeleteMedia`）→ tripmap gRPC `MediaService`；写操作校验 CSRF；`PrepareUpload`/`CompleteUpload` 登记 25 秒重任务；Connect 读上限 16 MiB。tripmap 公网 Connect 上的 `MediaService` 已移除。
 - `bff.tripmap.v1.ReportService/GetReport`（#39）→ tripmap gRPC `ReportService/GetReport`；`bff.tripmap.v1.SearchService/SearchNotes` → tripmap gRPC `SearchService/SearchNotes`（Connect 读上限 4 KiB）。tripmap 公网 Connect 上的 `ReportService` / `SearchService` 已移除。
 - `bff.tripmap.v1.RegionService`（#40：`GetRegionIndex`、`PreviewRegionUpgrade`、`ApplyRegionUpgrade`）→ tripmap gRPC `RegionService` 同名方法；`ApplyRegionUpgrade` 校验 Origin/CSRF；`X-Tripmap-Regions` 白名单下传。tripmap 公网 Connect 上的 `RegionService` 已移除。
@@ -321,7 +320,7 @@ metro 的专题总览 `/topics` 是单独的登录返回页；部署注册表需
 
 `bff.v1.AuthService/ResolveNavigation` 是匿名、只读的过程（不要求 CSRF，不读取或建立会话，不签发票据）：请求为稳定 `app_id` 与可选的 `return_path`，响应 `return_url` 由配置 `navigation.apps.<id>.origin` 加已校验的 pathname 拼成，另含 OzID 的 origin。客户端给出的绝对地址、`//`、反斜线、点段、百分号编码、query、fragment、未登记路径或未知应用都得到 `INVALID_ARGUMENT`；未配置 `navigation` 时得到 `FAILED_PRECONDITION`。
 
-配置段（`config.bff.example.yaml`）：`navigation.api_origin` 与 `navigation.apps`（`ozid` 必需；ID 取 `ozid`、`admin`、`trip-map`、`metro`、`timeline`；每项 `origin`、可选 `default_path` 与 `paths`）。BFF 启动时校验并在出错时拒绝启动：origin 必须精确且在 `cors_allowed_origins` 内、`auth.cookie_secure` 为 true 时必须 https、各 origin 与 `api_origin` 须在同一 schemeful site、origin 不重复。**同站点不等于授权**：未登记的兄弟子域名拿不到 CORS，写请求也过不了 Origin/CSRF 校验（`session_test`/`app_test` 与浏览器测试有覆盖）。Cookie 默认 host-only；只有显式配置并通过校验的 `auth.cookie_domain` 才设置 `Domain`，不因同站点自动扩大作用域。
+配置段（`config.bff.example.yaml`）：`navigation.api_origin` 与 `navigation.apps`（`ozid` 必需；ID 取 `ozid`、`admin`、`trip-map`、`metro`；每项 `origin`、可选 `default_path` 与 `paths`）。BFF 启动时校验并在出错时拒绝启动：origin 必须精确且在 `cors_allowed_origins` 内、`auth.cookie_secure` 为 true 时必须 https、各 origin 与 `api_origin` 须在同一 schemeful site、origin 不重复。**同站点不等于授权**：未登记的兄弟子域名拿不到 CORS，写请求也过不了 Origin/CSRF 校验（`session_test`/`app_test` 与浏览器测试有覆盖）。Cookie 默认 host-only；只有显式配置并通过校验的 `auth.cookie_domain` 才设置 `Domain`，不因同站点自动扩大作用域。
 
 **注册与重置的返回上下文（T2）。** `RequestRegistration` / `RequestPasswordReset` 的请求可带 `app_id` 与 `return_path`：BFF 在调 usersrv 之前用注册表按 T1 的同一规则校验（不合法为 `INVALID_ARGUMENT`，不创建挑战、不发邮件；没有配置注册表时，携带非空应用 ID 或路径的申请返回 `FAILED_PRECONDITION`，同样发生在调用 usersrv 之前，无上下文的申请照常处理）；`CompleteRegistration` / `ResetPassword` 的响应带回挑战保存的上下文，BFF 出口处再校验一次，应用已下线或路径不再允许就静默丢弃。完成接口不建立会话。因为产品的账号弹窗默认带自己的应用 ID，发布 T2 时 BFF 必须配置 `navigation`。邮件链接指向 usersrv 的 `auth.apps.ozid`，与申请来自哪个应用无关。
 
@@ -344,7 +343,13 @@ metro 的专题总览 `/topics` 是单独的登录返回页；部署注册表需
 - **周界的取舍**：`admin.trusted_proxies` 与 `admin.allowed_cidrs` 不得重叠（启动校验，`admin-web` 容器入口同样校验）。两层对“转发链不可用”的处理不同：BFF 对**无法解析的跳点直接拒绝**，只有没有转发头、或链里全是受信代理时才使用对端（代理自己）的地址，而这个地址不在白名单内（启动校验保证）所以仍被拒绝；Nginx（`real_ip`）遇到无法解析的跳点则**回落到代理自己的地址**再判断白名单。代理地址若在白名单内，任何能经该代理发送畸形头的人都能通过 Nginx 这一层，所以这种组合直接拒绝启动，不靠头格式正确。行为已用真实 Nginx 实测并在容器 CI 里保留反例。
 - **测试**：`internal/bff/adminguard`（来源/CIDR/受信代理/转发头单测）、`internal/bff/ingress/perimeter_test.go`、`internal/bff/config`（`TestValidateAdminPerimeter`）、`internal/e2e/user_admin_chain_test.go`、`internal/e2e/metro_admin_perimeter_chain_test.go`（T8：metro 管理与令牌接口的来源、Origin、预检、路径写法、角色，以及上游计数证明被拒请求没有到达业务）、`internal/e2e/metro_mcp_perimeter_chain_test.go`（T9：真实 BFF→usersrv→metro 链上，名单内/外地址、空名单、伪造转发头、13 种协议请求、无效令牌与只读 scope 调写工具，计数证明被拒请求没有执行任何东西，且与浏览器白名单互不放行）、`internal/bff/metro/mcp/perimeter_test.go`（16 种请求在名单外被拒且零副作用）、`internal/e2e/metro_mcp_chain_test.go` 的 `TestChainMCPTokenIsRevalidatedOnEveryCall`（显式 `mcp.allowed_cidrs`：先过周界，名单外同一令牌得到周界的 403 且不到 metro；名单内改密、禁用、角色撤销/重授、注销后旧令牌不复活）；CI 的“MCP source perimeter”步骤以 `-v` 单独执行这些用例，要求每个用例实际 `PASS` 且没有 `SKIP`（`.github/workflows/ci.yml`）、`internal/e2e/user_admin_write_chain_test.go`（四种角色、控制台 Origin、来源策略与预检、查询/分页/审计、限流、角色生命周期与注销保护）、`internal/e2e/admin_browser_test.go`（真实浏览器，`ADMIN_BROWSER_E2E=1`）。
 
-规则、配置、镜像与验证分层见 [控制台功能描述](admin/features.md)。
+
+
+## Timeline 浏览器契约
+
+Timeline 浏览器只调用 `/api/bff.timeline.v1.TimelineService/<Method>`，BFF 将认证内部 RPC 的 `entry_ref`、mutation receipt、revision 和状态字段逐项映射。响应中的 `id` 始终为空；旧 `id` 仅作为明确兼容的输入字段传入内部服务。写调用继续由 BFF 的会话、Origin 和 CSRF 策略保护，BFF 不接受客户端 user ID。
+
+update、trash、restore、purge 必须携带正数 `expected_revision`；业务服务以账号、opaque ref 和 revision 条件执行原子变更，冲突不转发成功回执。相同 `mutation_id` 的重放返回首次结果快照；并发请求通过 `(user_id, mutation_id)` 唯一约束抢占，唯一键冲突会回滚业务事务并读取已提交的首次回执，因此不会返回数据库唯一键错误。快照不会暴露内部数据库 UUID。
 
 ## 集中账号的来源策略与旧邮件过渡（OzID T12）
 
