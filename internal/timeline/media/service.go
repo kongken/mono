@@ -21,8 +21,16 @@ import (
 	"github.com/kongken/mono/internal/tripmap/blobstore"
 )
 
-var ErrNotFound = errors.New("media not found")
-var ErrInvalid = errors.New("invalid media request")
+var (
+	ErrNotFound = errors.New("media not found")
+	ErrInvalid  = errors.New("invalid media request")
+	// ErrSigningUnavailable reports an object store that cannot sign downloads:
+	// a configuration gap, not a missing attachment.
+	ErrSigningUnavailable = errors.New("download signing unavailable")
+	// ErrSigningFailed wraps a transient presigner or object-store failure; it is
+	// retryable and must not be reported as a missing attachment.
+	ErrSigningFailed = errors.New("download signing failed")
+)
 
 type Store struct {
 	DB    *ent.Client
@@ -214,17 +222,25 @@ func DownloadURL(ctx context.Context, st *Store, userID, mediaRef string, ttl ti
 	if ttl <= 0 || ttl > DownloadURLTTL {
 		ttl = DownloadURLTTL
 	}
+	// Fail on a store that cannot sign before touching the database: the
+	// capability is a precondition, and the caller needs to distinguish it from
+	// a missing attachment.
+	signer, ok := st.Blobs.(blobstore.DownloadSigner)
+	if !ok {
+		return nil, ErrSigningUnavailable
+	}
 	m, err := st.DB.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.PublicRefEQ(mediaRef), mediaobject.StateEQ(mediaobject.StateReady), mediaobject.HasEntryWith(entry.DeletedAtIsNil())).Only(ctx)
 	if err != nil {
 		return nil, ErrNotFound
 	}
-	signer, ok := st.Blobs.(blobstore.DownloadSigner)
-	if !ok {
-		return nil, errors.New("download signing unavailable")
-	}
 	url, err := signer.SignDownload(ctx, m.ObjectKey, ttl)
 	if err != nil {
-		return nil, err
+		// A store that is configured but cannot presign is the same precondition
+		// gap as a store with no download signer; anything else is retryable.
+		if errors.Is(err, blobstore.ErrSigningUnavailable) {
+			return nil, ErrSigningUnavailable
+		}
+		return nil, fmt.Errorf("%w: %v", ErrSigningFailed, err)
 	}
 	return &Download{URL: url, Filename: m.Filename, ContentType: m.ContentType, ExpiresAt: time.Now().UTC().Add(ttl)}, nil
 }

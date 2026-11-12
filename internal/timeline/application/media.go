@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/timeline/ent"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
@@ -76,9 +77,27 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *timelinev1.DeleteMe
 func (s *MediaService) GetMediaDownloadUrl(ctx context.Context, req *timelinev1.GetMediaDownloadUrlRequest) (*timelinev1.GetMediaDownloadUrlResponse, error) {
 	d, err := media.DownloadURL(ctx, s.store, rpcauth.CallFrom(ctx).UserID, req.MediaRef, 0)
 	if err != nil {
-		return nil, status.Error(codes.NotFound, err.Error())
+		return nil, downloadStatus(err)
 	}
 	return &timelinev1.GetMediaDownloadUrlResponse{Url: d.URL, ExpiresAt: timestamppb.New(d.ExpiresAt), ContentType: d.ContentType, Filename: d.Filename}, nil
+}
+
+// downloadStatus keeps the download-address failure boundary diagnosable: a
+// missing or not-owned attachment is NotFound, a malformed request is
+// InvalidArgument, an object store without a download signer is a configuration
+// gap (FailedPrecondition), and anything else from the presigner or object store
+// is a retryable Unavailable rather than "the attachment does not exist".
+func downloadStatus(err error) error {
+	switch {
+	case errors.Is(err, media.ErrInvalid):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, media.ErrNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, media.ErrSigningUnavailable):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	default:
+		return status.Error(codes.Unavailable, err.Error())
+	}
 }
 
 var _ = info

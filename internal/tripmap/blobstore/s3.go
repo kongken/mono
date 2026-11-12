@@ -16,6 +16,11 @@ import (
 
 var ErrNotFound = errors.New("object not found")
 
+// ErrSigningUnavailable reports a configured store that cannot presign because
+// it has no presign client. It separates a configuration gap from a transient
+// signing failure so callers can fail closed with a clear precondition error.
+var ErrSigningUnavailable = errors.New("signing unavailable")
+
 // Store keeps object access separate from upload or snapshot business logic.
 type Store interface {
 	Put(context.Context, string, io.ReadSeeker, int64, string) error
@@ -61,7 +66,7 @@ func (s *S3) SignDownload(ctx context.Context, key string, ttl time.Duration) (s
 		return "", err
 	}
 	if s.signer == nil || ttl <= 0 {
-		return "", fmt.Errorf("download signing unavailable")
+		return "", ErrSigningUnavailable
 	}
 	out, err := s.signer.PresignGetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(k)}, func(o *s3.PresignOptions) { o.Expires = ttl })
 	if err != nil {
