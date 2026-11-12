@@ -115,6 +115,11 @@ func AmountMinor(v int64) predicate.Entry {
 	return predicate.Entry(sql.FieldEQ(FieldAmountMinor, v))
 }
 
+// AmountPresent applies equality check predicate on the "amount_present" field. It's identical to AmountPresentEQ.
+func AmountPresent(v bool) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldAmountPresent, v))
+}
+
 // Currency applies equality check predicate on the "currency" field. It's identical to CurrencyEQ.
 func Currency(v string) predicate.Entry {
 	return predicate.Entry(sql.FieldEQ(FieldCurrency, v))
@@ -788,6 +793,16 @@ func AmountMinorLT(v int64) predicate.Entry {
 // AmountMinorLTE applies the LTE predicate on the "amount_minor" field.
 func AmountMinorLTE(v int64) predicate.Entry {
 	return predicate.Entry(sql.FieldLTE(FieldAmountMinor, v))
+}
+
+// AmountPresentEQ applies the EQ predicate on the "amount_present" field.
+func AmountPresentEQ(v bool) predicate.Entry {
+	return predicate.Entry(sql.FieldEQ(FieldAmountPresent, v))
+}
+
+// AmountPresentNEQ applies the NEQ predicate on the "amount_present" field.
+func AmountPresentNEQ(v bool) predicate.Entry {
+	return predicate.Entry(sql.FieldNEQ(FieldAmountPresent, v))
 }
 
 // CurrencyEQ applies the EQ predicate on the "currency" field.

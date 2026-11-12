@@ -105,6 +105,11 @@ func Revision(v int) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldRevision, v))
 }
 
+// MutationID applies equality check predicate on the "mutation_id" field. It's identical to MutationIDEQ.
+func MutationID(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldMutationID, v))
+}
+
 // Filename applies equality check predicate on the "filename" field. It's identical to FilenameEQ.
 func Filename(v string) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldEQ(FieldFilename, v))
@@ -658,6 +663,71 @@ func RevisionLT(v int) predicate.MediaObject {
 // RevisionLTE applies the LTE predicate on the "revision" field.
 func RevisionLTE(v int) predicate.MediaObject {
 	return predicate.MediaObject(sql.FieldLTE(FieldRevision, v))
+}
+
+// MutationIDEQ applies the EQ predicate on the "mutation_id" field.
+func MutationIDEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEQ(FieldMutationID, v))
+}
+
+// MutationIDNEQ applies the NEQ predicate on the "mutation_id" field.
+func MutationIDNEQ(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNEQ(FieldMutationID, v))
+}
+
+// MutationIDIn applies the In predicate on the "mutation_id" field.
+func MutationIDIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldIn(FieldMutationID, vs...))
+}
+
+// MutationIDNotIn applies the NotIn predicate on the "mutation_id" field.
+func MutationIDNotIn(vs ...string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldNotIn(FieldMutationID, vs...))
+}
+
+// MutationIDGT applies the GT predicate on the "mutation_id" field.
+func MutationIDGT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGT(FieldMutationID, v))
+}
+
+// MutationIDGTE applies the GTE predicate on the "mutation_id" field.
+func MutationIDGTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldGTE(FieldMutationID, v))
+}
+
+// MutationIDLT applies the LT predicate on the "mutation_id" field.
+func MutationIDLT(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLT(FieldMutationID, v))
+}
+
+// MutationIDLTE applies the LTE predicate on the "mutation_id" field.
+func MutationIDLTE(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldLTE(FieldMutationID, v))
+}
+
+// MutationIDContains applies the Contains predicate on the "mutation_id" field.
+func MutationIDContains(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContains(FieldMutationID, v))
+}
+
+// MutationIDHasPrefix applies the HasPrefix predicate on the "mutation_id" field.
+func MutationIDHasPrefix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasPrefix(FieldMutationID, v))
+}
+
+// MutationIDHasSuffix applies the HasSuffix predicate on the "mutation_id" field.
+func MutationIDHasSuffix(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldHasSuffix(FieldMutationID, v))
+}
+
+// MutationIDEqualFold applies the EqualFold predicate on the "mutation_id" field.
+func MutationIDEqualFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldEqualFold(FieldMutationID, v))
+}
+
+// MutationIDContainsFold applies the ContainsFold predicate on the "mutation_id" field.
+func MutationIDContainsFold(v string) predicate.MediaObject {
+	return predicate.MediaObject(sql.FieldContainsFold(FieldMutationID, v))
 }
 
 // FilenameEQ applies the EQ predicate on the "filename" field.

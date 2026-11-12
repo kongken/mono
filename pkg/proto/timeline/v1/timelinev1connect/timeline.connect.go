@@ -51,6 +51,15 @@ const (
 	// TimelineServicePurgeEntryProcedure is the fully-qualified name of the TimelineService's
 	// PurgeEntry RPC.
 	TimelineServicePurgeEntryProcedure = "/timeline.v1.TimelineService/PurgeEntry"
+	// TimelineServiceListCategoriesProcedure is the fully-qualified name of the TimelineService's
+	// ListCategories RPC.
+	TimelineServiceListCategoriesProcedure = "/timeline.v1.TimelineService/ListCategories"
+	// TimelineServiceCreateCategoryProcedure is the fully-qualified name of the TimelineService's
+	// CreateCategory RPC.
+	TimelineServiceCreateCategoryProcedure = "/timeline.v1.TimelineService/CreateCategory"
+	// TimelineServiceUpdateCategoryProcedure is the fully-qualified name of the TimelineService's
+	// UpdateCategory RPC.
+	TimelineServiceUpdateCategoryProcedure = "/timeline.v1.TimelineService/UpdateCategory"
 )
 
 // TimelineServiceClient is a client for the timeline.v1.TimelineService service.
@@ -61,6 +70,9 @@ type TimelineServiceClient interface {
 	DeleteEntry(context.Context, *connect.Request[v1.DeleteEntryRequest]) (*connect.Response[v1.DeleteEntryResponse], error)
 	RestoreEntry(context.Context, *connect.Request[v1.RestoreEntryRequest]) (*connect.Response[v1.EntryResponse], error)
 	PurgeEntry(context.Context, *connect.Request[v1.PurgeEntryRequest]) (*connect.Response[v1.PurgeEntryResponse], error)
+	ListCategories(context.Context, *connect.Request[v1.ListCategoriesRequest]) (*connect.Response[v1.ListCategoriesResponse], error)
+	CreateCategory(context.Context, *connect.Request[v1.CreateCategoryRequest]) (*connect.Response[v1.CategoryResponse], error)
+	UpdateCategory(context.Context, *connect.Request[v1.UpdateCategoryRequest]) (*connect.Response[v1.CategoryResponse], error)
 }
 
 // NewTimelineServiceClient constructs a client for the timeline.v1.TimelineService service. By
@@ -110,17 +122,38 @@ func NewTimelineServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(timelineServiceMethods.ByName("PurgeEntry")),
 			connect.WithClientOptions(opts...),
 		),
+		listCategories: connect.NewClient[v1.ListCategoriesRequest, v1.ListCategoriesResponse](
+			httpClient,
+			baseURL+TimelineServiceListCategoriesProcedure,
+			connect.WithSchema(timelineServiceMethods.ByName("ListCategories")),
+			connect.WithClientOptions(opts...),
+		),
+		createCategory: connect.NewClient[v1.CreateCategoryRequest, v1.CategoryResponse](
+			httpClient,
+			baseURL+TimelineServiceCreateCategoryProcedure,
+			connect.WithSchema(timelineServiceMethods.ByName("CreateCategory")),
+			connect.WithClientOptions(opts...),
+		),
+		updateCategory: connect.NewClient[v1.UpdateCategoryRequest, v1.CategoryResponse](
+			httpClient,
+			baseURL+TimelineServiceUpdateCategoryProcedure,
+			connect.WithSchema(timelineServiceMethods.ByName("UpdateCategory")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // timelineServiceClient implements TimelineServiceClient.
 type timelineServiceClient struct {
-	listEntries  *connect.Client[v1.ListEntriesRequest, v1.ListEntriesResponse]
-	createEntry  *connect.Client[v1.CreateEntryRequest, v1.EntryResponse]
-	updateEntry  *connect.Client[v1.UpdateEntryRequest, v1.EntryResponse]
-	deleteEntry  *connect.Client[v1.DeleteEntryRequest, v1.DeleteEntryResponse]
-	restoreEntry *connect.Client[v1.RestoreEntryRequest, v1.EntryResponse]
-	purgeEntry   *connect.Client[v1.PurgeEntryRequest, v1.PurgeEntryResponse]
+	listEntries    *connect.Client[v1.ListEntriesRequest, v1.ListEntriesResponse]
+	createEntry    *connect.Client[v1.CreateEntryRequest, v1.EntryResponse]
+	updateEntry    *connect.Client[v1.UpdateEntryRequest, v1.EntryResponse]
+	deleteEntry    *connect.Client[v1.DeleteEntryRequest, v1.DeleteEntryResponse]
+	restoreEntry   *connect.Client[v1.RestoreEntryRequest, v1.EntryResponse]
+	purgeEntry     *connect.Client[v1.PurgeEntryRequest, v1.PurgeEntryResponse]
+	listCategories *connect.Client[v1.ListCategoriesRequest, v1.ListCategoriesResponse]
+	createCategory *connect.Client[v1.CreateCategoryRequest, v1.CategoryResponse]
+	updateCategory *connect.Client[v1.UpdateCategoryRequest, v1.CategoryResponse]
 }
 
 // ListEntries calls timeline.v1.TimelineService.ListEntries.
@@ -153,6 +186,21 @@ func (c *timelineServiceClient) PurgeEntry(ctx context.Context, req *connect.Req
 	return c.purgeEntry.CallUnary(ctx, req)
 }
 
+// ListCategories calls timeline.v1.TimelineService.ListCategories.
+func (c *timelineServiceClient) ListCategories(ctx context.Context, req *connect.Request[v1.ListCategoriesRequest]) (*connect.Response[v1.ListCategoriesResponse], error) {
+	return c.listCategories.CallUnary(ctx, req)
+}
+
+// CreateCategory calls timeline.v1.TimelineService.CreateCategory.
+func (c *timelineServiceClient) CreateCategory(ctx context.Context, req *connect.Request[v1.CreateCategoryRequest]) (*connect.Response[v1.CategoryResponse], error) {
+	return c.createCategory.CallUnary(ctx, req)
+}
+
+// UpdateCategory calls timeline.v1.TimelineService.UpdateCategory.
+func (c *timelineServiceClient) UpdateCategory(ctx context.Context, req *connect.Request[v1.UpdateCategoryRequest]) (*connect.Response[v1.CategoryResponse], error) {
+	return c.updateCategory.CallUnary(ctx, req)
+}
+
 // TimelineServiceHandler is an implementation of the timeline.v1.TimelineService service.
 type TimelineServiceHandler interface {
 	ListEntries(context.Context, *connect.Request[v1.ListEntriesRequest]) (*connect.Response[v1.ListEntriesResponse], error)
@@ -161,6 +209,9 @@ type TimelineServiceHandler interface {
 	DeleteEntry(context.Context, *connect.Request[v1.DeleteEntryRequest]) (*connect.Response[v1.DeleteEntryResponse], error)
 	RestoreEntry(context.Context, *connect.Request[v1.RestoreEntryRequest]) (*connect.Response[v1.EntryResponse], error)
 	PurgeEntry(context.Context, *connect.Request[v1.PurgeEntryRequest]) (*connect.Response[v1.PurgeEntryResponse], error)
+	ListCategories(context.Context, *connect.Request[v1.ListCategoriesRequest]) (*connect.Response[v1.ListCategoriesResponse], error)
+	CreateCategory(context.Context, *connect.Request[v1.CreateCategoryRequest]) (*connect.Response[v1.CategoryResponse], error)
+	UpdateCategory(context.Context, *connect.Request[v1.UpdateCategoryRequest]) (*connect.Response[v1.CategoryResponse], error)
 }
 
 // NewTimelineServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -206,6 +257,24 @@ func NewTimelineServiceHandler(svc TimelineServiceHandler, opts ...connect.Handl
 		connect.WithSchema(timelineServiceMethods.ByName("PurgeEntry")),
 		connect.WithHandlerOptions(opts...),
 	)
+	timelineServiceListCategoriesHandler := connect.NewUnaryHandler(
+		TimelineServiceListCategoriesProcedure,
+		svc.ListCategories,
+		connect.WithSchema(timelineServiceMethods.ByName("ListCategories")),
+		connect.WithHandlerOptions(opts...),
+	)
+	timelineServiceCreateCategoryHandler := connect.NewUnaryHandler(
+		TimelineServiceCreateCategoryProcedure,
+		svc.CreateCategory,
+		connect.WithSchema(timelineServiceMethods.ByName("CreateCategory")),
+		connect.WithHandlerOptions(opts...),
+	)
+	timelineServiceUpdateCategoryHandler := connect.NewUnaryHandler(
+		TimelineServiceUpdateCategoryProcedure,
+		svc.UpdateCategory,
+		connect.WithSchema(timelineServiceMethods.ByName("UpdateCategory")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/timeline.v1.TimelineService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TimelineServiceListEntriesProcedure:
@@ -220,6 +289,12 @@ func NewTimelineServiceHandler(svc TimelineServiceHandler, opts ...connect.Handl
 			timelineServiceRestoreEntryHandler.ServeHTTP(w, r)
 		case TimelineServicePurgeEntryProcedure:
 			timelineServicePurgeEntryHandler.ServeHTTP(w, r)
+		case TimelineServiceListCategoriesProcedure:
+			timelineServiceListCategoriesHandler.ServeHTTP(w, r)
+		case TimelineServiceCreateCategoryProcedure:
+			timelineServiceCreateCategoryHandler.ServeHTTP(w, r)
+		case TimelineServiceUpdateCategoryProcedure:
+			timelineServiceUpdateCategoryHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -251,4 +326,16 @@ func (UnimplementedTimelineServiceHandler) RestoreEntry(context.Context, *connec
 
 func (UnimplementedTimelineServiceHandler) PurgeEntry(context.Context, *connect.Request[v1.PurgeEntryRequest]) (*connect.Response[v1.PurgeEntryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("timeline.v1.TimelineService.PurgeEntry is not implemented"))
+}
+
+func (UnimplementedTimelineServiceHandler) ListCategories(context.Context, *connect.Request[v1.ListCategoriesRequest]) (*connect.Response[v1.ListCategoriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("timeline.v1.TimelineService.ListCategories is not implemented"))
+}
+
+func (UnimplementedTimelineServiceHandler) CreateCategory(context.Context, *connect.Request[v1.CreateCategoryRequest]) (*connect.Response[v1.CategoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("timeline.v1.TimelineService.CreateCategory is not implemented"))
+}
+
+func (UnimplementedTimelineServiceHandler) UpdateCategory(context.Context, *connect.Request[v1.UpdateCategoryRequest]) (*connect.Response[v1.CategoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("timeline.v1.TimelineService.UpdateCategory is not implemented"))
 }

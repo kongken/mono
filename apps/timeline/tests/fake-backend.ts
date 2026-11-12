@@ -1,0 +1,317 @@
+import type { Page, Route } from "@playwright/test";
+
+/**
+ * A small in-memory BFF for the Timeline application: the account procedures the page needs to learn who it is
+ * and get a CSRF token, and the six record procedures. It is installed with page.route; nothing leaves the test.
+ * The answers are Connect's JSON encoding, so a record's int64 fields are strings.
+ */
+
+export type EntryJson = {
+  id: string;
+  entryRef: string;
+  title: string;
+  date: string;
+  time: string;
+  timezone: string;
+  category: string;
+  location: string;
+  amountMinor: string;
+  currency: string;
+  note: string;
+  url: string;
+  urlTitle: string;
+  urlNote: string;
+  revision: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
+};
+
+export type FakeTimeline = ReturnType<typeof fakeBackend>["state"];
+
+export type MediaJson = {
+  mediaRef: string;
+  entryRef: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: string;
+  status: string;
+  /** What the upload PUT carried, base64: ReadMedia answers with it, so a preview has bytes to show. */
+  body?: string;
+};
+
+/** A ready attachment, for a test that starts from a record that already has one. */
+export function mediaJson(fields: Partial<MediaJson> & { mediaRef: string; entryRef: string; filename: string }): MediaJson {
+  return { contentType: "image/png", sizeBytes: "8", status: "ready", ...fields };
+}
+
+/** A record with every field the server always sets, so a test only writes what it cares about. */
+export function entryJson(fields: Partial<EntryJson> & { id: string; title: string; date: string }): EntryJson {
+  const now = "2026-11-07T04:30:00Z";
+  return {
+    entryRef: `ent_${fields.id.replace(/[^0-9a-z]/g, "").padEnd(26, "0").slice(0, 26)}`,
+    time: "",
+    timezone: "Asia/Shanghai",
+    category: "",
+    location: "",
+    amountMinor: "0",
+    currency: "",
+    note: "",
+    url: "",
+    urlTitle: "",
+    urlNote: "",
+    revision: "1",
+    createdAt: now,
+    updatedAt: now,
+    ...fields,
+  };
+}
+
+/** The procedures that write: everything else in this fake is a read, even when it is a POST. */
+const WRITES = new Set([
+  "bff.timeline.v1.TimelineService/CreateEntry",
+  "bff.timeline.v1.TimelineService/DeleteEntry",
+  "bff.timeline.v1.TimelineService/RestoreEntry",
+  "bff.timeline.v1.TimelineService/PurgeEntry",
+  // Every media write, including Prepare: it reserves a row and signs a URL, so it is a write like any other.
+  "bff.timeline.v1.MediaService/PrepareUpload",
+  "bff.timeline.v1.MediaService/CompleteUpload",
+  "bff.timeline.v1.MediaService/DeleteMedia",
+]);
+
+export async function fakeBackend(page: Page, opts: { signedIn?: boolean; entries?: EntryJson[]; media?: MediaJson[] } = {}) {
+  const state = {
+    user: opts.signedIn === false ? null : { id: "u1", displayName: "茶隐居士" },
+    csrfIssued: 0,
+    listFailures: 0,
+    /** How many prepare calls to refuse, how many upload PUTs to fail, how many completes to say are expired. */
+    prepareFailures: 0,
+    uploadFailures: 0,
+    completeFailures: 0,
+    calls: [] as string[],
+    /** Every write that reached the service: the CSRF header and the message. */
+    writes: [] as { procedure: string; csrf: string | undefined; body: Record<string, any> }[],
+    /** Every PUT that reached the object store, with the headers the browser sent. */
+    uploads: [] as { mediaRef: string; contentType: string | undefined; bytes: number; signature: string | undefined }[],
+    entries: [...(opts.entries ?? [])],
+    media: [...(opts.media ?? [])],
+    /** The origin the page is served from, learned from the first call: the fake signs uploads on it. */
+    origin: "",
+    signed: 0,
+  };
+
+  const failure = (status: number, code: string, message: string) => ({ status, body: { code, message } });
+  const unauth = () => (state.user === null ? failure(401, "unauthenticated", "sign in required") : null);
+  const matches = (row: EntryJson, body: Record<string, any>) => {
+    if (body.includeDeleted !== true && row.deletedAt !== undefined) return false;
+    if (body.category && row.category !== body.category) return false;
+    if (body.fromDate && row.date < body.fromDate) return false;
+    if (body.toDate && row.date > body.toDate) return false;
+    if (body.query) {
+      const needle = String(body.query).toLowerCase();
+      if (![row.title, row.note, row.location].some((field) => field.toLowerCase().includes(needle))) return false;
+    }
+    return true;
+  };
+
+  const sorted = () => [...state.entries].sort((a, b) => (a.date === b.date ? (a.id < b.id ? -1 : 1) : a.date < b.date ? 1 : -1));
+
+  /** The intent behind each signed upload: Complete only accepts the same mutation ID, as the service does. */
+  const mutationIDs = new Map<string, string>();
+
+  /** One media object as the API describes it: the bytes and the object key stay on the server side. */
+  const publicMedia = (row: MediaJson) => ({
+    mediaRef: row.mediaRef,
+    entryRef: row.entryRef,
+    filename: row.filename,
+    contentType: row.contentType,
+    sizeBytes: row.sizeBytes,
+    status: row.status,
+    createdAt: "2026-11-10T05:00:00Z",
+  });
+
+  const handlers: Record<string, (body: Record<string, any>) => { status?: number; body: unknown }> = {
+    "bff.v1.AuthService/Me": () => unauth() ?? { body: { user: { id: state.user!.id, displayName: state.user!.displayName }, roles: [] } },
+    "bff.v1.AuthService/IssueCSRFToken": () => ({ body: { token: `csrf-${++state.csrfIssued}` } }),
+    "bff.timeline.v1.TimelineService/ListEntries": (body) => {
+      if (state.listFailures > 0) {
+        state.listFailures -= 1;
+        return failure(503, "unavailable", "timeline service unavailable");
+      }
+      return unauth() ?? { body: { entries: sorted().filter((row) => matches(row, body)), nextPageToken: "" } };
+    },
+    "bff.timeline.v1.MediaService/ListMedia": (body) =>
+      unauth() ?? { body: { media: state.media.filter((row) => row.entryRef === body.entryRef && row.status === "ready").map(publicMedia) } },
+    "bff.timeline.v1.MediaService/PrepareUpload": (body) => {
+      const denied = unauth();
+      if (denied) return denied;
+      if (state.prepareFailures > 0) {
+        state.prepareFailures -= 1;
+        return failure(503, "unavailable", "timeline service unavailable");
+      }
+      // The same refusals the service makes before it signs anything, so the page cannot drift from it.
+      const entry = state.entries.find((row) => row.entryRef === body.entryRef);
+      if (!entry || typeof body.filename !== "string" || body.filename === "" || typeof body.mutationId !== "string" || body.mutationId === "") {
+        return failure(400, "invalid_argument", "invalid media request");
+      }
+      if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(body.contentType)) {
+        return failure(400, "invalid_argument", "invalid media request");
+      }
+      const size = Number(body.sizeBytes);
+      if (!Number.isFinite(size) || size <= 0 || size > 10 * 1024 * 1024) return failure(400, "invalid_argument", "invalid media request");
+      const replay = state.media.find((row) => row.entryRef === body.entryRef && row.status !== "deleting" && mutationIDs.get(row.mediaRef) === body.mutationId);
+      if (replay !== undefined) {
+        return { body: { media: publicMedia(replay), uploadUrl: `${state.origin}/upload/${replay.mediaRef}`, headers: { "Content-Type": replay.contentType }, expiresAt: new Date(Date.now() + 600_000).toISOString() } };
+      }
+      if (state.media.filter((row) => row.entryRef === body.entryRef && row.status !== "deleting").length >= 20) {
+        return failure(400, "invalid_argument", "invalid media request");
+      }
+      const mediaRef = `med_${String(++state.signed).padStart(26, "0")}`;
+      const pending: MediaJson = { mediaRef, entryRef: body.entryRef, filename: body.filename, contentType: body.contentType, sizeBytes: String(size), status: "pending" };
+      state.media.push(pending);
+      // A second media property: the fake keeps the mutation ID so Complete can refuse a different intent.
+      mutationIDs.set(mediaRef, body.mutationId);
+      return {
+        body: {
+          media: publicMedia(pending),
+          uploadUrl: `${state.origin}/upload/${mediaRef}`,
+          headers: { "Content-Type": body.contentType },
+          expiresAt: new Date(Date.now() + 600_000).toISOString(),
+        },
+      };
+    },
+    "bff.timeline.v1.MediaService/CompleteUpload": (body) => {
+      const denied = unauth();
+      if (denied) return denied;
+      if (state.completeFailures > 0) {
+        state.completeFailures -= 1;
+        return failure(400, "invalid_argument", "UPLOAD_EXPIRED: the upload was reclaimed");
+      }
+      const row = state.media.find((candidate) => candidate.mediaRef === body.mediaRef);
+      if (!row || mutationIDs.get(row.mediaRef) !== body.mutationId) return failure(404, "not_found", "media not found");
+      if (row.status === "ready") return { body: { media: publicMedia(row) } };
+      if (row.status !== "pending") return failure(400, "invalid_argument", "invalid media request");
+      if (row.body === undefined) return failure(404, "not_found", "media not found");
+      row.status = "ready";
+      return { body: { media: publicMedia(row) } };
+    },
+    "bff.timeline.v1.MediaService/ReadMedia": (body) => {
+      const denied = unauth();
+      if (denied) return denied;
+      const row = state.media.find((candidate) => candidate.mediaRef === body.mediaRef && candidate.status === "ready");
+      if (!row || row.body === undefined) return failure(404, "not_found", "media not found");
+      return { body: { data: row.body, contentType: row.contentType, filename: row.filename } };
+    },
+    "bff.timeline.v1.MediaService/DeleteMedia": (body) => {
+      const denied = unauth();
+      if (denied) return denied;
+      const row = state.media.find((candidate) => candidate.mediaRef === body.mediaRef);
+      if (!row) return failure(404, "not_found", "media not found");
+      // The service accepts exactly revision 1 in this slice: anything else is the client guessing.
+      if (Number(body.expectedRevision) !== 1 || typeof body.mutationId !== "string" || body.mutationId === "") {
+        return failure(400, "invalid_argument", "invalid media request");
+      }
+      row.status = "deleting";
+      return { body: { receipt: { mutationId: body.mutationId, operation: "media_delete", resultRevision: "1", replayed: false } } };
+    },
+    "bff.timeline.v1.TimelineService/CreateEntry": (body) => {
+      const denied = unauth();
+      if (denied) return denied;
+      const input = body.entry ?? {};
+      if (typeof input.title !== "string" || input.title.trim() === "") return failure(400, "invalid_argument", "title is required");
+      const created = entryJson({
+        id: `e${state.entries.length + 10}`,
+        title: input.title,
+        date: input.date ?? "2026-11-07",
+        time: input.time ?? "",
+        timezone: input.timezone ?? "Asia/Shanghai",
+        category: input.category ?? "",
+        location: input.location ?? "",
+        amountMinor: String(input.amountMinor ?? "0"),
+        currency: input.currency ?? "",
+        note: input.note ?? "",
+      });
+      state.entries.push(created);
+      return { body: { entry: created, receipt: { mutationId: body.mutationId ?? "", operation: "create", resultRevision: "1", replayed: false } } };
+    },
+    "bff.timeline.v1.TimelineService/DeleteEntry": (body) => {
+      const denied = unauth();
+      if (denied) return denied;
+      const row = state.entries.find((candidate) => candidate.entryRef === body.entryRef || candidate.id === body.id);
+      if (!row) return failure(404, "not_found", "entry not found");
+      row.deletedAt = "2026-11-08T02:00:00Z";
+      row.revision = String(Number(row.revision) + 1);
+      return { body: { entry: row, receipt: { mutationId: body.mutationId ?? "", operation: "delete", resultRevision: row.revision, replayed: false } } };
+    },
+    "bff.timeline.v1.TimelineService/RestoreEntry": (body) => {
+      const denied = unauth();
+      if (denied) return denied;
+      const row = state.entries.find((candidate) => candidate.entryRef === body.entryRef || candidate.id === body.id);
+      if (!row) return failure(404, "not_found", "entry not found");
+      delete row.deletedAt;
+      row.revision = String(Number(row.revision) + 1);
+      return { body: { entry: row, receipt: { mutationId: body.mutationId ?? "", operation: "restore", resultRevision: row.revision, replayed: false } } };
+    },
+    "bff.timeline.v1.TimelineService/PurgeEntry": (body) => {
+      const denied = unauth();
+      if (denied) return denied;
+      state.entries = state.entries.filter((candidate) => candidate.entryRef !== body.entryRef && candidate.id !== body.id);
+      return { body: { receipt: { mutationId: body.mutationId ?? "", operation: "purge", resultRevision: "0", replayed: false } } };
+    },
+  };
+
+  // Every procedure of the two services, by `service/method`, on the preview origin that doubles as the API origin.
+  await page.route("**/api/**", (route) => answer(route));
+  // The object store: a presigned PUT, on the same origin here. Nothing else is served from it.
+  await page.route("**/upload/**", (route) => upload(route));
+
+  async function upload(route: Route) {
+    const request = route.request();
+    const ref = new URL(request.url()).pathname.split("/").pop() ?? "";
+    const row = state.media.find((candidate) => candidate.mediaRef === ref);
+    if (request.method() !== "PUT" || row === undefined) {
+      await route.fulfill({ status: 404, body: "not found" });
+      return;
+    }
+    state.uploads.push({
+      mediaRef: ref,
+      contentType: request.headers()["content-type"],
+      bytes: request.postDataBuffer()?.length ?? 0,
+      signature: new URL(request.url()).searchParams.get("signature") ?? undefined,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    if (state.uploadFailures > 0) {
+      state.uploadFailures -= 1;
+      await route.fulfill({ status: 500, body: "the object store refused the PUT" });
+      return;
+    }
+    // The store keeps the bytes; Complete reads them back and checks the size and the document's own type.
+    row.body = (request.postDataBuffer() ?? Buffer.alloc(0)).toString("base64");
+    await route.fulfill({ status: 200, body: "" });
+  }
+
+  async function answer(route: Route) {
+    const url = new URL(route.request().url());
+    state.origin = url.origin;
+    const match = /^\/api\/([\w.]+)\/(\w+)$/.exec(url.pathname);
+    if (match === null) {
+      await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ code: "unimplemented", message: "not found" }) });
+      return;
+    }
+    const procedure = `${match[1]}/${match[2]}`;
+    const handler = handlers[procedure];
+    state.calls.push(procedure);
+    if (handler === undefined) {
+      await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ code: "unimplemented", message: procedure }) });
+      return;
+    }
+    const body = (route.request().postDataJSON() ?? {}) as Record<string, any>;
+    if (WRITES.has(procedure)) {
+      state.writes.push({ procedure, csrf: route.request().headers()["x-csrf-token"], body });
+    }
+    const outcome = handler(body);
+    await route.fulfill({ status: outcome.status ?? 200, contentType: "application/json", body: JSON.stringify(outcome.body) });
+  }
+
+  return { state };
+}

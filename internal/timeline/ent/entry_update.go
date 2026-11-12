@@ -148,6 +148,20 @@ func (_u *EntryUpdate) AddAmountMinor(v int64) *EntryUpdate {
 	return _u
 }
 
+// SetAmountPresent sets the "amount_present" field.
+func (_u *EntryUpdate) SetAmountPresent(v bool) *EntryUpdate {
+	_u.mutation.SetAmountPresent(v)
+	return _u
+}
+
+// SetNillableAmountPresent sets the "amount_present" field if the given value is not nil.
+func (_u *EntryUpdate) SetNillableAmountPresent(v *bool) *EntryUpdate {
+	if v != nil {
+		_u.SetAmountPresent(*v)
+	}
+	return _u
+}
+
 // SetCurrency sets the "currency" field.
 func (_u *EntryUpdate) SetCurrency(v string) *EntryUpdate {
 	_u.mutation.SetCurrency(v)
@@ -420,6 +434,9 @@ func (_u *EntryUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedAmountMinor(); ok {
 		_spec.AddField(entry.FieldAmountMinor, field.TypeInt64, value)
 	}
+	if value, ok := _u.mutation.AmountPresent(); ok {
+		_spec.SetField(entry.FieldAmountPresent, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.Currency(); ok {
 		_spec.SetField(entry.FieldCurrency, field.TypeString, value)
 	}
@@ -634,6 +651,20 @@ func (_u *EntryUpdateOne) SetNillableAmountMinor(v *int64) *EntryUpdateOne {
 // AddAmountMinor adds value to the "amount_minor" field.
 func (_u *EntryUpdateOne) AddAmountMinor(v int64) *EntryUpdateOne {
 	_u.mutation.AddAmountMinor(v)
+	return _u
+}
+
+// SetAmountPresent sets the "amount_present" field.
+func (_u *EntryUpdateOne) SetAmountPresent(v bool) *EntryUpdateOne {
+	_u.mutation.SetAmountPresent(v)
+	return _u
+}
+
+// SetNillableAmountPresent sets the "amount_present" field if the given value is not nil.
+func (_u *EntryUpdateOne) SetNillableAmountPresent(v *bool) *EntryUpdateOne {
+	if v != nil {
+		_u.SetAmountPresent(*v)
+	}
 	return _u
 }
 
@@ -938,6 +969,9 @@ func (_u *EntryUpdateOne) sqlSave(ctx context.Context) (_node *Entry, err error)
 	}
 	if value, ok := _u.mutation.AddedAmountMinor(); ok {
 		_spec.AddField(entry.FieldAmountMinor, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AmountPresent(); ok {
+		_spec.SetField(entry.FieldAmountPresent, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.Currency(); ok {
 		_spec.SetField(entry.FieldCurrency, field.TypeString, value)

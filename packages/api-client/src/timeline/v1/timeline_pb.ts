@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file timeline/v1/timeline.proto.
  */
 export const file_timeline_v1_timeline: GenFile = /*@__PURE__*/
-  fileDesc("Chp0aW1lbGluZS92MS90aW1lbGluZS5wcm90bxILdGltZWxpbmUudjEiBwoFRW1wdHkiwAEKD011dGF0aW9uUmVjZWlwdBITCgttdXRhdGlvbl9pZBgBIAEoCRITCgt0YXJnZXRfa2luZBgCIAEoCRIRCglvcGVyYXRpb24YAyABKAkSFwoPcmVzdWx0X3JldmlzaW9uGAQgASgDEhQKDHJlc3VsdF9zdGF0ZRgFIAEoCRIQCghyZXBsYXllZBgGIAEoCBIvCgtyZWNvcmRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAikQMKBUVudHJ5EgoKAmlkGAEgASgJEg0KBXRpdGxlGAIgASgJEgwKBGRhdGUYAyABKAkSDAoEdGltZRgEIAEoCRIQCgh0aW1lem9uZRgFIAEoCRIQCghjYXRlZ29yeRgGIAEoCRIQCghsb2NhdGlvbhgHIAEoCRIUCgxhbW91bnRfbWlub3IYCCABKAMSEAoIY3VycmVuY3kYCSABKAkSDAoEbm90ZRgKIAEoCRILCgN1cmwYCyABKAkSEQoJdXJsX3RpdGxlGAwgASgJEhAKCHVybF9ub3RlGA0gASgJEhAKCHJldmlzaW9uGA4gASgDEi4KCmNyZWF0ZWRfYXQYDyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYECABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCmRlbGV0ZWRfYXQYESABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCWVudHJ5X3JlZhgSIAEoCSKZAQoSTGlzdEVudHJpZXNSZXF1ZXN0Eg0KBXF1ZXJ5GAEgASgJEhAKCGNhdGVnb3J5GAIgASgJEhEKCWZyb21fZGF0ZRgDIAEoCRIPCgd0b19kYXRlGAQgASgJEhEKCXBhZ2Vfc2l6ZRgFIAEoBRISCgpwYWdlX3Rva2VuGAYgASgJEhcKD2luY2x1ZGVfZGVsZXRlZBgHIAEoCCJTChNMaXN0RW50cmllc1Jlc3BvbnNlEiMKB2VudHJpZXMYASADKAsyEi50aW1lbGluZS52MS5FbnRyeRIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiTAoSQ3JlYXRlRW50cnlSZXF1ZXN0EiEKBWVudHJ5GAEgASgLMhIudGltZWxpbmUudjEuRW50cnkSEwoLbXV0YXRpb25faWQYAiABKAkiZwoSVXBkYXRlRW50cnlSZXF1ZXN0EiEKBWVudHJ5GAEgASgLMhIudGltZWxpbmUudjEuRW50cnkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAMSEwoLbXV0YXRpb25faWQYAyABKAkidgoSRGVsZXRlRW50cnlSZXF1ZXN0EgoKAmlkGAEgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDEhMKC211dGF0aW9uX2lkGAMgASgJEhEKCXBlcm1hbmVudBgEIAEoCBIRCgllbnRyeV9yZWYYBSABKAkiZAoTUmVzdG9yZUVudHJ5UmVxdWVzdBIKCgJpZBgBIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoAxITCgttdXRhdGlvbl9pZBgDIAEoCRIRCgllbnRyeV9yZWYYBCABKAkiYgoRUHVyZ2VFbnRyeVJlcXVlc3QSCgoCaWQYASABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAMSEwoLbXV0YXRpb25faWQYAyABKAkSEQoJZW50cnlfcmVmGAQgASgJImEKDUVudHJ5UmVzcG9uc2USIQoFZW50cnkYASABKAsyEi50aW1lbGluZS52MS5FbnRyeRItCgdyZWNlaXB0GAIgASgLMhwudGltZWxpbmUudjEuTXV0YXRpb25SZWNlaXB0ImcKE0RlbGV0ZUVudHJ5UmVzcG9uc2USIQoFZW50cnkYASABKAsyEi50aW1lbGluZS52MS5FbnRyeRItCgdyZWNlaXB0GAIgASgLMhwudGltZWxpbmUudjEuTXV0YXRpb25SZWNlaXB0IkMKElB1cmdlRW50cnlSZXNwb25zZRItCgdyZWNlaXB0GAEgASgLMhwudGltZWxpbmUudjEuTXV0YXRpb25SZWNlaXB0MuoDCg9UaW1lbGluZVNlcnZpY2USUAoLTGlzdEVudHJpZXMSHy50aW1lbGluZS52MS5MaXN0RW50cmllc1JlcXVlc3QaIC50aW1lbGluZS52MS5MaXN0RW50cmllc1Jlc3BvbnNlEkoKC0NyZWF0ZUVudHJ5Eh8udGltZWxpbmUudjEuQ3JlYXRlRW50cnlSZXF1ZXN0GhoudGltZWxpbmUudjEuRW50cnlSZXNwb25zZRJKCgtVcGRhdGVFbnRyeRIfLnRpbWVsaW5lLnYxLlVwZGF0ZUVudHJ5UmVxdWVzdBoaLnRpbWVsaW5lLnYxLkVudHJ5UmVzcG9uc2USUAoLRGVsZXRlRW50cnkSHy50aW1lbGluZS52MS5EZWxldGVFbnRyeVJlcXVlc3QaIC50aW1lbGluZS52MS5EZWxldGVFbnRyeVJlc3BvbnNlEkwKDFJlc3RvcmVFbnRyeRIgLnRpbWVsaW5lLnYxLlJlc3RvcmVFbnRyeVJlcXVlc3QaGi50aW1lbGluZS52MS5FbnRyeVJlc3BvbnNlEk0KClB1cmdlRW50cnkSHi50aW1lbGluZS52MS5QdXJnZUVudHJ5UmVxdWVzdBofLnRpbWVsaW5lLnYxLlB1cmdlRW50cnlSZXNwb25zZUI6WjhnaXRodWIuY29tL2tvbmdrZW4vbW9uby9wa2cvcHJvdG8vdGltZWxpbmUvdjE7dGltZWxpbmV2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("Chp0aW1lbGluZS92MS90aW1lbGluZS5wcm90bxILdGltZWxpbmUudjEiBwoFRW1wdHki/wEKD011dGF0aW9uUmVjZWlwdBITCgttdXRhdGlvbl9pZBgBIAEoCRITCgt0YXJnZXRfa2luZBgCIAEoCRIRCglvcGVyYXRpb24YAyABKAkSFwoPcmVzdWx0X3JldmlzaW9uGAQgASgDEhQKDHJlc3VsdF9zdGF0ZRgFIAEoCRIQCghyZXBsYXllZBgGIAEoCBIvCgtyZWNvcmRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJZW50cnlfcmVmGAggASgJEhEKCW1lZGlhX3JlZhgJIAEoCRIXCg9yZXN1bHRfc25hcHNob3QYCiABKAwiqQMKBUVudHJ5EgoKAmlkGAEgASgJEg0KBXRpdGxlGAIgASgJEgwKBGRhdGUYAyABKAkSDAoEdGltZRgEIAEoCRIQCgh0aW1lem9uZRgFIAEoCRIQCghjYXRlZ29yeRgGIAEoCRIQCghsb2NhdGlvbhgHIAEoCRIUCgxhbW91bnRfbWlub3IYCCABKAMSEAoIY3VycmVuY3kYCSABKAkSDAoEbm90ZRgKIAEoCRILCgN1cmwYCyABKAkSEQoJdXJsX3RpdGxlGAwgASgJEhAKCHVybF9ub3RlGA0gASgJEhAKCHJldmlzaW9uGA4gASgDEi4KCmNyZWF0ZWRfYXQYDyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYECABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCmRlbGV0ZWRfYXQYESABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCWVudHJ5X3JlZhgSIAEoCRIWCg5hbW91bnRfcHJlc2VudBgTIAEoCCKZAQoSTGlzdEVudHJpZXNSZXF1ZXN0Eg0KBXF1ZXJ5GAEgASgJEhAKCGNhdGVnb3J5GAIgASgJEhEKCWZyb21fZGF0ZRgDIAEoCRIPCgd0b19kYXRlGAQgASgJEhEKCXBhZ2Vfc2l6ZRgFIAEoBRISCgpwYWdlX3Rva2VuGAYgASgJEhcKD2luY2x1ZGVfZGVsZXRlZBgHIAEoCCJTChNMaXN0RW50cmllc1Jlc3BvbnNlEiMKB2VudHJpZXMYASADKAsyEi50aW1lbGluZS52MS5FbnRyeRIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiTAoSQ3JlYXRlRW50cnlSZXF1ZXN0EiEKBWVudHJ5GAEgASgLMhIudGltZWxpbmUudjEuRW50cnkSEwoLbXV0YXRpb25faWQYAiABKAkiZwoSVXBkYXRlRW50cnlSZXF1ZXN0EiEKBWVudHJ5GAEgASgLMhIudGltZWxpbmUudjEuRW50cnkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAMSEwoLbXV0YXRpb25faWQYAyABKAkidgoSRGVsZXRlRW50cnlSZXF1ZXN0EgoKAmlkGAEgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAIgASgDEhMKC211dGF0aW9uX2lkGAMgASgJEhEKCXBlcm1hbmVudBgEIAEoCBIRCgllbnRyeV9yZWYYBSABKAkiZAoTUmVzdG9yZUVudHJ5UmVxdWVzdBIKCgJpZBgBIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoAxITCgttdXRhdGlvbl9pZBgDIAEoCRIRCgllbnRyeV9yZWYYBCABKAkiYgoRUHVyZ2VFbnRyeVJlcXVlc3QSCgoCaWQYASABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKAMSEwoLbXV0YXRpb25faWQYAyABKAkSEQoJZW50cnlfcmVmGAQgASgJImEKDUVudHJ5UmVzcG9uc2USIQoFZW50cnkYASABKAsyEi50aW1lbGluZS52MS5FbnRyeRItCgdyZWNlaXB0GAIgASgLMhwudGltZWxpbmUudjEuTXV0YXRpb25SZWNlaXB0ImcKE0RlbGV0ZUVudHJ5UmVzcG9uc2USIQoFZW50cnkYASABKAsyEi50aW1lbGluZS52MS5FbnRyeRItCgdyZWNlaXB0GAIgASgLMhwudGltZWxpbmUudjEuTXV0YXRpb25SZWNlaXB0IkMKElB1cmdlRW50cnlSZXNwb25zZRItCgdyZWNlaXB0GAEgASgLMhwudGltZWxpbmUudjEuTXV0YXRpb25SZWNlaXB0ItYBCghDYXRlZ29yeRIUCgxjYXRlZ29yeV9yZWYYASABKAkSDAoEbmFtZRgCIAEoCRIOCgZhY3RpdmUYAyABKAgSEgoKaXNfZGVmYXVsdBgEIAEoCBIQCghpc19vdGhlchgFIAEoCBIQCghyZXZpc2lvbhgGIAEoAxIuCgpjcmVhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAggASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIXChVMaXN0Q2F0ZWdvcmllc1JlcXVlc3QiQwoWTGlzdENhdGVnb3JpZXNSZXNwb25zZRIpCgpjYXRlZ29yaWVzGAEgAygLMhUudGltZWxpbmUudjEuQ2F0ZWdvcnkiOgoVQ3JlYXRlQ2F0ZWdvcnlSZXF1ZXN0EgwKBG5hbWUYASABKAkSEwoLbXV0YXRpb25faWQYAiABKAkiewoVVXBkYXRlQ2F0ZWdvcnlSZXF1ZXN0EhQKDGNhdGVnb3J5X3JlZhgBIAEoCRIMCgRuYW1lGAIgASgJEg4KBmFjdGl2ZRgDIAEoCBIZChFleHBlY3RlZF9yZXZpc2lvbhgEIAEoAxITCgttdXRhdGlvbl9pZBgFIAEoCSJqChBDYXRlZ29yeVJlc3BvbnNlEicKCGNhdGVnb3J5GAEgASgLMhUudGltZWxpbmUudjEuQ2F0ZWdvcnkSLQoHcmVjZWlwdBgCIAEoCzIcLnRpbWVsaW5lLnYxLk11dGF0aW9uUmVjZWlwdDLvBQoPVGltZWxpbmVTZXJ2aWNlElAKC0xpc3RFbnRyaWVzEh8udGltZWxpbmUudjEuTGlzdEVudHJpZXNSZXF1ZXN0GiAudGltZWxpbmUudjEuTGlzdEVudHJpZXNSZXNwb25zZRJKCgtDcmVhdGVFbnRyeRIfLnRpbWVsaW5lLnYxLkNyZWF0ZUVudHJ5UmVxdWVzdBoaLnRpbWVsaW5lLnYxLkVudHJ5UmVzcG9uc2USSgoLVXBkYXRlRW50cnkSHy50aW1lbGluZS52MS5VcGRhdGVFbnRyeVJlcXVlc3QaGi50aW1lbGluZS52MS5FbnRyeVJlc3BvbnNlElAKC0RlbGV0ZUVudHJ5Eh8udGltZWxpbmUudjEuRGVsZXRlRW50cnlSZXF1ZXN0GiAudGltZWxpbmUudjEuRGVsZXRlRW50cnlSZXNwb25zZRJMCgxSZXN0b3JlRW50cnkSIC50aW1lbGluZS52MS5SZXN0b3JlRW50cnlSZXF1ZXN0GhoudGltZWxpbmUudjEuRW50cnlSZXNwb25zZRJNCgpQdXJnZUVudHJ5Eh4udGltZWxpbmUudjEuUHVyZ2VFbnRyeVJlcXVlc3QaHy50aW1lbGluZS52MS5QdXJnZUVudHJ5UmVzcG9uc2USWQoOTGlzdENhdGVnb3JpZXMSIi50aW1lbGluZS52MS5MaXN0Q2F0ZWdvcmllc1JlcXVlc3QaIy50aW1lbGluZS52MS5MaXN0Q2F0ZWdvcmllc1Jlc3BvbnNlElMKDkNyZWF0ZUNhdGVnb3J5EiIudGltZWxpbmUudjEuQ3JlYXRlQ2F0ZWdvcnlSZXF1ZXN0Gh0udGltZWxpbmUudjEuQ2F0ZWdvcnlSZXNwb25zZRJTCg5VcGRhdGVDYXRlZ29yeRIiLnRpbWVsaW5lLnYxLlVwZGF0ZUNhdGVnb3J5UmVxdWVzdBodLnRpbWVsaW5lLnYxLkNhdGVnb3J5UmVzcG9uc2VCOlo4Z2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL3RpbWVsaW5lL3YxO3RpbWVsaW5ldjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message timeline.v1.Empty
@@ -65,6 +65,21 @@ export type MutationReceipt = Message<"timeline.v1.MutationReceipt"> & {
    * @generated from field: google.protobuf.Timestamp recorded_at = 7;
    */
   recordedAt?: Timestamp;
+
+  /**
+   * @generated from field: string entry_ref = 8;
+   */
+  entryRef: string;
+
+  /**
+   * @generated from field: string media_ref = 9;
+   */
+  mediaRef: string;
+
+  /**
+   * @generated from field: bytes result_snapshot = 10;
+   */
+  resultSnapshot: Uint8Array;
 };
 
 /**
@@ -167,6 +182,11 @@ export type Entry = Message<"timeline.v1.Entry"> & {
    * @generated from field: string entry_ref = 18;
    */
   entryRef: string;
+
+  /**
+   * @generated from field: bool amount_present = 19;
+   */
+  amountPresent: boolean;
 };
 
 /**
@@ -457,6 +477,169 @@ export const PurgeEntryResponseSchema: GenMessage<PurgeEntryResponse> = /*@__PUR
   messageDesc(file_timeline_v1_timeline, 12);
 
 /**
+ * @generated from message timeline.v1.Category
+ */
+export type Category = Message<"timeline.v1.Category"> & {
+  /**
+   * @generated from field: string category_ref = 1;
+   */
+  categoryRef: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: bool active = 3;
+   */
+  active: boolean;
+
+  /**
+   * @generated from field: bool is_default = 4;
+   */
+  isDefault: boolean;
+
+  /**
+   * @generated from field: bool is_other = 5;
+   */
+  isOther: boolean;
+
+  /**
+   * @generated from field: int64 revision = 6;
+   */
+  revision: bigint;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 7;
+   */
+  createdAt?: Timestamp;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp updated_at = 8;
+   */
+  updatedAt?: Timestamp;
+};
+
+/**
+ * Describes the message timeline.v1.Category.
+ * Use `create(CategorySchema)` to create a new message.
+ */
+export const CategorySchema: GenMessage<Category> = /*@__PURE__*/
+  messageDesc(file_timeline_v1_timeline, 13);
+
+/**
+ * @generated from message timeline.v1.ListCategoriesRequest
+ */
+export type ListCategoriesRequest = Message<"timeline.v1.ListCategoriesRequest"> & {
+};
+
+/**
+ * Describes the message timeline.v1.ListCategoriesRequest.
+ * Use `create(ListCategoriesRequestSchema)` to create a new message.
+ */
+export const ListCategoriesRequestSchema: GenMessage<ListCategoriesRequest> = /*@__PURE__*/
+  messageDesc(file_timeline_v1_timeline, 14);
+
+/**
+ * @generated from message timeline.v1.ListCategoriesResponse
+ */
+export type ListCategoriesResponse = Message<"timeline.v1.ListCategoriesResponse"> & {
+  /**
+   * @generated from field: repeated timeline.v1.Category categories = 1;
+   */
+  categories: Category[];
+};
+
+/**
+ * Describes the message timeline.v1.ListCategoriesResponse.
+ * Use `create(ListCategoriesResponseSchema)` to create a new message.
+ */
+export const ListCategoriesResponseSchema: GenMessage<ListCategoriesResponse> = /*@__PURE__*/
+  messageDesc(file_timeline_v1_timeline, 15);
+
+/**
+ * @generated from message timeline.v1.CreateCategoryRequest
+ */
+export type CreateCategoryRequest = Message<"timeline.v1.CreateCategoryRequest"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string mutation_id = 2;
+   */
+  mutationId: string;
+};
+
+/**
+ * Describes the message timeline.v1.CreateCategoryRequest.
+ * Use `create(CreateCategoryRequestSchema)` to create a new message.
+ */
+export const CreateCategoryRequestSchema: GenMessage<CreateCategoryRequest> = /*@__PURE__*/
+  messageDesc(file_timeline_v1_timeline, 16);
+
+/**
+ * @generated from message timeline.v1.UpdateCategoryRequest
+ */
+export type UpdateCategoryRequest = Message<"timeline.v1.UpdateCategoryRequest"> & {
+  /**
+   * @generated from field: string category_ref = 1;
+   */
+  categoryRef: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: bool active = 3;
+   */
+  active: boolean;
+
+  /**
+   * @generated from field: int64 expected_revision = 4;
+   */
+  expectedRevision: bigint;
+
+  /**
+   * @generated from field: string mutation_id = 5;
+   */
+  mutationId: string;
+};
+
+/**
+ * Describes the message timeline.v1.UpdateCategoryRequest.
+ * Use `create(UpdateCategoryRequestSchema)` to create a new message.
+ */
+export const UpdateCategoryRequestSchema: GenMessage<UpdateCategoryRequest> = /*@__PURE__*/
+  messageDesc(file_timeline_v1_timeline, 17);
+
+/**
+ * @generated from message timeline.v1.CategoryResponse
+ */
+export type CategoryResponse = Message<"timeline.v1.CategoryResponse"> & {
+  /**
+   * @generated from field: timeline.v1.Category category = 1;
+   */
+  category?: Category;
+
+  /**
+   * @generated from field: timeline.v1.MutationReceipt receipt = 2;
+   */
+  receipt?: MutationReceipt;
+};
+
+/**
+ * Describes the message timeline.v1.CategoryResponse.
+ * Use `create(CategoryResponseSchema)` to create a new message.
+ */
+export const CategoryResponseSchema: GenMessage<CategoryResponse> = /*@__PURE__*/
+  messageDesc(file_timeline_v1_timeline, 18);
+
+/**
  * @generated from service timeline.v1.TimelineService
  */
 export const TimelineService: GenService<{
@@ -507,6 +690,30 @@ export const TimelineService: GenService<{
     methodKind: "unary";
     input: typeof PurgeEntryRequestSchema;
     output: typeof PurgeEntryResponseSchema;
+  },
+  /**
+   * @generated from rpc timeline.v1.TimelineService.ListCategories
+   */
+  listCategories: {
+    methodKind: "unary";
+    input: typeof ListCategoriesRequestSchema;
+    output: typeof ListCategoriesResponseSchema;
+  },
+  /**
+   * @generated from rpc timeline.v1.TimelineService.CreateCategory
+   */
+  createCategory: {
+    methodKind: "unary";
+    input: typeof CreateCategoryRequestSchema;
+    output: typeof CategoryResponseSchema;
+  },
+  /**
+   * @generated from rpc timeline.v1.TimelineService.UpdateCategory
+   */
+  updateCategory: {
+    methodKind: "unary";
+    input: typeof UpdateCategoryRequestSchema;
+    output: typeof CategoryResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_timeline_v1_timeline, 0);

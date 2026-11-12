@@ -37,6 +37,8 @@ type Entry struct {
 	Location string `json:"location,omitempty"`
 	// AmountMinor holds the value of the "amount_minor" field.
 	AmountMinor int64 `json:"amount_minor,omitempty"`
+	// AmountPresent holds the value of the "amount_present" field.
+	AmountPresent bool `json:"amount_present,omitempty"`
 	// Currency holds the value of the "currency" field.
 	Currency string `json:"currency,omitempty"`
 	// URL holds the value of the "url" field.
@@ -86,6 +88,8 @@ func (*Entry) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case entry.FieldAmountPresent:
+			values[i] = new(sql.NullBool)
 		case entry.FieldAmountMinor, entry.FieldRevision:
 			values[i] = new(sql.NullInt64)
 		case entry.FieldID, entry.FieldPublicRef, entry.FieldUserID, entry.FieldTitle, entry.FieldBody, entry.FieldOccurredDate, entry.FieldOccurredTime, entry.FieldTimezone, entry.FieldCategory, entry.FieldLocation, entry.FieldCurrency, entry.FieldURL, entry.FieldURLTitle, entry.FieldURLNote, entry.FieldMutationID:
@@ -172,6 +176,12 @@ func (_m *Entry) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field amount_minor", values[i])
 			} else if value.Valid {
 				_m.AmountMinor = value.Int64
+			}
+		case entry.FieldAmountPresent:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field amount_present", values[i])
+			} else if value.Valid {
+				_m.AmountPresent = value.Bool
 			}
 		case entry.FieldCurrency:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -304,6 +314,9 @@ func (_m *Entry) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("amount_minor=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AmountMinor))
+	builder.WriteString(", ")
+	builder.WriteString("amount_present=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AmountPresent))
 	builder.WriteString(", ")
 	builder.WriteString("currency=")
 	builder.WriteString(_m.Currency)

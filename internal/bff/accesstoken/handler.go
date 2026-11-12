@@ -11,9 +11,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Handler serves bff.v1.AccessTokenService. The ingress interceptor has already
-// required a session with the metro-admin role (the methods declare it), so the
-// handler only needs the caller's identity.
+// Handler serves bff.v1.AccessTokenService. Ordinary active accounts may
+// manage their own Timeline tokens; metro-admins additionally may list and
+// revoke tokens belonging to other accounts.
 type Handler struct{ svc *Service }
 
 // NewHandler returns the browser-facing handler over svc.
@@ -26,8 +26,16 @@ func (h *Handler) CreateAccessToken(ctx context.Context, req *connect.Request[bf
 	if !ok {
 		return nil, errUnauth
 	}
+	audience := req.Msg.GetAudience()
+	metroAdmin := bs.HasRole("metro-admin")
+	if audience == "" && !metroAdmin {
+		audience = AudienceTimeline
+	}
+	if audience == AudienceMetro && !metroAdmin {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("metro-admin role required for metro tokens"))
+	}
 	row, secret, err := h.svc.Create(ctx, bs, CreateInput{
-		Name: req.Msg.GetName(), Audience: req.Msg.GetAudience(),
+		Name: req.Msg.GetName(), Audience: audience,
 		Scopes: req.Msg.GetScopes(), ExpiresInDays: int(req.Msg.GetExpiresInDays()),
 	})
 	if err != nil {
@@ -41,7 +49,11 @@ func (h *Handler) ListAccessTokens(ctx context.Context, req *connect.Request[bff
 	if !ok {
 		return nil, errUnauth
 	}
-	rows, err := h.svc.List(ctx, bs.UserID, req.Msg.GetAllUsers())
+	all := req.Msg.GetAllUsers()
+	if all && !bs.HasRole("metro-admin") {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("metro-admin role required for all users"))
+	}
+	rows, err := h.svc.List(ctx, bs.UserID, all)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +72,13 @@ func (h *Handler) RevokeAccessToken(ctx context.Context, req *connect.Request[bf
 	if req.Msg.GetId() == "" {
 		return nil, invalid("id is required")
 	}
-	if err := h.svc.Revoke(ctx, bs.UserID, req.Msg.GetId()); err != nil {
+	var err error
+	if bs.HasRole("metro-admin") {
+		err = h.svc.RevokeAny(ctx, bs.UserID, req.Msg.GetId())
+	} else {
+		err = h.svc.Revoke(ctx, bs.UserID, req.Msg.GetId())
+	}
+	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&bffv1.RevokeAccessTokenResponse{}), nil

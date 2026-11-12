@@ -5,15 +5,40 @@ log:
   add_source: false
 
 db_store: timeline
+
 auto_migrate: true
 
 grpc:
   listen: 127.0.0.1:18089
   transport: h2c
 
+storage:
+  s3_store: timeline
+  key_prefix: timeline/
+
 internal_auth:
   issuer: tripmap-bff
   audience: timeline
   trusted_keys:
     - kid: dev-1
-      file: dev-secrets/bff.pub
+      public_key_file: dev-secrets/bff.pub
+
+store:
+  db:
+    timeline:
+      driver: postgres
+      host: 127.0.0.1
+      port: 15432
+      user: tripmap
+      password: tripmap-local
+      db_name: timeline
+      ssl_mode: disable
+  s3:
+    timeline:
+      endpoint: http://s3:9000
+      region: us-east-1
+      bucket: timeline
+      access_key_id: tripmap
+      secret_access_key: change-me-secret
+      use_path_style: true
+      use_ssl: false
