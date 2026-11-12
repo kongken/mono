@@ -34,6 +34,8 @@ const (
 	FieldLocation = "location"
 	// FieldAmountMinor holds the string denoting the amount_minor field in the database.
 	FieldAmountMinor = "amount_minor"
+	// FieldAmountPresent holds the string denoting the amount_present field in the database.
+	FieldAmountPresent = "amount_present"
 	// FieldCurrency holds the string denoting the currency field in the database.
 	FieldCurrency = "currency"
 	// FieldURL holds the string denoting the url field in the database.
@@ -80,6 +82,7 @@ var Columns = []string{
 	FieldCategory,
 	FieldLocation,
 	FieldAmountMinor,
+	FieldAmountPresent,
 	FieldCurrency,
 	FieldURL,
 	FieldURLTitle,
@@ -123,6 +126,8 @@ var (
 	DefaultLocation string
 	// DefaultAmountMinor holds the default value on creation for the "amount_minor" field.
 	DefaultAmountMinor int64
+	// DefaultAmountPresent holds the default value on creation for the "amount_present" field.
+	DefaultAmountPresent bool
 	// DefaultCurrency holds the default value on creation for the "currency" field.
 	DefaultCurrency string
 	// DefaultURL holds the default value on creation for the "url" field.
@@ -203,6 +208,11 @@ func ByLocation(opts ...sql.OrderTermOption) OrderOption {
 // ByAmountMinor orders the results by the amount_minor field.
 func ByAmountMinor(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAmountMinor, opts...).ToFunc()
+}
+
+// ByAmountPresent orders the results by the amount_present field.
+func ByAmountPresent(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAmountPresent, opts...).ToFunc()
 }
 
 // ByCurrency orders the results by the currency field.

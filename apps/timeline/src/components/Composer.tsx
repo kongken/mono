@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CloudArrowUp, SlidersHorizontal, WarningCircle, X } from "@phosphor-icons/react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@kongken/ui/dialog";
 import { Input } from "@kongken/ui/input";
@@ -42,6 +42,7 @@ type ComposerProps = {
   onRetry?: () => void;
   onClose: () => void;
   onSubmit: (draft: DraftEntry, files: File[]) => void;
+  mode?: "create" | "edit";
 };
 
 /**
@@ -50,7 +51,7 @@ type ComposerProps = {
  * record is written first, then each file is signed, uploaded straight to the object store, and completed; a file
  * that fails leaves the record saved and offers a retry, so a retry never writes the record twice.
  */
-export function Composer({ open, initial, categories, saving, error, uploads = [], onRetry, onClose, onSubmit }: ComposerProps) {
+export function Composer({ open, initial, categories, saving, error, uploads = [], onRetry, onClose, onSubmit, mode = "create" }: ComposerProps) {
   const [draft, setDraft] = useState<DraftEntry>(initial);
   const [errors, setErrors] = useState<DraftErrors>({});
   const [zoneEditing, setZoneEditing] = useState(false);
@@ -58,6 +59,13 @@ export function Composer({ open, initial, categories, saving, error, uploads = [
   // What is wrong with the chosen files, kept apart from the field errors: the note field's error slot is the
   // note's, and a file refusal printed there would point at the wrong box.
   const [fileError, setFileError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    setDraft(initial);
+    setErrors({});
+    setFiles([]);
+    setFileError(null);
+  }, [initial, open]);
 
   const zone = useMemo(() => timezoneLabel(draft.timezone), [draft.timezone]);
   const digits = currencyDigits(draft.currency);
@@ -120,8 +128,8 @@ export function Composer({ open, initial, categories, saving, error, uploads = [
       >
         <DialogHeader className="flex-row items-center justify-between border-b border-outline-variant/60 px-5 py-4">
           <div>
-            <DialogTitle className="text-base font-semibold text-card-foreground">记一笔</DialogTitle>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">写下已经发生的小事，保存后进入时间线</p>
+            <DialogTitle className="text-base font-semibold text-card-foreground">{mode === "edit" ? "编辑记录" : "记一笔"}</DialogTitle>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{mode === "edit" ? "保存时会检查记录版本，避免覆盖别人的修改" : "写下已经发生的小事，保存后进入时间线"}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="关闭" className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted">
             <X size={16} />

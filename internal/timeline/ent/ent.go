@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/kongken/mono/internal/timeline/ent/category"
 	"github.com/kongken/mono/internal/timeline/ent/cleanupobject"
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
@@ -76,6 +77,7 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
+			category.Table:      category.ValidColumn,
 			cleanupobject.Table: cleanupobject.ValidColumn,
 			entry.Table:         entry.ValidColumn,
 			mediaobject.Table:   mediaobject.ValidColumn,

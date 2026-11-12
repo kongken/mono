@@ -76,15 +76,15 @@ func TestPublicResponsesAndSnapshotsUseOpaqueRef(t *testing.T) {
 
 func TestListCursorRoundTripAndValidation(t *testing.T) {
 	at := time.Date(2026, 11, 7, 4, 30, 0, 123000000, time.UTC)
-	token := encodeListCursor(at, "internal-uuid")
+	token := encodeListCursor("2026-11-07", "12:30", at, "internal-uuid")
 	got, err := decodeListCursor(token)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.OccurredAt.Equal(at) || got.ID != "internal-uuid" {
+	if !got.CreatedAt.Equal(at) || got.OccurredDate != "2026-11-07" || got.OccurredTime != "12:30" || got.ID != "internal-uuid" {
 		t.Fatalf("cursor changed: %#v", got)
 	}
-	for _, invalid := range []string{"!", "", encodeListCursor(time.Time{}, "id")} {
+	for _, invalid := range []string{"!", "", encodeListCursor("", "", time.Time{}, "id")} {
 		if _, err := decodeListCursor(invalid); err == nil {
 			t.Fatalf("cursor %q unexpectedly accepted", invalid)
 		}

@@ -67,7 +67,7 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *timelinev1.DeleteMe
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	return &timelinev1.DeleteMediaResponse{Receipt: &timelinev1.MutationReceipt{MutationId: r.MutationID, Operation: r.Operation, ResultRevision: int64(r.ResultRevision)}}, nil
+	return &timelinev1.DeleteMediaResponse{Receipt: receiptResponse(r, false)}, nil
 }
 
 var _ = info

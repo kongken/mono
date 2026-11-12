@@ -9,6 +9,37 @@ import (
 )
 
 var (
+	// TimelineCategoriesColumns holds the columns for the "timeline_categories" table.
+	TimelineCategoriesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "public_ref", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeString},
+		{Name: "name", Type: field.TypeString},
+		{Name: "active", Type: field.TypeBool, Default: true},
+		{Name: "is_default", Type: field.TypeBool, Default: false},
+		{Name: "is_other", Type: field.TypeBool, Default: false},
+		{Name: "revision", Type: field.TypeInt, Default: 1},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// TimelineCategoriesTable holds the schema information for the "timeline_categories" table.
+	TimelineCategoriesTable = &schema.Table{
+		Name:       "timeline_categories",
+		Columns:    TimelineCategoriesColumns,
+		PrimaryKey: []*schema.Column{TimelineCategoriesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "category_user_id_name",
+				Unique:  true,
+				Columns: []*schema.Column{TimelineCategoriesColumns[2], TimelineCategoriesColumns[3]},
+			},
+			{
+				Name:    "category_public_ref",
+				Unique:  true,
+				Columns: []*schema.Column{TimelineCategoriesColumns[1]},
+			},
+		},
+	}
 	// TimelineCleanupObjectsColumns holds the columns for the "timeline_cleanup_objects" table.
 	TimelineCleanupObjectsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -37,6 +68,7 @@ var (
 		{Name: "category", Type: field.TypeString, Default: ""},
 		{Name: "location", Type: field.TypeString, Default: ""},
 		{Name: "amount_minor", Type: field.TypeInt64, Default: 0},
+		{Name: "amount_present", Type: field.TypeBool, Default: false},
 		{Name: "currency", Type: field.TypeString, Default: ""},
 		{Name: "url", Type: field.TypeString, Default: ""},
 		{Name: "url_title", Type: field.TypeString, Default: ""},
@@ -57,7 +89,7 @@ var (
 			{
 				Name:    "entry_user_id_occurred_at_id",
 				Unique:  false,
-				Columns: []*schema.Column{TimelineEntriesColumns[2], TimelineEntriesColumns[15], TimelineEntriesColumns[0]},
+				Columns: []*schema.Column{TimelineEntriesColumns[2], TimelineEntriesColumns[16], TimelineEntriesColumns[0]},
 			},
 			{
 				Name:    "entry_public_ref",
@@ -150,6 +182,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		TimelineCategoriesTable,
 		TimelineCleanupObjectsTable,
 		TimelineEntriesTable,
 		TimelineMediaObjectsTable,
@@ -158,6 +191,9 @@ var (
 )
 
 func init() {
+	TimelineCategoriesTable.Annotation = &entsql.Annotation{
+		Table: "timeline_categories",
+	}
 	TimelineCleanupObjectsTable.Annotation = &entsql.Annotation{
 		Table: "timeline_cleanup_objects",
 	}

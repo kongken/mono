@@ -15,6 +15,22 @@ func now() time.Time { return time.Now().UTC() }
 
 type Entry struct{ ent.Schema }
 
+type Category struct{ ent.Schema }
+
+func (Category) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "timeline_categories"}}
+}
+func (Category) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("public_ref").NotEmpty().Immutable(), field.String("user_id").NotEmpty().Immutable(),
+		field.String("name").NotEmpty(), field.Bool("active").Default(true), field.Bool("is_default").Default(false), field.Bool("is_other").Default(false),
+		field.Int("revision").Default(1).Positive(), field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now),
+	}
+}
+func (Category) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("user_id", "name").Unique(), index.Fields("public_ref").Unique()}
+}
+
 func (Entry) Annotations() []schema.Annotation {
 	return []schema.Annotation{entsql.Annotation{Table: "timeline_entries"}}
 }
@@ -22,7 +38,7 @@ func (Entry) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("public_ref").NotEmpty().Immutable(), field.String("user_id").NotEmpty().Immutable(),
 		field.String("title").NotEmpty(), field.String("body").Default(""), field.String("occurred_date").NotEmpty(), field.String("occurred_time").Default(""), field.String("timezone").NotEmpty(),
-		field.String("category").Default(""), field.String("location").Default(""), field.Int64("amount_minor").Default(0), field.String("currency").Default(""),
+		field.String("category").Default(""), field.String("location").Default(""), field.Int64("amount_minor").Default(0), field.Bool("amount_present").Default(false), field.String("currency").Default(""),
 		field.String("url").Default(""), field.String("url_title").Default(""), field.String("url_note").Default(""), field.Time("occurred_at"), field.Time("deleted_at").Optional().Nillable(),
 		field.String("mutation_id").Default(""), field.Int("revision").Default(1).Positive(), field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now),
 	}

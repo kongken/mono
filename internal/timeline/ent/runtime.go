@@ -5,6 +5,7 @@ package ent
 import (
 	"time"
 
+	"github.com/kongken/mono/internal/timeline/ent/category"
 	"github.com/kongken/mono/internal/timeline/ent/cleanupobject"
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
@@ -16,6 +17,52 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	categoryFields := schema.Category{}.Fields()
+	_ = categoryFields
+	// categoryDescPublicRef is the schema descriptor for public_ref field.
+	categoryDescPublicRef := categoryFields[1].Descriptor()
+	// category.PublicRefValidator is a validator for the "public_ref" field. It is called by the builders before save.
+	category.PublicRefValidator = categoryDescPublicRef.Validators[0].(func(string) error)
+	// categoryDescUserID is the schema descriptor for user_id field.
+	categoryDescUserID := categoryFields[2].Descriptor()
+	// category.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	category.UserIDValidator = categoryDescUserID.Validators[0].(func(string) error)
+	// categoryDescName is the schema descriptor for name field.
+	categoryDescName := categoryFields[3].Descriptor()
+	// category.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	category.NameValidator = categoryDescName.Validators[0].(func(string) error)
+	// categoryDescActive is the schema descriptor for active field.
+	categoryDescActive := categoryFields[4].Descriptor()
+	// category.DefaultActive holds the default value on creation for the active field.
+	category.DefaultActive = categoryDescActive.Default.(bool)
+	// categoryDescIsDefault is the schema descriptor for is_default field.
+	categoryDescIsDefault := categoryFields[5].Descriptor()
+	// category.DefaultIsDefault holds the default value on creation for the is_default field.
+	category.DefaultIsDefault = categoryDescIsDefault.Default.(bool)
+	// categoryDescIsOther is the schema descriptor for is_other field.
+	categoryDescIsOther := categoryFields[6].Descriptor()
+	// category.DefaultIsOther holds the default value on creation for the is_other field.
+	category.DefaultIsOther = categoryDescIsOther.Default.(bool)
+	// categoryDescRevision is the schema descriptor for revision field.
+	categoryDescRevision := categoryFields[7].Descriptor()
+	// category.DefaultRevision holds the default value on creation for the revision field.
+	category.DefaultRevision = categoryDescRevision.Default.(int)
+	// category.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
+	category.RevisionValidator = categoryDescRevision.Validators[0].(func(int) error)
+	// categoryDescCreatedAt is the schema descriptor for created_at field.
+	categoryDescCreatedAt := categoryFields[8].Descriptor()
+	// category.DefaultCreatedAt holds the default value on creation for the created_at field.
+	category.DefaultCreatedAt = categoryDescCreatedAt.Default.(func() time.Time)
+	// categoryDescUpdatedAt is the schema descriptor for updated_at field.
+	categoryDescUpdatedAt := categoryFields[9].Descriptor()
+	// category.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	category.DefaultUpdatedAt = categoryDescUpdatedAt.Default.(func() time.Time)
+	// category.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	category.UpdateDefaultUpdatedAt = categoryDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// categoryDescID is the schema descriptor for id field.
+	categoryDescID := categoryFields[0].Descriptor()
+	// category.DefaultID holds the default value on creation for the id field.
+	category.DefaultID = categoryDescID.Default.(func() string)
 	cleanupobjectFields := schema.CleanupObject{}.Fields()
 	_ = cleanupobjectFields
 	// cleanupobjectDescObjectKey is the schema descriptor for object_key field.
@@ -82,38 +129,42 @@ func init() {
 	entryDescAmountMinor := entryFields[10].Descriptor()
 	// entry.DefaultAmountMinor holds the default value on creation for the amount_minor field.
 	entry.DefaultAmountMinor = entryDescAmountMinor.Default.(int64)
+	// entryDescAmountPresent is the schema descriptor for amount_present field.
+	entryDescAmountPresent := entryFields[11].Descriptor()
+	// entry.DefaultAmountPresent holds the default value on creation for the amount_present field.
+	entry.DefaultAmountPresent = entryDescAmountPresent.Default.(bool)
 	// entryDescCurrency is the schema descriptor for currency field.
-	entryDescCurrency := entryFields[11].Descriptor()
+	entryDescCurrency := entryFields[12].Descriptor()
 	// entry.DefaultCurrency holds the default value on creation for the currency field.
 	entry.DefaultCurrency = entryDescCurrency.Default.(string)
 	// entryDescURL is the schema descriptor for url field.
-	entryDescURL := entryFields[12].Descriptor()
+	entryDescURL := entryFields[13].Descriptor()
 	// entry.DefaultURL holds the default value on creation for the url field.
 	entry.DefaultURL = entryDescURL.Default.(string)
 	// entryDescURLTitle is the schema descriptor for url_title field.
-	entryDescURLTitle := entryFields[13].Descriptor()
+	entryDescURLTitle := entryFields[14].Descriptor()
 	// entry.DefaultURLTitle holds the default value on creation for the url_title field.
 	entry.DefaultURLTitle = entryDescURLTitle.Default.(string)
 	// entryDescURLNote is the schema descriptor for url_note field.
-	entryDescURLNote := entryFields[14].Descriptor()
+	entryDescURLNote := entryFields[15].Descriptor()
 	// entry.DefaultURLNote holds the default value on creation for the url_note field.
 	entry.DefaultURLNote = entryDescURLNote.Default.(string)
 	// entryDescMutationID is the schema descriptor for mutation_id field.
-	entryDescMutationID := entryFields[17].Descriptor()
+	entryDescMutationID := entryFields[18].Descriptor()
 	// entry.DefaultMutationID holds the default value on creation for the mutation_id field.
 	entry.DefaultMutationID = entryDescMutationID.Default.(string)
 	// entryDescRevision is the schema descriptor for revision field.
-	entryDescRevision := entryFields[18].Descriptor()
+	entryDescRevision := entryFields[19].Descriptor()
 	// entry.DefaultRevision holds the default value on creation for the revision field.
 	entry.DefaultRevision = entryDescRevision.Default.(int)
 	// entry.RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
 	entry.RevisionValidator = entryDescRevision.Validators[0].(func(int) error)
 	// entryDescCreatedAt is the schema descriptor for created_at field.
-	entryDescCreatedAt := entryFields[19].Descriptor()
+	entryDescCreatedAt := entryFields[20].Descriptor()
 	// entry.DefaultCreatedAt holds the default value on creation for the created_at field.
 	entry.DefaultCreatedAt = entryDescCreatedAt.Default.(func() time.Time)
 	// entryDescUpdatedAt is the schema descriptor for updated_at field.
-	entryDescUpdatedAt := entryFields[20].Descriptor()
+	entryDescUpdatedAt := entryFields[21].Descriptor()
 	// entry.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	entry.DefaultUpdatedAt = entryDescUpdatedAt.Default.(func() time.Time)
 	// entry.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

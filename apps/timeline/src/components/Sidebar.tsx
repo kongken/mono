@@ -28,9 +28,9 @@ export function Sidebar({ view, onView, profile, signedOut, loginUrl, signingOut
 
       <nav aria-label="主导航" className="flex flex-col gap-1">
         <NavItem icon={<Notebook size={18} />} label="时间线" active={view === "timeline"} onClick={() => onView("timeline")} />
-        <NavItem icon={<Tag size={18} />} label="分类管理" hint="分类跟着记录走，独立的管理页在后续切片接入" />
+        <NavItem icon={<Tag size={18} />} label="分类管理" active={view === "categories"} onClick={() => onView("categories")} />
         <NavItem icon={<Trash size={18} />} label="回收站" active={view === "trash"} onClick={() => onView("trash")} />
-        <NavItem icon={<GearSix size={18} />} label="设置与 MCP" hint="MCP 端点由 BFF 提供，账号设置页在后续切片接入" />
+        <NavItem icon={<GearSix size={18} />} label="设置与 MCP" active={view === "settings"} onClick={() => onView("settings")} />
       </nav>
 
       <div className="mt-auto rounded-card border border-outline-variant/70 bg-surface-container/60 p-3">

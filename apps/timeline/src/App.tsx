@@ -4,15 +4,18 @@ import type { AccountProfile } from "@kongken/account/api";
 import type { Entry } from "@kongken/api-client/bff/timeline/v1/timeline_pb";
 import type { MediaInfo } from "@kongken/api-client/bff/timeline/v1/media_pb";
 import { Composer } from "@/components/Composer.tsx";
+import { CategoryPanel } from "@/components/CategoryPanel.tsx";
 import { FilterBar } from "@/components/FilterBar.tsx";
 import { Sidebar } from "@/components/Sidebar.tsx";
 import { Timeline } from "@/components/Timeline.tsx";
 import { TopBar } from "@/components/TopBar.tsx";
 import { Trash } from "@/components/Trash.tsx";
+import { SettingsPanel } from "@/components/SettingsPanel.tsx";
 import { explainUploadFailure, type UploadItem } from "@/lib/attachments.ts";
 import { resolveOzid } from "@/lib/config.ts";
 import {
   EMPTY_FILTERS,
+  currencyDigits,
   emptyDraft,
   groupEntries,
   listRequest,
@@ -49,6 +52,7 @@ export default function App() {
   const [pending, setPending] = useState<FilterState>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<FilterState>(EMPTY_FILTERS);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [categoryNames, setCategoryNames] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<Record<string, MediaInfo[]>>({});
   const [nextToken, setNextToken] = useState("");
   const [loading, setLoading] = useState(false);
@@ -60,6 +64,7 @@ export default function App() {
   const [signingOut, setSigningOut] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerSeed, setComposerSeed] = useState<DraftEntry>(() => emptyDraft());
+  const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   // The files of the record currently being saved, and which record they belong to: a retry uploads the failed ones
@@ -114,6 +119,11 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!signedIn) return;
+    void timeline.listCategories({}).then((response) => setCategoryNames(response.categories.filter((category) => category.active).map((category) => category.name))).catch(() => undefined);
+  }, [signedIn]);
+
   const load = useCallback(
     async (includeDeleted: boolean, pageToken = "") => {
       const mine = ++sequence.current;
@@ -157,7 +167,7 @@ export default function App() {
     void load(view === "trash");
   }, [load, signedIn, view]);
 
-  const categories = useMemo(() => [...new Set(entries.map((entry) => entry.category).filter((category) => category !== ""))].sort(), [entries]);
+  const categories = useMemo(() => [...new Set([...categoryNames, ...entries.map((entry) => entry.category).filter((category) => category !== "")])].sort(), [categoryNames, entries]);
   const visible = useMemo(
     () => entries.filter((entry) => (view === "trash" ? entry.deletedAt !== undefined : entry.deletedAt === undefined)),
     [entries, view],
@@ -170,10 +180,35 @@ export default function App() {
   const today = localToday();
 
   const openComposer = () => {
+    setEditingEntry(null);
     setComposerSeed(emptyDraft());
     setSaveError(null);
     setUploads([]);
     pendingEntryRef.current = null;
+    uploadSessions.current.clear();
+    setComposerOpen(true);
+  };
+
+  const openEditor = (entry: Entry) => {
+    const digits = currencyDigits(entry.currency);
+    const scale = 10n ** BigInt(digits);
+    const whole = entry.amountMinor / scale;
+    const fraction = (entry.amountMinor % scale).toString().padStart(digits, "0").replace(/0+$/, "");
+    setEditingEntry(entry);
+    setComposerSeed({
+      title: entry.title,
+      date: entry.date,
+      time: entry.time,
+      timezone: entry.timezone,
+      category: entry.category,
+      location: entry.location,
+      amount: entry.amountPresent ? `${whole}${fraction === "" ? "" : `.${fraction}`}` : "",
+      currency: entry.currency || "CNY",
+      note: entry.note,
+    });
+    setSaveError(null);
+    setUploads([]);
+    pendingEntryRef.current = entry.entryRef;
     uploadSessions.current.clear();
     setComposerOpen(true);
   };
@@ -245,6 +280,7 @@ export default function App() {
               category: draft.category.trim(),
               location: draft.location.trim(),
               amountMinor: checked.amountMinor,
+              amountPresent: draft.amount.trim() !== "",
               currency: draft.amount.trim() === "" ? "" : draft.currency,
               note: draft.note.trim(),
             },
@@ -253,6 +289,20 @@ export default function App() {
         entryRef = created.entry?.entryRef ?? "";
         if (entryRef === "") throw new Error("记录已保存，但没有拿到它的引用");
         pendingEntryRef.current = entryRef;
+      } else if (editingEntry !== null) {
+        await write(() =>
+          timeline.updateEntry({
+            mutationId: mutationID(),
+            expectedRevision: editingEntry.revision,
+            entry: {
+				entryRef: editingEntry.entryRef,
+              title: draft.title.trim(), date: draft.date, time: draft.time, timezone: draft.timezone,
+              category: draft.category.trim(), location: draft.location.trim(), amountMinor: checked.amountMinor,
+              amountPresent: draft.amount.trim() !== "",
+              currency: draft.amount.trim() === "" ? "" : draft.currency, note: draft.note.trim(),
+            },
+          }),
+        );
       }
 
       const items: UploadItem[] = files.map((file) => ({ file, status: "pending" }));
@@ -378,6 +428,9 @@ export default function App() {
 
             {view === "timeline" && <FilterBar filters={pending} onChange={changeFilters} categories={categories} />}
 
+            {view === "categories" && <CategoryPanel />}
+            {view === "settings" && <SettingsPanel />}
+
             {actionError !== null && (
               <p className="mt-6 flex items-start gap-1.5 rounded-md bg-error-container px-3 py-2 text-xs text-on-error-container">
                 <WarningCircle size={14} className="mt-px shrink-0" />
@@ -425,6 +478,7 @@ export default function App() {
                 onLoadMore={() => void load(false, nextToken)}
                 media={attachments}
                 onDelete={(entry) => void removeEntry(entry)}
+                onEdit={openEditor}
                 onMediaDeleted={(entryRef, mediaRef) => {
                   setAttachments((current) => ({ ...current, [entryRef]: (current[entryRef] ?? []).filter((item) => item.mediaRef !== mediaRef) }));
                   setNotice("附件已删除，存储空间会在后台回收。");
@@ -444,6 +498,7 @@ export default function App() {
         <Composer
           open={composerOpen}
           initial={composerSeed}
+          mode={editingEntry === null ? "create" : "edit"}
           categories={categories}
           saving={saving}
           error={saveError}

@@ -80,6 +80,7 @@ type Perimeter interface {
 // Config wires a Server.
 type Config struct {
 	Admin    timelinev1.TimelineServiceClient
+	Media    timelinev1.MediaServiceClient
 	Tokens   Authenticator
 	Accounts Accounts
 	Limiter  Limiter

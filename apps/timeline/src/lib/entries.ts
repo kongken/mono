@@ -7,7 +7,7 @@ import type { Entry } from "@kongken/api-client/bff/timeline/v1/timeline_pb";
  */
 
 /** The two views the sidebar switches between; both read the same list. */
-export type View = "timeline" | "trash";
+export type View = "timeline" | "trash" | "categories" | "settings";
 
 /** What the search box and the filter bar send with every list call (empty means unfiltered). */
 export type FilterState = {

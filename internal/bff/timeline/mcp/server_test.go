@@ -18,7 +18,7 @@ func (a accountState) AuthState(context.Context, string) (usersrv.AuthState, err
 
 func TestToolsUseTimelineScopesAndExpectedRevision(t *testing.T) {
 	ts := tools()
-	if len(ts) != 6 {
+	if len(ts) != 12 {
 		t.Fatalf("tools=%d", len(ts))
 	}
 	for _, tool := range ts {

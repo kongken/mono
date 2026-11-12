@@ -38,6 +38,7 @@ function clock(time: string): string {
 type EntryCardProps = {
   entry: Entry;
   onDelete?: (entry: Entry) => void;
+  onEdit?: (entry: Entry) => void;
   onRestore?: (entry: Entry) => void;
   onPurge?: (entry: Entry) => void;
   media?: MediaInfo[];
@@ -45,7 +46,7 @@ type EntryCardProps = {
   onMediaError?: (message: string) => void;
 };
 
-export function EntryCard({ entry, onDelete, onRestore, onPurge, media = [], onMediaDeleted = () => {}, onMediaError = () => {} }: EntryCardProps) {
+export function EntryCard({ entry, onDelete, onEdit, onRestore, onPurge, media = [], onMediaDeleted = () => {}, onMediaError = () => {} }: EntryCardProps) {
   const amount = formatAmount(entry.amountMinor, entry.currency);
 
   return (
@@ -86,6 +87,11 @@ export function EntryCard({ entry, onDelete, onRestore, onPurge, media = [], onM
       </div>
 
       <div className="flex shrink-0 items-start gap-1">
+        {onEdit !== undefined && (
+          <button type="button" onClick={() => onEdit(entry)} className="rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-surface-container">
+            详情 / 编辑
+          </button>
+        )}
         {onDelete !== undefined && (
           <button
             type="button"
