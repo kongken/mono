@@ -132,6 +132,12 @@ func Complete(ctx context.Context, st *Store, userID, mediaRef, mutationID strin
 	if err != nil {
 		return nil, ErrNotFound
 	}
+	// The Prepare mutation is the durable idempotency key for this upload.  A
+	// caller may know a media ref without being allowed to complete it with a
+	// different intent (for example after a retry crossed tabs).
+	if m.MutationID != mutationID {
+		return nil, ErrInvalid
+	}
 	if m.State == mediaobject.StateReady {
 		if err = tx.Commit(); err != nil {
 			return nil, err
@@ -164,7 +170,12 @@ func List(ctx context.Context, st *Store, userID, entryRef string) ([]*Media, er
 	if st == nil || st.DB == nil || userID == "" || !refs.Valid(entryRef, "ent_") {
 		return nil, ErrInvalid
 	}
-	rows, err := st.DB.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.EntryPublicRefEQ(entryRef), mediaobject.StateEQ(mediaobject.StateReady)).All(ctx)
+	rows, err := st.DB.MediaObject.Query().Where(
+		mediaobject.UserID(userID),
+		mediaobject.EntryPublicRefEQ(entryRef),
+		mediaobject.StateEQ(mediaobject.StateReady),
+		mediaobject.HasEntryWith(entry.DeletedAtIsNil()),
+	).All(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +190,12 @@ func Read(ctx context.Context, st *Store, userID, mediaRef string) (*Media, io.R
 	if st == nil || st.DB == nil || st.Blobs == nil || userID == "" || !refs.Valid(mediaRef, "med_") {
 		return nil, nil, ErrInvalid
 	}
-	m, err := st.DB.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.PublicRefEQ(mediaRef), mediaobject.StateEQ(mediaobject.StateReady)).Only(ctx)
+	m, err := st.DB.MediaObject.Query().Where(
+		mediaobject.UserID(userID),
+		mediaobject.PublicRefEQ(mediaRef),
+		mediaobject.StateEQ(mediaobject.StateReady),
+		mediaobject.HasEntryWith(entry.DeletedAtIsNil()),
+	).Only(ctx)
 	if err != nil {
 		return nil, nil, ErrNotFound
 	}

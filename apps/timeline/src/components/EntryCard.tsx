@@ -37,6 +37,7 @@ function clock(time: string): string {
 
 type EntryCardProps = {
   entry: Entry;
+  onEdit?: (entry: Entry) => void;
   onDelete?: (entry: Entry) => void;
   onRestore?: (entry: Entry) => void;
   onPurge?: (entry: Entry) => void;
@@ -45,7 +46,7 @@ type EntryCardProps = {
   onMediaError?: (message: string) => void;
 };
 
-export function EntryCard({ entry, onDelete, onRestore, onPurge, media = [], onMediaDeleted = () => {}, onMediaError = () => {} }: EntryCardProps) {
+export function EntryCard({ entry, onEdit, onDelete, onRestore, onPurge, media = [], onMediaDeleted = () => {}, onMediaError = () => {} }: EntryCardProps) {
   const amount = formatAmount(entry.amountMinor, entry.currency);
 
   return (
@@ -86,6 +87,16 @@ export function EntryCard({ entry, onDelete, onRestore, onPurge, media = [], onM
       </div>
 
       <div className="flex shrink-0 items-start gap-1">
+        {onEdit !== undefined && (
+          <button
+            type="button"
+            onClick={() => onEdit(entry)}
+            aria-label={`查看并编辑「${entry.title}」`}
+            className="rounded-md px-2 py-1 text-xs font-medium text-primary opacity-0 transition-all group-hover:opacity-100 hover:bg-surface-container focus-visible:opacity-100"
+          >
+            详情 / 编辑
+          </button>
+        )}
         {onDelete !== undefined && (
           <button
             type="button"

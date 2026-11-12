@@ -17,6 +17,7 @@ import {
   groupEntries,
   listRequest,
   localToday,
+  currencyDigits,
   validateDraft,
   type DraftEntry,
   type FilterState,
@@ -60,6 +61,7 @@ export default function App() {
   const [signingOut, setSigningOut] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerSeed, setComposerSeed] = useState<DraftEntry>(() => emptyDraft());
+  const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   // The files of the record currently being saved, and which record they belong to: a retry uploads the failed ones
@@ -170,6 +172,7 @@ export default function App() {
   const today = localToday();
 
   const openComposer = () => {
+    setEditingEntry(null);
     setComposerSeed(emptyDraft());
     setSaveError(null);
     setUploads([]);
@@ -178,8 +181,20 @@ export default function App() {
     setComposerOpen(true);
   };
 
+  const openEditor = (entry: Entry) => {
+    const digits = currencyDigits(entry.currency);
+    const amount = entry.currency === "" && entry.amountMinor === 0n ? "" : (Number(entry.amountMinor) / 10 ** digits).toFixed(digits);
+    setEditingEntry(entry);
+    setComposerSeed({ title: entry.title, date: entry.date, time: entry.time, timezone: entry.timezone, category: entry.category, location: entry.location, amount, currency: entry.currency, note: entry.note });
+    setSaveError(null);
+    setUploads([]);
+    pendingEntryRef.current = null;
+    uploadSessions.current.clear();
+    setComposerOpen(true);
+  };
+
   const closeComposer = () => {
-    setComposerOpen(false);
+    setEditingEntry(null);
     setUploads([]);
     pendingEntryRef.current = null;
     uploadSessions.current.clear();
@@ -233,6 +248,17 @@ export default function App() {
     setNotice(null);
     try {
       let entryRef = pendingEntryRef.current;
+      if (editingEntry !== null) {
+        const updated = await write(() => timeline.updateEntry({
+          entry: { entryRef: editingEntry.entryRef, title: draft.title.trim(), date: draft.date, time: draft.time, timezone: draft.timezone, category: draft.category.trim(), location: draft.location.trim(), amountMinor: checked.amountMinor, currency: draft.amount.trim() === "" ? "" : draft.currency, note: draft.note.trim() },
+          expectedRevision: editingEntry.revision,
+          mutationId: mutationID(),
+        }));
+        if (updated.entry === undefined) throw new Error("更新成功但没有返回记录");
+        closeComposer();
+        await load(view === "trash");
+        return;
+      }
       if (entryRef === null) {
         const created = await write(() =>
           timeline.createEntry({
@@ -424,6 +450,7 @@ export default function App() {
                 canLoadMore={nextToken !== ""}
                 onLoadMore={() => void load(false, nextToken)}
                 media={attachments}
+                onEdit={openEditor}
                 onDelete={(entry) => void removeEntry(entry)}
                 onMediaDeleted={(entryRef, mediaRef) => {
                   setAttachments((current) => ({ ...current, [entryRef]: (current[entryRef] ?? []).filter((item) => item.mediaRef !== mediaRef) }));
