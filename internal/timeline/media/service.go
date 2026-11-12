@@ -73,6 +73,9 @@ func Prepare(ctx context.Context, st *Store, userID string, u Upload) (*Media, e
 	if err != nil {
 		return nil, ErrNotFound
 	}
+	if e.DeletedAt != nil {
+		return nil, ErrNotFound
+	}
 	if existing, qerr := tx.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.MutationIDEQ(u.MutationID)).Only(ctx); qerr == nil {
 		if existing.EntryID != e.ID || existing.Filename != strings.TrimSpace(u.Filename) || existing.ContentType != u.ContentType || existing.SizeBytes != u.SizeBytes {
 			return nil, ErrInvalid
