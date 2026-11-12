@@ -19,11 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MediaService_PrepareUpload_FullMethodName  = "/timeline.v1.MediaService/PrepareUpload"
-	MediaService_CompleteUpload_FullMethodName = "/timeline.v1.MediaService/CompleteUpload"
-	MediaService_ListMedia_FullMethodName      = "/timeline.v1.MediaService/ListMedia"
-	MediaService_ReadMedia_FullMethodName      = "/timeline.v1.MediaService/ReadMedia"
-	MediaService_DeleteMedia_FullMethodName    = "/timeline.v1.MediaService/DeleteMedia"
+	MediaService_PrepareUpload_FullMethodName       = "/timeline.v1.MediaService/PrepareUpload"
+	MediaService_CompleteUpload_FullMethodName      = "/timeline.v1.MediaService/CompleteUpload"
+	MediaService_ListMedia_FullMethodName           = "/timeline.v1.MediaService/ListMedia"
+	MediaService_ReadMedia_FullMethodName           = "/timeline.v1.MediaService/ReadMedia"
+	MediaService_GetMediaDownloadUrl_FullMethodName = "/timeline.v1.MediaService/GetMediaDownloadUrl"
+	MediaService_DeleteMedia_FullMethodName         = "/timeline.v1.MediaService/DeleteMedia"
 )
 
 // MediaServiceClient is the client API for MediaService service.
@@ -34,6 +35,7 @@ type MediaServiceClient interface {
 	CompleteUpload(ctx context.Context, in *CompleteUploadRequest, opts ...grpc.CallOption) (*CompleteUploadResponse, error)
 	ListMedia(ctx context.Context, in *ListMediaRequest, opts ...grpc.CallOption) (*ListMediaResponse, error)
 	ReadMedia(ctx context.Context, in *ReadMediaRequest, opts ...grpc.CallOption) (*ReadMediaResponse, error)
+	GetMediaDownloadUrl(ctx context.Context, in *GetMediaDownloadUrlRequest, opts ...grpc.CallOption) (*GetMediaDownloadUrlResponse, error)
 	DeleteMedia(ctx context.Context, in *DeleteMediaRequest, opts ...grpc.CallOption) (*DeleteMediaResponse, error)
 }
 
@@ -85,6 +87,16 @@ func (c *mediaServiceClient) ReadMedia(ctx context.Context, in *ReadMediaRequest
 	return out, nil
 }
 
+func (c *mediaServiceClient) GetMediaDownloadUrl(ctx context.Context, in *GetMediaDownloadUrlRequest, opts ...grpc.CallOption) (*GetMediaDownloadUrlResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMediaDownloadUrlResponse)
+	err := c.cc.Invoke(ctx, MediaService_GetMediaDownloadUrl_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *mediaServiceClient) DeleteMedia(ctx context.Context, in *DeleteMediaRequest, opts ...grpc.CallOption) (*DeleteMediaResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteMediaResponse)
@@ -103,6 +115,7 @@ type MediaServiceServer interface {
 	CompleteUpload(context.Context, *CompleteUploadRequest) (*CompleteUploadResponse, error)
 	ListMedia(context.Context, *ListMediaRequest) (*ListMediaResponse, error)
 	ReadMedia(context.Context, *ReadMediaRequest) (*ReadMediaResponse, error)
+	GetMediaDownloadUrl(context.Context, *GetMediaDownloadUrlRequest) (*GetMediaDownloadUrlResponse, error)
 	DeleteMedia(context.Context, *DeleteMediaRequest) (*DeleteMediaResponse, error)
 	mustEmbedUnimplementedMediaServiceServer()
 }
@@ -125,6 +138,9 @@ func (UnimplementedMediaServiceServer) ListMedia(context.Context, *ListMediaRequ
 }
 func (UnimplementedMediaServiceServer) ReadMedia(context.Context, *ReadMediaRequest) (*ReadMediaResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReadMedia not implemented")
+}
+func (UnimplementedMediaServiceServer) GetMediaDownloadUrl(context.Context, *GetMediaDownloadUrlRequest) (*GetMediaDownloadUrlResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMediaDownloadUrl not implemented")
 }
 func (UnimplementedMediaServiceServer) DeleteMedia(context.Context, *DeleteMediaRequest) (*DeleteMediaResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteMedia not implemented")
@@ -222,6 +238,24 @@ func _MediaService_ReadMedia_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MediaService_GetMediaDownloadUrl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMediaDownloadUrlRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MediaServiceServer).GetMediaDownloadUrl(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MediaService_GetMediaDownloadUrl_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MediaServiceServer).GetMediaDownloadUrl(ctx, req.(*GetMediaDownloadUrlRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MediaService_DeleteMedia_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteMediaRequest)
 	if err := dec(in); err != nil {
@@ -262,6 +296,10 @@ var MediaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReadMedia",
 			Handler:    _MediaService_ReadMedia_Handler,
+		},
+		{
+			MethodName: "GetMediaDownloadUrl",
+			Handler:    _MediaService_GetMediaDownloadUrl_Handler,
 		},
 		{
 			MethodName: "DeleteMedia",

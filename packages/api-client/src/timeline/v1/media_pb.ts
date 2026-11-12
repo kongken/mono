@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file timeline/v1/media.proto.
  */
 export const file_timeline_v1_media: GenFile = /*@__PURE__*/
-  fileDesc("Chd0aW1lbGluZS92MS9tZWRpYS5wcm90bxILdGltZWxpbmUudjEivwEKCU1lZGlhSW5mbxIRCgltZWRpYV9yZWYYASABKAkSEQoJZW50cnlfcmVmGAIgASgJEhAKCGZpbGVuYW1lGAMgASgJEhQKDGNvbnRlbnRfdHlwZRgEIAEoCRISCgpzaXplX2J5dGVzGAUgASgDEg4KBnN0YXR1cxgGIAEoCRIuCgpjcmVhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghyZXZpc2lvbhgIIAEoAyJ6ChRQcmVwYXJlVXBsb2FkUmVxdWVzdBIRCgllbnRyeV9yZWYYASABKAkSEAoIZmlsZW5hbWUYAiABKAkSFAoMY29udGVudF90eXBlGAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAMSEwoLbXV0YXRpb25faWQYBSABKAki9AEKFVByZXBhcmVVcGxvYWRSZXNwb25zZRIlCgVtZWRpYRgBIAEoCzIWLnRpbWVsaW5lLnYxLk1lZGlhSW5mbxISCgp1cGxvYWRfdXJsGAIgASgJEkAKB2hlYWRlcnMYAyADKAsyLy50aW1lbGluZS52MS5QcmVwYXJlVXBsb2FkUmVzcG9uc2UuSGVhZGVyc0VudHJ5Ei4KCmV4cGlyZXNfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wGi4KDEhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIj8KFUNvbXBsZXRlVXBsb2FkUmVxdWVzdBIRCgltZWRpYV9yZWYYASABKAkSEwoLbXV0YXRpb25faWQYAiABKAkiPwoWQ29tcGxldGVVcGxvYWRSZXNwb25zZRIlCgVtZWRpYRgBIAEoCzIWLnRpbWVsaW5lLnYxLk1lZGlhSW5mbyIlChBMaXN0TWVkaWFSZXF1ZXN0EhEKCWVudHJ5X3JlZhgBIAEoCSI6ChFMaXN0TWVkaWFSZXNwb25zZRIlCgVtZWRpYRgBIAMoCzIWLnRpbWVsaW5lLnYxLk1lZGlhSW5mbyIlChBSZWFkTWVkaWFSZXF1ZXN0EhEKCW1lZGlhX3JlZhgBIAEoCSJJChFSZWFkTWVkaWFSZXNwb25zZRIMCgRkYXRhGAEgASgMEhQKDGNvbnRlbnRfdHlwZRgCIAEoCRIQCghmaWxlbmFtZRgDIAEoCSJXChJEZWxldGVNZWRpYVJlcXVlc3QSEQoJbWVkaWFfcmVmGAEgASgJEhMKC211dGF0aW9uX2lkGAIgASgJEhkKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgDIkQKE0RlbGV0ZU1lZGlhUmVzcG9uc2USLQoHcmVjZWlwdBgBIAEoCzIcLnRpbWVsaW5lLnYxLk11dGF0aW9uUmVjZWlwdDKrAwoMTWVkaWFTZXJ2aWNlElYKDVByZXBhcmVVcGxvYWQSIS50aW1lbGluZS52MS5QcmVwYXJlVXBsb2FkUmVxdWVzdBoiLnRpbWVsaW5lLnYxLlByZXBhcmVVcGxvYWRSZXNwb25zZRJZCg5Db21wbGV0ZVVwbG9hZBIiLnRpbWVsaW5lLnYxLkNvbXBsZXRlVXBsb2FkUmVxdWVzdBojLnRpbWVsaW5lLnYxLkNvbXBsZXRlVXBsb2FkUmVzcG9uc2USSgoJTGlzdE1lZGlhEh0udGltZWxpbmUudjEuTGlzdE1lZGlhUmVxdWVzdBoeLnRpbWVsaW5lLnYxLkxpc3RNZWRpYVJlc3BvbnNlEkoKCVJlYWRNZWRpYRIdLnRpbWVsaW5lLnYxLlJlYWRNZWRpYVJlcXVlc3QaHi50aW1lbGluZS52MS5SZWFkTWVkaWFSZXNwb25zZRJQCgtEZWxldGVNZWRpYRIfLnRpbWVsaW5lLnYxLkRlbGV0ZU1lZGlhUmVxdWVzdBogLnRpbWVsaW5lLnYxLkRlbGV0ZU1lZGlhUmVzcG9uc2VCOlo4Z2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL3RpbWVsaW5lL3YxO3RpbWVsaW5ldjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_timeline_v1_timeline]);
+  fileDesc("Chd0aW1lbGluZS92MS9tZWRpYS5wcm90bxILdGltZWxpbmUudjEivwEKCU1lZGlhSW5mbxIRCgltZWRpYV9yZWYYASABKAkSEQoJZW50cnlfcmVmGAIgASgJEhAKCGZpbGVuYW1lGAMgASgJEhQKDGNvbnRlbnRfdHlwZRgEIAEoCRISCgpzaXplX2J5dGVzGAUgASgDEg4KBnN0YXR1cxgGIAEoCRIuCgpjcmVhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghyZXZpc2lvbhgIIAEoAyJ6ChRQcmVwYXJlVXBsb2FkUmVxdWVzdBIRCgllbnRyeV9yZWYYASABKAkSEAoIZmlsZW5hbWUYAiABKAkSFAoMY29udGVudF90eXBlGAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAMSEwoLbXV0YXRpb25faWQYBSABKAki9AEKFVByZXBhcmVVcGxvYWRSZXNwb25zZRIlCgVtZWRpYRgBIAEoCzIWLnRpbWVsaW5lLnYxLk1lZGlhSW5mbxISCgp1cGxvYWRfdXJsGAIgASgJEkAKB2hlYWRlcnMYAyADKAsyLy50aW1lbGluZS52MS5QcmVwYXJlVXBsb2FkUmVzcG9uc2UuSGVhZGVyc0VudHJ5Ei4KCmV4cGlyZXNfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wGi4KDEhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIj8KFUNvbXBsZXRlVXBsb2FkUmVxdWVzdBIRCgltZWRpYV9yZWYYASABKAkSEwoLbXV0YXRpb25faWQYAiABKAkiPwoWQ29tcGxldGVVcGxvYWRSZXNwb25zZRIlCgVtZWRpYRgBIAEoCzIWLnRpbWVsaW5lLnYxLk1lZGlhSW5mbyIlChBMaXN0TWVkaWFSZXF1ZXN0EhEKCWVudHJ5X3JlZhgBIAEoCSI6ChFMaXN0TWVkaWFSZXNwb25zZRIlCgVtZWRpYRgBIAMoCzIWLnRpbWVsaW5lLnYxLk1lZGlhSW5mbyIlChBSZWFkTWVkaWFSZXF1ZXN0EhEKCW1lZGlhX3JlZhgBIAEoCSJJChFSZWFkTWVkaWFSZXNwb25zZRIMCgRkYXRhGAEgASgMEhQKDGNvbnRlbnRfdHlwZRgCIAEoCRIQCghmaWxlbmFtZRgDIAEoCSIvChpHZXRNZWRpYURvd25sb2FkVXJsUmVxdWVzdBIRCgltZWRpYV9yZWYYASABKAkiggEKG0dldE1lZGlhRG93bmxvYWRVcmxSZXNwb25zZRILCgN1cmwYASABKAkSLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMY29udGVudF90eXBlGAMgASgJEhAKCGZpbGVuYW1lGAQgASgJIlcKEkRlbGV0ZU1lZGlhUmVxdWVzdBIRCgltZWRpYV9yZWYYASABKAkSEwoLbXV0YXRpb25faWQYAiABKAkSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAMiRAoTRGVsZXRlTWVkaWFSZXNwb25zZRItCgdyZWNlaXB0GAEgASgLMhwudGltZWxpbmUudjEuTXV0YXRpb25SZWNlaXB0MpUECgxNZWRpYVNlcnZpY2USVgoNUHJlcGFyZVVwbG9hZBIhLnRpbWVsaW5lLnYxLlByZXBhcmVVcGxvYWRSZXF1ZXN0GiIudGltZWxpbmUudjEuUHJlcGFyZVVwbG9hZFJlc3BvbnNlElkKDkNvbXBsZXRlVXBsb2FkEiIudGltZWxpbmUudjEuQ29tcGxldGVVcGxvYWRSZXF1ZXN0GiMudGltZWxpbmUudjEuQ29tcGxldGVVcGxvYWRSZXNwb25zZRJKCglMaXN0TWVkaWESHS50aW1lbGluZS52MS5MaXN0TWVkaWFSZXF1ZXN0Gh4udGltZWxpbmUudjEuTGlzdE1lZGlhUmVzcG9uc2USSgoJUmVhZE1lZGlhEh0udGltZWxpbmUudjEuUmVhZE1lZGlhUmVxdWVzdBoeLnRpbWVsaW5lLnYxLlJlYWRNZWRpYVJlc3BvbnNlEmgKE0dldE1lZGlhRG93bmxvYWRVcmwSJy50aW1lbGluZS52MS5HZXRNZWRpYURvd25sb2FkVXJsUmVxdWVzdBooLnRpbWVsaW5lLnYxLkdldE1lZGlhRG93bmxvYWRVcmxSZXNwb25zZRJQCgtEZWxldGVNZWRpYRIfLnRpbWVsaW5lLnYxLkRlbGV0ZU1lZGlhUmVxdWVzdBogLnRpbWVsaW5lLnYxLkRlbGV0ZU1lZGlhUmVzcG9uc2VCOlo4Z2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL3RpbWVsaW5lL3YxO3RpbWVsaW5ldjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_timeline_v1_timeline]);
 
 /**
  * @generated from message timeline.v1.MediaInfo
@@ -255,6 +255,59 @@ export const ReadMediaResponseSchema: GenMessage<ReadMediaResponse> = /*@__PURE_
   messageDesc(file_timeline_v1_media, 8);
 
 /**
+ * GetMediaDownloadUrl issues a short-lived, private download address for one
+ * attachment the caller owns. It never exposes the object store key and never
+ * replaces the per-call ownership check.
+ *
+ * @generated from message timeline.v1.GetMediaDownloadUrlRequest
+ */
+export type GetMediaDownloadUrlRequest = Message<"timeline.v1.GetMediaDownloadUrlRequest"> & {
+  /**
+   * @generated from field: string media_ref = 1;
+   */
+  mediaRef: string;
+};
+
+/**
+ * Describes the message timeline.v1.GetMediaDownloadUrlRequest.
+ * Use `create(GetMediaDownloadUrlRequestSchema)` to create a new message.
+ */
+export const GetMediaDownloadUrlRequestSchema: GenMessage<GetMediaDownloadUrlRequest> = /*@__PURE__*/
+  messageDesc(file_timeline_v1_media, 9);
+
+/**
+ * @generated from message timeline.v1.GetMediaDownloadUrlResponse
+ */
+export type GetMediaDownloadUrlResponse = Message<"timeline.v1.GetMediaDownloadUrlResponse"> & {
+  /**
+   * @generated from field: string url = 1;
+   */
+  url: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 2;
+   */
+  expiresAt?: Timestamp;
+
+  /**
+   * @generated from field: string content_type = 3;
+   */
+  contentType: string;
+
+  /**
+   * @generated from field: string filename = 4;
+   */
+  filename: string;
+};
+
+/**
+ * Describes the message timeline.v1.GetMediaDownloadUrlResponse.
+ * Use `create(GetMediaDownloadUrlResponseSchema)` to create a new message.
+ */
+export const GetMediaDownloadUrlResponseSchema: GenMessage<GetMediaDownloadUrlResponse> = /*@__PURE__*/
+  messageDesc(file_timeline_v1_media, 10);
+
+/**
  * @generated from message timeline.v1.DeleteMediaRequest
  */
 export type DeleteMediaRequest = Message<"timeline.v1.DeleteMediaRequest"> & {
@@ -279,7 +332,7 @@ export type DeleteMediaRequest = Message<"timeline.v1.DeleteMediaRequest"> & {
  * Use `create(DeleteMediaRequestSchema)` to create a new message.
  */
 export const DeleteMediaRequestSchema: GenMessage<DeleteMediaRequest> = /*@__PURE__*/
-  messageDesc(file_timeline_v1_media, 9);
+  messageDesc(file_timeline_v1_media, 11);
 
 /**
  * @generated from message timeline.v1.DeleteMediaResponse
@@ -296,7 +349,7 @@ export type DeleteMediaResponse = Message<"timeline.v1.DeleteMediaResponse"> & {
  * Use `create(DeleteMediaResponseSchema)` to create a new message.
  */
 export const DeleteMediaResponseSchema: GenMessage<DeleteMediaResponse> = /*@__PURE__*/
-  messageDesc(file_timeline_v1_media, 10);
+  messageDesc(file_timeline_v1_media, 12);
 
 /**
  * @generated from service timeline.v1.MediaService
@@ -333,6 +386,14 @@ export const MediaService: GenService<{
     methodKind: "unary";
     input: typeof ReadMediaRequestSchema;
     output: typeof ReadMediaResponseSchema;
+  },
+  /**
+   * @generated from rpc timeline.v1.MediaService.GetMediaDownloadUrl
+   */
+  getMediaDownloadUrl: {
+    methodKind: "unary";
+    input: typeof GetMediaDownloadUrlRequestSchema;
+    output: typeof GetMediaDownloadUrlResponseSchema;
   },
   /**
    * @generated from rpc timeline.v1.MediaService.DeleteMedia

@@ -8,6 +8,7 @@ service MediaService {
   rpc CompleteUpload(CompleteUploadRequest) returns (CompleteUploadResponse);
   rpc ListMedia(ListMediaRequest) returns (ListMediaResponse);
   rpc ReadMedia(ReadMediaRequest) returns (ReadMediaResponse);
+  rpc GetMediaDownloadUrl(GetMediaDownloadUrlRequest) returns (GetMediaDownloadUrlResponse);
   rpc DeleteMedia(DeleteMediaRequest) returns (DeleteMediaResponse);
 }
 message MediaInfo { string media_ref = 1; string entry_ref = 2; string filename = 3; string content_type = 4; int64 size_bytes = 5; string status = 6; google.protobuf.Timestamp created_at = 7; int64 revision = 8; }
@@ -19,5 +20,10 @@ message ListMediaRequest { string entry_ref = 1; }
 message ListMediaResponse { repeated MediaInfo media = 1; }
 message ReadMediaRequest { string media_ref = 1; }
 message ReadMediaResponse { bytes data = 1; string content_type = 2; string filename = 3; }
+// GetMediaDownloadUrl issues a short-lived, private download address for one
+// attachment the caller owns. It never exposes the object store key and never
+// replaces the per-call ownership check.
+message GetMediaDownloadUrlRequest { string media_ref = 1; }
+message GetMediaDownloadUrlResponse { string url = 1; google.protobuf.Timestamp expires_at = 2; string content_type = 3; string filename = 4; }
 message DeleteMediaRequest { string media_ref = 1; string mutation_id = 2; int64 expected_revision = 3; }
 message DeleteMediaResponse { timeline.v1.MutationReceipt receipt = 1; }

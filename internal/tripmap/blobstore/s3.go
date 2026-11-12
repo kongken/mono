@@ -48,6 +48,28 @@ type UploadSigner interface {
 	SignUpload(context.Context, string, int64, string, time.Duration) (string, map[string]string, error)
 }
 
+// DownloadSigner signs a short-lived GET for one private object. Like
+// UploadSigner it is optional, so an object store without presigning simply
+// fails the download-address request instead of serving bytes itself.
+type DownloadSigner interface {
+	SignDownload(context.Context, string, time.Duration) (string, error)
+}
+
+func (s *S3) SignDownload(ctx context.Context, key string, ttl time.Duration) (string, error) {
+	k, err := s.key(key)
+	if err != nil {
+		return "", err
+	}
+	if s.signer == nil || ttl <= 0 {
+		return "", fmt.Errorf("download signing unavailable")
+	}
+	out, err := s.signer.PresignGetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(k)}, func(o *s3.PresignOptions) { o.Expires = ttl })
+	if err != nil {
+		return "", err
+	}
+	return out.URL, nil
+}
+
 func (s *S3) SignUpload(ctx context.Context, key string, size int64, mime string, ttl time.Duration) (string, map[string]string, error) {
 	k, err := s.key(key)
 	if err != nil {

@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 
 	"github.com/kongken/mono/internal/timeline/ent"
@@ -16,20 +18,26 @@ import (
 
 var defaultCategoryNames = []string{"餐饮", "交通", "购物", "居住", "医疗", "教育", "娱乐", "运动", "旅行", "工作", "家庭", "宠物", "服饰", "美容", "数码", "礼物", "社交", "订阅", "公益", "投资", "其他支出", "其他"}
 
+// ensureCategories initializes the 22 defaults exactly once per user and is safe
+// under concurrent first requests. It only inserts when the user has no category
+// at all, so a default the user renamed or disabled is never resurrected, and it
+// ignores unique-key races instead of failing one of the racing transactions.
 func ensureCategories(ctx context.Context, tx *ent.Tx, uid string) error {
-	existing, err := tx.Category.Query().Where(category.UserIDEQ(uid)).Select(category.FieldName).Strings(ctx)
+	n, err := tx.Category.Query().Where(category.UserIDEQ(uid)).Count(ctx)
 	if err != nil {
 		return err
 	}
-	seen := make(map[string]bool, len(existing))
-	for _, name := range existing {
-		seen[name] = true
+	if n > 0 {
+		return nil
 	}
 	for _, name := range defaultCategoryNames {
-		if seen[name] {
-			continue
-		}
-		if _, err := tx.Category.Create().SetPublicRef(refs.New("cat_")).SetUserID(uid).SetName(name).SetActive(true).SetIsDefault(true).SetIsOther(name == "其他").Save(ctx); err != nil {
+		err := tx.Category.Create().
+			SetPublicRef(refs.New("cat_")).SetUserID(uid).SetName(name).
+			SetActive(true).SetIsDefault(true).SetIsOther(name == "其他").
+			OnConflictColumns(category.FieldUserID, category.FieldName).DoNothing().Exec(ctx)
+		// DO NOTHING reports no row when another request won the race or the
+		// user already had the category; both mean the default now exists.
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
 	}

@@ -58,8 +58,8 @@ func tools() []*tool {
 		{"timeline_list_attachments", "List attachment metadata for one entry; trashed entries return no media.", accesstoken.ScopeTimelineRead, true, false, false, func() proto.Message { return &timelinev1.ListMediaRequest{} }, nil, func(c context.Context, s timelinev1.MediaServiceClient, r proto.Message) (proto.Message, error) {
 			return s.ListMedia(c, r.(*timelinev1.ListMediaRequest))
 		}},
-		{"timeline_read_attachment", "Read one private attachment's bytes after listing it.", accesstoken.ScopeTimelineRead, true, false, false, func() proto.Message { return &timelinev1.ReadMediaRequest{} }, nil, func(c context.Context, s timelinev1.MediaServiceClient, r proto.Message) (proto.Message, error) {
-			return s.ReadMedia(c, r.(*timelinev1.ReadMediaRequest))
+		{"timeline_get_attachment_download", "Issue a short-lived private download address for one attachment after listing it. The address expires within minutes, is not a permanent public URL, and is refused once the entry is trashed.", accesstoken.ScopeTimelineRead, true, false, false, func() proto.Message { return &timelinev1.GetMediaDownloadUrlRequest{} }, nil, func(c context.Context, s timelinev1.MediaServiceClient, r proto.Message) (proto.Message, error) {
+			return s.GetMediaDownloadUrl(c, r.(*timelinev1.GetMediaDownloadUrlRequest))
 		}},
 	}
 }

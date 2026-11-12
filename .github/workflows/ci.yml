@@ -209,7 +209,7 @@ jobs:
         run: |
           set -o pipefail
           go test ./internal/timeline/integration -count=1 -v | tee /tmp/timeline-db.log
-          for t in TestMigrationDirectoryChecksum TestVersionedMigrationsBackfillOpaqueRefs TestMutationReceiptConstraintsRejectIllegalRows TestMutationReceiptSurvivesCleanupAndIsOwnerScoped TestPresignedUploadRoundTripThroughTheBucket TestPrepareUploadHandsBackTheHeadersTheSignatureCovers TestDeleteQueuesTheObjectForCleanup TestPrepareRefusesTheTwentyFirstAttachment; do
+          for t in TestMigrationDirectoryChecksum TestVersionedMigrationsBackfillOpaqueRefs TestMutationReceiptConstraintsRejectIllegalRows TestMutationReceiptSurvivesCleanupAndIsOwnerScoped TestPresignedUploadRoundTripThroughTheBucket TestPrepareUploadHandsBackTheHeadersTheSignatureCovers TestDeleteQueuesTheObjectForCleanup TestPrepareRefusesTheTwentyFirstAttachment TestConcurrentFirstCategoryInitCreatesDefaultsOnce TestAttachmentDownloadAddressIsOwnerScopedAndStopsAfterTrash TestAttachmentDownloadAddressFetchesTheStoredObject; do
             grep -q -- "--- PASS: $t " /tmp/timeline-db.log || { echo "$t did not run and pass against PostgreSQL and the object store"; exit 1; }
           done
           ! grep -q -- '--- SKIP' /tmp/timeline-db.log || { echo "a Timeline database or attachment scenario was skipped"; exit 1; }

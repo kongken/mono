@@ -27,6 +27,9 @@ func (s *stubMedia) ListMedia(context.Context, *v1.ListMediaRequest, ...grpc.Cal
 func (s *stubMedia) ReadMedia(context.Context, *v1.ReadMediaRequest, ...grpc.CallOption) (*v1.ReadMediaResponse, error) {
 	return &v1.ReadMediaResponse{Data: []byte("jpg"), ContentType: "image/jpeg", Filename: "photo.jpg"}, nil
 }
+func (s *stubMedia) GetMediaDownloadUrl(context.Context, *v1.GetMediaDownloadUrlRequest, ...grpc.CallOption) (*v1.GetMediaDownloadUrlResponse, error) {
+	return &v1.GetMediaDownloadUrlResponse{Url: "https://objects.example.com/bucket/key?sig=1", ContentType: "image/jpeg", Filename: "photo.jpg", ExpiresAt: timestamppb.New(timestamppb.Now().AsTime().Add(300))}, nil
+}
 func (s *stubMedia) DeleteMedia(context.Context, *v1.DeleteMediaRequest, ...grpc.CallOption) (*v1.DeleteMediaResponse, error) {
 	return &v1.DeleteMediaResponse{Receipt: &v1.MutationReceipt{MutationId: "m1", Operation: "media_delete", ResultRevision: 1}}, nil
 }

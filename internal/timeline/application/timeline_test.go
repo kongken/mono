@@ -42,6 +42,76 @@ func TestValidateEntry(t *testing.T) {
 	}
 }
 
+func TestValidateAmountPresenceAndCurrency(t *testing.T) {
+	base := func() *timelinev1.Entry {
+		return &timelinev1.Entry{Title: "Lunch", Date: "2024-01-15", Timezone: "UTC"}
+	}
+	amount := base()
+	amount.AmountPresent, amount.AmountMinor, amount.Currency = true, 1250, "CNY"
+	if err := validate(amount, false); err != nil {
+		t.Fatalf("valid amount rejected: %v", err)
+	}
+	orphan := base()
+	orphan.Currency = "CNY"
+	if err := validate(orphan, false); err == nil {
+		t.Fatal("currency without an amount was accepted")
+	}
+	missingCurrency := base()
+	missingCurrency.AmountPresent, missingCurrency.AmountMinor = true, 100
+	if err := validate(missingCurrency, false); err == nil {
+		t.Fatal("amount without a currency was accepted")
+	}
+	malformed := base()
+	malformed.AmountPresent, malformed.AmountMinor, malformed.Currency = true, 100, "cny"
+	if err := validate(malformed, false); err == nil {
+		t.Fatal("malformed currency was accepted")
+	}
+}
+
+func TestLocalOccurrenceRejectsFutureAndDSTWallTimes(t *testing.T) {
+	future := time.Now().In(time.UTC).AddDate(0, 0, 2).Format("2006-01-02")
+	if _, err := localOccurrence(&timelinev1.Entry{Date: future, Timezone: "UTC"}); err == nil {
+		t.Fatal("future date accepted")
+	}
+	if _, err := localOccurrence(&timelinev1.Entry{Date: future, Time: "00:00", Timezone: "UTC"}); err == nil {
+		t.Fatal("future time accepted")
+	}
+	// 2026-03-08 02:30 does not exist in New York: the spring-forward gap.
+	if _, err := localOccurrence(&timelinev1.Entry{Date: "2026-03-08", Time: "02:30", Timezone: "America/New_York"}); err == nil {
+		t.Fatal("DST gap wall time accepted")
+	}
+	// 2026-11-01 01:30 happens twice in New York: the fall-back repeat.
+	if _, err := localOccurrence(&timelinev1.Entry{Date: "2026-11-01", Time: "01:30", Timezone: "America/New_York"}); err == nil {
+		t.Fatal("ambiguous DST wall time accepted")
+	}
+	// A date-only record has no clock value to disambiguate, so it is allowed.
+	if _, err := localOccurrence(&timelinev1.Entry{Date: "2026-11-01", Timezone: "America/New_York"}); err != nil {
+		t.Fatalf("date-only record on a DST day rejected: %v", err)
+	}
+	if _, err := localOccurrence(&timelinev1.Entry{Date: "2024-01-15", Time: "09:30", Timezone: "Asia/Shanghai"}); err != nil {
+		t.Fatalf("ordinary past local time rejected: %v", err)
+	}
+}
+
+func TestListCursorIsBoundToItsFilters(t *testing.T) {
+	base := &timelinev1.ListEntriesRequest{Query: "dinner", Category: "餐饮"}
+	other := &timelinev1.ListEntriesRequest{Query: "dinner", Category: "交通"}
+	if listFilter(base) == listFilter(other) {
+		t.Fatal("filter fingerprint ignores the category")
+	}
+	token := encodeListCursor("2026-11-07", "12:30", time.Now().UTC(), "internal-id", listFilter(base))
+	cursor, err := decodeListCursor(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cursor.Filter != listFilter(base) {
+		t.Fatal("cursor lost its filter binding")
+	}
+	if cursor.Filter == listFilter(other) {
+		t.Fatal("cursor filter binding collided across filters")
+	}
+}
+
 func TestMutationContracts(t *testing.T) {
 	for _, id := range []string{"short", "中文123456", "bad value", string(make([]byte, 129))} {
 		if validateMutationID(id) == nil {

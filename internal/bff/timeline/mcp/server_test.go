@@ -38,6 +38,26 @@ func TestToolsUseTimelineScopesAndExpectedRevision(t *testing.T) {
 			}
 		}
 	}
+	var download, rawBytes *tool
+	for _, tool := range ts {
+		switch tool.name {
+		case "timeline_get_attachment_download":
+			download = tool
+		case "timeline_read_attachment":
+			rawBytes = tool
+		}
+	}
+	// #110: MCP returns attachment metadata and a short-lived download address,
+	// never raw bytes and never a permanent public URL.
+	if download == nil {
+		t.Fatal("timeline_get_attachment_download tool is missing")
+	}
+	if download.mediaCall == nil || download.readOnly == false {
+		t.Fatalf("download tool must be a read-only media call: %+v", download)
+	}
+	if rawBytes != nil {
+		t.Fatal("MCP must not expose a raw attachment byte tool")
+	}
 }
 
 func TestEffectiveRolesAcceptsActiveTimelineAccountAndRejectsInactiveAccount(t *testing.T) {

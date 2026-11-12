@@ -193,6 +193,42 @@ func Read(ctx context.Context, st *Store, userID, mediaRef string) (*Media, io.R
 	return toMedia(m), r, nil
 }
 
+// DownloadURLTTL is the server-side lifetime of a signed attachment address. The
+// product rules suggest five minutes; the caller may not extend it.
+const DownloadURLTTL = 5 * time.Minute
+
+// Download is a short-lived private address for one attachment. It intentionally
+// carries no object store key.
+type Download struct {
+	URL, Filename, ContentType string
+	ExpiresAt                  time.Time
+}
+
+// DownloadURL issues a signed, expiring address for an attachment the caller
+// owns and whose entry is not trashed. Ownership, entry state and the ready state
+// are re-checked on every request; a trashed entry stops issuing addresses.
+func DownloadURL(ctx context.Context, st *Store, userID, mediaRef string, ttl time.Duration) (*Download, error) {
+	if st == nil || st.DB == nil || st.Blobs == nil || userID == "" || !refs.Valid(mediaRef, "med_") {
+		return nil, ErrInvalid
+	}
+	if ttl <= 0 || ttl > DownloadURLTTL {
+		ttl = DownloadURLTTL
+	}
+	m, err := st.DB.MediaObject.Query().Where(mediaobject.UserID(userID), mediaobject.PublicRefEQ(mediaRef), mediaobject.StateEQ(mediaobject.StateReady), mediaobject.HasEntryWith(entry.DeletedAtIsNil())).Only(ctx)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	signer, ok := st.Blobs.(blobstore.DownloadSigner)
+	if !ok {
+		return nil, errors.New("download signing unavailable")
+	}
+	url, err := signer.SignDownload(ctx, m.ObjectKey, ttl)
+	if err != nil {
+		return nil, err
+	}
+	return &Download{URL: url, Filename: m.Filename, ContentType: m.ContentType, ExpiresAt: time.Now().UTC().Add(ttl)}, nil
+}
+
 func Delete(ctx context.Context, st *Store, userID, mediaRef, mutationID string, expectedRevision int) (*ent.Receipt, error) {
 	if st == nil || st.DB == nil || userID == "" || !refs.Valid(mediaRef, "med_") || mutationID == "" || expectedRevision <= 0 {
 		return nil, ErrInvalid

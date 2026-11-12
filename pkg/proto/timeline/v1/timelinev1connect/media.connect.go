@@ -43,6 +43,9 @@ const (
 	MediaServiceListMediaProcedure = "/timeline.v1.MediaService/ListMedia"
 	// MediaServiceReadMediaProcedure is the fully-qualified name of the MediaService's ReadMedia RPC.
 	MediaServiceReadMediaProcedure = "/timeline.v1.MediaService/ReadMedia"
+	// MediaServiceGetMediaDownloadUrlProcedure is the fully-qualified name of the MediaService's
+	// GetMediaDownloadUrl RPC.
+	MediaServiceGetMediaDownloadUrlProcedure = "/timeline.v1.MediaService/GetMediaDownloadUrl"
 	// MediaServiceDeleteMediaProcedure is the fully-qualified name of the MediaService's DeleteMedia
 	// RPC.
 	MediaServiceDeleteMediaProcedure = "/timeline.v1.MediaService/DeleteMedia"
@@ -54,6 +57,7 @@ type MediaServiceClient interface {
 	CompleteUpload(context.Context, *connect.Request[v1.CompleteUploadRequest]) (*connect.Response[v1.CompleteUploadResponse], error)
 	ListMedia(context.Context, *connect.Request[v1.ListMediaRequest]) (*connect.Response[v1.ListMediaResponse], error)
 	ReadMedia(context.Context, *connect.Request[v1.ReadMediaRequest]) (*connect.Response[v1.ReadMediaResponse], error)
+	GetMediaDownloadUrl(context.Context, *connect.Request[v1.GetMediaDownloadUrlRequest]) (*connect.Response[v1.GetMediaDownloadUrlResponse], error)
 	DeleteMedia(context.Context, *connect.Request[v1.DeleteMediaRequest]) (*connect.Response[v1.DeleteMediaResponse], error)
 }
 
@@ -92,6 +96,12 @@ func NewMediaServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(mediaServiceMethods.ByName("ReadMedia")),
 			connect.WithClientOptions(opts...),
 		),
+		getMediaDownloadUrl: connect.NewClient[v1.GetMediaDownloadUrlRequest, v1.GetMediaDownloadUrlResponse](
+			httpClient,
+			baseURL+MediaServiceGetMediaDownloadUrlProcedure,
+			connect.WithSchema(mediaServiceMethods.ByName("GetMediaDownloadUrl")),
+			connect.WithClientOptions(opts...),
+		),
 		deleteMedia: connect.NewClient[v1.DeleteMediaRequest, v1.DeleteMediaResponse](
 			httpClient,
 			baseURL+MediaServiceDeleteMediaProcedure,
@@ -103,11 +113,12 @@ func NewMediaServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 
 // mediaServiceClient implements MediaServiceClient.
 type mediaServiceClient struct {
-	prepareUpload  *connect.Client[v1.PrepareUploadRequest, v1.PrepareUploadResponse]
-	completeUpload *connect.Client[v1.CompleteUploadRequest, v1.CompleteUploadResponse]
-	listMedia      *connect.Client[v1.ListMediaRequest, v1.ListMediaResponse]
-	readMedia      *connect.Client[v1.ReadMediaRequest, v1.ReadMediaResponse]
-	deleteMedia    *connect.Client[v1.DeleteMediaRequest, v1.DeleteMediaResponse]
+	prepareUpload       *connect.Client[v1.PrepareUploadRequest, v1.PrepareUploadResponse]
+	completeUpload      *connect.Client[v1.CompleteUploadRequest, v1.CompleteUploadResponse]
+	listMedia           *connect.Client[v1.ListMediaRequest, v1.ListMediaResponse]
+	readMedia           *connect.Client[v1.ReadMediaRequest, v1.ReadMediaResponse]
+	getMediaDownloadUrl *connect.Client[v1.GetMediaDownloadUrlRequest, v1.GetMediaDownloadUrlResponse]
+	deleteMedia         *connect.Client[v1.DeleteMediaRequest, v1.DeleteMediaResponse]
 }
 
 // PrepareUpload calls timeline.v1.MediaService.PrepareUpload.
@@ -130,6 +141,11 @@ func (c *mediaServiceClient) ReadMedia(ctx context.Context, req *connect.Request
 	return c.readMedia.CallUnary(ctx, req)
 }
 
+// GetMediaDownloadUrl calls timeline.v1.MediaService.GetMediaDownloadUrl.
+func (c *mediaServiceClient) GetMediaDownloadUrl(ctx context.Context, req *connect.Request[v1.GetMediaDownloadUrlRequest]) (*connect.Response[v1.GetMediaDownloadUrlResponse], error) {
+	return c.getMediaDownloadUrl.CallUnary(ctx, req)
+}
+
 // DeleteMedia calls timeline.v1.MediaService.DeleteMedia.
 func (c *mediaServiceClient) DeleteMedia(ctx context.Context, req *connect.Request[v1.DeleteMediaRequest]) (*connect.Response[v1.DeleteMediaResponse], error) {
 	return c.deleteMedia.CallUnary(ctx, req)
@@ -141,6 +157,7 @@ type MediaServiceHandler interface {
 	CompleteUpload(context.Context, *connect.Request[v1.CompleteUploadRequest]) (*connect.Response[v1.CompleteUploadResponse], error)
 	ListMedia(context.Context, *connect.Request[v1.ListMediaRequest]) (*connect.Response[v1.ListMediaResponse], error)
 	ReadMedia(context.Context, *connect.Request[v1.ReadMediaRequest]) (*connect.Response[v1.ReadMediaResponse], error)
+	GetMediaDownloadUrl(context.Context, *connect.Request[v1.GetMediaDownloadUrlRequest]) (*connect.Response[v1.GetMediaDownloadUrlResponse], error)
 	DeleteMedia(context.Context, *connect.Request[v1.DeleteMediaRequest]) (*connect.Response[v1.DeleteMediaResponse], error)
 }
 
@@ -175,6 +192,12 @@ func NewMediaServiceHandler(svc MediaServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(mediaServiceMethods.ByName("ReadMedia")),
 		connect.WithHandlerOptions(opts...),
 	)
+	mediaServiceGetMediaDownloadUrlHandler := connect.NewUnaryHandler(
+		MediaServiceGetMediaDownloadUrlProcedure,
+		svc.GetMediaDownloadUrl,
+		connect.WithSchema(mediaServiceMethods.ByName("GetMediaDownloadUrl")),
+		connect.WithHandlerOptions(opts...),
+	)
 	mediaServiceDeleteMediaHandler := connect.NewUnaryHandler(
 		MediaServiceDeleteMediaProcedure,
 		svc.DeleteMedia,
@@ -191,6 +214,8 @@ func NewMediaServiceHandler(svc MediaServiceHandler, opts ...connect.HandlerOpti
 			mediaServiceListMediaHandler.ServeHTTP(w, r)
 		case MediaServiceReadMediaProcedure:
 			mediaServiceReadMediaHandler.ServeHTTP(w, r)
+		case MediaServiceGetMediaDownloadUrlProcedure:
+			mediaServiceGetMediaDownloadUrlHandler.ServeHTTP(w, r)
 		case MediaServiceDeleteMediaProcedure:
 			mediaServiceDeleteMediaHandler.ServeHTTP(w, r)
 		default:
@@ -216,6 +241,10 @@ func (UnimplementedMediaServiceHandler) ListMedia(context.Context, *connect.Requ
 
 func (UnimplementedMediaServiceHandler) ReadMedia(context.Context, *connect.Request[v1.ReadMediaRequest]) (*connect.Response[v1.ReadMediaResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("timeline.v1.MediaService.ReadMedia is not implemented"))
+}
+
+func (UnimplementedMediaServiceHandler) GetMediaDownloadUrl(context.Context, *connect.Request[v1.GetMediaDownloadUrlRequest]) (*connect.Response[v1.GetMediaDownloadUrlResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("timeline.v1.MediaService.GetMediaDownloadUrl is not implemented"))
 }
 
 func (UnimplementedMediaServiceHandler) DeleteMedia(context.Context, *connect.Request[v1.DeleteMediaRequest]) (*connect.Response[v1.DeleteMediaResponse], error) {

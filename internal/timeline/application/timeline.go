@@ -80,6 +80,11 @@ func validate(in *timelinev1.Entry, requireID bool) error {
 	if in.AmountPresent && in.Currency == "" {
 		return status.Error(codes.InvalidArgument, "currency is required when amount is present")
 	}
+	// A currency without an amount is not a zero-value amount: the two are
+	// distinct per the product rules, and an orphan currency is refused.
+	if !in.AmountPresent && in.AmountMinor == 0 && in.Currency != "" {
+		return status.Error(codes.InvalidArgument, "currency requires an amount")
+	}
 	if in.Url != "" {
 		u, err := url.Parse(in.Url)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || strings.IndexFunc(in.Url, func(r rune) bool { return r < 32 || r == 127 }) >= 0 {

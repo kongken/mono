@@ -70,5 +70,16 @@ func (s *MediaService) DeleteMedia(ctx context.Context, req *timelinev1.DeleteMe
 	return &timelinev1.DeleteMediaResponse{Receipt: receiptResponse(r, false)}, nil
 }
 
+// GetMediaDownloadUrl issues a short-lived private address for one attachment.
+// It performs the same ownership and trash checks as ReadMedia, so a deleted
+// record stops issuing addresses even if the object still exists.
+func (s *MediaService) GetMediaDownloadUrl(ctx context.Context, req *timelinev1.GetMediaDownloadUrlRequest) (*timelinev1.GetMediaDownloadUrlResponse, error) {
+	d, err := media.DownloadURL(ctx, s.store, rpcauth.CallFrom(ctx).UserID, req.MediaRef, 0)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, err.Error())
+	}
+	return &timelinev1.GetMediaDownloadUrlResponse{Url: d.URL, ExpiresAt: timestamppb.New(d.ExpiresAt), ContentType: d.ContentType, Filename: d.Filename}, nil
+}
+
 var _ = info
 var _ = mediaobject.StateReady
