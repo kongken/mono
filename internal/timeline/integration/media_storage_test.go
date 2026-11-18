@@ -41,6 +41,7 @@ import (
 	"github.com/kongken/mono/internal/timeline/ent"
 	"github.com/kongken/mono/internal/timeline/ent/mediaobject"
 	"github.com/kongken/mono/internal/timeline/media"
+	"github.com/kongken/mono/internal/timeline/refs"
 	"github.com/kongken/mono/internal/tripmap/blobstore"
 )
 
@@ -117,6 +118,7 @@ func newMediaFixture(t *testing.T) *mediaFixture {
 func (f *mediaFixture) newEntry(t *testing.T) *ent.Entry {
 	t.Helper()
 	e, err := f.client.Entry.Create().
+		SetPublicRef(refs.New("ent_")).
 		SetUserID(f.user).
 		SetTitle("附件记录").
 		SetOccurredDate("2026-11-10").

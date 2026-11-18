@@ -17,9 +17,11 @@ import (
 	"google.golang.org/grpc"
 )
 
-// The browser management perimeter covers the metro administration and the management tokens, not only
-// the user administration: reads, writes, preflight and the other path spellings, all before the session,
-// the role and the upstream. MCP keeps its own protocol and its own machine allowlist (mcp.*, T9:
+// The browser management perimeter covers the metro administration and the metro
+// token operations, not only the user administration: reads, writes, preflight
+// and the other path spellings, all before the session, the role and the
+// upstream. Timeline token self-service has a separate OzID origin policy.
+// MCP keeps its own protocol and machine allowlist (mcp.*, T9:
 // metro_mcp_perimeter_chain_test.go); the browser list neither admits nor refuses it.
 
 // countMetroAdmin counts the calls that reach metro's admin service, whoever made them.

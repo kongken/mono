@@ -10,6 +10,7 @@ COPY internal/tripmap/blobstore internal/tripmap/blobstore
 COPY internal/platform internal/platform
 COPY pkg pkg
 COPY migrations/timeline migrations/timeline
+COPY migrations/tripmap migrations/tripmap
 RUN go test ./internal/timeline/... ./internal/platform/... ./cmd/timeline/...
 RUN CGO_ENABLED=0 go build -trimpath -o /timeline ./cmd/timeline
 

@@ -122,6 +122,7 @@ func TestAccountOriginPolicy(t *testing.T) {
 		csrf     = bffv1connect.AuthServiceIssueCSRFTokenProcedure
 		resolve  = bffv1connect.AuthServiceResolveNavigationProcedure
 		users    = bffv1connect.UserAdminServiceListUsersProcedure
+		tokens   = bffv1connect.AccessTokenServiceListAccessTokensProcedure
 		other    = "/bff.tripmap.v1.FootprintService/GetFootprints"
 	)
 	for _, tc := range []struct {
@@ -154,6 +155,9 @@ func TestAccountOriginPolicy(t *testing.T) {
 		{"product sign-out", policyFor(t, config.LegacyMailTransition{}, now), logout, originHeader("https://metro.example.com"), true},
 		{"product navigation", policyFor(t, config.LegacyMailTransition{}, now), resolve, originHeader("https://trip.example.com"), true},
 		{"console Me", policyFor(t, config.LegacyMailTransition{}, now), me, originHeader("https://admin.example.com"), true},
+		{"ozid token self-service", policyFor(t, config.LegacyMailTransition{}, now), tokens, originHeader("https://id.example.com"), true},
+		{"console token administration", policyFor(t, config.LegacyMailTransition{}, now), tokens, originHeader("https://admin.example.com"), true},
+		{"product token access", policyFor(t, config.LegacyMailTransition{}, now), tokens, originHeader("https://trip.example.com"), false},
 
 		{"product business call is not this rule", policyFor(t, config.LegacyMailTransition{}, now), other, originHeader("https://trip.example.com"), true},
 		{"management procedure is the admin perimeter's", policyFor(t, config.LegacyMailTransition{}, now), users, originHeader("https://trip.example.com"), true},

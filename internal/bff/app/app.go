@@ -210,7 +210,12 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 	}
 	policy := ingress.Policy{
 		Perimeter: func(procedure string, header http.Header, remoteAddr string) error {
-			if isAdminProcedure(procedure) {
+			// AccessTokenService serves both account self-service (Timeline tokens
+			// from OzID) and metro administration (the console). Only the latter
+			// uses the source allowlist; accountOriginPolicy still rejects every
+			// other origin.
+			consoleToken := isAccessTokenProcedure(procedure) && header.Get("Origin") == h.cfg.Navigation.Apps[navigation.AppAdmin].Origin
+			if isAdminProcedure(procedure) || consoleToken {
 				return guard.Check(header, remoteAddr)
 			}
 			return accountOrigins.Check(procedure, header)
@@ -482,7 +487,8 @@ func (h *Handlers) servePublic(gw *gateway.Gateway, c *gin.Context) {
 	}
 	// The admin perimeter comes before CORS: a request from outside the allowlist, a
 	// preflight included, gets no CORS grant and no hint that the procedure exists.
-	if isAdminPath(p) {
+	consoleToken := isAccessTokenPath(p) && c.Request.Header.Get("Origin") == h.cfg.Navigation.Apps[navigation.AppAdmin].Origin
+	if isAdminPath(p) || consoleToken {
 		if h.adminGuard.Load().Check(c.Request.Header, c.Request.RemoteAddr) != nil {
 			c.AbortWithStatus(http.StatusForbidden)
 			return
