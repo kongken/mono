@@ -13,6 +13,9 @@ COPY packages/geo-data/data/regions.json packages/geo-data/data/regions.json
 COPY packages/geo-data/data/city-coords.json packages/geo-data/data/city-coords.json
 COPY packages/fixtures packages/fixtures
 COPY migrations/tripmap migrations/tripmap
+# Shared migration discovery (internal/platform/migrations) tests the Timeline and
+# Tripmap directories together; only the static SQL files are copied, no Timeline code.
+COPY migrations/timeline migrations/timeline
 # The migration tests check the separate post-import cleanup script.
 COPY deploy/sql/tripmap deploy/sql/tripmap
 RUN go test ./internal/... ./cmd/...

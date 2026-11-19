@@ -205,7 +205,7 @@ OzID（`apps/ozid`，镜像 `ozid-web`）是纯静态站点，没有同源 `/api
 3. **反代与 DNS/TLS**：见 `deploy/reverse-proxy/Caddyfile.example` 的 `admin.example.com` 站点：代理是第一个看到真实客户端的跳点，用对端地址**覆盖** `X-Forwarded-For`（不透传客户端的值），并列入后两层的受信代理。前面如果还有 CDN/负载均衡，它们的网段也属于受信链，必须同时配置，否则真实来源会被误判。
 4. **授予平台角色**：`usersrv-admin grant-role -role ozid-admin ...`（先于上线）。usersrv 迁移 `20261025120000_platform_admin_role.sql` 随 usersrv 上线。
 5. **上线顺序与回滚**：usersrv → BFF → 网关与 `admin-web`；回滚先下线控制台，再回滚 BFF；回滚迁移前先撤销所有 `ozid-admin`。
-6. **metro 管理迁入控制台（T8）的影响**：`bff.metro.v1.AdminService` 与 `bff.v1.AccessTokenService` 现在同样要求来源在 `admin.allowed_cidrs` 内且 `Origin` 是控制台 origin——metro 公开站（`metro-web`）不再有管理页面，`/admin` 已退役，旧站点不能再管理目录或令牌；metro 管理员须从控制台操作，并保证其来源在白名单内。先上线 BFF 与控制台、再上线新的 `metro-web`，或同时上线，避免出现“旧站管理页已被周界拒绝而控制台尚未可用”的窗口。MCP（`/mcp/metro`）不受影响，它的来源策略是独立的 `mcp.allowed_cidrs`（T9，见下一节）。没有配置 metro 上游的环境，控制台不显示 metro 分区。
+6. **metro 管理迁入控制台（T8）的影响**：`bff.metro.v1.AdminService` 与 `bff.v1.AccessTokenService` 的 metro 管理能力现在同样要求来源在 `admin.allowed_cidrs` 内、`Origin` 是控制台 origin 且账号有 `metro-admin`（AccessTokenService 另有 OzID 来源的个人 Timeline 令牌自助：只能管理当前账号自己的 Timeline 令牌，不能创建 metro 令牌或跨账号读取，见 [BFF](bff.md)）——metro 公开站（`metro-web`）不再有管理页面，`/admin` 已退役，旧站点不能再管理目录或令牌；metro 管理员须从控制台操作，并保证其来源在白名单内。先上线 BFF 与控制台、再上线新的 `metro-web`，或同时上线，避免出现“旧站管理页已被周界拒绝而控制台尚未可用”的窗口。MCP（`/mcp/metro`）不受影响，它的来源策略是独立的 `mcp.allowed_cidrs`（T9，见下一节）。没有配置 metro 上游的环境，控制台不显示 metro 分区。
 
 镜像发布与 CI 不会自动部署、不会自动开放白名单，也不清理数据；运维仍须自行确认真实 DNS、证书与 TLS、真实来源地址与白名单取值、代理/CDN 链路和邮件厂商。详见 [控制台功能描述](admin/features.md)。
 
