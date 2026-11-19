@@ -207,7 +207,7 @@ func runGatewaySet(t *testing.T, root string, bins gwBinaries, set gwSet, stateD
 
 	// ---- Caddy: the shipped example, three instances of it (see caddyMode) ----
 	bffPort := mustPort(t, g.h.BFFURL)
-	up := gwUpstreams{bff: bffPort, ozid: g.ozidNginx.port, admin: g.adminNginx.port, trip: g.dist["trip-map"], metro: g.dist["metro"]}
+	up := gwUpstreams{bff: bffPort, ozid: g.ozidNginx.port, admin: g.adminNginx.port, timeline: g.ozidNginx.port, trip: g.dist["trip-map"], metro: g.dist["metro"]}
 	start := func(mode caddyMode) int {
 		https, http := freePort(t), freePort(t)
 		startCaddy(t, bins, renderCaddyfile(t, root, set, up, mode, https, http), https)

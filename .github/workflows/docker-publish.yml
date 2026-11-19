@@ -38,6 +38,15 @@ jobs:
           - image: bff
             suffix: '-bff'
             dockerfile: deploy/bff/Dockerfile
+          - image: timeline
+            suffix: '-timeline'
+            dockerfile: deploy/timeline/Dockerfile
+          - image: timeline-web
+            suffix: '-timeline-web'
+            dockerfile: deploy/timeline-web/Dockerfile
+            build_args: |
+              VITE_API_BASE_URL=https://api.example.com/api
+              VITE_OZID_ORIGIN=https://id.example.com
           - image: metro
             suffix: '-metro'
             dockerfile: deploy/metro/Dockerfile

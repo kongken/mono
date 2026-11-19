@@ -7,8 +7,10 @@ import (
 	"github.com/kongken/mono/pkg/proto/bff/v1/bffv1connect"
 )
 
+const accessTokenServicePrefix = "/" + bffv1connect.AccessTokenServiceName + "/"
+
 // adminServices are the browser services whose every procedure is a management procedure of the
-// unified console: user management, the metro catalogue administration and the management tokens.
+// unified console: user management and the metro catalogue administration.
 // The admin perimeter (source allowlist and the console's exact Origin) applies to each of their
 // procedures and public paths, whatever the method, so a procedure added to one of them later is
 // covered without being listed anywhere, and a service is added here by name (a test fails when a
@@ -17,7 +19,6 @@ import (
 var adminServices = []string{
 	bffv1connect.UserAdminServiceName,
 	bffmetrov1connect.AdminServiceName,
-	bffv1connect.AccessTokenServiceName,
 }
 
 // isAdminProcedure reports whether procedure ("/bff.v1.UserAdminService/ListUsers") belongs to an
@@ -40,4 +41,16 @@ func isAdminPath(path string) bool {
 		}
 	}
 	return false
+}
+
+// isAccessTokenProcedure and isAccessTokenPath identify the one browser service
+// that has two source policies: Timeline self-service runs from OzID, while
+// metro-wide token management remains behind the console perimeter. The
+// request origin selects the policy before Connect parses the request body.
+func isAccessTokenProcedure(procedure string) bool {
+	return strings.HasPrefix(procedure, accessTokenServicePrefix)
+}
+
+func isAccessTokenPath(path string) bool {
+	return strings.HasPrefix(path, "/api"+accessTokenServicePrefix)
 }

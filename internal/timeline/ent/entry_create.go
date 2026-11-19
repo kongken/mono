@@ -124,6 +124,20 @@ func (_c *EntryCreate) SetNillableAmountMinor(v *int64) *EntryCreate {
 	return _c
 }
 
+// SetAmountPresent sets the "amount_present" field.
+func (_c *EntryCreate) SetAmountPresent(v bool) *EntryCreate {
+	_c.mutation.SetAmountPresent(v)
+	return _c
+}
+
+// SetNillableAmountPresent sets the "amount_present" field if the given value is not nil.
+func (_c *EntryCreate) SetNillableAmountPresent(v *bool) *EntryCreate {
+	if v != nil {
+		_c.SetAmountPresent(*v)
+	}
+	return _c
+}
+
 // SetCurrency sets the "currency" field.
 func (_c *EntryCreate) SetCurrency(v string) *EntryCreate {
 	_c.mutation.SetCurrency(v)
@@ -340,6 +354,10 @@ func (_c *EntryCreate) defaults() {
 		v := entry.DefaultAmountMinor
 		_c.mutation.SetAmountMinor(v)
 	}
+	if _, ok := _c.mutation.AmountPresent(); !ok {
+		v := entry.DefaultAmountPresent
+		_c.mutation.SetAmountPresent(v)
+	}
 	if _, ok := _c.mutation.Currency(); !ok {
 		v := entry.DefaultCurrency
 		_c.mutation.SetCurrency(v)
@@ -434,6 +452,9 @@ func (_c *EntryCreate) check() error {
 	}
 	if _, ok := _c.mutation.AmountMinor(); !ok {
 		return &ValidationError{Name: "amount_minor", err: errors.New(`ent: missing required field "Entry.amount_minor"`)}
+	}
+	if _, ok := _c.mutation.AmountPresent(); !ok {
+		return &ValidationError{Name: "amount_present", err: errors.New(`ent: missing required field "Entry.amount_present"`)}
 	}
 	if _, ok := _c.mutation.Currency(); !ok {
 		return &ValidationError{Name: "currency", err: errors.New(`ent: missing required field "Entry.currency"`)}
@@ -542,6 +563,10 @@ func (_c *EntryCreate) createSpec() (*Entry, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AmountMinor(); ok {
 		_spec.SetField(entry.FieldAmountMinor, field.TypeInt64, value)
 		_node.AmountMinor = value
+	}
+	if value, ok := _c.mutation.AmountPresent(); ok {
+		_spec.SetField(entry.FieldAmountPresent, field.TypeBool, value)
+		_node.AmountPresent = value
 	}
 	if value, ok := _c.mutation.Currency(); ok {
 		_spec.SetField(entry.FieldCurrency, field.TypeString, value)
@@ -750,6 +775,18 @@ func (u *EntryUpsert) UpdateAmountMinor() *EntryUpsert {
 // AddAmountMinor adds v to the "amount_minor" field.
 func (u *EntryUpsert) AddAmountMinor(v int64) *EntryUpsert {
 	u.Add(entry.FieldAmountMinor, v)
+	return u
+}
+
+// SetAmountPresent sets the "amount_present" field.
+func (u *EntryUpsert) SetAmountPresent(v bool) *EntryUpsert {
+	u.Set(entry.FieldAmountPresent, v)
+	return u
+}
+
+// UpdateAmountPresent sets the "amount_present" field to the value that was provided on create.
+func (u *EntryUpsert) UpdateAmountPresent() *EntryUpsert {
+	u.SetExcluded(entry.FieldAmountPresent)
 	return u
 }
 
@@ -1046,6 +1083,20 @@ func (u *EntryUpsertOne) AddAmountMinor(v int64) *EntryUpsertOne {
 func (u *EntryUpsertOne) UpdateAmountMinor() *EntryUpsertOne {
 	return u.Update(func(s *EntryUpsert) {
 		s.UpdateAmountMinor()
+	})
+}
+
+// SetAmountPresent sets the "amount_present" field.
+func (u *EntryUpsertOne) SetAmountPresent(v bool) *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetAmountPresent(v)
+	})
+}
+
+// UpdateAmountPresent sets the "amount_present" field to the value that was provided on create.
+func (u *EntryUpsertOne) UpdateAmountPresent() *EntryUpsertOne {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateAmountPresent()
 	})
 }
 
@@ -1529,6 +1580,20 @@ func (u *EntryUpsertBulk) AddAmountMinor(v int64) *EntryUpsertBulk {
 func (u *EntryUpsertBulk) UpdateAmountMinor() *EntryUpsertBulk {
 	return u.Update(func(s *EntryUpsert) {
 		s.UpdateAmountMinor()
+	})
+}
+
+// SetAmountPresent sets the "amount_present" field.
+func (u *EntryUpsertBulk) SetAmountPresent(v bool) *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.SetAmountPresent(v)
+	})
+}
+
+// UpdateAmountPresent sets the "amount_present" field to the value that was provided on create.
+func (u *EntryUpsertBulk) UpdateAmountPresent() *EntryUpsertBulk {
+	return u.Update(func(s *EntryUpsert) {
+		s.UpdateAmountPresent()
 	})
 }
 

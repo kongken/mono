@@ -32,6 +32,7 @@ import (
 	"github.com/kongken/mono/internal/bff/ratelimit"
 	"github.com/kongken/mono/internal/bff/session"
 	bfftimeline "github.com/kongken/mono/internal/bff/timeline"
+	timelinemcp "github.com/kongken/mono/internal/bff/timeline/mcp"
 	bfftripmap "github.com/kongken/mono/internal/bff/tripmap"
 	"github.com/kongken/mono/internal/bff/upstream"
 	"github.com/kongken/mono/internal/bff/useradmin"
@@ -209,7 +210,12 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 	}
 	policy := ingress.Policy{
 		Perimeter: func(procedure string, header http.Header, remoteAddr string) error {
-			if isAdminProcedure(procedure) {
+			// AccessTokenService serves both account self-service (Timeline tokens
+			// from OzID) and metro administration (the console). Only the latter
+			// uses the source allowlist; accountOriginPolicy still rejects every
+			// other origin.
+			consoleToken := isAccessTokenProcedure(procedure) && header.Get("Origin") == h.cfg.Navigation.Apps[navigation.AppAdmin].Origin
+			if isAdminProcedure(procedure) || consoleToken {
 				return guard.Check(header, remoteAddr)
 			}
 			return accountOrigins.Check(procedure, header)
@@ -362,7 +368,8 @@ func (h *Handlers) mountMCP(r *gin.Engine) {
 		return
 	}
 	conn := clients.Conn(bffmetro.Service)
-	if conn == nil {
+	timelineConn := clients.Conn(bfftimeline.Service)
+	if conn == nil && timelineConn == nil {
 		return
 	}
 	users := h.usersClient.Load()
@@ -380,12 +387,17 @@ func (h *Handlers) mountMCP(r *gin.Engine) {
 		}
 		perimeter = src
 	}
-	handler := bffmetro.NewMCP(conn, accesstoken.New(res.DB), users, ratelimit.New(res.Redis, res.KeyPrefix),
-		h.cfg.MCP.RateLimit(), perimeter)
-	// The trailing-slash spelling is served by the same handler, so the source perimeter answers it too: left
-	// to the router it would be an unauthenticated 307 that tells a caller outside the allowlist the route exists.
-	r.Any(mcp.Path, gin.WrapH(handler))
-	r.Any(mcp.Path+"/", gin.WrapH(handler))
+	limiter := ratelimit.New(res.Redis, res.KeyPrefix)
+	if conn != nil {
+		handler := bffmetro.NewMCP(conn, accesstoken.New(res.DB), users, limiter, h.cfg.MCP.RateLimit(), perimeter)
+		r.Any(mcp.Path, gin.WrapH(handler))
+		r.Any(mcp.Path+"/", gin.WrapH(handler))
+	}
+	if timelineConn != nil {
+		handler := bfftimeline.NewMCP(timelineConn, accesstoken.New(res.DB), users, limiter, h.cfg.MCP.RateLimit(), perimeter)
+		r.Any(timelinemcp.Path, gin.WrapH(handler))
+		r.Any(timelinemcp.Path+"/", gin.WrapH(handler))
+	}
 }
 
 func (h *Handlers) mountPublicHTTP(r *gin.Engine) {
@@ -475,7 +487,8 @@ func (h *Handlers) servePublic(gw *gateway.Gateway, c *gin.Context) {
 	}
 	// The admin perimeter comes before CORS: a request from outside the allowlist, a
 	// preflight included, gets no CORS grant and no hint that the procedure exists.
-	if isAdminPath(p) {
+	consoleToken := isAccessTokenPath(p) && c.Request.Header.Get("Origin") == h.cfg.Navigation.Apps[navigation.AppAdmin].Origin
+	if isAdminPath(p) || consoleToken {
 		if h.adminGuard.Load().Check(c.Request.Header, c.Request.RemoteAddr) != nil {
 			c.AbortWithStatus(http.StatusForbidden)
 			return

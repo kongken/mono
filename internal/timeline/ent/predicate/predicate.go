@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// Category is the predicate function for category builders.
+type Category func(*sql.Selector)
+
 // CleanupObject is the predicate function for cleanupobject builders.
 type CleanupObject func(*sql.Selector)
 

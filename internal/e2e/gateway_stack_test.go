@@ -35,9 +35,9 @@ import (
 
 // gwSet is one set of host names: the five front ends of a deployment on one reserved site.
 type gwSet struct {
-	name                        string
-	site                        string
-	id, api, trip, metro, admin string // labels
+	name                                  string
+	site                                  string
+	id, api, trip, metro, timeline, admin string // labels
 }
 
 func (s gwSet) host(label string) string   { return label + "." + s.site }
@@ -46,8 +46,8 @@ func (s gwSet) origin(label string) string { return "https://" + s.host(label) }
 // The two sets share nothing: a different site, and different labels, so that no part of the code,
 // the examples or the configuration can depend on "id", "api" or the first set's names.
 var gatewaySets = []gwSet{
-	{"set-a", "alpha-e2e.test", "id", "api", "trip", "metro", "admin"},
-	{"set-b", "bravo-e2e.test", "accounts", "edge", "footprints", "rails", "ops"},
+	{"set-a", "alpha-e2e.test", "id", "api", "trip", "metro", "timeline", "admin"},
+	{"set-b", "bravo-e2e.test", "accounts", "edge", "footprints", "rails", "chronicle", "ops"},
 }
 
 // The addresses of one machine standing in for the networks of a deployment (all loopback, all reserved).
@@ -263,6 +263,7 @@ const (
 // gwUpstreams are where the gateway's upstream names go in the scenario.
 type gwUpstreams struct {
 	bff, ozid, admin int
+	timeline         int
 	trip, metro      string // dist directories
 }
 
@@ -277,11 +278,12 @@ func renderCaddyfile(t *testing.T, root string, set gwSet, up gwUpstreams, mode 
 
 	// The five site blocks of the example, by their addresses.
 	sites := map[string]string{
-		"example.com":       set.host(set.trip),
-		"metro.example.com": set.host(set.metro),
-		"api.example.com":   set.host(set.api),
-		"id.example.com":    set.host(set.id),
-		"admin.example.com": set.host(set.admin),
+		"example.com":          set.host(set.trip),
+		"metro.example.com":    set.host(set.metro),
+		"timeline.example.com": set.host(set.timeline),
+		"api.example.com":      set.host(set.api),
+		"id.example.com":       set.host(set.id),
+		"admin.example.com":    set.host(set.admin),
 	}
 	site := regexp.MustCompile(`(?m)^(\S+) \{$`)
 	found := map[string]bool{}
@@ -301,12 +303,12 @@ func renderCaddyfile(t *testing.T, root string, set gwSet, up gwUpstreams, mode 
 
 	// The upstreams: the BFF, and the two static containers. Each gets its own dial address, so the
 	// upstream (BFF, Nginx) sees the gateway at gwGatewayAddress and not at the client's address.
-	upstream := regexp.MustCompile(`(?m)^(\s*)reverse_proxy (bff:18081|ozid-web:80|admin-web:80)( \{)?$`)
+	upstream := regexp.MustCompile(`(?m)^(\s*)reverse_proxy (bff:18081|ozid-web:80|admin-web:80|timeline-web:80)( \{)?$`)
 	n := 0
 	src = upstream.ReplaceAllStringFunc(src, func(line string) string {
 		m := upstream.FindStringSubmatch(line)
 		indent, target, open := m[1], m[2], m[3] != ""
-		port := map[string]int{"bff:18081": up.bff, "ozid-web:80": up.ozid, "admin-web:80": up.admin}[target]
+		port := map[string]int{"bff:18081": up.bff, "ozid-web:80": up.ozid, "admin-web:80": up.admin, "timeline-web:80": up.timeline}[target]
 		n++
 		out := fmt.Sprintf("%sreverse_proxy 127.0.0.1:%d {\n%s\ttransport http {\n%s\t\tlocal_address %s\n%s\t}", indent, port, indent, indent, gwGatewayAddress, indent)
 		if !open {
@@ -314,8 +316,8 @@ func renderCaddyfile(t *testing.T, root string, set gwSet, up gwUpstreams, mode 
 		}
 		return out
 	})
-	if n < 6 {
-		t.Fatalf("Caddyfile.example has %d upstream routes, expected at least 6; update the scenario", n)
+	if n < 7 {
+		t.Fatalf("Caddyfile.example has %d upstream routes, expected at least 7; update the scenario", n)
 	}
 	src = mustReplace(t, "Caddyfile.example", src, "root * /srv/www", "root * "+up.trip)
 	src = mustReplace(t, "Caddyfile.example", src, "root * /srv/metro", "root * "+up.metro)

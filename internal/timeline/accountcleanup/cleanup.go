@@ -2,6 +2,7 @@ package accountcleanup
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/kongken/mono/internal/timeline/ent"
 	"github.com/kongken/mono/internal/timeline/ent/cleanupobject"
@@ -24,10 +25,38 @@ func ExpireReceipts(ctx context.Context, db *ent.Client, now time.Time) (int, er
 }
 
 var ErrObjectStorageUnavailable = errors.New("object storage unavailable")
+var ErrTombstoneNotFound = errors.New("media delete receipt not found")
 
 type Store struct {
 	DB    *ent.Client
 	Blobs blobstore.Store
+}
+
+// QueueObject adds an object key to the cleanup queue idempotently. Callers use
+// it in the same transaction as the state transition so a retry cannot lose a
+// deletion request or enqueue duplicate work.
+func QueueObject(ctx context.Context, tx *ent.Tx, key string) error {
+	if tx == nil || key == "" {
+		return errors.New("cleanup queue unavailable")
+	}
+	return tx.CleanupObject.Create().SetObjectKey(key).OnConflict().Ignore().Exec(ctx)
+}
+
+// ReplayMediaTombstone returns the immutable snapshot for a media delete
+// mutation. It remains available after the media row and object are cleaned.
+func ReplayMediaTombstone(ctx context.Context, db *ent.Client, userID, mutationID, mediaRef string) (map[string]any, error) {
+	if db == nil || userID == "" || mutationID == "" || mediaRef == "" {
+		return nil, ErrTombstoneNotFound
+	}
+	r, err := db.Receipt.Query().Where(receipt.UserIDEQ(userID), receipt.MutationIDEQ(mutationID), receipt.MediaRefEQ(mediaRef), receipt.OperationEQ("media_delete")).Only(ctx)
+	if err != nil {
+		return nil, ErrTombstoneNotFound
+	}
+	var snapshot map[string]any
+	if err := json.Unmarshal(r.ResultSnapshot, &snapshot); err != nil {
+		return nil, err
+	}
+	return snapshot, nil
 }
 
 // Run removes all Timeline rows and records opaque object keys for asynchronous deletion.

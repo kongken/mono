@@ -2,10 +2,10 @@ syntax = "proto3";
 package bff.timeline.v1;
 option go_package = "github.com/kongken/mono/pkg/proto/bff/timeline/v1;bfftimelinev1";
 import "google/protobuf/timestamp.proto";
-service TimelineService { rpc ListEntries(ListEntriesRequest) returns (ListEntriesResponse); rpc CreateEntry(CreateEntryRequest) returns (EntryResponse); rpc UpdateEntry(UpdateEntryRequest) returns (EntryResponse); rpc DeleteEntry(DeleteEntryRequest) returns (DeleteEntryResponse); rpc RestoreEntry(RestoreEntryRequest) returns (EntryResponse); rpc PurgeEntry(PurgeEntryRequest) returns (PurgeEntryResponse); }
+service TimelineService { rpc ListEntries(ListEntriesRequest) returns (ListEntriesResponse); rpc CreateEntry(CreateEntryRequest) returns (EntryResponse); rpc UpdateEntry(UpdateEntryRequest) returns (EntryResponse); rpc DeleteEntry(DeleteEntryRequest) returns (DeleteEntryResponse); rpc RestoreEntry(RestoreEntryRequest) returns (EntryResponse); rpc PurgeEntry(PurgeEntryRequest) returns (PurgeEntryResponse); rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse); rpc CreateCategory(CreateCategoryRequest) returns (CategoryResponse); rpc UpdateCategory(UpdateCategoryRequest) returns (CategoryResponse); }
 message Empty {}
-message MutationReceipt { string mutation_id = 1; string target_kind = 2; string operation = 3; int64 result_revision = 4; string result_state = 5; bool replayed = 6; google.protobuf.Timestamp recorded_at = 7; }
-message Entry { string id = 1; string title = 2; string date = 3; string time = 4; string timezone = 5; string category = 6; string location = 7; int64 amount_minor = 8; string currency = 9; string note = 10; string url = 11; string url_title = 12; string url_note = 13; int64 revision = 14; google.protobuf.Timestamp created_at = 15; google.protobuf.Timestamp updated_at = 16; google.protobuf.Timestamp deleted_at = 17; string entry_ref = 18; }
+message MutationReceipt { string mutation_id = 1; string target_kind = 2; string operation = 3; int64 result_revision = 4; string result_state = 5; bool replayed = 6; google.protobuf.Timestamp recorded_at = 7; string entry_ref = 8; string media_ref = 9; bytes result_snapshot = 10; }
+message Entry { string id = 1; string title = 2; string date = 3; string time = 4; string timezone = 5; string category = 6; string location = 7; int64 amount_minor = 8; string currency = 9; string note = 10; string url = 11; string url_title = 12; string url_note = 13; int64 revision = 14; google.protobuf.Timestamp created_at = 15; google.protobuf.Timestamp updated_at = 16; google.protobuf.Timestamp deleted_at = 17; string entry_ref = 18; bool amount_present = 19; }
 message ListEntriesRequest { string query = 1; string category = 2; string from_date = 3; string to_date = 4; int32 page_size = 5; string page_token = 6; bool include_deleted = 7; }
 message ListEntriesResponse { repeated Entry entries = 1; string next_page_token = 2; }
 message CreateEntryRequest { Entry entry = 1; string mutation_id = 2; }
@@ -16,3 +16,9 @@ message PurgeEntryRequest { string id = 1; int64 expected_revision = 2; string m
 message EntryResponse { Entry entry = 1; MutationReceipt receipt = 2; }
 message DeleteEntryResponse { Entry entry = 1; MutationReceipt receipt = 2; }
 message PurgeEntryResponse { MutationReceipt receipt = 1; }
+message Category { string category_ref = 1; string name = 2; bool active = 3; bool is_default = 4; bool is_other = 5; int64 revision = 6; google.protobuf.Timestamp created_at = 7; google.protobuf.Timestamp updated_at = 8; }
+message ListCategoriesRequest {}
+message ListCategoriesResponse { repeated Category categories = 1; }
+message CreateCategoryRequest { string name = 1; string mutation_id = 2; }
+message UpdateCategoryRequest { string category_ref = 1; string name = 2; bool active = 3; int64 expected_revision = 4; string mutation_id = 5; }
+message CategoryResponse { Category category = 1; MutationReceipt receipt = 2; }

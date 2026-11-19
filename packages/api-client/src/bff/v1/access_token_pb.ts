@@ -6,14 +6,13 @@ import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegen
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
-import { file_platform_v1_options } from "../../platform/v1/options_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file bff/v1/access_token.proto.
  */
 export const file_bff_v1_access_token: GenFile = /*@__PURE__*/
-  fileDesc("ChliZmYvdjEvYWNjZXNzX3Rva2VuLnByb3RvEgZiZmYudjEinAIKC0FjY2Vzc1Rva2VuEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSDAoEbmFtZRgDIAEoCRIQCghhdWRpZW5jZRgEIAEoCRIOCgZzY29wZXMYBSADKAkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZXhwaXJlc19hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMbGFzdF91c2VkX2F0GAggASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZXZva2VkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJjChhDcmVhdGVBY2Nlc3NUb2tlblJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghhdWRpZW5jZRgCIAEoCRIOCgZzY29wZXMYAyADKAkSFwoPZXhwaXJlc19pbl9kYXlzGAQgASgFIk8KGUNyZWF0ZUFjY2Vzc1Rva2VuUmVzcG9uc2USIgoFdG9rZW4YASABKAsyEy5iZmYudjEuQWNjZXNzVG9rZW4SDgoGc2VjcmV0GAIgASgJIiwKF0xpc3RBY2Nlc3NUb2tlbnNSZXF1ZXN0EhEKCWFsbF91c2VycxgBIAEoCCI/ChhMaXN0QWNjZXNzVG9rZW5zUmVzcG9uc2USIwoGdG9rZW5zGAEgAygLMhMuYmZmLnYxLkFjY2Vzc1Rva2VuIiYKGFJldm9rZUFjY2Vzc1Rva2VuUmVxdWVzdBIKCgJpZBgBIAEoCSIbChlSZXZva2VBY2Nlc3NUb2tlblJlc3BvbnNlMtICChJBY2Nlc3NUb2tlblNlcnZpY2USaQoRQ3JlYXRlQWNjZXNzVG9rZW4SIC5iZmYudjEuQ3JlYXRlQWNjZXNzVG9rZW5SZXF1ZXN0GiEuYmZmLnYxLkNyZWF0ZUFjY2Vzc1Rva2VuUmVzcG9uc2UiD6q7GAttZXRyby1hZG1pbhJmChBMaXN0QWNjZXNzVG9rZW5zEh8uYmZmLnYxLkxpc3RBY2Nlc3NUb2tlbnNSZXF1ZXN0GiAuYmZmLnYxLkxpc3RBY2Nlc3NUb2tlbnNSZXNwb25zZSIPqrsYC21ldHJvLWFkbWluEmkKEVJldm9rZUFjY2Vzc1Rva2VuEiAuYmZmLnYxLlJldm9rZUFjY2Vzc1Rva2VuUmVxdWVzdBohLmJmZi52MS5SZXZva2VBY2Nlc3NUb2tlblJlc3BvbnNlIg+quxgLbWV0cm8tYWRtaW5CMFouZ2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL2JmZi92MTtiZmZ2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_platform_v1_options]);
+  fileDesc("ChliZmYvdjEvYWNjZXNzX3Rva2VuLnByb3RvEgZiZmYudjEinAIKC0FjY2Vzc1Rva2VuEgoKAmlkGAEgASgJEg8KB3VzZXJfaWQYAiABKAkSDAoEbmFtZRgDIAEoCRIQCghhdWRpZW5jZRgEIAEoCRIOCgZzY29wZXMYBSADKAkSLgoKY3JlYXRlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZXhwaXJlc19hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMbGFzdF91c2VkX2F0GAggASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZXZva2VkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJjChhDcmVhdGVBY2Nlc3NUb2tlblJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghhdWRpZW5jZRgCIAEoCRIOCgZzY29wZXMYAyADKAkSFwoPZXhwaXJlc19pbl9kYXlzGAQgASgFIk8KGUNyZWF0ZUFjY2Vzc1Rva2VuUmVzcG9uc2USIgoFdG9rZW4YASABKAsyEy5iZmYudjEuQWNjZXNzVG9rZW4SDgoGc2VjcmV0GAIgASgJIiwKF0xpc3RBY2Nlc3NUb2tlbnNSZXF1ZXN0EhEKCWFsbF91c2VycxgBIAEoCCI/ChhMaXN0QWNjZXNzVG9rZW5zUmVzcG9uc2USIwoGdG9rZW5zGAEgAygLMhMuYmZmLnYxLkFjY2Vzc1Rva2VuIiYKGFJldm9rZUFjY2Vzc1Rva2VuUmVxdWVzdBIKCgJpZBgBIAEoCSIbChlSZXZva2VBY2Nlc3NUb2tlblJlc3BvbnNlMp8CChJBY2Nlc3NUb2tlblNlcnZpY2USWAoRQ3JlYXRlQWNjZXNzVG9rZW4SIC5iZmYudjEuQ3JlYXRlQWNjZXNzVG9rZW5SZXF1ZXN0GiEuYmZmLnYxLkNyZWF0ZUFjY2Vzc1Rva2VuUmVzcG9uc2USVQoQTGlzdEFjY2Vzc1Rva2VucxIfLmJmZi52MS5MaXN0QWNjZXNzVG9rZW5zUmVxdWVzdBogLmJmZi52MS5MaXN0QWNjZXNzVG9rZW5zUmVzcG9uc2USWAoRUmV2b2tlQWNjZXNzVG9rZW4SIC5iZmYudjEuUmV2b2tlQWNjZXNzVG9rZW5SZXF1ZXN0GiEuYmZmLnYxLlJldm9rZUFjY2Vzc1Rva2VuUmVzcG9uc2VCMFouZ2l0aHViLmNvbS9rb25na2VuL21vbm8vcGtnL3Byb3RvL2JmZi92MTtiZmZ2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message bff.v1.AccessToken
@@ -90,14 +89,15 @@ export type CreateAccessTokenRequest = Message<"bff.v1.CreateAccessTokenRequest"
   name: string;
 
   /**
-   * Only "metro" in v1; empty means metro.
+   * "timeline" is the ordinary account default; metro is reserved for
+   * metro-admin callers.
    *
    * @generated from field: string audience = 2;
    */
   audience: string;
 
   /**
-   * Empty means metro:read only.
+   * Empty means a read scope for the selected audience.
    *
    * @generated from field: repeated string scopes = 3;
    */
@@ -219,9 +219,11 @@ export const RevokeAccessTokenResponseSchema: GenMessage<RevokeAccessTokenRespon
  * does not bring it back. It lives in the BFF because it is part of the identity
  * layer; the audience field says which product's endpoint accepts it.
  *
- * Every method needs the metro-admin role: metro is the only audience in v1.
- * Creating a token also needs a password check on the session within the last 15
- * minutes (AuthService.Reauthenticate), else FAILED_PRECONDITION.
+ * Timeline tokens are available to any active account owner after a recent
+ * password check. Metro-wide listing and revocation remain restricted to the
+ * metro-admin role; the handler enforces that narrower operation boundary.
+ * Creating a token still needs a password check on the session within the last
+ * 15 minutes (AuthService.Reauthenticate), else FAILED_PRECONDITION.
  *
  * @generated from service bff.v1.AccessTokenService
  */

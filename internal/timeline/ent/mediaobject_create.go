@@ -110,6 +110,20 @@ func (_c *MediaObjectCreate) SetNillableRevision(v *int) *MediaObjectCreate {
 	return _c
 }
 
+// SetMutationID sets the "mutation_id" field.
+func (_c *MediaObjectCreate) SetMutationID(v string) *MediaObjectCreate {
+	_c.mutation.SetMutationID(v)
+	return _c
+}
+
+// SetNillableMutationID sets the "mutation_id" field if the given value is not nil.
+func (_c *MediaObjectCreate) SetNillableMutationID(v *string) *MediaObjectCreate {
+	if v != nil {
+		_c.SetMutationID(*v)
+	}
+	return _c
+}
+
 // SetFilename sets the "filename" field.
 func (_c *MediaObjectCreate) SetFilename(v string) *MediaObjectCreate {
 	_c.mutation.SetFilename(v)
@@ -292,6 +306,10 @@ func (_c *MediaObjectCreate) defaults() {
 		v := mediaobject.DefaultRevision
 		_c.mutation.SetRevision(v)
 	}
+	if _, ok := _c.mutation.MutationID(); !ok {
+		v := mediaobject.DefaultMutationID
+		_c.mutation.SetMutationID(v)
+	}
 	if _, ok := _c.mutation.Filename(); !ok {
 		v := mediaobject.DefaultFilename
 		_c.mutation.SetFilename(v)
@@ -382,6 +400,9 @@ func (_c *MediaObjectCreate) check() error {
 			return &ValidationError{Name: "revision", err: fmt.Errorf(`ent: validator failed for field "MediaObject.revision": %w`, err)}
 		}
 	}
+	if _, ok := _c.mutation.MutationID(); !ok {
+		return &ValidationError{Name: "mutation_id", err: errors.New(`ent: missing required field "MediaObject.mutation_id"`)}
+	}
 	if _, ok := _c.mutation.Filename(); !ok {
 		return &ValidationError{Name: "filename", err: errors.New(`ent: missing required field "MediaObject.filename"`)}
 	}
@@ -467,6 +488,10 @@ func (_c *MediaObjectCreate) createSpec() (*MediaObject, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Revision(); ok {
 		_spec.SetField(mediaobject.FieldRevision, field.TypeInt, value)
 		_node.Revision = value
+	}
+	if value, ok := _c.mutation.MutationID(); ok {
+		_spec.SetField(mediaobject.FieldMutationID, field.TypeString, value)
+		_node.MutationID = value
 	}
 	if value, ok := _c.mutation.Filename(); ok {
 		_spec.SetField(mediaobject.FieldFilename, field.TypeString, value)
@@ -620,6 +645,18 @@ func (u *MediaObjectUpsert) UpdateRevision() *MediaObjectUpsert {
 // AddRevision adds v to the "revision" field.
 func (u *MediaObjectUpsert) AddRevision(v int) *MediaObjectUpsert {
 	u.Add(mediaobject.FieldRevision, v)
+	return u
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (u *MediaObjectUpsert) SetMutationID(v string) *MediaObjectUpsert {
+	u.Set(mediaobject.FieldMutationID, v)
+	return u
+}
+
+// UpdateMutationID sets the "mutation_id" field to the value that was provided on create.
+func (u *MediaObjectUpsert) UpdateMutationID() *MediaObjectUpsert {
+	u.SetExcluded(mediaobject.FieldMutationID)
 	return u
 }
 
@@ -869,6 +906,20 @@ func (u *MediaObjectUpsertOne) AddRevision(v int) *MediaObjectUpsertOne {
 func (u *MediaObjectUpsertOne) UpdateRevision() *MediaObjectUpsertOne {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.UpdateRevision()
+	})
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (u *MediaObjectUpsertOne) SetMutationID(v string) *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetMutationID(v)
+	})
+}
+
+// UpdateMutationID sets the "mutation_id" field to the value that was provided on create.
+func (u *MediaObjectUpsertOne) UpdateMutationID() *MediaObjectUpsertOne {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateMutationID()
 	})
 }
 
@@ -1305,6 +1356,20 @@ func (u *MediaObjectUpsertBulk) AddRevision(v int) *MediaObjectUpsertBulk {
 func (u *MediaObjectUpsertBulk) UpdateRevision() *MediaObjectUpsertBulk {
 	return u.Update(func(s *MediaObjectUpsert) {
 		s.UpdateRevision()
+	})
+}
+
+// SetMutationID sets the "mutation_id" field.
+func (u *MediaObjectUpsertBulk) SetMutationID(v string) *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.SetMutationID(v)
+	})
+}
+
+// UpdateMutationID sets the "mutation_id" field to the value that was provided on create.
+func (u *MediaObjectUpsertBulk) UpdateMutationID() *MediaObjectUpsertBulk {
+	return u.Update(func(s *MediaObjectUpsert) {
+		s.UpdateMutationID()
 	})
 }
 

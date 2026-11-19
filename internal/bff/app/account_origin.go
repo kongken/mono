@@ -13,16 +13,18 @@ import (
 )
 
 // accountServices are the browser services of the centralised account: sign-in, registration,
-// password reset, the security settings, the profile and the account closing. They belong to the
-// user center, and only its registered origin may call them (accountOriginPolicy), whatever the
-// method. A service is listed here by name, so a procedure added to one of them later is covered
-// without being listed anywhere; a test fails when a browser service is in neither this list nor
-// the admin and product lists.
+// password reset, the security settings, the profile, account closing and personal access tokens.
+// They belong to the user center, and only its registered origin may call them (accountOriginPolicy),
+// except that the console origin is admitted for metro token administration and remains source-gated.
+// A service is listed here by name, so a procedure added to one of them later is covered without
+// being listed anywhere; a test fails when a browser service is in neither this list nor the admin and
+// product lists.
 var accountServices = []string{
 	bffv1connect.ExternalAuthServiceName,
 	bffv1connect.AuthServiceName,
 	bffv1connect.UserServiceName,
 	bffv1connect.IdentityServiceName,
+	bffv1connect.AccessTokenServiceName,
 }
 
 // accountOpenProcedures are the account procedures every registered application keeps. They are
@@ -60,14 +62,17 @@ func isAccountProcedure(procedure string) bool {
 //
 //   - the account procedures need the user center's own Origin, exactly (the registered
 //     navigation.apps.ozid.origin), except the open ones, which every registered application keeps;
+//     AccessTokenService also admits the console origin, where the source allowlist is checked by the
+//     admin perimeter before this policy;
 //   - CompleteRegistration and ResetPassword are also taken from the configured product origins,
 //     while the old-mail transition lasts (auth.legacy_mail_transition), and not after it;
-//   - the management procedures keep the admin perimeter (adminguard), unchanged.
+//   - the other management procedures keep the admin perimeter (adminguard), unchanged.
 //
 // Nothing else changes: the CSRF check, the session and the business rules apply after this. It
 // reads no session and no body, so it refuses before anything is looked up.
 type accountOriginPolicy struct {
 	ozid   string
+	admin  string
 	legacy []string
 	until  time.Time
 	now    func() time.Time
@@ -85,7 +90,7 @@ func newAccountOriginPolicy(cfg *config.Config, accounts bool) (*accountOriginPo
 	if ozid == "" {
 		return nil, errors.New("navigation.apps.ozid.origin is required while the account procedures are served")
 	}
-	p := &accountOriginPolicy{ozid: ozid, now: time.Now}
+	p := &accountOriginPolicy{ozid: ozid, admin: cfg.Navigation.Apps[navigation.AppAdmin].Origin, now: time.Now}
 	tr := cfg.Auth.LegacyMailTransition
 	if len(tr.Origins) > 0 {
 		until, err := tr.UntilTime()
@@ -111,7 +116,7 @@ func (p *accountOriginPolicy) Check(procedure string, h http.Header) error {
 		return errAccountOrigin
 	}
 	origin := origins[0]
-	if origin == p.ozid {
+	if origin == p.ozid || (isAccessTokenProcedure(procedure) && p.admin != "" && origin == p.admin) {
 		return nil
 	}
 	if legacyMailProcedures[procedure] && p.legacyActive() && slices.Contains(p.legacy, origin) {

@@ -38,9 +38,11 @@ const (
 // does not bring it back. It lives in the BFF because it is part of the identity
 // layer; the audience field says which product's endpoint accepts it.
 //
-// Every method needs the metro-admin role: metro is the only audience in v1.
-// Creating a token also needs a password check on the session within the last 15
-// minutes (AuthService.Reauthenticate), else FAILED_PRECONDITION.
+// Timeline tokens are available to any active account owner after a recent
+// password check. Metro-wide listing and revocation remain restricted to the
+// metro-admin role; the handler enforces that narrower operation boundary.
+// Creating a token still needs a password check on the session within the last
+// 15 minutes (AuthService.Reauthenticate), else FAILED_PRECONDITION.
 type AccessTokenServiceClient interface {
 	// CreateAccessToken returns the plaintext secret once; only its digest is kept.
 	CreateAccessToken(ctx context.Context, in *CreateAccessTokenRequest, opts ...grpc.CallOption) (*CreateAccessTokenResponse, error)
@@ -105,9 +107,11 @@ func (c *accessTokenServiceClient) RevokeAccessToken(ctx context.Context, in *Re
 // does not bring it back. It lives in the BFF because it is part of the identity
 // layer; the audience field says which product's endpoint accepts it.
 //
-// Every method needs the metro-admin role: metro is the only audience in v1.
-// Creating a token also needs a password check on the session within the last 15
-// minutes (AuthService.Reauthenticate), else FAILED_PRECONDITION.
+// Timeline tokens are available to any active account owner after a recent
+// password check. Metro-wide listing and revocation remain restricted to the
+// metro-admin role; the handler enforces that narrower operation boundary.
+// Creating a token still needs a password check on the session within the last
+// 15 minutes (AuthService.Reauthenticate), else FAILED_PRECONDITION.
 type AccessTokenServiceServer interface {
 	// CreateAccessToken returns the plaintext secret once; only its digest is kept.
 	CreateAccessToken(context.Context, *CreateAccessTokenRequest) (*CreateAccessTokenResponse, error)

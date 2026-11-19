@@ -29,12 +29,16 @@ import (
 )
 
 const (
-	// AudienceMetro names the metro MCP endpoint, the only audience in v1.
-	AudienceMetro = "metro"
+	// AudienceMetro and AudienceTimeline name the machine endpoints. Tokens are
+	// audience-bound so a Timeline token cannot call metro tools (or vice versa).
+	AudienceMetro    = "metro"
+	AudienceTimeline = "timeline"
 	// ScopeRead allows the read-only tools; ScopeWrite allows the write tools and
 	// implies ScopeRead.
-	ScopeRead  = "metro:read"
-	ScopeWrite = "metro:write"
+	ScopeRead          = "metro:read"
+	ScopeWrite         = "metro:write"
+	ScopeTimelineRead  = "timeline:read"
+	ScopeTimelineWrite = "timeline:write"
 
 	// MaxActivePerUser bounds the valid tokens one administrator holds.
 	MaxActivePerUser = 10
@@ -75,7 +79,8 @@ func (p Principal) Allows(scope string) bool {
 	if slices.Contains(p.Scopes, scope) {
 		return true
 	}
-	return scope == ScopeRead && slices.Contains(p.Scopes, ScopeWrite)
+	return (scope == ScopeRead && slices.Contains(p.Scopes, ScopeWrite)) ||
+		(scope == ScopeTimelineRead && slices.Contains(p.Scopes, ScopeTimelineWrite))
 }
 
 // Service stores and verifies tokens.
@@ -115,10 +120,10 @@ func (s *Service) Create(ctx context.Context, owner session.BrowserSession, in C
 	if audience == "" {
 		audience = AudienceMetro
 	}
-	if audience != AudienceMetro {
-		return nil, "", invalid("audience must be metro")
+	if audience != AudienceMetro && audience != AudienceTimeline {
+		return nil, "", invalid("audience must be metro or timeline")
 	}
-	scopes, err := normalizeScopes(in.Scopes)
+	scopes, err := normalizeScopes(audience, in.Scopes)
 	if err != nil {
 		return nil, "", err
 	}
@@ -179,22 +184,38 @@ func (s *Service) List(ctx context.Context, userID string, all bool) ([]*ent.Acc
 	return rows, nil
 }
 
-// Revoke ends a token. Revoking a revoked token succeeds and keeps the first
-// revocation time.
+// Revoke ends one of actorUserID's tokens. Revoking a revoked token succeeds
+// and keeps the first revocation time.
 func (s *Service) Revoke(ctx context.Context, actorUserID, id string) error {
+	return s.revoke(ctx, actorUserID, id, false)
+}
+
+// RevokeAny ends a token for a metro administrator. It is used only by the
+// explicitly privileged all-users browser operation.
+func (s *Service) RevokeAny(ctx context.Context, actorUserID, id string) error {
+	return s.revoke(ctx, actorUserID, id, true)
+}
+
+func (s *Service) revoke(ctx context.Context, actorUserID, id string, anyOwner bool) error {
 	now := s.now()
+	row, err := s.db.AccessToken.Query().Where(entaccesstoken.ID(id)).Only(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return connect.NewError(connect.CodeNotFound, errors.New("token not found"))
+		}
+		return internal(err)
+	}
+	if !anyOwner && row.UserID != actorUserID {
+		return connect.NewError(connect.CodePermissionDenied, errors.New("you may only revoke your own tokens"))
+	}
+	if row.RevokedAt != nil {
+		return nil
+	}
 	n, err := s.db.AccessToken.Update().Where(entaccesstoken.ID(id), entaccesstoken.RevokedAtIsNil()).SetRevokedAt(now).Save(ctx)
 	if err != nil {
 		return internal(err)
 	}
 	if n == 0 {
-		exists, err := s.db.AccessToken.Query().Where(entaccesstoken.ID(id)).Exist(ctx)
-		if err != nil {
-			return internal(err)
-		}
-		if !exists {
-			return connect.NewError(connect.CodeNotFound, errors.New("token not found"))
-		}
 		return nil
 	}
 	slog.Info("access token revoked", "token_id", id, "actor_user_id", actorUserID)
@@ -231,14 +252,18 @@ func (s *Service) Authenticate(ctx context.Context, secret, audience string) (Pr
 	}, nil
 }
 
-func normalizeScopes(in []string) ([]string, error) {
+func normalizeScopes(audience string, in []string) ([]string, error) {
+	read, write := ScopeRead, ScopeWrite
+	if audience == AudienceTimeline {
+		read, write = ScopeTimelineRead, ScopeTimelineWrite
+	}
 	if len(in) == 0 {
-		return []string{ScopeRead}, nil
+		return []string{read}, nil
 	}
 	var out []string
 	for _, sc := range in {
-		if sc != ScopeRead && sc != ScopeWrite {
-			return nil, invalid("scopes may only be metro:read and metro:write")
+		if sc != read && sc != write {
+			return nil, invalid("scopes do not match the token audience")
 		}
 		if !slices.Contains(out, sc) {
 			out = append(out, sc)

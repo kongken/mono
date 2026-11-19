@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kongken/mono/internal/platform/rpcauth"
 	"github.com/kongken/mono/internal/timeline/ent"
+	"github.com/kongken/mono/internal/timeline/ent/category"
 	"github.com/kongken/mono/internal/timeline/ent/entry"
 	"github.com/kongken/mono/internal/timeline/ent/receipt"
 	timelinev1 "github.com/kongken/mono/pkg/proto/timeline/v1"
@@ -66,11 +68,22 @@ func validate(in *timelinev1.Entry, requireID bool) error {
 	if _, err := time.LoadLocation(in.Timezone); err != nil {
 		return status.Error(codes.InvalidArgument, "invalid timezone")
 	}
+	if _, err := localOccurrence(in); err != nil {
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
 	if len([]rune(in.Title)) > 200 || len([]rune(in.Note)) > 10000 || len([]rune(in.Location)) > 300 {
 		return status.Error(codes.InvalidArgument, "field is too long")
 	}
 	if in.AmountMinor < 0 || (in.Currency != "" && !regexp.MustCompile(`^[A-Z]{3}$`).MatchString(in.Currency)) {
 		return status.Error(codes.InvalidArgument, "invalid amount or currency")
+	}
+	if in.AmountPresent && in.Currency == "" {
+		return status.Error(codes.InvalidArgument, "currency is required when amount is present")
+	}
+	// A currency without an amount is not a zero-value amount: the two are
+	// distinct per the product rules, and an orphan currency is refused.
+	if !in.AmountPresent && in.AmountMinor == 0 && in.Currency != "" {
+		return status.Error(codes.InvalidArgument, "currency requires an amount")
 	}
 	if in.Url != "" {
 		u, err := url.Parse(in.Url)
@@ -103,20 +116,54 @@ func validateLocator(ref, id string) error {
 	return nil
 }
 func occurred(in *timelinev1.Entry) time.Time {
-	loc, _ := time.LoadLocation(in.Timezone)
-	value := in.Date
-	if in.Time != "" {
-		value += "T" + in.Time
+	t, _ := localOccurrence(in)
+	return t
+}
+
+// localOccurrence validates the wall-clock value before converting it to UTC.
+// time.ParseInLocation silently normalizes DST gaps and chooses one side of a
+// repeated hour, so compare the parsed components back to the request and
+// reject either ambiguous representation.
+func localOccurrence(in *timelinev1.Entry) (time.Time, error) {
+	loc, err := time.LoadLocation(in.Timezone)
+	if err != nil {
+		return time.Time{}, errors.New("invalid timezone")
 	}
+	value := in.Date
 	layout := "2006-01-02"
 	if in.Time != "" {
-		layout = "2006-01-02T15:04:05"
-		if len(in.Time) == 5 {
-			layout = "2006-01-02T15:04"
+		value += "T" + in.Time
+		layout = "2006-01-02T15:04"
+		if len(in.Time) == 8 {
+			layout = "2006-01-02T15:04:05"
 		}
 	}
-	t, _ := time.ParseInLocation(layout, value, loc)
-	return t.UTC()
+	parsed, err := time.ParseInLocation(layout, value, loc)
+	if err != nil {
+		return time.Time{}, errors.New("invalid local date or time")
+	}
+	if parsed.Format(layout) != value {
+		return time.Time{}, errors.New("local time does not exist in this timezone")
+	}
+	// A repeated wall time has another instant with the same full local
+	// timestamp. A date-only record has no ambiguous clock value to reject.
+	if in.Time != "" {
+		for _, delta := range []time.Duration{-2 * time.Hour, -90 * time.Minute, -time.Hour, time.Hour, 90 * time.Minute, 2 * time.Hour} {
+			candidate := parsed.Add(delta)
+			if candidate.In(loc).Format(layout) == value && !candidate.Equal(parsed) {
+				return time.Time{}, errors.New("local time is ambiguous in this timezone")
+			}
+		}
+	}
+	now := time.Now().In(loc)
+	if in.Time == "" {
+		if in.Date > now.Format("2006-01-02") {
+			return time.Time{}, errors.New("future dates are not allowed")
+		}
+	} else if parsed.After(now) {
+		return time.Time{}, errors.New("future times are not allowed")
+	}
+	return parsed.UTC(), nil
 }
 func publicRef(prefix string) string {
 	raw := strings.ReplaceAll(uuid.NewString(), "-", "")
@@ -129,6 +176,24 @@ func validateMutationID(id string) error {
 	}
 	return nil
 }
+
+func validateCategoryTx(ctx context.Context, tx *ent.Tx, uid, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil
+	}
+	c, err := tx.Category.Query().Where(category.UserIDEQ(uid), category.NameEQ(name)).Only(ctx)
+	if ent.IsNotFound(err) {
+		return status.Error(codes.InvalidArgument, "category does not exist")
+	}
+	if err != nil {
+		return err
+	}
+	if !c.Active {
+		return status.Error(codes.FailedPrecondition, "category is inactive")
+	}
+	return nil
+}
 func requireRevision(revision int64) error {
 	if revision <= 0 {
 		return status.Error(codes.InvalidArgument, "expected_revision is required")
@@ -136,7 +201,7 @@ func requireRevision(revision int64) error {
 	return nil
 }
 func mapEntry(e *ent.Entry) *timelinev1.Entry {
-	out := &timelinev1.Entry{EntryRef: e.PublicRef, Title: e.Title, Date: e.OccurredDate, Time: e.OccurredTime, Timezone: e.Timezone, Category: e.Category, Location: e.Location, AmountMinor: e.AmountMinor, Currency: e.Currency, Note: e.Body, Url: e.URL, UrlTitle: e.URLTitle, UrlNote: e.URLNote, Revision: int64(e.Revision), CreatedAt: timestamppb.New(e.CreatedAt), UpdatedAt: timestamppb.New(e.UpdatedAt)}
+	out := &timelinev1.Entry{EntryRef: e.PublicRef, Title: e.Title, Date: e.OccurredDate, Time: e.OccurredTime, Timezone: e.Timezone, Category: e.Category, Location: e.Location, AmountMinor: e.AmountMinor, AmountPresent: e.AmountPresent || e.AmountMinor != 0 || e.Currency != "", Currency: e.Currency, Note: e.Body, Url: e.URL, UrlTitle: e.URLTitle, UrlNote: e.URLNote, Revision: int64(e.Revision), CreatedAt: timestamppb.New(e.CreatedAt), UpdatedAt: timestamppb.New(e.UpdatedAt)}
 	if e.DeletedAt != nil {
 		out.DeletedAt = timestamppb.New(*e.DeletedAt)
 	}
@@ -161,7 +226,14 @@ func receiptResponse(r *ent.Receipt, replayed bool) *timelinev1.MutationReceipt 
 	if r == nil {
 		return nil
 	}
-	return &timelinev1.MutationReceipt{MutationId: r.MutationID, TargetKind: r.TargetKind, Operation: r.Operation, ResultRevision: int64(r.ResultRevision), ResultState: r.ResultState, Replayed: replayed, RecordedAt: timestamppb.New(r.CreatedAt)}
+	out := &timelinev1.MutationReceipt{MutationId: r.MutationID, TargetKind: r.TargetKind, Operation: r.Operation, ResultRevision: int64(r.ResultRevision), ResultState: r.ResultState, Replayed: replayed, RecordedAt: timestamppb.New(r.CreatedAt), ResultSnapshot: r.ResultSnapshot}
+	if r.EntryRef != nil {
+		out.EntryRef = *r.EntryRef
+	}
+	if r.MediaRef != nil {
+		out.MediaRef = *r.MediaRef
+	}
+	return out
 }
 func (s *TimelineService) priorReceiptTx(ctx context.Context, tx *ent.Tx, uid, mutationID, operation, hash string) (*ent.Receipt, error) {
 	if mutationID == "" {
@@ -230,15 +302,84 @@ func (s *TimelineService) ListEntries(ctx context.Context, req *timelinev1.ListE
 	if req.ToDate != "" {
 		q = q.Where(entry.OccurredDateLTE(req.ToDate))
 	}
-	rows, err := q.Order(ent.Desc(entry.FieldOccurredAt), ent.Asc(entry.FieldID)).Limit(100).All(ctx)
+	pageSize := int(req.PageSize)
+	if pageSize == 0 {
+		pageSize = 50
+	}
+	if pageSize < 1 || pageSize > 100 {
+		return nil, status.Error(codes.InvalidArgument, "page_size must be between 1 and 100")
+	}
+	if req.PageToken != "" {
+		cursor, err := decodeListCursor(req.PageToken)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid page_token")
+		}
+		if cursor.Filter != listFilter(req) {
+			return nil, status.Error(codes.InvalidArgument, "page_token does not match filters")
+		}
+		q = q.Where(entry.Or(
+			entry.OccurredDateLT(cursor.OccurredDate),
+			entry.And(entry.OccurredDateEQ(cursor.OccurredDate), entry.Or(
+				entry.OccurredTimeLT(cursor.OccurredTime),
+				entry.And(entry.OccurredTimeEQ(cursor.OccurredTime), entry.Or(
+					entry.CreatedAtLT(cursor.CreatedAt),
+					entry.And(entry.CreatedAtEQ(cursor.CreatedAt), entry.IDGT(cursor.ID)),
+				)),
+			)),
+		))
+	}
+	rows, err := q.Order(ent.Desc(entry.FieldOccurredDate), ent.Desc(entry.FieldOccurredTime), ent.Desc(entry.FieldCreatedAt), ent.Asc(entry.FieldID)).Limit(pageSize + 1).All(ctx)
 	if err != nil {
 		return nil, err
 	}
 	out := &timelinev1.ListEntriesResponse{}
+	if len(rows) > pageSize {
+		last := rows[pageSize-1]
+		out.NextPageToken = encodeListCursor(last.OccurredDate, last.OccurredTime, last.CreatedAt, last.ID, listFilter(req))
+		rows = rows[:pageSize]
+	}
 	for _, row := range rows {
 		out.Entries = append(out.Entries, mapEntry(row))
 	}
 	return out, nil
+}
+
+type listCursor struct {
+	OccurredDate string    `json:"occurred_date"`
+	OccurredTime string    `json:"occurred_time"`
+	CreatedAt    time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	Filter       string    `json:"filter"`
+}
+
+func encodeListCursor(occurredDate, occurredTime string, createdAt time.Time, id string, filters ...string) string {
+	filter := "legacy"
+	if len(filters) > 0 {
+		filter = filters[0]
+	}
+	b, _ := json.Marshal(listCursor{OccurredDate: occurredDate, OccurredTime: occurredTime, CreatedAt: createdAt.UTC(), ID: id, Filter: filter})
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func decodeListCursor(token string) (listCursor, error) {
+	b, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return listCursor{}, err
+	}
+	var c listCursor
+	if err := json.Unmarshal(b, &c); err != nil || c.ID == "" || c.OccurredDate == "" || c.CreatedAt.IsZero() || c.Filter == "" {
+		return listCursor{}, errors.New("invalid cursor")
+	}
+	return c, nil
+}
+
+func listFilter(req *timelinev1.ListEntriesRequest) string {
+	b, _ := json.Marshal(struct {
+		Query, Category, From, To string
+		Deleted                   bool
+	}{req.Query, req.Category, req.FromDate, req.ToDate, req.IncludeDeleted})
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
 }
 func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.CreateEntryRequest) (*timelinev1.EntryResponse, error) {
 	uid, err := user(ctx)
@@ -263,6 +404,12 @@ func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.Creat
 			_ = tx.Rollback()
 		}
 	}()
+	if err := ensureCategories(ctx, tx, uid); err != nil {
+		return nil, err
+	}
+	if err := validateCategoryTx(ctx, tx, uid, req.Entry.Category); err != nil {
+		return nil, err
+	}
 	old, err := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "create", hash)
 	if err != nil {
 		return nil, err
@@ -274,7 +421,7 @@ func (s *TimelineService) CreateEntry(ctx context.Context, req *timelinev1.Creat
 		}
 		return &timelinev1.EntryResponse{Entry: e, Receipt: receiptResponse(old, true)}, nil
 	}
-	row, err := tx.Entry.Create().SetPublicRef(publicRef("ent_")).SetUserID(uid).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).Save(ctx)
+	row, err := tx.Entry.Create().SetPublicRef(publicRef("ent_")).SetUserID(uid).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetAmountPresent(req.Entry.AmountPresent || req.Entry.AmountMinor != 0 || req.Entry.Currency != "").SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).Save(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -334,6 +481,9 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 			_ = tx.Rollback()
 		}
 	}()
+	if err := validateCategoryTx(ctx, tx, uid, req.Entry.Category); err != nil {
+		return nil, err
+	}
 	old, err := s.priorReceiptTx(ctx, tx, uid, req.MutationId, "update", hash)
 	if err != nil {
 		return nil, err
@@ -358,7 +508,7 @@ func (s *TimelineService) UpdateEntry(ctx context.Context, req *timelinev1.Updat
 	if req.ExpectedRevision != 0 && int64(row.Revision) != req.ExpectedRevision {
 		return nil, status.Error(codes.Aborted, "revision conflict")
 	}
-	updated, err := tx.Entry.Update().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision), entry.DeletedAtIsNil()).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).SetRevision(row.Revision + 1).Save(ctx)
+	updated, err := tx.Entry.Update().Where(entry.ID(row.ID), entry.UserID(uid), entry.RevisionEQ(row.Revision), entry.DeletedAtIsNil()).SetTitle(strings.TrimSpace(req.Entry.Title)).SetBody(req.Entry.Note).SetOccurredDate(req.Entry.Date).SetOccurredTime(req.Entry.Time).SetTimezone(req.Entry.Timezone).SetCategory(req.Entry.Category).SetLocation(req.Entry.Location).SetAmountMinor(req.Entry.AmountMinor).SetAmountPresent(req.Entry.AmountPresent || req.Entry.AmountMinor != 0 || req.Entry.Currency != "").SetCurrency(req.Entry.Currency).SetURL(req.Entry.Url).SetURLTitle(req.Entry.UrlTitle).SetURLNote(req.Entry.UrlNote).SetOccurredAt(occurred(req.Entry)).SetRevision(row.Revision + 1).Save(ctx)
 	if err != nil {
 		return nil, err
 	}

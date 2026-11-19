@@ -15,6 +15,22 @@ func now() time.Time { return time.Now().UTC() }
 
 type Entry struct{ ent.Schema }
 
+type Category struct{ ent.Schema }
+
+func (Category) Annotations() []schema.Annotation {
+	return []schema.Annotation{entsql.Annotation{Table: "timeline_categories"}}
+}
+func (Category) Fields() []ent.Field {
+	return []ent.Field{
+		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("public_ref").NotEmpty().Immutable(), field.String("user_id").NotEmpty().Immutable(),
+		field.String("name").NotEmpty(), field.Bool("active").Default(true), field.Bool("is_default").Default(false), field.Bool("is_other").Default(false),
+		field.Int("revision").Default(1).Positive(), field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now),
+	}
+}
+func (Category) Indexes() []ent.Index {
+	return []ent.Index{index.Fields("user_id", "name").Unique(), index.Fields("public_ref").Unique()}
+}
+
 func (Entry) Annotations() []schema.Annotation {
 	return []schema.Annotation{entsql.Annotation{Table: "timeline_entries"}}
 }
@@ -22,7 +38,7 @@ func (Entry) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("public_ref").NotEmpty().Immutable(), field.String("user_id").NotEmpty().Immutable(),
 		field.String("title").NotEmpty(), field.String("body").Default(""), field.String("occurred_date").NotEmpty(), field.String("occurred_time").Default(""), field.String("timezone").NotEmpty(),
-		field.String("category").Default(""), field.String("location").Default(""), field.Int64("amount_minor").Default(0), field.String("currency").Default(""),
+		field.String("category").Default(""), field.String("location").Default(""), field.Int64("amount_minor").Default(0), field.Bool("amount_present").Default(false), field.String("currency").Default(""),
 		field.String("url").Default(""), field.String("url_title").Default(""), field.String("url_note").Default(""), field.Time("occurred_at"), field.Time("deleted_at").Optional().Nillable(),
 		field.String("mutation_id").Default(""), field.Int("revision").Default(1).Positive(), field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now),
 	}
@@ -42,7 +58,7 @@ func (MediaObject) Annotations() []schema.Annotation {
 func (MediaObject) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("id").DefaultFunc(uuid.NewString).Immutable(), field.String("public_ref").NotEmpty().Immutable(), field.String("user_id").NotEmpty().Immutable(), field.String("entry_id").NotEmpty().Immutable(), field.String("entry_public_ref").NotEmpty().Immutable(), field.String("object_key").NotEmpty().Immutable(), field.String("thumbnail_key").Default(""), field.String("upload_key").Default(""),
-		field.Enum("state").Values("pending", "ready", "deleting").Default("pending"), field.Int("revision").Default(1).Positive(), field.String("filename").Default(""), field.String("content_type").Default(""), field.Int64("size_bytes").Default(0), field.Int("width").Optional().Nillable(), field.Int("height").Optional().Nillable(), field.Time("upload_expires_at").Optional().Nillable(), field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now),
+		field.Enum("state").Values("pending", "ready", "deleting").Default("pending"), field.Int("revision").Default(1).Positive(), field.String("mutation_id").Default(""), field.String("filename").Default(""), field.String("content_type").Default(""), field.Int64("size_bytes").Default(0), field.Int("width").Optional().Nillable(), field.Int("height").Optional().Nillable(), field.Time("upload_expires_at").Optional().Nillable(), field.Time("created_at").Default(now).Immutable(), field.Time("updated_at").Default(now).UpdateDefault(now),
 	}
 }
 func (MediaObject) Edges() []ent.Edge {

@@ -36,6 +36,8 @@ type MediaObject struct {
 	State mediaobject.State `json:"state,omitempty"`
 	// Revision holds the value of the "revision" field.
 	Revision int `json:"revision,omitempty"`
+	// MutationID holds the value of the "mutation_id" field.
+	MutationID string `json:"mutation_id,omitempty"`
 	// Filename holds the value of the "filename" field.
 	Filename string `json:"filename,omitempty"`
 	// ContentType holds the value of the "content_type" field.
@@ -85,7 +87,7 @@ func (*MediaObject) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case mediaobject.FieldRevision, mediaobject.FieldSizeBytes, mediaobject.FieldWidth, mediaobject.FieldHeight:
 			values[i] = new(sql.NullInt64)
-		case mediaobject.FieldID, mediaobject.FieldPublicRef, mediaobject.FieldUserID, mediaobject.FieldEntryID, mediaobject.FieldEntryPublicRef, mediaobject.FieldObjectKey, mediaobject.FieldThumbnailKey, mediaobject.FieldUploadKey, mediaobject.FieldState, mediaobject.FieldFilename, mediaobject.FieldContentType:
+		case mediaobject.FieldID, mediaobject.FieldPublicRef, mediaobject.FieldUserID, mediaobject.FieldEntryID, mediaobject.FieldEntryPublicRef, mediaobject.FieldObjectKey, mediaobject.FieldThumbnailKey, mediaobject.FieldUploadKey, mediaobject.FieldState, mediaobject.FieldMutationID, mediaobject.FieldFilename, mediaobject.FieldContentType:
 			values[i] = new(sql.NullString)
 		case mediaobject.FieldUploadExpiresAt, mediaobject.FieldCreatedAt, mediaobject.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -163,6 +165,12 @@ func (_m *MediaObject) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field revision", values[i])
 			} else if value.Valid {
 				_m.Revision = int(value.Int64)
+			}
+		case mediaobject.FieldMutationID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field mutation_id", values[i])
+			} else if value.Valid {
+				_m.MutationID = value.String
 			}
 		case mediaobject.FieldFilename:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -282,6 +290,9 @@ func (_m *MediaObject) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("revision=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Revision))
+	builder.WriteString(", ")
+	builder.WriteString("mutation_id=")
+	builder.WriteString(_m.MutationID)
 	builder.WriteString(", ")
 	builder.WriteString("filename=")
 	builder.WriteString(_m.Filename)

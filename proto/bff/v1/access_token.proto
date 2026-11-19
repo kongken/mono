@@ -3,7 +3,6 @@ syntax = "proto3";
 package bff.v1;
 
 import "google/protobuf/timestamp.proto";
-import "platform/v1/options.proto";
 
 option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
 
@@ -17,25 +16,21 @@ option go_package = "github.com/kongken/mono/pkg/proto/bff/v1;bffv1";
 // does not bring it back. It lives in the BFF because it is part of the identity
 // layer; the audience field says which product's endpoint accepts it.
 //
-// Every method needs the metro-admin role: metro is the only audience in v1.
-// Creating a token also needs a password check on the session within the last 15
-// minutes (AuthService.Reauthenticate), else FAILED_PRECONDITION.
+// Timeline tokens are available to any active account owner after a recent
+// password check. Metro-wide listing and revocation remain restricted to the
+// metro-admin role; the handler enforces that narrower operation boundary.
+// Creating a token still needs a password check on the session within the last
+// 15 minutes (AuthService.Reauthenticate), else FAILED_PRECONDITION.
 service AccessTokenService {
   // CreateAccessToken returns the plaintext secret once; only its digest is kept.
-  rpc CreateAccessToken(CreateAccessTokenRequest) returns (CreateAccessTokenResponse) {
-    option (platform.v1.required_role) = "metro-admin";
-  }
+  rpc CreateAccessToken(CreateAccessTokenRequest) returns (CreateAccessTokenResponse);
   // ListAccessTokens lists the caller's tokens, or every administrator's with
   // all_users. Revoked and expired tokens are included.
-  rpc ListAccessTokens(ListAccessTokensRequest) returns (ListAccessTokensResponse) {
-    option (platform.v1.required_role) = "metro-admin";
-  }
+  rpc ListAccessTokens(ListAccessTokensRequest) returns (ListAccessTokensResponse);
   // RevokeAccessToken takes effect on the next request. Any administrator may
   // revoke any token. Revoking an already revoked token succeeds; an unknown id
   // is NOT_FOUND.
-  rpc RevokeAccessToken(RevokeAccessTokenRequest) returns (RevokeAccessTokenResponse) {
-    option (platform.v1.required_role) = "metro-admin";
-  }
+  rpc RevokeAccessToken(RevokeAccessTokenRequest) returns (RevokeAccessTokenResponse);
 }
 
 message AccessToken {
@@ -56,9 +51,10 @@ message AccessToken {
 message CreateAccessTokenRequest {
   // 1 to 64 characters, no control characters.
   string name = 1;
-  // Only "metro" in v1; empty means metro.
+  // "timeline" is the ordinary account default; metro is reserved for
+  // metro-admin callers.
   string audience = 2;
-  // Empty means metro:read only.
+  // Empty means a read scope for the selected audience.
   repeated string scopes = 3;
   // 1 to 90.
   int32 expires_in_days = 4;

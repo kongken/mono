@@ -33,6 +33,8 @@ const (
 	FieldState = "state"
 	// FieldRevision holds the string denoting the revision field in the database.
 	FieldRevision = "revision"
+	// FieldMutationID holds the string denoting the mutation_id field in the database.
+	FieldMutationID = "mutation_id"
 	// FieldFilename holds the string denoting the filename field in the database.
 	FieldFilename = "filename"
 	// FieldContentType holds the string denoting the content_type field in the database.
@@ -74,6 +76,7 @@ var Columns = []string{
 	FieldUploadKey,
 	FieldState,
 	FieldRevision,
+	FieldMutationID,
 	FieldFilename,
 	FieldContentType,
 	FieldSizeBytes,
@@ -113,6 +116,8 @@ var (
 	DefaultRevision int
 	// RevisionValidator is a validator for the "revision" field. It is called by the builders before save.
 	RevisionValidator func(int) error
+	// DefaultMutationID holds the default value on creation for the "mutation_id" field.
+	DefaultMutationID string
 	// DefaultFilename holds the default value on creation for the "filename" field.
 	DefaultFilename string
 	// DefaultContentType holds the default value on creation for the "content_type" field.
@@ -207,6 +212,11 @@ func ByState(opts ...sql.OrderTermOption) OrderOption {
 // ByRevision orders the results by the revision field.
 func ByRevision(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRevision, opts...).ToFunc()
+}
+
+// ByMutationID orders the results by the mutation_id field.
+func ByMutationID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMutationID, opts...).ToFunc()
 }
 
 // ByFilename orders the results by the filename field.
