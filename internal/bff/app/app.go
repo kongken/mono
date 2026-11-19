@@ -214,11 +214,19 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 			// from OzID) and metro administration (the console). Only the latter
 			// uses the source allowlist; accountOriginPolicy still rejects every
 			// other origin.
-			consoleToken := isAccessTokenProcedure(procedure) && header.Get("Origin") == h.cfg.Navigation.Apps[navigation.AppAdmin].Origin
+			consoleToken := isAccessTokenProcedure(procedure) && h.accessTokenOrigins().IsConsole(header)
 			if isAdminProcedure(procedure) || consoleToken {
 				return guard.Check(header, remoteAddr)
 			}
 			return accountOrigins.Check(procedure, header)
+		},
+		// The console's token administration needs metro-admin, as it did before Timeline
+		// self-service shared the service; the user center's origin needs no role.
+		RequiredRole: func(procedure string, header http.Header) string {
+			if isAccessTokenProcedure(procedure) {
+				return h.accessTokenOrigins().RequiredRole(header)
+			}
+			return ""
 		},
 		ClientIPHeader:     h.cfg.ClientIPHeader,
 		AllowedOrigins:     h.cfg.CORSAllowedOrigins,
@@ -285,7 +293,7 @@ func (h *Handlers) publicAPI(clients *upstream.Clients) (http.Handler, error) {
 			mux.Handle(route, ingress.ConnectOnly(handler))
 		}
 		if r := h.resources.Load(); r != nil {
-			route, handler = bffv1connect.NewAccessTokenServiceHandler(accesstoken.NewHandler(accesstoken.New(r.DB)), authOpts...)
+			route, handler = bffv1connect.NewAccessTokenServiceHandler(accesstoken.NewHandler(accesstoken.New(r.DB), h.accessTokenOrigins()), authOpts...)
 			mux.Handle(route, ingress.ConnectOnly(handler))
 			if users := h.usersClient.Load(); users != nil {
 				adminHandler := useradmin.New(users, ratelimit.New(r.Redis, r.KeyPrefix), h.cfg.Admin.Limit(), h.cfg.Admin.WriteLimit())
@@ -487,7 +495,16 @@ func (h *Handlers) servePublic(gw *gateway.Gateway, c *gin.Context) {
 	}
 	// The admin perimeter comes before CORS: a request from outside the allowlist, a
 	// preflight included, gets no CORS grant and no hint that the procedure exists.
-	consoleToken := isAccessTokenPath(p) && c.Request.Header.Get("Origin") == h.cfg.Navigation.Apps[navigation.AppAdmin].Origin
+	// AccessTokenService has two registered surfaces (see accesstoken.Origins): the user
+	// center's self-service, which needs no source rule, and the console's metro token
+	// administration, which is inside the perimeter. Any other origin (a product, an
+	// unregistered sibling, none) gets neither an answer nor a CORS grant, preflight included.
+	accessToken := isAccessTokenPath(p)
+	consoleToken := accessToken && h.accessTokenOrigins().IsConsole(c.Request.Header)
+	if accessToken && !consoleToken && !h.accessTokenOrigins().IsSelfService(c.Request.Header) {
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
 	if isAdminPath(p) || consoleToken {
 		if h.adminGuard.Load().Check(c.Request.Header, c.Request.RemoteAddr) != nil {
 			c.AbortWithStatus(http.StatusForbidden)
@@ -499,6 +516,14 @@ func (h *Handlers) servePublic(gw *gateway.Gateway, c *gin.Context) {
 	}
 	c.Status(http.StatusOK)
 	(*public).ServeHTTP(c.Writer, c.Request)
+}
+
+// accessTokenOrigins are the registered origins AccessTokenService answers.
+func (h *Handlers) accessTokenOrigins() accesstoken.Origins {
+	return accesstoken.Origins{
+		OzID:    h.cfg.Navigation.Apps[navigation.AppOzID].Origin,
+		Console: h.cfg.Navigation.Apps[navigation.AppAdmin].Origin,
+	}
 }
 
 // AuthHandler exposes the auth handler for tests.

@@ -21,8 +21,10 @@ func registry(t *testing.T) *navigation.Registry {
 		Apps: map[string]navigation.App{
 			"ozid":  {Origin: "https://id.example.com"},
 			"metro": {Origin: "https://metro.example.com", Paths: []string{"/me", "/city/*"}},
+			// The ID apps/timeline sends with its OzID sign-in link.
+			"timeline": {Origin: "https://timeline.example.com"},
 		},
-	}, []string{"https://id.example.com", "https://metro.example.com"}, true)
+	}, []string{"https://id.example.com", "https://metro.example.com", "https://timeline.example.com"}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,6 +75,23 @@ func TestResolveNavigationIsAnonymousAndReadOnly(t *testing.T) {
 	}
 	if res.Header().Get("Set-Cookie") != "" {
 		t.Fatalf("resolving a target set a cookie: %v", res.Header())
+	}
+}
+
+func TestResolveNavigationReturnsToTimeline(t *testing.T) {
+	c := navClient(t, registry(t))
+	got, err := resolve(c, "timeline", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.GetAppId() != "timeline" || got.GetReturnPath() != "/" || got.GetReturnUrl() != "https://timeline.example.com/" || got.GetOzidOrigin() != "https://id.example.com" {
+		t.Fatalf("got %v", got)
+	}
+	// Only the registered path and origin: an external target or an unregistered path is refused.
+	for _, p := range []string{"https://evil.example/", "//evil.example/", "/admin", "/../me"} {
+		if got, err := resolve(c, "timeline", p); err == nil || connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("timeline %q resolved to %v (%v)", p, got, err)
+		}
 	}
 }
 

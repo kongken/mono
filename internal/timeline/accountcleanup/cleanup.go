@@ -2,6 +2,7 @@ package accountcleanup
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"github.com/kongken/mono/internal/timeline/ent"
@@ -39,7 +40,20 @@ func QueueObject(ctx context.Context, tx *ent.Tx, key string) error {
 	if tx == nil || key == "" {
 		return errors.New("cleanup queue unavailable")
 	}
-	return tx.CleanupObject.Create().SetObjectKey(key).OnConflict().Ignore().Exec(ctx)
+	return queueKey(ctx, tx, key)
+}
+
+// queueKey inserts key with an explicit conflict target. PostgreSQL rejects an
+// ON CONFLICT DO UPDATE without one (which is what ent's Ignore() generates), and
+// DO NOTHING leaves an already queued or completed row exactly as it was. When the
+// key already exists PostgreSQL returns no row, which ent reports as ErrNoRows.
+func queueKey(ctx context.Context, tx *ent.Tx, key string) error {
+	err := tx.CleanupObject.Create().SetObjectKey(key).
+		OnConflictColumns(cleanupobject.FieldObjectKey).DoNothing().Exec(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	return nil
 }
 
 // ReplayMediaTombstone returns the immutable snapshot for a media delete
@@ -83,7 +97,7 @@ func Run(ctx context.Context, st *Store, userID string) error {
 			if key == "" {
 				continue
 			}
-			if err = tx.CleanupObject.Create().SetObjectKey(key).OnConflict().Ignore().Exec(ctx); err != nil {
+			if err = queueKey(ctx, tx, key); err != nil {
 				return err
 			}
 		}
