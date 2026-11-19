@@ -31,6 +31,10 @@ store:
       port: 15432
       user: tripmap
       password: tripmap-local
+      # Local development only: a separate database works because auto_migrate creates Timeline's own
+      # tables. In production Timeline and Tripmap share ONE database (owner/ref foreign keys and the
+      # mutation-receipt table cross the service boundary): set db_name to Tripmap's database,
+      # auto_migrate to false, and run cmd/migrate-shared (docs/backend.md).
       db_name: timeline
       ssl_mode: disable
   s3:

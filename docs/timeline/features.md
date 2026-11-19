@@ -6,7 +6,7 @@ Timeline 记录属于当前 OzID 账号，浏览器通过 BFF 的 `bff.timeline.
 
 列表支持搜索、分类和日期范围组合筛选，并按发生时间倒序、ID 升序稳定排序。删除先进入回收站，恢复后回到原排序位置；v1 网页和 MCP 不提供永久删除入口。更新和删除可携带 expected revision，版本不匹配返回冲突；创建携带 mutation id 时重放返回原记录。
 
-账号注销会删除 Timeline 记录，并把关联对象的 opaque key 放入不含用户 ID 的清理队列。清理队列可安全重试。BFF 未配置 Timeline upstream 时不会挂载入口。
+账号注销会删除 Timeline 记录，并把关联对象的 opaque key 放入不含用户 ID 的清理队列。清理队列可安全重试：附件删除与账号注销入队同一对象只会产生一行（`ON CONFLICT (object_key) DO NOTHING`），重复删除不会重置已完成或已计数的清理状态；服务运行时每分钟排空一次队列，对象存储暂时失败的条目保留为 pending 并累计 `attempts`，下一轮重试，成功后标记 done，不影响其他条目。BFF 未配置 Timeline upstream 时不会挂载入口。数据库拓扑（与 Tripmap 同库）和升级步骤见 [Timeline 与 Tripmap 共享迁移](../backend.md#timeline-与-tripmap-共享迁移)。
 
 网页端已接入时间线、回收站、搜索/筛选、继续加载、详情编辑、分类管理和附件的 Prepare → 直传 → Complete 流程；BFF 同时提供浏览器 Connect 合同和独立的 Streamable HTTP MCP 入口。附件只接受 JPEG、PNG、WebP、PDF，单个不超过 10 MiB，每条记录最多 20 个；附件下载由账号隔离的服务端鉴权：浏览器走服务端读取，MCP 通过 `timeline_get_attachment_download` 申请短时私有下载地址，两条路径每次都会重新校验归属和记录未回收，均不返回对象存储 key，也不提供永久公开链接。
 
