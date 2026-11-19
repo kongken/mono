@@ -84,10 +84,17 @@ func TestMigrationDirectoryChecksum(t *testing.T) {
 // schema as the search_path so every statement below stays inside it.
 type migrationDB struct {
 	*sql.DB
-	ctx context.Context
+	ctx    context.Context
+	schema string
 }
 
-func newMigrationDB(t *testing.T) *migrationDB {
+func newMigrationDB(t *testing.T) *migrationDB { return newMigrationDBAlso(t) }
+
+// newMigrationDBAlso opens a throwaway schema whose search_path continues into `also` (the schemas of
+// other migrationDBs). Two schemas on one server share the pgcrypto extension that the refs migration
+// installs into the first one; a real pair of databases would each have their own, so the cross-database
+// scenario lets the second schema see the first's functions instead of installing a global one.
+func newMigrationDBAlso(t *testing.T, also ...*migrationDB) *migrationDB {
 	t.Helper()
 	dsn := os.Getenv("TIMELINE_TEST_POSTGRES_DSN")
 	if dsn == "" {
@@ -111,10 +118,14 @@ func newMigrationDB(t *testing.T) *migrationDB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.RuntimeParams["search_path"] = schema
+	path := schema
+	for _, other := range also {
+		path += ", " + other.schema
+	}
+	cfg.RuntimeParams["search_path"] = path
 	scoped := stdlib.OpenDB(*cfg)
 	t.Cleanup(func() { _ = scoped.Close() })
-	return &migrationDB{DB: scoped, ctx: ctx}
+	return &migrationDB{DB: scoped, ctx: ctx, schema: schema}
 }
 
 // apply runs the migration files in name order, one transaction per file, the

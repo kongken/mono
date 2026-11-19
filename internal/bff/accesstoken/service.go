@@ -184,6 +184,39 @@ func (s *Service) List(ctx context.Context, userID string, all bool) ([]*ent.Acc
 	return rows, nil
 }
 
+// ListOwn returns userID's own tokens of one audience, newest first. Revoked and
+// expired tokens are included. It is the account self-service listing: it never
+// shows another account's tokens or the audiences the surface does not manage.
+func (s *Service) ListOwn(ctx context.Context, userID, audience string) ([]*ent.AccessToken, error) {
+	rows, err := s.db.AccessToken.Query().
+		Where(entaccesstoken.UserID(userID), entaccesstoken.Audience(audience)).
+		Order(ent.Desc(entaccesstoken.FieldCreatedAt), ent.Desc(entaccesstoken.FieldID)).Limit(MaxListed).All(ctx)
+	if err != nil {
+		return nil, internal(err)
+	}
+	return rows, nil
+}
+
+// RevokeOwn ends one of actorUserID's tokens of the given audience. A token of
+// another audience is refused like any token the surface may not touch, so the
+// self-service surface can neither revoke metro tokens nor other accounts' tokens.
+func (s *Service) RevokeOwn(ctx context.Context, actorUserID, id, audience string) error {
+	row, err := s.db.AccessToken.Query().Where(entaccesstoken.ID(id)).Only(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return connect.NewError(connect.CodeNotFound, errors.New("token not found"))
+		}
+		return internal(err)
+	}
+	if row.UserID != actorUserID {
+		return connect.NewError(connect.CodePermissionDenied, errors.New("you may only revoke your own tokens"))
+	}
+	if row.Audience != audience {
+		return connect.NewError(connect.CodePermissionDenied, errors.New("request rejected"))
+	}
+	return s.revoke(ctx, actorUserID, id, false)
+}
+
 // Revoke ends one of actorUserID's tokens. Revoking a revoked token succeeds
 // and keeps the first revocation time.
 func (s *Service) Revoke(ctx context.Context, actorUserID, id string) error {

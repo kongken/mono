@@ -2,13 +2,14 @@ package navigation_test
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/kongken/mono/internal/bff/navigation"
 )
 
-var cors = []string{"https://id.example.com", "https://admin.example.com", "https://trip.example.com", "https://metro.example.com"}
+var cors = []string{"https://id.example.com", "https://admin.example.com", "https://trip.example.com", "https://metro.example.com", "https://timeline.example.com"}
 
 func config() navigation.Config {
 	return navigation.Config{
@@ -18,6 +19,7 @@ func config() navigation.Config {
 			"admin":    {Origin: "https://admin.example.com", DefaultPath: "/users", Paths: []string{"/metro/*", "/audit/users"}},
 			"trip-map": {Origin: "https://trip.example.com"},
 			"metro":    {Origin: "https://metro.example.com", Paths: []string{"/me", "/city/*", "/topic/*"}},
+			"timeline": {Origin: "https://timeline.example.com", Paths: []string{"/trash", "/entries/*"}},
 		},
 	}
 }
@@ -44,6 +46,10 @@ func TestResolveAcceptsRegisteredTargets(t *testing.T) {
 		{"admin", "/metro/lines", "/metro/lines", "https://admin.example.com/metro/lines"},
 		{"admin", "/audit/users", "/audit/users", "https://admin.example.com/audit/users"},
 		{"ozid", "", "/", "https://id.example.com/"},
+		{"timeline", "", "/", "https://timeline.example.com/"},
+		{"timeline", "/", "/", "https://timeline.example.com/"},
+		{"timeline", "/trash", "/trash", "https://timeline.example.com/trash"},
+		{"timeline", "/entries/ent_abc", "/entries/ent_abc", "https://timeline.example.com/entries/ent_abc"},
 	} {
 		got, err := r.Resolve(c.app, c.path)
 		if err != nil {
@@ -89,6 +95,13 @@ func TestResolveRefusesEverythingElse(t *testing.T) {
 		{"exact rule is not a prefix", "admin", "/audit/users/x"},
 		{"too long", "metro", "/city/" + strings.Repeat("a", 300)},
 		{"another app's path", "trip-map", "/me"},
+		{"timeline unregistered path", "timeline", "/admin"},
+		{"timeline another app's path", "timeline", "/me"},
+		{"timeline absolute url", "timeline", "https://evil.example/"},
+		{"timeline scheme relative", "timeline", "//evil.example/"},
+		{"timeline dot dot", "timeline", "/entries/../admin"},
+		{"timeline exact rule is not a prefix", "timeline", "/trash/x"},
+		{"timeline id is case sensitive", "Timeline", "/"},
 	}
 	// trip-map registered only its default path.
 	for _, c := range cases {
@@ -216,4 +229,48 @@ func TestResolveIgnoresMutationOfConfig(t *testing.T) {
 	if got, _ := r.Resolve("metro", "/me"); got.URL != "https://metro.example.com/me" {
 		t.Fatalf("registry follows the config map: %+v", got)
 	}
+}
+
+// The Timeline front end names itself "timeline" in every OzID sign-in link
+// (apps/timeline/src/lib/config.ts). The registry must accept that exact ID, and a
+// Timeline origin must follow the same CORS and site rules as every other app.
+func TestTimelineIsARegisteredApp(t *testing.T) {
+	if !slices.Contains(navigation.AppIDs, navigation.AppTimeline) || navigation.AppTimeline != "timeline" {
+		t.Fatalf("AppIDs %v must contain %q", navigation.AppIDs, "timeline")
+	}
+	t.Run("origin must be listed in CORS", func(t *testing.T) {
+		_, err := navigation.New(config(), cors[:4], true)
+		if err == nil || !strings.Contains(err.Error(), "navigation.apps.timeline.origin") || !strings.Contains(err.Error(), "cors_allowed_origins") {
+			t.Fatalf("got %v", err)
+		}
+	})
+	t.Run("origin must share the API site", func(t *testing.T) {
+		c := config()
+		c.Apps["timeline"] = navigation.App{Origin: "https://timeline.other.test"}
+		_, err := navigation.New(c, append(slices.Clone(cors), "https://timeline.other.test"), true)
+		if err == nil || !strings.Contains(err.Error(), "same site") {
+			t.Fatalf("got %v", err)
+		}
+	})
+	t.Run("origin must not duplicate another app", func(t *testing.T) {
+		c := config()
+		c.Apps["timeline"] = navigation.App{Origin: "https://trip.example.com"}
+		if _, err := navigation.New(c, cors, true); err == nil || !strings.Contains(err.Error(), "already the origin") {
+			t.Fatalf("got %v", err)
+		}
+	})
+	t.Run("plain http is refused with secure cookies", func(t *testing.T) {
+		c := config()
+		c.Apps["timeline"] = navigation.App{Origin: "http://timeline.example.com"}
+		if _, err := navigation.New(c, append(slices.Clone(cors), "http://timeline.example.com"), true); err == nil {
+			t.Fatal("an http Timeline origin was accepted")
+		}
+	})
+	t.Run("an unlisted app is still unknown", func(t *testing.T) {
+		c := config()
+		c.Apps["timeline-staging"] = navigation.App{Origin: "https://staging.example.com"}
+		if _, err := navigation.New(c, append(slices.Clone(cors), "https://staging.example.com"), true); err == nil || !strings.Contains(err.Error(), "unknown app ID") {
+			t.Fatalf("got %v", err)
+		}
+	})
 }

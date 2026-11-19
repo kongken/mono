@@ -10,6 +10,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/bff/adminguard"
+	entaccesstoken "github.com/kongken/mono/internal/bff/ent/accesstoken"
 	bffmetrov1 "github.com/kongken/mono/pkg/proto/bff/metro/v1"
 	"github.com/kongken/mono/pkg/proto/bff/metro/v1/bffmetrov1connect"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
@@ -38,7 +39,12 @@ func countMetroAdmin(n *atomic.Int64) grpc.UnaryServerInterceptor {
 type perimeterCall struct {
 	name  string
 	write bool
-	run   func(ctx context.Context, b *Browser, origin string, headers ...string) error
+	// selfService marks the token procedures the user center's origin legitimately answers (an
+	// account's own Timeline tokens). From that origin they are not a perimeter refusal; what the
+	// origin may not do (metro tokens, other accounts' tokens) is covered by
+	// TestChainTokenSelfServiceStaysTimelineOnly.
+	selfService bool
+	run         func(ctx context.Context, b *Browser, origin string, headers ...string) error
 }
 
 func setOrigin(h http.Header, origin string, headers []string) {
@@ -63,12 +69,12 @@ func metroPerimeterCalls() []perimeterCall {
 	}
 	const someID = "00000000-0000-0000-0000-000000000001"
 	read := func(name string, f func(ctx context.Context, b *Browser, origin string, headers []string) error) perimeterCall {
-		return perimeterCall{name: name, run: func(ctx context.Context, b *Browser, origin string, headers ...string) error {
+		return perimeterCall{name: name, selfService: strings.HasSuffix(name, "AccessTokens"), run: func(ctx context.Context, b *Browser, origin string, headers ...string) error {
 			return f(ctx, b, origin, headers)
 		}}
 	}
 	write := func(name string, f func(ctx context.Context, b *Browser, origin string, headers []string) error) perimeterCall {
-		return perimeterCall{name: name, write: true, run: func(ctx context.Context, b *Browser, origin string, headers ...string) error {
+		return perimeterCall{name: name, write: true, selfService: name == "RevokeAccessToken", run: func(ctx context.Context, b *Browser, origin string, headers ...string) error {
 			return f(ctx, b, origin, headers)
 		}}
 	}
@@ -124,7 +130,7 @@ func metroPerimeterCalls() []perimeterCall {
 			return err
 		}),
 		write("CreateAccessToken", func(ctx context.Context, b *Browser, o string, h []string) error {
-			req := connect.NewRequest(&bffv1.CreateAccessTokenRequest{Name: "perimeter", ExpiresInDays: 1})
+			req := connect.NewRequest(&bffv1.CreateAccessTokenRequest{Name: "perimeter", Audience: "metro", ExpiresInDays: 1})
 			b.Write(ctx, req)
 			setOrigin(req.Header(), o, h)
 			_, err := tokens(b).CreateAccessToken(ctx, req)
@@ -283,6 +289,9 @@ func TestChainMetroAdminPerimeterDemandsTheConsoleOrigin(t *testing.T) {
 	cities := count(t)(h.MetroDB.City.Query().Count(ctx))
 	for _, origin := range []string{"", tripOrigin, ozidOrigin, metroOrigin, siblingOrigin, "null", adminOrigin + "/", "http://localhost:5176.evil.example", "https://localhost:5176"} {
 		for _, c := range metroPerimeterCalls() {
+			if c.selfService && origin == ozidOrigin {
+				continue // the user center's own Timeline token self-service, answered on purpose
+			}
 			err := c.run(ctx, admin, origin)
 			if connect.CodeOf(err) != connect.CodePermissionDenied || !isPerimeterRefusal(err) {
 				t.Errorf("%s with origin %q: %v", c.name, origin, err)
@@ -343,7 +352,15 @@ func TestChainMetroAdminPerimeterPreflightAndPaths(t *testing.T) {
 				t.Errorf("%s console preflight: %d %v", p, res.StatusCode, res.Header)
 			}
 			for _, origin := range []string{tripOrigin, ozidOrigin, metroOrigin, siblingOrigin} {
-				if res := preflight(t, h, p, origin); res.StatusCode != http.StatusForbidden || res.Header.Get("Access-Control-Allow-Origin") != "" {
+				res := preflight(t, h, p, origin)
+				if origin == ozidOrigin && strings.Contains(p, "AccessTokenService") {
+					// Timeline token self-service runs from the user center.
+					if res.StatusCode != http.StatusNoContent || res.Header.Get("Access-Control-Allow-Origin") != ozidOrigin {
+						t.Errorf("%s user center preflight: %d %v", p, res.StatusCode, res.Header)
+					}
+					continue
+				}
+				if res.StatusCode != http.StatusForbidden || res.Header.Get("Access-Control-Allow-Origin") != "" {
 					t.Errorf("%s preflight from %s: %d %v", p, origin, res.StatusCode, res.Header)
 				}
 			}
@@ -467,5 +484,138 @@ func TestChainMetroAdminPerimeterLeavesMCPAlone(t *testing.T) {
 	}
 	if !toolNames(t, c)["metro_list_cities"] {
 		t.Fatal("MCP tools are not served")
+	}
+}
+
+// AccessTokenService has two surfaces. The user center's origin is account self-service: an account manages its
+// own Timeline tokens and nothing else. It is not a way around the console's perimeter: a metro administrator
+// cannot create a metro token, list everyone's tokens or revoke someone else's from there, and an ordinary
+// account cannot touch another account's token. The console origin stays metro administration and demands the role.
+func TestChainTokenSelfServiceStaysTimelineOnly(t *testing.T) {
+	ctx := context.Background()
+	h := adminHarness(t, loopback, ChainMetro{})
+	tokens := func(b *Browser) bffv1connect.AccessTokenServiceClient {
+		return bffv1connect.NewAccessTokenServiceClient(b.HTTP, b.APIURL)
+	}
+	create := func(b *Browser, origin, audience string, scopes ...string) (*bffv1.CreateAccessTokenResponse, error) {
+		req := connect.NewRequest(&bffv1.CreateAccessTokenRequest{Name: "self", Audience: audience, Scopes: scopes, ExpiresInDays: 1})
+		b.Write(ctx, req)
+		setOrigin(req.Header(), origin, nil)
+		res, err := tokens(b).CreateAccessToken(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg, nil
+	}
+	list := func(b *Browser, origin string, all bool) (*bffv1.ListAccessTokensResponse, error) {
+		res, err := tokens(b).ListAccessTokens(ctx, withOrigin(&bffv1.ListAccessTokensRequest{AllUsers: all}, origin))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg, nil
+	}
+	revoke := func(b *Browser, origin, id string) error {
+		req := connect.NewRequest(&bffv1.RevokeAccessTokenRequest{Id: id})
+		b.Write(ctx, req)
+		setOrigin(req.Header(), origin, nil)
+		_, err := tokens(b).RevokeAccessToken(ctx, req)
+		return err
+	}
+	refused := func(t *testing.T, what string, err error) {
+		t.Helper()
+		if connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Errorf("%s: want permission_denied, got %v", what, err)
+		}
+	}
+
+	user, other, admin := h.FreshBrowser(), h.FreshBrowser(), h.FreshBrowser()
+	for b, sub := range map[*Browser]string{user: "self_user", other: "self_other"} {
+		if err := b.LoginWithRoles(ctx, sub); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := admin.LoginWithRoles(ctx, "self_admin", "metro-admin"); err != nil {
+		t.Fatal(err)
+	}
+
+	// An ordinary account: its own Timeline token, by default and by name, and nothing metro.
+	for _, audience := range []string{"", "timeline"} {
+		res, err := create(user, ozidOrigin, audience)
+		if err != nil || res.GetToken().GetAudience() != "timeline" || len(res.GetToken().GetScopes()) != 1 || res.GetToken().GetScopes()[0] != "timeline:read" {
+			t.Fatalf("an ordinary account's Timeline token (audience %q): %v %v", audience, res, err)
+		}
+	}
+	_, err := create(user, ozidOrigin, "metro")
+	refused(t, "an ordinary account creating a metro token from the user center", err)
+	_, err = create(user, ozidOrigin, "timeline", "metro:read")
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("a metro scope on a Timeline token: %v", err)
+	}
+	if n := count(t)(h.BFFDB.AccessToken.Query().Count(ctx)); n != 2 {
+		t.Fatalf("expected the two Timeline tokens only, have %d", n)
+	}
+
+	// A metro administrator is an ordinary account on this surface: the default audience is Timeline and a
+	// metro token, the all-users listing and a revocation of another account's token are all refused.
+	res, err := create(admin, ozidOrigin, "")
+	if err != nil || res.GetToken().GetAudience() != "timeline" {
+		t.Fatalf("an administrator's default token from the user center must be a Timeline token: %v %v", res, err)
+	}
+	if _, err = create(admin, ozidOrigin, "metro"); err == nil {
+		t.Error("a metro token was issued from the user center")
+	} else {
+		refused(t, "a metro administrator creating a metro token from the user center", err)
+	}
+	metroSecret := h.newAdminToken(ctx, admin, "console-metro", 1) // the console is where metro tokens are made
+	if metroSecret == "" {
+		t.Fatal("the console could not issue a metro token")
+	}
+	_, err = list(admin, ozidOrigin, true)
+	refused(t, "the all-users listing from the user center", err)
+	mine, err := list(admin, ozidOrigin, false)
+	if err != nil || len(mine.GetTokens()) != 1 || mine.GetTokens()[0].GetAudience() != "timeline" {
+		t.Fatalf("the user center lists only the caller's Timeline tokens, not the metro ones: %v %v", mine, err)
+	}
+	all, err := list(admin, adminOrigin, true)
+	if err != nil || len(all.GetTokens()) != 4 {
+		t.Fatalf("the console lists every token: %v %v", all, err)
+	}
+	me, err := admin.Me(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var metroID, userID string
+	for _, tk := range all.GetTokens() {
+		switch {
+		case tk.GetAudience() == "metro":
+			metroID = tk.GetId()
+		case tk.GetUserId() != me.GetId() && userID == "":
+			userID = tk.GetId()
+		}
+	}
+	refused(t, "a metro administrator revoking another account's token from the user center", revoke(admin, ozidOrigin, userID))
+	refused(t, "an administrator revoking her own metro token from the user center", revoke(admin, ozidOrigin, metroID))
+	refused(t, "an ordinary account revoking another account's token", revoke(other, ozidOrigin, userID))
+	if err := revoke(user, ozidOrigin, userID); err != nil {
+		t.Errorf("an account revoking its own Timeline token: %v", err)
+	}
+	if n := count(t)(h.BFFDB.AccessToken.Query().Where(entaccesstoken.RevokedAtIsNil()).Count(ctx)); n != 3 {
+		t.Errorf("only the owner's revocation may take effect, %d tokens remain active", n)
+	}
+	if err := revoke(admin, adminOrigin, userID); err != nil {
+		t.Errorf("the console administrator revoking any token: %v", err)
+	}
+
+	// The console surface demands the role: an ordinary account is refused there, listing included.
+	_, err = list(user, adminOrigin, false)
+	refused(t, "an ordinary account on the console surface", err)
+	_, err = create(user, adminOrigin, "timeline")
+	refused(t, "an ordinary account creating a token from the console", err)
+	// Any other registered origin is not a token surface at all.
+	for _, origin := range []string{tripOrigin, metroOrigin, siblingOrigin, ""} {
+		_, err = create(user, origin, "timeline")
+		refused(t, "token creation from "+origin, err)
+		_, err = list(user, origin, false)
+		refused(t, "token listing from "+origin, err)
 	}
 }

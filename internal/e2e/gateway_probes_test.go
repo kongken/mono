@@ -236,6 +236,18 @@ func (g *gwRun) probeConsoleAllowlist() {
 		for _, procedure := range adminProcedures {
 			mark, before := g.obs.mark(), g.metro.Load()
 			status, _, _ := g.connectPost(g.main, gwInsideClient, g.set.api, procedure, origin)
+			if procedure == bffv1connect.AccessTokenServiceListAccessTokensProcedure && origin == g.idO {
+				// The user center's own Timeline token self-service: the call is admitted by the Origin
+				// rule and then meets the session rule (no session here), never the perimeter's refusal.
+				g.wantStatus(procedure+" self-service from the user center without a session", status, 401)
+				if len(g.obs.since(mark)) == 0 {
+					t.Errorf("%s from the user center never reached the BFF", procedure)
+				}
+				if n := g.metro.Load(); n != before {
+					t.Errorf("%s ran metro's administration (%d calls -> %d)", procedure, before, n)
+				}
+				continue
+			}
 			g.wantStatus(fmt.Sprintf("%s with Origin %q from an allowed address", procedure, origin), status, 403)
 			g.onlyRefusedAtBFF(procedure, mark, before)
 		}

@@ -21,8 +21,9 @@ services:
       POSTGRES_PASSWORD: change-me
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # Creates the separate bff, usersrv, metro and timeline databases on the first start of an empty
-      # volume (tripmap uses POSTGRES_DB's default, "tripmap"). Existing volumes: create them by hand.
+      # Creates the separate bff, usersrv and metro databases on the first start of an empty volume
+      # (tripmap uses POSTGRES_DB's default, "tripmap"; Timeline shares that database, see
+      # docs/backend.md). Existing volumes: create them by hand.
       - ./postgres/init-databases.sql:/docker-entrypoint-initdb.d/10-init-databases.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U tripmap"]

@@ -67,6 +67,13 @@ type Policy struct {
 	// how the admin console's source policy (network and Origin) reaches the procedures
 	// that need it; nil admits every procedure.
 	Perimeter func(procedure string, header http.Header, remoteAddr string) error
+	// RequiredRole names a role the caller must hold for a procedure whose requirement
+	// depends on the request (its Origin), which a static required_role option cannot say.
+	// AccessTokenService uses it: the console's origin is metro administration and needs
+	// metro-admin, while the user center's origin is account self-service and needs none.
+	// It is checked exactly like a required_role option (after the session is known,
+	// with the administrator session age limit). Nil or "" adds nothing.
+	RequiredRole func(procedure string, header http.Header) string
 	// Now defaults to time.Now; tests set it.
 	Now func() time.Time
 	// Authenticate resolves the browser session cookie for protected procedures and
@@ -193,7 +200,11 @@ func Interceptor(p Policy) connect.Interceptor {
 				// anonymous caller sees UNAUTHENTICATED and a signed-in caller
 				// without the role sees PERMISSION_DENIED. The business service
 				// checks the same requirement again from the credential.
-				if role := rpcauth.RequiredRole(procedure); role != "" && browser.UserID != "" {
+				role := rpcauth.RequiredRole(procedure)
+				if role == "" && p.RequiredRole != nil {
+					role = p.RequiredRole(procedure, req.Header())
+				}
+				if role != "" && browser.UserID != "" {
 					if !browser.HasRole(role) {
 						return nil, withID(errRoleMissing)
 					}

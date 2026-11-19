@@ -17,6 +17,7 @@ var appNames = map[string]string{
 	CentralApp: "OzID",
 	"trip-map": "山海足迹",
 	"metro":    "地铁足迹",
+	"timeline": "时间线",
 }
 
 const defaultAppName = "账号服务"

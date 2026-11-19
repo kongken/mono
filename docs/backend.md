@@ -4,16 +4,68 @@
 
 ## Timeline 与 Tripmap 共享迁移
 
-Timeline 和 Tripmap 的 clean baseline、共享增量和一次性 import 必须在同一个 PostgreSQL database 中由仓库入口执行。不要分别执行 Tripmap 目录：
+### 受支持的数据库拓扑
+
+| 拓扑 | 状态 | 原因 / 做法 |
+| --- | --- | --- |
+| Timeline 与 Tripmap 在**同一个** PostgreSQL database（Tripmap 的库，两份配置的 `db_store` 指向同一个库） | 生产唯一支持 | `media_entry_links(entry_ref,user_id)` 外键指向 `timeline_entries(public_ref,user_id)`，`media_objects` 的 owner 外键与 `timeline_mutations` 回执表被两个服务共用；跨库无法建立这些外键，也无法在同一事务里写回执 |
+| 只有 Timeline、没有 Tripmap 的独立库 | 仅本地开发或只部署 Timeline 的环境 | 按文件名顺序执行 `migrations/timeline/`（5 个文件）即可；同一环境随后要运行 Tripmap 时，对这个库运行 `cmd/migrate-shared`，它会识别并采用已有 Timeline 结构，再补上 Tripmap |
+| Timeline 在独立 `timeline` 库、Tripmap 在 `tripmap` 库 | 不支持运行 | 先按下文“跨库转同库”把 Timeline 数据并入 Tripmap 库，再把 Timeline 的 `db_store` 指向它 |
+
+回执访问边界：`timeline_mutations` 由两个服务共同写入，但每次读写都带认证账号（`(user_id, mutation_id)` 唯一键，`media_ref` / `entry_ref` 只在同一账号内解析），触发器 `timeline_mutations_immutable` 拒绝改写已写入的回执字段。生产应给两个服务各自的数据库角色只授 `SELECT, INSERT`（过期清理角色另加 `DELETE`），不授 `UPDATE`；授权由运维在维护窗口执行，仓库不替你改任何真实环境的权限。
+
+### 命令
 
 ```bash
-go run ./cmd/migrate-shared -dsn "$SHARED_MIGRATION_DSN" -root . \\
-  -link-import ./deploy/sql/media_entry_links.sql
+# 只检查：打印每个阶段将做什么，不写任何内容
+go run ./cmd/migrate-shared -check -dsn "$SHARED_MIGRATION_DSN" -root .
+# 执行（一个事务；检查被拒绝时不会有任何写入）
+go run ./cmd/migrate-shared -dsn "$SHARED_MIGRATION_DSN" -root . -link-import ./deploy/sql/media_entry_links.sql
 ```
 
-`cmd/migrate-shared` 按 Timeline baseline → Tripmap baseline → Timeline refs/mutations → Tripmap 目录中 20261014 baseline 之后、20261107900000 staging 之前的全部既有增量（F5/F6/F7/F11/F12、session/index/world）→ link staging → 外部 link import → Tripmap Media/receipt 增量执行。上述文件由入口按文件名排序完整编排，部署后不应再单独执行这些 Tripmap migration。
+阶段按依赖顺序：Timeline baseline → Tripmap baseline → Timeline refs/receipts → Tripmap 20261014 baseline 之后、link staging 之前的 8 个既有增量 → link staging → 外部 link import → Tripmap media/receipt → Timeline 的三个后续迁移（`20261112000000_media_upload_mutations`、`20261112010000_amount_presence`、`20261112011000_categories`）。`migrations/timeline` 与 `migrations/tripmap` 里的每个文件都必须在计划中恰好出现一次，两个目录的 `atlas.sum` 也要与文件一致（`internal/platform/migrations/shared_test.go` 校验）。部署后不要再单独执行这些目录里的文件。
 
-link staging 持久化约束同时绑定 `(entry_ref,user_id)` 到 `timeline_entries(public_ref,user_id)`，并由 Tripmap migration 绑定 `(media_id,user_id)` 到 Media。缺 link、Media 或 Entry 不存在、重复或跨 owner link 都会在迁移事务中失败。
+### 已有数据库如何被识别
+
+写入前，工具先在同一事务里（持有 advisory lock）逐阶段检查，结果记在 `shared_migration_history`（`name`、`applied_at`、`source`、`checksum`）：
+
+| 现状 | 处理 |
+| --- | --- |
+| 历史表已记录该阶段 | 跳过；记录的文件校验和与目录里的文件不一致则拒绝（已应用的迁移不可改，需要新迁移）。旧版工具写入的记录没有校验和，输出里提示内容无法校验 |
+| 没有记录，但该阶段的表/列/索引**全部**已存在（例如只跑过 Tripmap 的老库、只跑过 Timeline 的独立库） | 采用（`source=adopted`）：只登记，**不重放** baseline 或增量，不删数据 |
+| 没有记录，且全部不存在 | 执行该阶段（`source=applied`） |
+| 只存在一部分（同名列/表/索引已被占用，或上一次手工升级中断） | 拒绝，列出已有和缺失的对象 |
+| 后面的阶段已存在而前面的缺失（乱序、手改过的库） | 拒绝 |
+| 历史里有本版本不认识的阶段 | 拒绝（库被更新版本迁移过） |
+| 存在未建立链接的 Tripmap 媒体行且没有 `-link-import` | 拒绝，并给出行数 |
+| `retire_tripmap_sessions` 将删除仍有数据的 `auth_sessions` / `account_deletion_receipts` | 拒绝；先导入旧账号，再显式加 `-accept-retire-legacy-sessions` |
+| 服务器没有 `pgcrypto` | 拒绝 |
+
+退出码 2 表示“拒绝且未写入”，输出里附带处理步骤。执行完成前会再核对：每张原有表行数不变（Timeline 的 link import 只允许增加 `timeline_entries`；被明确退役的两张表除外），且每条 Timeline 媒体与其记录属于同一账号；任何一项不成立都回滚整个事务。
+
+### 升级步骤（允许停机；不会清空或重建 Tripmap 数据）
+
+1. 停止 BFF、Tripmap、Timeline 的所有写入，对数据库做完整备份。
+2. 在备份恢复出的副本上先运行 `-check`，再完整执行一次并验收（见下），再在生产库运行 `-check`。
+3. 若有 Tripmap 媒体行，生成一次性 link import：每个媒体行需要一个同账号的 Timeline entry，导入文件可以先 `INSERT INTO timeline_entries (...)` 再 `INSERT INTO media_entry_links (media_id,user_id,entry_ref)`（模板见 `deploy/sql/media_entry_links.sql`；`entry_ref` 形如 `ent_` + 26 位小写十六进制）。缺链接、Entry 不存在、跨账号链接都会让迁移事务失败。
+4. 执行迁移；输出的每个阶段是 `recorded` / `adopt` / `apply` / `skip` 之一。重复执行是空操作（全部 `recorded`）。
+5. 部署新版 Tripmap、Timeline、BFF。生产保持 `auto_migrate: false`，两个服务的 `db_store` 指向同一个库；迁移永远是显式步骤。
+6. 验收：再次运行 `-check`（应无待执行阶段）、抽查原有用户/足迹/快照/行程/分享/媒体行，以及 `timeline_media_objects` 与 `timeline_entries` 的 `user_id` 一致。
+
+**失败与恢复。** 所有 DDL、导入与核对在一个事务内：任何阶段失败、导入失败或核对失败都会回滚，数据库保持迁移前的样子，可以修正后重跑；被拒绝的检查也没有写入，旧版本服务仍可启动。迁移**成功之后**不能直接回退到旧版服务（`media_objects.public_ref` 等新增非空约束使旧 Tripmap 无法再写入）；回退等同于恢复步骤 1 的备份，并把服务也回退到旧版本。
+
+### 跨库转同库（Timeline 已在独立库里有数据）
+
+```bash
+go run ./cmd/migrate-shared -dsn "$TRIPMAP_DB_DSN" -root . \
+  -timeline-source-dsn "$TIMELINE_DB_DSN" [-link-import ./import.sql]
+```
+
+前置条件：来源 Timeline 库已执行到当前版本的全部 5 个 `migrations/timeline/` 文件，且没有本工具不认识的 `timeline_*` 表；目标库没有任何 Timeline 表（已有 Timeline 结构的目标库会被拒绝，避免把两份数据合并）；两边都已停写。工具在目标库的同一个事务里完成：采用/执行 Tripmap 一侧的阶段、创建 Timeline 结构、按父子顺序复制 `timeline_entries`、`timeline_media_objects`、`timeline_cleanup_objects`、`timeline_mutations`、`timeline_categories`，然后用行数和 MD5 摘要逐表核对，最后跑上面的归属核对；任何不一致都回滚目标库。来源库只读，复制完成并验收后保留为备份。对象存储里的文件不随数据库移动（对象键在行里），Timeline 继续使用原来的桶。完成后把 Timeline 配置的 `db_store` 指向目标库并重启。
+
+### 验证
+
+`internal/timeline/integration/shared_upgrade_test.go`（`TIMELINE_TEST_POSTGRES_DSN`，CI 的 Timeline 数据库作业逐个要求其 PASS 且不得 SKIP）在随机 schema 里先写入真实数据再升级：只有 Tripmap 数据的旧库（用户、足迹、快照、分享、好友、世界文档、媒体，逐表摘要对比，媒体链接与 owner 外键）、独立 Timeline 库（两种版本，摘要对比）、旧版工具留下的共享库、全新安装（16 个阶段与两个目录里文件的校验和一一对应、重复执行不变）、八种被拒绝的状态（拒绝后 schema、行数、列、索引完全不变）、导入中途失败的整体回滚后重跑、`-check` 不写入，以及跨库转同库（摘要一致、来源不变、重复执行被拒绝、跨账号外键仍然生效）。
 
 后端基础设施已初始化，参考 `neo-box` 的技术栈和分层：Go 1.26.5+、Butterfly、Gin、ConnectRPC、Ent、PostgreSQL、Redis、AWS SDK for Go v2（S3）。依赖版本以 `go.mod` 为准，RPC 契约使用 Buf 生成 Go 与 TypeScript 代码。
 
@@ -562,7 +614,7 @@ BFF 的 `20261024161800_usersrv_sessions.sql` 给会话和管理令牌增加 `au
 
 1. 备份数据库（F5 对账号的升级是单向的，回退旧后端需要这份备份）。
 2. 把后端配置改为 `auto_migrate: false`。
-3. 对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/tripmap/20261014011446_f5_multiple_trips.sql`，再依次执行 `20261014022913_f6_shares.sql`、`20261014050044_f7_collaboration.sql`、`20261014140617_f11_itineraries.sql`、`20261014165138_f12_notifications.sql` 和 `20261026175706_world_documents.sql`（已升级到前一版的数据库只执行尚未应用的文件）。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
+3. （仅 Tripmap 单独部署且不运行 Timeline 的历史说明；与 Timeline 同库的部署一律使用 `cmd/migrate-shared`，见上文“Timeline 与 Tripmap 共享迁移”。）对数据库依次执行 baseline 之后的文件，每个文件一个事务：`psql "$DSN" -v ON_ERROR_STOP=1 -1 -f migrations/tripmap/20261014011446_f5_multiple_trips.sql`，再依次执行 `20261014022913_f6_shares.sql`、`20261014050044_f7_collaboration.sql`、`20261014140617_f11_itineraries.sql`、`20261014165138_f12_notifications.sql` 和 `20261026175706_world_documents.sql`（已升级到前一版的数据库只执行尚未应用的文件）。已有数据库的结构等同于 baseline，所以 baseline 本身不执行；若使用带版本记录的迁移工具，把 baseline 版本标记为已执行。语句不带 `IF NOT EXISTS`：重复执行会报错并回滚，不会静默重复。
 4. 部署新后端；已有账号在第一次被新前端写入时才升级到结构 2（见上文），旧行保持原样。
 5. 全新数据库：按文件名顺序执行全部文件（含 baseline）。
 

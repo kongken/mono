@@ -241,6 +241,9 @@ func TestExampleConfigCoversTheRouteTable(t *testing.T) {
 	if _, ok := cfg.Navigation.Apps["ozid"]; !ok {
 		t.Fatal("the example must register OzID so that the sign-in return flow works locally")
 	}
+	if app, ok := cfg.Navigation.Apps["timeline"]; !ok || !slices.Contains(cfg.CORSAllowedOrigins, app.Origin) {
+		t.Fatal("the example must register Timeline (an exact CORS origin and a navigation app): an ID the registry rejects stops the BFF at startup")
+	}
 	if cfg.GRPC.CAFile != "" || cfg.GRPC.Services["usersrv"].Transport != "h2c" || cfg.GRPC.Services["tripmap"].Transport != "h2c" || cfg.GRPC.Services["metro"].Transport != "h2c" {
 		t.Fatal("local example must use explicit h2c without a CA")
 	}

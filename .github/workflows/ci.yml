@@ -201,7 +201,8 @@ jobs:
       # combination on timeline_mutations, the replay/isolation rules that are visible in the
       # database, and the attachment upload path against the real bucket (a signed PUT with the
       # headers PrepareUpload returned, a PUT that overrides Content-Type being refused, and the
-      # delete tombstone queueing the object), and the 20-file limit on the row count.
+      # delete tombstone queueing the object), the 20-file limit on the row count, and the shared-schema
+      # install/upgrade scenarios of cmd/migrate-shared on databases that already hold data.
       # `set -o pipefail` keeps a failing `go test` from
       # being hidden by the pipe into tee.
       - name: Migrations, constraints, receipts and attachments (required, never skipped)
@@ -209,7 +210,7 @@ jobs:
         run: |
           set -o pipefail
           go test ./internal/timeline/integration -count=1 -v | tee /tmp/timeline-db.log
-          for t in TestMigrationDirectoryChecksum TestVersionedMigrationsBackfillOpaqueRefs TestMutationReceiptConstraintsRejectIllegalRows TestMutationReceiptSurvivesCleanupAndIsOwnerScoped TestPresignedUploadRoundTripThroughTheBucket TestPrepareUploadHandsBackTheHeadersTheSignatureCovers TestDeleteQueuesTheObjectForCleanup TestPrepareRefusesTheTwentyFirstAttachment TestConcurrentFirstCategoryInitCreatesDefaultsOnce TestAttachmentDownloadAddressIsOwnerScopedAndStopsAfterTrash TestAttachmentDownloadAddressFetchesTheStoredObject; do
+          for t in TestMigrationDirectoryChecksum TestVersionedMigrationsBackfillOpaqueRefs TestMutationReceiptConstraintsRejectIllegalRows TestMutationReceiptSurvivesCleanupAndIsOwnerScoped TestPresignedUploadRoundTripThroughTheBucket TestPrepareUploadHandsBackTheHeadersTheSignatureCovers TestDeleteQueuesTheObjectForCleanup TestCleanupQueueIsIdempotentRetriesAndKeepsTheTombstone TestPrepareRefusesTheTwentyFirstAttachment TestConcurrentFirstCategoryInitCreatesDefaultsOnce TestAttachmentDownloadAddressIsOwnerScopedAndStopsAfterTrash TestAttachmentDownloadAddressFetchesTheStoredObject TestSharedInstallOnAnEmptyDatabaseAppliesEveryMigrationOnce TestSharedUpgradeOfAnExistingTripmapDatabaseKeepsEveryRow TestSharedUpgradeAdoptsAStandaloneTimelineDatabase TestSharedUpgradeFromTheEarlierSharedToolOnlyAddsTheNewTimelineMigrations TestSharedPlanRefusesUnsupportedStatesBeforeAnyWrite TestSharedFailureInsideThePlanRollsEverythingBack TestSharedCheckNeverWrites TestSharedCrossDatabaseMoveKeepsTimelineDataAndOwnerRelations; do
             grep -q -- "--- PASS: $t " /tmp/timeline-db.log || { echo "$t did not run and pass against PostgreSQL and the object store"; exit 1; }
           done
           ! grep -q -- '--- SKIP' /tmp/timeline-db.log || { echo "a Timeline database or attachment scenario was skipped"; exit 1; }
@@ -256,6 +257,21 @@ jobs:
         env:
           VITE_API_BASE_URL: https://api.example.com/api
           VITE_OZID_ORIGIN: https://id.example.com
+      # The build gate is the point of the Pages recipe (root directory blank, `npm run build:timeline`,
+      # output apps/timeline/dist, both addresses in the project's variables): without the two public
+      # addresses the build must fail rather than ship a page that cannot reach its API. A green build
+      # above does not show that, so the refusal is asserted here.
+      - name: Timeline build gate refuses a build without its addresses (required)
+        shell: bash
+        run: |
+          for missing in VITE_API_BASE_URL VITE_OZID_ORIGIN; do
+            if env -u "$missing" VITE_API_BASE_URL=https://api.example.com/api VITE_OZID_ORIGIN=https://id.example.com bash -c "unset $missing; npm run build:timeline" >/tmp/gate.log 2>&1; then
+              echo "the Timeline build succeeded without $missing"; exit 1
+            fi
+            grep -q "$missing" /tmp/gate.log || { echo "the refusal does not name $missing"; cat /tmp/gate.log; exit 1; }
+          done
+          test -f apps/timeline/dist/index.html
+          test -f apps/homepage/dist/index.html
       # The console needs two public addresses and has no defaults (reserved example names).
       - run: npm run build:admin
         env:

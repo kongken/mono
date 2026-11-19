@@ -27,10 +27,13 @@ const (
 	AppAdmin = "admin"
 	AppTrip  = "trip-map"
 	AppMetro = "metro"
+	// AppTimeline is the Timeline front end (apps/timeline). Its ID is the one
+	// apps/timeline/src/lib/config.ts sends with every OzID sign-in link.
+	AppTimeline = "timeline"
 )
 
 // AppIDs lists the IDs the registry accepts.
-var AppIDs = []string{AppOzID, AppAdmin, AppTrip, AppMetro}
+var AppIDs = []string{AppOzID, AppAdmin, AppTrip, AppMetro, AppTimeline}
 
 // ErrNotAllowed is returned for an unknown app, or a path the app does not allow.
 var ErrNotAllowed = errors.New("navigation target not allowed")
@@ -54,7 +57,7 @@ type Config struct {
 	// directly with credentials and the session Cookie is host-only on it, so it must be
 	// in the same schemeful site as every registered app. It is only used for that check.
 	APIOrigin string `yaml:"api_origin"`
-	// Apps maps a stable app ID (ozid, admin, trip-map, metro) to its registration.
+	// Apps maps a stable app ID (ozid, admin, trip-map, metro, timeline) to its registration.
 	// ozid is required once any app is registered.
 	Apps map[string]App `yaml:"apps"`
 }
