@@ -10,7 +10,7 @@
 - **Nginx**：运行 `deploy/ozid-web`、`deploy/admin-web` 的模板，用真实 `envsubst` 与各 Dockerfile 的 `NGINX_ENVSUBST_FILTER` 渲染，并执行镜像自己的入口脚本（`19-require-api-origin.sh`、`19-admin-access.sh`，所以空白名单、重叠的受信代理在这里同样是启动失败）。产品镜像的模板（`trip-map-web`、`metro-web`）也在裸端口上单独探测。
 - **三个 Caddy 实例**：只放行测试内网客户端的白名单实例；示例原样的实例（`203.0.113.0/24`，不含任何真实网络，所以控制台对谁都关闭）；去掉网关自己的控制台规则的实例（让容器和 BFF 各自独立证明拒绝）。
 - **三类来源**：`127.0.0.1` 是白名单内的浏览器，`127.0.0.4` 是 MCP 机器，`127.0.0.9` 是外部；网关是 BFF 与控制台容器的受信代理（`127.0.0.2/32`），不在任何白名单内。
-- **浏览器**：Chromium（桌面与手机视口各 11 个场景：`flows.spec.ts` 7 个 + `console.spec.ts` 4 个；名单外浏览器 3 个；每组 11×2+3 = 25 个）经 `--host-resolver-rules` 把整个保留站点解析到网关端口，只忽略测试用自签证书的错误，其他不放宽。
+- **浏览器**：Chromium（桌面与手机视口各 13 个场景：`flows.spec.ts` 7 个 + `console.spec.ts` 6 个；名单外浏览器 3 个；每组 13×2+3 = 29 个）经 `--host-resolver-rules` 把整个保留站点解析到网关端口，只忽略测试用自签证书的错误，其他不放宽。
 
 Go 探测证明的是**哪一层**拒绝：网关拒绝的请求不得出现在 BFF 的 HTTP 边缘（观察器计数为 0）；去掉网关规则后由 BFF 拒绝的请求只能是 403/404，并且 metro 管理服务的调用计数不变；MCP 被拒的请求不改城市数据、不使用令牌。
 
@@ -22,10 +22,10 @@ Go 探测证明的是**哪一层**拒绝：网关拒绝的请求不得出现在 
 | 来源策略 | 产品 Origin 与未登记兄弟调用集中账号写（登录、注册、重置、改密、设备、注销…）一律 403；Me、CSRF、退出对四个登记应用仍然可用；管理过程换成任何非控制台 Origin 都 403 |
 | MCP | 令牌经网关由控制台会话创建；机器网段走通整套协议；浏览器地址、外部地址、伪造 XFF、Forwarded、X-Real-IP、会话 Cookie 一律 403 `request rejected`，缺/错令牌 401，Cookie 不能代替令牌，其他主机不承载 MCP |
 
-浏览器场景：`flows.spec.ts`（metro 匿名标记 → 用户中心登录 → 回到原页 → 标记保存，另一台设备读回；trip-map 登录 → 添加足迹 → 另一浏览器从服务端读回；一次登录两个产品同时可见、在用户中心退出后两个产品都失效；邮件落到用户中心并在另一浏览器完成，令牌不进请求 URL 与 Referer；旧邮件指向产品页时，产品页（经真实网关的落地页规则，带 `no-referrer`、`no-store`、`script-src 'self'`）只向用户中心交接，令牌从产品页地址栏消失、产品页没有任何带令牌的请求也不向 API 发请求，由用户中心完成注册，同一链接再用一次只显示“链接不可用”；换域名后上一组的会话在新 API 主机无效）、`console.spec.ts`（登录与角色三种身份、用户中心页面不能调用管理过程）、`outside.spec.ts`（名单外的浏览器：控制台全部 403 空体，用户中心和两个产品照常）。
+浏览器场景：`flows.spec.ts`（metro 匿名标记 → 用户中心登录 → 回到原页 → 标记保存，另一台设备读回；trip-map 登录 → 添加足迹 → 另一浏览器从服务端读回；一次登录两个产品同时可见、在用户中心退出后两个产品都失效；邮件落到用户中心并在另一浏览器完成，令牌不进请求 URL 与 Referer；旧邮件指向产品页时，产品页（经真实网关的落地页规则，带 `no-referrer`、`no-store`、`script-src 'self'`）只向用户中心交接，令牌从产品页地址栏消失、产品页没有任何带令牌的请求也不向 API 发请求，由用户中心完成注册，同一链接再用一次只显示“链接不可用”；换域名后上一组的会话在新 API 主机无效）、`console.spec.ts`（登录与角色三种身份；用户中心页面不能调用用户管理与 metro 管理过程；AccessTokenService 的两个来源：用户中心来源只能创建、列出、撤销当前账号自己的 Timeline 令牌，不能创建 metro 令牌或 metro 范围、不能列出全部账号、他人不能列出或撤销；控制台来源的 metro 管理令牌需要 `metro-admin`，无角色账号被拒、用户中心与产品来源看不到也不能操作它，拒绝路径均检查可读性与数据未变化）、`outside.spec.ts`（名单外的浏览器：控制台全部 403 空体，用户中心和两个产品照常）。
 
 - **变异检查**：把外部来源地址加进 BFF 的控制台白名单，探测失败（被抓到）。把白名单放宽到覆盖受信代理的网段则会被配置校验直接拒绝启动，这本身也是一道保护。
-- **CI**：`gateway-browser` 任务（`.github/workflows/ci.yml`）用 `-v` 运行，要求所有子测试 `--- PASS`、没有任何 `--- SKIP`、两组各自的 Playwright 报告恰好是 `25 passed` 且没有 failed/skipped/flaky/interrupted/did not run，日志与失败时的 trace、截图、视频作为制品保留。缺 nginx、caddy、envsubst 或 Chromium 是失败，不是跳过。
+- **CI**：`gateway-browser` 任务（`.github/workflows/ci.yml`）用 `-v` 运行，要求所有子测试 `--- PASS`、没有任何 `--- SKIP`、两组各自的 Playwright 报告恰好是 `29 passed` 且没有 failed/skipped/flaky/interrupted/did not run，日志与失败时的 trace、截图、视频作为制品保留。缺 nginx、caddy、envsubst 或 Chromium 是失败，不是跳过。
 - **本地的限制**：本机没有 Docker，镜像构建与 `scripts/*-web-smoke.sh` 只在 CI 的 `*-web-image` 任务里运行；本机用 nginx 1.28.1 与 Caddy v2.11.7 实测，CI 用发行版的 nginx 包，版本可能不同（入口脚本、`real_ip` 与 `allow/deny` 的行为稳定，但这一差别没有在本机验证）。
 
 ## #77 验收项 → 实现与测试
@@ -94,7 +94,7 @@ Go 探测证明的是**哪一层**拒绝：网关拒绝的请求不得出现在 
 - `go vet`、`gofmt`（本阶段改动的文件）、`make check-docs`、`git diff --check`；
 - `go test ./...` 全部通过（含 `internal/e2e` 的链路测试与新增的启动校验）；
 - 四个浏览器链 `OZID_BROWSER_E2E`、`ADMIN_BROWSER_E2E`、`TRIPMAP_BROWSER_E2E`、`METRO_BROWSER_E2E`：`TestOzidBrowserChain` 54、`TestAdminBrowserChain` 50、`TestTripMapBrowserChain` 22、`TestMetroBrowserChain` 20 项 Playwright 全部通过；
-- `GATEWAY_E2E=1 go test ./internal/e2e -run TestGatewayDomainSets`：两组各 25 个浏览器场景全部通过、无跳过，三个 Go 探测子测试全部通过；
+- `GATEWAY_E2E=1 go test ./internal/e2e -run TestGatewayDomainSets`：两组各 29 个浏览器场景全部通过、无跳过，三个 Go 探测子测试全部通过；
 - 四个应用各自的模拟 BFF Playwright（桌面与手机）：trip-map 250 通过（4 项为既有的条件跳过）、metro 80、OzID 166、控制台 166 全部通过；`npm test` 单元全部通过；`npx oxlint` 无错误（既有的警告不变）；四个应用的构建（带必需的构建参数）成功。
 
 ### 已定位并修复的历史失败

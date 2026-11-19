@@ -624,9 +624,9 @@ jobs:
             done
           done
           if grep -q -- "--- SKIP" "$log"; then echo "a skipped scenario is not evidence"; exit 1; fi
-          # 25 browser scenarios per set (11 per inside viewport x2, 3 outside), for each of the two sets, and no
+          # 29 browser scenarios per set (13 per inside viewport x2, 3 outside), for each of the two sets, and no
           # failed, skipped, flaky or interrupted line (a retried pass is not a pass either).
-          test "$(grep -Ec '^ +25 passed' "$log")" -eq 2
+          test "$(grep -Ec '^ +29 passed' "$log")" -eq 2
           if grep -Eq "[0-9]+ (failed|skipped|flaky|interrupted|did not run)" "$log"; then echo "the browser report is not all green"; exit 1; fi
       - name: Keep the logs, traces, screenshots and reports of the run
         if: always()
