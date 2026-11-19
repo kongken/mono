@@ -20,6 +20,7 @@ import (
 	"github.com/kongken/mono/internal/tripmap/blobstore"
 	timelinev1 "github.com/kongken/mono/pkg/proto/timeline/v1"
 	"google.golang.org/grpc"
+	"log/slog"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -34,7 +35,11 @@ type Handlers struct {
 	cfg       *config.AppConfig
 	resources atomic.Pointer[Resources]
 	grpc      atomic.Pointer[grpcx.Server]
+	stopMaint atomic.Pointer[context.CancelFunc]
 }
+
+// MaintenanceInterval is how often the cleanup queue is drained.
+const MaintenanceInterval = time.Minute
 
 func New(cfg *config.AppConfig) *Handlers { return &Handlers{cfg: cfg} }
 func (h *Handlers) Bootstrap(ctx context.Context) error {
@@ -68,7 +73,11 @@ func (h *Handlers) Bootstrap(ctx context.Context) error {
 		}
 	}
 	h.resources.Store(&Resources{DB: client, Blobs: blobs, Health: health.New(health.Probe{Name: "postgres", Check: db.PingContext}, health.Probe{Name: "s3", Check: blobs.Check})})
-	return h.StartGRPC()
+	if e := h.StartGRPC(); e != nil {
+		return e
+	}
+	h.startMaintenance()
+	return nil
 }
 func (h *Handlers) Check(ctx context.Context) []health.Status {
 	if r := h.resources.Load(); r != nil && r.Health != nil {
@@ -94,7 +103,40 @@ func (h *Handlers) StartGRPC() error {
 	h.grpc.Store(srv)
 	return nil
 }
+
+// startMaintenance drains the cleanup queue for the life of the service. Account
+// deletion and attachment deletion only queue object keys; without this loop nothing would ever remove
+// the objects from the bucket. A failed pass is logged and retried on the next tick: rows stay pending.
+func (h *Handlers) startMaintenance() {
+	res := h.resources.Load()
+	if res == nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	if old := h.stopMaint.Swap(&cancel); old != nil {
+		(*old)()
+	}
+	st := &accountcleanup.Store{DB: res.DB, Blobs: res.Blobs}
+	go func() {
+		ticker := time.NewTicker(MaintenanceInterval)
+		defer ticker.Stop()
+		for {
+			if err := accountcleanup.Drain(ctx, st); err != nil && ctx.Err() == nil {
+				slog.Warn("timeline cleanup queue: some objects are still pending", "error", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+}
+
 func (h *Handlers) Shutdown() error {
+	if stop := h.stopMaint.Swap(nil); stop != nil {
+		(*stop)()
+	}
 	if s := h.grpc.Swap(nil); s != nil {
 		s.Shutdown(10 * time.Second)
 	}

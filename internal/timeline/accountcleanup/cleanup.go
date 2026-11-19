@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/kongken/mono/internal/timeline/ent"
 	"github.com/kongken/mono/internal/timeline/ent/cleanupobject"
 	"github.com/kongken/mono/internal/timeline/ent/entry"
@@ -114,22 +115,39 @@ func Run(ctx context.Context, st *Store, userID string) error {
 	return tx.Commit()
 }
 
-// Drain deletes queued objects and marks successful rows. A missing object is treated as success by the blob store.
+// DrainBatch bounds how many queued objects one Drain call handles.
+const DrainBatch = 200
+
+// Drain deletes queued objects and marks successful rows done. A missing object is
+// treated as success by the blob store. A failed delete (a temporary object-store
+// outage) leaves the row pending with one more attempt recorded and does not stop the
+// other rows, so the next call retries exactly the objects that are still there.
+// Rows that are already done are never touched again.
 func Drain(ctx context.Context, st *Store) error {
 	if st == nil || st.DB == nil || st.Blobs == nil {
 		return ErrObjectStorageUnavailable
 	}
-	rows, err := st.DB.CleanupObject.Query().Where(cleanupobject.StatusEQ("pending")).All(ctx)
+	rows, err := st.DB.CleanupObject.Query().Where(cleanupobject.StatusEQ("pending")).
+		Order(ent.Asc(cleanupobject.FieldCreatedAt), ent.Asc(cleanupobject.FieldID)).Limit(DrainBatch).All(ctx)
 	if err != nil {
 		return err
 	}
+	var failed []error
 	for _, row := range rows {
 		if err := st.Blobs.Delete(ctx, row.ObjectKey); err != nil {
-			return err
+			// The key is opaque, but there is no reason to log it: record the attempt only.
+			if _, uerr := row.Update().AddAttempts(1).Save(ctx); uerr != nil {
+				failed = append(failed, uerr)
+			}
+			failed = append(failed, err)
+			continue
 		}
 		if _, err := row.Update().SetStatus("done").AddAttempts(1).Save(ctx); err != nil {
-			return err
+			failed = append(failed, err)
 		}
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("drain cleanup queue: %w", errors.Join(failed...))
 	}
 	return nil
 }
