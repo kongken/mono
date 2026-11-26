@@ -68,7 +68,8 @@ Go 探测证明的是**哪一层**拒绝：网关拒绝的请求不得出现在 
 | --- | --- |
 | `AuthService`：`Me`、`IssueCSRFToken`、`ResolveNavigation`、`Logout` | 任一已登记应用（精确 CORS 列表）；这四个是产品需要的全部账号能力，`TestAccountOpenProceduresAreTheMinimalFour` 守护 |
 | `AuthService`、`UserService` 的其余过程（登录、注册、重置、重新认证、改密、资料、设备与会话、注销及其状态查询，含读方法） | **只有** `navigation.apps.ozid.origin`（`Origin` 必须恰好一个且相等）。例外：`CompleteRegistration`、`ResetPassword` 在 `auth.legacy_mail_transition.origins`（已登记的产品 origin）内、`until` 之前也接受（只给升级前构建的产品镜像；新构建的产品页不调用它们）。**BFF 提供账号服务（配置了 `upstreams.usersrv`）时必须有导航注册表与 OzID origin，缺失则拒绝启动，没有绕过开关**；不提供账号服务的 BFF 不需要。纯本地前端不使用 BFF，不受影响 |
-| `UserAdminService`、`AccessTokenService`、metro `AdminService` | 控制台 origin + `admin.allowed_cidrs`（经 `admin.trusted_proxies` 解析）+ 角色；空名单关闭 |
+| `UserAdminService`、metro `AdminService` | 控制台 origin + `admin.allowed_cidrs`（经 `admin.trusted_proxies` 解析）+ 角色；空名单关闭 |
+| `AccessTokenService` | 按 `Origin` 分流：控制台 origin + 管理周界 + `metro-admin` 做 metro 令牌管理；`navigation.apps.ozid.origin` 与已登记的 `navigation.apps.timeline.origin` 只管本人 Timeline PAT（`allUsers`、metro audience/scope 被拒）；其他来源 403 |
 | `bff.tripmap.*`、`bff.metro.*`（除 `AdminService`） | 已登记产品的 origin（CORS）+ 会话与 CSRF |
 | `POST /mcp/metro` | Bearer 令牌 + `mcp.allowed_cidrs`（经 `mcp.trusted_proxies`）；不设 CORS；空名单关闭 |
 | 公开 HTTP（`/s/*`、`/api/share/*`、`/api/notifications/*`、`/api/tiles/*`、`/ping`、`/readyz`） | 无会话；产品站点只代理这几类，其余同源 `/api` 一律 404 |

@@ -12,22 +12,24 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Origins are the two registered browser origins AccessTokenService answers, each
+// Origins are the registered browser origins AccessTokenService answers, each
 // under its own contract. The service has two source policies that the browser
 // never chooses between: the request's Origin does.
 //
-//   - OzID is account self-service: any active account owner manages its own
+//   - OzID and Timeline are account self-service (both are the same surface, the
+//     Timeline settings page being where personal Timeline tokens are used): any active account owner manages its own
 //     Timeline tokens (audience timeline) and nothing else. It can neither create a
 //     metro token nor list or revoke another account's tokens, whatever roles the
 //     account holds, so a metro administrator cannot reach metro token management
-//     from the user center.
+//     from either origin.
 //   - Console is the unified management console: metro token administration for
 //     metro-admin callers behind the admin perimeter (source allowlist, exact Origin).
 //     The role itself is demanded by ingress.Policy.RequiredRole before this handler
 //     runs, and again here.
 type Origins struct {
-	OzID    string
-	Console string
+	OzID     string
+	Timeline string
+	Console  string
 }
 
 // Handler serves bff.v1.AccessTokenService.
@@ -75,7 +77,7 @@ func (o Origins) surface(header http.Header) surface {
 	switch origin := values[0]; {
 	case origin != "" && origin == o.Console:
 		return surfaceConsole
-	case origin != "" && origin == o.OzID:
+	case origin != "" && (origin == o.OzID || origin == o.Timeline):
 		return surfaceSelfService
 	}
 	return surfaceNone

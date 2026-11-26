@@ -6,7 +6,7 @@ import (
 )
 
 func TestOriginsPickOneSurfaceOnlyFromOneExactOrigin(t *testing.T) {
-	o := Origins{OzID: "https://id.example.com", Console: "https://admin.example.com"}
+	o := Origins{OzID: "https://id.example.com", Timeline: "https://timeline.example.com", Console: "https://admin.example.com"}
 	header := func(values ...string) http.Header {
 		h := http.Header{}
 		for _, v := range values {
@@ -21,6 +21,10 @@ func TestOriginsPickOneSurfaceOnlyFromOneExactOrigin(t *testing.T) {
 		wantRo string
 	}{
 		{"user center", header("https://id.example.com"), surfaceSelfService, ""},
+		{"timeline", header("https://timeline.example.com"), surfaceSelfService, ""},
+		{"timeline and console", header("https://timeline.example.com", "https://admin.example.com"), surfaceNone, ""},
+		{"timeline suffix", header("https://timeline.example.com.evil.test"), surfaceNone, ""},
+		{"null", header("null"), surfaceNone, ""},
 		{"console", header("https://admin.example.com"), surfaceConsole, RoleMetroAdmin},
 		{"product", header("https://trip.example.com"), surfaceNone, ""},
 		{"no origin", header(), surfaceNone, ""},
@@ -38,7 +42,7 @@ func TestOriginsPickOneSurfaceOnlyFromOneExactOrigin(t *testing.T) {
 	}
 	// An unregistered console or user center never matches an empty Origin.
 	none := Origins{}
-	if none.surface(header("")) != surfaceNone || none.surface(header("https://admin.example.com")) != surfaceNone {
+	if none.surface(header("")) != surfaceNone || none.surface(header("https://timeline.example.com")) != surfaceNone || none.surface(header("https://admin.example.com")) != surfaceNone {
 		t.Fatal("an empty registration must not admit anything")
 	}
 }
