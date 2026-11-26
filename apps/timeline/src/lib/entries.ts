@@ -173,6 +173,17 @@ export function formatAmount(amountMinor: bigint, currency: string): string {
   }
 }
 
+/**
+ * `CNY 86.00`: the amount as the design's entry card prints it, the ISO code first and a fixed number of digits, so
+ * the column of amounts down the timeline reads the same whatever symbol the locale would pick.
+ */
+export function formatAmountCode(amountMinor: bigint, currency: string): string {
+  if (amountMinor === 0n && currency === "") return "";
+  const digits = currencyDigits(currency);
+  const value = (Number(amountMinor) / 10 ** digits).toFixed(digits);
+  return currency === "" ? value : `${currency} ${value}`;
+}
+
 /** The amount field's text as minor units, or null when it is not a number this currency can hold. */
 export function parseAmountToMinor(input: string, currency: string): bigint | null {
   const value = input.trim().replaceAll(",", "");

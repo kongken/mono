@@ -387,8 +387,21 @@ export default function App() {
     }
   };
 
+  const heading: Record<View, { title: string; hint: string }> = {
+    timeline: { title: "时间线", hint: "记录生活中已经发生的小事，在时间流里重逢。" },
+    trash: { title: "回收站", hint: "删除的记录先放在这里，可以恢复。" },
+    categories: { title: "分类管理", hint: "给记录归类，让时间线更好检索。" },
+    settings: { title: "设置与 MCP", hint: "访问令牌（PAT）用于 MCP 等外部工具读写你的时间线。" },
+  };
+
+  const focusSearch = () => {
+    setView("timeline");
+    // The search field is part of the timeline page: let it mount before it takes focus.
+    setTimeout(() => document.getElementById("timeline-search")?.focus(), 0);
+  };
+
   return (
-    <div className="flex min-h-screen bg-surface">
+    <div className="flex min-h-screen flex-col bg-canvas lg:flex-row">
       <Sidebar
         view={view}
         onView={setView}
@@ -400,114 +413,113 @@ export default function App() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar query={pending.query} onQuery={(query) => changeFilters({ ...pending, query })} onWrite={openComposer} total={visible.length} />
+        <TopBar title={`${today.slice(0, 4)}年 阳历记录本`} onSearch={focusSearch} onWrite={openComposer} signedIn={signedIn} />
 
-        <main className="flex-1 px-10 pt-8 pb-16">
-          <div className="mx-auto w-full max-w-[740px]">
-            <div className="flex items-start justify-between gap-6">
-              <div>
-                <p className="text-[11px] font-semibold tracking-[0.2em] text-muted-foreground uppercase">Timeline</p>
-                <h1 className="mt-1.5 text-[22px] leading-8 font-semibold tracking-tight text-on-surface">
-                  {view === "trash" ? "回收站" : `${today.slice(0, 4)} 年 阳历记录本`}
-                </h1>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {view === "trash" ? "删除的记录先放在这里，可以恢复，也可以彻底删除。" : "记录生活中已经发生的小事，在时间流里重逢。"}
-                </p>
-              </div>
-              {view === "timeline" && (
-                <button
-                  type="button"
-                  onClick={openComposer}
-                  className="mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary-container px-4 py-2.5 text-sm font-semibold text-on-primary shadow-[0_2px_8px_rgba(58,96,58,0.24)] transition-colors hover:bg-primary"
-                >
-                  <Plus size={15} weight="bold" />
-                  记一笔
-                </button>
-              )}
-            </div>
+        <main className="flex-1 pb-16">
+          <div className="mx-auto flex w-full max-w-[1560px] items-start gap-5 px-5 py-3">
+            <div className="flex min-w-0 flex-1 justify-center">
+              <div className="flex w-full max-w-[740px] flex-col gap-5">
+                <header className="flex flex-col gap-3 pt-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col">
+                      <h1 className="text-[22px] leading-8 font-semibold tracking-tight text-ink">{heading[view].title}</h1>
+                      <p className="mt-0.5 text-xs leading-4 text-soft">{heading[view].hint}</p>
+                    </div>
+                    {view === "timeline" && (
+                      <button
+                        type="button"
+                        onClick={openComposer}
+                        className="flex shrink-0 items-center gap-1.5 rounded-card bg-leaf px-4 py-2 text-[13px] leading-[18px] font-medium text-white transition-colors hover:bg-leaf-hover"
+                      >
+                        <Plus size={18} />
+                        <span>记一笔</span>
+                      </button>
+                    )}
+                  </div>
 
-            {view === "timeline" && <FilterBar filters={pending} onChange={changeFilters} categories={categories} />}
+                  {view === "timeline" && <FilterBar filters={pending} onChange={changeFilters} categories={categories} />}
+                </header>
 
-            {view === "categories" && <CategoryPanel />}
-            {view === "settings" && <SettingsPanel />}
+                {view === "categories" && <CategoryPanel />}
+                {view === "settings" && <SettingsPanel />}
 
-            {actionError !== null && (
-              <p className="mt-6 flex items-start gap-1.5 rounded-md bg-error-container px-3 py-2 text-xs text-on-error-container">
-                <WarningCircle size={14} className="mt-px shrink-0" />
-                {actionError}
-              </p>
-            )}
+                {actionError !== null && (
+                  <p className="flex items-start gap-1.5 rounded-field bg-required-container px-3 py-2 text-xs text-required" role="alert">
+                    <WarningCircle size={14} className="mt-px shrink-0" />
+                    {actionError}
+                  </p>
+                )}
 
-            {notice !== null && (
-              <p className="mt-6 rounded-md bg-surface-container px-3 py-2 text-xs text-primary">{notice}</p>
-            )}
+                {notice !== null && <p className="rounded-field bg-subtle px-3 py-2 text-xs text-leaf">{notice}</p>}
 
-            {signedOut && (
-              <div className="mt-10 rounded-card border border-outline-variant bg-card px-8 py-12 text-center">
-                <p className="text-[15px] font-medium text-card-foreground">请先登录</p>
-                <p className="mt-1.5 text-sm text-muted-foreground">Timeline 的记录属于你的 OzID 账号。</p>
-                {ozid.ok && (
-                  <a
-                    href={ozid.login}
-                    className="mt-5 inline-flex rounded-md bg-primary-container px-4 py-2 text-sm font-semibold text-on-primary transition-colors hover:bg-primary"
-                  >
-                    去 OzID 登录
-                  </a>
+                {signedOut && (
+                  <div className="rounded-card bg-paper px-8 py-12 text-center">
+                    <p className="text-base font-medium text-ink">请先登录</p>
+                    <p className="mt-1 text-sm text-soft">Timeline 的记录属于你的 OzID 账号。</p>
+                    {ozid.ok && (
+                      <a
+                        href={ozid.login}
+                        className="mt-5 inline-flex rounded-card bg-leaf px-4 py-2 text-[13px] leading-[18px] font-medium text-white transition-colors hover:bg-leaf-hover"
+                      >
+                        去 OzID 登录
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {!signedOut && listError !== null && (
+                  <div className="flex items-center gap-3 rounded-field bg-required-container px-3 py-2 text-xs text-required" role="alert">
+                    <WarningCircle size={14} className="shrink-0" />
+                    <span className="flex-1">{listError}</span>
+                    <button type="button" onClick={() => void load(view === "trash")} className="rounded-tag bg-canvas/70 px-2 py-1 font-medium text-required">
+                      重试
+                    </button>
+                  </div>
+                )}
+
+                {!signedOut && loading && visible.length === 0 && <p className="text-sm text-soft">正在读取记录…</p>}
+
+                {!signedOut && !loading && !readFailed && view === "timeline" && (
+                  <Timeline
+                    months={months}
+                    empty={visible.length === 0}
+                    loadingMore={loadingMore}
+                    canLoadMore={nextToken !== ""}
+                    onLoadMore={() => void load(false, nextToken)}
+                    media={attachments}
+                    onDelete={(entry) => void removeEntry(entry)}
+                    onEdit={openEditor}
+                    onMediaDeleted={(entryRef, mediaRef) => {
+                      setAttachments((current) => ({ ...current, [entryRef]: (current[entryRef] ?? []).filter((item) => item.mediaRef !== mediaRef) }));
+                      setNotice("附件已删除，存储空间会在后台回收。");
+                    }}
+                    onMediaError={setActionError}
+                  />
+                )}
+
+                {!signedOut && !loading && !readFailed && view === "trash" && (
+                  <Trash entries={visible} onRestore={(entry) => void restoreEntry(entry)} />
                 )}
               </div>
-            )}
+            </div>
 
-            {!signedOut && listError !== null && (
-              <div className="mt-6 flex items-center gap-3 rounded-md bg-error-container px-3 py-2 text-xs text-on-error-container">
-                <WarningCircle size={14} className="shrink-0" />
-                <span className="flex-1">{listError}</span>
-                <button type="button" onClick={() => void load(view === "trash")} className="rounded-md bg-destructive/10 px-2 py-1 font-medium text-destructive">
-                  重试
-                </button>
-              </div>
-            )}
-
-            {!signedOut && loading && visible.length === 0 && <p className="mt-10 text-sm text-muted-foreground">正在读取记录…</p>}
-
-            {!signedOut && !loading && !readFailed && view === "timeline" && (
-              <Timeline
-                months={months}
-                empty={visible.length === 0}
-                loadingMore={loadingMore}
-                canLoadMore={nextToken !== ""}
-                onLoadMore={() => void load(false, nextToken)}
-                media={attachments}
-                onDelete={(entry) => void removeEntry(entry)}
-                onEdit={openEditor}
-                onMediaDeleted={(entryRef, mediaRef) => {
-                  setAttachments((current) => ({ ...current, [entryRef]: (current[entryRef] ?? []).filter((item) => item.mediaRef !== mediaRef) }));
-                  setNotice("附件已删除，存储空间会在后台回收。");
-                }}
-                onMediaError={setActionError}
+            {composerOpen && (
+              <Composer
+                open={composerOpen}
+                initial={composerSeed}
+                mode={editingEntry === null ? "create" : "edit"}
+                categories={categories}
+                saving={saving}
+                error={saveError}
+                uploads={uploads}
+                onRetry={() => void retryUploads()}
+                onClose={closeComposer}
+                onSubmit={(draft, files) => void submitDraft(draft, files)}
               />
-            )}
-
-            {!signedOut && !loading && !readFailed && view === "trash" && (
-              <Trash entries={visible} onRestore={(entry) => void restoreEntry(entry)} />
             )}
           </div>
         </main>
       </div>
-
-      {composerOpen && (
-        <Composer
-          open={composerOpen}
-          initial={composerSeed}
-          mode={editingEntry === null ? "create" : "edit"}
-          categories={categories}
-          saving={saving}
-          error={saveError}
-          uploads={uploads}
-          onRetry={() => void retryUploads()}
-          onClose={closeComposer}
-          onSubmit={(draft, files) => void submitDraft(draft, files)}
-        />
-      )}
     </div>
   );
 }
