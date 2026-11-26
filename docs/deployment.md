@@ -205,7 +205,7 @@ OzID（`apps/ozid`，镜像 `ozid-web`）是纯静态站点，没有同源 `/api
 3. **反代与 DNS/TLS**：见 `deploy/reverse-proxy/Caddyfile.example` 的 `admin.example.com` 站点：代理是第一个看到真实客户端的跳点，用对端地址**覆盖** `X-Forwarded-For`（不透传客户端的值），并列入后两层的受信代理。前面如果还有 CDN/负载均衡，它们的网段也属于受信链，必须同时配置，否则真实来源会被误判。
 4. **授予平台角色**：`usersrv-admin grant-role -role ozid-admin ...`（先于上线）。usersrv 迁移 `20261025120000_platform_admin_role.sql` 随 usersrv 上线。
 5. **上线顺序与回滚**：usersrv → BFF → 网关与 `admin-web`；回滚先下线控制台，再回滚 BFF；回滚迁移前先撤销所有 `ozid-admin`。
-6. **metro 管理迁入控制台（T8）的影响**：`bff.metro.v1.AdminService` 与 `bff.v1.AccessTokenService` 的 metro 管理能力现在同样要求来源在 `admin.allowed_cidrs` 内、`Origin` 是控制台 origin 且账号有 `metro-admin`（AccessTokenService 另有 OzID 来源的个人 Timeline 令牌自助：只能管理当前账号自己的 Timeline 令牌，不能创建 metro 令牌或跨账号读取，见 [BFF](bff.md)）——metro 公开站（`metro-web`）不再有管理页面，`/admin` 已退役，旧站点不能再管理目录或令牌；metro 管理员须从控制台操作，并保证其来源在白名单内。先上线 BFF 与控制台、再上线新的 `metro-web`，或同时上线，避免出现“旧站管理页已被周界拒绝而控制台尚未可用”的窗口。MCP（`/mcp/metro`）不受影响，它的来源策略是独立的 `mcp.allowed_cidrs`（T9，见下一节）。没有配置 metro 上游的环境，控制台不显示 metro 分区。
+6. **metro 管理迁入控制台（T8）的影响**：`bff.metro.v1.AdminService` 与 `bff.v1.AccessTokenService` 的 metro 管理能力现在同样要求来源在 `admin.allowed_cidrs` 内、`Origin` 是控制台 origin 且账号有 `metro-admin`（AccessTokenService 另有 OzID 与已登记 Timeline 来源的个人 Timeline 令牌自助：只能管理当前账号自己的 Timeline 令牌，不能创建 metro 令牌或跨账号读取，见 [BFF](bff.md)）——metro 公开站（`metro-web`）不再有管理页面，`/admin` 已退役，旧站点不能再管理目录或令牌；metro 管理员须从控制台操作，并保证其来源在白名单内。先上线 BFF 与控制台、再上线新的 `metro-web`，或同时上线，避免出现“旧站管理页已被周界拒绝而控制台尚未可用”的窗口。MCP（`/mcp/metro`）不受影响，它的来源策略是独立的 `mcp.allowed_cidrs`（T9，见下一节）。没有配置 metro 上游的环境，控制台不显示 metro 分区。
 
 镜像发布与 CI 不会自动部署、不会自动开放白名单，也不清理数据；运维仍须自行确认真实 DNS、证书与 TLS、真实来源地址与白名单取值、代理/CDN 链路和邮件厂商。详见 [控制台功能描述](admin/features.md)。
 
@@ -213,7 +213,7 @@ OzID（`apps/ozid`，镜像 `ozid-web`）是纯静态站点，没有同源 `/api
 
 ### 集中账号的来源
 
-产品页面不再有账号表单，也不能调用集中账号写。`navigation.apps.ozid` 配置后，`AuthService` 与 `UserService` 除 `Me`、`IssueCSRFToken`、`ResolveNavigation`、`Logout` 之外的全部过程（含 `ListSessions` 等读方法）只接受 OzID 的 `Origin`；`UserAdminService`、`AccessTokenService`、metro `AdminService` 只接受控制台 `Origin` 加管理周界；MCP 有自己的周界。完整表格与旧邮件过渡清单见 [整体验收](ozid/acceptance.md#最终来源策略)。提供账号服务（配置了 `upstreams.usersrv`）的 BFF 必须配置 `navigation` 注册表与 `navigation.apps.ozid`，缺失则拒绝启动（没有绕过开关）；产品页对旧邮件链接只向 OzID 交接。
+产品页面不再有账号表单，也不能调用集中账号写。`navigation.apps.ozid` 配置后，`AuthService` 与 `UserService` 除 `Me`、`IssueCSRFToken`、`ResolveNavigation`、`Logout` 之外的全部过程（含 `ListSessions` 等读方法）只接受 OzID 的 `Origin`；`UserAdminService`、metro `AdminService` 只接受控制台 `Origin` 加管理周界；`AccessTokenService` 按 `Origin` 分流（控制台 + 管理周界做 metro 管理，OzID 与已登记的 Timeline 来源只管本人 Timeline PAT）；MCP 有自己的周界。完整表格与旧邮件过渡清单见 [整体验收](ozid/acceptance.md#最终来源策略)。提供账号服务（配置了 `upstreams.usersrv`）的 BFF 必须配置 `navigation` 注册表与 `navigation.apps.ozid`，缺失则拒绝启动（没有绕过开关）；产品页对旧邮件链接只向 OzID 交接。
 
 ### 把整套系统换到另一组域名
 

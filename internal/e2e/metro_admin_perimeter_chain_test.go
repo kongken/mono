@@ -10,7 +10,9 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/kongken/mono/internal/bff/adminguard"
+	bffconfig "github.com/kongken/mono/internal/bff/config"
 	entaccesstoken "github.com/kongken/mono/internal/bff/ent/accesstoken"
+	"github.com/kongken/mono/internal/bff/navigation"
 	bffmetrov1 "github.com/kongken/mono/pkg/proto/bff/metro/v1"
 	"github.com/kongken/mono/pkg/proto/bff/metro/v1/bffmetrov1connect"
 	bffv1 "github.com/kongken/mono/pkg/proto/bff/v1"
@@ -617,5 +619,154 @@ func TestChainTokenSelfServiceStaysTimelineOnly(t *testing.T) {
 		refused(t, "token creation from "+origin, err)
 		_, err = list(user, origin, false)
 		refused(t, "token listing from "+origin, err)
+	}
+}
+
+// timelineOrigin is the registered Timeline page. It is the same self-service surface as the user
+// center for AccessTokenService, and for nothing else.
+const timelineOrigin = "http://localhost:5177"
+
+// The Timeline settings page manages the signed-in account's own Timeline tokens from its own Origin:
+// the preflight and the calls are answered, an unregistered or malformed Origin is not, and every
+// metro or cross-account attempt, a metro administrator's included, is refused without touching a token.
+func TestChainTokenSelfServiceFromTimelineOrigin(t *testing.T) {
+	ctx := context.Background()
+	h := adminHarness(t, loopback, ChainMetro{}, func(cfg *bffconfig.Config) {
+		cfg.CORSAllowedOrigins = append(cfg.CORSAllowedOrigins, timelineOrigin)
+		cfg.Navigation.Apps["timeline"] = navigation.App{Origin: timelineOrigin, Paths: []string{"/", "/trash"}}
+	})
+	tokens := func(b *Browser) bffv1connect.AccessTokenServiceClient {
+		return bffv1connect.NewAccessTokenServiceClient(b.HTTP, b.APIURL)
+	}
+	create := func(b *Browser, origin, audience string, scopes ...string) (*bffv1.CreateAccessTokenResponse, error) {
+		req := connect.NewRequest(&bffv1.CreateAccessTokenRequest{Name: "timeline page", Audience: audience, Scopes: scopes, ExpiresInDays: 1})
+		b.Write(ctx, req)
+		setOrigin(req.Header(), origin, nil)
+		res, err := tokens(b).CreateAccessToken(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg, nil
+	}
+	list := func(b *Browser, origin string, all bool) (*bffv1.ListAccessTokensResponse, error) {
+		res, err := tokens(b).ListAccessTokens(ctx, withOrigin(&bffv1.ListAccessTokensRequest{AllUsers: all}, origin))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg, nil
+	}
+	revoke := func(b *Browser, origin, id string) error {
+		req := connect.NewRequest(&bffv1.RevokeAccessTokenRequest{Id: id})
+		b.Write(ctx, req)
+		setOrigin(req.Header(), origin, nil)
+		_, err := tokens(b).RevokeAccessToken(ctx, req)
+		return err
+	}
+	refused := func(t *testing.T, what string, err error) {
+		t.Helper()
+		if connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Errorf("%s: want permission_denied, got %v", what, err)
+		}
+	}
+	active := func() int {
+		return count(t)(h.BFFDB.AccessToken.Query().Where(entaccesstoken.RevokedAtIsNil()).Count(ctx))
+	}
+
+	// The preflight of all three methods names the Timeline origin exactly.
+	for _, method := range []string{"ListAccessTokens", "CreateAccessToken", "RevokeAccessToken"} {
+		res := preflight(t, h, "/api/bff.v1.AccessTokenService/"+method, timelineOrigin)
+		if res.StatusCode != http.StatusNoContent || res.Header.Get("Access-Control-Allow-Origin") != timelineOrigin || res.Header.Get("Access-Control-Allow-Credentials") != "true" {
+			t.Errorf("preflight of %s from the Timeline origin: %d %v", method, res.StatusCode, res.Header)
+		}
+	}
+
+	user, other, admin := h.FreshBrowser(), h.FreshBrowser(), h.FreshBrowser()
+	for b, sub := range map[*Browser]string{user: "tl_user", other: "tl_other"} {
+		if err := b.LoginWithRoles(ctx, sub); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := admin.LoginWithRoles(ctx, "tl_admin", "metro-admin"); err != nil {
+		t.Fatal(err)
+	}
+
+	// An anonymous call from the Timeline origin is an authentication failure, not an origin refusal.
+	if _, err := list(h.FreshBrowser(), timelineOrigin, false); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Errorf("an anonymous list from the Timeline origin: %v", err)
+	}
+
+	// List, create (default audience and by name), revoke, from the page's own Origin.
+	for _, audience := range []string{"", "timeline"} {
+		res, err := create(user, timelineOrigin, audience)
+		if err != nil || res.GetToken().GetAudience() != "timeline" || res.GetSecret() == "" {
+			t.Fatalf("a Timeline token from the Timeline origin (audience %q): %v %v", audience, res, err)
+		}
+	}
+	otherTok, err := create(other, timelineOrigin, "timeline")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mine, err := list(user, timelineOrigin, false)
+	if err != nil || len(mine.GetTokens()) != 2 {
+		t.Fatalf("the Timeline page lists only the caller's tokens: %v %v", mine, err)
+	}
+
+	// A metro administrator is an ordinary account here.
+	adminTok, err := create(admin, timelineOrigin, "")
+	if err != nil || adminTok.GetToken().GetAudience() != "timeline" {
+		t.Fatalf("an administrator's default token from the Timeline origin: %v %v", adminTok, err)
+	}
+	metroSecret := h.newAdminToken(ctx, admin, "console-metro", 1)
+	if metroSecret == "" {
+		t.Fatal("the console could not issue a metro token")
+	}
+	before := active()
+	_, err = create(admin, timelineOrigin, "metro")
+	refused(t, "a metro token from the Timeline origin", err)
+	_, err = create(admin, timelineOrigin, "timeline", "metro:read")
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("a metro scope on a Timeline token: %v", err)
+	}
+	_, err = list(admin, timelineOrigin, true)
+	refused(t, "the all-users listing from the Timeline origin", err)
+	adminMine, err := list(admin, timelineOrigin, false)
+	if err != nil || len(adminMine.GetTokens()) != 1 || adminMine.GetTokens()[0].GetAudience() != "timeline" {
+		t.Fatalf("the Timeline page must not list the administrator's metro token: %v %v", adminMine, err)
+	}
+	all, err := list(admin, adminOrigin, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var metroID string
+	for _, tk := range all.GetTokens() {
+		if tk.GetAudience() == "metro" {
+			metroID = tk.GetId()
+		}
+	}
+	refused(t, "revoking her own metro token from the Timeline origin", revoke(admin, timelineOrigin, metroID))
+	refused(t, "revoking another account's token from the Timeline origin", revoke(admin, timelineOrigin, otherTok.GetToken().GetId()))
+	refused(t, "an ordinary account revoking another account's token", revoke(user, timelineOrigin, otherTok.GetToken().GetId()))
+	if n := active(); n != before {
+		t.Errorf("a refused call changed the active tokens: %d -> %d", before, n)
+	}
+	if err := revoke(user, timelineOrigin, mine.GetTokens()[0].GetId()); err != nil {
+		t.Errorf("an account revoking its own Timeline token from the Timeline origin: %v", err)
+	}
+	if n := active(); n != before-1 {
+		t.Errorf("only the owner's revocation may take effect: %d -> %d", before, n)
+	}
+
+	// The Timeline origin is no way into the other account procedures, and nothing else is a token surface.
+	if _, err := user.Me(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, origin := range []string{"", "null", tripOrigin, metroOrigin, siblingOrigin, timelineOrigin + "/", "http://localhost:5177.evil.example", "https://localhost:5177"} {
+		_, err = create(user, origin, "timeline")
+		refused(t, "token creation from "+origin, err)
+		_, err = list(user, origin, false)
+		refused(t, "token listing from "+origin, err)
+	}
+	if n := active(); n != before-1 {
+		t.Errorf("a refused origin changed the active tokens: %d -> %d", before-1, n)
 	}
 }

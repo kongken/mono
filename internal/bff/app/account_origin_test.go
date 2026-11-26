@@ -86,6 +86,7 @@ func policyFor(t *testing.T, tr config.LegacyMailTransition, now time.Time) *acc
 			"admin":    {Origin: "https://admin.example.com"},
 			"trip-map": {Origin: "https://trip.example.com"},
 			"metro":    {Origin: "https://metro.example.com"},
+			"timeline": {Origin: "https://timeline.example.com"},
 		},
 	}
 	cfg.Auth.LegacyMailTransition = tr
@@ -157,6 +158,16 @@ func TestAccountOriginPolicy(t *testing.T) {
 		{"console Me", policyFor(t, config.LegacyMailTransition{}, now), me, originHeader("https://admin.example.com"), true},
 		{"ozid token self-service", policyFor(t, config.LegacyMailTransition{}, now), tokens, originHeader("https://id.example.com"), true},
 		{"console token administration", policyFor(t, config.LegacyMailTransition{}, now), tokens, originHeader("https://admin.example.com"), true},
+		{"timeline token self-service", policyFor(t, config.LegacyMailTransition{}, now), tokens, originHeader("https://timeline.example.com"), true},
+		{"timeline token create", policyFor(t, config.LegacyMailTransition{}, now), bffv1connect.AccessTokenServiceCreateAccessTokenProcedure, originHeader("https://timeline.example.com"), true},
+		{"timeline token revoke", policyFor(t, config.LegacyMailTransition{}, now), bffv1connect.AccessTokenServiceRevokeAccessTokenProcedure, originHeader("https://timeline.example.com"), true},
+		{"timeline login", policyFor(t, config.LegacyMailTransition{}, now), login, originHeader("https://timeline.example.com"), false},
+		{"timeline change password", policyFor(t, config.LegacyMailTransition{}, now), change, originHeader("https://timeline.example.com"), false},
+		{"timeline profile", policyFor(t, config.LegacyMailTransition{}, now), profile, originHeader("https://timeline.example.com"), false},
+		{"timeline token with a second origin", policyFor(t, config.LegacyMailTransition{}, now), tokens, originHeader("https://timeline.example.com", "https://trip.example.com"), false},
+		{"timeline token, suffix origin", policyFor(t, config.LegacyMailTransition{}, now), tokens, originHeader("https://timeline.example.com.evil.test"), false},
+		{"timeline token, null origin", policyFor(t, config.LegacyMailTransition{}, now), tokens, originHeader("null"), false},
+		{"timeline token, empty origin", policyFor(t, config.LegacyMailTransition{}, now), tokens, originHeader(""), false},
 		{"product token access", policyFor(t, config.LegacyMailTransition{}, now), tokens, originHeader("https://trip.example.com"), false},
 
 		{"product business call is not this rule", policyFor(t, config.LegacyMailTransition{}, now), other, originHeader("https://trip.example.com"), true},

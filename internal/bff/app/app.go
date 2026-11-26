@@ -521,8 +521,9 @@ func (h *Handlers) servePublic(gw *gateway.Gateway, c *gin.Context) {
 // accessTokenOrigins are the registered origins AccessTokenService answers.
 func (h *Handlers) accessTokenOrigins() accesstoken.Origins {
 	return accesstoken.Origins{
-		OzID:    h.cfg.Navigation.Apps[navigation.AppOzID].Origin,
-		Console: h.cfg.Navigation.Apps[navigation.AppAdmin].Origin,
+		OzID:     h.cfg.Navigation.Apps[navigation.AppOzID].Origin,
+		Timeline: h.cfg.Navigation.Apps[navigation.AppTimeline].Origin,
+		Console:  h.cfg.Navigation.Apps[navigation.AppAdmin].Origin,
 	}
 }
 

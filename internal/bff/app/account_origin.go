@@ -63,7 +63,8 @@ func isAccountProcedure(procedure string) bool {
 //   - the account procedures need the user center's own Origin, exactly (the registered
 //     navigation.apps.ozid.origin), except the open ones, which every registered application keeps;
 //     AccessTokenService also admits the console origin, where the source allowlist is checked by the
-//     admin perimeter before this policy;
+//     admin perimeter before this policy, and the registered Timeline origin (personal Timeline
+//     tokens only, enforced by the accesstoken handler);
 //   - CompleteRegistration and ResetPassword are also taken from the configured product origins,
 //     while the old-mail transition lasts (auth.legacy_mail_transition), and not after it;
 //   - the other management procedures keep the admin perimeter (adminguard), unchanged.
@@ -71,11 +72,12 @@ func isAccountProcedure(procedure string) bool {
 // Nothing else changes: the CSRF check, the session and the business rules apply after this. It
 // reads no session and no body, so it refuses before anything is looked up.
 type accountOriginPolicy struct {
-	ozid   string
-	admin  string
-	legacy []string
-	until  time.Time
-	now    func() time.Time
+	ozid     string
+	timeline string
+	admin    string
+	legacy   []string
+	until    time.Time
+	now      func() time.Time
 }
 
 // newAccountOriginPolicy builds the rule from the validated configuration. accounts says whether this
@@ -90,7 +92,12 @@ func newAccountOriginPolicy(cfg *config.Config, accounts bool) (*accountOriginPo
 	if ozid == "" {
 		return nil, errors.New("navigation.apps.ozid.origin is required while the account procedures are served")
 	}
-	p := &accountOriginPolicy{ozid: ozid, admin: cfg.Navigation.Apps[navigation.AppAdmin].Origin, now: time.Now}
+	p := &accountOriginPolicy{
+		ozid:     ozid,
+		timeline: cfg.Navigation.Apps[navigation.AppTimeline].Origin,
+		admin:    cfg.Navigation.Apps[navigation.AppAdmin].Origin,
+		now:      time.Now,
+	}
 	tr := cfg.Auth.LegacyMailTransition
 	if len(tr.Origins) > 0 {
 		until, err := tr.UntilTime()
@@ -116,7 +123,13 @@ func (p *accountOriginPolicy) Check(procedure string, h http.Header) error {
 		return errAccountOrigin
 	}
 	origin := origins[0]
-	if origin == p.ozid || (isAccessTokenProcedure(procedure) && p.admin != "" && origin == p.admin) {
+	if origin == p.ozid {
+		return nil
+	}
+	// AccessTokenService alone also admits the registered console (metro administration) and
+	// Timeline (personal Timeline tokens) origins; the handler limits what each may touch.
+	if isAccessTokenProcedure(procedure) &&
+		((p.admin != "" && origin == p.admin) || (p.timeline != "" && origin == p.timeline)) {
 		return nil
 	}
 	if legacyMailProcedures[procedure] && p.legacyActive() && slices.Contains(p.legacy, origin) {
