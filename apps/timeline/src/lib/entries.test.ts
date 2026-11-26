@@ -9,6 +9,7 @@ import {
   dayLabel,
   emptyDraft,
   formatAmount,
+  formatAmountCode,
   groupEntries,
   isValidDate,
   isValidTime,
@@ -95,6 +96,13 @@ test("an amount is written in its currency, digits and all", () => {
   assert.equal(formatAmount(342n, "JPY").includes("342"), true);
   assert.equal(formatAmount(0n, ""), "");
   assert.equal(formatAmount(1200n, ""), "12.00");
+});
+
+test("the card prints an amount as the design does: ISO code, then fixed digits", () => {
+  assert.equal(formatAmountCode(8600n, "CNY"), "CNY 86.00");
+  assert.equal(formatAmountCode(342n, "JPY"), "JPY 342");
+  assert.equal(formatAmountCode(1200n, ""), "12.00");
+  assert.equal(formatAmountCode(0n, ""), "");
 });
 
 test("currency precision comes from the currency, not from a fixed two digits", () => {

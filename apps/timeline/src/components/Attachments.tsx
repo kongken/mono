@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowSquareOut, FilePdf, ImageSquare, Paperclip, X } from "@phosphor-icons/react";
 import type { MediaInfo } from "@kongken/api-client/bff/timeline/v1/media_pb";
-import { MEDIA_REVISION, isImage } from "@/lib/attachments.ts";
+import { MEDIA_REVISION, fileSize, isImage } from "@/lib/attachments.ts";
 import { describeError } from "@/lib/errors.ts";
 import { media as mediaRPC, mutationID, write } from "@/lib/rpc.ts";
 
@@ -74,47 +74,50 @@ export function Attachments({ items, readOnly = false, onDeleted, onError }: Att
   if (items.length === 0) return null;
 
   return (
-    <div className="mt-2.5">
-      <ul className="flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-col gap-1.5">
+      <p className="text-[11px] leading-4 text-soft">
+        <Paperclip size={11} className="mr-0.5 inline" />
+        {items.length} 个附件
+      </p>
+      <ul className="flex flex-col gap-1.5">
         {items.map((item) => (
-          <li key={item.mediaRef}>
-            <span className="inline-flex items-center gap-1 rounded-md bg-surface-container/80 py-1 pr-1 pl-2 text-xs text-primary">
+          <li key={item.mediaRef} className="flex max-w-xs items-center gap-1 rounded-field bg-subtle p-2">
+            <button
+              type="button"
+              onClick={() => void open(item)}
+              disabled={busy !== null}
+              aria-label={`打开附件「${item.filename}」`}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:opacity-50"
+            >
+              <span className={`grid size-7 shrink-0 place-items-center rounded-tag bg-canvas ${isImage(item.contentType) ? "text-leaf" : "text-required"}`}>
+                {isImage(item.contentType) ? <ImageSquare size={18} /> : <FilePdf size={18} />}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-xs leading-4 text-ink">{item.filename}</span>
+                <span className="text-[11px] leading-4 text-soft">{busy === item.mediaRef ? "读取中…" : fileSize(Number(item.sizeBytes))}</span>
+              </span>
+              {busy !== item.mediaRef && <ArrowSquareOut size={12} className="shrink-0 text-soft/60" />}
+            </button>
+            {!readOnly && (
               <button
                 type="button"
-                onClick={() => void open(item)}
+                onClick={() => void remove(item)}
                 disabled={busy !== null}
-                aria-label={`打开附件「${item.filename}」`}
-                className="inline-flex max-w-[220px] items-center gap-1 disabled:opacity-50"
+                aria-label={`删除附件「${item.filename}」`}
+                className="grid size-6 shrink-0 place-items-center rounded-tag text-soft transition-colors hover:bg-canvas hover:text-danger disabled:opacity-50"
               >
-                {isImage(item.contentType) ? <ImageSquare size={13} /> : <FilePdf size={13} />}
-                <span className="truncate">{item.filename}</span>
-                {busy === item.mediaRef ? <span className="text-[10px] text-muted-foreground">读取中…</span> : <ArrowSquareOut size={11} className="shrink-0 opacity-60" />}
+                <X size={12} />
               </button>
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => void remove(item)}
-                  disabled={busy !== null}
-                  aria-label={`删除附件「${item.filename}」`}
-                  className="rounded p-0.5 text-muted-foreground/70 transition-colors hover:bg-error-container hover:text-destructive disabled:opacity-50"
-                >
-                  <X size={11} />
-                </button>
-              )}
-            </span>
+            )}
           </li>
         ))}
-        <li className="text-[11px] text-muted-foreground">
-          <Paperclip size={11} className="mr-0.5 inline" />
-          {items.length} 个附件
-        </li>
       </ul>
       {preview !== null && (
-        <figure className="mt-2 overflow-hidden rounded-md border border-outline-variant bg-muted/40 p-1.5">
-          <img src={preview.url} alt={preview.name} className="max-h-64 w-auto rounded" />
-          <figcaption className="mt-1 flex items-center justify-between px-1 text-[11px] text-muted-foreground">
+        <figure className="overflow-hidden rounded-field bg-canvas p-1.5">
+          <img src={preview.url} alt={preview.name} className="max-h-64 w-auto rounded-tag" />
+          <figcaption className="mt-1 flex items-center justify-between px-1 text-[11px] text-soft">
             <span className="truncate">{preview.name}</span>
-            <button type="button" onClick={() => setPreview(null)} className="rounded px-1 text-primary hover:bg-surface-container">
+            <button type="button" onClick={() => setPreview(null)} className="rounded px-1 text-leaf hover:bg-subtle">
               收起
             </button>
           </figcaption>

@@ -1,38 +1,41 @@
-import { MagnifyingGlass, PenNib } from "@phosphor-icons/react";
-import { Input } from "@kongken/ui/input";
+import { MagnifyingGlass, NotePencil, User } from "@phosphor-icons/react";
 
 type TopBarProps = {
-  query: string;
-  onQuery: (value: string) => void;
+  /** `2026年 阳历记录本`: the book the page is showing, the header's left label. */
+  title: string;
+  onSearch: () => void;
   onWrite: () => void;
-  /** The count the list currently holds, shown next to the search field the way the design's header does. */
-  total: number;
+  signedIn: boolean;
 };
 
-/** The sticky header: 检索手账 on the left, 写手账 on the right. */
-export function TopBar({ query, onQuery, onWrite, total }: TopBarProps) {
+/** The sticky 56px header: the book's name on the left; 检索手账, 写手账 and the avatar on the right. */
+export function TopBar({ title, onSearch, onWrite, signedIn }: TopBarProps) {
   return (
-    <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-outline-variant/60 bg-surface/95 px-10 py-3.5 backdrop-blur">
-      <div className="relative max-w-[420px] flex-1">
-        <MagnifyingGlass size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          value={query}
-          onChange={(event) => onQuery(event.target.value)}
-          placeholder="检索手账：标题、备注或地点"
-          aria-label="检索手账"
-          className="h-9 border-outline-variant bg-card pl-9 text-sm text-card-foreground placeholder:text-muted-foreground"
-        />
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 bg-canvas/95 px-5 shadow-[0_1px_8px_rgba(43,66,52,0.04)] backdrop-blur-sm sm:px-8">
+      <span className="meta-numeric min-w-0 truncate text-soft">{title}</span>
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={onSearch}
+          aria-label="检索手账" className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-soft transition-colors hover:bg-subtle hover:text-ink"
+        >
+          <MagnifyingGlass size={18} aria-hidden="true" />
+          <span className="hidden text-xs whitespace-nowrap sm:inline">检索手账</span>
+        </button>
+        <button
+          type="button"
+          onClick={onWrite}
+          className="flex items-center gap-1 rounded-lg bg-leaf px-3 py-1.5 text-[13px] leading-[18px] font-medium text-white transition-colors hover:bg-leaf-hover"
+        >
+          <NotePencil size={16} />
+          <span className="whitespace-nowrap">写手账</span>
+        </button>
+        {signedIn && (
+          <span aria-hidden="true" className="ml-1 grid size-8 shrink-0 place-items-center rounded-full bg-leaf text-white">
+            <User size={18} weight="fill" />
+          </span>
+        )}
       </div>
-      <span className="tabular hidden text-xs text-muted-foreground sm:inline">{total > 0 ? `${total} 条记录` : ""}</span>
-      <button
-        type="button"
-        onClick={onWrite}
-        className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-outline-variant bg-card px-3.5 py-2 text-sm font-medium text-card-foreground transition-colors hover:bg-muted"
-      >
-        <PenNib size={15} />
-        写手账
-      </button>
     </header>
   );
 }

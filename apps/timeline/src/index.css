@@ -4,54 +4,64 @@
 @source "../../../packages/account/src";
 
 /*
- * The palette and the type scale come from the Stitch design "Timeline WebApp UI/UX Design"
- * (项目 11000415110204392416, 屏 "Timeline 时间线与记一笔抽屉 - 桌面端"): a green Material-3 surface set with a
- * warmer white card and a 10px corner radius. The design names Plus Jakarta Sans; the page keeps that family as
- * the first choice and falls back to the platform's own CJK faces, so nothing is fetched from a third party at
- * runtime (the same rule the other apps follow).
+ * The "Quiet Chrono Journal" design system (Stitch 项目 "Timeline WebApp UI/UX Design"): a calm, paper-like
+ * journal. A warm white canvas, plant-ink text, one leaf-green accent, hairline 1px borders and flat layers — no
+ * heavy shadows, gradients or glass. Only floating panels get the one soft ambient shadow the design names.
+ *
+ * Semantic tokens (DESIGN.md "Colors"):
+ *   canvas  #FFFEFA  paper base          subtle  #EEF3E7  chips, secondary containers
+ *   paper   #F6FAF2  entry card fill      ink     #2B4234  primary text
+ *   soft    #5C7162  timestamps, metadata line    #DFE6D8  borders and the vertical axis
+ *   leaf    #527951  actions and active states    danger #BD715E  restrained brick red
+ *
+ * The design names Plus Jakarta Sans; it stays the first choice and falls back to the platform's own CJK faces, so
+ * nothing is fetched from a third party at runtime (the same rule the other apps follow).
  */
 @theme {
-  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans CN", system-ui, sans-serif;
 
-  --color-background: #e9ffee;
-  --color-foreground: #092014;
-  --color-surface: #e9ffee;
-  --color-surface-low: #dffae6;
-  --color-surface-container: #d9f5e0;
-  --color-surface-high: #d4efdb;
-  --color-on-surface: #092014;
-  --color-on-surface-variant: #424940;
-  --color-outline: #72796f;
-  --color-outline-variant: #c2c8bd;
+  --color-canvas: #fffefa;
+  --color-paper: #f6faf2;
+  --color-subtle: #eef3e7;
+  --color-ink: #2b4234;
+  --color-soft: #5c7162;
+  --color-line: #dfe6d8;
+  --color-leaf: #527951;
+  --color-leaf-hover: #476a46;
+  --color-danger: #bd715e;
+  --color-required: #ba1a1a;
+  --color-required-container: #ffdad6;
+  --color-sidebar-active: #dfe4d8;
+  --color-account: #dffae6;
 
-  --color-primary: #3a603a;
-  --color-primary-container: #527951;
+  /* shadcn-style names, still read by @kongken/ui and the account package. */
+  --color-background: var(--color-canvas);
+  --color-foreground: var(--color-ink);
+  --color-card: var(--color-canvas);
+  --color-card-foreground: var(--color-ink);
+  --color-popover: var(--color-canvas);
+  --color-popover-foreground: var(--color-ink);
+  --color-primary: var(--color-leaf);
+  --color-accent: var(--color-subtle);
   --color-primary-foreground: #ffffff;
+  --color-secondary: var(--color-subtle);
+  --color-secondary-foreground: var(--color-ink);
+  --color-muted: var(--color-subtle);
+  --color-muted-foreground: var(--color-soft);
+  --color-accent-foreground: var(--color-ink);
+  --color-destructive: var(--color-danger);
+  --color-border: var(--color-line);
+  --color-input: var(--color-line);
+  --color-ring: var(--color-leaf);
+
   --color-on-primary: #ffffff;
-  --color-on-primary-container: #d8ffd2;
-
-  --color-secondary: #5b6057;
-  --color-secondary-container: #dfe4d8;
-  --color-secondary-foreground: #092014;
-  --color-tertiary: #864534;
-
-  --color-card: #fffefa;
-  --color-card-foreground: #2b4234;
-  --color-popover: #fffefa;
-  --color-popover-foreground: #2b4234;
-  --color-muted: #eef3e7;
-  --color-muted-foreground: #5c7162;
-  --color-accent: #eef3e7;
-  --color-accent-foreground: #2b4234;
-  --color-border: #dde5d8;
-  --color-input: #cbd8ce;
-  --color-ring: #527951;
-  --color-destructive: #b3372b;
-  --color-error: #ba1a1a;
-  --color-error-container: #ffdad6;
-  --color-on-error-container: #93000a;
+  --color-outline-variant: var(--color-line);
 
   --radius-card: 0.625rem;
+  --radius-field: 0.5rem;
+  --radius-tag: 0.375rem;
+
+  --shadow-float: 0 4px 16px rgba(43, 66, 52, 0.05);
 }
 
 html,
@@ -63,9 +73,11 @@ body,
 body {
   margin: 0;
   min-width: 320px;
-  background: var(--color-background);
-  color: var(--color-on-surface);
+  background: var(--color-canvas);
+  color: var(--color-ink);
   font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.57;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -79,7 +91,50 @@ img {
   max-width: 100%;
 }
 
-/* The screen's numeric column: amounts keep their digits aligned down the timeline. */
+/* Dates, clock times, amounts and counts hang on the axis with aligned digits (DESIGN.md "Typography"). */
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+.meta-numeric {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+@layer components {
+  /* Inputs: pale fill, invisible border; focus turns it into a 1.5px accent outline with no glow (DESIGN.md "Inputs"). */
+  .field {
+    width: 100%;
+    min-width: 0;
+    border-radius: var(--radius-field);
+    border: 1.5px solid transparent;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font: inherit;
+    outline: none;
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+
+  .field::placeholder {
+    color: color-mix(in srgb, var(--color-soft) 50%, transparent);
+  }
+
+  .field:focus,
+  .field:focus-visible {
+    border-color: var(--color-leaf);
+    background: #ffffff;
+  }
+
+  .field[aria-invalid="true"] {
+    border-color: var(--color-required);
+  }
+}
+
+/* Keyboard users still see where they are on buttons and links. */
+:where(button, a, summary, select):focus-visible {
+  outline: 1.5px solid var(--color-leaf);
+  outline-offset: 2px;
 }

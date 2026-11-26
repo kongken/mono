@@ -32,13 +32,13 @@ test("the page is the design's page: rail, month and day rules, records with wha
   const nav = page.getByRole("navigation", { name: "主导航" });
   await expect(nav.getByRole("button", { name: "时间线" })).toHaveAttribute("aria-current", "page");
   await expect(nav.getByRole("button", { name: "回收站" })).toBeVisible();
-  // 分类管理 and 设置与 MCP have no server side yet: shown as the design shows them, but not reachable.
-  await expect(nav.getByText("分类管理")).toBeVisible();
-  await expect(nav.getByText("设置与 MCP")).toBeVisible();
+  await expect(nav.getByRole("button", { name: "分类管理" })).toBeVisible();
+  await expect(nav.getByRole("button", { name: "设置与 MCP" })).toBeVisible();
   await expect(page.getByText("已同步")).toBeVisible();
 
   const year = Number(today.slice(0, 4));
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(`${year} 年 阳历记录本`);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("时间线");
+  await expect(page.getByRole("banner").getByText(`${year}年 阳历记录本`)).toBeVisible();
   await expect(page.getByRole("heading", { level: 2 })).toHaveText(monthLabel(today.slice(0, 7)));
   const todayHeading = page.getByRole("heading", { level: 3, name: dayLabel(today) });
   await expect(todayHeading).toBeVisible();
@@ -51,7 +51,9 @@ test("the page is the design's page: rail, month and day rules, records with wha
   await expect(lunch).toContainText("12:30");
   await expect(lunch).toContainText("86.00");
   await expect(page.locator("article", { hasText: "给猫买主粮" })).toContainText("239.00");
-  await expect(page.getByText("4 条记录")).toBeVisible();
+  await expect(page.locator("article")).toHaveCount(4);
+  // Records with a clock time sit on a hollow node; the design's 未指定 column is for the ones without.
+  await expect(page.getByText("12:30").first()).toBeVisible();
 
   await page.screenshot({ path: test.info().outputPath("timeline.png"), fullPage: true, animations: "disabled" });
 });
@@ -122,7 +124,7 @@ test("记一笔 refuses an empty title, then saves the design's fields in one wr
   expect(write?.body.mutationId).toBeTruthy();
 
   await expect(page.locator("article", { hasText: "和朋友吃午饭" })).toContainText("86.00");
-  await expect(page.getByText("1 条记录")).toBeVisible();
+  await expect(page.locator("article")).toHaveCount(1);
 });
 
 test("a record moved to 回收站 can be restored from there", async ({ page }) => {
